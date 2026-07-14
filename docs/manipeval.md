@@ -73,6 +73,18 @@ python scripts/uiui_smoke.py --mode vision --image /path/to/frame.png
 API key、SSH 凭据、checkpoint、运行时资源、生成的评估结果和原始操作日志
 均不会被 Git 跟踪。
 
+## TaskGen 原型
+
+仓库现已提供 `scripts/manipeval_taskgen.py`，支持把自然语言场景修改请求转换为
+独立 `run_id` 下的薄 task subclass。对于 BeatBlockHammer，UIUI GPT 会生成完整
+`load_actors()`；生成结果通过 AST、import、protected-file、setup/render、rule、
+vision 和 expert gates 后，才进入 ACT evaluation。
+
+首次真实蓝色方块验证使用 `force_codegen`，完成了从自然语言到 ACT 1 episode 的
+全链路。TaskGen pipeline 全部 gate 通过；ACT policy 在该 episode 为 0/1 success。
+详细设计、命令、验证边界和证据见
+[`docs/taskgen_prototype.md`](taskgen_prototype.md)。
+
 ## 文档语言约定
 
 项目新增的开发说明、实验记录和提交交接默认使用中文；函数名、参数名、

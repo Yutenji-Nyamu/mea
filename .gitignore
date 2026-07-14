@@ -32,3 +32,6 @@ envs/curobo/*
 # Local runtime links and operation logs used by the MEA fork.
 /policy/ACT/act_ckpt
 /_ops_logs/
+
+# TaskGen runtime packages and evidence. Keep only the package marker tracked.
+/mea/generated_tasks/run_*/
