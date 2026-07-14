@@ -1,71 +1,44 @@
-# README.Agent: single-round evaluation planning
+# README.Agent: bounded multi-round evaluation planning
 
 This document describes the capabilities and constraints visible to the outer
-Plan Agent in the first MEA prototype.
+Plan Agent in the current MEA prototype.
 
-## Policy under evaluation
+## Policy and simulator
 
-- Policy: ACT.
-- Canonical task: `beat_block_hammer`.
-- Checkpoint setting: `demo_clean`, trained with 50 expert demonstrations.
-- The policy is not language-conditioned during this evaluation.
-- `num_episodes` controls the number of evaluation episodes; it is separate
-  from the task-specific per-episode step limit.
+- Policy: ACT; canonical task: `beat_block_hammer`.
+- Checkpoint: `demo_clean`, trained with 50 expert demonstrations.
+- The policy is not language-conditioned in this evaluation.
+- The official block position samples `x` from `[-0.25, 0.25]` and `y` from
+  `[-0.05, 0.15]`, rejecting `abs(x) < 0.05`.
+- Official yaw is sampled within approximately `[-0.5, 0.5]` radians.
+- `num_episodes` is an evaluation count, not the per-episode step limit.
 
-## Canonical scene
+## Available validated routes
 
-- The scene contains a hammer and one static red block.
-- The official block position is sampled with `x` in `[-0.25, 0.25]` and `y`
-  in `[-0.05, 0.15]`, rejecting the central strip `abs(x) < 0.05`.
-- The official yaw is sampled within approximately `[-0.5, 0.5]` radians.
-- The sign of the block's `x` position determines whether the expert uses the
-  left or right arm.
-- The first prototype must preserve official position and yaw sampling,
-  block scale, task logic, success criterion, checkpoint, and random-call
-  order. It changes only the block color.
+1. `object_appearance.color`: use `force_codegen` so TaskGen generates the
+   complete `load_actors()` implementation. The validated blue color is
+   `[0.0, 0.2, 1.0]`.
+2. `object_position`: use the trusted `reuse` route, keep the block blue, and
+   use official position/yaw sampling. Simulator probes return exact
+   `block_pose` values for every seed.
 
-## Available execution route
+Every round runs the ordered gates `ast`, `render`, `rule`, `vision`, `expert`,
+and `act`. Pipeline completion and policy task success are separate signals.
+A `policy_success=0` result is still a valid observation and does not imply a
+generation-pipeline failure.
 
-- Select sub-aspect `object_appearance.color`.
-- Select route `force_codegen`, which asks the inner TaskGen agent to generate
-  the complete `load_actors()` method.
-- Use seed `100000` and exactly one episode.
-- Required gates are `ast`, `render`, `rule`, `vision`, `expert`, and `act`.
-- Required observations are `scene_alignment`, `observed_color`,
-  `expert_solvable`, `act_pipeline_status`, and `policy_success`.
+## Multi-round protocol
 
-## Validated example
+- Initial planning proposes Round 1 only: blue block, seed `100000`, 1 episode.
+- After Round 1, the Plan Agent receives actual scene, VQA, expert, ACT, and
+  policy observations.
+- If the pipeline passed, propose Round 2: preserve blue, official position
+  randomization, expert-solvable seeds `100002` and `100003`, 2 episodes.
+- Every evaluation seed must independently pass the expert gate. Seed `100001`
+  is excluded because its sampled edge pose failed the official expert planner.
+- If the pipeline failed, stop and explain the failure rather than executing a
+  second round blindly.
+- After execution, aggregate both round-level results and produce one final
+  evidence-grounded response.
 
-User query:
-
-```text
-评估 ACT 在蓝色方块场景中的表现。
-```
-
-Canonical inner instruction:
-
-```text
-把 beat_block_hammer 任务中的红色方块改成蓝色，其他行为保持不变。
-```
-
-Validated variant hint:
-
-```json
-{
-  "block": {
-    "position_mode": "official_random",
-    "yaw_mode": "official_random",
-    "scale": 1.0,
-    "color": [0.0, 0.2, 1.0]
-  }
-}
-```
-
-The previous TaskGen run confirmed a blue rendered block, passed the expert
-gate, and completed the ACT evaluation pipeline. The policy itself scored
-`0/1`; pipeline completion and policy success must remain separate signals.
-
-## Output rule
-
-Return one strict JSON object matching the schema shown in the prompt. Do not
-return Markdown, Python, multiple rounds, or additional variants.
+Return only the strict JSON object requested by the active prompt.

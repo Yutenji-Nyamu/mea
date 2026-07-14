@@ -122,6 +122,85 @@ class FeedbackAgentTests(unittest.TestCase):
             )
             self.assertTrue((Path(temp) / "retry_response.txt").is_file())
 
+    def test_renders_multi_round_report(self):
+        evidence = {
+            "evaluation_id": "eval_multi",
+            "user_request": "Evaluate blue and position variation.",
+            "plan": {
+                "executed_rounds": 2,
+                "round_decisions": [{"action": "continue"}],
+            },
+            "total_episodes": 3,
+            "rounds": [
+                {
+                    "round_id": "round_1",
+                    "sub_aspect": "object_appearance.color",
+                    "route": "force_codegen",
+                    "task_instruction": "blue",
+                    "seeds": [100000],
+                    "num_episodes": 1,
+                    "task_retrieval": {"selected_tasks": ["beat_block_hammer"]},
+                    "observations": {
+                        "observed_color": "blue",
+                        "expert_solvable": True,
+                        "act_pipeline_status": True,
+                        "policy_success": 0.0,
+                        "pipeline_passed": True,
+                        "position_samples": [],
+                    },
+                },
+                {
+                    "round_id": "round_2",
+                    "sub_aspect": "object_position",
+                    "route": "reuse",
+                    "task_instruction": "vary position",
+                    "seeds": [100001, 100002],
+                    "num_episodes": 2,
+                    "task_retrieval": {"selected_tasks": []},
+                    "observations": {
+                        "observed_color": "blue",
+                        "expert_solvable": True,
+                        "act_pipeline_status": True,
+                        "policy_success": 0.5,
+                        "pipeline_passed": True,
+                        "position_samples": [
+                            {
+                                "episode_index": 0,
+                                "seed": 100001,
+                                "block_position": [0.1, 0.0, 0.76],
+                            },
+                            {
+                                "episode_index": 1,
+                                "seed": 100002,
+                                "block_position": [-0.1, 0.1, 0.76],
+                            },
+                        ],
+                    },
+                },
+            ],
+            "observations": {
+                "scene_alignment": True,
+                "observed_color_by_round": ["blue", "blue"],
+                "expert_solvable": True,
+                "act_pipeline_status": True,
+                "policy_success": 1 / 3,
+                "policy_success_by_round": [0.0, 0.5],
+                "position_varied": True,
+                "position_metrics": {"unique_xy_count": 2},
+                "pipeline_passed": True,
+            },
+            "artifacts": {
+                "evaluation_plan": "plan.json",
+                "round_2_decision": "decision.json",
+                "summary": "summary.json",
+            },
+        }
+        report = render_evaluation_report(evidence, FEEDBACK)
+        self.assertIn("MEA Multi-Round Evaluation Report", report)
+        self.assertIn("round_2", report)
+        self.assertIn("position varied: `True`", report)
+        self.assertIn("seed 100002", report)
+
     def test_applies_deterministic_guard_after_two_contradictions(self):
         repo_root = Path(__file__).resolve().parents[2]
         evidence = {

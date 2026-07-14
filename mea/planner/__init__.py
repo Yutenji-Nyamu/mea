@@ -2,16 +2,20 @@
 
 from .prototype import (
     BLUE_TASK_INSTRUCTION,
+    POSITION_TASK_INSTRUCTION,
     PlanAgentError,
     PlanAgentPrototype,
     make_evaluation_id,
     validate_evaluation_plan,
+    validate_next_round_decision,
 )
 
 __all__ = [
     "BLUE_TASK_INSTRUCTION",
+    "POSITION_TASK_INSTRUCTION",
     "PlanAgentError",
     "PlanAgentPrototype",
     "make_evaluation_id",
     "validate_evaluation_plan",
+    "validate_next_round_decision",
 ]

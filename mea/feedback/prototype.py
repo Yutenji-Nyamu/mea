@@ -263,7 +263,100 @@ def render_evaluation_report(
     evidence: dict[str, Any],
     feedback: dict[str, Any],
 ) -> str:
-    """Render the one-file human entry point for a completed evaluation."""
+    """Render the one-file human entry point for single- or multi-round runs."""
+
+    if evidence.get("rounds"):
+        observations = evidence["observations"]
+        round_sections = []
+        for item in evidence["rounds"]:
+            round_observations = item["observations"]
+            positions = round_observations.get("position_samples", [])
+            position_lines = "\n".join(
+                "  - episode {episode_index}, seed {seed}: {block_position}".format(
+                    **sample
+                )
+                for sample in positions
+            ) or "  - none"
+            selected = ", ".join(
+                f"`{name}`"
+                for name in item.get("task_retrieval", {}).get(
+                    "selected_tasks", []
+                )
+            ) or "none (reuse route)"
+            round_sections.append(
+                f"""### {item['round_id']}: `{item['sub_aspect']}`
+
+- route: `{item['route']}`
+- instruction: {item['task_instruction']}
+- seeds: `{item['seeds']}`
+- episodes: `{item['num_episodes']}`
+- selected retrieval tasks: {selected}
+- observed color: `{round_observations.get('observed_color')}`
+- expert solvable: `{round_observations.get('expert_solvable')}`
+- ACT pipeline status: `{round_observations.get('act_pipeline_status')}`
+- policy success: `{round_observations.get('policy_success')}`
+- pipeline passed: `{round_observations.get('pipeline_passed')}`
+- position samples:
+{position_lines}
+"""
+            )
+        rounds_markdown = "\n".join(round_sections)
+        findings = "\n".join(f"- {item}" for item in feedback["findings"])
+        limitations = "\n".join(f"- {item}" for item in feedback["limitations"])
+        artifacts = evidence["artifacts"]
+        return f"""# MEA Multi-Round Evaluation Report
+
+## Identity
+
+- evaluation id: `{evidence['evaluation_id']}`
+- user query: {evidence['user_request']}
+- executed rounds: `{evidence['plan']['executed_rounds']}`
+- total episodes: `{evidence['total_episodes']}`
+
+## Plan Agent decisions
+
+```json
+{json.dumps(evidence['plan']['round_decisions'], ensure_ascii=False, indent=2)}
+```
+
+## Round evidence
+
+{rounds_markdown}
+
+## Aggregate observations
+
+- scene alignment: `{observations['scene_alignment']}`
+- observed color by round: `{observations['observed_color_by_round']}`
+- expert solvable: `{observations['expert_solvable']}`
+- ACT pipeline status: `{observations['act_pipeline_status']}`
+- weighted policy success: `{observations['policy_success']}`
+- policy success by round: `{observations['policy_success_by_round']}`
+- position varied: `{observations['position_varied']}`
+- position metrics: `{observations['position_metrics']}`
+- pipeline passed: `{observations['pipeline_passed']}`
+
+## Feedback Agent answer
+
+{feedback['answer']}
+
+### Findings
+
+{findings}
+
+### Limitations
+
+{limitations}
+
+### Recommended next step
+
+{feedback['recommended_next_step']}
+
+## Artifact index
+
+- evaluation plan: `{artifacts['evaluation_plan']}`
+- Round 2 decision: `{artifacts['round_2_decision']}`
+- machine-readable summary: `{artifacts['summary']}`
+"""
 
     retrieval = evidence["task_retrieval"]
     observations = evidence["observations"]

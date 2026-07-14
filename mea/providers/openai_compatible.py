@@ -3,6 +3,7 @@
 import base64
 import mimetypes
 import os
+import time
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +28,8 @@ class OpenAICompatibleProvider(MultimodalProvider):
         text_model: str = "gpt-4o-mini",
         vision_model: str = "gpt-4o",
         timeout: float = 60.0,
+        max_retries: int = 2,
+        retry_delay: float = 1.0,
         session: requests.Session | None = None,
     ):
         self.base_url = (
@@ -39,19 +42,36 @@ class OpenAICompatibleProvider(MultimodalProvider):
         self.text_model = text_model
         self.vision_model = vision_model
         self.timeout = timeout
+        self.max_retries = max(0, int(max_retries))
+        self.retry_delay = max(0.0, float(retry_delay))
         self.session = session or requests.Session()
         self.last_metadata: dict[str, Any] = {}
 
     def _complete(self, payload: dict[str, Any]) -> str:
-        response = self.session.post(
-            f"{self.base_url}/chat/completions",
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            },
-            json=payload,
-            timeout=self.timeout,
-        )
+        response = None
+        retry_count = 0
+        for attempt in range(self.max_retries + 1):
+            try:
+                response = self.session.post(
+                    f"{self.base_url}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json=payload,
+                    timeout=self.timeout,
+                )
+                retry_count = attempt
+                break
+            except (requests.Timeout, requests.ConnectionError) as exc:
+                if attempt >= self.max_retries:
+                    raise ProviderError(
+                        "Gateway transient request failed after "
+                        f"{attempt + 1} attempts: {type(exc).__name__}"
+                    ) from exc
+                time.sleep(self.retry_delay * (attempt + 1))
+        if response is None:
+            raise ProviderError("Gateway request did not produce a response")
         if response.status_code >= 400:
             body = response.text[:1000]
             raise ProviderError(
@@ -74,6 +94,7 @@ class OpenAICompatibleProvider(MultimodalProvider):
             "model": data.get("model"),
             "finish_reason": data.get("choices", [{}])[0].get("finish_reason"),
             "usage": data.get("usage"),
+            "retry_count": retry_count,
         }
         return content.strip()
 

@@ -4,6 +4,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock
 
+import requests
+
 from mea.providers import OpenAICompatibleProvider, ProviderError
 
 
@@ -54,6 +56,24 @@ class OpenAICompatibleProviderTests(unittest.TestCase):
         with self.assertRaises(ProviderError) as raised:
             provider.text("hello")
         self.assertNotIn("test-key", str(raised.exception))
+
+    def test_retries_transient_timeout(self):
+        response = Mock(status_code=200)
+        response.json.return_value = {
+            "choices": [{"message": {"content": "recovered"}}]
+        }
+        session = Mock()
+        session.post.side_effect = [requests.ReadTimeout("temporary"), response]
+        provider = OpenAICompatibleProvider(
+            api_key="test-key",
+            session=session,
+            max_retries=2,
+            retry_delay=0,
+        )
+
+        self.assertEqual(provider.text("hello"), "recovered")
+        self.assertEqual(session.post.call_count, 2)
+        self.assertEqual(provider.last_metadata["retry_count"], 1)
 
 
 if __name__ == "__main__":

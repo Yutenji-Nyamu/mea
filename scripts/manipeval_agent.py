@@ -1,4 +1,4 @@
-"""Plan and execute one single-round, blue-block MEA evaluation."""
+"""Plan and execute a bounded, evidence-driven multi-round MEA evaluation."""
 
 from __future__ import annotations
 
@@ -35,8 +35,8 @@ def update_manifest(evaluation_dir: Path, **updates: Any) -> dict[str, Any]:
     return manifest
 
 
-def child_run_id(evaluation_id: str) -> str:
-    return f"run_{evaluation_id.removeprefix('eval_')}_round_1"
+def child_run_id(evaluation_id: str, round_id: str) -> str:
+    return f"run_{evaluation_id.removeprefix('eval_')}_{round_id}"
 
 
 def build_taskgen_command(
@@ -50,8 +50,9 @@ def build_taskgen_command(
     gpu: int,
     max_reflections: int,
 ) -> tuple[list[str], str]:
-    run_id = child_run_id(evaluation_id)
-    seed = round_plan["execution"]["seeds"][0]
+    run_id = child_run_id(evaluation_id, round_plan["round_id"])
+    execution = round_plan["execution"]
+    seed = execution["seeds"][0]
     command = [
         sys.executable,
         str(repo_root / "scripts/manipeval_taskgen.py"),
@@ -71,6 +72,8 @@ def build_taskgen_command(
         vision_model,
         "--seed",
         str(seed),
+        "--num-episodes",
+        str(execution["num_episodes"]),
         "--gpu",
         str(gpu),
         "--probe",
@@ -115,9 +118,8 @@ def read_policy_success(result_path: Path) -> float | None:
     return None
 
 
-def summarize_child(
-    evaluation_id: str,
-    plan: dict[str, Any],
+def summarize_round(
+    round_plan: dict[str, Any],
     child_manifest: dict[str, Any],
     child_dir: Path,
 ) -> dict[str, Any]:
@@ -125,81 +127,128 @@ def summarize_child(
     vision = child_manifest.get("vision_validation", {})
     act = child_manifest.get("act_evaluation", {})
     expert = scene.get("expert", {})
+    positions = child_manifest.get("position_samples", {})
     policy_success = read_policy_success(child_dir / "evaluation/_result.txt")
     pipeline_passed = bool(
         child_manifest.get("status") == "completed"
         and scene.get("rule_check", {}).get("passed")
         and vision.get("passed")
         and expert.get("passed")
+        and positions.get("passed")
         and act.get("passed")
     )
-    round_plan = plan["rounds"][0]
     return {
-        "schema_version": 1,
-        "evaluation_id": evaluation_id,
-        "status": "completed" if pipeline_passed else "failed",
-        "rounds": [
-            {
-                "round_id": round_plan["round_id"],
-                "sub_aspect": round_plan["sub_aspect"],
-                "task_instruction": round_plan["task_instruction"],
-                "taskgen_run_id": child_manifest.get("run_id"),
-                "observations": {
-                    "scene_alignment": bool(
-                        scene.get("rule_check", {}).get("passed")
-                    ),
-                    "observed_color": vision.get("observed_color"),
-                    "expert_solvable": bool(expert.get("passed")),
-                    "act_pipeline_status": bool(act.get("passed")),
-                    "policy_success": policy_success,
-                },
-                "pipeline_passed": pipeline_passed,
-                "interpretation": (
-                    "场景生成与评估流水线通过；policy_success 单独报告，"
-                    "不把策略失败误判为 pipeline failure。"
-                ),
-            }
-        ],
+        "round_id": round_plan["round_id"],
+        "sub_aspect": round_plan["sub_aspect"],
+        "task_instruction": round_plan["task_instruction"],
+        "route": round_plan["route"],
+        "taskgen_run_id": child_manifest.get("run_id"),
+        "execution": round_plan["execution"],
+        "observations": {
+            "scene_alignment": bool(scene.get("rule_check", {}).get("passed")),
+            "observed_color": vision.get("observed_color"),
+            "expert_solvable": bool(expert.get("passed")),
+            "act_pipeline_status": bool(act.get("passed")),
+            "policy_success": policy_success,
+            "position_samples": positions.get("samples", []),
+            "position_metrics": positions.get("metrics", {}),
+        },
+        "pipeline_passed": pipeline_passed,
+        "interpretation": (
+            "场景生成和评估流水线状态与 policy_success 分开报告；"
+            "策略失败不会被误记为 pipeline failure。"
+        ),
     }
 
 
-def build_evidence_bundle(
+def execute_round(
+    repo_root: Path,
+    evaluation_dir: Path,
+    evaluation_id: str,
+    round_plan: dict[str, Any],
+    *,
+    text_model: str,
+    vision_model: str,
+    base_url: str | None,
+    gpu: int,
+    max_reflections: int,
+) -> tuple[dict[str, Any], Path, dict[str, Any], int]:
+    round_id = round_plan["round_id"]
+    command, run_id = build_taskgen_command(
+        repo_root,
+        evaluation_id,
+        round_plan,
+        text_model=text_model,
+        vision_model=vision_model,
+        base_url=base_url,
+        gpu=gpu,
+        max_reflections=max_reflections,
+    )
+    execution_dir = evaluation_dir / "execution" / round_id
+    write_json(
+        execution_dir / "taskgen_command.json",
+        {"command": command, "child_run_id": run_id},
+    )
+    update_manifest(
+        evaluation_dir,
+        status=f"executing_{round_id}",
+        active_child_run_id=run_id,
+    )
+    returncode = run_logged(
+        command,
+        cwd=repo_root,
+        log_path=execution_dir / "taskgen.log",
+    )
+    child_dir = repo_root / "mea/generated_tasks" / run_id
+    child_manifest_path = child_dir / "manifest.json"
+    if not child_manifest_path.is_file():
+        raise RuntimeError(f"child TaskGen manifest 不存在: {child_manifest_path}")
+    child_manifest = json.loads(child_manifest_path.read_text(encoding="utf-8"))
+    write_json(
+        execution_dir / "child_run.json",
+        {
+            "run_id": run_id,
+            "returncode": returncode,
+            "manifest_path": str(child_manifest_path.relative_to(repo_root)),
+            "status": child_manifest.get("status"),
+        },
+    )
+    round_summary = summarize_round(round_plan, child_manifest, child_dir)
+    write_json(evaluation_dir / "summary" / f"{round_id}.json", round_summary)
+    return child_manifest, child_dir, round_summary, returncode
+
+
+def _round_evidence(
     repo_root: Path,
     evaluation_id: str,
-    user_request: str,
-    plan: dict[str, Any],
+    round_plan: dict[str, Any],
     child_manifest: dict[str, Any],
     child_dir: Path,
-    summary: dict[str, Any],
+    round_summary: dict[str, Any],
 ) -> dict[str, Any]:
-    round_plan = plan["rounds"][0]
-    round_summary = summary["rounds"][0]
     static = child_manifest.get("static_validation", {})
     scene = child_manifest.get("scene_validation", {})
     vision = child_manifest.get("vision_validation", {})
     reflection = child_manifest.get("visual_self_reflection", {})
-    act = child_manifest.get("act_evaluation", {})
     retrieval = child_manifest.get("task_retrieval") or {}
+    child_relative = child_dir.relative_to(repo_root)
+    episode_videos = sorted(
+        str(path.relative_to(repo_root))
+        for path in (child_dir / "evaluation").glob("episode*.mp4")
+    )
     variant_spec_path = child_dir / "variant_spec.json"
     variant_spec = (
         json.loads(variant_spec_path.read_text(encoding="utf-8"))
         if variant_spec_path.is_file()
         else None
     )
-
-    child_relative = child_dir.relative_to(repo_root)
-    evaluation_relative = Path("mea/evaluation_runs") / evaluation_id
-    observations = dict(round_summary["observations"])
-    observations["pipeline_passed"] = round_summary["pipeline_passed"]
     return {
-        "schema_version": 1,
-        "evaluation_id": evaluation_id,
+        "round_id": round_plan["round_id"],
         "child_run_id": child_manifest.get("run_id"),
-        "user_request": user_request,
         "sub_aspect": round_plan["sub_aspect"],
         "task_instruction": round_plan["task_instruction"],
         "route": round_plan["route"],
-        "seed": round_plan["execution"]["seeds"][0],
+        "seeds": round_plan["execution"]["seeds"],
         "num_episodes": round_plan["execution"]["num_episodes"],
         "task_retrieval": {
             "catalog_size": retrieval.get("catalog_size"),
@@ -228,48 +277,114 @@ def build_evidence_bundle(
             "repairs_used": reflection.get("repairs_used"),
             "final_attempt": reflection.get("final_attempt"),
             "attempt_count": len(reflection.get("attempts", [])),
-            "attempts": [
-                {
-                    "attempt_index": item.get("attempt_index"),
-                    "passed": item.get("observation", {}).get("passed"),
-                    "probe_passed": item.get("observation", {}).get(
-                        "probe_passed"
-                    ),
-                    "observed_color": item.get("observation", {})
-                    .get("vision", {})
-                    .get("observed_color"),
-                    "diagnosis": item.get("observation", {})
-                    .get("vision", {})
-                    .get("diagnosis"),
-                    "suggestions": item.get("observation", {})
-                    .get("vision", {})
-                    .get("suggestions", []),
-                    "repair_installed": bool(item.get("repair", {}).get("installed")),
-                }
-                for item in reflection.get("attempts", [])
-            ],
         },
-        "observations": observations,
+        "observations": {
+            **round_summary["observations"],
+            "pipeline_passed": round_summary["pipeline_passed"],
+        },
+        "artifacts": {
+            "generated_task": str(child_relative / "task.py"),
+            "scene_image": str(child_relative / "evidence/initial_head.png"),
+            "vision_result": str(child_relative / "validation/vision.json"),
+            "position_samples": str(
+                child_relative / "validation/position_samples.json"
+            ),
+            "reflection_summary": str(child_relative / "reflection/summary.json"),
+            "act_videos": episode_videos,
+            "act_result": str(child_relative / "evaluation/_result.txt"),
+            "child_manifest": str(child_relative / "manifest.json"),
+        },
+    }
+
+
+def build_evidence_bundle(
+    repo_root: Path,
+    evaluation_id: str,
+    user_request: str,
+    plan: dict[str, Any],
+    round_runs: list[dict[str, Any]],
+) -> dict[str, Any]:
+    rounds = [
+        _round_evidence(
+            repo_root,
+            evaluation_id,
+            item["round_plan"],
+            item["child_manifest"],
+            item["child_dir"],
+            item["round_summary"],
+        )
+        for item in round_runs
+    ]
+    total_episodes = sum(item["num_episodes"] for item in rounds)
+    weighted_success = 0.0
+    measured_episodes = 0
+    for item in rounds:
+        rate = item["observations"].get("policy_success")
+        if rate is not None:
+            weighted_success += float(rate) * item["num_episodes"]
+            measured_episodes += item["num_episodes"]
+    policy_success = (
+        weighted_success / measured_episodes if measured_episodes else None
+    )
+    position_metrics = next(
+        (
+            item["observations"].get("position_metrics", {})
+            for item in rounds
+            if item["sub_aspect"] == "object_position"
+        ),
+        {},
+    )
+    evaluation_relative = Path("mea/evaluation_runs") / evaluation_id
+    return {
+        "schema_version": 2,
+        "evaluation_id": evaluation_id,
+        "user_request": user_request,
+        "plan": {
+            "max_rounds": plan["max_rounds"],
+            "executed_rounds": len(rounds),
+            "planning_state": plan.get("planning_state"),
+            "round_decisions": plan.get("round_decisions", []),
+        },
+        "rounds": rounds,
+        "observations": {
+            "scene_alignment": all(
+                item["observations"]["scene_alignment"] for item in rounds
+            ),
+            "observed_color_by_round": [
+                item["observations"]["observed_color"] for item in rounds
+            ],
+            "expert_solvable": all(
+                item["observations"]["expert_solvable"] for item in rounds
+            ),
+            "act_pipeline_status": all(
+                item["observations"]["act_pipeline_status"] for item in rounds
+            ),
+            "policy_success": policy_success,
+            "policy_success_by_round": [
+                item["observations"]["policy_success"] for item in rounds
+            ],
+            "position_varied": position_metrics.get("position_varied"),
+            "position_metrics": position_metrics,
+            "pipeline_passed": all(
+                item["observations"]["pipeline_passed"] for item in rounds
+            ),
+        },
+        "total_episodes": total_episodes,
         "limitations": {
-            "single_round": True,
-            "single_episode": round_plan["execution"]["num_episodes"] == 1,
-            "policy_result_is_not_generalization_conclusion": True,
+            "bounded_two_round_prototype": True,
+            "three_episodes_are_not_a_generalization_benchmark": True,
+            "policy_result_is_not_pipeline_status": True,
         },
         "artifacts": {
             "evaluation_plan": str(
                 evaluation_relative / "plan/evaluation_plan.json"
             ),
-            "task_catalog": str(child_relative / "generation/task_catalog.json"),
-            "retrieval": str(child_relative / "generation/retrieval.json"),
-            "generated_task": str(child_relative / "task.py"),
-            "scene_image": str(child_relative / "evidence/initial_head.png"),
-            "vision_result": str(child_relative / "validation/vision.json"),
-            "reflection_summary": str(child_relative / "reflection/summary.json"),
-            "act_video": str(child_relative / "evaluation/episode0.mp4"),
-            "act_result": str(child_relative / "evaluation/_result.txt"),
-            "child_manifest": str(child_relative / "manifest.json"),
+            "round_2_decision": str(
+                evaluation_relative / "plan/round_2_decision.json"
+            ),
+            "summary": str(evaluation_relative / "summary/summary.json"),
+            "round_artifacts": [item["artifacts"] for item in rounds],
         },
-        "act_process_returncode": act.get("returncode"),
     }
 
 
@@ -303,11 +418,12 @@ def main() -> None:
         vision_model=args.vision_model,
         timeout=180.0,
     )
-    manifest = PlanAgentPrototype(
+    planner = PlanAgentPrototype(
         repo_root,
         provider,
         model=args.planner_model,
-    ).plan(args.request, evaluation_id=args.evaluation_id)
+    )
+    manifest = planner.plan(args.request, evaluation_id=args.evaluation_id)
     evaluation_id = manifest["evaluation_id"]
     evaluation_dir = repo_root / "mea/evaluation_runs" / evaluation_id
     plan = manifest["plan"]
@@ -317,68 +433,77 @@ def main() -> None:
         print(json.dumps(plan, ensure_ascii=False, indent=2))
         return
 
-    command, run_id = build_taskgen_command(
-        repo_root,
-        evaluation_id,
-        plan["rounds"][0],
-        text_model=args.taskgen_model,
-        vision_model=args.vision_model,
-        base_url=args.base_url,
-        gpu=args.gpu,
-        max_reflections=args.max_reflections,
-    )
-    write_json(
-        evaluation_dir / "execution/taskgen_command.json",
-        {"command": command, "child_run_id": run_id},
-    )
-    update_manifest(
-        evaluation_dir,
-        status="executing_round_1",
-        child_run_id=run_id,
-        execution_started_at=datetime.now().astimezone().isoformat(),
-    )
-
+    round_runs: list[dict[str, Any]] = []
     try:
-        returncode = run_logged(
-            command,
-            cwd=repo_root,
-            log_path=evaluation_dir / "execution/taskgen.log",
-        )
-        child_dir = repo_root / "mea/generated_tasks" / run_id
-        child_manifest_path = child_dir / "manifest.json"
-        if not child_manifest_path.is_file():
-            raise RuntimeError(f"child TaskGen manifest 不存在: {child_manifest_path}")
-        child_manifest = json.loads(child_manifest_path.read_text(encoding="utf-8"))
-        write_json(
-            evaluation_dir / "execution/child_run.json",
-            {
-                "run_id": run_id,
-                "returncode": returncode,
-                "manifest_path": str(child_manifest_path.relative_to(repo_root)),
-                "status": child_manifest.get("status"),
-            },
-        )
-        if returncode != 0:
-            raise RuntimeError(f"child TaskGen 失败，returncode={returncode}")
-
-        summary = summarize_child(
+        round_1_plan = plan["rounds"][0]
+        child_manifest, child_dir, round_1_summary, returncode = execute_round(
+            repo_root,
+            evaluation_dir,
             evaluation_id,
-            plan,
-            child_manifest,
-            child_dir,
+            round_1_plan,
+            text_model=args.taskgen_model,
+            vision_model=args.vision_model,
+            base_url=args.base_url,
+            gpu=args.gpu,
+            max_reflections=args.max_reflections,
         )
-        write_json(evaluation_dir / "summary/summary.json", summary)
-        if summary["status"] != "completed":
-            raise RuntimeError(f"single-round evaluation 未通过: {summary}")
+        round_runs.append(
+            {
+                "round_plan": round_1_plan,
+                "child_manifest": child_manifest,
+                "child_dir": child_dir,
+                "round_summary": round_1_summary,
+                "returncode": returncode,
+            }
+        )
 
+        plan, decision = planner.decide_next_round(
+            evaluation_id=evaluation_id,
+            user_request=args.request,
+            current_plan=plan,
+            round_1_observation=round_1_summary,
+        )
+        if decision["action"] == "continue":
+            round_2_plan = decision["next_round"]
+            child_manifest, child_dir, round_2_summary, returncode = execute_round(
+                repo_root,
+                evaluation_dir,
+                evaluation_id,
+                round_2_plan,
+                text_model=args.taskgen_model,
+                vision_model=args.vision_model,
+                base_url=args.base_url,
+                gpu=args.gpu,
+                max_reflections=args.max_reflections,
+            )
+            round_runs.append(
+                {
+                    "round_plan": round_2_plan,
+                    "child_manifest": child_manifest,
+                    "child_dir": child_dir,
+                    "round_summary": round_2_summary,
+                    "returncode": returncode,
+                }
+            )
+
+        summary = {
+            "schema_version": 2,
+            "evaluation_id": evaluation_id,
+            "status": (
+                "completed"
+                if round_runs
+                and all(item["round_summary"]["pipeline_passed"] for item in round_runs)
+                else "completed_with_pipeline_failure"
+            ),
+            "rounds": [item["round_summary"] for item in round_runs],
+        }
+        write_json(evaluation_dir / "summary/summary.json", summary)
         evidence = build_evidence_bundle(
             repo_root,
             evaluation_id,
             args.request,
             plan,
-            child_manifest,
-            child_dir,
-            summary,
+            round_runs,
         )
         write_json(evaluation_dir / "summary/evidence_bundle.json", evidence)
         update_manifest(
@@ -409,6 +534,9 @@ def main() -> None:
             evidence_path="summary/evidence_bundle.json",
             feedback_path="feedback/feedback.json",
             report_path="evaluation_report.md",
+            child_run_ids=[
+                item["child_manifest"].get("run_id") for item in round_runs
+            ],
             summary=summary,
             feedback=feedback,
         )
@@ -416,7 +544,9 @@ def main() -> None:
             json.dumps(
                 {
                     "evaluation_id": evaluation_id,
-                    "child_run_id": run_id,
+                    "child_run_ids": [
+                        item["child_manifest"].get("run_id") for item in round_runs
+                    ],
                     "summary": summary,
                     "feedback": feedback,
                     "report_path": str(report_path.relative_to(repo_root)),

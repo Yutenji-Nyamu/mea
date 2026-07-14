@@ -68,6 +68,7 @@ def run_probe(
     image: Path | None = None,
     log_path: Path | None = None,
     raise_on_failure: bool = True,
+    max_expert_attempts: int = 3,
 ) -> dict[str, Any]:
     scene_json = scene_json or run_dir / "validation/scene.json"
     image = image or run_dir / "evidence/initial_head.png"
@@ -98,17 +99,122 @@ def run_probe(
     if expert:
         command.append("--expert")
 
-    returncode = run_command(
-        command,
-        cwd=repo_root,
-        log_path=log_path,
-    )
-    scene = json.loads(scene_json.read_text(encoding="utf-8")) if scene_json.exists() else {}
+    attempts: list[dict[str, Any]] = []
+    attempt_logs: list[Path] = []
+    attempt_limit = max(1, max_expert_attempts) if expert else 1
+    scene: dict[str, Any] = {}
+    returncode = 1
+    for attempt_index in range(attempt_limit):
+        attempt_log = (
+            log_path.with_name(
+                f"{log_path.stem}_attempt_{attempt_index}{log_path.suffix}"
+            )
+            if expert
+            else log_path
+        )
+        attempt_logs.append(attempt_log)
+        returncode = run_command(
+            command,
+            cwd=repo_root,
+            log_path=attempt_log,
+        )
+        scene = (
+            json.loads(scene_json.read_text(encoding="utf-8"))
+            if scene_json.exists()
+            else {}
+        )
+        attempts.append(
+            {
+                "attempt_index": attempt_index,
+                "returncode": returncode,
+                "expert": scene.get("expert"),
+            }
+        )
+        if returncode != 2:
+            break
+
+    if expert:
+        combined = []
+        for attempt_index, attempt_log in enumerate(attempt_logs):
+            combined.append(f"===== expert attempt {attempt_index} =====\n")
+            if attempt_log.is_file():
+                combined.append(attempt_log.read_text(encoding="utf-8"))
+        log_path.write_text("".join(combined), encoding="utf-8")
+        scene.setdefault("expert", {})["attempts_used"] = len(attempts)
+        scene["expert_attempts"] = attempts
     scene["returncode"] = returncode
     write_json(scene_json, scene)
     if raise_on_failure and returncode != 0:
         raise RuntimeError(f"setup/expert probe 失败，returncode={returncode}")
     return scene
+
+
+def collect_position_samples(
+    repo_root: Path,
+    run_dir: Path,
+    manifest: dict[str, Any],
+    *,
+    start_seed: int,
+    num_episodes: int,
+    first_scene: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Collect simulator-native block poses for every evaluation seed."""
+
+    sample_root = run_dir / "validation/position_samples"
+    samples: list[dict[str, Any]] = []
+    for episode_index in range(num_episodes):
+        seed = start_seed + episode_index
+        if episode_index == 0 and first_scene:
+            scene = first_scene
+        else:
+            scene = run_probe(
+                repo_root,
+                run_dir,
+                manifest,
+                seed=seed,
+                expert=True,
+                scene_json=sample_root / f"seed_{seed}.json",
+                image=sample_root / f"seed_{seed}.png",
+                log_path=sample_root / f"seed_{seed}.log",
+            )
+        position = scene.get("block_pose", {}).get("position")
+        if not isinstance(position, list) or len(position) < 2:
+            raise RuntimeError(f"seed={seed} 缺少 block_pose.position")
+        samples.append(
+            {
+                "episode_index": episode_index,
+                "seed": seed,
+                "block_position": [float(value) for value in position],
+                "block_quaternion": scene.get("block_pose", {}).get("quaternion"),
+                "rule_passed": bool(scene.get("rule_check", {}).get("passed")),
+                "expert_passed": bool(scene.get("expert", {}).get("passed")),
+                "image": scene.get("image"),
+            }
+        )
+
+    xs = [item["block_position"][0] for item in samples]
+    ys = [item["block_position"][1] for item in samples]
+    unique_xy = {
+        (round(item["block_position"][0], 8), round(item["block_position"][1], 8))
+        for item in samples
+    }
+    result = {
+        "start_seed": start_seed,
+        "num_episodes": num_episodes,
+        "samples": samples,
+        "metrics": {
+            "unique_xy_count": len(unique_xy),
+            "x_span": max(xs) - min(xs),
+            "y_span": max(ys) - min(ys),
+            "position_varied": len(unique_xy) > 1,
+        },
+        "passed": len(samples) == num_episodes
+        and all(
+            item["rule_passed"] and item["expert_passed"] for item in samples
+        ),
+    }
+    write_json(run_dir / "validation/position_samples.json", result)
+    return result
 
 
 def run_vision_check(
@@ -307,6 +413,7 @@ def run_act(
     *,
     seed: int,
     gpu: int,
+    num_episodes: int,
 ) -> dict[str, Any]:
     eval_root = repo_root / "eval_result/beat_block_hammer/ACT/demo_clean/demo_clean"
     before = {path for path in eval_root.glob("*") if path.is_dir()} if eval_root.exists() else set()
@@ -319,7 +426,7 @@ def run_act(
         "50",
         "0",
         str(gpu),
-        "1",
+        str(num_episodes),
         manifest["task_module"],
         str(run_dir / "overlay.yml"),
         str(seed),
@@ -333,25 +440,32 @@ def run_act(
     source_dir = newest_eval_dir(repo_root, before)
     copied = []
     if source_dir:
-        for name in ("episode0.mp4", "_result.txt"):
-            source = source_dir / name
+        sources = sorted(source_dir.glob("episode*.mp4"))
+        result_file = source_dir / "_result.txt"
+        if result_file.is_file():
+            sources.append(result_file)
+        for source in sources:
             if source.is_file():
-                destination = run_dir / "evaluation" / name
+                destination = run_dir / "evaluation" / source.name
                 shutil.copy2(source, destination)
                 copied.append(str(destination.relative_to(repo_root)))
+
+    copied_videos = sorted((run_dir / "evaluation").glob("episode*.mp4"))
 
     result = {
         "command": command,
         "started_at": started,
         "finished_at": datetime.now().astimezone().isoformat(),
         "returncode": returncode,
+        "num_episodes": num_episodes,
         "source_eval_dir": str(source_dir) if source_dir else None,
         "copied_artifacts": copied,
-        "passed": returncode == 0 and (run_dir / "evaluation/episode0.mp4").is_file(),
+        "copied_video_count": len(copied_videos),
+        "passed": returncode == 0 and len(copied_videos) == num_episodes,
     }
     write_json(run_dir / "evaluation/act.json", result)
     if not result["passed"]:
-        raise RuntimeError(f"ACT 1-episode 未通过: {result}")
+        raise RuntimeError(f"ACT {num_episodes}-episode 未通过: {result}")
     return result
 
 
@@ -370,6 +484,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--vision-model", default="gpt-4o-2024-11-20")
     parser.add_argument("--base-url", default=None)
     parser.add_argument("--seed", type=int, default=100000)
+    parser.add_argument("--num-episodes", type=int, default=1)
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument("--probe", action="store_true")
     parser.add_argument("--expert", action="store_true")
@@ -391,6 +506,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    if args.num_episodes <= 0:
+        raise SystemExit("--num-episodes 必须是正整数")
     repo_root = args.repo_root.expanduser().resolve()
     provider = None
     if not args.resume_run or args.vision_check:
@@ -481,12 +598,22 @@ def main() -> None:
             update_manifest(run_dir, scene_validation=scene)
 
         if args.run_act:
+            position_samples = collect_position_samples(
+                repo_root,
+                run_dir,
+                manifest,
+                start_seed=args.seed,
+                num_episodes=args.num_episodes,
+                first_scene=scene,
+            )
+            update_manifest(run_dir, position_samples=position_samples)
             act = run_act(
                 repo_root,
                 run_dir,
                 manifest,
                 seed=args.seed,
                 gpu=args.gpu,
+                num_episodes=args.num_episodes,
             )
             update_manifest(run_dir, status="completed", act_evaluation=act)
         else:

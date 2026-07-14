@@ -6,14 +6,44 @@ from pathlib import Path
 
 from mea.planner import (
     BLUE_TASK_INSTRUCTION,
+    POSITION_TASK_INSTRUCTION,
     PlanAgentError,
     PlanAgentPrototype,
     validate_evaluation_plan,
+    validate_next_round_decision,
 )
 
 
+ROUND_1 = {
+    "round_id": "round_1",
+    "sub_aspect": "object_appearance.color",
+    "rationale": "用户要求评估蓝色方块。",
+    "task_instruction": BLUE_TASK_INSTRUCTION,
+    "route": "force_codegen",
+    "variant_hint": {
+        "block": {
+            "position_mode": "official_random",
+            "yaw_mode": "official_random",
+            "scale": 1.0,
+            "color": [0.0, 0.2, 1.0],
+        }
+    },
+    "execution": {
+        "seeds": [100000],
+        "num_episodes": 1,
+        "gates": ["ast", "render", "rule", "vision", "expert", "act"],
+    },
+    "observations": [
+        "scene_alignment",
+        "observed_color",
+        "expert_solvable",
+        "act_pipeline_status",
+        "policy_success",
+    ],
+}
+
 PLAN = {
-    "schema_version": 1,
+    "schema_version": 2,
     "task_name": "beat_block_hammer",
     "policy": {
         "name": "ACT",
@@ -21,37 +51,43 @@ PLAN = {
         "expert_data_num": 50,
         "language_conditioned": False,
     },
-    "evaluation_goal": "evaluate_act_with_blue_block",
-    "rounds": [
-        {
-            "round_id": "round_1",
-            "sub_aspect": "object_appearance.color",
-            "rationale": "用户要求评估蓝色方块。",
-            "task_instruction": BLUE_TASK_INSTRUCTION,
-            "route": "force_codegen",
-            "variant_hint": {
-                "block": {
-                    "position_mode": "official_random",
-                    "yaw_mode": "official_random",
-                    "scale": 1.0,
-                    "color": [0.0, 0.2, 1.0],
-                }
-            },
-            "execution": {
-                "seeds": [100000],
-                "num_episodes": 1,
-                "gates": ["ast", "render", "rule", "vision", "expert", "act"],
-            },
-            "observations": [
-                "scene_alignment",
-                "observed_color",
-                "expert_solvable",
-                "act_pipeline_status",
-                "policy_success",
-            ],
-        }
-    ],
-    "stop_after_round": 1,
+    "evaluation_goal": "evaluate_blue_block_and_position_variation",
+    "rounds": [ROUND_1],
+    "max_rounds": 2,
+}
+
+NEXT_DECISION = {
+    "schema_version": 1,
+    "action": "continue",
+    "observation_summary": "Round 1 pipeline passed; policy success was recorded.",
+    "decision_reason": "The user also requested position variation.",
+    "next_round": {
+        "round_id": "round_2",
+        "sub_aspect": "object_position",
+        "rationale": "Collect two simulator-native position samples.",
+        "task_instruction": POSITION_TASK_INSTRUCTION,
+        "route": "reuse",
+        "variant_hint": {
+            "block": {
+                "position_mode": "official_random",
+                "yaw_mode": "official_random",
+                "scale": 1.0,
+                "color": [0.0, 0.2, 1.0],
+            }
+        },
+        "execution": {
+            "seeds": [100002, 100003],
+            "num_episodes": 2,
+            "gates": ["ast", "render", "rule", "vision", "expert", "act"],
+        },
+        "observations": [
+            "scene_alignment",
+            "observed_color",
+            "expert_solvable",
+            "act_pipeline_status",
+            "policy_success",
+        ],
+    },
 }
 
 
@@ -59,11 +95,13 @@ class FakeProvider:
     last_metadata = {"model": "fake-planner"}
 
     def text(self, prompt, **kwargs):
+        if "ROUND 1 OBSERVATION" in prompt:
+            return json.dumps(NEXT_DECISION, ensure_ascii=False)
         return json.dumps(PLAN, ensure_ascii=False)
 
 
 class PlanAgentPrototypeTests(unittest.TestCase):
-    def test_generates_single_round_blue_plan(self):
+    def test_plans_round_1_then_adapts_to_round_2(self):
         source_root = Path(__file__).resolve().parents[2]
         with tempfile.TemporaryDirectory() as temporary:
             repo_root = Path(temporary)
@@ -71,31 +109,36 @@ class PlanAgentPrototypeTests(unittest.TestCase):
             readme.parent.mkdir(parents=True)
             shutil.copy2(source_root / "mea/planner/README.Agent.md", readme)
 
-            manifest = PlanAgentPrototype(
-                repo_root,
-                FakeProvider(),
-                model="fake-planner",
-            ).plan(
-                "评估 ACT 在蓝色方块场景中的表现。",
-                evaluation_id="eval_unittest_blue",
+            agent = PlanAgentPrototype(repo_root, FakeProvider(), model="fake-planner")
+            manifest = agent.plan(
+                "评估 ACT 在蓝色方块和位置变化下的表现。",
+                evaluation_id="eval_unittest_multi_round",
             )
-            self.assertEqual(manifest["status"], "planned")
-            self.assertEqual(
-                manifest["plan"]["rounds"][0]["task_instruction"],
-                BLUE_TASK_INSTRUCTION,
+            self.assertEqual(manifest["status"], "planned_round_1")
+            self.assertEqual(len(manifest["plan"]["rounds"]), 1)
+
+            updated, decision = agent.decide_next_round(
+                evaluation_id=manifest["evaluation_id"],
+                user_request=manifest["user_request"],
+                current_plan=manifest["plan"],
+                round_1_observation={
+                    "round_id": "round_1",
+                    "pipeline_passed": True,
+                    "observations": {"policy_success": 0.0},
+                },
             )
-            self.assertEqual(
-                manifest["plan"]["rounds"][0]["execution"]["num_episodes"],
-                1,
-            )
+            self.assertEqual(decision["action"], "continue")
+            self.assertEqual(len(updated["rounds"]), 2)
+            self.assertEqual(updated["rounds"][1]["execution"]["num_episodes"], 2)
+            self.assertEqual(updated["rounds"][1]["route"], "reuse")
             self.assertTrue(
                 (
                     repo_root
-                    / "mea/evaluation_runs/eval_unittest_blue/plan/evaluation_plan.json"
+                    / "mea/evaluation_runs/eval_unittest_multi_round/plan/round_2_decision.json"
                 ).is_file()
             )
 
-    def test_rejects_multiple_rounds(self):
+    def test_initial_plan_rejects_premature_second_round(self):
         invalid = json.loads(json.dumps(PLAN, ensure_ascii=False))
         invalid["rounds"].append(dict(invalid["rounds"][0]))
         with self.assertRaises(PlanAgentError):
@@ -106,6 +149,13 @@ class PlanAgentPrototypeTests(unittest.TestCase):
         invalid["rounds"][0]["variant_hint"]["block"]["color"] = [0.0, 1.0, 0.0]
         with self.assertRaises(PlanAgentError):
             validate_evaluation_plan(invalid)
+
+    def test_failed_pipeline_requires_stop(self):
+        with self.assertRaises(PlanAgentError):
+            validate_next_round_decision(
+                NEXT_DECISION,
+                {"pipeline_passed": False},
+            )
 
 
 if __name__ == "__main__":
