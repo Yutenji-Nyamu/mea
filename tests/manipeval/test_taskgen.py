@@ -71,6 +71,18 @@ class FakeProvider:
     def __init__(self):
         self.responses = [
             json.dumps(SPEC, ensure_ascii=False),
+            json.dumps(
+                {
+                    "selected_tasks": [
+                        "beat_block_hammer",
+                        "blocks_ranking_rgb",
+                    ],
+                    "reasoning": (
+                        "Use the canonical task for behavior and the RGB task "
+                        "as an appearance-construction reference."
+                    ),
+                }
+            ),
             f"```python\n{BLUE_METHOD}\n```",
         ]
         self.last_metadata = {"model": "fake"}
@@ -105,6 +117,16 @@ class TaskGenPrototypeTests(unittest.TestCase):
             )
             self.assertTrue(static["load_actors_ast"]["complete_method_generated"])
             self.assertFalse(static["load_actors_ast"]["calls_super"])
+            retrieval = json.loads(
+                (run_dir / "generation/retrieval.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(retrieval["catalog_size"], 50)
+            self.assertEqual(
+                retrieval["selected_tasks"],
+                ["beat_block_hammer", "blocks_ranking_rgb"],
+            )
         finally:
             if run_dir.exists():
                 shutil.rmtree(run_dir)

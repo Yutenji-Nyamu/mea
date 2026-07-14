@@ -28,6 +28,7 @@
   -> evaluation_plan.json
   -> scripts/manipeval_taskgen.py
   -> 内层 VariantSpec Agent
+  -> TaskRetriever 查看 50 个 task name，选择相关源码
   -> 内层 GPT 生成完整 load_actors()
   -> AST / protected-file checks
   -> setup + render + rule check
@@ -35,6 +36,8 @@
   -> expert gate
   -> ACT 1 episode
   -> 外层 deterministic summary
+  -> Feedback Agent
+  -> evaluation_report.md
 ```
 
 `pipeline_passed` 与 `policy_success` 是两个独立结果。场景生成和执行链路正常并不
@@ -47,7 +50,10 @@ TaskGen failure。
 - `mea/planner/README.Agent.md`：向外层 GPT 提供 policy metadata、场景约束、可用
   route、评估预算和已验证示例。
 - `scripts/manipeval_agent.py`：外层 orchestration CLI，创建 child TaskGen run 并汇总
-  observations。
+  observations、evidence、Feedback Agent 回答与统一报告。
+- `mea/retrieval/task_library.py`：从上游 task files 建目录，并让 GPT 选择代码生成
+  所需的少量参考源码。
+- `mea/feedback/prototype.py`：基于结构化 evidence 生成用户反馈和单文件报告。
 - `scripts/manipeval_taskgen.py`：新增可选 `--run-id`，使父 evaluation 能稳定绑定
   child run。
 - `tests/manipeval/test_plan_agent.py`：覆盖正常蓝色计划、多 round 拒绝和非验证颜色
@@ -127,8 +133,15 @@ mea/evaluation_runs/<evaluation_id>/
 │   ├── taskgen_command.json
 │   ├── taskgen.log
 │   └── child_run.json
-└── summary/
-    └── summary.json
+├── summary/
+│   ├── summary.json
+│   └── evidence_bundle.json
+├── feedback/
+│   ├── prompt.md
+│   ├── response.txt
+│   ├── feedback.json
+│   └── feedback.md
+└── evaluation_report.md
 ```
 
 外层目录通过 `child_run_id` 指向

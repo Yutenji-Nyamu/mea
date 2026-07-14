@@ -18,6 +18,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from mea.retrieval import TaskRetriever
+
 
 class TaskGenError(RuntimeError):
     """Raised when proposal, generation, or validation fails."""
@@ -430,12 +432,29 @@ def _extract_method_from_file(path: Path, method_name: str) -> str:
     return textwrap.dedent(_source_for_node(source, methods[0]))
 
 
-def _codegen_prompt(repo_root: Path, user_request: str, spec: dict[str, Any]) -> str:
+def _codegen_prompt(
+    repo_root: Path,
+    user_request: str,
+    spec: dict[str, Any],
+    retrieved_tasks: list[str],
+) -> str:
     agent_readme = (repo_root / "mea/taskgen/README.Agent.md").read_text(encoding="utf-8")
     official_task = (repo_root / "envs/beat_block_hammer.py").read_text(encoding="utf-8")
     configurable_task = (repo_root / "mea/tasks/beat_block_hammer.py").read_text(encoding="utf-8")
-    rgb_example = _extract_method_from_file(repo_root / "envs/blocks_ranking_rgb.py", "load_actors")
-    stack_example = _extract_method_from_file(repo_root / "envs/stack_blocks_two.py", "load_actors")
+    retrieved_sections = []
+    for task_name in retrieved_tasks:
+        if task_name == "beat_block_hammer":
+            continue
+        source_path = repo_root / "envs" / f"{task_name}.py"
+        retrieved_sections.append(
+            f"### {source_path.relative_to(repo_root)}\n"
+            f"```python\n{source_path.read_text(encoding='utf-8')}\n```"
+        )
+    retrieved_context = (
+        "\n\n".join(retrieved_sections)
+        if retrieved_sections
+        else "No additional example was selected."
+    )
 
     return f"""You are the TaskGen code agent for RoboTwin 2.0.
 
@@ -476,15 +495,8 @@ to literal values in your generated method):
 {configurable_task}
 ```
 
-SIMILAR LOAD_ACTORS EXAMPLE: RGB blocks
-```python
-{rgb_example}
-```
-
-SIMILAR LOAD_ACTORS EXAMPLE: stacked blocks
-```python
-{stack_example}
-```
+GPT-RETRIEVED TASK SOURCES:
+{retrieved_context}
 """
 
 
@@ -555,6 +567,9 @@ class TaskGenPrototype:
         (generation_dir / "proposal_response.txt").write_text(
             proposal_response + "\n", encoding="utf-8"
         )
+        provider_calls = {
+            "proposal": dict(getattr(self.provider, "last_metadata", {}))
+        }
         spec = validate_variant_spec(extract_json_response(proposal_response), task_name)
         spec["generation_mode"] = mode
         _write_json(run_dir / "variant_spec.json", spec)
@@ -569,11 +584,34 @@ class TaskGenPrototype:
 
         validation: dict[str, Any] = {"variant_spec": {"valid": True}}
         task_module = "mea.tasks.beat_block_hammer"
+        task_retrieval = None
 
         if mode == "force_codegen":
-            manifest["status"] = "generating"
+            manifest["status"] = "retrieving_task_sources"
             _write_json(run_dir / "manifest.json", manifest)
-            code_prompt = _codegen_prompt(self.repo_root, user_request, spec)
+            task_retrieval = TaskRetriever(
+                self.repo_root,
+                self.provider,
+                model=self.model,
+            ).select(
+                user_request,
+                task_name,
+                spec,
+                output_dir=generation_dir,
+            )
+            provider_calls["retrieval"] = dict(
+                getattr(self.provider, "last_metadata", {})
+            )
+
+            manifest["status"] = "generating"
+            manifest["task_retrieval"] = task_retrieval
+            _write_json(run_dir / "manifest.json", manifest)
+            code_prompt = _codegen_prompt(
+                self.repo_root,
+                user_request,
+                spec,
+                task_retrieval["selected_tasks"],
+            )
             (generation_dir / "code_prompt.md").write_text(code_prompt, encoding="utf-8")
             code_response = self.provider.text(
                 code_prompt,
@@ -587,6 +625,9 @@ class TaskGenPrototype:
             )
             (generation_dir / "code_response.txt").write_text(
                 code_response + "\n", encoding="utf-8"
+            )
+            provider_calls["codegen"] = dict(
+                getattr(self.provider, "last_metadata", {})
             )
             method_source = extract_load_actors(code_response)
             (generation_dir / "load_actors.py.txt").write_text(
@@ -615,8 +656,10 @@ class TaskGenPrototype:
                 "task_module": task_module,
                 "overlay": str((run_dir / "overlay.yml").relative_to(self.repo_root)),
                 "static_validation": validation,
+                "task_retrieval": task_retrieval,
                 "provider": {
                     "model_requested": self.model,
+                    "calls": provider_calls,
                     "last_metadata": dict(getattr(self.provider, "last_metadata", {})),
                 },
             }

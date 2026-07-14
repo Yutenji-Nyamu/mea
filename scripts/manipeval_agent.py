@@ -14,6 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from mea.feedback import FeedbackAgent, render_evaluation_report
 from mea.planner import PlanAgentPrototype
 from mea.providers import OpenAICompatibleProvider
 
@@ -159,6 +160,87 @@ def summarize_child(
     }
 
 
+def build_evidence_bundle(
+    repo_root: Path,
+    evaluation_id: str,
+    user_request: str,
+    plan: dict[str, Any],
+    child_manifest: dict[str, Any],
+    child_dir: Path,
+    summary: dict[str, Any],
+) -> dict[str, Any]:
+    round_plan = plan["rounds"][0]
+    round_summary = summary["rounds"][0]
+    static = child_manifest.get("static_validation", {})
+    scene = child_manifest.get("scene_validation", {})
+    vision = child_manifest.get("vision_validation", {})
+    act = child_manifest.get("act_evaluation", {})
+    retrieval = child_manifest.get("task_retrieval") or {}
+    variant_spec_path = child_dir / "variant_spec.json"
+    variant_spec = (
+        json.loads(variant_spec_path.read_text(encoding="utf-8"))
+        if variant_spec_path.is_file()
+        else None
+    )
+
+    child_relative = child_dir.relative_to(repo_root)
+    evaluation_relative = Path("mea/evaluation_runs") / evaluation_id
+    observations = dict(round_summary["observations"])
+    observations["pipeline_passed"] = round_summary["pipeline_passed"]
+    return {
+        "schema_version": 1,
+        "evaluation_id": evaluation_id,
+        "child_run_id": child_manifest.get("run_id"),
+        "user_request": user_request,
+        "sub_aspect": round_plan["sub_aspect"],
+        "task_instruction": round_plan["task_instruction"],
+        "route": round_plan["route"],
+        "seed": round_plan["execution"]["seeds"][0],
+        "num_episodes": round_plan["execution"]["num_episodes"],
+        "task_retrieval": {
+            "catalog_size": retrieval.get("catalog_size"),
+            "selected_tasks": retrieval.get("selected_tasks", []),
+            "reasoning": retrieval.get("reasoning"),
+        },
+        "generation": {
+            "variant_spec": variant_spec,
+            "complete_method_generated": static.get("load_actors_ast", {}).get(
+                "complete_method_generated"
+            ),
+            "generated_color": static.get("load_actors_ast", {}).get(
+                "generated_color"
+            ),
+        },
+        "visual_observation": {
+            "render_success": scene.get("render_success"),
+            "aligned": vision.get("aligned"),
+            "observed_color": vision.get("observed_color"),
+            "unexpected_changes": vision.get("unexpected_changes"),
+            "confidence": vision.get("confidence"),
+        },
+        "observations": observations,
+        "limitations": {
+            "single_round": True,
+            "single_episode": round_plan["execution"]["num_episodes"] == 1,
+            "policy_result_is_not_generalization_conclusion": True,
+        },
+        "artifacts": {
+            "evaluation_plan": str(
+                evaluation_relative / "plan/evaluation_plan.json"
+            ),
+            "task_catalog": str(child_relative / "generation/task_catalog.json"),
+            "retrieval": str(child_relative / "generation/retrieval.json"),
+            "generated_task": str(child_relative / "task.py"),
+            "scene_image": str(child_relative / "evidence/initial_head.png"),
+            "vision_result": str(child_relative / "validation/vision.json"),
+            "act_video": str(child_relative / "evaluation/episode0.mp4"),
+            "act_result": str(child_relative / "evaluation/_result.txt"),
+            "child_manifest": str(child_relative / "manifest.json"),
+        },
+        "act_process_returncode": act.get("returncode"),
+    }
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--request", required=True)
@@ -167,6 +249,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--planner-model", default="gpt-4o-2024-11-20")
     parser.add_argument("--taskgen-model", default="gpt-4o-2024-11-20")
     parser.add_argument("--vision-model", default="gpt-4o-2024-11-20")
+    parser.add_argument("--feedback-model", default="gpt-4o-2024-11-20")
     parser.add_argument("--base-url", default=None)
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument("--plan-only", action="store_true")
@@ -246,16 +329,63 @@ def main() -> None:
             child_dir,
         )
         write_json(evaluation_dir / "summary/summary.json", summary)
-        update_manifest(
-            evaluation_dir,
-            status=summary["status"],
-            execution_finished_at=datetime.now().astimezone().isoformat(),
-            summary_path="summary/summary.json",
-            summary=summary,
-        )
         if summary["status"] != "completed":
             raise RuntimeError(f"single-round evaluation 未通过: {summary}")
-        print(json.dumps(summary, ensure_ascii=False, indent=2))
+
+        evidence = build_evidence_bundle(
+            repo_root,
+            evaluation_id,
+            args.request,
+            plan,
+            child_manifest,
+            child_dir,
+            summary,
+        )
+        write_json(evaluation_dir / "summary/evidence_bundle.json", evidence)
+        update_manifest(
+            evaluation_dir,
+            status="generating_feedback",
+            summary_path="summary/summary.json",
+            evidence_path="summary/evidence_bundle.json",
+            summary=summary,
+        )
+        feedback = FeedbackAgent(
+            repo_root,
+            provider,
+            model=args.feedback_model,
+        ).generate(
+            evidence,
+            output_dir=evaluation_dir / "feedback",
+        )
+        report_path = evaluation_dir / "evaluation_report.md"
+        report_path.write_text(
+            render_evaluation_report(evidence, feedback),
+            encoding="utf-8",
+        )
+        update_manifest(
+            evaluation_dir,
+            status="completed",
+            execution_finished_at=datetime.now().astimezone().isoformat(),
+            summary_path="summary/summary.json",
+            evidence_path="summary/evidence_bundle.json",
+            feedback_path="feedback/feedback.json",
+            report_path="evaluation_report.md",
+            summary=summary,
+            feedback=feedback,
+        )
+        print(
+            json.dumps(
+                {
+                    "evaluation_id": evaluation_id,
+                    "child_run_id": run_id,
+                    "summary": summary,
+                    "feedback": feedback,
+                    "report_path": str(report_path.relative_to(repo_root)),
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
     except Exception as exc:
         update_manifest(
             evaluation_dir,
