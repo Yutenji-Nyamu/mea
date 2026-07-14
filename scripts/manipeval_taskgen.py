@@ -206,6 +206,7 @@ def run_act(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--request")
+    parser.add_argument("--run-id")
     parser.add_argument(
         "--resume-run",
         help="Resume an existing run_id without calling the text-generation stages again.",
@@ -237,6 +238,8 @@ def main() -> None:
             timeout=180.0,
         )
     if args.resume_run:
+        if args.run_id:
+            raise SystemExit("--resume-run 与 --run-id 不能同时使用")
         run_dir = repo_root / "mea/generated_tasks" / args.resume_run
         manifest_path = run_dir / "manifest.json"
         if not manifest_path.is_file():
@@ -250,6 +253,7 @@ def main() -> None:
             args.request,
             task_name=args.task_name,
             mode=args.mode,
+            run_id=args.run_id,
         )
         run_dir = repo_root / "mea/generated_tasks" / manifest["run_id"]
 

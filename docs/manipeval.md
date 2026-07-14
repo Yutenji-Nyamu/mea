@@ -85,6 +85,17 @@ vision 和 expert gates 后，才进入 ACT evaluation。
 详细设计、命令、验证边界和证据见
 [`docs/taskgen_prototype.md`](taskgen_prototype.md)。
 
+## 单轮 Plan Agent
+
+`scripts/manipeval_agent.py` 是当前端到端入口。外层 GPT 读取 policy metadata、
+RoboTwin 场景约束、执行预算和已验证蓝色方块示例，输出严格的单轮
+`EvaluationPlan`；validator 通过后，再调用现有 TaskGen 完成完整代码生成和评估。
+
+第一版只支持 ACT + BeatBlockHammer 蓝色方块、一个 round、seed 100000 和一个
+episode。外层 summary 分别记录 `pipeline_passed` 和 `policy_success`。实现、schema、
+命令与首次真实验证见
+[`docs/plan_agent_prototype.md`](plan_agent_prototype.md)。
+
 ## 文档语言约定
 
 项目新增的开发说明、实验记录和提交交接默认使用中文；函数名、参数名、
