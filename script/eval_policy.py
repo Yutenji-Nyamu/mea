@@ -25,14 +25,27 @@ current_file_path = os.path.abspath(__file__)
 parent_directory = os.path.dirname(current_file_path)
 
 
-def class_decorator(task_name):
-    envs_module = importlib.import_module(f"envs.{task_name}")
+def deep_update(base: dict, override: dict) -> dict:
+    """Recursively merge override into base in place."""
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(base.get(key), dict):
+            deep_update(base[key], value)
+        else:
+            base[key] = value
+    return base
+
+
+def class_decorator(task_name: str, task_module: str | None = None):
+    module_name = task_module or f"envs.{task_name}"
     try:
+        envs_module = importlib.import_module(module_name)
         env_class = getattr(envs_module, task_name)
-        env_instance = env_class()
-    except:
-        raise SystemExit("No Task")
-    return env_instance
+    except (ImportError, AttributeError) as exc:
+        raise RuntimeError(
+            f"Task class {task_name!r} was not found in module {module_name!r}"
+        ) from exc
+
+    return env_class()
 
 
 def eval_function_decorator(policy_name, model_name):
@@ -78,6 +91,21 @@ def main(usr_args):
     with open(f"./task_config/{task_config}.yml", "r", encoding="utf-8") as f:
         args = yaml.load(f.read(), Loader=yaml.FullLoader)
 
+    task_overlay = usr_args.get("task_overlay")
+    if task_overlay:
+        overlay_path = Path(task_overlay).expanduser().resolve()
+        with open(overlay_path, "r", encoding="utf-8") as f:
+            overlay = yaml.safe_load(f) or {}
+
+        if not isinstance(overlay, dict):
+            raise ValueError(
+                f"task_overlay must contain a YAML mapping, got {type(overlay).__name__}"
+            )
+
+        deep_update(args, overlay)
+        print(f"Loaded task overlay from {overlay_path}")
+
+    # Canonical identity always comes from the command line, not the overlay.
     args['task_name'] = task_name
     args["task_config"] = task_config
     args["ckpt_setting"] = ckpt_setting
@@ -150,16 +178,24 @@ def main(usr_args):
     print("\033[94mEmbodiment Config:\033[0m " + embodiment_name)
     print("\n==================================")
 
-    TASK_ENV = class_decorator(args["task_name"])
+    TASK_ENV = class_decorator(
+        task_name=args["task_name"],
+        task_module=usr_args.get("task_module"),
+    )
     args["policy_name"] = policy_name
     usr_args["left_arm_dim"] = len(args["left_embodiment_config"]["arm_joints_name"][0])
     usr_args["right_arm_dim"] = len(args["right_embodiment_config"]["arm_joints_name"][1])
 
-    seed = usr_args["seed"]
+    seed = int(usr_args["seed"])
 
-    st_seed = 100000 * (1 + seed)
+    st_seed = int(usr_args.get("start_seed", 100000 * (1 + seed)))
     suc_nums = []
-    test_num = 100
+    test_num = int(usr_args.get("num_episodes", 100))
+    if test_num <= 0:
+        raise ValueError(f"num_episodes must be positive, got {test_num}")
+
+    print(f"Evaluation episodes: {test_num}")
+    print(f"Evaluation start seed: {st_seed}")
     topk = 1
 
     model = get_model(usr_args)

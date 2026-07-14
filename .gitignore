@@ -28,3 +28,7 @@ envs/curobo/*
 
 /*.json*
 /*.txt
+
+# Local runtime links and operation logs used by the MEA fork.
+/policy/ACT/act_ckpt
+/_ops_logs/
