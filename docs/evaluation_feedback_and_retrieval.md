@@ -109,3 +109,10 @@ source 无差别塞入 prompt。
 
 这证明了“用户问题 -> 计划 -> 检索 -> 代码生成 -> 视觉/专家验证 -> policy 执行 ->
 证据化反馈”的单轮闭环。一个 episode 仍不能用于判断颜色泛化能力。
+
+## Git 交付
+
+- DCO commit：`a8009817286a6191ee2327c6e8174ca4d6ad2023`；
+- commit message：`实现任务检索与评估反馈报告`；
+- scope：16 files，982 insertions、20 deletions；
+- `2026-07-14 15:15 +08:00` 已确认 `main`、`origin/main` 与该 commit 一致。
