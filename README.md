@@ -13,5 +13,6 @@ python scripts/manipeval_agent.py \
 The inner TaskGen entry point is `scripts/manipeval_taskgen.py`, and the parameterized ACT evaluation entry point is `policy/ACT/eval_mea.sh`.
 
 Each completed agent run also produces one evidence-grounded `evaluation_report.md` for the user.
+Generated scenes use bounded Visual Self-Reflection: render, diagnose, repair the complete `load_actors()`, and revalidate before policy execution.
 
 The original implementation was difficult to navigate. This repository reorganizes it as a clean, structured refactor for study and teaching. The original RoboTwin documentation is retained in `README_RoboTwin.md`.

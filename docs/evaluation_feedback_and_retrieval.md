@@ -7,10 +7,10 @@
 1. `Task Retrieval` 对应论文 TaskGen 图中的 Retrieval Augmented 部分；
 2. `Feedback Agent` 对应总架构中从 Observations 回到用户的 Evaluation Feedback。
 
-当前 Visual Self-Reflection 已具备 `render -> UIUI Vision -> alignment gate`：模型会检查
-方块是否为蓝色、是否出现意外变化，不符合时阻止后续 expert/ACT。它还不是自动代码
-返修循环；自动把视觉诊断送回 CodeGen 并限次重试留作下一阶段，以免在本轮同时改变
-生成、执行和失败恢复三套状态语义。
+Visual Self-Reflection 已扩展为有界返修循环：`render -> UIUI Vision -> diagnosis ->
+CodeGen repair -> AST/render/Vision revalidation`，通过后才进入 expert/ACT。完整设计和
+真实红色→蓝色返修证据见
+[`docs/visual_self_reflection.md`](visual_self_reflection.md)。
 
 ## 完整调用链
 
@@ -25,6 +25,7 @@
   -> AST / protected-file validation
   -> setup-only render / rule validation
   -> UIUI Vision alignment gate
+     -> 若失败：diagnosis + suggestion -> 完整 load_actors() 返修 -> 重新验证
   -> expert solvability gate
   -> ACT 1 episode
   -> deterministic summary + evidence bundle

@@ -20,6 +20,8 @@ module wrapper、class declaration 和运行清单。
   -> AST / import / protected-file 检查
   -> setup-only scene load + render
   -> rule check + UIUI vision check
+     -> 失败时 diagnosis + 完整 load_actors() repair（最多 2 次）
+     -> AST / render / rule / Vision revalidation
   -> expert gate
   -> ACT 1-episode evaluation
   -> 同一 run_id 下保存全部证据
@@ -84,6 +86,7 @@ python scripts/manipeval_taskgen.py \
   --mode force_codegen \
   --probe \
   --vision-check \
+  --max-reflections 2 \
   --expert \
   --run-act
 ```

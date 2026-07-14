@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,23 @@ from mea.taskgen import extract_json_response
 
 class FeedbackAgentError(RuntimeError):
     """Raised when final feedback violates the structured output contract."""
+
+
+FALSE_POLICY_SUCCESS_PATTERNS = (
+    r"任务成功完成",
+    r"成功完成任务",
+    r"策略执行成功",
+    r"policy\s*(?:执行)?成功",
+    r"ACT.*任务.*成功",
+    r"表现符合任务要求",
+)
+
+
+def _claims_policy_success(text: str) -> bool:
+    return any(
+        re.search(pattern, text, re.IGNORECASE)
+        for pattern in FALSE_POLICY_SUCCESS_PATTERNS
+    )
 
 
 def _require_text(value: Any, field: str) -> str:
@@ -25,10 +43,13 @@ def _require_text_list(value: Any, field: str) -> list[str]:
     return [_require_text(item, f"{field}[]") for item in value]
 
 
-def validate_feedback(value: dict[str, Any]) -> dict[str, Any]:
+def validate_feedback(
+    value: dict[str, Any],
+    evidence: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise FeedbackAgentError("Feedback 必须是 JSON object")
-    return {
+    feedback = {
         "answer": _require_text(value.get("answer"), "answer"),
         "evaluation_scope": _require_text(
             value.get("evaluation_scope"), "evaluation_scope"
@@ -39,6 +60,65 @@ def validate_feedback(value: dict[str, Any]) -> dict[str, Any]:
             value.get("recommended_next_step"), "recommended_next_step"
         ),
     }
+    policy_success = (evidence or {}).get("observations", {}).get(
+        "policy_success"
+    )
+    if policy_success is not None and float(policy_success) <= 0.0:
+        conclusion_text = "\n".join(
+            [feedback["answer"], *feedback["findings"]]
+        )
+        if _claims_policy_success(conclusion_text):
+            raise FeedbackAgentError(
+                "answer/findings 声称任务成功，但 evidence 中 policy_success <= 0"
+            )
+    return feedback
+
+
+def apply_deterministic_consistency_guard(
+    value: dict[str, Any],
+    evidence: dict[str, Any],
+    *,
+    validation_errors: list[str] | None = None,
+    attempts_used: int = 1,
+) -> dict[str, Any]:
+    """Force policy-success wording to agree with the numeric evidence."""
+
+    feedback = validate_feedback(value)
+    policy_success = evidence.get("observations", {}).get("policy_success")
+    deterministic_correction = False
+    if policy_success is not None and float(policy_success) <= 0.0:
+        conclusion_text = "\n".join(
+            [feedback["answer"], *feedback["findings"]]
+        )
+        if _claims_policy_success(conclusion_text):
+            feedback["answer"] = (
+                "场景生成和评估流水线通过，但 ACT policy 在本次 episode "
+                f"未完成任务（policy_success={float(policy_success):.1f}）。"
+            )
+            feedback["findings"] = [
+                item
+                for item in feedback["findings"]
+                if not _claims_policy_success(item)
+            ]
+            feedback["findings"].extend(
+                [
+                    "场景生成、视觉对齐和评估流水线已完成。",
+                    (
+                        "ACT policy 在本次 episode 未完成任务，"
+                        f"policy_success={float(policy_success):.1f}。"
+                    ),
+                ]
+            )
+            deterministic_correction = True
+    feedback["consistency_validation"] = {
+        "passed": True,
+        "attempts_used": attempts_used,
+        "rejected_responses": len(validation_errors or []),
+        "errors": list(validation_errors or []),
+        "deterministic_correction": deterministic_correction,
+    }
+    validate_feedback(feedback, evidence)
+    return feedback
 
 
 def _feedback_prompt(repo_root: Path, evidence: dict[str, Any]) -> str:
@@ -98,15 +178,74 @@ class FeedbackAgent:
         output_dir.mkdir(parents=True, exist_ok=True)
         prompt = _feedback_prompt(self.repo_root, evidence)
         (output_dir / "prompt.md").write_text(prompt, encoding="utf-8")
-        response = self.provider.text(
-            prompt,
-            model=self.model,
-            system="Use only the evidence and return strict Feedback JSON.",
-            max_tokens=1200,
-            temperature=0.0,
-        )
-        (output_dir / "response.txt").write_text(response + "\n", encoding="utf-8")
-        feedback = validate_feedback(extract_json_response(response))
+        feedback = None
+        last_structured_feedback = None
+        validation_errors: list[str] = []
+        for attempt_index in range(2):
+            attempt_prompt = prompt
+            if validation_errors:
+                attempt_prompt += f"""
+
+PREVIOUS RESPONSE VALIDATION ERROR:
+{validation_errors[-1]}
+
+Regenerate the entire strict JSON. Pipeline completion never means policy task
+success. If policy_success is 0.0, explicitly state that the policy did not
+complete the task.
+"""
+                (output_dir / "retry_prompt.md").write_text(
+                    attempt_prompt, encoding="utf-8"
+                )
+            response = self.provider.text(
+                attempt_prompt,
+                model=self.model,
+                system="Use only the evidence and return strict Feedback JSON.",
+                max_tokens=1200,
+                temperature=0.0,
+            )
+            response_name = (
+                "response.txt" if attempt_index == 0 else "retry_response.txt"
+            )
+            (output_dir / response_name).write_text(
+                response + "\n", encoding="utf-8"
+            )
+            try:
+                parsed = extract_json_response(response)
+                last_structured_feedback = validate_feedback(parsed)
+                feedback = validate_feedback(
+                    parsed,
+                    evidence,
+                )
+                break
+            except FeedbackAgentError as exc:
+                validation_errors.append(str(exc))
+        deterministic_correction = False
+        if feedback is None:
+            policy_success = evidence.get("observations", {}).get(
+                "policy_success"
+            )
+            if last_structured_feedback is None or policy_success is None:
+                raise FeedbackAgentError(
+                    "Feedback 两次响应均未通过，且没有可校正的 structured output: "
+                    f"{validation_errors}"
+                )
+            feedback = apply_deterministic_consistency_guard(
+                last_structured_feedback,
+                evidence,
+                validation_errors=validation_errors,
+                attempts_used=2,
+            )
+            deterministic_correction = bool(
+                feedback["consistency_validation"]["deterministic_correction"]
+            )
+        if not deterministic_correction:
+            feedback["consistency_validation"] = {
+                "passed": True,
+                "attempts_used": len(validation_errors) + 1,
+                "rejected_responses": len(validation_errors),
+                "errors": validation_errors,
+                "deterministic_correction": False,
+            }
         feedback["provider_metadata"] = dict(
             getattr(self.provider, "last_metadata", {})
         )
@@ -128,6 +267,7 @@ def render_evaluation_report(
 
     retrieval = evidence["task_retrieval"]
     observations = evidence["observations"]
+    reflection = evidence.get("visual_self_reflection", {})
     artifacts = evidence["artifacts"]
     selected = ", ".join(f"`{name}`" for name in retrieval["selected_tasks"])
     artifact_lines = "\n".join(
@@ -165,6 +305,9 @@ def render_evaluation_report(
 - ACT pipeline status: `{observations['act_pipeline_status']}`
 - policy success: `{observations['policy_success']}`
 - pipeline passed: `{observations['pipeline_passed']}`
+- visual reflection passed: `{reflection.get('passed')}`
+- visual repairs used: `{reflection.get('repairs_used')}`
+- visual attempts: `{reflection.get('attempt_count')}`
 
 ## Feedback Agent answer
 

@@ -33,6 +33,8 @@
   -> AST / protected-file checks
   -> setup + render + rule check
   -> UIUI Vision check
+     -> 失败时 diagnosis 驱动完整 load_actors() repair，最多 2 次
+     -> 每次 repair 后重新执行 AST / render / rule / Vision
   -> expert gate
   -> ACT 1 episode
   -> 外层 deterministic summary

@@ -13,3 +13,5 @@ Rules:
 5. Mention limitations and a concrete next evaluation step.
 6. Do not claim that a missing metric passed or failed.
 7. Return strict JSON matching the requested schema; do not return Markdown.
+8. If `policy_success` is 0.0, explicitly say the policy did not complete the
+   task; never describe pipeline completion as task success.

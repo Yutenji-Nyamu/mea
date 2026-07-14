@@ -48,6 +48,7 @@ def build_taskgen_command(
     vision_model: str,
     base_url: str | None,
     gpu: int,
+    max_reflections: int,
 ) -> tuple[list[str], str]:
     run_id = child_run_id(evaluation_id)
     seed = round_plan["execution"]["seeds"][0]
@@ -76,6 +77,8 @@ def build_taskgen_command(
         "--vision-check",
         "--expert",
         "--run-act",
+        "--max-reflections",
+        str(max_reflections),
     ]
     if base_url:
         command.extend(["--base-url", base_url])
@@ -174,6 +177,7 @@ def build_evidence_bundle(
     static = child_manifest.get("static_validation", {})
     scene = child_manifest.get("scene_validation", {})
     vision = child_manifest.get("vision_validation", {})
+    reflection = child_manifest.get("visual_self_reflection", {})
     act = child_manifest.get("act_evaluation", {})
     retrieval = child_manifest.get("task_retrieval") or {}
     variant_spec_path = child_dir / "variant_spec.json"
@@ -218,6 +222,33 @@ def build_evidence_bundle(
             "unexpected_changes": vision.get("unexpected_changes"),
             "confidence": vision.get("confidence"),
         },
+        "visual_self_reflection": {
+            "passed": reflection.get("passed"),
+            "max_repairs": reflection.get("max_repairs"),
+            "repairs_used": reflection.get("repairs_used"),
+            "final_attempt": reflection.get("final_attempt"),
+            "attempt_count": len(reflection.get("attempts", [])),
+            "attempts": [
+                {
+                    "attempt_index": item.get("attempt_index"),
+                    "passed": item.get("observation", {}).get("passed"),
+                    "probe_passed": item.get("observation", {}).get(
+                        "probe_passed"
+                    ),
+                    "observed_color": item.get("observation", {})
+                    .get("vision", {})
+                    .get("observed_color"),
+                    "diagnosis": item.get("observation", {})
+                    .get("vision", {})
+                    .get("diagnosis"),
+                    "suggestions": item.get("observation", {})
+                    .get("vision", {})
+                    .get("suggestions", []),
+                    "repair_installed": bool(item.get("repair", {}).get("installed")),
+                }
+                for item in reflection.get("attempts", [])
+            ],
+        },
         "observations": observations,
         "limitations": {
             "single_round": True,
@@ -233,6 +264,7 @@ def build_evidence_bundle(
             "generated_task": str(child_relative / "task.py"),
             "scene_image": str(child_relative / "evidence/initial_head.png"),
             "vision_result": str(child_relative / "validation/vision.json"),
+            "reflection_summary": str(child_relative / "reflection/summary.json"),
             "act_video": str(child_relative / "evaluation/episode0.mp4"),
             "act_result": str(child_relative / "evaluation/_result.txt"),
             "child_manifest": str(child_relative / "manifest.json"),
@@ -252,6 +284,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--feedback-model", default="gpt-4o-2024-11-20")
     parser.add_argument("--base-url", default=None)
     parser.add_argument("--gpu", type=int, default=0)
+    parser.add_argument(
+        "--max-reflections",
+        type=int,
+        default=2,
+        help="Maximum visual diagnosis-driven CodeGen repairs per TaskGen run.",
+    )
     parser.add_argument("--plan-only", action="store_true")
     return parser.parse_args()
 
@@ -287,6 +325,7 @@ def main() -> None:
         vision_model=args.vision_model,
         base_url=args.base_url,
         gpu=args.gpu,
+        max_reflections=args.max_reflections,
     )
     write_json(
         evaluation_dir / "execution/taskgen_command.json",

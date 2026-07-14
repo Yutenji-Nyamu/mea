@@ -8,6 +8,15 @@ from .prototype import (
     validate_load_actors,
     validate_variant_spec,
 )
+from .reflection import (
+    VisualReflectionError,
+    execute_reflection_loop,
+    expected_color_name,
+    inject_oversized_block_fixture,
+    inject_wrong_color_fixture,
+    repair_generated_method,
+    validate_vision_observation,
+)
 
 __all__ = [
     "TaskGenError",
@@ -16,4 +25,11 @@ __all__ = [
     "extract_load_actors",
     "validate_load_actors",
     "validate_variant_spec",
+    "VisualReflectionError",
+    "execute_reflection_loop",
+    "expected_color_name",
+    "inject_oversized_block_fixture",
+    "inject_wrong_color_fixture",
+    "repair_generated_method",
+    "validate_vision_observation",
 ]
