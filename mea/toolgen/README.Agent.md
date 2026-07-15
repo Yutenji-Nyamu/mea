@@ -30,6 +30,8 @@ Available trajectory data:
 - `trajectory.hammer_block_contacts()`: hammer-block contact intervals.
 - `trajectory.metadata`: episode identity, seed, policy, success, and counts.
 - `trajectory.schema`: task thresholds, actor identities, and physics timestep.
+  The relevant exact keys are `pickup_height_threshold_m` and
+  `physics_timestep_seconds`; there is no `physics_timestep` key.
 - `trajectory.policy_states`: policy-boundary action/robot/actor CSV rows.
 - `np` is injected; do not import NumPy. Only allowlisted pure numeric
   attribute chains are accepted.
@@ -44,3 +46,10 @@ Rules:
 - `evidence_steps` contains physics steps, not policy steps or video frames.
 - No type annotations, decorators, helper functions, or top-level statements.
 - Prefer simulator values over visual inference.
+
+For `pickup_to_first_contact_time`, pickup is the first trace sample whose
+hammer center Z rise from the initial sample is at least
+`schema.pickup_height_threshold_m`; it is not the maximum-height sample and is
+not claimed to be the first stable gripper grasp. Contact must be strict
+physical contact. Return `value=None` when pickup/contact is missing or contact
+precedes pickup, and explain the case in `details.reason`.

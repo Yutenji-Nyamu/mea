@@ -20,6 +20,7 @@ import numpy as np
 from mea.toolkit.tools import TOOL_CATALOG, TrajectoryView
 
 from .examples import EXAMPLE_CATALOG
+from .targets import evaluate_target_oracle, target_definition
 
 
 class ToolGenError(RuntimeError):
@@ -66,6 +67,11 @@ ALLOWED_TRAJECTORY_ATTRIBUTES = {
     "schema",
     "success_events",
     "trace",
+}
+
+ALLOWED_TRAJECTORY_CHAINS = {
+    ("metadata", "get"),
+    ("schema", "get"),
 }
 
 FORBIDDEN_NAMES = {
@@ -325,8 +331,11 @@ def validate_generated_tool(source: str) -> dict[str, Any]:
             root, chain = _attribute_chain(node)
             if isinstance(root, ast.Name) and root.id == "trajectory":
                 if (
-                    len(chain) != 1
-                    or chain[0] not in ALLOWED_TRAJECTORY_ATTRIBUTES
+                    not (
+                        len(chain) == 1
+                        and chain[0] in ALLOWED_TRAJECTORY_ATTRIBUTES
+                    )
+                    and chain not in ALLOWED_TRAJECTORY_CHAINS
                 ):
                     raise ToolGenError(
                         f"TrajectoryView 未公开 attribute chain: {'.'.join(chain)}"
@@ -520,21 +529,40 @@ def _equal(left: Any, right: Any) -> bool:
 
 def retrieve_examples(
     user_request: str,
-    reference_tool: str,
+    reference_tool: str | None = None,
     *,
+    target_metric: str | None = None,
     limit: int = 3,
 ) -> list[dict[str, Any]]:
     """Select a tiny, deterministic source-level few-shot set."""
 
-    if reference_tool not in EXAMPLE_CATALOG:
-        raise ToolGenError(f"没有 standalone example: {reference_tool}")
-    text = f"{reference_tool} {user_request}".lower()
+    target_metric = target_metric or reference_tool
+    if not target_metric:
+        raise ToolGenError("ToolGen target_metric 不能为空")
+    try:
+        definition = target_definition(
+            target_metric,
+            reference_tool=reference_tool,
+        )
+    except KeyError as exc:
+        raise ToolGenError(str(exc)) from exc
+    required = list(definition["supporting_examples"])
+    missing = [name for name in required if name not in EXAMPLE_CATALOG]
+    if missing:
+        raise ToolGenError(f"缺少 standalone supporting examples: {missing}")
+    text = f"{target_metric} {reference_tool or ''} {user_request}".lower()
     ranked = []
     for name, item in EXAMPLE_CATALOG.items():
         matches = [tag for tag in item["tags"] if str(tag).lower() in text]
-        score = len(matches) + (100 if name == reference_tool else 0)
+        required_rank = required.index(name) if name in required else None
+        score = len(matches) + (
+            10000 - (required_rank * 100)
+            if required_rank is not None
+            else 0
+        )
         ranked.append((score, name, matches, item))
     ranked.sort(key=lambda item: (-item[0], item[1]))
+    effective_limit = max(len(required), max(1, int(limit)))
     return [
         {
             "name": name,
@@ -543,14 +571,15 @@ def retrieve_examples(
             "source_sha256": _source_hash(inspect.getsource(item["function"])),
             "source": inspect.getsource(item["function"]),
         }
-        for _, name, matches, item in ranked[: max(1, int(limit))]
+        for _, name, matches, item in ranked[:effective_limit]
     ]
 
 
 def _prompt(
     repo_root: Path,
     user_request: str,
-    reference_tool: str,
+    target_metric: str,
+    reference_tool: str | None,
     examples: list[dict[str, Any]],
     diagnostic: str | None,
 ) -> str:
@@ -566,16 +595,45 @@ def _prompt(
         if diagnostic
         else ""
     )
-    description = TOOL_CATALOG[reference_tool]["description"]
+    definition = target_definition(
+        target_metric,
+        reference_tool=reference_tool,
+    )
+    target_contract = json.dumps(
+        {
+            key: value
+            for key, value in definition.items()
+            if key not in {"supporting_examples"}
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+    if definition["oracle_kind"] == "composite_trusted_tools":
+        target_guidance = """- for pickup, use the first trace sample whose hammer Z rise from the initial
+  sample is greater than or equal to schema.pickup_height_threshold_m.
+- for contact, use only the earliest strict physical hammer-block contact.
+- compute duration from trace `simulation_time_seconds` and the contact event's
+  `first_physical_simulation_time_seconds`; do not invent a schema key. If a
+  timestep is needed, the only valid key is `physics_timestep_seconds`.
+- return passed=None because this target is a descriptive measurement.
+- preserve the contract's null semantics, details keys, reason strings, and
+  ascending unique physics-step evidence exactly."""
+    else:
+        target_guidance = (
+            "- preserve the exact result semantics demonstrated by the "
+            "reference example."
+        )
     return f"""You are the ToolGen code agent for an offline RoboTwin trajectory.
 
 USER REQUEST:
 {user_request}
 
 TARGET ORACLE:
-- reference tool: {reference_tool}
-- semantics: {description}
-- this is a force-codegen plumbing test; do not choose reuse.
+- target metric: {target_metric}
+- exact reference tool: {reference_tool or 'none; validated by a private composition oracle'}
+- contract: {target_contract}
+- generate this target directly; do not call a Trusted Tool and do not choose reuse.
+{target_guidance}
 
 OUTPUT CONTRACT AND AVAILABLE DATA:
 {contract}
@@ -634,18 +692,23 @@ class ToolGenPrototype:
         self,
         user_request: str,
         *,
-        reference_tool: str,
+        reference_tool: str | None = None,
+        target_metric: str | None = None,
         episode_dirs: list[str | Path],
         output_dir: str | Path,
         tool_name: str | None = None,
         max_attempts: int = 2,
     ) -> dict[str, Any]:
-        if reference_tool not in TOOL_CATALOG:
-            raise ToolGenError(f"未知 reference tool: {reference_tool}")
-        if reference_tool not in EXAMPLE_CATALOG:
-            raise ToolGenError(
-                f"第一版 ToolGen 尚无可执行 few-shot example: {reference_tool}"
+        target_metric = target_metric or reference_tool
+        if not target_metric:
+            raise ToolGenError("ToolGen target_metric 不能为空")
+        try:
+            definition = target_definition(
+                target_metric,
+                reference_tool=reference_tool,
             )
+        except KeyError as exc:
+            raise ToolGenError(str(exc)) from exc
         episodes = [Path(path).expanduser().resolve() for path in episode_dirs]
         if len(episodes) < 2:
             raise ToolGenError("differential gate 至少需要两个 episode")
@@ -655,8 +718,10 @@ class ToolGenPrototype:
             _validate_episode_for_toolgen(episode)
         oracle_values = [
             _jsonable(
-                TOOL_CATALOG[reference_tool]["function"](
-                    _validate_episode_for_toolgen(episode)
+                evaluate_target_oracle(
+                    target_metric,
+                    _validate_episode_for_toolgen(episode),
+                    reference_tool=reference_tool,
                 ).get("value")
             )
             for episode in episodes
@@ -670,27 +735,46 @@ class ToolGenPrototype:
                 "differential gate 要求 reference oracle 至少有两个不同输出"
             )
         if (
-            reference_tool == "hammer_block_contact_ever"
+            target_metric == "hammer_block_contact_ever"
             and set(oracle_values) != {False, True}
         ):
             raise ToolGenError(
                 "contact ToolGen 必须同时提供 physical-contact 正例和负例"
             )
+        if definition["oracle_kind"] == "composite_trusted_tools":
+            numeric_values = [
+                value
+                for value in oracle_values
+                if isinstance(value, (int, float))
+                and not isinstance(value, bool)
+            ]
+            if None not in oracle_values or not numeric_values:
+                raise ToolGenError(
+                    "composite ToolGen 必须同时提供 null 负例和 numeric 正例"
+                )
+            if any(not math.isfinite(float(value)) or value < 0 for value in numeric_values):
+                raise ToolGenError("composite ToolGen oracle 必须是非负有限秒数")
         destination = Path(output_dir).expanduser().resolve()
         if destination.exists():
             raise ToolGenError(f"output directory 已存在: {destination}")
         destination.mkdir(parents=True)
         attempts_dir = destination / "attempts"
         attempts_dir.mkdir()
-        tool_name = tool_name or f"generated_{reference_tool}"
+        tool_name = tool_name or f"generated_{target_metric}"
         if not re.fullmatch(r"[a-z][a-z0-9_]{2,79}", tool_name):
             raise ToolGenError(f"非法 tool_name: {tool_name}")
         max_attempts = max(1, min(int(max_attempts), 3))
 
-        examples = retrieve_examples(user_request, reference_tool)
+        examples = retrieve_examples(
+            user_request,
+            reference_tool,
+            target_metric=target_metric,
+        )
         retrieval = {
             "mode": "deterministic_source_example_retrieval",
+            "target_metric": target_metric,
             "reference_tool": reference_tool,
+            "oracle_kind": definition["oracle_kind"],
             "selected_examples": [
                 {key: value for key, value in item.items() if key != "source"}
                 for item in examples
@@ -698,6 +782,7 @@ class ToolGenPrototype:
         }
         _write_json(destination / "request.json", {
             "user_request": user_request,
+            "target_metric": target_metric,
             "reference_tool": reference_tool,
             "tool_name": tool_name,
             "episode_dirs": [str(path) for path in episodes],
@@ -707,7 +792,7 @@ class ToolGenPrototype:
         _write_json(destination / "example_validation.json", example_validation)
 
         manifest: dict[str, Any] = {
-            "schema_version": 1,
+            "schema_version": 2,
             "status": "generating",
             "created_at": datetime.now().astimezone().isoformat(),
             "base_commit": _git_head(self.repo_root),
@@ -716,7 +801,9 @@ class ToolGenPrototype:
                 self.repo_root / "mea/toolgen/README.Agent.md"
             ),
             "model_requested": self.model,
+            "target_metric": target_metric,
             "reference_tool": reference_tool,
+            "oracle_kind": definition["oracle_kind"],
             "tool_name": tool_name,
             "max_attempts": max_attempts,
             "example_validation": example_validation,
@@ -731,6 +818,7 @@ class ToolGenPrototype:
             prompt = _prompt(
                 self.repo_root,
                 user_request,
+                target_metric,
                 reference_tool,
                 examples,
                 diagnostic,
@@ -787,10 +875,11 @@ class ToolGenPrototype:
                         source, episode, tool_name=tool_name
                     )
                     deterministic = _equal(first, second)
-                    reference = TOOL_CATALOG[reference_tool]["function"](
-                        TrajectoryView(episode)
+                    expected = evaluate_target_oracle(
+                        target_metric,
+                        TrajectoryView(episode),
+                        reference_tool=reference_tool,
                     )
-                    expected = _reference_projection(reference)
                     generated_payload = {
                         key: first.get(key) for key in RESULT_KEYS
                     }
@@ -804,7 +893,12 @@ class ToolGenPrototype:
                         ),
                         "seed": TrajectoryView(episode).metadata.get("seed"),
                         "generated_result": first,
-                        "trusted_projection": expected,
+                        "oracle_projection": expected,
+                        "trusted_projection": (
+                            expected
+                            if definition["oracle_kind"] == "exact_trusted_tool"
+                            else None
+                        ),
                         "deterministic": deterministic,
                         "oracle_agreement": agreement,
                         "artifacts_unchanged": artifacts_unchanged,
@@ -815,7 +909,7 @@ class ToolGenPrototype:
                         raise ToolGenError("generated Tool 同一输入两次输出不一致")
                     if not agreement:
                         raise ToolGenError(
-                            "generated Tool 与 Trusted Tool oracle 不一致: "
+                            "generated Tool 与 validation oracle 不一致: "
                             + json.dumps(result, ensure_ascii=False)[:3000]
                         )
                     if not artifacts_unchanged:
@@ -834,13 +928,15 @@ class ToolGenPrototype:
                 )
                 _write_json(destination / "execution_results.json", episode_results)
                 registration = {
-                    "schema_version": 1,
+                    "schema_version": 2,
                     "scope": "run_local",
                     "status": "validated",
                     "tool": tool_name,
                     "source": "generated_tool.py",
                     "tool_sha256": static_validation["source_sha256"],
+                    "target_metric": target_metric,
                     "reference_tool": reference_tool,
+                    "oracle_kind": definition["oracle_kind"],
                     "validated_episode_count": len(episode_results),
                 }
                 _write_json(destination / "registration.json", registration)

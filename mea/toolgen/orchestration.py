@@ -9,6 +9,10 @@ from typing import Any
 from mea.toolkit.tools import TOOL_CATALOG, TrajectoryView
 
 from .prototype import ToolGenPrototype
+from .targets import (
+    PICKUP_TO_CONTACT_METRIC,
+    evaluate_target_oracle,
+)
 
 
 class ToolOrchestrationError(RuntimeError):
@@ -38,6 +42,29 @@ CONTACT_VALIDATION_REQUIREMENTS = {
         "distinct_reference_values": False,
         "required_reference_values": [],
     },
+}
+PICKUP_TO_CONTACT_QUESTION = (
+    "蓝色方块场景中，从锤子首次抬升达到 pickup 阈值到首次严格物理接触方块，"
+    "经过多少秒？"
+)
+PICKUP_TO_CONTACT_REQUIRED_SIGNALS = [
+    "semantic_trace.hammer_position",
+    "semantic_trace.physics_step",
+    "semantic_trace.simulation_time_seconds",
+    "events.hammer_block_contact_intervals",
+    "schema.pickup_height_threshold_m",
+]
+PICKUP_TO_CONTACT_OUTPUT_CONTRACT = {
+    "value_type": "number_or_null",
+    "unit": "s",
+    "passed_rule": "always_null",
+    "evidence_rule": "pickup_and_contact_physics_steps_or_available",
+    "null_rule": "missing_pickup_or_contact_or_invalid_order",
+}
+PICKUP_TO_CONTACT_VALIDATION_REQUIREMENTS = {
+    "min_episodes": 2,
+    "distinct_reference_values": True,
+    "required_reference_values": [],
 }
 TOOL_SPEC_KEYS = {
     "schema_version",
@@ -75,10 +102,34 @@ def contact_tool_spec(route: str) -> dict[str, Any]:
     }
 
 
+def pickup_to_contact_tool_spec(route: str = "force_codegen") -> dict[str, Any]:
+    """Return the first genuinely new, composition-validated ToolSpec."""
+
+    if route != "force_codegen":
+        raise ToolOrchestrationError(
+            "pickup_to_first_contact_time 尚未进入 Trusted catalog，只允许 force_codegen"
+        )
+    return {
+        "schema_version": 1,
+        "task_name": "beat_block_hammer",
+        "metric": PICKUP_TO_CONTACT_METRIC,
+        "question": PICKUP_TO_CONTACT_QUESTION,
+        "route": route,
+        "reference_tool": None,
+        "required_signals": list(PICKUP_TO_CONTACT_REQUIRED_SIGNALS),
+        "output_contract": dict(PICKUP_TO_CONTACT_OUTPUT_CONTRACT),
+        "validation_requirements": {
+            **PICKUP_TO_CONTACT_VALIDATION_REQUIREMENTS,
+            "required_reference_values": [],
+        },
+    }
+
+
 def validate_tool_spec(
     value: Any,
     *,
     expected_route: str | None = None,
+    expected_metric: str | None = None,
 ) -> dict[str, Any]:
     """Validate the intentionally narrow ToolSpec emitted by the Plan Agent."""
 
@@ -98,11 +149,21 @@ def validate_tool_spec(
         raise ToolOrchestrationError(
             f"ToolSpec.route 必须是本轮约定的 {expected_route}"
         )
-    expected = contact_tool_spec(route)
+    metric = value.get("metric")
+    if expected_metric is not None and metric != expected_metric:
+        raise ToolOrchestrationError(
+            f"ToolSpec.metric 必须是本轮约定的 {expected_metric}"
+        )
+    if metric == CONTACT_METRIC:
+        expected = contact_tool_spec(route)
+    elif metric == PICKUP_TO_CONTACT_METRIC:
+        expected = pickup_to_contact_tool_spec(route)
+    else:
+        raise ToolOrchestrationError(f"当前未注册 ToolSpec metric: {metric}")
     for field in TOOL_SPEC_KEYS - {"route"}:
         if value.get(field) != expected[field]:
             raise ToolOrchestrationError(
-                f"第一版 ToolSpec.{field} 必须等于已验证 contact contract"
+                f"ToolSpec.{field} 必须等于已验证的 {metric} contract"
             )
     return expected
 
@@ -147,7 +208,8 @@ def _result_projection(result: dict[str, Any]) -> dict[str, Any]:
 
 def _discover_episodes(
     child_run_dir: Path,
-    reference_tool: str,
+    target_metric: str,
+    reference_tool: str | None,
 ) -> list[dict[str, Any]]:
     telemetry_root = child_run_dir / "evaluation/telemetry"
     episodes: list[dict[str, Any]] = []
@@ -155,7 +217,11 @@ def _discover_episodes(
         episode_dir = metadata_path.parent
         try:
             trajectory = TrajectoryView(episode_dir)
-            reference = TOOL_CATALOG[reference_tool]["function"](trajectory)
+            oracle_result = evaluate_target_oracle(
+                target_metric,
+                trajectory,
+                reference_tool=reference_tool,
+            )
         except Exception as exc:
             raise ToolOrchestrationError(
                 f"无法加载 telemetry episode {episode_dir}: {exc}"
@@ -177,7 +243,7 @@ def _discover_episodes(
                 "policy_name": trajectory.metadata.get("policy_name"),
                 "seed": trajectory.metadata.get("seed"),
                 "role": _role(trajectory.metadata.get("policy_name")),
-                "reference_result": reference,
+                "oracle_result": oracle_result,
             }
         )
     if not episodes:
@@ -201,9 +267,13 @@ def _resolve(
     child_run_dir: Path,
     tool_spec: dict[str, Any],
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    episodes = _discover_episodes(child_run_dir, tool_spec["reference_tool"])
+    episodes = _discover_episodes(
+        child_run_dir,
+        tool_spec["metric"],
+        tool_spec["reference_tool"],
+    )
     reference_values = [
-        item["reference_result"].get("value") for item in episodes
+        item["oracle_result"].get("value") for item in episodes
     ]
     requirements = tool_spec["validation_requirements"]
     if len(episodes) < int(requirements["min_episodes"]):
@@ -235,7 +305,7 @@ def _resolve(
                 "role": item["role"],
                 "policy_name": item["policy_name"],
                 "seed": item["seed"],
-                "reference_value": item["reference_result"].get("value"),
+                "oracle_value": item["oracle_result"].get("value"),
                 "episode_dir": _relative(item["episode_dir_path"], repo_root),
             }
             for item in episodes
@@ -268,13 +338,17 @@ def execute_tool_spec(
     _write_json(destination / "resolved_tool_spec.json", resolved)
 
     if spec["route"] == "reuse":
+        if spec["reference_tool"] not in TOOL_CATALOG:
+            raise ToolOrchestrationError(
+                "reuse route 必须解析到 Trusted catalog tool"
+            )
         normalized_episodes = [
             {
                 "episode_dir": _relative(item["episode_dir_path"], repo),
                 "policy_name": item["policy_name"],
                 "seed": item["seed"],
                 "role": item["role"],
-                "result": _result_projection(item["reference_result"]),
+                "result": _result_projection(item["oracle_result"]),
             }
             for item in episodes
         ]
@@ -316,6 +390,7 @@ def execute_tool_spec(
             manifest = ToolGenPrototype(repo, provider, model=model).generate(
                 spec["question"],
                 reference_tool=spec["reference_tool"],
+                target_metric=spec["metric"],
                 episode_dirs=[item["episode_dir_path"] for item in episodes],
                 output_dir=generated_dir,
                 tool_name=resolved["resolved_tool_name"],

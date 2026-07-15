@@ -9,6 +9,41 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
+import numpy as np
+
+
+def first_hammer_pickup_step_example(trajectory):
+    z = trajectory.trace["hammer_position"][:, 2]
+    initial_z = float(z[0])
+    rise = z - initial_z
+    threshold = float(trajectory.schema.get("pickup_height_threshold_m", 0.03))
+    indices = np.where(rise >= threshold)[0]
+    index = int(indices[0]) if len(indices) else None
+    physics_step = (
+        int(trajectory.trace["physics_step"][index])
+        if index is not None
+        else None
+    )
+    return {
+        "value": physics_step,
+        "unit": "physics_step",
+        "passed": index is not None,
+        "evidence_steps": [physics_step] if physics_step is not None else [],
+        "details": {
+            "simulation_time_seconds": (
+                float(trajectory.trace["simulation_time_seconds"][index])
+                if index is not None
+                else None
+            ),
+            "initial_z_m": initial_z,
+            "pickup_height_threshold_m": threshold,
+            "height_rise_at_pickup_m": (
+                float(rise[index]) if index is not None else None
+            ),
+            "maximum_height_rise_m": float(np.max(rise)),
+        },
+    }
+
 
 def hammer_block_contact_example(trajectory):
     contacts = trajectory.hammer_block_contacts()
@@ -91,7 +126,30 @@ def max_contact_impulse_example(trajectory):
     }
 
 
+def time_to_success_example(trajectory):
+    first = trajectory.success_events[0] if trajectory.success_events else None
+    return {
+        "value": float(first["simulation_time_seconds"]) if first else None,
+        "unit": "s",
+        "passed": None,
+        "evidence_steps": (
+            [int(first["physics_step"])] if first else []
+        ),
+        "details": {
+            "physics_step": first.get("physics_step") if first else None
+        },
+    }
+
+
 EXAMPLE_CATALOG: dict[str, dict[str, Any]] = {
+    "first_hammer_pickup_step": {
+        "function": first_hammer_pickup_step_example,
+        "description": (
+            "First physics step where hammer height rise reaches the task "
+            "pickup threshold."
+        ),
+        "tags": ["hammer", "pickup", "first", "step", "拿起", "首次", "时间"],
+    },
     "hammer_block_contact_ever": {
         "function": hammer_block_contact_example,
         "description": "Whether hammer and block ever had physical contact.",
@@ -106,6 +164,14 @@ EXAMPLE_CATALOG: dict[str, dict[str, Any]] = {
         "function": max_contact_impulse_example,
         "description": "Maximum hammer-block contact impulse.",
         "tags": ["contact", "impulse", "force", "接触", "冲量", "力度"],
+    },
+    "time_to_success": {
+        "function": time_to_success_example,
+        "description": (
+            "First official-success time, including an explicit null result "
+            "when the event is absent."
+        ),
+        "tags": ["time", "duration", "success", "null", "耗时", "时间", "缺失"],
     },
 }
 

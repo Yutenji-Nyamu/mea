@@ -13,8 +13,10 @@ from typing import Any
 
 from mea.taskgen import extract_json_response
 from mea.toolgen import (
+    PICKUP_TO_CONTACT_METRIC,
     ToolOrchestrationError,
     contact_tool_spec,
+    pickup_to_contact_tool_spec,
     validate_tool_spec,
 )
 
@@ -96,6 +98,7 @@ def _validate_round(
     sub_aspect: str,
     route: str,
     tool_route: str,
+    tool_metric: str,
     instruction: str,
     seeds: list[int],
 ) -> dict[str, Any]:
@@ -144,7 +147,9 @@ def _validate_round(
         )
     try:
         tool_spec = validate_tool_spec(
-            round_plan.get("tool_spec"), expected_route=tool_route
+            round_plan.get("tool_spec"),
+            expected_route=tool_route,
+            expected_metric=tool_metric,
         )
     except ToolOrchestrationError as exc:
         raise PlanAgentError(f"{round_id}.tool_spec 无效: {exc}") from exc
@@ -194,11 +199,12 @@ def validate_evaluation_plan(plan: dict[str, Any]) -> dict[str, Any]:
         sub_aspect="object_appearance.color",
         route="force_codegen",
         tool_route="force_codegen",
+        tool_metric=PICKUP_TO_CONTACT_METRIC,
         instruction=BLUE_TASK_INSTRUCTION,
         seeds=[100000],
     )
     return {
-        "schema_version": 3,
+        "schema_version": 4,
         "task_name": "beat_block_hammer",
         "policy": dict(EXPECTED_POLICY),
         "evaluation_goal": _require_string(
@@ -243,6 +249,7 @@ def validate_next_round_decision(
         sub_aspect="object_position",
         route="reuse",
         tool_route="reuse",
+        tool_metric="hammer_block_contact_ever",
         instruction=POSITION_TASK_INSTRUCTION,
         seeds=[100002, 100003],
     )
@@ -264,7 +271,7 @@ def _initial_plan_prompt(repo_root: Path, user_request: str) -> str:
         encoding="utf-8"
     )
     example = {
-        "schema_version": 3,
+        "schema_version": 4,
         "task_name": "beat_block_hammer",
         "policy": EXPECTED_POLICY,
         "evaluation_goal": "evaluate_blue_block_and_position_variation",
@@ -289,7 +296,7 @@ def _initial_plan_prompt(repo_root: Path, user_request: str) -> str:
                     "gates": REQUIRED_GATES,
                 },
                 "observations": REQUIRED_OBSERVATIONS,
-                "tool_spec": contact_tool_spec("force_codegen"),
+                "tool_spec": pickup_to_contact_tool_spec("force_codegen"),
             }
         ],
         "max_rounds": 2,
@@ -386,7 +393,7 @@ class PlanAgentPrototype:
             (evaluation_dir / child).mkdir(parents=True, exist_ok=False)
 
         manifest: dict[str, Any] = {
-            "schema_version": 3,
+            "schema_version": 4,
             "evaluation_id": evaluation_id,
             "status": "planning_round_1",
             "created_at": datetime.now().astimezone().isoformat(),

@@ -123,7 +123,7 @@ class ToolkitTests(unittest.TestCase):
             encoding="utf-8",
         )
 
-    def test_all_eight_trusted_tools_on_synthetic_trajectory(self):
+    def test_all_trusted_tools_on_synthetic_trajectory(self):
         trajectory = TrajectoryView(self.episode_dir)
         results = run_trusted_tools(trajectory, list(TOOL_CATALOG))
         by_name = {item["tool"]: item for item in results}
@@ -131,6 +131,8 @@ class ToolkitTests(unittest.TestCase):
         self.assertEqual(set(by_name), set(TOOL_CATALOG))
         self.assertAlmostEqual(by_name["hammer_pickup_height"]["value"], 0.06)
         self.assertTrue(by_name["hammer_pickup_height"]["passed"])
+        self.assertEqual(by_name["first_hammer_pickup_step"]["value"], 20)
+        self.assertTrue(by_name["first_hammer_pickup_step"]["passed"])
         self.assertAlmostEqual(
             by_name["hammer_block_min_xy_error"]["value"], 0.001,
             places=5,

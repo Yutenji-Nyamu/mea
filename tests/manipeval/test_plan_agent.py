@@ -12,7 +12,7 @@ from mea.planner import (
     validate_evaluation_plan,
     validate_next_round_decision,
 )
-from mea.toolgen import contact_tool_spec
+from mea.toolgen import contact_tool_spec, pickup_to_contact_tool_spec
 
 
 ROUND_1 = {
@@ -21,7 +21,7 @@ ROUND_1 = {
     "rationale": "用户要求评估蓝色方块。",
     "task_instruction": BLUE_TASK_INSTRUCTION,
     "route": "force_codegen",
-    "tool_spec": contact_tool_spec("force_codegen"),
+    "tool_spec": pickup_to_contact_tool_spec("force_codegen"),
     "variant_hint": {
         "block": {
             "position_mode": "official_random",
@@ -45,7 +45,7 @@ ROUND_1 = {
 }
 
 PLAN = {
-    "schema_version": 3,
+    "schema_version": 4,
     "task_name": "beat_block_hammer",
     "policy": {
         "name": "ACT",
@@ -136,7 +136,7 @@ class PlanAgentPrototypeTests(unittest.TestCase):
             self.assertEqual(updated["rounds"][1]["route"], "reuse")
             self.assertEqual(
                 manifest["plan"]["rounds"][0]["tool_spec"],
-                contact_tool_spec("force_codegen"),
+                pickup_to_contact_tool_spec("force_codegen"),
             )
             self.assertEqual(
                 updated["rounds"][1]["tool_spec"],

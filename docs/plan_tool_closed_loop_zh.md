@@ -54,10 +54,12 @@ Plan Agent 只声明：
 
 它不能声明 telemetry 路径、ACT/expert 的实际结果、生成源码路径或 hash。runtime 从真实 artifact 中解析这些内容，形成 `resolved_tool_spec.json`。
 
-第一版只开放 `hammer_block_contact_ever`：
+当前开放两个严格模板：
 
 - `force_codegen` 必须同时找到 reference=false 与 true 的不同 trajectory，用于 differential gate；
 - `reuse` 直接运行已测试 Trusted Tool，不要求 false/true 对照，也不调用 provider；
+- `pickup_to_first_contact_time` 不存在于 Trusted catalog，只允许 `force_codegen`；它由 first-pickup 与 first-contact 两个 Trusted primitive 组成私有 oracle，要求 ACT `null` 与 expert numeric 正例；
+- 新时间指标的 `pickup` 是 hammer Z 首次跨过 schema 的 `0.03 m` 阈值，不是最大高度，也不声称是首次稳定 grasp；
 - ACT 标记为 `policy_under_evaluation`；
 - expert 标记为 `expert_validation`，不能混入 ACT 表现。
 
@@ -118,6 +120,17 @@ mea/evaluation_runs/eval_20260715_plan_tool_closed_loop_v2/
 - `reuse` route 的 `provider_called=false`，值与 Trusted Tool 一致。
 - Live Feedback 明确区分 ACT 失败与 expert 对照成功，并指出只执行了一个正式 episode，尚未执行 Round 2 位置评估。
 
+## 新指标正式验证
+
+`eval_20260715_new_tool_duration_v3` 复用同一组 ACT/expert telemetry，完成了真正新指标的 live Plan → ToolGen → Feedback：
+
+- Plan schema version 为 4，Round 1 ToolSpec metric 是 `pickup_to_first_contact_time`，`reference_tool=null`；
+- Retriever 只给 GPT `first_hammer_pickup_step`、`first_contact_step` 和 `time_to_success` 三个基础示例，没有提供目标函数答案；
+- ACT 在 physics step `6284` 首次达到 pickup 阈值，但没有 strict contact，所以 `value=null`，reason 为 `contact_not_observed_after_pickup`；
+- expert 在 step `1039` pickup、step `1454` first contact，相隔 415 physics steps / `1.66 s`；
+- 生成代码第 1 次重试通过，两个 episode 的 deterministic、composition-oracle agreement 与 artifacts unchanged 全部为 true；
+- 前两个失败 evaluation id 被保留：它们分别暴露了 reason 枚举和 schema key 文档不明确的问题，修正 prompt contract 后 v3 通过。
+
 ## 尚未解决的 gap
 
-当前 `force_codegen` 生成的是已有 Trusted Tool 的同义实现；它证明了 Proposal → Generation/Retrieval → Execution → Feedback 的编排链路，但还不等于能可靠验证任意未知 metric。下一步最小扩展应生成“从 hammer pickup 到 first physical contact 的耗时”，用已有两个 Trusted Tool 的组合结果构造 oracle，再考虑跨第二个 RoboTwin task 泛化。
+目前的新指标仍由人工注册的私有组合 oracle 验证，不代表任意未知 metric 都能自动获得可靠 ground truth。下一步优先实现 Tool Retriever 的“精确语义匹配 → reuse；没有完全匹配 → force_codegen”自动路由，再把固定颜色→位置两轮规划放宽为最多三轮的受限 sub-aspect catalog；之后选择第二个 RoboTwin task 扩展 TaskSchema/Documentation RAG。

@@ -11,6 +11,7 @@ from mea.toolgen import (
     ToolOrchestrationError,
     contact_tool_spec,
     execute_tool_spec,
+    pickup_to_contact_tool_spec,
     validate_tool_spec,
 )
 from mea.toolgen.examples import hammer_block_contact_example
@@ -47,6 +48,37 @@ def generated_contact_source():
         "def generated_tool(trajectory):",
         1,
     )
+
+
+def generated_pickup_to_contact_source():
+    return """def generated_tool(trajectory):
+    z = trajectory.trace["hammer_position"][:, 2]
+    threshold = float(trajectory.schema.get("pickup_height_threshold_m", 0.03))
+    rise = z - float(z[0])
+    pickup_indices = np.where(rise >= threshold)[0]
+    pickup_index = int(pickup_indices[0]) if len(pickup_indices) else None
+    pickup_step = int(trajectory.trace["physics_step"][pickup_index]) if pickup_index is not None else None
+    pickup_time = float(trajectory.trace["simulation_time_seconds"][pickup_index]) if pickup_index is not None else None
+    contacts = [item for item in trajectory.hammer_block_contacts() if item.get("physical_contact", False)]
+    first = min(contacts, key=lambda item: item["first_physical_physics_step"]) if contacts else None
+    contact_step = int(first["first_physical_physics_step"]) if first else None
+    contact_time = float(first["first_physical_simulation_time_seconds"]) if first else None
+    pickup_detected = pickup_step is not None
+    contact_detected = contact_step is not None
+    ordering_valid = bool(pickup_detected and contact_detected and contact_step >= pickup_step)
+    duration_steps = contact_step - pickup_step if ordering_valid else None
+    value = contact_time - pickup_time if ordering_valid else None
+    evidence_steps = sorted(list(set([step for step in [pickup_step, contact_step] if step is not None])))
+    if not pickup_detected:
+        reason = "pickup_not_observed"
+    elif not contact_detected:
+        reason = "contact_not_observed_after_pickup"
+    elif not ordering_valid:
+        reason = "contact_precedes_pickup"
+    else:
+        reason = "measured"
+    return {"value": value, "unit": "s", "passed": None, "evidence_steps": evidence_steps, "details": {"pickup_detected": pickup_detected, "contact_detected": contact_detected, "ordering_valid": ordering_valid, "pickup_physics_step": pickup_step, "contact_physics_step": contact_step, "pickup_time_seconds": pickup_time, "contact_time_seconds": contact_time, "duration_physics_steps": duration_steps, "pickup_height_threshold_m": threshold, "reason": reason}}
+"""
 
 
 def write_episode(episode_dir, *, policy_name, physical_contact):
@@ -86,7 +118,7 @@ def write_episode(episode_dir, *, policy_name, physical_contact):
 
     steps = np.asarray([0, 1, 2], dtype=np.int64)
     hammer = np.asarray(
-        [[0.0, 0.0, 0.78], [0.1, 0.0, 0.80], [0.15, 0.05, 0.82]],
+        [[0.0, 0.0, 0.78], [0.1, 0.0, 0.82], [0.15, 0.05, 0.84]],
         dtype=np.float32,
     )
     block = np.asarray([[0.15, 0.05, 0.76]] * 3, dtype=np.float32)
@@ -111,8 +143,8 @@ def write_episode(episode_dir, *, policy_name, physical_contact):
                 "actors": ["020_hammer", "box"],
                 "physical_contact": True,
                 "first_physical_policy_step": 0,
-                "first_physical_physics_step": 1,
-                "first_physical_simulation_time_seconds": 0.004,
+                "first_physical_physics_step": 2,
+                "first_physical_simulation_time_seconds": 0.008,
                 "max_impulse": 0.4,
                 "min_separation": -0.001,
                 "peak_policy_step": 0,
@@ -184,6 +216,20 @@ class ToolOrchestrationTests(unittest.TestCase):
         with self.assertRaisesRegex(ToolOrchestrationError, "reuse"):
             validate_tool_spec(force, expected_route="reuse")
 
+        duration = pickup_to_contact_tool_spec()
+        self.assertIsNone(duration["reference_tool"])
+        self.assertEqual(duration["output_contract"]["unit"], "s")
+        self.assertEqual(
+            validate_tool_spec(
+                duration,
+                expected_route="force_codegen",
+                expected_metric="pickup_to_first_contact_time",
+            ),
+            duration,
+        )
+        with self.assertRaisesRegex(ToolOrchestrationError, "只允许 force_codegen"):
+            pickup_to_contact_tool_spec("reuse")
+
     def test_reuse_executes_trusted_catalog_without_calling_provider(self):
         provider = NeverCalledProvider()
         output_dir = self.root / "reuse_output"
@@ -246,6 +292,37 @@ class ToolOrchestrationTests(unittest.TestCase):
         )
         self.assertTrue((output_dir / "generated/generated_tool.py").is_file())
         self.assertTrue((output_dir / "generated/registration.json").is_file())
+
+    def test_force_codegen_new_duration_uses_composite_oracle(self):
+        provider = FakeProvider(
+            f"```python\n{generated_pickup_to_contact_source()}```"
+        )
+        output_dir = self.root / "duration_output"
+        result = execute_tool_spec(
+            self.repo_root,
+            self.child_run,
+            output_dir,
+            pickup_to_contact_tool_spec(),
+            provider=provider,
+            model="fake-toolgen",
+        )
+
+        self.assertEqual(provider.calls, 1)
+        self.assertEqual(result["route"], "force_codegen")
+        self.assertIsNone(result["reference_tool"])
+        self.assertEqual(
+            [item["result"]["value"] for item in result["episodes"]],
+            [None, 0.004],
+        )
+        self.assertEqual(
+            result["episodes"][0]["result"]["details"]["reason"],
+            "contact_not_observed_after_pickup",
+        )
+        self.assertEqual(
+            result["episodes"][1]["result"]["evidence_steps"],
+            [1, 2],
+        )
+        self.assertTrue(result["validation"]["all_gates_passed"])
 
     def test_reuse_does_not_require_false_true_contrast(self):
         child_run = self.root / "run_all_contact"

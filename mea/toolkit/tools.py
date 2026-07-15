@@ -164,6 +164,44 @@ def hammer_pickup_height(trajectory: TrajectoryView) -> dict[str, Any]:
     )
 
 
+def first_hammer_pickup_step(trajectory: TrajectoryView) -> dict[str, Any]:
+    """First physics step where hammer height rise reaches the task threshold."""
+
+    z = trajectory.trace["hammer_position"][:, 2]
+    initial_z = float(z[0])
+    rise = z - initial_z
+    threshold = float(trajectory.schema.get("pickup_height_threshold_m", 0.03))
+    indices = np.where(rise >= threshold)[0]
+    index = int(indices[0]) if len(indices) else None
+    physics_step = (
+        int(trajectory.trace["physics_step"][index])
+        if index is not None
+        else None
+    )
+    evidence = [_evidence(trajectory, index)] if index is not None else []
+    return _result(
+        "first_hammer_pickup_step",
+        first_hammer_pickup_step,
+        value=physics_step,
+        unit="physics_step",
+        evidence=evidence,
+        details={
+            "simulation_time_seconds": (
+                float(trajectory.trace["simulation_time_seconds"][index])
+                if index is not None
+                else None
+            ),
+            "initial_z_m": initial_z,
+            "pickup_height_threshold_m": threshold,
+            "height_rise_at_pickup_m": (
+                float(rise[index]) if index is not None else None
+            ),
+            "maximum_height_rise_m": float(np.max(rise)),
+        },
+        passed=index is not None,
+    )
+
+
 def hammer_block_min_xy_error(trajectory: TrajectoryView) -> dict[str, Any]:
     delta = (
         trajectory.trace["hammer_functional_position"][:, :2]
@@ -365,6 +403,14 @@ TOOL_CATALOG: dict[str, dict[str, Any]] = {
         "function": hammer_pickup_height,
         "description": "Maximum hammer center height rise from the initial state.",
         "tags": ["hammer", "pickup", "grasp", "拿起", "抬起"],
+    },
+    "first_hammer_pickup_step": {
+        "function": first_hammer_pickup_step,
+        "description": (
+            "First physics step where hammer height rise reaches the task "
+            "pickup threshold."
+        ),
+        "tags": ["hammer", "pickup", "first", "step", "拿起", "首次", "时间"],
     },
     "hammer_block_min_xy_error": {
         "function": hammer_block_min_xy_error,

@@ -29,12 +29,15 @@ generation-pipeline failure.
 
 ## Offline Tool planning
 
-- Each round must also propose the exact `hammer_block_contact_ever` ToolSpec
-  shown in the active prompt. It asks whether hammer and block had strict
-  physical contact in the recorded trajectory.
-- Round 1 uses `tool_spec.route=force_codegen` to exercise bounded ToolGen over
-  the ACT trajectory and expert validation control.
-- Round 2 uses `tool_spec.route=reuse` to select the verified Trusted Tool.
+- Round 1 proposes `pickup_to_first_contact_time` with `force_codegen`. Pickup
+  means the first 250 Hz sample where hammer Z has risen by the schema's
+  `0.03 m` threshold; the target is elapsed simulator time to first strict
+  physical hammer-block contact. Missing pickup/contact yields `null`.
+- This timing metric is intentionally absent from the Trusted Tool catalog.
+  Runtime validates generated code against a private composition of the
+  verified first-pickup and first-contact primitives on ACT/expert telemetry.
+- Round 2 proposes `hammer_block_contact_ever` with `reuse` and therefore calls
+  the verified Trusted Tool without invoking GPT.
 - The Plan Agent declares semantics only. Runtime code resolves telemetry paths,
   policy/expert roles, reference values, generated filenames, and artifacts.
 - Expert contact validates instrumentation and scene solvability; it is never

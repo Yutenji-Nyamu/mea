@@ -2,6 +2,7 @@ import csv
 import inspect
 import json
 import os
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -16,6 +17,8 @@ from mea.toolgen.prototype import (
     retrieve_examples,
     validate_generated_tool,
 )
+from mea.toolgen.targets import evaluate_target_oracle
+from mea.toolkit.tools import TrajectoryView
 
 
 class FakeProvider:
@@ -41,6 +44,54 @@ def generated_contact_source():
         "def generated_tool(trajectory):",
         1,
     )
+
+
+def generated_pickup_to_contact_source():
+    return """def generated_tool(trajectory):
+    z = trajectory.trace["hammer_position"][:, 2]
+    threshold = float(trajectory.schema.get("pickup_height_threshold_m", 0.03))
+    rise = z - float(z[0])
+    pickup_indices = np.where(rise >= threshold)[0]
+    pickup_index = int(pickup_indices[0]) if len(pickup_indices) else None
+    pickup_step = int(trajectory.trace["physics_step"][pickup_index]) if pickup_index is not None else None
+    pickup_time = float(trajectory.trace["simulation_time_seconds"][pickup_index]) if pickup_index is not None else None
+    contacts = [item for item in trajectory.hammer_block_contacts() if item.get("physical_contact", False)]
+    first = min(contacts, key=lambda item: item["first_physical_physics_step"]) if contacts else None
+    contact_step = int(first["first_physical_physics_step"]) if first else None
+    contact_time = float(first["first_physical_simulation_time_seconds"]) if first else None
+    pickup_detected = pickup_step is not None
+    contact_detected = contact_step is not None
+    ordering_valid = bool(pickup_detected and contact_detected and contact_step >= pickup_step)
+    duration_steps = contact_step - pickup_step if ordering_valid else None
+    value = contact_time - pickup_time if ordering_valid else None
+    evidence_steps = sorted(list(set([step for step in [pickup_step, contact_step] if step is not None])))
+    if not pickup_detected:
+        reason = "pickup_not_observed"
+    elif not contact_detected:
+        reason = "contact_not_observed_after_pickup"
+    elif not ordering_valid:
+        reason = "contact_precedes_pickup"
+    else:
+        reason = "measured"
+    return {
+        "value": value,
+        "unit": "s",
+        "passed": None,
+        "evidence_steps": evidence_steps,
+        "details": {
+            "pickup_detected": pickup_detected,
+            "contact_detected": contact_detected,
+            "ordering_valid": ordering_valid,
+            "pickup_physics_step": pickup_step,
+            "contact_physics_step": contact_step,
+            "pickup_time_seconds": pickup_time,
+            "contact_time_seconds": contact_time,
+            "duration_physics_steps": duration_steps,
+            "pickup_height_threshold_m": threshold,
+            "reason": reason,
+        },
+    }
+"""
 
 
 class ToolGenTests(unittest.TestCase):
@@ -106,7 +157,7 @@ class ToolGenTests(unittest.TestCase):
             )
         step = np.asarray([0, 1, 2], dtype=np.int64)
         positions = np.asarray(
-            [[0.0, 0.0, 0.78], [0.1, 0.0, 0.80], [0.15, 0.05, 0.82]],
+            [[0.0, 0.0, 0.78], [0.1, 0.0, 0.82], [0.15, 0.05, 0.84]],
             dtype=np.float32,
         )
         np.savez_compressed(
@@ -130,9 +181,9 @@ class ToolGenTests(unittest.TestCase):
                     "actors": ["020_hammer", "box"],
                     "physical_contact": physical_contact,
                     "first_physical_policy_step": 0 if physical_contact else None,
-                    "first_physical_physics_step": 1 if physical_contact else None,
+                    "first_physical_physics_step": 2 if physical_contact else None,
                     "first_physical_simulation_time_seconds": (
-                        0.004 if physical_contact else None
+                        0.008 if physical_contact else None
                     ),
                     "max_impulse": 0.4 if physical_contact else 0.0,
                     "min_separation": -0.001 if physical_contact else 0.001,
@@ -188,7 +239,7 @@ class ToolGenTests(unittest.TestCase):
         finally:
             os.chdir(previous)
         self.assertTrue(result["value"])
-        self.assertEqual(result["evidence_steps"], [1])
+        self.assertEqual(result["evidence_steps"], [2])
 
     def test_gate_rejects_incomplete_episode_artifacts(self):
         (self.negative / "events.jsonl").unlink()
@@ -221,6 +272,90 @@ class ToolGenTests(unittest.TestCase):
                 "max_contact_impulse",
             },
         )
+
+    def test_retrieval_for_new_metric_uses_primitives_not_final_answer(self):
+        examples = retrieve_examples(
+            "计算锤子首次抬升到首次严格接触的时间",
+            target_metric="pickup_to_first_contact_time",
+        )
+        self.assertEqual(
+            [item["name"] for item in examples],
+            [
+                "first_hammer_pickup_step",
+                "first_contact_step",
+                "time_to_success",
+            ],
+        )
+        self.assertNotIn(
+            "pickup_to_first_contact_time",
+            {item["name"] for item in examples},
+        )
+
+    def test_force_codegen_validates_genuinely_new_composite_metric(self):
+        source = generated_pickup_to_contact_source()
+        provider = FakeProvider([f"```python\n{source}```"])
+        output_dir = self.root / "generated_duration"
+        result = ToolGenPrototype(
+            self.repo_root,
+            provider,
+            model="fake-model",
+        ).generate(
+            "计算锤子首次抬升到首次严格物理接触经过多少秒",
+            target_metric="pickup_to_first_contact_time",
+            reference_tool=None,
+            episode_dirs=[self.negative, self.positive],
+            output_dir=output_dir,
+        )
+
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual(result["oracle_kind"], "composite_trusted_tools")
+        self.assertIsNone(result["reference_tool"])
+        execution = json.loads(
+            (output_dir / "execution_results.json").read_text(encoding="utf-8")
+        )
+        self.assertIsNone(execution[0]["generated_result"]["value"])
+        self.assertEqual(
+            execution[0]["generated_result"]["details"]["reason"],
+            "contact_not_observed_after_pickup",
+        )
+        self.assertAlmostEqual(execution[1]["generated_result"]["value"], 0.004)
+        self.assertEqual(execution[1]["generated_result"]["evidence_steps"], [1, 2])
+        self.assertIsNone(execution[1]["trusted_projection"])
+        self.assertTrue(all(item["oracle_agreement"] for item in execution))
+
+    def test_composite_oracle_distinguishes_missing_pickup(self):
+        episode = self.root / "no_pickup/episode_000_seed_100000"
+        shutil.copytree(self.negative, episode)
+        trace_path = episode / "semantic_trace.npz"
+        with np.load(trace_path) as archive:
+            trace = {name: archive[name].copy() for name in archive.files}
+        trace["hammer_position"][:, 2] = trace["hammer_position"][0, 2]
+        np.savez_compressed(trace_path, **trace)
+
+        result = evaluate_target_oracle(
+            "pickup_to_first_contact_time",
+            TrajectoryView(episode),
+        )
+        self.assertIsNone(result["value"])
+        self.assertEqual(result["evidence_steps"], [])
+        self.assertEqual(result["details"]["reason"], "pickup_not_observed")
+
+    def test_composite_oracle_rejects_contact_before_pickup(self):
+        episode = self.root / "early_contact/episode_000_seed_100000"
+        shutil.copytree(self.positive, episode)
+        events_path = episode / "events.jsonl"
+        event = json.loads(events_path.read_text(encoding="utf-8").strip())
+        event["first_physical_physics_step"] = 0
+        event["first_physical_simulation_time_seconds"] = 0.0
+        events_path.write_text(json.dumps(event) + "\n", encoding="utf-8")
+
+        result = evaluate_target_oracle(
+            "pickup_to_first_contact_time",
+            TrajectoryView(episode),
+        )
+        self.assertIsNone(result["value"])
+        self.assertEqual(result["evidence_steps"], [0, 1])
+        self.assertEqual(result["details"]["reason"], "contact_precedes_pickup")
 
     def test_force_codegen_matches_positive_and_negative_oracle(self):
         source = generated_contact_source()

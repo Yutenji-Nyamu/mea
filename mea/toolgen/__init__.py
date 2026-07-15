@@ -11,8 +11,10 @@ from .orchestration import (
     ToolOrchestrationError,
     contact_tool_spec,
     execute_tool_spec,
+    pickup_to_contact_tool_spec,
     validate_tool_spec,
 )
+from .targets import PICKUP_TO_CONTACT_METRIC, evaluate_target_oracle
 
 __all__ = [
     "ToolGenError",
@@ -23,5 +25,8 @@ __all__ = [
     "ToolOrchestrationError",
     "contact_tool_spec",
     "execute_tool_spec",
+    "pickup_to_contact_tool_spec",
     "validate_tool_spec",
+    "PICKUP_TO_CONTACT_METRIC",
+    "evaluate_target_oracle",
 ]

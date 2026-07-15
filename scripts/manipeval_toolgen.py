@@ -16,20 +16,28 @@ if str(REPO_ROOT) not in sys.path:
 from mea.providers import OpenAICompatibleProvider
 from mea.toolgen import ToolGenPrototype
 from mea.toolgen.examples import EXAMPLE_CATALOG
+from mea.toolgen.targets import COMPOSITE_TARGETS
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Generate a pure offline Tool over TrajectoryView and compare it "
-            "with a Trusted Tool oracle on multiple episodes."
+            "with an exact or composition-based validation oracle on multiple "
+            "episodes."
         )
     )
     parser.add_argument("--request", required=True)
-    parser.add_argument(
+    target = parser.add_mutually_exclusive_group(required=True)
+    target.add_argument(
         "--reference-tool",
-        required=True,
         choices=sorted(EXAMPLE_CATALOG),
+        help="Regenerate an existing exact Trusted Tool metric.",
+    )
+    target.add_argument(
+        "--target-metric",
+        choices=sorted(COMPOSITE_TARGETS),
+        help="Generate a genuinely new metric with a private composition oracle.",
     )
     parser.add_argument(
         "--trajectory",
@@ -63,6 +71,7 @@ def main() -> None:
     ).generate(
         args.request,
         reference_tool=args.reference_tool,
+        target_metric=args.target_metric,
         episode_dirs=args.trajectory,
         output_dir=args.output_dir,
         tool_name=args.tool_name,

@@ -12,6 +12,7 @@ class TrustedToolRetriever:
 
     BASELINE = (
         "hammer_pickup_height",
+        "first_hammer_pickup_step",
         "hammer_block_min_xy_error",
         "hammer_block_contact_ever",
         "first_contact_step",
