@@ -474,6 +474,9 @@ def execute_tool_spec(
                 "execution_results": _relative(
                     generated_dir / "execution_results.json", repo
                 ),
+                "property_validation": _relative(
+                    generated_dir / "property_validation.json", repo
+                ),
                 "generated_tool": _relative(
                     generated_dir / "generated_tool.py", repo
                 ),

@@ -20,7 +20,11 @@ import numpy as np
 from mea.toolkit.tools import TOOL_CATALOG, TrajectoryView
 
 from .examples import EXAMPLE_CATALOG
-from .targets import evaluate_target_oracle, target_definition
+from .targets import (
+    PICKUP_TO_CONTACT_METRIC,
+    evaluate_target_oracle,
+    target_definition,
+)
 
 
 class ToolGenError(RuntimeError):
@@ -527,6 +531,110 @@ def _equal(left: Any, right: Any) -> bool:
     return left == right
 
 
+def _clone_trajectory(episode_dir: Path) -> TrajectoryView:
+    trajectory = TrajectoryView(episode_dir)
+    trajectory.trace = {
+        key: value.copy() for key, value in trajectory.trace.items()
+    }
+    trajectory.events = json.loads(json.dumps(trajectory.events))
+    trajectory.schema = json.loads(json.dumps(trajectory.schema))
+    trajectory.metadata = json.loads(json.dumps(trajectory.metadata))
+    trajectory.policy_states = json.loads(json.dumps(trajectory.policy_states))
+    return trajectory
+
+
+def _target_property_scenarios(
+    target_metric: str,
+    episode_dirs: list[Path],
+    *,
+    reference_tool: str | None,
+) -> list[dict[str, Any]]:
+    """Build read-only, in-memory counterexamples for target edge semantics."""
+
+    if target_metric != PICKUP_TO_CONTACT_METRIC:
+        return []
+
+    no_pickup = _clone_trajectory(episode_dirs[0])
+    no_pickup.trace["hammer_position"][:, 2] = float(
+        no_pickup.trace["hammer_position"][0, 2]
+    )
+    for event in no_pickup.events:
+        if (
+            event.get("type") == "contact_interval"
+            and set(event.get("actors", [])) == {"020_hammer", "box"}
+        ):
+            event["physical_contact"] = False
+            event["first_physical_policy_step"] = None
+            event["first_physical_physics_step"] = None
+            event["first_physical_simulation_time_seconds"] = None
+
+    numeric_episode = next(
+        (
+            episode
+            for episode in episode_dirs
+            if isinstance(
+                evaluate_target_oracle(
+                    target_metric,
+                    TrajectoryView(episode),
+                    reference_tool=reference_tool,
+                ).get("value"),
+                (int, float),
+            )
+        ),
+        None,
+    )
+    if numeric_episode is None:
+        raise ToolGenError("property gate 缺少可构造 early-contact 的 numeric trajectory")
+    contact_before_pickup = _clone_trajectory(numeric_episode)
+    contacts = [
+        event
+        for event in contact_before_pickup.events
+        if event.get("type") == "contact_interval"
+        and set(event.get("actors", [])) == {"020_hammer", "box"}
+        and event.get("physical_contact", False)
+    ]
+    if not contacts:
+        raise ToolGenError("property gate numeric trajectory 缺少 strict contact event")
+    first = min(
+        contacts,
+        key=lambda event: event["first_physical_physics_step"],
+    )
+    first["first_physical_policy_step"] = int(
+        contact_before_pickup.trace["policy_step"][0]
+    )
+    first["first_physical_physics_step"] = int(
+        contact_before_pickup.trace["physics_step"][0]
+    )
+    first["first_physical_simulation_time_seconds"] = float(
+        contact_before_pickup.trace["simulation_time_seconds"][0]
+    )
+
+    return [
+        {"name": "pickup_not_observed", "trajectory": no_pickup},
+        {
+            "name": "contact_precedes_pickup",
+            "trajectory": contact_before_pickup,
+        },
+    ]
+
+
+def _execute_on_trajectory(
+    source: str,
+    trajectory: TrajectoryView,
+    *,
+    tool_name: str,
+) -> dict[str, Any]:
+    function, validation = _load_function(source)
+    payload = _validate_payload(function(trajectory), trajectory)
+    return {
+        "tool": tool_name,
+        "version": 1,
+        "generated": True,
+        "tool_sha256": validation["source_sha256"],
+        **payload,
+    }
+
+
 def retrieve_examples(
     user_request: str,
     reference_tool: str | None = None,
@@ -617,7 +725,13 @@ def _prompt(
   timestep is needed, the only valid key is `physics_timestep_seconds`.
 - return passed=None because this target is a descriptive measurement.
 - preserve the contract's null semantics, details keys, reason strings, and
-  ascending unique physics-step evidence exactly."""
+  ascending unique physics-step evidence exactly.
+- set details.duration_physics_steps to null whenever ordering_valid is false;
+  for contact-before-pickup, evidence must still be sorted ascending."""
+        target_guidance += """
+- `.append()` is forbidden by the AST gate. Build evidence without mutation,
+  for example `sorted([step for step in [pickup_step, contact_step] if step is
+  not None])`."""
     else:
         target_guidance = (
             "- preserve the exact result semantics demonstrated by the "
@@ -754,6 +868,11 @@ class ToolGenPrototype:
                 )
             if any(not math.isfinite(float(value)) or value < 0 for value in numeric_values):
                 raise ToolGenError("composite ToolGen oracle 必须是非负有限秒数")
+        property_scenarios = _target_property_scenarios(
+            target_metric,
+            episodes,
+            reference_tool=reference_tool,
+        )
         destination = Path(output_dir).expanduser().resolve()
         if destination.exists():
             raise ToolGenError(f"output directory 已存在: {destination}")
@@ -915,18 +1034,60 @@ class ToolGenPrototype:
                     if not artifacts_unchanged:
                         raise ToolGenError("generated Tool 修改了 trajectory artifact")
 
+                property_results = []
+                for scenario in property_scenarios:
+                    trajectory = scenario["trajectory"]
+                    first = _execute_on_trajectory(
+                        source,
+                        trajectory,
+                        tool_name=tool_name,
+                    )
+                    second = _execute_on_trajectory(
+                        source,
+                        trajectory,
+                        tool_name=tool_name,
+                    )
+                    generated_payload = {
+                        key: first.get(key) for key in RESULT_KEYS
+                    }
+                    expected = evaluate_target_oracle(
+                        target_metric,
+                        trajectory,
+                        reference_tool=reference_tool,
+                    )
+                    deterministic = _equal(first, second)
+                    agreement = _equal(generated_payload, expected)
+                    result = {
+                        "scenario": scenario["name"],
+                        "generated_result": first,
+                        "oracle_projection": expected,
+                        "deterministic": deterministic,
+                        "oracle_agreement": agreement,
+                    }
+                    property_results.append(result)
+                    if not deterministic or not agreement:
+                        raise ToolGenError(
+                            "generated Tool 未通过 counterfactual property gate: "
+                            + json.dumps(result, ensure_ascii=False)[:3000]
+                        )
+
                 validation = {
                     "valid": True,
                     "attempt_index": attempt_index,
                     "static": static_validation,
                     "provider": provider_metadata,
                     "episodes": episode_results,
+                    "property_scenarios": property_results,
                 }
                 _write_json(attempt_dir / "validation.json", validation)
                 (destination / "generated_tool.py").write_text(
                     source, encoding="utf-8"
                 )
                 _write_json(destination / "execution_results.json", episode_results)
+                _write_json(
+                    destination / "property_validation.json",
+                    property_results,
+                )
                 registration = {
                     "schema_version": 2,
                     "scope": "run_local",
@@ -938,6 +1099,7 @@ class ToolGenPrototype:
                     "reference_tool": reference_tool,
                     "oracle_kind": definition["oracle_kind"],
                     "validated_episode_count": len(episode_results),
+                    "validated_property_scenario_count": len(property_results),
                 }
                 _write_json(destination / "registration.json", registration)
                 manifest.update(

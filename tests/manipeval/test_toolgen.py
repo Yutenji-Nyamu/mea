@@ -322,6 +322,42 @@ class ToolGenTests(unittest.TestCase):
         self.assertEqual(execution[1]["generated_result"]["evidence_steps"], [1, 2])
         self.assertIsNone(execution[1]["trusted_projection"])
         self.assertTrue(all(item["oracle_agreement"] for item in execution))
+        properties = json.loads(
+            (output_dir / "property_validation.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            [item["scenario"] for item in properties],
+            ["pickup_not_observed", "contact_precedes_pickup"],
+        )
+        self.assertTrue(all(item["oracle_agreement"] for item in properties))
+        self.assertEqual(
+            result["registration"]["validated_property_scenario_count"],
+            2,
+        )
+
+    def test_counterfactual_property_failure_is_repaired(self):
+        good = generated_pickup_to_contact_source()
+        bad = good.replace(
+            "duration_steps = contact_step - pickup_step if ordering_valid else None",
+            "duration_steps = contact_step - pickup_step if pickup_detected and contact_detected else None",
+        )
+        provider = FakeProvider(
+            [f"```python\n{bad}```", f"```python\n{good}```"]
+        )
+        result = ToolGenPrototype(
+            self.repo_root,
+            provider,
+            model="fake-model",
+        ).generate(
+            "计算锤子首次抬升到首次严格物理接触经过多少秒",
+            target_metric="pickup_to_first_contact_time",
+            episode_dirs=[self.negative, self.positive],
+            output_dir=self.root / "property_repair",
+        )
+
+        self.assertEqual(result["successful_attempt"], 1)
+        self.assertEqual(len(result["failures"]), 1)
+        self.assertIn("counterfactual property gate", result["failures"][0]["message"])
 
     def test_composite_oracle_distinguishes_missing_pickup(self):
         episode = self.root / "no_pickup/episode_000_seed_100000"

@@ -122,14 +122,15 @@ mea/evaluation_runs/eval_20260715_plan_tool_closed_loop_v2/
 
 ## 新指标正式验证
 
-`eval_20260715_new_tool_duration_v3` 复用同一组 ACT/expert telemetry，完成了真正新指标的 live Plan → ToolGen → Feedback：
+`eval_20260715_new_tool_duration_v5` 复用同一组 ACT/expert telemetry，完成了真正新指标的 live Plan → ToolGen → Feedback：
 
 - Plan schema version 为 4，Round 1 ToolSpec metric 是 `pickup_to_first_contact_time`，`reference_tool=null`；
 - Retriever 只给 GPT `first_hammer_pickup_step`、`first_contact_step` 和 `time_to_success` 三个基础示例，没有提供目标函数答案；
 - ACT 在 physics step `6284` 首次达到 pickup 阈值，但没有 strict contact，所以 `value=null`，reason 为 `contact_not_observed_after_pickup`；
 - expert 在 step `1039` pickup、step `1454` first contact，相隔 415 physics steps / `1.66 s`；
-- 生成代码第 1 次重试通过，两个 episode 的 deterministic、composition-oracle agreement 与 artifacts unchanged 全部为 true；
-- 前两个失败 evaluation id 被保留：它们分别暴露了 reason 枚举和 schema key 文档不明确的问题，修正 prompt contract 后 v3 通过。
+- 生成代码第 0 次即通过，两个真实 episode 的 deterministic、composition-oracle agreement 与 artifacts unchanged 全部为 true；
+- 另外构造两个不改磁盘轨迹的 counterfactual property scenarios：`pickup_not_observed` 和 `contact_precedes_pickup`；生成代码对两者也 deterministic 且与 oracle 完全一致；
+- v1/v2/v4 失败 evaluation id 均保留，分别暴露 reason enum、schema key 和 `.append()` AST 约束文档不明确；修正 prompt contract 后 v5 通过。
 
 ## 尚未解决的 gap
 

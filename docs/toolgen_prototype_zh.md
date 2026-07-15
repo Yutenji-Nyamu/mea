@@ -319,13 +319,14 @@ attempts/attempt_*/
 
 ## 9. 真正新指标的 live generation
 
-`eval_20260715_new_tool_duration_v3` 使用 Plan schema 4 和 `pickup_to_first_contact_time` ToolSpec。该 metric 没有同名 Trusted Tool，Retriever 只提供 first-pickup、first-contact 和 nullable-time 基础实现；runtime 用两个 primitive 的私有 composition oracle 验证生成结果。
+`eval_20260715_new_tool_duration_v5` 使用 Plan schema 4 和 `pickup_to_first_contact_time` ToolSpec。该 metric 没有同名 Trusted Tool，Retriever 只提供 first-pickup、first-contact 和 nullable-time 基础实现；runtime 用两个 primitive 的私有 composition oracle 验证生成结果。
 
 真实轨迹结果：
 
 - ACT：pickup step `6284` / `25.136 s`，没有 strict contact，`value=null`；
 - expert：pickup step `1039` / `4.156 s`，contact step `1454` / `5.816 s`，`value=1.66 s`；
-- 两条 trajectory 的 deterministic、oracle agreement、artifacts unchanged 全部通过；
-- successful attempt 为 `1`，说明初次生成失败后，diagnostic-driven regeneration 修复成功。
+- 两条真实 trajectory 的 deterministic、oracle agreement、artifacts unchanged 全部通过；
+- 两个内存 counterfactual `pickup_not_observed` 与 `contact_precedes_pickup` 也通过 deterministic/oracle gate，后者明确要求 `duration_physics_steps=null` 且 evidence steps 升序；
+- successful attempt 为 `0`。
 
-开发过程中保留了 v1/v2 两个失败 evaluation：v1 暴露 reason enum 没有在 prompt 中精确列出；v2 暴露 `physics_timestep_seconds` 字段名没有明确说明。二者都由 gate 阻止进入最终结果。补充 exact reason/schema contract 后 v3 完成 Plan → ToolGen → Feedback，并生成 `evaluation_report.md`。
+开发过程中保留了 v1/v2/v4 失败 evaluation：v1 暴露 reason enum 没有在 prompt 中精确列出；v2 暴露 `physics_timestep_seconds` 字段名没有明确说明；加入 property gate 后又发现 v3 对未见的 contact-before-pickup 边界不完整，v4 则因 `.append()` 被 AST gate 拒绝。补充 exact edge/AST contract 后 v5 完成 Plan → ToolGen → counterfactual properties → Feedback，并生成 `evaluation_report.md`。

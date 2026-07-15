@@ -21,22 +21,29 @@
 
 ## 验证过程
 
-- 定向单元测试：25 项全部通过；
-- 全量 `tests/manipeval`：48 项全部通过；
+- 定向单元测试：28 项全部通过；
+- 最终全量 `tests/manipeval`：51 项全部通过；
 - 真实 oracle 重算：ACT `null`；expert `1.66 s`；
-- live UIUI Plan/ToolGen/Feedback：最终 v3 通过；
+- live UIUI Plan/ToolGen/Feedback：最终 v5 通过；
 - ACT/expert 两条轨迹均满足 generated Tool deterministic、composition-oracle agreement、artifacts unchanged。
 
-两个失败尝试被保留而没有覆盖：
+各次 live 验证均被保留而没有覆盖：
 
 - v1：GPT 将缺 contact 的 reason 写成 `contact_absent`，strict gate 拒绝；随后补充 exact reason enum；
 - v2：GPT 使用不存在的 `schema["physics_timestep"]`，worker 拒绝；随后明确 simulation timestamp 与 `physics_timestep_seconds` 字段；
 - v3：第 0 次生成仍未通过，第 1 次 regeneration 修复成功。
 
+复核 v3 生成源码时发现，它虽然通过 ACT/expert 两条真实轨迹，但对未见的 `contact_precedes_pickup` 会留下负 duration。随后增加两个不写磁盘的 counterfactual property gates：
+
+- `pickup_not_observed`；
+- `contact_precedes_pickup`。
+
+v4 因 GPT 使用 `.append()` 被 AST gate 拒绝；明确无 mutation 的 evidence 构造方式后，v5 第 0 次生成即同时通过两条真实 trajectory 和两个 property scenarios。
+
 正式产物：
 
 ```text
-mea/evaluation_runs/eval_20260715_new_tool_duration_v3/
+mea/evaluation_runs/eval_20260715_new_tool_duration_v5/
   plan/evaluation_plan.json
   execution/round_1/planned_tool/
   summary/evidence_bundle.json
@@ -49,12 +56,13 @@ mea/evaluation_runs/eval_20260715_new_tool_duration_v3/
 ```text
 mea/evaluation_runs/eval_20260715_new_tool_duration_v1/
 mea/evaluation_runs/eval_20260715_new_tool_duration_v2/
+mea/evaluation_runs/eval_20260715_new_tool_duration_v4/
 ```
 
 server live log：
 
 ```text
-_ops_logs/new_tool_duration_live_20260715_160640.log
+_ops_logs/new_tool_duration_live_20260715_171812.log
 ```
 
 ## 存储审计摘要
