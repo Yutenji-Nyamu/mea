@@ -2,7 +2,10 @@
 
 from .prototype import (
     BLUE_TASK_INSTRUCTION,
+    MAX_ROUNDS,
     POSITION_TASK_INSTRUCTION,
+    SUB_ASPECT_CATALOG,
+    TIMING_TASK_INSTRUCTION,
     PlanAgentError,
     PlanAgentPrototype,
     make_evaluation_id,
@@ -12,7 +15,10 @@ from .prototype import (
 
 __all__ = [
     "BLUE_TASK_INSTRUCTION",
+    "MAX_ROUNDS",
     "POSITION_TASK_INSTRUCTION",
+    "SUB_ASPECT_CATALOG",
+    "TIMING_TASK_INSTRUCTION",
     "PlanAgentError",
     "PlanAgentPrototype",
     "make_evaluation_id",

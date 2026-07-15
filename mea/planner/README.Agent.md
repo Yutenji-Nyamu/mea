@@ -1,60 +1,62 @@
-# README.Agent: bounded multi-round evaluation planning
+# README.Agent: bounded adaptive evaluation planning
 
 This document describes the capabilities and constraints visible to the outer
-Plan Agent in the current MEA prototype.
+Plan Agent. The model selects semantic template identifiers only. Trusted
+runtime code injects task instructions, seeds, gates, TaskGen routes, and Tool
+requests; the model must never invent these fields.
 
 ## Policy and simulator
 
 - Policy: ACT; canonical task: `beat_block_hammer`.
 - Checkpoint: `demo_clean`, trained with 50 expert demonstrations.
 - The policy is not language-conditioned in this evaluation.
-- The official block position samples `x` from `[-0.25, 0.25]` and `y` from
-  `[-0.05, 0.15]`, rejecting `abs(x) < 0.05`.
-- Official yaw is sampled within approximately `[-0.5, 0.5]` radians.
-- `num_episodes` is an evaluation count, not the per-episode step limit.
+- Official block position samples `x` from `[-0.25, 0.25]` and `y` from
+  `[-0.05, 0.15]`, rejecting `abs(x) < 0.05`; official yaw is approximately
+  `[-0.5, 0.5]` radians.
+- Pipeline completion and policy success are separate. `policy_success=0` is
+  valid evidence and does not mean that generation or execution failed.
 
-## Available validated routes
+## Trusted sub-aspect templates
 
-1. `object_appearance.color`: use `force_codegen` so TaskGen generates the
-   complete `load_actors()` implementation. The validated blue color is
-   `[0.0, 0.2, 1.0]`.
-2. `object_position`: use the trusted `reuse` route, keep the block blue, and
-   use official position/yaw sampling. Simulator probes return exact
-   `block_pose` values for every seed.
+The current prototype exposes exactly three template ids:
 
-Every round runs the ordered gates `ast`, `render`, `rule`, `vision`, `expert`,
-and `act`. Pipeline completion and policy task success are separate signals.
-A `policy_success=0` result is still a valid observation and does not imply a
-generation-pipeline failure.
+1. `object_appearance.color_blue`: one episode at validated seed `100000`;
+   isolates the blue block appearance.
+2. `object_position.official_random`: two episodes at validated seeds `100002`
+   and `100003`; preserves blue appearance and evaluates official position/yaw
+   samples.
+3. `performance.pickup_to_contact_timing`: one episode at validated seed
+   `100000`; measures elapsed simulator time from first hammer pickup threshold
+   crossing to first strict hammer-block physical contact.
 
-## Offline Tool planning
+The model initially emits only `requested_template_ids` and
+`first_template_id`. It must select only aspects explicitly requested by the
+user. The runtime materializes the complete first round from the catalog.
 
-- Round 1 proposes `pickup_to_first_contact_time` with `force_codegen`. Pickup
-  means the first 250 Hz sample where hammer Z has risen by the schema's
-  `0.03 m` threshold; the target is elapsed simulator time to first strict
-  physical hammer-block contact. Missing pickup/contact yields `null`.
-- This timing metric is intentionally absent from the Trusted Tool catalog.
-  Runtime validates generated code against a private composition of the
-  verified first-pickup and first-contact primitives on ACT/expert telemetry.
-- Round 2 proposes `hammer_block_contact_ever` with `reuse` and therefore calls
-  the verified Trusted Tool without invoking GPT.
-- The Plan Agent declares semantics only. Runtime code resolves telemetry paths,
-  policy/expert roles, reference values, generated filenames, and artifacts.
-- Expert contact validates instrumentation and scene solvability; it is never
-  evidence that ACT made contact.
+## Tool planning boundary
 
-## Multi-round protocol
+- A template contains a semantic `tool_request`, never a Tool route.
+- Runtime resolves exact Trusted Tool matches to `reuse`, exact registered
+  composite targets to `force_codegen`, and all other metrics to `unsupported`.
+- `hammer_block_contact_ever` is a Trusted Tool.
+- `pickup_to_first_contact_time` is a composition-validated generated target;
+  missing pickup/contact yields `null`.
+- Expert telemetry validates instrumentation and scene solvability. It is not
+  evidence that ACT achieved the same result.
 
-- Initial planning proposes Round 1 only: blue block, seed `100000`, 1 episode.
-- After Round 1, the Plan Agent receives actual scene, VQA, expert, ACT, and
-  policy observations.
-- If the pipeline passed, propose Round 2: preserve blue, official position
-  randomization, expert-solvable seeds `100002` and `100003`, 2 episodes.
-- Every evaluation seed must independently pass the expert gate. Seed `100001`
-  is excluded because its sampled edge pose failed the official expert planner.
-- If the pipeline failed, stop and explain the failure rather than executing a
-  second round blindly.
-- After execution, aggregate both round-level results and produce one final
-  evidence-grounded response.
+## Adaptive protocol
+
+- `max_rounds` is exactly 3, but the evaluation may stop earlier.
+- After every executed round, the Plan Agent receives the complete observation
+  history and chooses either `continue` with one unexecuted requested template,
+  or `stop`.
+- A template can run at most once. The model cannot select a template omitted
+  from `requested_template_ids`.
+- Latest `pipeline_passed=false`, an exhausted round budget, or no remaining
+  requested template forces `stop`.
+- Otherwise the model must continue to one remaining user-requested template;
+  observations may determine the order, but cannot erase an explicit request.
+- Every executable round runs ordered gates `ast`, `render`, `rule`, `vision`,
+  `expert`, and `act`.
 
 Return only the strict JSON object requested by the active prompt.

@@ -314,11 +314,15 @@ def render_evaluation_report(
                 if key in validation
             }
             planned_tool_markdown = (
-                "- planned Tool route: `{route}`\n"
+                "- planned Tool requested route: `{requested_route}`\n"
+                "- planned Tool resolved route: `{route}`\n"
                 "- planned Tool source: `{scope}`\n"
                 "- planned Tool: `{tool}`\n"
                 "- planned Tool validation: `{validation}`\n"
                 "- planned Tool results:\n{results}".format(
+                    requested_route=tool_evaluation.get(
+                        "requested_route", "explicit"
+                    ),
                     route=tool_evaluation.get("route"),
                     scope=tool_evaluation.get("source", {}).get("scope"),
                     tool=tool_evaluation.get("source", {}).get("tool"),
@@ -356,7 +360,7 @@ def render_evaluation_report(
             round_sections.append(
                 f"""### {item['round_id']}: `{item['sub_aspect']}`
 
-- route: `{item['route']}`
+- TaskGen route: `{item['route']}`
 - instruction: {item['task_instruction']}
 - seeds: `{item['seeds']}`
 - episodes: `{item['num_episodes']}`
@@ -377,6 +381,13 @@ def render_evaluation_report(
         findings = "\n".join(f"- {item}" for item in feedback["findings"])
         limitations = "\n".join(f"- {item}" for item in feedback["limitations"])
         artifacts = evidence["artifacts"]
+        decision_artifacts = artifacts.get("plan_decisions")
+        if decision_artifacts is None:
+            legacy_decision = artifacts.get("round_2_decision")
+            decision_artifacts = [legacy_decision] if legacy_decision else []
+        decision_artifact_lines = "\n".join(
+            f"- Plan decision: `{path}`" for path in decision_artifacts
+        ) or "- Plan decision: `none`"
         return f"""# MEA Multi-Round Evaluation Report
 
 ## Identity
@@ -427,7 +438,7 @@ def render_evaluation_report(
 ## Artifact index
 
 - evaluation plan: `{artifacts['evaluation_plan']}`
-- Round 2 decision: `{artifacts['round_2_decision']}`
+{decision_artifact_lines}
 - machine-readable summary: `{artifacts['summary']}`
 """
 

@@ -9,7 +9,12 @@ from typing import Any
 from mea.toolkit.tools import TOOL_CATALOG, TrajectoryView
 
 from .prototype import ToolGenPrototype
+from .router import (
+    ToolRouterError,
+    route_tool_request,
+)
 from .targets import (
+    COMPOSITE_TARGETS,
     PICKUP_TO_CONTACT_METRIC,
     evaluate_target_oracle,
 )
@@ -79,6 +84,28 @@ TOOL_SPEC_KEYS = {
 }
 
 
+def contact_tool_request() -> dict[str, Any]:
+    """Return a route-free request for strict hammer-block contact."""
+
+    return {
+        "schema_version": 1,
+        "task_name": "beat_block_hammer",
+        "metric": CONTACT_METRIC,
+        "question": CONTACT_QUESTION,
+    }
+
+
+def pickup_to_contact_tool_request() -> dict[str, Any]:
+    """Return a route-free request for pickup-to-contact duration."""
+
+    return {
+        "schema_version": 1,
+        "task_name": "beat_block_hammer",
+        "metric": PICKUP_TO_CONTACT_METRIC,
+        "question": PICKUP_TO_CONTACT_QUESTION,
+    }
+
+
 def contact_tool_spec(route: str) -> dict[str, Any]:
     """Return the exact first-version contact ToolSpec for a route."""
 
@@ -125,6 +152,31 @@ def pickup_to_contact_tool_spec(route: str = "force_codegen") -> dict[str, Any]:
     }
 
 
+def _generic_trusted_tool_spec(
+    metric: str,
+    question: str,
+) -> dict[str, Any]:
+    """Build the internal routeful envelope for any exact catalog match."""
+
+    if metric not in TOOL_CATALOG:
+        raise ToolOrchestrationError(f"unknown Trusted Tool metric: {metric}")
+    return {
+        "schema_version": 1,
+        "task_name": "beat_block_hammer",
+        "metric": metric,
+        "question": question,
+        "route": "reuse",
+        "reference_tool": metric,
+        "required_signals": [],
+        "output_contract": {"source": "trusted_tool_catalog"},
+        "validation_requirements": {
+            "min_episodes": 1,
+            "distinct_reference_values": False,
+            "required_reference_values": [],
+        },
+    }
+
+
 def validate_tool_spec(
     value: Any,
     *,
@@ -158,9 +210,18 @@ def validate_tool_spec(
         expected = contact_tool_spec(route)
     elif metric == PICKUP_TO_CONTACT_METRIC:
         expected = pickup_to_contact_tool_spec(route)
+    elif route == "reuse" and metric in TOOL_CATALOG:
+        question = value.get("question")
+        if not isinstance(question, str) or not question.strip():
+            raise ToolOrchestrationError("ToolSpec.question must be non-empty")
+        expected = _generic_trusted_tool_spec(metric, question.strip())
     else:
         raise ToolOrchestrationError(f"当前未注册 ToolSpec metric: {metric}")
-    for field in TOOL_SPEC_KEYS - {"route"}:
+    question = value.get("question")
+    if not isinstance(question, str) or not question.strip():
+        raise ToolOrchestrationError("ToolSpec.question must be non-empty")
+    expected["question"] = question.strip()
+    for field in TOOL_SPEC_KEYS - {"route", "question"}:
         if value.get(field) != expected[field]:
             raise ToolOrchestrationError(
                 f"ToolSpec.{field} 必须等于已验证的 {metric} contract"
@@ -217,11 +278,23 @@ def _discover_episodes(
         episode_dir = metadata_path.parent
         try:
             trajectory = TrajectoryView(episode_dir)
-            oracle_result = evaluate_target_oracle(
-                target_metric,
-                trajectory,
-                reference_tool=reference_tool,
-            )
+            if (
+                reference_tool in TOOL_CATALOG
+                and target_metric == reference_tool
+            ):
+                # Preserve Trusted Tool provenance for reuse.  The generic
+                # oracle projection intentionally strips tool/version/hash for
+                # differential comparison, but those fields belong in the
+                # user-facing reuse result and source envelope.
+                oracle_result = TOOL_CATALOG[reference_tool]["function"](
+                    trajectory
+                )
+            else:
+                oracle_result = evaluate_target_oracle(
+                    target_metric,
+                    trajectory,
+                    reference_tool=reference_tool,
+                )
         except Exception as exc:
             raise ToolOrchestrationError(
                 f"无法加载 telemetry episode {episode_dir}: {exc}"
@@ -323,17 +396,22 @@ def execute_tool_spec(
     provider: Any | None = None,
     model: str | None = None,
     max_attempts: int = 2,
+    _precreated_destination: bool = False,
 ) -> dict[str, Any]:
     """Execute reuse or force-codegen and emit one normalized envelope."""
 
     repo = Path(repo_root).expanduser().resolve()
     child = Path(child_run_dir).expanduser().resolve()
     destination = Path(output_dir).expanduser().resolve()
-    if destination.exists():
+    if destination.exists() and not _precreated_destination:
         raise ToolOrchestrationError(f"tool output directory 已存在: {destination}")
     spec = validate_tool_spec(tool_spec)
+    if _precreated_destination and not destination.is_dir():
+        raise ToolOrchestrationError(
+            f"precreated tool output directory does not exist: {destination}"
+        )
     resolved, episodes = _resolve(repo, child, spec)
-    destination.mkdir(parents=True)
+    destination.mkdir(parents=True, exist_ok=_precreated_destination)
     _write_json(destination / "tool_spec.json", spec)
     _write_json(destination / "resolved_tool_spec.json", resolved)
 
@@ -486,6 +564,127 @@ def execute_tool_spec(
     _write_json(destination / "tool_execution.json", execution)
     execution["artifacts"]["tool_execution"] = _relative(
         destination / "tool_execution.json", repo
+    )
+    _write_json(destination / "tool_execution.json", execution)
+    return execution
+
+
+def _resolved_spec_from_request(
+    tool_request: dict[str, Any],
+    resolved_route: str,
+) -> dict[str, Any]:
+    """Translate a semantic request into the legacy internal execution spec."""
+
+    metric = tool_request["metric"]
+    question = tool_request["question"]
+    if resolved_route == "reuse":
+        if metric == CONTACT_METRIC:
+            spec = contact_tool_spec("reuse")
+        else:
+            spec = _generic_trusted_tool_spec(metric, question)
+    elif resolved_route == "force_codegen":
+        if metric != PICKUP_TO_CONTACT_METRIC or metric not in COMPOSITE_TARGETS:
+            raise ToolOrchestrationError(
+                f"no executable composite ToolSpec for metric: {metric}"
+            )
+        spec = pickup_to_contact_tool_spec("force_codegen")
+    else:
+        raise ToolOrchestrationError(
+            f"automatic Tool route is not executable: {resolved_route}"
+        )
+    spec["question"] = question
+    return spec
+
+
+def execute_tool_request(
+    repo_root: str | Path,
+    child_run_dir: str | Path,
+    output_dir: str | Path,
+    tool_request: dict[str, Any],
+    *,
+    provider: Any | None = None,
+    model: str | None = None,
+    max_attempts: int = 2,
+) -> dict[str, Any]:
+    """Automatically route and execute one route-free semantic Tool request."""
+
+    repo = Path(repo_root).expanduser().resolve()
+    destination = Path(output_dir).expanduser().resolve()
+    if destination.exists():
+        raise ToolOrchestrationError(
+            f"tool output directory already exists: {destination}"
+        )
+    try:
+        routing = route_tool_request(tool_request)
+    except ToolRouterError as exc:
+        raise ToolOrchestrationError(f"invalid tool_request: {exc}") from exc
+
+    request = routing["tool_request"]
+    snapshot = routing["catalog_snapshot"]
+    decision = routing["route_decision"]
+    if decision["status"] != "resolved":
+        destination.mkdir(parents=True)
+        decision["provider_called"] = False
+        _write_json(destination / "tool_request.json", request)
+        _write_json(destination / "catalog_snapshot.json", snapshot)
+        _write_json(destination / "route_decision.json", decision)
+        raise ToolOrchestrationError(
+            "automatic Tool Router found no supported exact metric match"
+        )
+
+    destination.mkdir(parents=True)
+    _write_json(destination / "tool_request.json", request)
+    _write_json(destination / "catalog_snapshot.json", snapshot)
+    _write_json(destination / "route_decision.json", decision)
+    spec = _resolved_spec_from_request(request, decision["resolved_route"])
+    try:
+        execution = execute_tool_spec(
+            repo,
+            child_run_dir,
+            destination,
+            spec,
+            provider=provider,
+            model=model,
+            max_attempts=max_attempts,
+            _precreated_destination=True,
+        )
+    except Exception as exc:
+        decision["status"] = "execution_failed"
+        decision["provider_called"] = bool(
+            decision["provider_required"] and provider is not None
+        )
+        decision["failure"] = {
+            "type": type(exc).__name__,
+            "message": str(exc),
+        }
+        _write_json(destination / "route_decision.json", decision)
+        raise
+
+    decision["provider_called"] = bool(
+        execution.get("validation", {}).get("provider_called")
+    )
+    _write_json(destination / "route_decision.json", decision)
+
+    resolved_path = destination / "resolved_tool_spec.json"
+    resolved = json.loads(resolved_path.read_text(encoding="utf-8"))
+    resolved["requested_route"] = "auto"
+    resolved["route_decision"] = decision
+    _write_json(resolved_path, resolved)
+
+    execution["requested_route"] = "auto"
+    execution["route"] = decision["resolved_route"]
+    execution["tool_request"] = request
+    execution["route_decision"] = decision
+    execution["artifacts"].update(
+        {
+            "tool_request": _relative(destination / "tool_request.json", repo),
+            "catalog_snapshot": _relative(
+                destination / "catalog_snapshot.json", repo
+            ),
+            "route_decision": _relative(
+                destination / "route_decision.json", repo
+            ),
+        }
     )
     _write_json(destination / "tool_execution.json", execution)
     return execution

@@ -17,7 +17,7 @@ if str(REPO_ROOT) not in sys.path:
 from mea.feedback import FeedbackAgent, render_evaluation_report
 from mea.planner import PlanAgentPrototype
 from mea.providers import OpenAICompatibleProvider
-from mea.toolgen import execute_tool_spec
+from mea.toolgen import execute_tool_request
 
 
 def write_json(path: Path, value: Any) -> None:
@@ -156,8 +156,10 @@ def compact_tool_evaluation(
         return None
     return {
         "status": tool_evaluation.get("status"),
+        "requested_route": tool_evaluation.get("requested_route"),
         "route": tool_evaluation.get("route"),
         "reference_tool": tool_evaluation.get("reference_tool"),
+        "route_decision": tool_evaluation.get("route_decision", {}),
         "source": tool_evaluation.get("source", {}),
         "episodes": [
             {
@@ -290,11 +292,11 @@ def execute_round(
         },
     )
     if child_manifest.get("status") == "completed" and returncode == 0:
-        tool_evaluation = execute_tool_spec(
+        tool_evaluation = execute_tool_request(
             repo_root,
             child_dir,
             execution_dir / "planned_tool",
-            round_plan["tool_spec"],
+            round_plan["tool_request"],
             provider=provider,
             model=toolgen_model,
         )
@@ -307,9 +309,18 @@ def execute_round(
         tool_evaluation = {
             "schema_version": 1,
             "status": "skipped",
-            "route": round_plan["tool_spec"]["route"],
-            "reference_tool": round_plan["tool_spec"]["reference_tool"],
-            "tool_spec": round_plan["tool_spec"],
+            "requested_route": "auto",
+            "route": None,
+            "reference_tool": None,
+            "tool_request": round_plan["tool_request"],
+            "route_decision": {
+                "status": "skipped",
+                "requested_route": "auto",
+                "resolved_route": None,
+                "reason": skip_reason,
+                "provider_required": None,
+                "provider_called": False,
+            },
             "source": {},
             "episodes": [],
             "validation": {"reason": skip_reason},
@@ -474,6 +485,19 @@ def build_evidence_bundle(
         {},
     )
     evaluation_relative = Path("mea/evaluation_runs") / evaluation_id
+    completed_template_ids = [item["round_plan"]["template_id"] for item in round_runs]
+    remaining_template_ids = [
+        item
+        for item in plan.get("requested_template_ids", [])
+        if item not in completed_template_ids
+    ]
+    decision_artifacts = [
+        str(
+            evaluation_relative
+            / f"plan/decision_after_round_{round_number}.json"
+        )
+        for round_number in range(1, len(plan.get("round_decisions", [])) + 1)
+    ]
     return {
         "schema_version": 2,
         "evaluation_id": evaluation_id,
@@ -483,6 +507,12 @@ def build_evidence_bundle(
             "executed_rounds": len(rounds),
             "planning_state": plan.get("planning_state"),
             "round_decisions": plan.get("round_decisions", []),
+            "requested_template_ids": plan.get("requested_template_ids", []),
+            "completed_template_ids": completed_template_ids,
+            "remaining_template_ids": remaining_template_ids,
+            "round_budget_remaining": max(
+                int(plan["max_rounds"]) - len(rounds), 0
+            ),
         },
         "rounds": rounds,
         "observations": {
@@ -510,17 +540,15 @@ def build_evidence_bundle(
         },
         "total_episodes": total_episodes,
         "limitations": {
-            "bounded_two_round_prototype": True,
-            "three_episodes_are_not_a_generalization_benchmark": True,
+            "bounded_three_round_prototype": True,
+            "few_episodes_are_not_a_generalization_benchmark": True,
             "policy_result_is_not_pipeline_status": True,
         },
         "artifacts": {
             "evaluation_plan": str(
                 evaluation_relative / "plan/evaluation_plan.json"
             ),
-            "round_2_decision": str(
-                evaluation_relative / "plan/round_2_decision.json"
-            ),
+            "plan_decisions": decision_artifacts,
             "summary": str(evaluation_relative / "summary/summary.json"),
             "round_artifacts": [item["artifacts"] for item in rounds],
         },
@@ -575,56 +603,20 @@ def main() -> None:
 
     round_runs: list[dict[str, Any]] = []
     try:
-        round_1_plan = plan["rounds"][0]
-        (
-            child_manifest,
-            child_dir,
-            round_1_summary,
-            tool_evaluation,
-            returncode,
-        ) = execute_round(
-            repo_root,
-            evaluation_dir,
-            evaluation_id,
-            round_1_plan,
-            text_model=args.taskgen_model,
-            vision_model=args.vision_model,
-            base_url=args.base_url,
-            gpu=args.gpu,
-            max_reflections=args.max_reflections,
-            provider=provider,
-            toolgen_model=args.toolgen_model,
-        )
-        round_runs.append(
-            {
-                "round_plan": round_1_plan,
-                "child_manifest": child_manifest,
-                "child_dir": child_dir,
-                "round_summary": round_1_summary,
-                "tool_evaluation": tool_evaluation,
-                "returncode": returncode,
-            }
-        )
-
-        plan, decision = planner.decide_next_round(
-            evaluation_id=evaluation_id,
-            user_request=args.request,
-            current_plan=plan,
-            round_1_observation=round_1_summary,
-        )
-        if decision["action"] == "continue":
-            round_2_plan = decision["next_round"]
+        executed_rounds = 0
+        while executed_rounds < len(plan["rounds"]):
+            round_plan = plan["rounds"][executed_rounds]
             (
                 child_manifest,
                 child_dir,
-                round_2_summary,
+                round_summary,
                 tool_evaluation,
                 returncode,
             ) = execute_round(
                 repo_root,
                 evaluation_dir,
                 evaluation_id,
-                round_2_plan,
+                round_plan,
                 text_model=args.taskgen_model,
                 vision_model=args.vision_model,
                 base_url=args.base_url,
@@ -635,14 +627,26 @@ def main() -> None:
             )
             round_runs.append(
                 {
-                    "round_plan": round_2_plan,
+                    "round_plan": round_plan,
                     "child_manifest": child_manifest,
                     "child_dir": child_dir,
-                    "round_summary": round_2_summary,
+                    "round_summary": round_summary,
                     "tool_evaluation": tool_evaluation,
                     "returncode": returncode,
                 }
             )
+            executed_rounds += 1
+
+            plan, decision = planner.decide_next_round(
+                evaluation_id=evaluation_id,
+                user_request=args.request,
+                current_plan=plan,
+                observation_history=[
+                    item["round_summary"] for item in round_runs
+                ],
+            )
+            if decision["action"] == "stop":
+                break
 
         summary = {
             "schema_version": 2,

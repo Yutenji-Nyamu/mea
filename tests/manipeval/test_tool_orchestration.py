@@ -9,9 +9,13 @@ import numpy as np
 
 from mea.toolgen import (
     ToolOrchestrationError,
+    contact_tool_request,
     contact_tool_spec,
+    execute_tool_request,
     execute_tool_spec,
+    pickup_to_contact_tool_request,
     pickup_to_contact_tool_spec,
+    validate_tool_request,
     validate_tool_spec,
 )
 from mea.toolgen.examples import hammer_block_contact_example
@@ -229,6 +233,179 @@ class ToolOrchestrationTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(ToolOrchestrationError, "只允许 force_codegen"):
             pickup_to_contact_tool_spec("reuse")
+
+    def test_route_free_request_contract_has_only_semantic_fields(self):
+        contact = contact_tool_request()
+        duration = pickup_to_contact_tool_request()
+        expected_fields = {
+            "schema_version",
+            "task_name",
+            "metric",
+            "question",
+        }
+        self.assertEqual(set(contact), expected_fields)
+        self.assertEqual(set(duration), expected_fields)
+        self.assertNotIn("route", contact)
+        self.assertEqual(
+            validate_tool_request(
+                duration,
+                expected_metric="pickup_to_first_contact_time",
+            ),
+            duration,
+        )
+
+    def test_auto_router_reuses_exact_trusted_contact(self):
+        provider = NeverCalledProvider()
+        output_dir = self.root / "auto_contact"
+        result = execute_tool_request(
+            self.repo_root,
+            self.child_run,
+            output_dir,
+            contact_tool_request(),
+            provider=provider,
+            model="must-not-be-used",
+        )
+
+        self.assertEqual(provider.calls, 0)
+        self.assertEqual(result["requested_route"], "auto")
+        self.assertEqual(result["route"], "reuse")
+        self.assertEqual(
+            result["route_decision"]["matched_registry"],
+            "trusted_tool_catalog",
+        )
+        self.assertEqual(
+            [item["result"]["value"] for item in result["episodes"]],
+            [False, True],
+        )
+        self.assertEqual(
+            [item["result"]["tool"] for item in result["episodes"]],
+            ["hammer_block_contact_ever", "hammer_block_contact_ever"],
+        )
+        self.assertRegex(result["source"]["tool_sha256"], r"^[0-9a-f]{64}$")
+        self.assertTrue(
+            all(
+                item["result"]["tool_sha256"]
+                == result["source"]["tool_sha256"]
+                for item in result["episodes"]
+            )
+        )
+        for name in (
+            "tool_request.json",
+            "catalog_snapshot.json",
+            "route_decision.json",
+            "resolved_tool_spec.json",
+            "tool_execution.json",
+        ):
+            self.assertTrue((output_dir / name).is_file(), name)
+
+    def test_auto_router_generates_registered_composite_target(self):
+        provider = FakeProvider(
+            f"```python\n{generated_pickup_to_contact_source()}```"
+        )
+        output_dir = self.root / "auto_duration"
+        result = execute_tool_request(
+            self.repo_root,
+            self.child_run,
+            output_dir,
+            pickup_to_contact_tool_request(),
+            provider=provider,
+            model="fake-toolgen",
+        )
+
+        self.assertEqual(provider.calls, 1)
+        self.assertEqual(result["requested_route"], "auto")
+        self.assertEqual(result["route"], "force_codegen")
+        self.assertEqual(
+            result["route_decision"]["matched_registry"],
+            "composite_target_registry",
+        )
+        self.assertEqual(
+            [item["result"]["value"] for item in result["episodes"]],
+            [None, 0.004],
+        )
+
+    def test_auto_router_reuses_any_exact_catalog_metric(self):
+        provider = NeverCalledProvider()
+        request = {
+            "schema_version": 1,
+            "task_name": "beat_block_hammer",
+            "metric": "first_contact_step",
+            "question": "When did strict physical contact first occur?",
+        }
+        result = execute_tool_request(
+            self.repo_root,
+            self.child_run,
+            self.root / "auto_first_contact",
+            request,
+            provider=provider,
+            model="must-not-be-used",
+        )
+        self.assertEqual(provider.calls, 0)
+        self.assertEqual(result["route"], "reuse")
+        self.assertEqual(
+            [item["result"]["value"] for item in result["episodes"]],
+            [None, 2],
+        )
+        self.assertEqual(
+            [item["result"]["tool"] for item in result["episodes"]],
+            ["first_contact_step", "first_contact_step"],
+        )
+
+    def test_auto_router_unknown_metric_preserves_audit_without_provider(self):
+        provider = NeverCalledProvider()
+        output_dir = self.root / "auto_unknown"
+        request = {
+            "schema_version": 1,
+            "task_name": "beat_block_hammer",
+            "metric": "almost_hammer_block_contact",
+            "question": "Use a near-name that must not fuzzy-match.",
+        }
+        with self.assertRaisesRegex(
+            ToolOrchestrationError, "no supported exact metric match"
+        ):
+            execute_tool_request(
+                self.repo_root,
+                self.child_run,
+                output_dir,
+                request,
+                provider=provider,
+                model="must-not-be-used",
+            )
+        self.assertEqual(provider.calls, 0)
+        self.assertTrue((output_dir / "tool_request.json").is_file())
+        self.assertTrue((output_dir / "catalog_snapshot.json").is_file())
+        decision = json.loads(
+            (output_dir / "route_decision.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(decision["status"], "unsupported")
+        self.assertFalse(decision["provider_called"])
+        self.assertIsNone(decision["resolved_route"])
+        self.assertFalse(decision["exact_match"])
+
+    def test_auto_router_preserves_route_audit_when_telemetry_is_missing(self):
+        provider = NeverCalledProvider()
+        output_dir = self.root / "auto_missing_telemetry"
+        with self.assertRaisesRegex(
+            ToolOrchestrationError, "没有在"
+        ):
+            execute_tool_request(
+                self.repo_root,
+                self.root / "empty_child_run",
+                output_dir,
+                contact_tool_request(),
+                provider=provider,
+                model="must-not-be-used",
+            )
+        self.assertEqual(provider.calls, 0)
+        decision = json.loads(
+            (output_dir / "route_decision.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(decision["status"], "execution_failed")
+        self.assertEqual(decision["resolved_route"], "reuse")
+        self.assertFalse(decision["provider_called"])
+        self.assertEqual(
+            decision["failure"]["type"], "ToolOrchestrationError"
+        )
 
     def test_reuse_executes_trusted_catalog_without_calling_provider(self):
         provider = NeverCalledProvider()

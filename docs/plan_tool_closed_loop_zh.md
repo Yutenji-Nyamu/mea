@@ -2,7 +2,7 @@
 
 ## 实现结果
 
-本阶段把原先独立的 Offline ToolGen 接回外层评估编排。Plan Agent 现在不仅规划场景和 episode，还输出严格 `ToolSpec`；每轮 rollout 完成后，runtime 自动选择 Trusted Tool 复用或受约束 ToolGen，并在下一轮 planning 之前把 Tool observation 写回。最终 Feedback Agent 只基于 evidence bundle 回答用户。
+本阶段把原先独立的 Offline ToolGen 接回外层评估编排，并进一步分离“指标意图”和“执行 route”。Plan Agent 只选择受限 sub-aspect template；系统注入场景指令、seed、gate 与无 route 的 `ToolRequest`。每轮 rollout 完成后，Runtime 根据 metric 精确匹配 Trusted catalog 或 composite target，再决定复用或生成 Tool。Tool observation 会在下一轮 planning 前写回，最终 Feedback Agent 只基于 evidence bundle 回答用户。
 
 ## 调用链
 
@@ -23,16 +23,17 @@ policy/ACT/eval.sh
 ```text
 自然语言 request
 → Plan Agent
-   ├─ scene round plan
-   └─ ToolSpec
+   └─ 选择受限 sub-aspect template
+→ Runtime 注入 scene round plan + route-free ToolRequest
 → Task / Documentation Retrieval
 → TaskGen / AST / render / Visual Self-Reflection
 → expert gate
 → eval_mea.sh → 官方 ACT 主干
 → Trajectory Recorder
 → Tool Router
-   ├─ reuse → Trusted Tool；零 GPT 调用
-   └─ force_codegen → examples → GPT ToolGen → differential gates
+   ├─ exact Trusted metric → reuse；零 GPT 调用
+   ├─ exact composite target → force_codegen → differential/property gates
+   └─ unknown/近似名称 → unsupported；零 GPT 调用
 → normalized tool_execution.json
 → round observation → 下一轮 Plan Agent
 → evidence_bundle.json
@@ -42,22 +43,19 @@ policy/ACT/eval.sh
 
 MEA 没有改写 ACT 推理与 RoboTwin 物理执行主干；新增部分主要位于官方链之前的 proposal/generation，以及之后的 observation/tool/feedback。
 
-## ToolSpec 与 runtime 的职责边界
+## ToolRequest、Router 与 runtime 的职责边界
 
-Plan Agent 只声明：
+Plan Agent 实际只选择 template id。可信 template 再声明：
 
 - task 与 metric；
 - 问题语义；
-- `reuse` 或 `force_codegen` route；
-- 需要的稳定 signal；
-- 输出和验证契约。
+- route-free metric 与问题语义。
 
-它不能声明 telemetry 路径、ACT/expert 的实际结果、生成源码路径或 hash。runtime 从真实 artifact 中解析这些内容，形成 `resolved_tool_spec.json`。
+Plan Agent 不能声明 Tool route、telemetry 路径、ACT/expert 的实际结果、生成源码路径或 hash。Router 使用 `strict_exact_metric_id`：metric 精确命中 `TOOL_CATALOG` 才复用，精确命中已登记 `COMPOSITE_TARGETS` 才生成；tags 和模糊相似度不能决定是否执行生成代码。Runtime 再从真实 artifact 解析完整内部 `ToolSpec` 与 episode，形成 `resolved_tool_spec.json`。
 
-当前开放两个严格模板：
+当前主要验证两个 metric：
 
-- `force_codegen` 必须同时找到 reference=false 与 true 的不同 trajectory，用于 differential gate；
-- `reuse` 直接运行已测试 Trusted Tool，不要求 false/true 对照，也不调用 provider；
+- `hammer_block_contact_ever` 精确命中 Trusted catalog，自动 `reuse`，不调用 provider；
 - `pickup_to_first_contact_time` 不存在于 Trusted catalog，只允许 `force_codegen`；它由 first-pickup 与 first-contact 两个 Trusted primitive 组成私有 oracle，要求 ACT `null` 与 expert numeric 正例；
 - 新时间指标的 `pickup` 是 hammer Z 首次跨过 schema 的 `0.03 m` 阈值，不是最大高度，也不声称是首次稳定 grasp；
 - ACT 标记为 `policy_under_evaluation`；
@@ -80,6 +78,9 @@ Plan Agent 只声明：
 
 ```text
 execution/<round_id>/planned_tool/
+├── tool_request.json
+├── catalog_snapshot.json
+├── route_decision.json
 ├── tool_spec.json
 ├── resolved_tool_spec.json
 ├── tool_execution.json
@@ -91,7 +92,17 @@ execution/<round_id>/planned_tool/
     └── attempts/attempt_*/
 ```
 
-`tool_execution.json` 对两条 route 使用同一 envelope，包含 source scope、ACT/expert role、value、evidence steps、validation gates 与相对 artifact path。
+`route_decision.json` 记录 requested=`auto`、resolved route、精确命中的 registry、catalog hash、是否需要/实际调用 provider，以及失败原因。未知 metric 或 telemetry preflight 失败时也保留 Router 审计产物。`tool_execution.json` 对两条 route 使用同一 envelope，包含 source scope、ACT/expert role、value、evidence steps、validation gates 与相对 artifact path。
+
+## 最多三轮的受限自适应规划
+
+当前只开放三个可信 template：
+
+1. `object_appearance.color_blue`：蓝色方块，1 episode；
+2. `object_position.official_random`：官方位置/朝向采样，2 episodes；
+3. `performance.pickup_to_contact_timing`：pickup-to-contact 时间，1 episode。
+
+初始 GPT 只输出用户请求的 template ids 与首个 id；完整 round 由系统 materialize。每轮后 GPT 只输出 `continue/stop` 与下一个 template id，不能改 seed、gate、TaskGen route 或 Tool route。Runtime 使用完整 `observation_history`，禁止重复、越权和超过三轮；pipeline 失败、预算耗尽或没有剩余请求时强制停止，pipeline 通过且仍有用户明确请求的 template 时必须继续。每次决策写入 `decision_after_round_N.*`。
 
 TaskGen 子进程的 exit code 也属于 pipeline evidence：非零退出时不会继续运行 Tool，round 会记录 skipped reason 且 `pipeline_passed=false`。外层 manifest 用 `lifecycle_status=completed` 表示编排已经结束，用 `completed_with_pipeline_failure` 区分评估失败，避免把“流程结束”误写成“评估通过”。
 
@@ -132,6 +143,38 @@ mea/evaluation_runs/eval_20260715_plan_tool_closed_loop_v2/
 - 另外构造两个不改磁盘轨迹的 counterfactual property scenarios：`pickup_not_observed` 和 `contact_precedes_pickup`；生成代码对两者也 deterministic 且与 oracle 完全一致；
 - v1/v2/v4 失败 evaluation id 均保留，分别暴露 reason enum、schema key 和 `.append()` AST 约束文档不明确；修正 prompt contract 后 v5 通过。
 
+## Auto Router 与三轮状态机 live 验证
+
+本批控制面验证目录为：
+
+```text
+mea/evaluation_runs/eval_20260715_auto_router_adaptive_live_v2/
+```
+
+用户请求同时包含蓝色外观、官方位置变化和 pickup-to-contact 时间。Live Plan
+Agent 依次选择：
+
+```text
+object_appearance.color_blue
+→ object_position.official_random
+→ performance.pickup_to_contact_timing
+→ stopped_after_round_3
+```
+
+Router 的两个真实分支均通过：
+
+- `hammer_block_contact_ever`：requested=`auto`，resolved=`reuse`，provider
+  未调用；ACT 没有 strict contact，expert 在 physics step 1454 有 contact；
+- `pickup_to_first_contact_time`：requested=`auto`，resolved=`force_codegen`，
+  provider 被调用；ACT 在 step 6284 达到 pickup 阈值但之后没有 strict
+  contact，所以 duration 合法地为 `null`；expert 从 step 1039 到 1454，
+  duration=`1.66 s`。
+
+该验证明确复用既有真实 ACT/expert telemetry，没有重新执行三轮 rollout；它验证
+的是 Plan Agent 状态转换、Router、Tool execution 与 observation 回流，不应描述
+为一次新的“三轮 ACT E2E 评估”。完整 Runner 中 round 的 `route` 表示 TaskGen
+场景路由，与 Tool Router 的 resolved route 是两个独立概念。
+
 ## 尚未解决的 gap
 
-目前的新指标仍由人工注册的私有组合 oracle 验证，不代表任意未知 metric 都能自动获得可靠 ground truth。下一步优先实现 Tool Retriever 的“精确语义匹配 → reuse；没有完全匹配 → force_codegen”自动路由，再把固定颜色→位置两轮规划放宽为最多三轮的受限 sub-aspect catalog；之后选择第二个 RoboTwin task 扩展 TaskSchema/Documentation RAG。
+自动 Router 和三轮状态机已经完成，但 composite target 仍需人工登记可靠 oracle，不代表任意未知 metric 都能安全生成。下一批优先补多 episode Aggregate、执行期 VQA、同一 evaluation 内 run-local Tool 复用与 promote；随后扩展第二个 RoboTwin task。Recorder 的 `balanced_v1` 作为独立批次实现，避免把 Tool/Planner 回归与采样格式迁移混在一起。

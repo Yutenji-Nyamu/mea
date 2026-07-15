@@ -233,7 +233,8 @@ class FeedbackAgentTests(unittest.TestCase):
         self.assertIn("round_2", report)
         self.assertIn("position varied: `True`", report)
         self.assertIn("seed 100002", report)
-        self.assertIn("planned Tool route: `force_codegen`", report)
+        self.assertIn("planned Tool requested route: `explicit`", report)
+        self.assertIn("planned Tool resolved route: `force_codegen`", report)
         self.assertIn("ACT (policy_under_evaluation) seed 100000: value=False", report)
         self.assertIn("expert (expert_validation) seed 100000: value=True", report)
 

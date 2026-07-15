@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from mea.toolgen import contact_tool_spec
+from mea.toolgen import contact_tool_request
 from scripts.manipeval_agent import build_taskgen_command, execute_round
 from scripts.manipeval_taskgen import collect_position_samples, newest_eval_dir
 
@@ -125,7 +125,7 @@ class MultiRoundRuntimeTests(unittest.TestCase):
         round_plan = {
             **ROUND_2,
             "sub_aspect": "object_position",
-            "tool_spec": contact_tool_spec("reuse"),
+            "tool_request": contact_tool_request(),
         }
         child_manifest = {
             "run_id": "run_test_round_2",
@@ -155,7 +155,7 @@ class MultiRoundRuntimeTests(unittest.TestCase):
             with (
                 patch("scripts.manipeval_agent.run_logged", return_value=0),
                 patch(
-                    "scripts.manipeval_agent.execute_tool_spec",
+                    "scripts.manipeval_agent.execute_tool_request",
                     return_value=tool_evaluation,
                 ) as routed_tool,
             ):
@@ -190,7 +190,7 @@ class MultiRoundRuntimeTests(unittest.TestCase):
                 repo_root,
                 child_dir,
                 evaluation_dir / "execution/round_2/planned_tool",
-                round_plan["tool_spec"],
+                round_plan["tool_request"],
                 provider=provider,
                 model="tool-model",
             )
@@ -216,7 +216,7 @@ class MultiRoundRuntimeTests(unittest.TestCase):
             with (
                 patch("scripts.manipeval_agent.run_logged", return_value=7),
                 patch(
-                    "scripts.manipeval_agent.execute_tool_spec"
+                    "scripts.manipeval_agent.execute_tool_request"
                 ) as skipped_tool,
             ):
                 (
@@ -240,6 +240,8 @@ class MultiRoundRuntimeTests(unittest.TestCase):
                 )
             self.assertEqual(failed_returncode, 7)
             self.assertEqual(skipped_evaluation["status"], "skipped")
+            self.assertEqual(skipped_evaluation["requested_route"], "auto")
+            self.assertIsNone(skipped_evaluation["route"])
             self.assertIn(
                 "code 7", skipped_evaluation["validation"]["reason"]
             )

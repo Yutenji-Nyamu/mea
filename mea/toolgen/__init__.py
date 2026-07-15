@@ -9,10 +9,19 @@ from .prototype import (
 )
 from .orchestration import (
     ToolOrchestrationError,
+    contact_tool_request,
     contact_tool_spec,
+    execute_tool_request,
     execute_tool_spec,
+    pickup_to_contact_tool_request,
     pickup_to_contact_tool_spec,
     validate_tool_spec,
+)
+from .router import (
+    ToolRouterError,
+    catalog_snapshot,
+    route_tool_request,
+    validate_tool_request,
 )
 from .targets import PICKUP_TO_CONTACT_METRIC, evaluate_target_oracle
 
@@ -23,9 +32,16 @@ __all__ = [
     "extract_generated_tool",
     "validate_generated_tool",
     "ToolOrchestrationError",
+    "ToolRouterError",
+    "contact_tool_request",
     "contact_tool_spec",
+    "execute_tool_request",
     "execute_tool_spec",
+    "pickup_to_contact_tool_request",
     "pickup_to_contact_tool_spec",
+    "catalog_snapshot",
+    "route_tool_request",
+    "validate_tool_request",
     "validate_tool_spec",
     "PICKUP_TO_CONTACT_METRIC",
     "evaluate_target_oracle",
