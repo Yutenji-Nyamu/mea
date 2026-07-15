@@ -219,3 +219,37 @@ attempts/attempt_*/
 5. 增加真正 immutable Trajectory facade 以及 container/CPU/memory 资源限制。
 6. 扩展 TaskSchema/Recorder 到第二个 RoboTwin task，验证不是 hammer-specific demo。
 7. 再做视觉型 Tool/VQA Tool 与数值 Tool 的联合证据。
+
+## 7. 正式实跑记录
+
+实现提交 `f9cdd830a082251014e5b7948c3d3562a8b398d5` 后，在已有蓝色方块 run 上完成正式 live generation：
+
+- evaluation run：`run_20260715_telemetry_blue_seed100000`
+- ToolGen output：`toolgen/hammer_block_contact_v2`
+- model：`gpt-4o-2024-11-20`
+- prompt / completion / total tokens：1097 / 189 / 1286
+- successful attempt：0；未发生 regeneration
+- generator source SHA256：`4f296f3968096fde9a6cb01a28981c0d25d4b4f4487fe6ce3868ba54e1c4df37`
+- prompt contract SHA256：`87068fb62d487a839a29d51672db57560ac130cbf834ef5be634f6d24b99e18e`
+- generated Tool SHA256：`4683ba1229c8696f574aa3b5207bed323dc9cf1c2a75300c1174fc83b4feaada`
+- ACT：`value=false`，无 physical-contact evidence step
+- expert：`value=true`，first physical-contact evidence step 为 `1454`
+- 两个 episode 均满足 deterministic、oracle agreement、artifacts unchanged
+- 三个 retrieved standalone examples 在 ACT/expert 两条轨迹上共 6 次 oracle comparison 全部通过
+- `registration.json` 为 `scope=run_local`、`status=validated`
+
+独立 audit 重新计算了 implementation、contract、generated source 与 registration hash，并检查 manifest、正负例结果和全部 gate，所有检查均为 true。生成代码是完整 `generated_tool(trajectory)`，没有调用 Trusted Tool，也没有在执行时访问 simulator；它只读取 `trajectory.hammer_block_contacts()`。
+
+服务器产物：
+
+```text
+/root/autodl-tmp/mea/mea/generated_tasks/run_20260715_telemetry_blue_seed100000/toolgen/hammer_block_contact_v2/
+```
+
+操作日志：
+
+```text
+/root/autodl-tmp/mea/_ops_logs/toolgen_static_20260715_115838.log
+/root/autodl-tmp/mea/_ops_logs/toolgen_stage_commit_20260715_120059.log
+/root/autodl-tmp/mea/_ops_logs/toolgen_live_20260715_120235.log
+```
