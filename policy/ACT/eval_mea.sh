@@ -4,8 +4,8 @@ set -euo pipefail
 
 policy_name="ACT"
 
-if [ "$#" -lt 6 ] || [ "$#" -gt 10 ]; then
-    echo "Usage: $0 TASK CONFIG CKPT EXPERT_NUM SEED GPU [NUM_EPISODES] [TASK_MODULE] [TASK_OVERLAY] [START_SEED]" >&2
+if [ "$#" -lt 6 ] || [ "$#" -gt 11 ]; then
+    echo "Usage: $0 TASK CONFIG CKPT EXPERT_NUM SEED GPU [NUM_EPISODES] [TASK_MODULE] [TASK_OVERLAY] [START_SEED] [TELEMETRY_DIR]" >&2
     exit 2
 fi
 
@@ -20,6 +20,7 @@ num_episodes="${7:-100}"
 task_module="${8:-}"
 task_overlay="${9:-}"
 start_seed="${10:-}"
+telemetry_dir="${11:-}"
 
 export CUDA_VISIBLE_DEVICES="${gpu_id}"
 
@@ -28,6 +29,7 @@ echo "num_episodes=${num_episodes}"
 echo "task_module=${task_module:-<official>}"
 echo "task_overlay=${task_overlay:-<none>}"
 echo "start_seed=${start_seed:-<official-derived>}"
+echo "telemetry_dir=${telemetry_dir:-<disabled>}"
 
 SCRIPT_DIR="$(
     cd "$(dirname "${BASH_SOURCE[0]}")"
@@ -38,6 +40,13 @@ REPO_ROOT="$(
     pwd
 )"
 cd "${REPO_ROOT}"
+
+# The server keeps a shared Torch cache beside the repository. Interactive
+# shells normally export TORCH_HOME, but subprocess-driven TaskGen runs do not.
+if [ -z "${TORCH_HOME:-}" ] && [ -d "${REPO_ROOT}/../cache/torch" ]; then
+    export TORCH_HOME="${REPO_ROOT}/../cache/torch"
+fi
+echo "torch_home=${TORCH_HOME:-<default>}"
 
 OVERRIDES=(
     --task_name "${task_name}"
@@ -58,9 +67,14 @@ fi
 if [ -n "${start_seed}" ]; then
     OVERRIDES+=(--start_seed "${start_seed}")
 fi
+if [ -n "${telemetry_dir}" ]; then
+    OVERRIDES+=(--telemetry_dir "${telemetry_dir}")
+fi
+
+python_bin="${PYTHON_BIN:-python}"
 
 PYTHONWARNINGS=ignore::UserWarning \
-python script/eval_policy.py \
+"${python_bin}" script/eval_policy.py \
     --config "policy/${policy_name}/deploy_policy.yml" \
     --overrides \
     "${OVERRIDES[@]}"

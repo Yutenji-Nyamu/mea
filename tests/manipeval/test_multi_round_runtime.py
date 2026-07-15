@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from scripts.manipeval_agent import build_taskgen_command
-from scripts.manipeval_taskgen import collect_position_samples
+from scripts.manipeval_taskgen import collect_position_samples, newest_eval_dir
 
 
 ROUND_2 = {
@@ -19,6 +19,22 @@ ROUND_2 = {
 
 
 class MultiRoundRuntimeTests(unittest.TestCase):
+    def test_newest_eval_dir_never_reuses_stale_result(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            eval_root = (
+                root
+                / "eval_result/beat_block_hammer/ACT/demo_clean/demo_clean"
+            )
+            old = eval_root / "old"
+            old.mkdir(parents=True)
+            before = {old}
+            self.assertIsNone(newest_eval_dir(root, before))
+
+            new = eval_root / "new"
+            new.mkdir()
+            self.assertEqual(newest_eval_dir(root, before), new)
+
     def test_taskgen_command_forwards_two_episodes(self):
         command, run_id = build_taskgen_command(
             Path("/repo"),

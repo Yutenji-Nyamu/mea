@@ -18,7 +18,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from mea.retrieval import TaskRetriever
+from mea.retrieval import KnowledgeRetriever, TaskRetriever
 
 
 class TaskGenError(RuntimeError):
@@ -436,24 +436,11 @@ def _codegen_prompt(
     repo_root: Path,
     user_request: str,
     spec: dict[str, Any],
-    retrieved_tasks: list[str],
+    knowledge_context: str,
 ) -> str:
     agent_readme = (repo_root / "mea/taskgen/README.Agent.md").read_text(encoding="utf-8")
-    official_task = (repo_root / "envs/beat_block_hammer.py").read_text(encoding="utf-8")
-    configurable_task = (repo_root / "mea/tasks/beat_block_hammer.py").read_text(encoding="utf-8")
-    retrieved_sections = []
-    for task_name in retrieved_tasks:
-        if task_name == "beat_block_hammer":
-            continue
-        source_path = repo_root / "envs" / f"{task_name}.py"
-        retrieved_sections.append(
-            f"### {source_path.relative_to(repo_root)}\n"
-            f"```python\n{source_path.read_text(encoding='utf-8')}\n```"
-        )
-    retrieved_context = (
-        "\n\n".join(retrieved_sections)
-        if retrieved_sections
-        else "No additional example was selected."
+    official_method = _extract_method_from_file(
+        repo_root / "envs/beat_block_hammer.py", "load_actors"
     )
 
     return f"""You are the TaskGen code agent for RoboTwin 2.0.
@@ -481,22 +468,16 @@ OUTPUT CONTRACT:
    ``rand_pose``, and ordinary safe builtins. Do not import anything.
 8. Do not access files, network, processes, environment variables, or dynamic imports.
 
-README.AGENT:
+GLOBAL OUTPUT RULES:
 {agent_readme}
 
-OFFICIAL TASK SOURCE (authoritative behavior):
+OFFICIAL LOAD_ACTORS SOURCE (authoritative behavior):
 ```python
-{official_task}
+{official_method}
 ```
 
-EXISTING CONFIGURABLE BBH SOURCE (reference implementation; resolve the spec
-to literal values in your generated method):
-```python
-{configurable_task}
-```
-
-GPT-RETRIEVED TASK SOURCES:
-{retrieved_context}
+RETRIEVED TASK/API KNOWLEDGE:
+{knowledge_context}
 """
 
 
@@ -585,6 +566,7 @@ class TaskGenPrototype:
         validation: dict[str, Any] = {"variant_spec": {"valid": True}}
         task_module = "mea.tasks.beat_block_hammer"
         task_retrieval = None
+        knowledge_retrieval = None
 
         if mode == "force_codegen":
             manifest["status"] = "retrieving_task_sources"
@@ -603,14 +585,28 @@ class TaskGenPrototype:
                 getattr(self.provider, "last_metadata", {})
             )
 
+            knowledge_retrieval = KnowledgeRetriever(self.repo_root).select(
+                user_request,
+                task_name,
+                spec,
+                task_retrieval["selected_tasks"],
+                output_dir=generation_dir,
+            )
+            knowledge_manifest = {
+                key: value
+                for key, value in knowledge_retrieval.items()
+                if key != "context"
+            }
+
             manifest["status"] = "generating"
             manifest["task_retrieval"] = task_retrieval
+            manifest["knowledge_retrieval"] = knowledge_manifest
             _write_json(run_dir / "manifest.json", manifest)
             code_prompt = _codegen_prompt(
                 self.repo_root,
                 user_request,
                 spec,
-                task_retrieval["selected_tasks"],
+                knowledge_retrieval["context"],
             )
             (generation_dir / "code_prompt.md").write_text(code_prompt, encoding="utf-8")
             code_response = self.provider.text(
@@ -657,6 +653,15 @@ class TaskGenPrototype:
                 "overlay": str((run_dir / "overlay.yml").relative_to(self.repo_root)),
                 "static_validation": validation,
                 "task_retrieval": task_retrieval,
+                "knowledge_retrieval": (
+                    {
+                        key: value
+                        for key, value in knowledge_retrieval.items()
+                        if key != "context"
+                    }
+                    if knowledge_retrieval
+                    else None
+                ),
                 "provider": {
                     "model_requested": self.model,
                     "calls": provider_calls,

@@ -1,0 +1,103 @@
+{
+  "documents": [
+    {
+      "character_count": 910,
+      "document_sha256": "8857f97805f7bfa224da84034ca544a708fd1fac68711cfcb5eeb687e1f05c08",
+      "id": "task.beat_block_hammer",
+      "kind": "task_contract",
+      "path": "mea/knowledge/tasks/beat_block_hammer.md",
+      "source_symbols": [
+        {
+          "character_count": 1339,
+          "path": "envs/beat_block_hammer.py",
+          "sha256": "2f684b99f9ae601baaba366d49d24accf3d065d72438b1b4cda938b77ba3419e",
+          "symbol": "beat_block_hammer.load_actors"
+        },
+        {
+          "character_count": 371,
+          "path": "envs/beat_block_hammer.py",
+          "sha256": "6465ad995185333d018fbdecb6be248556633f817eb610be071a766452fc6fbf",
+          "symbol": "beat_block_hammer.check_success"
+        }
+      ],
+      "tags": [
+        "beat_block_hammer",
+        "load_actors",
+        "appearance",
+        "position",
+        "yaw",
+        "scale"
+      ],
+      "title": "BeatBlockHammer scene contract"
+    },
+    {
+      "character_count": 987,
+      "document_sha256": "505c8f6f533eba901bbcf79d888a6b36e821e7bf6b0c95c2fd0418e64645ab94",
+      "id": "api.scene_creation",
+      "kind": "api",
+      "path": "mea/knowledge/api/scene_creation.md",
+      "source_symbols": [
+        {
+          "character_count": 4488,
+          "path": "envs/utils/create_actor.py",
+          "sha256": "62481c928c33b874b81b0d269247bf05cc55b67e79190209b55b96356c9c0d1e",
+          "symbol": "create_box"
+        },
+        {
+          "character_count": 1897,
+          "path": "envs/utils/create_actor.py",
+          "sha256": "47d424eb555352b9d96f1eb0604108139f2e9d17eb060b09c14237b7f30886b0",
+          "symbol": "create_actor"
+        },
+        {
+          "character_count": 1034,
+          "path": "envs/utils/rand_create_actor.py",
+          "sha256": "24a42c2c3a2355827f37365872cb645ad9d2a3c34ccc23de78b7dc7ca94f4d20",
+          "symbol": "rand_pose"
+        }
+      ],
+      "tags": [
+        "create_actor",
+        "create_box",
+        "rand_pose",
+        "load_actors",
+        "appearance",
+        "position",
+        "yaw",
+        "scale"
+      ],
+      "title": "RoboTwin scene construction APIs"
+    },
+    {
+      "character_count": 415,
+      "document_sha256": "f2010dd1175d54136d5c6f6e9f71e25c30b60e620985dbb1321d68eb9053df86",
+      "id": "asset.020_hammer",
+      "kind": "asset_contract",
+      "path": "mea/knowledge/assets/020_hammer.md",
+      "source_files": [
+        {
+          "path": "assets/objects/020_hammer/model_data0.json",
+          "sha256": "2243f56151444b0fb800226d9a27b4560e56abd681307417451cdc02add5ca23",
+          "size": 3280
+        },
+        {
+          "path": "description/objects_description/020_hammer/base0.json",
+          "sha256": "86ac3241aedab194917a44669b488ea1a8f5d4e76b67bc9fc787112784e6622b",
+          "size": 622
+        }
+      ],
+      "source_symbols": [],
+      "tags": [
+        "020_hammer",
+        "hammer",
+        "asset",
+        "functional_point",
+        "contact_point",
+        "replacement"
+      ],
+      "title": "020_hammer asset contract"
+    }
+  ],
+  "schema_version": 1,
+  "scope": "beat_block_hammer_vertical_slice"
+}

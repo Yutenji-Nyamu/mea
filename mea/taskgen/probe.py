@@ -111,8 +111,11 @@ def run_probe(arguments: argparse.Namespace) -> dict[str, Any]:
         "setup_success": False,
         "render_success": False,
         "expert_requested": arguments.expert,
+        "telemetry_requested": arguments.telemetry_dir is not None,
     }
     task = None
+    recorder = None
+    recorder_started = False
     try:
         args = load_task_args(
             repo_root,
@@ -149,21 +152,96 @@ def run_probe(arguments: argparse.Namespace) -> dict[str, Any]:
         }
         result["rule_check"]["passed"] = all(result["rule_check"].values())
 
+        if arguments.telemetry_dir is not None:
+            from mea.toolkit import EpisodeRecorder
+
+            telemetry_dir = arguments.telemetry_dir.expanduser().resolve()
+            recorder = EpisodeRecorder(
+                repo_root,
+                telemetry_dir,
+                task_name=arguments.task_name,
+                seed=arguments.seed,
+                episode_index=0,
+                policy_name="expert" if arguments.expert else "setup_probe",
+                task_module=arguments.task_module,
+                task_config=arguments.task_config,
+                checkpoint_setting=arguments.ckpt_setting,
+            )
+            task._mea_recorder = recorder
+            try:
+                recorder.start(task)
+            except Exception:
+                task._mea_recorder = None
+                raise
+            recorder_started = True
+
         if arguments.expert:
+            if recorder is not None:
+                recorder.on_policy_action_start(
+                    task,
+                    action=[],
+                    action_type="expert_plan",
+                )
             task.play_once()
             result["expert"] = {
                 "plan_success": bool(task.plan_success),
                 "check_success": bool(task.check_success()),
             }
             result["expert"]["passed"] = all(result["expert"].values())
+            if recorder is not None:
+                recorder.on_policy_action_end(
+                    task,
+                    success=bool(result["expert"]["passed"]),
+                )
+
+        if recorder is not None:
+            task._mea_recorder = None
+            telemetry_success = (
+                bool(result.get("expert", {}).get("passed"))
+                if arguments.expert
+                else bool(result["rule_check"]["passed"])
+            )
+            metadata = recorder.finish(task, success=telemetry_success)
+            recorder_started = False
+            result["telemetry"] = {
+                "episode_dir": str(recorder.output_dir),
+                "metadata": metadata,
+            }
     except Exception as exc:
         result["error"] = {
             "type": type(exc).__name__,
             "message": str(exc),
             "traceback": traceback.format_exc(),
         }
+        if (
+            recorder is not None
+            and recorder_started
+            and not recorder.finished
+        ):
+            recorder.record_error(exc)
+            if task is not None:
+                task._mea_recorder = None
+                try:
+                    metadata = recorder.finish(
+                        task,
+                        success=False,
+                        error={
+                            "type": type(exc).__name__,
+                            "message": str(exc),
+                        },
+                    )
+                    result["telemetry"] = {
+                        "episode_dir": str(recorder.output_dir),
+                        "metadata": metadata,
+                    }
+                except Exception as recorder_exc:
+                    result["telemetry_error"] = {
+                        "type": type(recorder_exc).__name__,
+                        "message": str(recorder_exc),
+                    }
     finally:
         if task is not None:
+            task._mea_recorder = None
             try:
                 task.close_env(clear_cache=True)
             except Exception as close_exc:
@@ -188,6 +266,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--image", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--expert", action="store_true")
+    parser.add_argument("--telemetry-dir", type=Path)
     return parser.parse_args()
 
 

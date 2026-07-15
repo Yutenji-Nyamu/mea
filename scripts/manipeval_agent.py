@@ -118,6 +118,34 @@ def read_policy_success(result_path: Path) -> float | None:
     return None
 
 
+def compact_trusted_tools(child_manifest: dict[str, Any]) -> list[dict[str, Any]]:
+    """Keep the numerical Toolkit evidence small enough for planner/feedback use."""
+
+    evaluation = child_manifest.get("trusted_tool_evaluation") or {}
+    episodes = []
+    for episode in evaluation.get("episodes", []):
+        episodes.append(
+            {
+                "episode_dir": episode.get("episode_dir"),
+                "policy_name": episode.get("policy_name"),
+                "seed": episode.get("seed"),
+                "success": episode.get("success"),
+                "results": [
+                    {
+                        "tool": result.get("tool"),
+                        "value": result.get("value"),
+                        "unit": result.get("unit"),
+                        "passed": result.get("passed"),
+                        "evidence_steps": result.get("evidence_steps", []),
+                        "details": result.get("details", {}),
+                    }
+                    for result in episode.get("tool_results", [])
+                ],
+            }
+        )
+    return episodes
+
+
 def summarize_round(
     round_plan: dict[str, Any],
     child_manifest: dict[str, Any],
@@ -129,6 +157,7 @@ def summarize_round(
     expert = scene.get("expert", {})
     positions = child_manifest.get("position_samples", {})
     policy_success = read_policy_success(child_dir / "evaluation/_result.txt")
+    trusted_tools = compact_trusted_tools(child_manifest)
     pipeline_passed = bool(
         child_manifest.get("status") == "completed"
         and scene.get("rule_check", {}).get("passed")
@@ -152,6 +181,7 @@ def summarize_round(
             "policy_success": policy_success,
             "position_samples": positions.get("samples", []),
             "position_metrics": positions.get("metrics", {}),
+            "trusted_tools": trusted_tools,
         },
         "pipeline_passed": pipeline_passed,
         "interpretation": (
@@ -231,6 +261,8 @@ def _round_evidence(
     vision = child_manifest.get("vision_validation", {})
     reflection = child_manifest.get("visual_self_reflection", {})
     retrieval = child_manifest.get("task_retrieval") or {}
+    knowledge = child_manifest.get("knowledge_retrieval") or {}
+    trusted_tool_evaluation = child_manifest.get("trusted_tool_evaluation") or {}
     child_relative = child_dir.relative_to(repo_root)
     episode_videos = sorted(
         str(path.relative_to(repo_root))
@@ -254,6 +286,15 @@ def _round_evidence(
             "catalog_size": retrieval.get("catalog_size"),
             "selected_tasks": retrieval.get("selected_tasks", []),
             "reasoning": retrieval.get("reasoning"),
+        },
+        "knowledge_retrieval": {
+            "selected_ids": knowledge.get("selected_ids", []),
+            "context_character_count": knowledge.get(
+                "context_character_count"
+            ),
+            "committed_index_current": knowledge.get(
+                "committed_index_current"
+            ),
         },
         "generation": {
             "variant_spec": variant_spec,
@@ -282,6 +323,11 @@ def _round_evidence(
             **round_summary["observations"],
             "pipeline_passed": round_summary["pipeline_passed"],
         },
+        "trusted_tool_evaluation": {
+            "artifact": trusted_tool_evaluation.get("artifact"),
+            "episode_count": trusted_tool_evaluation.get("episode_count"),
+            "episodes": compact_trusted_tools(child_manifest),
+        },
         "artifacts": {
             "generated_task": str(child_relative / "task.py"),
             "scene_image": str(child_relative / "evidence/initial_head.png"),
@@ -292,6 +338,7 @@ def _round_evidence(
             "reflection_summary": str(child_relative / "reflection/summary.json"),
             "act_videos": episode_videos,
             "act_result": str(child_relative / "evaluation/_result.txt"),
+            "trusted_tools": trusted_tool_evaluation.get("artifact"),
             "child_manifest": str(child_relative / "manifest.json"),
         },
     }

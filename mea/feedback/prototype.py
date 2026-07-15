@@ -283,6 +283,30 @@ def render_evaluation_report(
                     "selected_tasks", []
                 )
             ) or "none (reuse route)"
+            tool_lines = []
+            for episode in item.get("trusted_tool_evaluation", {}).get(
+                "episodes", []
+            ):
+                result_text = ", ".join(
+                    "{tool}={value}{unit}".format(
+                        tool=result.get("tool"),
+                        value=result.get("value"),
+                        unit=(
+                            f" {result.get('unit')}"
+                            if result.get("unit")
+                            else ""
+                        ),
+                    )
+                    for result in episode.get("results", [])
+                )
+                tool_lines.append(
+                    "  - {policy} seed {seed}: {results}".format(
+                        policy=episode.get("policy_name"),
+                        seed=episode.get("seed"),
+                        results=result_text or "none",
+                    )
+                )
+            trusted_tool_lines = "\n".join(tool_lines) or "  - none"
             round_sections.append(
                 f"""### {item['round_id']}: `{item['sub_aspect']}`
 
@@ -298,6 +322,8 @@ def render_evaluation_report(
 - pipeline passed: `{round_observations.get('pipeline_passed')}`
 - position samples:
 {position_lines}
+- trusted Tool results:
+{trusted_tool_lines}
 """
             )
         rounds_markdown = "\n".join(round_sections)

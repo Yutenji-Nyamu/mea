@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "task_name": "beat_block_hammer",
+  "physics_timestep_seconds": 0.004,
+  "action_dimension": 14,
+  "tracked_actors": [
+    {
+      "id": "hammer",
+      "task_attribute": "hammer",
+      "scene_name": "020_hammer",
+      "functional_points": [0],
+      "contact_points": [0]
+    },
+    {
+      "id": "block",
+      "task_attribute": "block",
+      "scene_name": "box",
+      "functional_points": [0, 1],
+      "contact_points": []
+    }
+  ],
+  "contact_focus_actor_ids": ["hammer", "block"],
+  "success_contract": {
+    "hammer_functional_point": 0,
+    "block_functional_point": 1,
+    "xy_tolerance_m": [0.02, 0.02],
+    "requires_contact": true
+  },
+  "pickup_height_threshold_m": 0.03
+}

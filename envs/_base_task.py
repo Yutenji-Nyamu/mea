@@ -108,6 +108,10 @@ class Base_Task(gym.Env):
         self.record_cluttered_objects = list()  # record cluttered objects info
 
         self.eval_success = False
+        # MEA telemetry is opt-in and attached by the evaluation entry point
+        # after setup_demo().  Keeping the hook as a plain attribute avoids a
+        # Toolkit import (and any overhead) in upstream RoboTwin runs.
+        self._mea_recorder = None
         self.table_z_bias = (np.random.uniform(low=-self.random_table_height, high=0) + table_height_bias)  # TODO
         self.need_plan = kwags.get("need_plan", True)
         self.left_joint_path = kwags.get("left_joint_path", [])
@@ -157,6 +161,12 @@ class Base_Task(gym.Env):
         self.info["info"] = {}
 
         self.stage_success_tag = False
+
+    def _mea_record(self, method, **kwargs):
+        """Dispatch an optional recorder callback without coupling Base_Task to MEA."""
+        recorder = getattr(self, "_mea_recorder", None)
+        if recorder is not None:
+            getattr(recorder, method)(self, **kwargs)
 
     def check_stable(self):
         actors_list, actors_pose_list = [], []
@@ -869,6 +879,7 @@ class Base_Task(gym.Env):
                 now_right_id += 1
 
             self.scene.step()
+            self._mea_record("on_physics_step")
             if self.render_freq and i % self.render_freq == 0:
                 self._update_render()
                 self.viewer.render()
@@ -1462,6 +1473,7 @@ class Base_Task(gym.Env):
                 )  # TODO
 
             self.scene.step()
+            self._mea_record("on_physics_step")
 
             if self.render_freq and control_idx % self.render_freq == 0:
                 self._update_render()
@@ -1479,6 +1491,12 @@ class Base_Task(gym.Env):
     def take_action(self, action, action_type:Literal['qpos', 'ee']='qpos'):  # action_type: qpos or ee
         if self.take_action_cnt == self.step_lim or self.eval_success:
             return
+
+        self._mea_record(
+            "on_policy_action_start",
+            action=action,
+            action_type=action_type,
+        )
 
         eval_video_freq = 1  # fixed
         if (self.eval_video_path is not None and self.take_action_cnt % eval_video_freq == 0):
@@ -1652,6 +1670,7 @@ class Base_Task(gym.Env):
                 now_right_id += 1
 
             self.scene.step()
+            self._mea_record("on_physics_step")
             self._update_render()
                 
             if self.check_success():
@@ -1659,11 +1678,16 @@ class Base_Task(gym.Env):
                 self.get_obs() # update obs
                 if (self.eval_video_path is not None):
                     self.eval_video_ffmpeg.stdin.write(self.now_obs["observation"]["head_camera"]["rgb"].tobytes())
+                self._mea_record("on_policy_action_end", success=True)
                 return
 
         self._update_render()
         if self.render_freq:  # UI
             self.viewer.render()
+        self._mea_record(
+            "on_policy_action_end",
+            success=bool(self.eval_success),
+        )
 
 
     def save_camera_images(self, task_name, step_name, generate_num_id, save_dir="./camera_images"):

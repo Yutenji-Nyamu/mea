@@ -206,7 +206,9 @@ def main(usr_args):
                                    st_seed,
                                    test_num=test_num,
                                    video_size=video_size,
-                                   instruction_type=instruction_type)
+                                   instruction_type=instruction_type,
+                                   telemetry_dir=usr_args.get("telemetry_dir"),
+                                   task_module=usr_args.get("task_module"))
     suc_nums.append(suc_num)
 
     topk_success_rate = sorted(suc_nums, reverse=True)[:topk]
@@ -229,7 +231,9 @@ def eval_policy(task_name,
                 st_seed,
                 test_num=100,
                 video_size=None,
-                instruction_type=None):
+                instruction_type=None,
+                telemetry_dir=None,
+                task_module=None):
     print(f"\033[34mTask Name: {args['task_name']}\033[0m")
     print(f"\033[34mPolicy Name: {args['policy_name']}\033[0m")
 
@@ -250,6 +254,11 @@ def eval_policy(task_name,
     clear_cache_freq = args["clear_cache_freq"]
 
     args["eval_mode"] = True
+    telemetry_root = (
+        Path(telemetry_dir).expanduser().resolve()
+        if telemetry_dir
+        else None
+    )
 
     while succ_seed < test_num:
         render_freq = args["render_freq"]
@@ -324,17 +333,74 @@ def eval_policy(task_name,
             )
             TASK_ENV._set_eval_video_ffmpeg(ffmpeg)
 
+        recorder = None
+        if telemetry_root is not None:
+            # Import only for opt-in telemetry runs so the upstream evaluator
+            # keeps exactly the same dependency and startup path by default.
+            from mea.toolkit import EpisodeRecorder
+
+            episode_dir = (
+                telemetry_root
+                / f"episode_{now_id:03d}_seed_{now_seed}"
+            )
+            recorder = EpisodeRecorder(
+                Path.cwd(),
+                episode_dir,
+                task_name=args["task_name"],
+                seed=now_seed,
+                episode_index=now_id,
+                policy_name=policy_name,
+                task_module=task_module,
+                task_config=args.get("task_config"),
+                checkpoint_setting=args.get("ckpt_setting"),
+            )
+            TASK_ENV._mea_recorder = recorder
+            try:
+                recorder.start(TASK_ENV)
+            except Exception:
+                TASK_ENV._mea_recorder = None
+                raise
+            print(f"MEA telemetry: {episode_dir}")
+
         succ = False
-        reset_func(model)
-        while TASK_ENV.take_action_cnt < TASK_ENV.step_lim:
-            observation = TASK_ENV.get_obs()
-            eval_func(TASK_ENV, model, observation)
-            if TASK_ENV.eval_success:
-                succ = True
-                break
-        # task_total_reward += TASK_ENV.episode_score
-        if TASK_ENV.eval_video_path is not None:
-            TASK_ENV._del_eval_video_ffmpeg()
+        rollout_error = None
+        try:
+            reset_func(model)
+            while TASK_ENV.take_action_cnt < TASK_ENV.step_lim:
+                observation = TASK_ENV.get_obs()
+                eval_func(TASK_ENV, model, observation)
+                if TASK_ENV.eval_success:
+                    succ = True
+                    break
+            # task_total_reward += TASK_ENV.episode_score
+        except BaseException as exc:
+            rollout_error = exc
+            if recorder is not None:
+                recorder.record_error(exc)
+            raise
+        finally:
+            if TASK_ENV.eval_video_path is not None:
+                TASK_ENV._del_eval_video_ffmpeg()
+            if recorder is not None:
+                TASK_ENV._mea_recorder = None
+                error_payload = (
+                    {
+                        "type": type(rollout_error).__name__,
+                        "message": str(rollout_error),
+                    }
+                    if rollout_error is not None
+                    else None
+                )
+                try:
+                    recorder.finish(
+                        TASK_ENV,
+                        success=succ or bool(TASK_ENV.eval_success),
+                        error=error_payload,
+                    )
+                except Exception:
+                    if rollout_error is None:
+                        raise
+                    traceback.print_exc()
 
         if succ:
             TASK_ENV.suc += 1

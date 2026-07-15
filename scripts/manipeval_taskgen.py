@@ -16,6 +16,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from mea.providers import OpenAICompatibleProvider
+from mea.toolkit import evaluate_telemetry_root
 from mea.taskgen import (
     TaskGenPrototype,
     VisualReflectionError,
@@ -69,6 +70,7 @@ def run_probe(
     log_path: Path | None = None,
     raise_on_failure: bool = True,
     max_expert_attempts: int = 3,
+    telemetry_dir: Path | None = None,
 ) -> dict[str, Any]:
     scene_json = scene_json or run_dir / "validation/scene.json"
     image = image or run_dir / "evidence/initial_head.png"
@@ -98,6 +100,8 @@ def run_probe(
     ]
     if expert:
         command.append("--expert")
+    if telemetry_dir is not None:
+        command.extend(["--telemetry-dir", str(telemetry_dir)])
 
     attempts: list[dict[str, Any]] = []
     attempt_logs: list[Path] = []
@@ -402,8 +406,27 @@ def newest_eval_dir(repo_root: Path, before: set[Path]) -> Path | None:
     root = repo_root / "eval_result/beat_block_hammer/ACT/demo_clean/demo_clean"
     after = {path for path in root.glob("*") if path.is_dir()} if root.exists() else set()
     created = after - before
-    candidates = created or after
-    return max(candidates, key=lambda path: path.stat().st_mtime) if candidates else None
+    return max(created, key=lambda path: path.stat().st_mtime) if created else None
+
+
+def archive_previous_act_attempt(run_dir: Path) -> Path | None:
+    """Preserve stale retry artifacts without mixing them into a new result."""
+
+    evaluation_dir = run_dir / "evaluation"
+    candidates = [
+        *evaluation_dir.glob("episode*.mp4"),
+        *(evaluation_dir / name for name in ("_result.txt", "act.json", "act.log")),
+        evaluation_dir / "telemetry/act",
+    ]
+    existing = [path for path in candidates if path.exists()]
+    if not existing:
+        return None
+    stamp = datetime.now().astimezone().strftime("%Y%m%d_%H%M%S_%f")
+    archive_dir = evaluation_dir / "previous_act_attempts" / stamp
+    archive_dir.mkdir(parents=True, exist_ok=False)
+    for path in existing:
+        shutil.move(str(path), archive_dir / path.name)
+    return archive_dir
 
 
 def run_act(
@@ -415,9 +438,13 @@ def run_act(
     gpu: int,
     num_episodes: int,
 ) -> dict[str, Any]:
+    previous_attempt = archive_previous_act_attempt(run_dir)
+    telemetry_root = run_dir / "evaluation/telemetry/act"
     eval_root = repo_root / "eval_result/beat_block_hammer/ACT/demo_clean/demo_clean"
     before = {path for path in eval_root.glob("*") if path.is_dir()} if eval_root.exists() else set()
     command = [
+        "env",
+        f"PYTHON_BIN={sys.executable}",
         "bash",
         "policy/ACT/eval_mea.sh",
         "beat_block_hammer",
@@ -430,6 +457,7 @@ def run_act(
         manifest["task_module"],
         str(run_dir / "overlay.yml"),
         str(seed),
+        str(telemetry_root),
     ]
     started = datetime.now().astimezone().isoformat()
     returncode = run_command(
@@ -451,6 +479,29 @@ def run_act(
                 copied.append(str(destination.relative_to(repo_root)))
 
     copied_videos = sorted((run_dir / "evaluation").glob("episode*.mp4"))
+    telemetry_episodes = sorted(
+        metadata.parent
+        for metadata in telemetry_root.glob("episode_*/episode.json")
+    )
+    video_associations = []
+    for episode_dir, video in zip(telemetry_episodes, copied_videos):
+        destination = episode_dir / "video.mp4"
+        shutil.copy2(video, destination)
+        metadata_path = episode_dir / "episode.json"
+        if metadata_path.is_file():
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            metadata.setdefault("artifacts", {})["video"] = "video.mp4"
+            metadata["video_alignment"] = {
+                "policy_frame_rate_hz": 10,
+                "frame_semantics": "pre-action; contact in policy step k lies between adjacent frames",
+            }
+            write_json(metadata_path, metadata)
+        video_associations.append(
+            {
+                "episode_dir": str(episode_dir.relative_to(repo_root)),
+                "video": str(destination.relative_to(repo_root)),
+            }
+        )
 
     result = {
         "command": command,
@@ -461,12 +512,54 @@ def run_act(
         "source_eval_dir": str(source_dir) if source_dir else None,
         "copied_artifacts": copied,
         "copied_video_count": len(copied_videos),
-        "passed": returncode == 0 and len(copied_videos) == num_episodes,
+        "telemetry_root": str(telemetry_root.relative_to(repo_root)),
+        "telemetry_episode_count": len(telemetry_episodes),
+        "video_associations": video_associations,
+        "previous_attempt_archive": (
+            str(previous_attempt.relative_to(repo_root))
+            if previous_attempt is not None
+            else None
+        ),
+        "passed": (
+            returncode == 0
+            and len(copied_videos) == num_episodes
+            and len(telemetry_episodes) == num_episodes
+        ),
     }
     write_json(run_dir / "evaluation/act.json", result)
     if not result["passed"]:
         raise RuntimeError(f"ACT {num_episodes}-episode 未通过: {result}")
     return result
+
+
+def evaluate_run_telemetry(
+    repo_root: Path,
+    run_dir: Path,
+    manifest: dict[str, Any],
+) -> dict[str, Any]:
+    telemetry_root = run_dir / "evaluation/telemetry"
+    summary = evaluate_telemetry_root(
+        telemetry_root,
+        user_request=manifest["user_request"],
+        task_name=manifest["task_name"],
+    )
+    return {
+        "artifact": str(
+            (telemetry_root / "tool_results.json").relative_to(repo_root)
+        ),
+        "episode_count": summary["episode_count"],
+        "tool_retrieval": summary["tool_retrieval"],
+        "episodes": [
+            {
+                "episode_dir": episode["episode_dir"],
+                "policy_name": episode["metadata"].get("policy_name"),
+                "seed": episode["metadata"].get("seed"),
+                "success": episode["metadata"].get("success"),
+                "tool_results": episode["tool_results"],
+            }
+            for episode in summary["episodes"]
+        ],
+    }
 
 
 def parse_args() -> argparse.Namespace:
@@ -576,12 +669,18 @@ def main() -> None:
             scene = reflected_scene
 
         if args.expert or args.run_act:
+            expert_telemetry_dir = (
+                run_dir
+                / "evaluation/telemetry/expert"
+                / f"episode_000_seed_{args.seed}"
+            )
             scene = run_probe(
                 repo_root,
                 run_dir,
                 manifest,
                 seed=args.seed,
                 expert=True,
+                telemetry_dir=expert_telemetry_dir,
             )
             update_manifest(run_dir, status="probe_passed", scene_validation=scene)
         elif args.probe and not args.vision_check:
@@ -615,9 +714,30 @@ def main() -> None:
                 gpu=args.gpu,
                 num_episodes=args.num_episodes,
             )
-            update_manifest(run_dir, status="completed", act_evaluation=act)
+            trusted_tools = evaluate_run_telemetry(
+                repo_root,
+                run_dir,
+                manifest,
+            )
+            update_manifest(
+                run_dir,
+                status="completed",
+                failure=None,
+                act_evaluation=act,
+                trusted_tool_evaluation=trusted_tools,
+            )
         else:
-            update_manifest(run_dir, status="completed_without_act")
+            updates: dict[str, Any] = {
+                "status": "completed_without_act",
+                "failure": None,
+            }
+            if args.expert:
+                updates["trusted_tool_evaluation"] = evaluate_run_telemetry(
+                    repo_root,
+                    run_dir,
+                    manifest,
+                )
+            update_manifest(run_dir, **updates)
     except Exception as exc:
         update_manifest(
             run_dir,
