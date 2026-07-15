@@ -373,7 +373,7 @@ TOOL_CATALOG: dict[str, dict[str, Any]] = {
     },
     "hammer_block_contact_ever": {
         "function": hammer_block_contact_ever,
-        "description": "Whether hammer and block ever had a reported contact interval.",
+        "description": "Whether hammer and block ever had physical contact.",
         "tags": ["contact", "hit", "接触", "敲"],
     },
     "first_contact_step": {
