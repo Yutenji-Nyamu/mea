@@ -27,6 +27,19 @@ and `act`. Pipeline completion and policy task success are separate signals.
 A `policy_success=0` result is still a valid observation and does not imply a
 generation-pipeline failure.
 
+## Offline Tool planning
+
+- Each round must also propose the exact `hammer_block_contact_ever` ToolSpec
+  shown in the active prompt. It asks whether hammer and block had strict
+  physical contact in the recorded trajectory.
+- Round 1 uses `tool_spec.route=force_codegen` to exercise bounded ToolGen over
+  the ACT trajectory and expert validation control.
+- Round 2 uses `tool_spec.route=reuse` to select the verified Trusted Tool.
+- The Plan Agent declares semantics only. Runtime code resolves telemetry paths,
+  policy/expert roles, reference values, generated filenames, and artifacts.
+- Expert contact validates instrumentation and scene solvability; it is never
+  evidence that ACT made contact.
+
 ## Multi-round protocol
 
 - Initial planning proposes Round 1 only: blue block, seed `100000`, 1 episode.

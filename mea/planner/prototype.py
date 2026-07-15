@@ -12,6 +12,11 @@ from pathlib import Path
 from typing import Any
 
 from mea.taskgen import extract_json_response
+from mea.toolgen import (
+    ToolOrchestrationError,
+    contact_tool_spec,
+    validate_tool_spec,
+)
 
 
 class PlanAgentError(RuntimeError):
@@ -90,6 +95,7 @@ def _validate_round(
     round_id: str,
     sub_aspect: str,
     route: str,
+    tool_route: str,
     instruction: str,
     seeds: list[int],
 ) -> dict[str, Any]:
@@ -136,6 +142,12 @@ def _validate_round(
         raise PlanAgentError(
             f"observations 必须按顺序为 {REQUIRED_OBSERVATIONS}"
         )
+    try:
+        tool_spec = validate_tool_spec(
+            round_plan.get("tool_spec"), expected_route=tool_route
+        )
+    except ToolOrchestrationError as exc:
+        raise PlanAgentError(f"{round_id}.tool_spec 无效: {exc}") from exc
 
     return {
         "round_id": round_id,
@@ -157,6 +169,7 @@ def _validate_round(
             "gates": list(REQUIRED_GATES),
         },
         "observations": list(REQUIRED_OBSERVATIONS),
+        "tool_spec": tool_spec,
     }
 
 
@@ -180,11 +193,12 @@ def validate_evaluation_plan(plan: dict[str, Any]) -> dict[str, Any]:
         round_id="round_1",
         sub_aspect="object_appearance.color",
         route="force_codegen",
+        tool_route="force_codegen",
         instruction=BLUE_TASK_INSTRUCTION,
         seeds=[100000],
     )
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "task_name": "beat_block_hammer",
         "policy": dict(EXPECTED_POLICY),
         "evaluation_goal": _require_string(
@@ -228,6 +242,7 @@ def validate_next_round_decision(
         round_id="round_2",
         sub_aspect="object_position",
         route="reuse",
+        tool_route="reuse",
         instruction=POSITION_TASK_INSTRUCTION,
         seeds=[100002, 100003],
     )
@@ -249,7 +264,7 @@ def _initial_plan_prompt(repo_root: Path, user_request: str) -> str:
         encoding="utf-8"
     )
     example = {
-        "schema_version": 2,
+        "schema_version": 3,
         "task_name": "beat_block_hammer",
         "policy": EXPECTED_POLICY,
         "evaluation_goal": "evaluate_blue_block_and_position_variation",
@@ -274,6 +289,7 @@ def _initial_plan_prompt(repo_root: Path, user_request: str) -> str:
                     "gates": REQUIRED_GATES,
                 },
                 "observations": REQUIRED_OBSERVATIONS,
+                "tool_spec": contact_tool_spec("force_codegen"),
             }
         ],
         "max_rounds": 2,
@@ -322,6 +338,7 @@ def _next_round_prompt(
                 "gates": REQUIRED_GATES,
             },
             "observations": REQUIRED_OBSERVATIONS,
+            "tool_spec": contact_tool_spec("reuse"),
         },
     }
     return f"""你是 MEA 的外层 Plan Agent。根据真实的上一轮观察，决定继续还是停止。
@@ -369,7 +386,7 @@ class PlanAgentPrototype:
             (evaluation_dir / child).mkdir(parents=True, exist_ok=False)
 
         manifest: dict[str, Any] = {
-            "schema_version": 2,
+            "schema_version": 3,
             "evaluation_id": evaluation_id,
             "status": "planning_round_1",
             "created_at": datetime.now().astimezone().isoformat(),

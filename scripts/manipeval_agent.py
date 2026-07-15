@@ -17,6 +17,7 @@ if str(REPO_ROOT) not in sys.path:
 from mea.feedback import FeedbackAgent, render_evaluation_report
 from mea.planner import PlanAgentPrototype
 from mea.providers import OpenAICompatibleProvider
+from mea.toolgen import execute_tool_spec
 
 
 def write_json(path: Path, value: Any) -> None:
@@ -146,10 +147,42 @@ def compact_trusted_tools(child_manifest: dict[str, Any]) -> list[dict[str, Any]
     return episodes
 
 
+def compact_tool_evaluation(
+    tool_evaluation: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Keep planned Tool evidence compact while preserving ACT/expert roles."""
+
+    if not tool_evaluation:
+        return None
+    return {
+        "status": tool_evaluation.get("status"),
+        "route": tool_evaluation.get("route"),
+        "reference_tool": tool_evaluation.get("reference_tool"),
+        "source": tool_evaluation.get("source", {}),
+        "episodes": [
+            {
+                "policy_name": item.get("policy_name"),
+                "seed": item.get("seed"),
+                "role": item.get("role"),
+                "value": item.get("result", {}).get("value"),
+                "passed": item.get("result", {}).get("passed"),
+                "evidence_steps": item.get("result", {}).get(
+                    "evidence_steps", []
+                ),
+                "details": item.get("result", {}).get("details", {}),
+            }
+            for item in tool_evaluation.get("episodes", [])
+        ],
+        "validation": tool_evaluation.get("validation", {}),
+    }
+
+
 def summarize_round(
     round_plan: dict[str, Any],
     child_manifest: dict[str, Any],
     child_dir: Path,
+    tool_evaluation: dict[str, Any] | None = None,
+    taskgen_returncode: int = 0,
 ) -> dict[str, Any]:
     scene = child_manifest.get("scene_validation", {})
     vision = child_manifest.get("vision_validation", {})
@@ -160,11 +193,14 @@ def summarize_round(
     trusted_tools = compact_trusted_tools(child_manifest)
     pipeline_passed = bool(
         child_manifest.get("status") == "completed"
+        and taskgen_returncode == 0
         and scene.get("rule_check", {}).get("passed")
         and vision.get("passed")
         and expert.get("passed")
         and positions.get("passed")
         and act.get("passed")
+        and tool_evaluation
+        and tool_evaluation.get("status") == "passed"
     )
     return {
         "round_id": round_plan["round_id"],
@@ -172,6 +208,7 @@ def summarize_round(
         "task_instruction": round_plan["task_instruction"],
         "route": round_plan["route"],
         "taskgen_run_id": child_manifest.get("run_id"),
+        "taskgen_returncode": taskgen_returncode,
         "execution": round_plan["execution"],
         "observations": {
             "scene_alignment": bool(scene.get("rule_check", {}).get("passed")),
@@ -182,6 +219,7 @@ def summarize_round(
             "position_samples": positions.get("samples", []),
             "position_metrics": positions.get("metrics", {}),
             "trusted_tools": trusted_tools,
+            "planned_tool": compact_tool_evaluation(tool_evaluation),
         },
         "pipeline_passed": pipeline_passed,
         "interpretation": (
@@ -202,7 +240,15 @@ def execute_round(
     base_url: str | None,
     gpu: int,
     max_reflections: int,
-) -> tuple[dict[str, Any], Path, dict[str, Any], int]:
+    provider: Any,
+    toolgen_model: str,
+) -> tuple[
+    dict[str, Any],
+    Path,
+    dict[str, Any],
+    dict[str, Any],
+    int,
+]:
     round_id = round_plan["round_id"]
     command, run_id = build_taskgen_command(
         repo_root,
@@ -243,9 +289,44 @@ def execute_round(
             "status": child_manifest.get("status"),
         },
     )
-    round_summary = summarize_round(round_plan, child_manifest, child_dir)
+    if child_manifest.get("status") == "completed" and returncode == 0:
+        tool_evaluation = execute_tool_spec(
+            repo_root,
+            child_dir,
+            execution_dir / "planned_tool",
+            round_plan["tool_spec"],
+            provider=provider,
+            model=toolgen_model,
+        )
+    else:
+        skip_reason = (
+            f"child TaskGen exited with code {returncode}"
+            if returncode != 0
+            else "child TaskGen pipeline did not complete"
+        )
+        tool_evaluation = {
+            "schema_version": 1,
+            "status": "skipped",
+            "route": round_plan["tool_spec"]["route"],
+            "reference_tool": round_plan["tool_spec"]["reference_tool"],
+            "tool_spec": round_plan["tool_spec"],
+            "source": {},
+            "episodes": [],
+            "validation": {"reason": skip_reason},
+            "artifacts": {},
+        }
+        write_json(
+            execution_dir / "planned_tool_skipped.json", tool_evaluation
+        )
+    round_summary = summarize_round(
+        round_plan,
+        child_manifest,
+        child_dir,
+        tool_evaluation,
+        returncode,
+    )
     write_json(evaluation_dir / "summary" / f"{round_id}.json", round_summary)
-    return child_manifest, child_dir, round_summary, returncode
+    return child_manifest, child_dir, round_summary, tool_evaluation, returncode
 
 
 def _round_evidence(
@@ -255,6 +336,7 @@ def _round_evidence(
     child_manifest: dict[str, Any],
     child_dir: Path,
     round_summary: dict[str, Any],
+    tool_evaluation: dict[str, Any],
 ) -> dict[str, Any]:
     static = child_manifest.get("static_validation", {})
     scene = child_manifest.get("scene_validation", {})
@@ -274,6 +356,11 @@ def _round_evidence(
         if variant_spec_path.is_file()
         else None
     )
+    feedback_observations = {
+        key: value
+        for key, value in round_summary["observations"].items()
+        if key not in {"trusted_tools", "planned_tool"}
+    }
     return {
         "round_id": round_plan["round_id"],
         "child_run_id": child_manifest.get("run_id"),
@@ -320,9 +407,10 @@ def _round_evidence(
             "attempt_count": len(reflection.get("attempts", [])),
         },
         "observations": {
-            **round_summary["observations"],
+            **feedback_observations,
             "pipeline_passed": round_summary["pipeline_passed"],
         },
+        "tool_evaluation": tool_evaluation,
         "trusted_tool_evaluation": {
             "artifact": trusted_tool_evaluation.get("artifact"),
             "episode_count": trusted_tool_evaluation.get("episode_count"),
@@ -339,6 +427,9 @@ def _round_evidence(
             "act_videos": episode_videos,
             "act_result": str(child_relative / "evaluation/_result.txt"),
             "trusted_tools": trusted_tool_evaluation.get("artifact"),
+            "planned_tool": tool_evaluation.get("artifacts", {}).get(
+                "tool_execution"
+            ),
             "child_manifest": str(child_relative / "manifest.json"),
         },
     }
@@ -359,6 +450,7 @@ def build_evidence_bundle(
             item["child_manifest"],
             item["child_dir"],
             item["round_summary"],
+            item["tool_evaluation"],
         )
         for item in round_runs
     ]
@@ -442,6 +534,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--evaluation-id")
     parser.add_argument("--planner-model", default="gpt-4o-2024-11-20")
     parser.add_argument("--taskgen-model", default="gpt-4o-2024-11-20")
+    parser.add_argument("--toolgen-model", default="gpt-4o-2024-11-20")
     parser.add_argument("--vision-model", default="gpt-4o-2024-11-20")
     parser.add_argument("--feedback-model", default="gpt-4o-2024-11-20")
     parser.add_argument("--base-url", default=None)
@@ -483,7 +576,13 @@ def main() -> None:
     round_runs: list[dict[str, Any]] = []
     try:
         round_1_plan = plan["rounds"][0]
-        child_manifest, child_dir, round_1_summary, returncode = execute_round(
+        (
+            child_manifest,
+            child_dir,
+            round_1_summary,
+            tool_evaluation,
+            returncode,
+        ) = execute_round(
             repo_root,
             evaluation_dir,
             evaluation_id,
@@ -493,6 +592,8 @@ def main() -> None:
             base_url=args.base_url,
             gpu=args.gpu,
             max_reflections=args.max_reflections,
+            provider=provider,
+            toolgen_model=args.toolgen_model,
         )
         round_runs.append(
             {
@@ -500,6 +601,7 @@ def main() -> None:
                 "child_manifest": child_manifest,
                 "child_dir": child_dir,
                 "round_summary": round_1_summary,
+                "tool_evaluation": tool_evaluation,
                 "returncode": returncode,
             }
         )
@@ -512,7 +614,13 @@ def main() -> None:
         )
         if decision["action"] == "continue":
             round_2_plan = decision["next_round"]
-            child_manifest, child_dir, round_2_summary, returncode = execute_round(
+            (
+                child_manifest,
+                child_dir,
+                round_2_summary,
+                tool_evaluation,
+                returncode,
+            ) = execute_round(
                 repo_root,
                 evaluation_dir,
                 evaluation_id,
@@ -522,6 +630,8 @@ def main() -> None:
                 base_url=args.base_url,
                 gpu=args.gpu,
                 max_reflections=args.max_reflections,
+                provider=provider,
+                toolgen_model=args.toolgen_model,
             )
             round_runs.append(
                 {
@@ -529,6 +639,7 @@ def main() -> None:
                     "child_manifest": child_manifest,
                     "child_dir": child_dir,
                     "round_summary": round_2_summary,
+                    "tool_evaluation": tool_evaluation,
                     "returncode": returncode,
                 }
             )
@@ -575,7 +686,8 @@ def main() -> None:
         )
         update_manifest(
             evaluation_dir,
-            status="completed",
+            status=summary["status"],
+            lifecycle_status="completed",
             execution_finished_at=datetime.now().astimezone().isoformat(),
             summary_path="summary/summary.json",
             evidence_path="summary/evidence_bundle.json",

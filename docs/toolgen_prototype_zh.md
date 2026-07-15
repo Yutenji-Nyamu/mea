@@ -38,7 +38,7 @@ policy/ACT/eval.sh
 
 ```text
 自然语言 request
-→ Plan Agent 与 round orchestration
+→ Plan Agent 输出 round plan 与 ToolSpec
 → Task / Documentation Retrieval
 → TaskGen 生成完整 load_actors()
 → AST / render / Visual Self-Reflection
@@ -46,13 +46,21 @@ policy/ACT/eval.sh
 → eval_mea.sh 进入原始 ACT 主干
 → Trajectory Recorder
 → Trusted Tool Retriever / execution
+→ Tool Router（reuse 或 force_codegen）
 → Feedback Agent / evaluation_report.md
 ```
 
-本次 ToolGen 仍是独立验证支路，尚未自动接入 `manipeval_agent.py`：
+ToolGen 已接入 `manipeval_agent.py` 的每轮执行边界：
 
 ```text
-已有 telemetry → scripts/manipeval_toolgen.py → run-local registration
+本轮 TaskGen / ACT 完成 telemetry
+→ 解析 Plan Agent 的 ToolSpec
+→ 自动发现 ACT 与 expert trajectory
+→ reuse：直接运行 Trusted Tool，不调用 GPT
+  或 force_codegen：生成、差分验证并 run-local registration
+→ normalized tool_execution.json
+→ round observation
+→ 下一轮 Plan Agent 与最终 Feedback Agent
 ```
 
 MEA 没有替换 ACT 推理和 RoboTwin 物理执行主干；主要是在官方链前增加 request 理解、检索、场景生成与验证，在链后增加 trajectory、Tool 与证据报告。
@@ -118,6 +126,8 @@ initial、每个 policy action 结束和 final 保存；expert 的整个 `expert
 - 其他 RoboTwin task 的通用语义字段
 
 因此 GPT 只能生成“现有 trajectory 能表达的指标”。需要未记录数据的 request 应明确返回不可实现，或先扩展 TaskSchema/Recorder。
+
+对于当前 BeatBlockHammer 垂直切片，现有数据足以可靠判断：hammer pickup、hammer/block 距离与对齐、strict physical contact、first contact、impulse、TCP path、official success 和 time-to-success。只有要分析 250 Hz 关节振荡、全场物体碰撞、视觉遮挡、控制器/规划器内部行为，或切换到尚未定义 TaskSchema 的其他任务时，才需要扩展记录维度。与其保存整个 simulator dump，更合理的策略是按新指标补充稳定 signal。
 
 ## 3. GPT 可使用的接口
 
@@ -210,15 +220,20 @@ attempts/attempt_*/
 
 这条链对应论文 Figure 4 的 retrieval-first、相近 Tool few-shot、code generation 和 unit-test gate，也符合论文中 `rule-based tool: trajectory → result` 的定义。
 
-下一步优先级建议：
+已经补齐：
 
-1. 正常模式先复用已有 Tool，只有 library 缺失时才进入 ToolGen。
-2. 让 Plan Agent 输出结构化 `ToolSpec`，并把 generated result 自动送回 Feedback Agent。
-3. 当前由人显式指定 `--reference-tool`；下一步应让 Plan Agent 提出未知指标的结构化 `ToolSpec`。
-4. run-local `registration.json` 尚未自动 promote 到永久 Toolkit，也未回接 Plan/Feedback。
-5. 增加真正 immutable Trajectory facade 以及 container/CPU/memory 资源限制。
-6. 扩展 TaskSchema/Recorder 到第二个 RoboTwin task，验证不是 hammer-specific demo。
-7. 再做视觉型 Tool/VQA Tool 与数值 Tool 的联合证据。
+1. Plan Agent 输出严格 `ToolSpec`，只声明 metric、所需 signal、输出契约和 route，不声明 telemetry 路径或结果。
+2. Runtime 解析 ACT/expert 角色与 trajectory；`force_codegen` 执行 differential gate，`reuse` 直接调用 Trusted Tool 且不调用 GPT。
+3. 两条 route 统一生成 `tool_execution.json`，并在下一轮 planning 前进入 round observation。
+4. Tool 证据进入 `evidence_bundle.json`、Feedback prompt 和 `evaluation_report.md`；ACT 是被评策略，expert 只作为验证对照。
+
+后续优先级建议：
+
+1. 生成一个语义上真正新增的指标，例如“拿起锤子到首次接触经过多久”，不再只复刻已有 oracle。
+2. 为未知指标加入人工 reference、property-based test 或组合式 Trusted Tool oracle。
+3. run-local `registration.json` 经审核后可 promote 到永久 Toolkit。
+4. 扩展 TaskSchema/Recorder 到第二个 RoboTwin task，验证不是 hammer-specific demo。
+5. 再做视觉型 Tool/VQA Tool 与数值 Tool 的联合证据。
 
 ## 7. 正式实跑记录
 
@@ -253,3 +268,37 @@ attempts/attempt_*/
 /root/autodl-tmp/mea/_ops_logs/toolgen_stage_commit_20260715_120059.log
 /root/autodl-tmp/mea/_ops_logs/toolgen_live_20260715_120235.log
 ```
+
+## 8. Plan → Tool → Feedback 正式闭环验证
+
+闭环实现后，使用已有蓝色方块 ACT/expert telemetry 验证编排，不重新运行 ACT：
+
+```text
+用户 request
+→ UIUI Plan Agent 输出 Round 1 force_codegen ToolSpec
+→ Runtime 自动定位 seed 100000 的 ACT/expert telemetry
+→ UIUI ToolGen 生成完整 generated_tool(trajectory)
+→ deterministic / oracle / artifact gates
+→ Tool observation 返回 Plan Agent
+→ Plan Agent 为下一轮输出 reuse ToolSpec
+→ reuse route 零 provider 调用
+→ UIUI Feedback Agent 生成证据化结论
+```
+
+最终正式验证目录：
+
+```text
+/root/autodl-tmp/mea/mea/evaluation_runs/eval_20260715_plan_tool_closed_loop_v2/
+```
+
+关键结果：
+
+- Plan schema version：3。
+- Round 1 Tool route：`force_codegen`；successful attempt：0。
+- 生成 Tool 在 ACT 上返回 `false`，在 expert 对照上返回 `true`。
+- expert first physical-contact physics step：`1454`。
+- 两条 trajectory 的 deterministic、oracle agreement、artifacts unchanged 全部为 true。
+- 下一轮 Plan Agent 输出 `reuse`；该 route 的 `provider_called=false`，结果与 Trusted Tool 一致。
+- `force_codegen` 才要求 false/true differential contrast；普通 `reuse` 不要求策略必须失败，因此 ACT 成功时不会被错误拒绝。
+- 本次只复用了 Round 1 telemetry 来验证 Tool 编排；没有把它冒充 Round 2 位置评估。
+- 完整的 prompt、response、ToolSpec、resolved episode、生成源码、验证结果、evidence bundle 与最终报告都保存在同一 evaluation id 下。

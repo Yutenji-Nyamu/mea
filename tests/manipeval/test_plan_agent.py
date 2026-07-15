@@ -12,6 +12,7 @@ from mea.planner import (
     validate_evaluation_plan,
     validate_next_round_decision,
 )
+from mea.toolgen import contact_tool_spec
 
 
 ROUND_1 = {
@@ -20,6 +21,7 @@ ROUND_1 = {
     "rationale": "用户要求评估蓝色方块。",
     "task_instruction": BLUE_TASK_INSTRUCTION,
     "route": "force_codegen",
+    "tool_spec": contact_tool_spec("force_codegen"),
     "variant_hint": {
         "block": {
             "position_mode": "official_random",
@@ -43,7 +45,7 @@ ROUND_1 = {
 }
 
 PLAN = {
-    "schema_version": 2,
+    "schema_version": 3,
     "task_name": "beat_block_hammer",
     "policy": {
         "name": "ACT",
@@ -67,6 +69,7 @@ NEXT_DECISION = {
         "rationale": "Collect two simulator-native position samples.",
         "task_instruction": POSITION_TASK_INSTRUCTION,
         "route": "reuse",
+        "tool_spec": contact_tool_spec("reuse"),
         "variant_hint": {
             "block": {
                 "position_mode": "official_random",
@@ -131,6 +134,14 @@ class PlanAgentPrototypeTests(unittest.TestCase):
             self.assertEqual(len(updated["rounds"]), 2)
             self.assertEqual(updated["rounds"][1]["execution"]["num_episodes"], 2)
             self.assertEqual(updated["rounds"][1]["route"], "reuse")
+            self.assertEqual(
+                manifest["plan"]["rounds"][0]["tool_spec"],
+                contact_tool_spec("force_codegen"),
+            )
+            self.assertEqual(
+                updated["rounds"][1]["tool_spec"],
+                contact_tool_spec("reuse"),
+            )
             self.assertTrue(
                 (
                     repo_root
@@ -147,6 +158,12 @@ class PlanAgentPrototypeTests(unittest.TestCase):
     def test_rejects_unvalidated_color(self):
         invalid = json.loads(json.dumps(PLAN, ensure_ascii=False))
         invalid["rounds"][0]["variant_hint"]["block"]["color"] = [0.0, 1.0, 0.0]
+        with self.assertRaises(PlanAgentError):
+            validate_evaluation_plan(invalid)
+
+    def test_rejects_tool_spec_route_mismatch(self):
+        invalid = json.loads(json.dumps(PLAN, ensure_ascii=False))
+        invalid["rounds"][0]["tool_spec"] = contact_tool_spec("reuse")
         with self.assertRaises(PlanAgentError):
             validate_evaluation_plan(invalid)
 

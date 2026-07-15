@@ -283,6 +283,51 @@ def render_evaluation_report(
                     "selected_tasks", []
                 )
             ) or "none (reuse route)"
+            tool_evaluation = item.get("tool_evaluation") or {}
+            planned_reference = tool_evaluation.get("reference_tool")
+            planned_tool_lines = []
+            for episode in tool_evaluation.get("episodes", []):
+                result = episode.get("result", {})
+                planned_tool_lines.append(
+                    "  - {policy} ({role}) seed {seed}: value={value}, "
+                    "evidence_steps={steps}".format(
+                        policy=episode.get("policy_name"),
+                        role=episode.get("role"),
+                        seed=episode.get("seed"),
+                        value=result.get("value"),
+                        steps=result.get("evidence_steps", []),
+                    )
+                )
+            planned_tool_result_lines = (
+                "\n".join(planned_tool_lines) or "  - none"
+            )
+            validation = tool_evaluation.get("validation", {})
+            validation_summary = {
+                key: validation[key]
+                for key in (
+                    "provider_called",
+                    "successful_attempt",
+                    "all_gates_passed",
+                    "catalog_tool_found",
+                    "episode_count",
+                )
+                if key in validation
+            }
+            planned_tool_markdown = (
+                "- planned Tool route: `{route}`\n"
+                "- planned Tool source: `{scope}`\n"
+                "- planned Tool: `{tool}`\n"
+                "- planned Tool validation: `{validation}`\n"
+                "- planned Tool results:\n{results}".format(
+                    route=tool_evaluation.get("route"),
+                    scope=tool_evaluation.get("source", {}).get("scope"),
+                    tool=tool_evaluation.get("source", {}).get("tool"),
+                    validation=validation_summary,
+                    results=planned_tool_result_lines,
+                )
+                if tool_evaluation
+                else ""
+            )
             tool_lines = []
             for episode in item.get("trusted_tool_evaluation", {}).get(
                 "episodes", []
@@ -298,6 +343,7 @@ def render_evaluation_report(
                         ),
                     )
                     for result in episode.get("results", [])
+                    if result.get("tool") != planned_reference
                 )
                 tool_lines.append(
                     "  - {policy} seed {seed}: {results}".format(
@@ -320,6 +366,7 @@ def render_evaluation_report(
 - ACT pipeline status: `{round_observations.get('act_pipeline_status')}`
 - policy success: `{round_observations.get('policy_success')}`
 - pipeline passed: `{round_observations.get('pipeline_passed')}`
+{planned_tool_markdown}
 - position samples:
 {position_lines}
 - trusted Tool results:

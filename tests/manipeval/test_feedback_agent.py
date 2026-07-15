@@ -140,6 +140,39 @@ class FeedbackAgentTests(unittest.TestCase):
                     "seeds": [100000],
                     "num_episodes": 1,
                     "task_retrieval": {"selected_tasks": ["beat_block_hammer"]},
+                    "tool_evaluation": {
+                        "schema_version": 1,
+                        "status": "passed",
+                        "route": "force_codegen",
+                        "reference_tool": "hammer_block_contact_ever",
+                        "source": {
+                            "scope": "run_local_generated",
+                            "tool": "generated_hammer_block_contact_ever",
+                        },
+                        "episodes": [
+                            {
+                                "policy_name": "ACT",
+                                "seed": 100000,
+                                "role": "policy_under_evaluation",
+                                "result": {
+                                    "tool": "generated_hammer_block_contact_ever",
+                                    "value": False,
+                                    "evidence_steps": [],
+                                },
+                            },
+                            {
+                                "policy_name": "expert",
+                                "seed": 100000,
+                                "role": "expert_validation",
+                                "result": {
+                                    "tool": "generated_hammer_block_contact_ever",
+                                    "value": True,
+                                    "evidence_steps": [1454],
+                                },
+                            },
+                        ],
+                        "validation": {"all_gates_passed": True},
+                    },
                     "observations": {
                         "observed_color": "blue",
                         "expert_solvable": True,
@@ -200,6 +233,9 @@ class FeedbackAgentTests(unittest.TestCase):
         self.assertIn("round_2", report)
         self.assertIn("position varied: `True`", report)
         self.assertIn("seed 100002", report)
+        self.assertIn("planned Tool route: `force_codegen`", report)
+        self.assertIn("ACT (policy_under_evaluation) seed 100000: value=False", report)
+        self.assertIn("expert (expert_validation) seed 100000: value=True", report)
 
     def test_applies_deterministic_guard_after_two_contradictions(self):
         repo_root = Path(__file__).resolve().parents[2]

@@ -19,3 +19,8 @@ Rules:
 9. Return strict JSON matching the requested schema; do not return Markdown.
 10. If `policy_success` is 0.0, explicitly say the policy did not complete the
    task; never describe pipeline completion as task success.
+11. Treat `tool_evaluation` as the Tool selected by the Plan Agent. For contact,
+    report the ACT `policy_under_evaluation` value as the policy result and the
+    expert `expert_validation` value only as an instrumentation/solvability
+    control. Generated output and its Trusted oracle are one validated
+    measurement, not two independent experiments.

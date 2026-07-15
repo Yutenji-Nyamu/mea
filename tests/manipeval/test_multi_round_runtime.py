@@ -1,9 +1,11 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from scripts.manipeval_agent import build_taskgen_command
+from mea.toolgen import contact_tool_spec
+from scripts.manipeval_agent import build_taskgen_command, execute_round
 from scripts.manipeval_taskgen import collect_position_samples, newest_eval_dir
 
 
@@ -93,6 +95,157 @@ class MultiRoundRuntimeTests(unittest.TestCase):
             self.assertTrue(
                 (run_dir / "validation/position_samples.json").is_file()
             )
+
+    def test_execute_round_routes_planned_tool_before_summary(self):
+        tool_evaluation = {
+            "schema_version": 1,
+            "status": "passed",
+            "route": "reuse",
+            "reference_tool": "hammer_block_contact_ever",
+            "source": {
+                "scope": "trusted_catalog",
+                "tool": "hammer_block_contact_ever",
+            },
+            "episodes": [
+                {
+                    "policy_name": "ACT",
+                    "seed": 100002,
+                    "role": "policy_under_evaluation",
+                    "result": {
+                        "value": False,
+                        "passed": False,
+                        "evidence_steps": [],
+                        "details": {},
+                    },
+                }
+            ],
+            "validation": {"provider_called": False},
+            "artifacts": {"tool_execution": "tool_execution.json"},
+        }
+        round_plan = {
+            **ROUND_2,
+            "sub_aspect": "object_position",
+            "tool_spec": contact_tool_spec("reuse"),
+        }
+        child_manifest = {
+            "run_id": "run_test_round_2",
+            "status": "completed",
+            "scene_validation": {
+                "rule_check": {"passed": True},
+                "expert": {"passed": True},
+            },
+            "vision_validation": {"passed": True, "observed_color": "blue"},
+            "act_evaluation": {"passed": True},
+            "position_samples": {"passed": True, "samples": [], "metrics": {}},
+            "trusted_tool_evaluation": {"episodes": []},
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            repo_root = Path(temporary)
+            evaluation_dir = repo_root / "mea/evaluation_runs/eval_test"
+            evaluation_dir.mkdir(parents=True)
+            (evaluation_dir / "manifest.json").write_text(
+                json.dumps({"status": "planned"}), encoding="utf-8"
+            )
+            child_dir = repo_root / "mea/generated_tasks/run_test_round_2"
+            child_dir.mkdir(parents=True)
+            (child_dir / "manifest.json").write_text(
+                json.dumps(child_manifest), encoding="utf-8"
+            )
+            provider = object()
+            with (
+                patch("scripts.manipeval_agent.run_logged", return_value=0),
+                patch(
+                    "scripts.manipeval_agent.execute_tool_spec",
+                    return_value=tool_evaluation,
+                ) as routed_tool,
+            ):
+                (
+                    returned_manifest,
+                    returned_child,
+                    summary,
+                    returned_tool,
+                    returncode,
+                ) = execute_round(
+                    repo_root,
+                    evaluation_dir,
+                    "eval_test",
+                    round_plan,
+                    text_model="text",
+                    vision_model="vision",
+                    base_url=None,
+                    gpu=0,
+                    max_reflections=1,
+                    provider=provider,
+                    toolgen_model="tool-model",
+                )
+            self.assertEqual(returncode, 0)
+            self.assertEqual(returned_manifest, child_manifest)
+            self.assertEqual(returned_child, child_dir)
+            self.assertEqual(returned_tool, tool_evaluation)
+            self.assertTrue(summary["pipeline_passed"])
+            self.assertEqual(
+                summary["observations"]["planned_tool"]["route"], "reuse"
+            )
+            routed_tool.assert_called_once_with(
+                repo_root,
+                child_dir,
+                evaluation_dir / "execution/round_2/planned_tool",
+                round_plan["tool_spec"],
+                provider=provider,
+                model="tool-model",
+            )
+
+            failed_evaluation_dir = (
+                repo_root / "mea/evaluation_runs/eval_fail"
+            )
+            failed_evaluation_dir.mkdir(parents=True)
+            (failed_evaluation_dir / "manifest.json").write_text(
+                json.dumps({"status": "planned"}), encoding="utf-8"
+            )
+            failed_child_dir = (
+                repo_root / "mea/generated_tasks/run_fail_round_2"
+            )
+            failed_child_dir.mkdir(parents=True)
+            failed_manifest = {
+                **child_manifest,
+                "run_id": "run_fail_round_2",
+            }
+            (failed_child_dir / "manifest.json").write_text(
+                json.dumps(failed_manifest), encoding="utf-8"
+            )
+            with (
+                patch("scripts.manipeval_agent.run_logged", return_value=7),
+                patch(
+                    "scripts.manipeval_agent.execute_tool_spec"
+                ) as skipped_tool,
+            ):
+                (
+                    _,
+                    _,
+                    failed_summary,
+                    skipped_evaluation,
+                    failed_returncode,
+                ) = execute_round(
+                    repo_root,
+                    failed_evaluation_dir,
+                    "eval_fail",
+                    round_plan,
+                    text_model="text",
+                    vision_model="vision",
+                    base_url=None,
+                    gpu=0,
+                    max_reflections=1,
+                    provider=provider,
+                    toolgen_model="tool-model",
+                )
+            self.assertEqual(failed_returncode, 7)
+            self.assertEqual(skipped_evaluation["status"], "skipped")
+            self.assertIn(
+                "code 7", skipped_evaluation["validation"]["reason"]
+            )
+            self.assertFalse(failed_summary["pipeline_passed"])
+            self.assertEqual(failed_summary["taskgen_returncode"], 7)
+            skipped_tool.assert_not_called()
 
 
 if __name__ == "__main__":
