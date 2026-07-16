@@ -355,6 +355,9 @@ def render_evaluation_report(
 ) -> str:
     """Render the one-file human entry point for single- or multi-round runs."""
 
+    def report_value(value: Any, *, na_reason: str) -> str:
+        return f"N/A ({na_reason})" if value is None else str(value)
+
     aggregate = _deterministic_aggregate(evidence)
     aggregate_markdown = (
         "以下数值直接来自 deterministic Aggregate Toolkit；Feedback Agent "
@@ -476,6 +479,17 @@ def render_evaluation_report(
                     )
                 )
             trusted_tool_lines = "\n".join(tool_lines) or "  - none"
+            execution_backend = str(
+                round_observations.get("execution_backend") or "ACT"
+            )
+            act_pipeline_display = report_value(
+                round_observations.get("act_pipeline_status"),
+                na_reason=f"{execution_backend} backend",
+            )
+            policy_success_display = report_value(
+                round_observations.get("policy_success"),
+                na_reason=f"{execution_backend} backend",
+            )
             round_sections.append(
                 f"""### {item['round_id']}: `{item['sub_aspect']}`
 
@@ -486,8 +500,9 @@ def render_evaluation_report(
 - selected retrieval tasks: {selected}
 - observed color: `{round_observations.get('observed_color')}`
 - expert solvable: `{round_observations.get('expert_solvable')}`
-- ACT pipeline status: `{round_observations.get('act_pipeline_status')}`
-- policy success: `{round_observations.get('policy_success')}`
+- execution backend: `{execution_backend}`
+- ACT pipeline status: `{act_pipeline_display}`
+- policy success: `{policy_success_display}`
 - pipeline passed: `{round_observations.get('pipeline_passed')}`
 {planned_tool_markdown}
 - position samples:
@@ -497,6 +512,16 @@ def render_evaluation_report(
 """
             )
         rounds_markdown = "\n".join(round_sections)
+        execution_backends = observations.get("execution_backends") or ["ACT"]
+        aggregate_backend_label = ", ".join(str(item) for item in execution_backends)
+        aggregate_act_display = report_value(
+            observations.get("act_pipeline_status"),
+            na_reason=f"{aggregate_backend_label} backend",
+        )
+        aggregate_policy_display = report_value(
+            observations.get("policy_success"),
+            na_reason=f"{aggregate_backend_label} backend",
+        )
         findings = "\n".join(f"- {item}" for item in feedback["findings"])
         limitations = "\n".join(f"- {item}" for item in feedback["limitations"])
         artifacts = evidence["artifacts"]
@@ -555,8 +580,9 @@ def render_evaluation_report(
 - scene alignment: `{observations['scene_alignment']}`
 - observed color by round: `{observations['observed_color_by_round']}`
 - expert solvable: `{observations['expert_solvable']}`
-- ACT pipeline status: `{observations['act_pipeline_status']}`
-- weighted policy success: `{observations['policy_success']}`
+- execution backends: `{execution_backends}`
+- ACT pipeline status: `{aggregate_act_display}`
+- weighted policy success: `{aggregate_policy_display}`
 - policy success by round: `{observations['policy_success_by_round']}`
 - position varied: `{observations['position_varied']}`
 - position metrics: `{observations['position_metrics']}`

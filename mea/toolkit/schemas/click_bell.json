@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_name": "click_bell",
+  "task_family": "press_contact",
+  "trusted_tool_profile": "generic_success",
+  "physics_timestep_seconds": 0.004,
+  "action_dimension": 14,
+  "tracked_actors": [
+    {
+      "id": "bell",
+      "task_attribute": "bell",
+      "scene_name": "050_bell",
+      "functional_points": [],
+      "contact_points": [0]
+    }
+  ],
+  "contact_focus_actor_ids": ["bell"],
+  "semantic_fields": [
+    {
+      "name": "bell_position",
+      "source": "actor_position",
+      "actor_id": "bell"
+    },
+    {
+      "name": "bell_contact_position",
+      "source": "actor_contact_position",
+      "actor_id": "bell",
+      "point_id": 0
+    },
+    {
+      "name": "left_tcp_position",
+      "source": "robot_tcp_position",
+      "side": "left"
+    },
+    {
+      "name": "right_tcp_position",
+      "source": "robot_tcp_position",
+      "side": "right"
+    }
+  ],
+  "semantic_roles": {
+    "manipulated_object_position": "bell_position",
+    "target_contact_position": "bell_contact_position",
+    "left_tcp_position": "left_tcp_position",
+    "right_tcp_position": "right_tcp_position"
+  },
+  "success_contract": {
+    "type": "official_check_success",
+    "target_actor_id": "bell",
+    "target_contact_point": 0,
+    "xy_tolerance_m": [0.025, 0.025],
+    "z_tolerance_m": 0.03,
+    "requires_closed_active_gripper": true
+  }
+}

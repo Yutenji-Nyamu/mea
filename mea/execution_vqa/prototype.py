@@ -13,16 +13,19 @@ from typing import Any, Iterable, Mapping, Sequence
 
 from mea.taskgen import extract_json_response
 
+from .query import (
+    LEGACY_PHENOMENON_IDS,
+    QUESTION_CATALOG,
+    build_execution_vqa_query,
+    validate_execution_vqa_query,
+)
+
 
 class ExecutionVQAError(RuntimeError):
     """Raised when video evidence or a Vision response violates its contract."""
 
 
-PHENOMENON_IDS = {
-    "block_color_blue",
-    "hammer_visibly_lifted",
-    "block_visibly_displaced",
-}
+PHENOMENON_IDS = set(QUESTION_CATALOG)
 CONSISTENCY_VALUES = {"consistent", "conflict", "uncertain"}
 
 
@@ -461,6 +464,7 @@ def validate_execution_vqa_response(
     value: dict[str, Any],
     *,
     allowed_frame_ids: Sequence[str],
+    expected_phenomenon_ids: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     """Validate the fixed Vision schema and derive ``evidence_conflict``."""
 
@@ -479,6 +483,17 @@ def validate_execution_vqa_response(
             + ", ".join(sorted(expected_keys))
         )
     allowed = {str(item) for item in allowed_frame_ids}
+    expected_ids = (
+        tuple(LEGACY_PHENOMENON_IDS)
+        if expected_phenomenon_ids is None
+        else tuple(expected_phenomenon_ids)
+    )
+    if not expected_ids or len(expected_ids) != len(set(expected_ids)):
+        raise ExecutionVQAError(
+            "expected_phenomenon_ids must be non-empty and unique"
+        )
+    if any(item not in PHENOMENON_IDS for item in expected_ids):
+        raise ExecutionVQAError("expected_phenomenon_ids contains unknown ids")
     phenomena_value = value.get("phenomena")
     if not isinstance(phenomena_value, list) or not phenomena_value:
         raise ExecutionVQAError("phenomena must be a non-empty list")
@@ -499,7 +514,7 @@ def validate_execution_vqa_response(
                 f"phenomena[{index}] has invalid keys"
             )
         phenomenon_id = str(item.get("id"))
-        if phenomenon_id not in PHENOMENON_IDS:
+        if phenomenon_id not in expected_ids:
             raise ExecutionVQAError(
                 f"phenomena[{index}].id is not allowlisted: {phenomenon_id}"
             )
@@ -529,7 +544,7 @@ def validate_execution_vqa_response(
             }
         )
 
-    missing_phenomena = sorted(set(PHENOMENON_IDS) - seen_phenomena)
+    missing_phenomena = sorted(set(expected_ids) - seen_phenomena)
     if missing_phenomena:
         raise ExecutionVQAError(
             "phenomena must contain every allowlisted id exactly once; missing: "
@@ -645,9 +660,12 @@ def _vision_prompt(
     *,
     selection: Mapping[str, Any],
     numeric_tool_results: Any,
+    query: Mapping[str, Any],
 ) -> str:
     frames = selection.get("selected_frames", [])
     frame_ids = [str(item["frame_id"]) for item in frames]
+    questions = query.get("questions", [])
+    phenomenon_ids = query.get("phenomenon_ids", [])
     return f"""You are the Execution VQA observer for an already completed RoboTwin rollout.
 
 The image is a labeled sheet containing an optional reference scene and selected
@@ -662,15 +680,18 @@ SELECTED FRAME IDS:
 NUMERIC TOOL RESULTS:
 {json.dumps(numeric_tool_results, ensure_ascii=False, indent=2)}
 
-Check only these visual phenomena: whether the target block appears blue, whether
-the hammer is visibly lifted, and whether the block is visibly displaced. Exact
-distance, contact, impulse, and success remain simulator judgments.
+AUDITED VISUAL QUERY CONTRACT:
+{json.dumps(questions, ensure_ascii=False, indent=2)}
+
+Check only the allowlisted phenomena in that query contract. Exact distance,
+contact, impulse, success, and every field marked simulator-authoritative remain
+simulator judgments. Never turn ToolSpec free text into an additional question.
 
 Return JSON only, with exactly this schema:
 {{
   "phenomena": [
     {{
-      "id": "block_color_blue | hammer_visibly_lifted | block_visibly_displaced",
+      "id": "one id from the audited query contract",
       "observed": true,
       "description": "short observation",
       "confidence": 0.0,
@@ -690,7 +711,8 @@ Return JSON only, with exactly this schema:
 }}
 Use conflicts=[] when no conflict is visible. Never invent frame ids.
 Use observed=null when the selected visual evidence is insufficient.
-Return exactly one phenomena item for each of the three allowlisted ids.
+Return exactly one phenomena item for each requested id, in this exact order:
+{json.dumps(phenomenon_ids, ensure_ascii=False)}
 """
 
 
@@ -701,6 +723,7 @@ def analyze_execution_montage(
     montage_path: str | Path,
     selection: Mapping[str, Any],
     numeric_tool_results: Any,
+    query: Mapping[str, Any] | None = None,
     destination: str | Path | None = None,
 ) -> dict[str, Any]:
     """Run one Vision call and preserve numeric evidence unchanged in the result."""
@@ -709,8 +732,13 @@ def analyze_execution_montage(
     if not isinstance(frames, list) or not frames:
         raise ExecutionVQAError("selection.selected_frames is required")
     frame_ids = [str(item["frame_id"]) for item in frames]
+    resolved_query = validate_execution_vqa_query(
+        dict(query) if query is not None else build_execution_vqa_query()
+    )
     prompt = _vision_prompt(
-        selection=selection, numeric_tool_results=numeric_tool_results
+        selection=selection,
+        numeric_tool_results=numeric_tool_results,
+        query=resolved_query,
     )
     response = provider.vision(
         prompt,
@@ -724,13 +752,16 @@ def analyze_execution_montage(
     except Exception as exc:
         raise ExecutionVQAError("Vision provider did not return valid JSON") from exc
     observation = validate_execution_vqa_response(
-        parsed, allowed_frame_ids=frame_ids
+        parsed,
+        allowed_frame_ids=frame_ids,
+        expected_phenomenon_ids=resolved_query["phenomenon_ids"],
     )
     observation = _apply_numeric_guard(observation, numeric_tool_results)
     result = {
         "schema_version": 1,
         "model_requested": model,
         "selection": dict(selection),
+        "query": resolved_query,
         # Simulator evidence is copied verbatim and never merged with Vision fields.
         "numeric_tool_results": numeric_tool_results,
         "observation": observation,
@@ -767,6 +798,7 @@ def run_execution_vqa(
     reference_scene: str | Path | None = None,
     semantic_trace_path: str | Path | None = None,
     max_frames: int = 8,
+    query: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build evidence, call Vision once, and persist a complete audit bundle."""
 
@@ -785,18 +817,28 @@ def run_execution_vqa(
         json.dumps(selection, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+    resolved_query = validate_execution_vqa_query(
+        dict(query) if query is not None else build_execution_vqa_query()
+    )
+    query_path = destination / "execution_vqa_query.json"
+    query_path.write_text(
+        json.dumps(resolved_query, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
     result = analyze_execution_montage(
         provider=provider,
         model=model,
         montage_path=selection["montage_path"],
         selection=selection,
         numeric_tool_results=numeric_tool_results,
+        query=resolved_query,
         destination=destination / "execution_vqa.json",
     )
     result.setdefault("artifacts", {}).update(
         {
             "montage": str(destination / "execution_montage.png"),
             "selection": str(destination / "keyframe_selection.json"),
+            "query": str(query_path),
         }
     )
     (destination / "execution_vqa.json").write_text(

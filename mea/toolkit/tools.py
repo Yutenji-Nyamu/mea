@@ -1,4 +1,4 @@
-"""Trusted, deterministic tools over recorded BeatBlockHammer trajectories."""
+"""Trusted deterministic tools over schema-declared RoboTwin trajectories."""
 
 from __future__ import annotations
 
@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any, Callable
 
 import numpy as np
+
+from .schema import TaskSchemaError, required_trace_keys
 
 
 class TrajectoryError(RuntimeError):
@@ -24,12 +26,16 @@ class TrajectoryView:
         "policy_step",
         "simulation_time_seconds",
         "success",
-        "hammer_position",
-        "block_position",
-        "hammer_functional_position",
-        "block_functional_position",
-        "left_tcp_position",
-        "right_tcp_position",
+    }
+    TASK_TRACE_KEYS = {
+        "beat_block_hammer": {
+            "hammer_position",
+            "block_position",
+            "hammer_functional_position",
+            "block_functional_position",
+            "left_tcp_position",
+            "right_tcp_position",
+        },
     }
 
     def __init__(self, episode_dir: str | Path):
@@ -40,11 +46,33 @@ class TrajectoryView:
         self.schema = json.loads(
             (self.episode_dir / "schema.json").read_text(encoding="utf-8")
         )
+        metadata_task = self.metadata.get("task_name")
+        schema_task = self.schema.get("task_name")
+        if metadata_task != schema_task:
+            raise TrajectoryError(
+                "episode.json task_name 与 schema.json task_name 不一致"
+            )
         with np.load(self.episode_dir / "semantic_trace.npz") as archive:
             self.trace = {key: archive[key].copy() for key in archive.files}
-        missing = sorted(self.REQUIRED_TRACE_KEYS - set(self.trace))
+        try:
+            required = (
+                required_trace_keys(self.schema)
+                if "semantic_fields" in self.schema
+                else self.REQUIRED_TRACE_KEYS
+                | self.TASK_TRACE_KEYS.get(metadata_task, set())
+            )
+        except TaskSchemaError as exc:
+            raise TrajectoryError(f"无效 TaskSchema: {exc}") from exc
+        missing = sorted(required - set(self.trace))
         if missing:
             raise TrajectoryError(f"semantic trace 缺少字段: {missing}")
+        self.dynamics: dict[str, np.ndarray] = {}
+        dynamics_path = self.episode_dir / "dynamics_trace.npz"
+        if dynamics_path.is_file():
+            with np.load(dynamics_path) as archive:
+                self.dynamics = {
+                    key: archive[key].copy() for key in archive.files
+                }
         self.events = []
         events_path = self.episode_dir / "events.jsonl"
         if events_path.is_file():
@@ -76,9 +104,50 @@ class TrajectoryView:
             raise TrajectoryError(
                 "episode.json semantic_trace_rows 与 semantic trace 不一致"
             )
-        for key in self.REQUIRED_TRACE_KEYS - {"success"}:
+        for key in required - {"success"}:
             if not np.all(np.isfinite(self.trace[key])):
                 raise TrajectoryError(f"semantic trace 包含非有限值: {key}")
+        self._validate_dynamics()
+
+    def _validate_dynamics(self) -> None:
+        """Validate balanced_v1 while allowing legacy episodes without it."""
+
+        if not self.dynamics:
+            return
+        required = {
+            "physics_step",
+            "policy_step",
+            "simulation_time_seconds",
+            "success",
+        }
+        missing = sorted(required - set(self.dynamics))
+        if missing:
+            raise TrajectoryError(f"dynamics trace 缺少字段: {missing}")
+        lengths = {len(value) for value in self.dynamics.values()}
+        if len(lengths) != 1 or not lengths or next(iter(lengths)) == 0:
+            raise TrajectoryError("dynamics trace 为空或数组长度不一致")
+        steps = self.dynamics["physics_step"].astype(np.int64)
+        if steps[0] != 0 or np.any(np.diff(steps) <= 0):
+            raise TrajectoryError(
+                "dynamics physics_step 必须从 0 开始且严格递增"
+            )
+        if int(steps[-1]) != int(self.metadata.get("physics_steps", -1)):
+            raise TrajectoryError("dynamics trace 缺少 final sample")
+        expected_rows = self.metadata.get("dynamics_trace_rows")
+        if expected_rows is not None and int(expected_rows) != len(steps):
+            raise TrajectoryError(
+                "episode.json dynamics_trace_rows 与 trace 不一致"
+            )
+        stream = (
+            self.metadata.get("telemetry", {})
+            .get("streams", {})
+            .get("dynamics_trace", {})
+        )
+        period = stream.get("every_physics_steps")
+        if period is not None and len(steps) > 2:
+            interior = steps[1:-1]
+            if np.any(interior % int(period) != 0):
+                raise TrajectoryError("dynamics trace 包含非周期内部样本")
 
     @property
     def contact_intervals(self) -> list[dict[str, Any]]:
@@ -403,6 +472,7 @@ TOOL_CATALOG: dict[str, dict[str, Any]] = {
         "function": hammer_pickup_height,
         "description": "Maximum hammer center height rise from the initial state.",
         "tags": ["hammer", "pickup", "grasp", "拿起", "抬起"],
+        "supported_task_names": ["beat_block_hammer"],
     },
     "first_hammer_pickup_step": {
         "function": first_hammer_pickup_step,
@@ -411,41 +481,49 @@ TOOL_CATALOG: dict[str, dict[str, Any]] = {
             "pickup threshold."
         ),
         "tags": ["hammer", "pickup", "first", "step", "拿起", "首次", "时间"],
+        "supported_task_names": ["beat_block_hammer"],
     },
     "hammer_block_min_xy_error": {
         "function": hammer_block_min_xy_error,
         "description": "Minimum official functional-point XY alignment error.",
         "tags": ["distance", "alignment", "接近", "距离", "敲"],
+        "supported_task_names": ["beat_block_hammer"],
     },
     "hammer_block_contact_ever": {
         "function": hammer_block_contact_ever,
         "description": "Whether hammer and block ever had physical contact.",
         "tags": ["contact", "hit", "接触", "敲"],
+        "supported_task_names": ["beat_block_hammer"],
     },
     "first_contact_step": {
         "function": first_contact_step,
         "description": "First hammer-block contact physics step and time.",
         "tags": ["first", "contact", "首次", "接触", "时间"],
+        "supported_task_names": ["beat_block_hammer"],
     },
     "max_contact_impulse": {
         "function": max_contact_impulse,
         "description": "Maximum contact-point impulse during hammer-block contact.",
         "tags": ["impulse", "force", "contact", "冲量", "力度", "接触"],
+        "supported_task_names": ["beat_block_hammer"],
     },
     "ee_path_length": {
         "function": ee_path_length,
         "description": "Active-arm TCP path length at physics resolution.",
         "tags": ["path", "motion", "轨迹", "路径", "运动"],
+        "supported_task_names": ["beat_block_hammer"],
     },
     "official_check_success": {
         "function": official_check_success,
         "description": "Latched official RoboTwin task success.",
         "tags": ["success", "result", "成功", "结果", "评估"],
+        "supported_task_names": ["*"],
     },
     "time_to_success": {
         "function": time_to_success,
         "description": "Physics simulation time of the first official success.",
         "tags": ["time", "success", "耗时", "成功", "时间"],
+        "supported_task_names": ["*"],
     },
 }
 
@@ -456,6 +534,7 @@ def public_tool_catalog() -> list[dict[str, Any]]:
             "name": name,
             "description": item["description"],
             "tags": item["tags"],
+            "supported_task_names": item["supported_task_names"],
             "version": 1,
             "sha256": _tool_hash(item["function"]),
         }
@@ -470,4 +549,15 @@ def run_trusted_tools(
     unknown = [name for name in tool_names if name not in TOOL_CATALOG]
     if unknown:
         raise TrajectoryError(f"未知 trusted tools: {unknown}")
+    task_name = trajectory.schema.get("task_name")
+    incompatible = [
+        name
+        for name in tool_names
+        if "*" not in TOOL_CATALOG[name]["supported_task_names"]
+        and task_name not in TOOL_CATALOG[name]["supported_task_names"]
+    ]
+    if incompatible:
+        raise TrajectoryError(
+            f"trusted tools 与 task_name={task_name!r} 不兼容: {incompatible}"
+        )
     return [TOOL_CATALOG[name]["function"](trajectory) for name in tool_names]

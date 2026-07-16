@@ -2,8 +2,9 @@
 
 ## 1. 当前实际记录了什么
 
-当前 Recorder 不是完整的 simulator dump，而是面向
-`beat_block_hammer` 的任务语义切片：
+当前 Recorder 不是完整的 simulator dump，而是由每个任务的 `TaskSchema` 声明
+tracked actor、functional/contact point 与 semantic fields 的任务语义切片。
+`beat_block_hammer` 是第一条完整切片，`click_bell` 是第二条：
 
 | 采样时机 | 产物 | 主要内容 |
 | --- | --- | --- |
@@ -69,10 +70,9 @@ python scripts/analyze_trajectory_storage.py \
 原始保存约为 37.6 GB/episode，再保存 XYZ point cloud 还会增加约
 41 GB。后者不适合作为默认模式。
 
-## 4. `balanced_v1` 多频率设计
+## 4. `balanced_v1` 多频率实现
 
-`balanced_v1` 是下一版 Recorder 的设计目标，不是本轮已经实现或实测的
-runtime 行为。建议按信号用途分频：
+`balanced_v1` 已作为 allowlisted runtime profile 实现，并按信号用途分频：
 
 - 250 Hz semantic stream：TaskSchema tracked actor 的关键 position、
   functional points、TCP、success 与时间索引；
@@ -130,9 +130,9 @@ runtime 行为。建议按信号用途分频：
 }
 ```
 
-## 5. 向后兼容约束
+## 5. 向后兼容行为
 
-第一版 `balanced_v1` 应采用 additive migration：
+第一版 `balanced_v1` 采用 additive migration：
 
 - 原样保留 `states.csv`、`semantic_trace.npz` 与 `events.jsonl`；
 - 新增 `dynamics_trace.npz`，而不是改变现有 semantic stream 的采样率；
@@ -154,22 +154,27 @@ runtime 行为。建议按信号用途分频：
 未来若实现 250 Hz 全场 actor 模式，应改用 chunked writer，不能把全部数据
 长期积存在内存中。
 
-## 6. 空间目标与本轮边界
+## 6. 空间目标与当前边界
 
 `balanced_v1` selected-actor profile 的初步设计目标是 2–5 MB/episode。
-这是依据当前行数、字段数和压缩率得到的数量级估计，不是已经运行得到的
-实测结果。若 50 Hz 覆盖全场 actor，预计约为 5–20 MB/episode，同样需要
-实现后通过真实 rollout 验证。
+原先的 2–5 MB/episode 是设计上限；实际大小应由
+`scripts/analyze_trajectory_storage.py` 对每次 rollout 产物报告。若 50 Hz 覆盖
+全场 actor，仍预计约为 5–20 MB/episode，需要单独实现和验证。
 
-本轮 Auto Tool Router 与 pickup-to-contact Tool 开发不修改 runtime
-Recorder，理由是：
+Auto Tool Router 与 pickup-to-contact Tool 仍只依赖 legacy artifacts；新
+`dynamics_trace.npz` 是 additive 信号源，因此旧 Tool 不需要同时迁移。这样：
 
-1. 当前数据已经满足 Router 和新 Tool 的 signal contract；
-2. 现有 ToolGen preflight 与 `TrajectoryView` 依赖 legacy artifacts；
-3. 将 Tool 路由变化和 Recorder schema 迁移放在同一提交中会扩大回归面；
-4. `balanced_v1` 应在独立开发批次中通过 expert 与 ACT 1-episode 回归验证。
+1. 当前数据继续满足已有 Router/Tool signal contract；
+2. 旧 episode 没有 dynamics 时仍能读取；
+3. 新 Tool 才按需声明并读取 dynamics；
+4. profile id/hash、stream 周期、行数、shape/dtype 与 artifact 路径均写入
+   `episode.json`，并保存 `telemetry_profile.json` 快照。
 
-后续验收至少包括：legacy 与 balanced 的全部 Trusted Tool 结果一致；采样
-steps 满足 `0, 5, 10, ..., final`；短暂 contact 不因 50 Hz dynamics 而
-丢失；early success 与异常退出仍写 final sample；并真实测量 storage 与
-wall-time overhead。
+代码级测试已经覆盖 legacy 读取兼容、`0, 5, 10, ..., final` 采样与正常结束的
+final sample；contact/semantic stream 在实现中仍逐 physics step 运行。
+`click_bell` 的两集真实 expert 数据为
+173,264 B 与 186,708 B；同 seed 的独立 legacy 运行是 45,070 B。两次独立
+rollout 的 outcome/Tool 结果一致，但不能据此声称轨迹逐元素一致。详细产物与边界见
+`docs/development_log_20260716_dynamic_vqa_multitask_balanced_zh.md`。仍需后续测量长 ACT
+rollout 的 wall-time overhead、真实短接触不丢失、early success/异常退出，以及
+全场 actor profile 的实际体积。

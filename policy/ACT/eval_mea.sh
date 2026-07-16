@@ -4,8 +4,8 @@ set -euo pipefail
 
 policy_name="ACT"
 
-if [ "$#" -lt 6 ] || [ "$#" -gt 11 ]; then
-    echo "Usage: $0 TASK CONFIG CKPT EXPERT_NUM SEED GPU [NUM_EPISODES] [TASK_MODULE] [TASK_OVERLAY] [START_SEED] [TELEMETRY_DIR]" >&2
+if [ "$#" -lt 6 ] || [ "$#" -gt 12 ]; then
+    echo "Usage: $0 TASK CONFIG CKPT EXPERT_NUM SEED GPU [NUM_EPISODES] [TASK_MODULE] [TASK_OVERLAY] [START_SEED] [TELEMETRY_DIR] [TELEMETRY_PROFILE]" >&2
     exit 2
 fi
 
@@ -21,6 +21,7 @@ task_module="${8:-}"
 task_overlay="${9:-}"
 start_seed="${10:-}"
 telemetry_dir="${11:-}"
+telemetry_profile="${12:-balanced_v1}"
 
 export CUDA_VISIBLE_DEVICES="${gpu_id}"
 
@@ -30,6 +31,7 @@ echo "task_module=${task_module:-<official>}"
 echo "task_overlay=${task_overlay:-<none>}"
 echo "start_seed=${start_seed:-<official-derived>}"
 echo "telemetry_dir=${telemetry_dir:-<disabled>}"
+echo "telemetry_profile=${telemetry_profile}"
 
 SCRIPT_DIR="$(
     cd "$(dirname "${BASH_SOURCE[0]}")"
@@ -69,6 +71,7 @@ if [ -n "${start_seed}" ]; then
 fi
 if [ -n "${telemetry_dir}" ]; then
     OVERRIDES+=(--telemetry_dir "${telemetry_dir}")
+    OVERRIDES+=(--telemetry_profile "${telemetry_profile}")
 fi
 
 python_bin="${PYTHON_BIN:-python}"

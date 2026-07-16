@@ -7,12 +7,11 @@ import importlib
 import json
 import os
 import traceback
+import math
 from pathlib import Path
 from typing import Any
 
 import yaml
-
-from envs import CONFIGS_PATH
 
 
 def deep_update(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
@@ -32,6 +31,9 @@ def load_task_args(
     ckpt_setting: str,
     overlay_path: Path | None,
 ) -> dict[str, Any]:
+    # Simulator dependencies are needed only when a probe actually executes.
+    from envs import CONFIGS_PATH
+
     with (repo_root / "task_config" / f"{task_config}.yml").open(
         "r", encoding="utf-8"
     ) as handle:
@@ -97,6 +99,85 @@ def actor_summary(task: Any) -> list[dict[str, Any]]:
     return actors
 
 
+def _pose_summary(pose: Any) -> dict[str, list[float]]:
+    return {
+        "position": [float(value) for value in pose.p],
+        "quaternion": [float(value) for value in pose.q],
+    }
+
+
+def tracked_actor_summary(
+    task: Any,
+    schema: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Read only actors and semantic points declared by the TaskSchema."""
+
+    summaries: list[dict[str, Any]] = []
+    for actor_spec in schema["tracked_actors"]:
+        actor = getattr(task, actor_spec["task_attribute"])
+        summary: dict[str, Any] = {
+            "id": actor_spec["id"],
+            "task_attribute": actor_spec["task_attribute"],
+            "scene_name": actor_spec["scene_name"],
+            **_pose_summary(actor.get_pose()),
+            "functional_points": {},
+            "contact_points": {},
+        }
+        for point_id in actor_spec.get("functional_points", []):
+            point = actor.get_functional_point(point_id, "pose")
+            summary["functional_points"][str(point_id)] = _pose_summary(point)
+        for point_id in actor_spec.get("contact_points", []):
+            point = [float(value) for value in actor.get_contact_point(point_id)]
+            summary["contact_points"][str(point_id)] = {
+                "position": point[:3],
+                "raw": point,
+            }
+        summaries.append(summary)
+    return summaries
+
+
+def task_schema_rule_check(
+    task: Any,
+    schema: dict[str, Any],
+    *,
+    scene_actors: list[dict[str, Any]],
+    tracked_actors: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Setup-only structural checks shared by every schema-backed task."""
+
+    scene_names = {actor["name"] for actor in scene_actors}
+    declared_scene_names = {
+        actor["scene_name"] for actor in schema["tracked_actors"]
+    }
+    numeric_values: list[float] = []
+    for actor in tracked_actors:
+        numeric_values.extend(actor["position"])
+        numeric_values.extend(actor["quaternion"])
+        for point in actor["functional_points"].values():
+            numeric_values.extend(point["position"])
+            numeric_values.extend(point["quaternion"])
+        for point in actor["contact_points"].values():
+            numeric_values.extend(point["raw"])
+    checks = {
+        "all_tracked_actor_attributes_present": all(
+            hasattr(task, actor["task_attribute"])
+            for actor in schema["tracked_actors"]
+        ),
+        "declared_scene_names_present": declared_scene_names.issubset(scene_names),
+        "finite_tracked_actor_state": bool(numeric_values)
+        and all(math.isfinite(value) and abs(value) < 100 for value in numeric_values),
+        "official_check_success_callable": callable(
+            getattr(task, "check_success", None)
+        ),
+    }
+    return {
+        **checks,
+        "passed": all(checks.values()),
+        "tracked_actor_ids": [actor["id"] for actor in tracked_actors],
+        "declared_scene_names": sorted(declared_scene_names),
+    }
+
+
 def run_probe(arguments: argparse.Namespace) -> dict[str, Any]:
     repo_root = arguments.repo_root.expanduser().resolve()
     output = arguments.output.expanduser().resolve()
@@ -117,6 +198,15 @@ def run_probe(arguments: argparse.Namespace) -> dict[str, Any]:
     recorder = None
     recorder_started = False
     try:
+        from mea.toolkit import load_task_schema
+
+        schema = load_task_schema(repo_root, arguments.task_name)
+        result["task_schema"] = {
+            "schema_version": schema["schema_version"],
+            "task_name": schema["task_name"],
+            "task_family": schema.get("task_family"),
+            "trusted_tool_profile": schema.get("trusted_tool_profile"),
+        }
         args = load_task_args(
             repo_root,
             task_name=arguments.task_name,
@@ -130,27 +220,55 @@ def run_probe(arguments: argparse.Namespace) -> dict[str, Any]:
         task.setup_demo(now_ep_num=0, seed=arguments.seed, is_test=True, **args)
         result["setup_success"] = True
         result["actors"] = actor_summary(task)
-        result["block_pose"] = {
-            "position": [float(value) for value in task.block.get_pose().p],
-            "quaternion": [float(value) for value in task.block.get_pose().q],
+        result["tracked_actors"] = tracked_actor_summary(task, schema)
+        tracked_by_id = {
+            actor["id"]: actor for actor in result["tracked_actors"]
         }
-        result["hammer_pose"] = {
-            "position": [float(value) for value in task.hammer.get_pose().p],
-            "quaternion": [float(value) for value in task.hammer.get_pose().q],
-        }
+        # Preserve the original BBH probe contract for existing reports/tests.
+        if "block" in tracked_by_id:
+            result["block_pose"] = {
+                key: tracked_by_id["block"][key]
+                for key in ("position", "quaternion")
+            }
+        if "hammer" in tracked_by_id:
+            result["hammer_pose"] = {
+                key: tracked_by_id["hammer"][key]
+                for key in ("position", "quaternion")
+            }
         task.save_camera_rgb(str(image), camera_name="head_camera")
         result["render_success"] = image.is_file() and image.stat().st_size > 0
         result["image"] = str(image)
 
-        actor_names = {actor["name"] for actor in result["actors"]}
-        result["rule_check"] = {
-            "has_hammer": "020_hammer" in actor_names,
-            "has_block": "box" in actor_names,
-            "finite_block_pose": all(
-                abs(value) < 100 for value in result["block_pose"]["position"]
-            ),
-        }
-        result["rule_check"]["passed"] = all(result["rule_check"].values())
+        result["rule_check"] = task_schema_rule_check(
+            task,
+            schema,
+            scene_actors=result["actors"],
+            tracked_actors=result["tracked_actors"],
+        )
+        if arguments.task_name == "beat_block_hammer":
+            actor_names = {actor["name"] for actor in result["actors"]}
+            result["rule_check"].update(
+                {
+                    "has_hammer": "020_hammer" in actor_names,
+                    "has_block": "box" in actor_names,
+                    "finite_block_pose": all(
+                        abs(value) < 100
+                        for value in result["block_pose"]["position"]
+                    ),
+                }
+            )
+            result["rule_check"]["passed"] = all(
+                result["rule_check"][name]
+                for name in (
+                    "all_tracked_actor_attributes_present",
+                    "declared_scene_names_present",
+                    "finite_tracked_actor_state",
+                    "official_check_success_callable",
+                    "has_hammer",
+                    "has_block",
+                    "finite_block_pose",
+                )
+            )
 
         if arguments.telemetry_dir is not None:
             from mea.toolkit import EpisodeRecorder
@@ -161,11 +279,12 @@ def run_probe(arguments: argparse.Namespace) -> dict[str, Any]:
                 telemetry_dir,
                 task_name=arguments.task_name,
                 seed=arguments.seed,
-                episode_index=0,
+                episode_index=arguments.episode_index,
                 policy_name="expert" if arguments.expert else "setup_probe",
                 task_module=arguments.task_module,
                 task_config=arguments.task_config,
                 checkpoint_setting=arguments.ckpt_setting,
+                telemetry_profile_id=arguments.telemetry_profile,
             )
             task._mea_recorder = recorder
             try:
@@ -263,10 +382,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ckpt-setting", default="demo_clean")
     parser.add_argument("--overlay", type=Path)
     parser.add_argument("--seed", type=int, default=100000)
+    parser.add_argument("--episode-index", type=int, default=0)
     parser.add_argument("--image", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--expert", action="store_true")
     parser.add_argument("--telemetry-dir", type=Path)
+    parser.add_argument(
+        "--telemetry-profile",
+        choices=["balanced_v1", "legacy_v1"],
+        default="balanced_v1",
+    )
     return parser.parse_args()
 
 

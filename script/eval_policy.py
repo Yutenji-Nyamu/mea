@@ -353,6 +353,9 @@ def eval_policy(task_name,
                 task_module=task_module,
                 task_config=args.get("task_config"),
                 checkpoint_setting=args.get("ckpt_setting"),
+                telemetry_profile_id=str(
+                    usr_args.get("telemetry_profile", "balanced_v1")
+                ),
             )
             TASK_ENV._mea_recorder = recorder
             try:

@@ -33,12 +33,28 @@ def evaluate_telemetry_root(
     for metadata_path in sorted(root.rglob("episode.json")):
         episode_dir = metadata_path.parent
         trajectory = TrajectoryView(episode_dir)
+        episode_task = trajectory.metadata.get("task_name")
+        if episode_task != task_name:
+            raise RuntimeError(
+                "telemetry root 混入其他任务: "
+                f"requested={task_name!r}, episode={episode_task!r}, "
+                f"path={episode_dir}"
+            )
         results = run_trusted_tools(
             trajectory, selection["selected_tools"]
         )
+        artifact_names = (
+            "episode.json",
+            "states.csv",
+            "semantic_trace.npz",
+            "events.jsonl",
+            "dynamics_trace.npz",
+            "telemetry_profile.json",
+        )
         artifact_hashes = {
             name: _sha256(episode_dir / name)
-            for name in ("episode.json", "states.csv", "semantic_trace.npz", "events.jsonl")
+            for name in artifact_names
+            if (episode_dir / name).is_file()
         }
         episode_result = {
             "episode_dir": str(episode_dir.relative_to(root)),

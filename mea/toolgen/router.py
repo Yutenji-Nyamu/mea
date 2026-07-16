@@ -111,7 +111,17 @@ def route_tool_request(
     request = validate_tool_request(value)
     snapshot = catalog_snapshot()
     metric = request["metric"]
-    task_supported = request["task_name"] == "beat_block_hammer"
+    task_name = request["task_name"]
+    trusted_entry = TOOL_CATALOG.get(metric)
+    supported_task_names = (
+        set(trusted_entry.get("supported_task_names", []))
+        if trusted_entry is not None
+        else set()
+    )
+    trusted_task_supported = trusted_entry is not None and (
+        "*" in supported_task_names or task_name in supported_task_names
+    )
+    composite_task_supported = task_name == "beat_block_hammer"
 
     if run_local_registration is not None:
         if (
@@ -123,14 +133,14 @@ def route_tool_request(
         snapshot["run_local_match"] = deepcopy(run_local_registration)
         _with_snapshot_hash(snapshot)
 
-    if task_supported and metric in TOOL_CATALOG:
+    if trusted_task_supported:
         status = "resolved"
         route = "reuse"
         registry = "trusted_tool_catalog"
         reference_tool = metric
         reason = "exact metric identifier matched a Trusted Tool"
     elif (
-        task_supported
+        composite_task_supported
         and metric in COMPOSITE_TARGETS
         and run_local_registration is not None
     ):
@@ -142,7 +152,7 @@ def route_tool_request(
             "exact ToolSpec, code, and telemetry schema hashes matched a "
             "validated evaluation-local Tool"
         )
-    elif task_supported and metric in COMPOSITE_TARGETS:
+    elif composite_task_supported and metric in COMPOSITE_TARGETS:
         status = "resolved"
         route = "force_codegen"
         registry = "composite_target_registry"
@@ -154,8 +164,8 @@ def route_tool_request(
         registry = None
         reference_tool = None
         reason = (
-            "task is unsupported"
-            if not task_supported
+            "metric is not compatible with the requested task"
+            if metric in TOOL_CATALOG or metric in COMPOSITE_TARGETS
             else "metric did not exactly match an executable registry entry"
         )
 

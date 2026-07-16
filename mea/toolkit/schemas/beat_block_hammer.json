@@ -1,6 +1,8 @@
 {
   "schema_version": 1,
   "task_name": "beat_block_hammer",
+  "task_family": "tool_use_contact",
+  "trusted_tool_profile": "beat_block_hammer",
   "physics_timestep_seconds": 0.004,
   "action_dimension": 14,
   "tracked_actors": [
@@ -20,6 +22,48 @@
     }
   ],
   "contact_focus_actor_ids": ["hammer", "block"],
+  "semantic_fields": [
+    {
+      "name": "hammer_position",
+      "source": "actor_position",
+      "actor_id": "hammer"
+    },
+    {
+      "name": "block_position",
+      "source": "actor_position",
+      "actor_id": "block"
+    },
+    {
+      "name": "hammer_functional_position",
+      "source": "actor_functional_position",
+      "actor_id": "hammer",
+      "point_id": 0
+    },
+    {
+      "name": "block_functional_position",
+      "source": "actor_functional_position",
+      "actor_id": "block",
+      "point_id": 1
+    },
+    {
+      "name": "left_tcp_position",
+      "source": "robot_tcp_position",
+      "side": "left"
+    },
+    {
+      "name": "right_tcp_position",
+      "source": "robot_tcp_position",
+      "side": "right"
+    }
+  ],
+  "semantic_roles": {
+    "manipulated_object_position": "hammer_position",
+    "target_object_position": "block_position",
+    "manipulated_functional_position": "hammer_functional_position",
+    "target_functional_position": "block_functional_position",
+    "left_tcp_position": "left_tcp_position",
+    "right_tcp_position": "right_tcp_position"
+  },
   "success_contract": {
     "hammer_functional_point": 0,
     "block_functional_point": 1,

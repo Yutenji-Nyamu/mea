@@ -14,10 +14,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from mea.execution_vqa import run_execution_vqa
+from mea.execution_vqa import build_execution_vqa_query, run_execution_vqa
 from mea.feedback import FeedbackAgent, render_evaluation_report
 from mea.history import EvaluationHistoryDB
-from mea.planner import PlanAgentPrototype
+from mea.planner import OfficialTaskPlanAgent, PlanAgentPrototype
 from mea.providers import (
     OpenAICompatibleProvider,
     available_model_profiles,
@@ -57,10 +57,14 @@ def build_taskgen_command(
     base_url: str | None,
     gpu: int,
     max_reflections: int,
+    telemetry_profile: str = "balanced_v1",
 ) -> tuple[list[str], str]:
     run_id = child_run_id(evaluation_id, round_plan["round_id"])
     execution = round_plan["execution"]
     seed = execution["seeds"][0]
+    task_name = str(round_plan.get("task_name") or "beat_block_hammer")
+    task_module = round_plan.get("task_module")
+    route = str(round_plan["route"])
     command = [
         sys.executable,
         str(repo_root / "scripts/manipeval_taskgen.py"),
@@ -71,9 +75,9 @@ def build_taskgen_command(
         "--run-id",
         run_id,
         "--task-name",
-        "beat_block_hammer",
+        task_name,
         "--mode",
-        round_plan["route"],
+        route,
         "--text-model",
         text_model,
         "--vision-model",
@@ -84,13 +88,17 @@ def build_taskgen_command(
         str(execution["num_episodes"]),
         "--gpu",
         str(gpu),
+        "--telemetry-profile",
+        telemetry_profile,
         "--probe",
-        "--vision-check",
         "--expert",
-        "--run-act",
         "--max-reflections",
         str(max_reflections),
     ]
+    if task_module:
+        command.extend(["--task-module", str(task_module)])
+    if route != "official":
+        command.extend(["--vision-check", "--run-act"])
     if base_url:
         command.extend(["--base-url", base_url])
     return command, run_id
@@ -401,7 +409,19 @@ def run_round_execution_vqa(
     execution_dir: Path,
     provider: Any,
     model: str,
+    round_plan: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    query = build_execution_vqa_query(
+        task_name=(
+            str((round_plan or {}).get("task_name") or child_manifest.get("task_name"))
+            if (round_plan or {}).get("task_name") or child_manifest.get("task_name")
+            else None
+        ),
+        template_id=(round_plan or {}).get("template_id"),
+        sub_aspect=(round_plan or {}).get("sub_aspect"),
+        tool_contract=(round_plan or {}).get("tool_request"),
+    )
+    write_json(execution_dir / "execution_vqa_query.json", query)
     selected = _policy_episode_for_execution_vqa(child_manifest, child_dir)
     if selected is None:
         result = {
@@ -409,6 +429,7 @@ def run_round_execution_vqa(
             "status": "skipped",
             "reason": "no completed ACT telemetry episode was available",
             "evidence_conflict": False,
+            "query": query,
         }
         write_json(execution_dir / "execution_vqa_skipped.json", result)
         return result
@@ -421,6 +442,7 @@ def run_round_execution_vqa(
             "reason": "completed ACT telemetry episode is missing video.mp4",
             "representative_episode": representative_path,
             "evidence_conflict": False,
+            "query": query,
         }
         write_json(execution_dir / "execution_vqa_error.json", result)
         return result
@@ -444,6 +466,7 @@ def run_round_execution_vqa(
             events_path=episode_dir / "events.jsonl",
             semantic_trace_path=episode_dir / "semantic_trace.npz",
             reference_scene=child_dir / "evidence/initial_head.png",
+            query=query,
         )
     except Exception as exc:
         result = {
@@ -452,6 +475,7 @@ def run_round_execution_vqa(
             "reason": f"{type(exc).__name__}: {exc}",
             "representative_episode": representative_path,
             "evidence_conflict": False,
+            "query": query,
         }
         write_json(execution_dir / "execution_vqa_error.json", result)
         return result
@@ -487,6 +511,7 @@ def compact_execution_vqa(
         ),
         "artifacts": result.get("artifacts", {}),
         "reason": result.get("reason"),
+        "query": result.get("query"),
     }
 
 
@@ -506,21 +531,41 @@ def summarize_round(
     positions = child_manifest.get("position_samples", {})
     policy_success = read_policy_success(child_dir / "evaluation/_result.txt")
     trusted_tools = compact_trusted_tools(child_manifest)
-    pipeline_passed = bool(
-        child_manifest.get("status") == "completed"
-        and taskgen_returncode == 0
-        and scene.get("rule_check", {}).get("passed")
-        and vision.get("passed")
-        and expert.get("passed")
-        and positions.get("passed")
-        and act.get("passed")
-        and tool_evaluation
-        and tool_evaluation.get("status") == "passed"
-        and aggregate_result
-        and str(aggregate_result.get("status", "")).startswith("passed")
-        and execution_vqa
-        and execution_vqa.get("status") in {"passed", "skipped"}
-    )
+    is_official = round_plan.get("route") == "official"
+    if is_official:
+        expert_batch = scene.get("expert_batch") or expert
+        pipeline_passed = bool(
+            child_manifest.get("status") == "completed_without_act"
+            and taskgen_returncode == 0
+            and scene.get("render_success")
+            and scene.get("rule_check", {}).get("passed")
+            and expert_batch.get("passed")
+            and child_manifest.get("trusted_tool_evaluation", {}).get(
+                "episode_count"
+            )
+            and tool_evaluation
+            and tool_evaluation.get("status") == "passed"
+            and aggregate_result
+            and str(aggregate_result.get("status", "")).startswith("passed")
+            and execution_vqa
+            and execution_vqa.get("status") in {"passed", "skipped"}
+        )
+    else:
+        pipeline_passed = bool(
+            child_manifest.get("status") == "completed"
+            and taskgen_returncode == 0
+            and scene.get("rule_check", {}).get("passed")
+            and vision.get("passed")
+            and expert.get("passed")
+            and positions.get("passed")
+            and act.get("passed")
+            and tool_evaluation
+            and tool_evaluation.get("status") == "passed"
+            and aggregate_result
+            and str(aggregate_result.get("status", "")).startswith("passed")
+            and execution_vqa
+            and execution_vqa.get("status") in {"passed", "skipped"}
+        )
     return {
         "round_id": round_plan["round_id"],
         "sub_aspect": round_plan["sub_aspect"],
@@ -530,11 +575,16 @@ def summarize_round(
         "taskgen_returncode": taskgen_returncode,
         "execution": round_plan["execution"],
         "observations": {
+            "execution_backend": "expert" if is_official else "ACT",
             "scene_alignment": bool(scene.get("rule_check", {}).get("passed")),
             "observed_color": vision.get("observed_color"),
-            "expert_solvable": bool(expert.get("passed")),
-            "act_pipeline_status": bool(act.get("passed")),
-            "policy_success": policy_success,
+            "expert_solvable": bool(
+                (scene.get("expert_batch") or expert).get("passed")
+            ),
+            "act_pipeline_status": (
+                None if is_official else bool(act.get("passed"))
+            ),
+            "policy_success": None if is_official else policy_success,
             "position_samples": positions.get("samples", []),
             "position_metrics": positions.get("metrics", {}),
             "trusted_tools": trusted_tools,
@@ -544,7 +594,9 @@ def summarize_round(
         },
         "pipeline_passed": pipeline_passed,
         "interpretation": (
-            "场景生成和评估流水线状态与 policy_success 分开报告；"
+            "official route 使用 expert backend，ACT/policy 字段为 N/A；"
+            if is_official
+            else "场景生成和评估流水线状态与 policy_success 分开报告；"
             "策略失败不会被误记为 pipeline failure。"
         ),
     }
@@ -563,6 +615,7 @@ def execute_round(
     max_reflections: int,
     provider: Any,
     toolgen_model: str,
+    telemetry_profile: str = "balanced_v1",
 ) -> tuple[
     dict[str, Any],
     Path,
@@ -580,6 +633,7 @@ def execute_round(
         base_url=base_url,
         gpu=gpu,
         max_reflections=max_reflections,
+        telemetry_profile=telemetry_profile,
     )
     execution_dir = evaluation_dir / "execution" / round_id
     write_json(
@@ -610,7 +664,10 @@ def execute_round(
             "status": child_manifest.get("status"),
         },
     )
-    if child_manifest.get("status") == "completed" and returncode == 0:
+    if child_manifest.get("status") in {
+        "completed",
+        "completed_without_act",
+    } and returncode == 0:
         tool_evaluation = execute_tool_request(
             repo_root,
             child_dir,
@@ -662,6 +719,7 @@ def execute_round(
         execution_dir=execution_dir,
         provider=provider,
         model=vision_model,
+        round_plan=round_plan,
     )
     round_summary = summarize_round(
         round_plan,
@@ -813,6 +871,9 @@ def _round_evidence(
                 round_execution / "aggregate_result.json"
             ),
             "execution_vqa": execution_vqa_artifact,
+            "execution_vqa_query": str(
+                round_execution / "execution_vqa_query.json"
+            ),
             "execution_vqa_montage": execution_vqa_artifacts.get(
                 "montage"
             ),
@@ -890,6 +951,18 @@ def build_evidence_bundle(
         if history_path.is_file()
         else {"status": "missing", "matches": []}
     )
+    execution_backends = sorted(
+        {
+            str(item["observations"].get("execution_backend") or "ACT")
+            for item in rounds
+        }
+    )
+    act_statuses = [
+        item["observations"].get("act_pipeline_status") for item in rounds
+    ]
+    measured_act_statuses = [
+        bool(value) for value in act_statuses if value is not None
+    ]
     return {
         "schema_version": 2,
         "evaluation_id": evaluation_id,
@@ -908,6 +981,7 @@ def build_evidence_bundle(
         },
         "rounds": rounds,
         "observations": {
+            "execution_backends": execution_backends,
             "scene_alignment": all(
                 item["observations"]["scene_alignment"] for item in rounds
             ),
@@ -917,8 +991,8 @@ def build_evidence_bundle(
             "expert_solvable": all(
                 item["observations"]["expert_solvable"] for item in rounds
             ),
-            "act_pipeline_status": all(
-                item["observations"]["act_pipeline_status"] for item in rounds
+            "act_pipeline_status": (
+                all(measured_act_statuses) if measured_act_statuses else None
             ),
             "policy_success": policy_success,
             "policy_success_by_round": [
@@ -966,6 +1040,26 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     parser.add_argument("--evaluation-id")
     parser.add_argument(
+        "--task-name",
+        default="beat_block_hammer",
+        help=(
+            "Canonical RoboTwin task identity. beat_block_hammer uses the "
+            "bounded Plan/TaskGen flow; other schema-backed tasks use the "
+            "unchanged official expert-probe route."
+        ),
+    )
+    parser.add_argument(
+        "--task-module",
+        help="Optional Python module for an official schema-backed task.",
+    )
+    parser.add_argument("--start-seed", type=int, default=100000)
+    parser.add_argument("--num-episodes", type=int, default=1)
+    parser.add_argument(
+        "--telemetry-profile",
+        choices=["balanced_v1", "legacy_v1"],
+        default="balanced_v1",
+    )
+    parser.add_argument(
         "--model-profile",
         choices=available_model_profiles(),
         default="legacy",
@@ -1007,6 +1101,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    if args.num_episodes <= 0:
+        raise SystemExit("--num-episodes must be positive")
     repo_root = args.repo_root.expanduser().resolve()
     models = resolve_model_profile(
         args.model_profile,
@@ -1018,17 +1114,33 @@ def main() -> None:
             "feedback": args.feedback_model,
         },
     )
-    provider = OpenAICompatibleProvider(
-        base_url=args.base_url,
-        text_model=models["planner"],
-        vision_model=models["vision"],
-        timeout=180.0,
-    )
-    planner = PlanAgentPrototype(
-        repo_root,
-        provider,
-        model=models["planner"],
-    )
+    # The deterministic official planner can materialize --plan-only without
+    # any provider credential. Full execution still creates the provider for
+    # final Feedback (and for VQA when an ACT video exists).
+    provider = None
+    if args.task_name == "beat_block_hammer" or not args.plan_only:
+        provider = OpenAICompatibleProvider(
+            base_url=args.base_url,
+            text_model=models["planner"],
+            vision_model=models["vision"],
+            timeout=180.0,
+        )
+    if args.task_name == "beat_block_hammer":
+        assert provider is not None
+        planner = PlanAgentPrototype(
+            repo_root,
+            provider,
+            model=models["planner"],
+        )
+    else:
+        planner = OfficialTaskPlanAgent(
+            repo_root,
+            task_name=args.task_name,
+            task_module=args.task_module,
+            start_seed=args.start_seed,
+            num_episodes=args.num_episodes,
+            telemetry_profile=args.telemetry_profile,
+        )
     history_database = None
     history_context: list[dict[str, Any]] = []
     history_retrieval: dict[str, Any] = {
@@ -1049,8 +1161,10 @@ def main() -> None:
             )
             history_retrieval = history_database.retrieve_similar(
                 args.request,
-                task_name="beat_block_hammer",
-                policy_name="ACT",
+                task_name=args.task_name,
+                policy_name=(
+                    "ACT" if args.task_name == "beat_block_hammer" else "expert"
+                ),
                 checkpoint_setting="demo_clean",
                 limit=args.history_limit,
                 exclude_evaluation_id=args.evaluation_id,
@@ -1087,12 +1201,17 @@ def main() -> None:
             else str(history_path)
         ),
         history_retrieval_status=history_retrieval.get("status"),
+        task_name=args.task_name,
+        task_module=args.task_module,
+        telemetry_profile=args.telemetry_profile,
     )
 
     if args.plan_only:
         update_manifest(evaluation_dir, status="planned_only")
         print(json.dumps(plan, ensure_ascii=False, indent=2))
         return
+
+    assert provider is not None
 
     round_runs: list[dict[str, Any]] = []
     try:
@@ -1117,6 +1236,7 @@ def main() -> None:
                 max_reflections=args.max_reflections,
                 provider=provider,
                 toolgen_model=models["toolgen"],
+                telemetry_profile=args.telemetry_profile,
             )
             round_runs.append(
                 {

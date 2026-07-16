@@ -113,6 +113,19 @@ def pickup_to_contact_tool_request() -> dict[str, Any]:
     }
 
 
+def official_success_tool_request(task_name: str) -> dict[str, Any]:
+    """Return a route-free request for one schema-backed official outcome."""
+
+    if not isinstance(task_name, str) or not task_name.strip():
+        raise ToolOrchestrationError("task_name must be a non-empty string")
+    return {
+        "schema_version": 1,
+        "task_name": task_name.strip(),
+        "metric": "official_check_success",
+        "question": "Did the rollout satisfy the official RoboTwin success check?",
+    }
+
+
 def contact_tool_spec(route: str) -> dict[str, Any]:
     """Return the exact first-version contact ToolSpec for a route."""
 
@@ -162,6 +175,7 @@ def pickup_to_contact_tool_spec(route: str = "force_codegen") -> dict[str, Any]:
 def _generic_trusted_tool_spec(
     metric: str,
     question: str,
+    task_name: str,
 ) -> dict[str, Any]:
     """Build the internal routeful envelope for any exact catalog match."""
 
@@ -169,7 +183,7 @@ def _generic_trusted_tool_spec(
         raise ToolOrchestrationError(f"unknown Trusted Tool metric: {metric}")
     return {
         "schema_version": 1,
-        "task_name": "beat_block_hammer",
+        "task_name": task_name,
         "metric": metric,
         "question": question,
         "route": "reuse",
@@ -221,7 +235,19 @@ def validate_tool_spec(
         question = value.get("question")
         if not isinstance(question, str) or not question.strip():
             raise ToolOrchestrationError("ToolSpec.question must be non-empty")
-        expected = _generic_trusted_tool_spec(metric, question.strip())
+        task_name = value.get("task_name")
+        if not isinstance(task_name, str) or not task_name.strip():
+            raise ToolOrchestrationError("ToolSpec.task_name must be non-empty")
+        supported = set(
+            TOOL_CATALOG[metric].get("supported_task_names", [])
+        )
+        if "*" not in supported and task_name not in supported:
+            raise ToolOrchestrationError(
+                f"ToolSpec metric {metric!r} is incompatible with task {task_name!r}"
+            )
+        expected = _generic_trusted_tool_spec(
+            metric, question.strip(), task_name.strip()
+        )
     else:
         raise ToolOrchestrationError(f"当前未注册 ToolSpec metric: {metric}")
     question = value.get("question")
@@ -278,6 +304,7 @@ def _discover_episodes(
     child_run_dir: Path,
     target_metric: str,
     reference_tool: str | None,
+    task_name: str,
 ) -> list[dict[str, Any]]:
     telemetry_root = child_run_dir / "evaluation/telemetry"
     episodes: list[dict[str, Any]] = []
@@ -311,8 +338,8 @@ def _discover_episodes(
                 f"不接受带 error 的 telemetry episode: {episode_dir}"
             )
         if (
-            trajectory.metadata.get("task_name") != "beat_block_hammer"
-            or trajectory.schema.get("task_name") != "beat_block_hammer"
+            trajectory.metadata.get("task_name") != task_name
+            or trajectory.schema.get("task_name") != task_name
         ):
             raise ToolOrchestrationError(
                 f"metadata/schema task 不匹配: {episode_dir}"
@@ -351,6 +378,7 @@ def _resolve(
         child_run_dir,
         tool_spec["metric"],
         tool_spec["reference_tool"],
+        tool_spec["task_name"],
     )
     reference_values = [
         item["oracle_result"].get("value") for item in episodes
@@ -729,7 +757,9 @@ def _resolved_spec_from_request(
         if metric == CONTACT_METRIC:
             spec = contact_tool_spec("reuse")
         else:
-            spec = _generic_trusted_tool_spec(metric, question)
+            spec = _generic_trusted_tool_spec(
+                metric, question, tool_request["task_name"]
+            )
     elif resolved_route == "force_codegen":
         if metric != PICKUP_TO_CONTACT_METRIC or metric not in COMPOSITE_TARGETS:
             raise ToolOrchestrationError(
@@ -763,6 +793,7 @@ def _register_generated_for_evaluation(
         Path(child_run_dir).expanduser().resolve(),
         spec["metric"],
         spec["reference_tool"],
+        spec["task_name"],
     )
     validation_episodes = [
         {
@@ -868,6 +899,7 @@ def execute_tool_request(
                 Path(child_run_dir).expanduser().resolve(),
                 spec["metric"],
                 spec["reference_tool"],
+                spec["task_name"],
             )
             run_local_match = find_run_local_registration(
                 registry_root,

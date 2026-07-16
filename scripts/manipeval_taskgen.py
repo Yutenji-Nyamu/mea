@@ -25,6 +25,7 @@ from mea.taskgen import (
     inject_wrong_color_fixture,
     repair_generated_method,
     validate_vision_observation,
+    create_official_task_run,
 )
 
 
@@ -64,6 +65,7 @@ def run_probe(
     manifest: dict[str, Any],
     *,
     seed: int,
+    episode_index: int = 0,
     expert: bool,
     scene_json: Path | None = None,
     image: Path | None = None,
@@ -71,6 +73,7 @@ def run_probe(
     raise_on_failure: bool = True,
     max_expert_attempts: int = 3,
     telemetry_dir: Path | None = None,
+    telemetry_profile: str = "balanced_v1",
 ) -> dict[str, Any]:
     scene_json = scene_json or run_dir / "validation/scene.json"
     image = image or run_dir / "evidence/initial_head.png"
@@ -93,10 +96,14 @@ def run_probe(
         str(run_dir / "overlay.yml"),
         "--seed",
         str(seed),
+        "--episode-index",
+        str(episode_index),
         "--image",
         str(image),
         "--output",
         str(scene_json),
+        "--telemetry-profile",
+        telemetry_profile,
     ]
     if expert:
         command.append("--expert")
@@ -151,6 +158,82 @@ def run_probe(
     if raise_on_failure and returncode != 0:
         raise RuntimeError(f"setup/expert probe 失败，returncode={returncode}")
     return scene
+
+
+def run_official_expert_episodes(
+    repo_root: Path,
+    run_dir: Path,
+    manifest: dict[str, Any],
+    *,
+    start_seed: int,
+    num_episodes: int,
+    telemetry_profile: str,
+) -> dict[str, Any]:
+    """Execute one or more unchanged official-task expert probes."""
+
+    episode_summaries: list[dict[str, Any]] = []
+    first_scene: dict[str, Any] | None = None
+    for episode_index in range(num_episodes):
+        seed = start_seed + episode_index
+        is_first = episode_index == 0
+        scene = run_probe(
+            repo_root,
+            run_dir,
+            manifest,
+            seed=seed,
+            episode_index=episode_index,
+            expert=True,
+            scene_json=(
+                run_dir / "validation/scene.json"
+                if is_first
+                else run_dir
+                / f"validation/official_episodes/episode_{episode_index:03d}_seed_{seed}.json"
+            ),
+            image=(
+                run_dir / "evidence/initial_head.png"
+                if is_first
+                else run_dir
+                / f"evidence/official_episodes/episode_{episode_index:03d}_seed_{seed}.png"
+            ),
+            log_path=(
+                run_dir / "validation/probe.log"
+                if is_first
+                else run_dir
+                / f"validation/official_episodes/episode_{episode_index:03d}_seed_{seed}.log"
+            ),
+            telemetry_dir=(
+                run_dir
+                / "evaluation/telemetry/expert"
+                / f"episode_{episode_index:03d}_seed_{seed}"
+            ),
+            telemetry_profile=telemetry_profile,
+        )
+        if first_scene is None:
+            first_scene = scene
+        episode_summaries.append(
+            {
+                "episode_index": episode_index,
+                "seed": seed,
+                "setup_success": bool(scene.get("setup_success")),
+                "render_success": bool(scene.get("render_success")),
+                "rule_passed": bool(scene.get("rule_check", {}).get("passed")),
+                "expert_passed": bool(scene.get("expert", {}).get("passed")),
+                "image": scene.get("image"),
+                "telemetry": scene.get("telemetry", {}).get("episode_dir"),
+            }
+        )
+    assert first_scene is not None
+    first_scene["expert_batch"] = {
+        "passed": all(item["expert_passed"] for item in episode_summaries),
+        "episode_count": len(episode_summaries),
+        "episodes": episode_summaries,
+    }
+    write_json(run_dir / "validation/scene.json", first_scene)
+    write_json(
+        run_dir / "validation/official_expert_episodes.json",
+        first_scene["expert_batch"],
+    )
+    return first_scene
 
 
 def collect_position_samples(
@@ -437,6 +520,7 @@ def run_act(
     seed: int,
     gpu: int,
     num_episodes: int,
+    telemetry_profile: str = "balanced_v1",
 ) -> dict[str, Any]:
     previous_attempt = archive_previous_act_attempt(run_dir)
     telemetry_root = run_dir / "evaluation/telemetry/act"
@@ -458,6 +542,7 @@ def run_act(
         str(run_dir / "overlay.yml"),
         str(seed),
         str(telemetry_root),
+        telemetry_profile,
     ]
     started = datetime.now().astimezone().isoformat()
     returncode = run_command(
@@ -572,13 +657,23 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     parser.add_argument("--task-name", default="beat_block_hammer")
-    parser.add_argument("--mode", choices=["reuse", "force_codegen"], default="force_codegen")
+    parser.add_argument("--task-module")
+    parser.add_argument(
+        "--mode",
+        choices=["reuse", "force_codegen", "official"],
+        default="force_codegen",
+    )
     parser.add_argument("--text-model", default="gpt-4o-2024-11-20")
     parser.add_argument("--vision-model", default="gpt-4o-2024-11-20")
     parser.add_argument("--base-url", default=None)
     parser.add_argument("--seed", type=int, default=100000)
     parser.add_argument("--num-episodes", type=int, default=1)
     parser.add_argument("--gpu", type=int, default=0)
+    parser.add_argument(
+        "--telemetry-profile",
+        choices=["balanced_v1", "legacy_v1"],
+        default="balanced_v1",
+    )
     parser.add_argument("--probe", action="store_true")
     parser.add_argument("--expert", action="store_true")
     parser.add_argument("--vision-check", action="store_true")
@@ -603,7 +698,7 @@ def main() -> None:
         raise SystemExit("--num-episodes 必须是正整数")
     repo_root = args.repo_root.expanduser().resolve()
     provider = None
-    if not args.resume_run or args.vision_check:
+    if (not args.resume_run and args.mode != "official") or args.vision_check:
         provider = OpenAICompatibleProvider(
             base_url=args.base_url,
             text_model=args.text_model,
@@ -621,16 +716,33 @@ def main() -> None:
     else:
         if not args.request:
             raise SystemExit("新 TaskGen run 必须提供 --request")
-        prototype = TaskGenPrototype(repo_root, provider, model=args.text_model)
-        manifest = prototype.generate(
-            args.request,
-            task_name=args.task_name,
-            mode=args.mode,
-            run_id=args.run_id,
-        )
+        if args.mode == "official":
+            manifest = create_official_task_run(
+                repo_root,
+                args.request,
+                task_name=args.task_name,
+                task_module=args.task_module,
+                run_id=args.run_id,
+                telemetry_profile=args.telemetry_profile,
+            )
+        else:
+            prototype = TaskGenPrototype(repo_root, provider, model=args.text_model)
+            manifest = prototype.generate(
+                args.request,
+                task_name=args.task_name,
+                mode=args.mode,
+                run_id=args.run_id,
+            )
         run_dir = repo_root / "mea/generated_tasks" / manifest["run_id"]
 
     try:
+        if manifest.get("mode") == "official" and (
+            args.vision_check or args.reflection_fixture or args.run_act
+        ):
+            raise RuntimeError(
+                "official route supports expert probe/telemetry only; "
+                "scene reflection and ACT require a task-specific integration"
+            )
         if args.reflection_fixture:
             if args.resume_run:
                 raise RuntimeError("reflection fixture 只允许用于新的 TaskGen run")
@@ -668,7 +780,17 @@ def main() -> None:
             )
             scene = reflected_scene
 
-        if args.expert or args.run_act:
+        if manifest.get("mode") == "official" and args.expert:
+            scene = run_official_expert_episodes(
+                repo_root,
+                run_dir,
+                manifest,
+                start_seed=args.seed,
+                num_episodes=args.num_episodes,
+                telemetry_profile=args.telemetry_profile,
+            )
+            update_manifest(run_dir, status="probe_passed", scene_validation=scene)
+        elif args.expert or args.run_act:
             expert_telemetry_dir = (
                 run_dir
                 / "evaluation/telemetry/expert"
@@ -681,6 +803,7 @@ def main() -> None:
                 seed=args.seed,
                 expert=True,
                 telemetry_dir=expert_telemetry_dir,
+                telemetry_profile=args.telemetry_profile,
             )
             update_manifest(run_dir, status="probe_passed", scene_validation=scene)
         elif args.probe and not args.vision_check:
@@ -690,6 +813,7 @@ def main() -> None:
                 manifest,
                 seed=args.seed,
                 expert=False,
+                telemetry_profile=args.telemetry_profile,
             )
             update_manifest(run_dir, status="probe_passed", scene_validation=scene)
         elif scene is not None:
@@ -713,6 +837,7 @@ def main() -> None:
                 seed=args.seed,
                 gpu=args.gpu,
                 num_episodes=args.num_episodes,
+                telemetry_profile=args.telemetry_profile,
             )
             trusted_tools = evaluate_run_telemetry(
                 repo_root,

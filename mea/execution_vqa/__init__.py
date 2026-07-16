@@ -15,6 +15,15 @@ from .prototype import (
     select_keyframes,
     validate_execution_vqa_response,
 )
+from .query import (
+    ALL_PHENOMENON_IDS,
+    ANSWER_CONTRACT,
+    LEGACY_PHENOMENON_IDS,
+    QUESTION_CATALOG,
+    ExecutionVQAQueryError,
+    build_execution_vqa_query,
+    validate_execution_vqa_query,
+)
 
 __all__ = [
     "ExecutionVQAError",
@@ -25,4 +34,11 @@ __all__ = [
     "run_execution_vqa",
     "select_keyframes",
     "validate_execution_vqa_response",
+    "ALL_PHENOMENON_IDS",
+    "ANSWER_CONTRACT",
+    "LEGACY_PHENOMENON_IDS",
+    "QUESTION_CATALOG",
+    "ExecutionVQAQueryError",
+    "build_execution_vqa_query",
+    "validate_execution_vqa_query",
 ]

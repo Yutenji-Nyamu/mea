@@ -18,7 +18,9 @@ ARTIFACTS = (
     "schema.json",
     "states.csv",
     "semantic_trace.npz",
+    "dynamics_trace.npz",
     "events.jsonl",
+    "telemetry_profile.json",
     "video.mp4",
     "tool_results.json",
 )
@@ -56,6 +58,34 @@ def analyze_episode(episode_dir: str | Path) -> dict[str, Any]:
         }
     raw_trace_bytes = sum(item["raw_bytes"] for item in arrays.values())
 
+    dynamics: dict[str, Any] = {}
+    dynamics_path = episode / "dynamics_trace.npz"
+    if dynamics_path.is_file():
+        with np.load(dynamics_path) as archive:
+            dynamics_arrays = {
+                name: {
+                    "shape": list(archive[name].shape),
+                    "dtype": str(archive[name].dtype),
+                    "raw_bytes": int(archive[name].nbytes),
+                }
+                for name in archive.files
+            }
+        raw_dynamics_bytes = sum(
+            item["raw_bytes"] for item in dynamics_arrays.values()
+        )
+        compressed_bytes = files["dynamics_trace.npz"]["logical_bytes"]
+        dynamics = {
+            "rows": int(dynamics_arrays["physics_step"]["shape"][0]),
+            "arrays": dynamics_arrays,
+            "raw_array_bytes": raw_dynamics_bytes,
+            "compressed_npz_bytes": compressed_bytes,
+            "compression_ratio": (
+                raw_dynamics_bytes / compressed_bytes
+                if compressed_bytes
+                else None
+            ),
+        }
+
     states_path = episode / "states.csv"
     states: dict[str, Any] = {}
     if states_path.is_file():
@@ -87,8 +117,14 @@ def analyze_episode(episode_dir: str | Path) -> dict[str, Any]:
                 raw_trace_bytes / files["semantic_trace.npz"]["logical_bytes"]
             ),
         },
+        "dynamics_trace": dynamics or None,
         "interpretation": {
             "time_axis": "250 Hz task-semantic slice after recorder attachment",
+            "dynamics_time_axis": (
+                "50 Hz selected robot/actor state plus forced initial/final"
+                if dynamics
+                else "not recorded (legacy profile)"
+            ),
             "not_a_full_simulator_dump": True,
             "rgb_storage": "compressed MP4 when video.mp4 exists",
         },

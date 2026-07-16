@@ -13,6 +13,11 @@ from .prototype import (
     validate_evaluation_plan,
     validate_next_round_decision,
 )
+from .official import (
+    OFFICIAL_GATES,
+    OFFICIAL_TEMPLATE_ID,
+    OfficialTaskPlanAgent,
+)
 
 __all__ = [
     "BLUE_TASK_INSTRUCTION",
@@ -26,4 +31,7 @@ __all__ = [
     "make_evaluation_id",
     "validate_evaluation_plan",
     "validate_next_round_decision",
+    "OFFICIAL_GATES",
+    "OFFICIAL_TEMPLATE_ID",
+    "OfficialTaskPlanAgent",
 ]

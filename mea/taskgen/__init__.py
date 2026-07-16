@@ -17,6 +17,10 @@ from .reflection import (
     repair_generated_method,
     validate_vision_observation,
 )
+from .official import (
+    OfficialTaskRunError,
+    create_official_task_run,
+)
 
 __all__ = [
     "TaskGenError",
@@ -32,4 +36,6 @@ __all__ = [
     "inject_wrong_color_fixture",
     "repair_generated_method",
     "validate_vision_observation",
+    "OfficialTaskRunError",
+    "create_official_task_run",
 ]
