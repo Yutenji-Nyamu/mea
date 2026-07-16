@@ -24,6 +24,75 @@ FALSE_POLICY_SUCCESS_PATTERNS = (
 )
 
 
+def _deterministic_aggregate(evidence: dict[str, Any]) -> dict[str, Any] | None:
+    """Return the evaluation-level deterministic Aggregate result, if present."""
+
+    observations = evidence.get("observations")
+    if isinstance(observations, dict) and isinstance(
+        observations.get("aggregate"), dict
+    ):
+        return observations["aggregate"]
+    aggregate = evidence.get("aggregate")
+    return aggregate if isinstance(aggregate, dict) else None
+
+
+def _authoritative_policy_success(evidence: dict[str, Any]) -> float | None:
+    """Read policy success from a precomputed aggregate without recomputing it."""
+
+    aggregate = _deterministic_aggregate(evidence)
+    for metric in (aggregate or {}).get("metrics", []):
+        if metric.get("metric") != "official_check_success":
+            continue
+        for cohort in metric.get("cohorts", []):
+            if cohort.get("role") != "policy_under_evaluation":
+                continue
+            statistics = cohort.get("summary", {}).get("statistics", {})
+            for statistic_name in ("success_rate", "true_rate"):
+                statistic = statistics.get(statistic_name)
+                value = (
+                    statistic.get("value")
+                    if isinstance(statistic, dict)
+                    else None
+                )
+                if value is not None:
+                    return float(value)
+    policy_success = evidence.get("observations", {}).get("policy_success")
+    return float(policy_success) if policy_success is not None else None
+
+
+def _execution_vqa_entries(evidence: dict[str, Any]) -> list[dict[str, Any]]:
+    """Collect round-level Execution VQA observations for reporting."""
+
+    entries: list[dict[str, Any]] = []
+    direct = evidence.get("execution_vqa")
+    if isinstance(direct, dict):
+        entries.append(direct)
+    for round_evidence in evidence.get("rounds", []):
+        if not isinstance(round_evidence, dict):
+            continue
+        item = round_evidence.get("execution_vqa")
+        if isinstance(item, dict):
+            entries.append(
+                {
+                    "round_id": round_evidence.get("round_id"),
+                    **item,
+                }
+            )
+    return entries
+
+
+def _has_execution_vqa_conflict(evidence: dict[str, Any]) -> bool:
+    observations = evidence.get("observations")
+    if isinstance(observations, dict) and observations.get(
+        "execution_vqa_conflict"
+    ) is True:
+        return True
+    return any(
+        bool(item.get("evidence_conflict"))
+        for item in _execution_vqa_entries(evidence)
+    )
+
+
 def _claims_policy_success(text: str) -> bool:
     return any(
         re.search(pattern, text, re.IGNORECASE)
@@ -60,9 +129,7 @@ def validate_feedback(
             value.get("recommended_next_step"), "recommended_next_step"
         ),
     }
-    policy_success = (evidence or {}).get("observations", {}).get(
-        "policy_success"
-    )
+    policy_success = _authoritative_policy_success(evidence or {})
     if policy_success is not None and float(policy_success) <= 0.0:
         conclusion_text = "\n".join(
             [feedback["answer"], *feedback["findings"]]
@@ -84,7 +151,7 @@ def apply_deterministic_consistency_guard(
     """Force policy-success wording to agree with the numeric evidence."""
 
     feedback = validate_feedback(value)
-    policy_success = evidence.get("observations", {}).get("policy_success")
+    policy_success = _authoritative_policy_success(evidence)
     deterministic_correction = False
     if policy_success is not None and float(policy_success) <= 0.0:
         conclusion_text = "\n".join(
@@ -126,6 +193,16 @@ def _feedback_prompt(repo_root: Path, evidence: dict[str, Any]) -> str:
         encoding="utf-8"
     )
     return f"""你是 MEA 的最终 Feedback Agent。请基于证据回答用户，不要补充未经测试的结论。
+
+EVIDENCE INTERPRETATION CONTRACT:
+1. `observations.aggregate` 是 deterministic Aggregate Toolkit 已经计算好的结果。
+   直接引用其中 count/rate/mean/median/min/max/stddev 与 quality；禁止从 episode、
+   ToolResult 或若干 JSON 自行做数学运算。
+2. `policy_under_evaluation` 与 `expert_validation` 是不同 cohort，禁止合并。
+3. simulator numeric Tool 是距离、接触、时间、冲量、成功等数值事实的权威来源。
+   Execution VQA 只补充颜色、可见抬起、可见位移等视觉现象，不能覆盖数值 Tool。
+4. 若 Execution VQA 含 `evidence_conflict=true`，明确报告冲突和对应 frame，保留
+   simulator Tool 结论，并建议复查或追加测试；不要替视觉或数值一方消除冲突。
 
 AGENT RULES:
 {instructions}
@@ -221,9 +298,7 @@ complete the task.
                 validation_errors.append(str(exc))
         deterministic_correction = False
         if feedback is None:
-            policy_success = evidence.get("observations", {}).get(
-                "policy_success"
-            )
+            policy_success = _authoritative_policy_success(evidence)
             if last_structured_feedback is None or policy_success is None:
                 raise FeedbackAgentError(
                     "Feedback 两次响应均未通过，且没有可校正的 structured output: "
@@ -246,6 +321,19 @@ complete the task.
                 "errors": validation_errors,
                 "deterministic_correction": False,
             }
+        aggregate = _deterministic_aggregate(evidence)
+        feedback["evidence_policy"] = {
+            "aggregate_source": (
+                "deterministic_aggregate" if aggregate is not None else None
+            ),
+            "aggregate_status": (
+                aggregate.get("status") if aggregate is not None else None
+            ),
+            "episode_math_by_feedback_agent": False,
+            "numeric_simulator_tools_authoritative": True,
+            "execution_vqa_is_visual_only": True,
+            "evidence_conflict": _has_execution_vqa_conflict(evidence),
+        }
         feedback["provider_metadata"] = dict(
             getattr(self.provider, "last_metadata", {})
         )
@@ -264,6 +352,26 @@ def render_evaluation_report(
     feedback: dict[str, Any],
 ) -> str:
     """Render the one-file human entry point for single- or multi-round runs."""
+
+    aggregate = _deterministic_aggregate(evidence)
+    aggregate_markdown = (
+        "以下数值直接来自 deterministic Aggregate Toolkit；Feedback Agent "
+        "没有重新计算 episode 统计量。\n\n"
+        "```json\n"
+        + json.dumps(aggregate, ensure_ascii=False, indent=2)
+        + "\n```"
+        if aggregate is not None
+        else "No deterministic cross-episode aggregate was available."
+    )
+    execution_vqa_entries = _execution_vqa_entries(evidence)
+    execution_vqa_markdown = (
+        "Execution VQA 只提供视觉补充证据。Simulator numeric Tool 保持权威；"
+        "不一致会原样保留为 `evidence_conflict`。\n\n```json\n"
+        + json.dumps(execution_vqa_entries, ensure_ascii=False, indent=2)
+        + "\n```"
+        if execution_vqa_entries
+        else "No Execution VQA observation was available."
+    )
 
     if evidence.get("rounds"):
         observations = evidence["observations"]
@@ -388,6 +496,22 @@ def render_evaluation_report(
         decision_artifact_lines = "\n".join(
             f"- Plan decision: `{path}`" for path in decision_artifacts
         ) or "- Plan decision: `none`"
+        round_artifact_lines = []
+        for round_index, round_artifacts in enumerate(
+            artifacts.get("round_artifacts", []), start=1
+        ):
+            for name, path in round_artifacts.items():
+                if path is None:
+                    continue
+                paths = path if isinstance(path, list) else [path]
+                round_artifact_lines.extend(
+                    f"- round {round_index} `{name}`: `{item}`"
+                    for item in paths
+                )
+        round_artifact_markdown = (
+            "\n".join(round_artifact_lines)
+            or "- round artifacts: `none`"
+        )
         return f"""# MEA Multi-Round Evaluation Report
 
 ## Identity
@@ -419,6 +543,14 @@ def render_evaluation_report(
 - position metrics: `{observations['position_metrics']}`
 - pipeline passed: `{observations['pipeline_passed']}`
 
+## Deterministic Aggregate Toolkit
+
+{aggregate_markdown}
+
+## Execution VQA
+
+{execution_vqa_markdown}
+
 ## Feedback Agent answer
 
 {feedback['answer']}
@@ -440,6 +572,8 @@ def render_evaluation_report(
 - evaluation plan: `{artifacts['evaluation_plan']}`
 {decision_artifact_lines}
 - machine-readable summary: `{artifacts['summary']}`
+- deterministic aggregate: `{artifacts.get('aggregate')}`
+{round_artifact_markdown}
 """
 
     retrieval = evidence["task_retrieval"]
@@ -485,6 +619,14 @@ def render_evaluation_report(
 - visual reflection passed: `{reflection.get('passed')}`
 - visual repairs used: `{reflection.get('repairs_used')}`
 - visual attempts: `{reflection.get('attempt_count')}`
+
+## Deterministic Aggregate Toolkit
+
+{aggregate_markdown}
+
+## Execution VQA
+
+{execution_vqa_markdown}
 
 ## Feedback Agent answer
 

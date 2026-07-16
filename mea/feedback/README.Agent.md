@@ -24,3 +24,15 @@ Rules:
     expert `expert_validation` value only as an instrumentation/solvability
     control. Generated output and its Trusted oracle are one validated
     measurement, not two independent experiments.
+12. Use `observations.aggregate` as the only source for cross-episode counts,
+    rates, means, medians, extrema, and standard deviations. These values were
+    computed by trusted deterministic code; never recalculate them from episode
+    JSON or ToolResult lists.
+13. Keep every Aggregate cohort separate. In particular, never include
+    `expert_validation` values in a `policy_under_evaluation` rate or mean.
+14. Execution VQA is supporting visual evidence for appearance and visible
+    behavior. Simulator numeric Tools are authoritative for contact, distance,
+    timing, impulse, and official success; VQA must never overwrite them.
+15. If Execution VQA reports `evidence_conflict=true`, state the conflict and
+    its frames explicitly, retain the simulator Tool conclusion, and recommend
+    review or another evaluation instead of silently resolving the conflict.

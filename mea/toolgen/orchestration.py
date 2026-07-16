@@ -8,7 +8,14 @@ from typing import Any
 
 from mea.toolkit.tools import TOOL_CATALOG, TrajectoryView
 
-from .prototype import ToolGenPrototype
+from .prototype import ToolGenPrototype, execute_generated_tool
+from .registry import (
+    RunLocalRegistryError,
+    find_run_local_registration,
+    infer_registry_dir,
+    public_registration_summary,
+    register_run_local_tool,
+)
 from .router import (
     ToolRouterError,
     route_tool_request,
@@ -569,6 +576,147 @@ def execute_tool_spec(
     return execution
 
 
+def _oracle_projection(result: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "value": result.get("value"),
+        "unit": result.get("unit"),
+        "passed": result.get("passed"),
+        "evidence_steps": list(result.get("evidence_steps", [])),
+        "details": dict(result.get("details", {})),
+    }
+
+
+def _same_projection(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    return json.dumps(
+        _oracle_projection(left),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ) == json.dumps(
+        _oracle_projection(right),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+
+def _execute_run_local_match(
+    repo_root: Path,
+    destination: Path,
+    spec: dict[str, Any],
+    match: dict[str, Any],
+    episodes: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Execute validated generated code without invoking a provider."""
+
+    registration = match["registration"]
+    source_path = match["source_path"]
+    source = source_path.read_text(encoding="utf-8")
+    normalized_episodes: list[dict[str, Any]] = []
+    validation_rows: list[dict[str, Any]] = []
+    for episode in episodes:
+        generated = execute_generated_tool(
+            source,
+            episode["episode_dir_path"],
+            tool_name=registration["tool_id"],
+        )
+        repeated = execute_generated_tool(
+            source,
+            episode["episode_dir_path"],
+            tool_name=registration["tool_id"],
+        )
+        expected = evaluate_target_oracle(
+            spec["metric"],
+            TrajectoryView(episode["episode_dir_path"]),
+            reference_tool=spec["reference_tool"],
+        )
+        agreement = _same_projection(generated, expected)
+        deterministic = generated == repeated
+        if not deterministic or not agreement:
+            raise ToolOrchestrationError(
+                "run-local Tool failed deterministic/oracle revalidation"
+            )
+        normalized_episodes.append(
+            {
+                "episode_dir": _relative(episode["episode_dir_path"], repo_root),
+                "policy_name": episode["policy_name"],
+                "seed": episode["seed"],
+                "role": episode["role"],
+                "result": _result_projection(generated),
+            }
+        )
+        validation_rows.append(
+            {
+                "episode_dir": _relative(episode["episode_dir_path"], repo_root),
+                "deterministic": deterministic,
+                "oracle_agreement": agreement,
+            }
+        )
+    resolved = {
+        "schema_version": 1,
+        "tool_spec": spec,
+        "resolved_route": "run_local_reuse",
+        "resolved_tool_name": registration["tool_id"],
+        "run_local_registration_id": registration["registration_id"],
+        "resolved_episodes": [
+            {
+                "role": item["role"],
+                "policy_name": item["policy_name"],
+                "seed": item["seed"],
+                "oracle_value": item["oracle_result"].get("value"),
+                "episode_dir": _relative(item["episode_dir_path"], repo_root),
+            }
+            for item in episodes
+        ],
+    }
+    _write_json(destination / "tool_spec.json", spec)
+    _write_json(destination / "resolved_tool_spec.json", resolved)
+    execution = {
+        "schema_version": 1,
+        "status": "passed",
+        "route": "run_local_reuse",
+        "reference_tool": spec["reference_tool"],
+        "tool_spec": spec,
+        "source": {
+            "scope": "run_local_registry",
+            "tool": registration["tool_id"],
+            "reference_tool": spec["reference_tool"],
+            "tool_sha256": registration["code_sha256"],
+            "registration_id": registration["registration_id"],
+            "artifact": _relative(source_path, repo_root),
+        },
+        "episodes": normalized_episodes,
+        "validation": {
+            "provider_called": False,
+            "registry_match": True,
+            "integrity_hashes_matched": True,
+            "all_gates_passed": all(
+                item[gate]
+                for item in validation_rows
+                for gate in ("deterministic", "oracle_agreement")
+            ),
+            "episodes": validation_rows,
+        },
+        "artifacts": {
+            "tool_spec": _relative(destination / "tool_spec.json", repo_root),
+            "resolved_tool_spec": _relative(
+                destination / "resolved_tool_spec.json", repo_root
+            ),
+            "registration": _relative(match["registration_path"], repo_root),
+            "generated_tool": _relative(source_path, repo_root),
+            "run_local_registry": _relative(
+                match["registry_dir"] / "index.json", repo_root
+            ),
+        },
+    }
+    _write_json(destination / "tool_execution.json", execution)
+    execution["artifacts"]["tool_execution"] = _relative(
+        destination / "tool_execution.json", repo_root
+    )
+    _write_json(destination / "tool_execution.json", execution)
+    return execution
+
+
 def _resolved_spec_from_request(
     tool_request: dict[str, Any],
     resolved_route: str,
@@ -596,6 +744,75 @@ def _resolved_spec_from_request(
     return spec
 
 
+def _register_generated_for_evaluation(
+    repo: Path,
+    child_run_dir: str | Path,
+    destination: Path,
+    registry_root: Path,
+    spec: dict[str, Any],
+    execution: dict[str, Any],
+) -> dict[str, Any]:
+    generated_dir = destination / "generated"
+    manifest_path = generated_dir / "manifest.json"
+    generation_registration_path = generated_dir / "registration.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    generation_registration = json.loads(
+        generation_registration_path.read_text(encoding="utf-8")
+    )
+    episodes = _discover_episodes(
+        Path(child_run_dir).expanduser().resolve(),
+        spec["metric"],
+        spec["reference_tool"],
+    )
+    validation_episodes = [
+        {
+            "episode_dir": _relative(item["episode_dir_path"], repo),
+            "policy_name": item["policy_name"],
+            "seed": item["seed"],
+            "role": item["role"],
+            "oracle_value": item["oracle_result"].get("value"),
+        }
+        for item in episodes
+    ]
+    try:
+        match = register_run_local_tool(
+            registry_root,
+            tool_spec=spec,
+            episode_dirs=[item["episode_dir_path"] for item in episodes],
+            source_path=generated_dir / "generated_tool.py",
+            generation_registration=generation_registration,
+            generation_manifest=manifest,
+            validation_episodes=validation_episodes,
+        )
+    except RunLocalRegistryError as exc:
+        raise ToolOrchestrationError(
+            f"failed to register generated Tool for this evaluation: {exc}"
+        ) from exc
+    registration = match["registration"]
+    # Preserve the legacy per-generation registration path while enriching its
+    # contents with the exact reusable contract and compatibility hashes.
+    _write_json(generation_registration_path, registration)
+    manifest["registration"] = registration
+    _write_json(manifest_path, manifest)
+    execution["source"].update(
+        {
+            "registration_id": registration["registration_id"],
+            "registration_scope": "run_local",
+        }
+    )
+    execution["run_local_registration"] = public_registration_summary(match)
+    execution["artifacts"].update(
+        {
+            "run_local_registry": _relative(registry_root / "index.json", repo),
+            "run_local_registration": _relative(
+                match["registration_path"], repo
+            ),
+            "run_local_generated_tool": _relative(match["source_path"], repo),
+        }
+    )
+    return execution
+
+
 def execute_tool_request(
     repo_root: str | Path,
     child_run_dir: str | Path,
@@ -605,6 +822,7 @@ def execute_tool_request(
     provider: Any | None = None,
     model: str | None = None,
     max_attempts: int = 2,
+    run_local_registry_dir: str | Path | None = None,
 ) -> dict[str, Any]:
     """Automatically route and execute one route-free semantic Tool request."""
 
@@ -637,17 +855,85 @@ def execute_tool_request(
     _write_json(destination / "catalog_snapshot.json", snapshot)
     _write_json(destination / "route_decision.json", decision)
     spec = _resolved_spec_from_request(request, decision["resolved_route"])
+    registry_root = (
+        Path(run_local_registry_dir).expanduser().resolve()
+        if run_local_registry_dir is not None
+        else infer_registry_dir(destination)
+    )
+    run_local_match = None
+    run_local_episodes: list[dict[str, Any]] | None = None
+    if decision["resolved_route"] == "force_codegen" and registry_root is not None:
+        try:
+            run_local_episodes = _discover_episodes(
+                Path(child_run_dir).expanduser().resolve(),
+                spec["metric"],
+                spec["reference_tool"],
+            )
+            run_local_match = find_run_local_registration(
+                registry_root,
+                tool_spec=spec,
+                episode_dirs=[
+                    item["episode_dir_path"] for item in run_local_episodes
+                ],
+            )
+        except RunLocalRegistryError as exc:
+            decision["run_local_lookup"] = {
+                "status": "invalid_registry",
+                "message": str(exc),
+            }
+        except ToolOrchestrationError:
+            # Preserve the established execution-failure audit.  The normal
+            # force-codegen path below will report the telemetry error.
+            run_local_episodes = None
+        if run_local_match is not None:
+            routing = route_tool_request(
+                request,
+                run_local_registration=public_registration_summary(
+                    run_local_match
+                ),
+            )
+            snapshot = routing["catalog_snapshot"]
+            decision = routing["route_decision"]
+            _write_json(destination / "catalog_snapshot.json", snapshot)
+            _write_json(destination / "route_decision.json", decision)
+        elif "run_local_lookup" not in decision:
+            decision["run_local_lookup"] = {
+                "status": "miss",
+                "registry_dir": _relative(registry_root, repo),
+            }
+            _write_json(destination / "route_decision.json", decision)
     try:
-        execution = execute_tool_spec(
-            repo,
-            child_run_dir,
-            destination,
-            spec,
-            provider=provider,
-            model=model,
-            max_attempts=max_attempts,
-            _precreated_destination=True,
-        )
+        if run_local_match is not None and run_local_episodes is not None:
+            execution = _execute_run_local_match(
+                repo,
+                destination,
+                spec,
+                run_local_match,
+                run_local_episodes,
+            )
+        else:
+            execution = execute_tool_spec(
+                repo,
+                child_run_dir,
+                destination,
+                spec,
+                provider=provider,
+                model=model,
+                max_attempts=max_attempts,
+                _precreated_destination=True,
+            )
+            if (
+                decision["resolved_route"] == "force_codegen"
+                and registry_root is not None
+            ):
+                execution = _register_generated_for_evaluation(
+                    repo,
+                    child_run_dir,
+                    destination,
+                    registry_root,
+                    spec,
+                    execution,
+                )
     except Exception as exc:
         decision["status"] = "execution_failed"
         decision["provider_called"] = bool(

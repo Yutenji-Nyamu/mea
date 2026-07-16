@@ -14,10 +14,16 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from mea.execution_vqa import run_execution_vqa
 from mea.feedback import FeedbackAgent, render_evaluation_report
 from mea.planner import PlanAgentPrototype
-from mea.providers import OpenAICompatibleProvider
+from mea.providers import (
+    OpenAICompatibleProvider,
+    available_model_profiles,
+    resolve_model_profile,
+)
 from mea.toolgen import execute_tool_request
+from mea.toolkit import aggregate_tool_executions
 
 
 def write_json(path: Path, value: Any) -> None:
@@ -179,11 +185,317 @@ def compact_tool_evaluation(
     }
 
 
+def _aggregate_sources(
+    round_plan: dict[str, Any],
+    child_manifest: dict[str, Any],
+    tool_evaluation: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    """Build one de-duplicated set of episode ToolResult sources."""
+
+    context = {
+        "round_id": round_plan["round_id"],
+        "variant": round_plan.get("template_id")
+        or round_plan.get("sub_aspect")
+        or round_plan.get("route"),
+    }
+    sources: list[dict[str, Any]] = []
+    trusted = child_manifest.get("trusted_tool_evaluation") or {}
+    trusted_tools = {
+        result.get("tool")
+        for episode in trusted.get("episodes", [])
+        for result in episode.get("tool_results", [])
+        if result.get("tool")
+    }
+    if trusted.get("episodes"):
+        sources.append(
+            {
+                **trusted,
+                "context": {
+                    **context,
+                    "source_artifact": trusted.get("artifact"),
+                },
+            }
+        )
+    if tool_evaluation and tool_evaluation.get("episodes"):
+        request = tool_evaluation.get("tool_request") or tool_evaluation.get(
+            "tool_spec", {}
+        )
+        metric = request.get("metric") if isinstance(request, dict) else None
+        if metric not in trusted_tools:
+            sources.append(
+                {
+                    "tool_execution": tool_evaluation,
+                    "context": {
+                        **context,
+                        "source_artifact": tool_evaluation.get(
+                            "artifacts", {}
+                        ).get("tool_execution"),
+                    },
+                }
+            )
+    return sources
+
+
+def compact_aggregate_result(
+    aggregate: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Strip repeated provenance before sending aggregate evidence to an LLM."""
+
+    if not aggregate:
+        return None
+
+    def compact_summary(summary: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "episode_result_count": summary.get("episode_result_count"),
+            "quality": {
+                key: value.get("value")
+                for key, value in summary.get("quality", {}).items()
+            },
+            "statistics": {
+                key: {
+                    item_key: item_value
+                    for item_key, item_value in value.items()
+                    if item_key != "provenance"
+                }
+                for key, value in summary.get("statistics", {}).items()
+            },
+        }
+
+    return {
+        "schema_version": aggregate.get("schema_version"),
+        "status": aggregate.get("status"),
+        "source_count": aggregate.get("source_count"),
+        "unique_episode_count": aggregate.get("unique_episode_count"),
+        "input_issues": aggregate.get("input_issues", []),
+        "metrics": [
+            {
+                "metric": metric.get("metric"),
+                "value_kind": metric.get("value_kind"),
+                "unit": metric.get("unit"),
+                "cohorts": [
+                    {
+                        "role": cohort.get("role"),
+                        "policy_names": cohort.get("policy_names", []),
+                        "summary": compact_summary(cohort.get("summary", {})),
+                        "passed_summary": (
+                            compact_summary(cohort["passed_summary"])
+                            if cohort.get("passed_summary")
+                            else None
+                        ),
+                        "groups": {
+                            dimension: [
+                                {
+                                    "value": group.get("value"),
+                                    "summary": compact_summary(
+                                        group.get("summary", {})
+                                    ),
+                                    "passed_summary": (
+                                        compact_summary(
+                                            group["passed_summary"]
+                                        )
+                                        if group.get("passed_summary")
+                                        else None
+                                    ),
+                                }
+                                for group in groups
+                            ]
+                            for dimension, groups in cohort.get(
+                                "groups", {}
+                            ).items()
+                        },
+                    }
+                    for cohort in metric.get("cohorts", [])
+                ],
+            }
+            for metric in aggregate.get("metrics", [])
+        ],
+    }
+
+
+def aggregate_round_results(
+    round_plan: dict[str, Any],
+    child_manifest: dict[str, Any],
+    tool_evaluation: dict[str, Any] | None,
+    output_path: Path,
+) -> dict[str, Any]:
+    sources = _aggregate_sources(round_plan, child_manifest, tool_evaluation)
+    if not sources:
+        result = {
+            "schema_version": 1,
+            "status": "skipped",
+            "reason": "no episode ToolResult rows were available",
+            "metrics": [],
+        }
+        write_json(output_path, result)
+        return result
+    return aggregate_tool_executions(sources, output_path=output_path)
+
+
+def aggregate_evaluation_results(
+    round_runs: list[dict[str, Any]], output_path: Path
+) -> dict[str, Any]:
+    sources = [
+        source
+        for item in round_runs
+        for source in _aggregate_sources(
+            item["round_plan"], item["child_manifest"], item["tool_evaluation"]
+        )
+    ]
+    if not sources:
+        result = {
+            "schema_version": 1,
+            "status": "skipped",
+            "reason": "no completed round ToolResult rows were available",
+            "metrics": [],
+        }
+        write_json(output_path, result)
+        return result
+    return aggregate_tool_executions(sources, output_path=output_path)
+
+
+def _policy_episode_for_execution_vqa(
+    child_manifest: dict[str, Any], child_dir: Path
+) -> tuple[Path, dict[str, Any], list[dict[str, Any]]] | None:
+    trusted = child_manifest.get("trusted_tool_evaluation") or {}
+    candidates = sorted(
+        (
+            episode
+            for episode in trusted.get("episodes", [])
+            if str(episode.get("policy_name", "")).casefold() == "act"
+        ),
+        key=lambda episode: (
+            int(episode.get("seed") or 0),
+            str(episode.get("episode_dir") or ""),
+        ),
+    )
+    if not candidates:
+        return None
+    episode = candidates[0]
+    episode_dir = child_dir / "evaluation/telemetry" / episode["episode_dir"]
+    return episode_dir, episode, list(episode.get("tool_results", []))
+
+
+def _same_telemetry_episode(
+    candidate: dict[str, Any], representative: dict[str, Any]
+) -> bool:
+    """Match generated and Trusted Tool rows to one physical rollout."""
+
+    candidate_dir = candidate.get("episode_dir")
+    representative_dir = representative.get("episode_dir")
+    if candidate_dir and representative_dir:
+        return str(candidate_dir) == str(representative_dir)
+    return (
+        candidate.get("seed") == representative.get("seed")
+        and str(candidate.get("policy_name", "")).casefold()
+        == str(representative.get("policy_name", "")).casefold()
+    )
+
+
+def run_round_execution_vqa(
+    *,
+    repo_root: Path,
+    child_manifest: dict[str, Any],
+    child_dir: Path,
+    tool_evaluation: dict[str, Any] | None,
+    execution_dir: Path,
+    provider: Any,
+    model: str,
+) -> dict[str, Any]:
+    selected = _policy_episode_for_execution_vqa(child_manifest, child_dir)
+    if selected is None:
+        result = {
+            "schema_version": 1,
+            "status": "skipped",
+            "reason": "no completed ACT telemetry episode was available",
+            "evidence_conflict": False,
+        }
+        write_json(execution_dir / "execution_vqa_skipped.json", result)
+        return result
+    episode_dir, representative, numeric_results = selected
+    representative_path = str(episode_dir.relative_to(repo_root))
+    if not (episode_dir / "video.mp4").is_file():
+        result = {
+            "schema_version": 1,
+            "status": "failed",
+            "reason": "completed ACT telemetry episode is missing video.mp4",
+            "representative_episode": representative_path,
+            "evidence_conflict": False,
+        }
+        write_json(execution_dir / "execution_vqa_error.json", result)
+        return result
+    known_tools = {item.get("tool") for item in numeric_results}
+    for episode in (tool_evaluation or {}).get("episodes", []):
+        if episode.get("role") != "policy_under_evaluation":
+            continue
+        if not _same_telemetry_episode(episode, representative):
+            continue
+        result = episode.get("result", {})
+        if result.get("tool") not in known_tools:
+            numeric_results.append(result)
+            known_tools.add(result.get("tool"))
+    try:
+        result = run_execution_vqa(
+            provider=provider,
+            model=model,
+            video_path=episode_dir / "video.mp4",
+            output_dir=execution_dir / "execution_vqa",
+            numeric_tool_results=numeric_results,
+            events_path=episode_dir / "events.jsonl",
+            semantic_trace_path=episode_dir / "semantic_trace.npz",
+            reference_scene=child_dir / "evidence/initial_head.png",
+        )
+    except Exception as exc:
+        result = {
+            "schema_version": 1,
+            "status": "failed",
+            "reason": f"{type(exc).__name__}: {exc}",
+            "representative_episode": representative_path,
+            "evidence_conflict": False,
+        }
+        write_json(execution_dir / "execution_vqa_error.json", result)
+        return result
+    result["status"] = "passed"
+    result["representative_episode"] = representative_path
+    result["artifacts"] = {
+        key: (
+            str(Path(value).resolve().relative_to(repo_root))
+            if isinstance(value, str)
+            and Path(value).is_absolute()
+            and Path(value).resolve().is_relative_to(repo_root)
+            else value
+        )
+        for key, value in result.get("artifacts", {}).items()
+    }
+    write_json(execution_dir / "execution_vqa/execution_vqa.json", result)
+    return result
+
+
+def compact_execution_vqa(
+    result: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    if not result:
+        return None
+    return {
+        "status": result.get("status"),
+        "model_requested": result.get("model_requested"),
+        "representative_episode": result.get("representative_episode"),
+        "evidence_conflict": bool(result.get("evidence_conflict")),
+        "observation": result.get("observation"),
+        "selected_frames": result.get("selection", {}).get(
+            "selected_frames", []
+        ),
+        "artifacts": result.get("artifacts", {}),
+        "reason": result.get("reason"),
+    }
+
+
 def summarize_round(
     round_plan: dict[str, Any],
     child_manifest: dict[str, Any],
     child_dir: Path,
     tool_evaluation: dict[str, Any] | None = None,
+    aggregate_result: dict[str, Any] | None = None,
+    execution_vqa: dict[str, Any] | None = None,
     taskgen_returncode: int = 0,
 ) -> dict[str, Any]:
     scene = child_manifest.get("scene_validation", {})
@@ -203,6 +515,10 @@ def summarize_round(
         and act.get("passed")
         and tool_evaluation
         and tool_evaluation.get("status") == "passed"
+        and aggregate_result
+        and str(aggregate_result.get("status", "")).startswith("passed")
+        and execution_vqa
+        and execution_vqa.get("status") in {"passed", "skipped"}
     )
     return {
         "round_id": round_plan["round_id"],
@@ -222,6 +538,8 @@ def summarize_round(
             "position_metrics": positions.get("metrics", {}),
             "trusted_tools": trusted_tools,
             "planned_tool": compact_tool_evaluation(tool_evaluation),
+            "aggregate": compact_aggregate_result(aggregate_result),
+            "execution_vqa": compact_execution_vqa(execution_vqa),
         },
         "pipeline_passed": pipeline_passed,
         "interpretation": (
@@ -329,11 +647,28 @@ def execute_round(
         write_json(
             execution_dir / "planned_tool_skipped.json", tool_evaluation
         )
+    aggregate_result = aggregate_round_results(
+        round_plan,
+        child_manifest,
+        tool_evaluation,
+        execution_dir / "aggregate_result.json",
+    )
+    execution_vqa = run_round_execution_vqa(
+        repo_root=repo_root,
+        child_manifest=child_manifest,
+        child_dir=child_dir,
+        tool_evaluation=tool_evaluation,
+        execution_dir=execution_dir,
+        provider=provider,
+        model=vision_model,
+    )
     round_summary = summarize_round(
         round_plan,
         child_manifest,
         child_dir,
         tool_evaluation,
+        aggregate_result,
+        execution_vqa,
         returncode,
     )
     write_json(evaluation_dir / "summary" / f"{round_id}.json", round_summary)
@@ -370,8 +705,38 @@ def _round_evidence(
     feedback_observations = {
         key: value
         for key, value in round_summary["observations"].items()
-        if key not in {"trusted_tools", "planned_tool"}
+        if key
+        not in {
+            "trusted_tools",
+            "planned_tool",
+            "aggregate",
+            "execution_vqa",
+        }
     }
+
+    round_execution = (
+        Path("mea/evaluation_runs")
+        / evaluation_id
+        / "execution"
+        / round_plan["round_id"]
+    )
+    execution_vqa_observation = round_summary["observations"].get(
+        "execution_vqa"
+    ) or {}
+    execution_vqa_artifacts = execution_vqa_observation.get("artifacts") or {}
+    execution_vqa_artifact = (
+        execution_vqa_artifacts.get("result")
+        or execution_vqa_artifacts.get("execution_vqa")
+    )
+    if not execution_vqa_artifact:
+        if execution_vqa_observation.get("status") == "skipped":
+            execution_vqa_artifact = str(
+                round_execution / "execution_vqa_skipped.json"
+            )
+        elif execution_vqa_observation.get("status") == "failed":
+            execution_vqa_artifact = str(
+                round_execution / "execution_vqa_error.json"
+            )
     return {
         "round_id": round_plan["round_id"],
         "child_run_id": child_manifest.get("run_id"),
@@ -422,6 +787,8 @@ def _round_evidence(
             "pipeline_passed": round_summary["pipeline_passed"],
         },
         "tool_evaluation": tool_evaluation,
+        "aggregate": round_summary["observations"].get("aggregate"),
+        "execution_vqa": round_summary["observations"].get("execution_vqa"),
         "trusted_tool_evaluation": {
             "artifact": trusted_tool_evaluation.get("artifact"),
             "episode_count": trusted_tool_evaluation.get("episode_count"),
@@ -441,6 +808,16 @@ def _round_evidence(
             "planned_tool": tool_evaluation.get("artifacts", {}).get(
                 "tool_execution"
             ),
+            "aggregate": str(
+                round_execution / "aggregate_result.json"
+            ),
+            "execution_vqa": execution_vqa_artifact,
+            "execution_vqa_montage": execution_vqa_artifacts.get(
+                "montage"
+            ),
+            "execution_vqa_selection": execution_vqa_artifacts.get(
+                "selection"
+            ),
             "child_manifest": str(child_relative / "manifest.json"),
         },
     }
@@ -452,6 +829,7 @@ def build_evidence_bundle(
     user_request: str,
     plan: dict[str, Any],
     round_runs: list[dict[str, Any]],
+    evaluation_aggregate: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     rounds = [
         _round_evidence(
@@ -537,6 +915,11 @@ def build_evidence_bundle(
             "pipeline_passed": all(
                 item["observations"]["pipeline_passed"] for item in rounds
             ),
+            "aggregate": compact_aggregate_result(evaluation_aggregate),
+            "execution_vqa_conflict": any(
+                bool(item.get("execution_vqa", {}).get("evidence_conflict"))
+                for item in rounds
+            ),
         },
         "total_episodes": total_episodes,
         "limitations": {
@@ -550,6 +933,9 @@ def build_evidence_bundle(
             ),
             "plan_decisions": decision_artifacts,
             "summary": str(evaluation_relative / "summary/summary.json"),
+            "aggregate": str(
+                evaluation_relative / "summary/aggregate_result.json"
+            ),
             "round_artifacts": [item["artifacts"] for item in rounds],
         },
     }
@@ -560,11 +946,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--request", required=True)
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     parser.add_argument("--evaluation-id")
-    parser.add_argument("--planner-model", default="gpt-4o-2024-11-20")
-    parser.add_argument("--taskgen-model", default="gpt-4o-2024-11-20")
-    parser.add_argument("--toolgen-model", default="gpt-4o-2024-11-20")
-    parser.add_argument("--vision-model", default="gpt-4o-2024-11-20")
-    parser.add_argument("--feedback-model", default="gpt-4o-2024-11-20")
+    parser.add_argument(
+        "--model-profile",
+        choices=available_model_profiles(),
+        default="legacy",
+        help=(
+            "Named per-stage model defaults. Individual --*-model arguments "
+            "override the selected profile."
+        ),
+    )
+    parser.add_argument("--planner-model")
+    parser.add_argument("--taskgen-model")
+    parser.add_argument("--toolgen-model")
+    parser.add_argument("--vision-model")
+    parser.add_argument("--feedback-model")
     parser.add_argument("--base-url", default=None)
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument(
@@ -580,21 +975,36 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     repo_root = args.repo_root.expanduser().resolve()
+    models = resolve_model_profile(
+        args.model_profile,
+        {
+            "planner": args.planner_model,
+            "taskgen": args.taskgen_model,
+            "toolgen": args.toolgen_model,
+            "vision": args.vision_model,
+            "feedback": args.feedback_model,
+        },
+    )
     provider = OpenAICompatibleProvider(
         base_url=args.base_url,
-        text_model=args.planner_model,
-        vision_model=args.vision_model,
+        text_model=models["planner"],
+        vision_model=models["vision"],
         timeout=180.0,
     )
     planner = PlanAgentPrototype(
         repo_root,
         provider,
-        model=args.planner_model,
+        model=models["planner"],
     )
     manifest = planner.plan(args.request, evaluation_id=args.evaluation_id)
     evaluation_id = manifest["evaluation_id"]
     evaluation_dir = repo_root / "mea/evaluation_runs" / evaluation_id
     plan = manifest["plan"]
+    update_manifest(
+        evaluation_dir,
+        model_profile=args.model_profile,
+        resolved_models=models,
+    )
 
     if args.plan_only:
         update_manifest(evaluation_dir, status="planned_only")
@@ -617,13 +1027,13 @@ def main() -> None:
                 evaluation_dir,
                 evaluation_id,
                 round_plan,
-                text_model=args.taskgen_model,
-                vision_model=args.vision_model,
+                text_model=models["taskgen"],
+                vision_model=models["vision"],
                 base_url=args.base_url,
                 gpu=args.gpu,
                 max_reflections=args.max_reflections,
                 provider=provider,
-                toolgen_model=args.toolgen_model,
+                toolgen_model=models["toolgen"],
             )
             round_runs.append(
                 {
@@ -648,6 +1058,10 @@ def main() -> None:
             if decision["action"] == "stop":
                 break
 
+        evaluation_aggregate = aggregate_evaluation_results(
+            round_runs,
+            evaluation_dir / "summary/aggregate_result.json",
+        )
         summary = {
             "schema_version": 2,
             "evaluation_id": evaluation_id,
@@ -658,6 +1072,7 @@ def main() -> None:
                 else "completed_with_pipeline_failure"
             ),
             "rounds": [item["round_summary"] for item in round_runs],
+            "aggregate": compact_aggregate_result(evaluation_aggregate),
         }
         write_json(evaluation_dir / "summary/summary.json", summary)
         evidence = build_evidence_bundle(
@@ -666,19 +1081,21 @@ def main() -> None:
             args.request,
             plan,
             round_runs,
+            evaluation_aggregate,
         )
         write_json(evaluation_dir / "summary/evidence_bundle.json", evidence)
         update_manifest(
             evaluation_dir,
             status="generating_feedback",
             summary_path="summary/summary.json",
+            aggregate_path="summary/aggregate_result.json",
             evidence_path="summary/evidence_bundle.json",
             summary=summary,
         )
         feedback = FeedbackAgent(
             repo_root,
             provider,
-            model=args.feedback_model,
+            model=models["feedback"],
         ).generate(
             evidence,
             output_dir=evaluation_dir / "feedback",
@@ -694,6 +1111,7 @@ def main() -> None:
             lifecycle_status="completed",
             execution_finished_at=datetime.now().astimezone().isoformat(),
             summary_path="summary/summary.json",
+            aggregate_path="summary/aggregate_result.json",
             evidence_path="summary/evidence_bundle.json",
             feedback_path="feedback/feedback.json",
             report_path="evaluation_report.md",

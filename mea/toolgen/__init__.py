@@ -23,6 +23,13 @@ from .router import (
     route_tool_request,
     validate_tool_request,
 )
+from .registry import (
+    RunLocalRegistryError,
+    find_run_local_registration,
+    infer_registry_dir,
+    load_registry,
+    request_candidate_promotion,
+)
 from .targets import PICKUP_TO_CONTACT_METRIC, evaluate_target_oracle
 
 __all__ = [
@@ -33,6 +40,7 @@ __all__ = [
     "validate_generated_tool",
     "ToolOrchestrationError",
     "ToolRouterError",
+    "RunLocalRegistryError",
     "contact_tool_request",
     "contact_tool_spec",
     "execute_tool_request",
@@ -43,6 +51,10 @@ __all__ = [
     "route_tool_request",
     "validate_tool_request",
     "validate_tool_spec",
+    "find_run_local_registration",
+    "infer_registry_dir",
+    "load_registry",
+    "request_candidate_promotion",
     "PICKUP_TO_CONTACT_METRIC",
     "evaluate_target_oracle",
 ]

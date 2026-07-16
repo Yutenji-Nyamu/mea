@@ -68,6 +68,16 @@ def validate_tool_request(
     }
 
 
+def _with_snapshot_hash(snapshot: dict[str, Any]) -> dict[str, Any]:
+    unhashed = dict(snapshot)
+    unhashed.pop("snapshot_sha256", None)
+    encoded = json.dumps(
+        unhashed, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    snapshot["snapshot_sha256"] = hashlib.sha256(encoded).hexdigest()
+    return snapshot
+
+
 def catalog_snapshot() -> dict[str, Any]:
     """Return the compact executable registries used for one route decision."""
 
@@ -88,14 +98,14 @@ def catalog_snapshot() -> dict[str, Any]:
         ),
         "composite_targets": composite_targets,
     }
-    encoded = json.dumps(
-        snapshot, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-    ).encode("utf-8")
-    snapshot["snapshot_sha256"] = hashlib.sha256(encoded).hexdigest()
-    return snapshot
+    return _with_snapshot_hash(snapshot)
 
 
-def route_tool_request(value: Any) -> dict[str, Any]:
+def route_tool_request(
+    value: Any,
+    *,
+    run_local_registration: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Resolve an exact Tool request to reuse, force-codegen, or unsupported."""
 
     request = validate_tool_request(value)
@@ -103,12 +113,35 @@ def route_tool_request(value: Any) -> dict[str, Any]:
     metric = request["metric"]
     task_supported = request["task_name"] == "beat_block_hammer"
 
+    if run_local_registration is not None:
+        if (
+            run_local_registration.get("scope") != "run_local"
+            or run_local_registration.get("status") != "validated"
+            or run_local_registration.get("target_metric") != metric
+        ):
+            raise ToolRouterError("invalid run-local registration match")
+        snapshot["run_local_match"] = deepcopy(run_local_registration)
+        _with_snapshot_hash(snapshot)
+
     if task_supported and metric in TOOL_CATALOG:
         status = "resolved"
         route = "reuse"
         registry = "trusted_tool_catalog"
         reference_tool = metric
         reason = "exact metric identifier matched a Trusted Tool"
+    elif (
+        task_supported
+        and metric in COMPOSITE_TARGETS
+        and run_local_registration is not None
+    ):
+        status = "resolved"
+        route = "run_local_reuse"
+        registry = "evaluation_local_tool_registry"
+        reference_tool = run_local_registration["tool_id"]
+        reason = (
+            "exact ToolSpec, code, and telemetry schema hashes matched a "
+            "validated evaluation-local Tool"
+        )
     elif task_supported and metric in COMPOSITE_TARGETS:
         status = "resolved"
         route = "force_codegen"
@@ -141,6 +174,10 @@ def route_tool_request(value: Any) -> dict[str, Any]:
         "reason": reason,
         "catalog_snapshot_sha256": snapshot["snapshot_sha256"],
     }
+    if run_local_registration is not None and route == "run_local_reuse":
+        decision["run_local_registration"] = deepcopy(
+            run_local_registration
+        )
     return {
         "tool_request": request,
         "catalog_snapshot": deepcopy(snapshot),

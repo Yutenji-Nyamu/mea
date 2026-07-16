@@ -21,7 +21,11 @@ FEEDBACK = {
 class FakeProvider:
     last_metadata = {"model": "fake-feedback"}
 
+    def __init__(self):
+        self.prompts = []
+
     def text(self, prompt, **kwargs):
+        self.prompts.append(prompt)
         return json.dumps(FEEDBACK)
 
 
@@ -78,6 +82,40 @@ class FeedbackAgentTests(unittest.TestCase):
                 "act_pipeline_status": True,
                 "policy_success": 0.0,
                 "pipeline_passed": True,
+                "aggregate": {
+                    "schema_version": 1,
+                    "status": "passed",
+                    "unique_episode_count": 3,
+                    "metrics": [
+                        {
+                            "metric": "official_check_success",
+                            "cohorts": [
+                                {
+                                    "role": "policy_under_evaluation",
+                                    "summary": {
+                                        "statistics": {
+                                            "success_rate": {"value": 0.0},
+                                        }
+                                    },
+                                }
+                            ],
+                        }
+                    ],
+                },
+            },
+            "execution_vqa": {
+                "status": "passed",
+                "evidence_conflict": True,
+                "observation": {
+                    "numeric_consistency": "conflict",
+                    "conflicts": [
+                        {
+                            "phenomenon": "hammer_visibly_lifted",
+                            "description": "Vision and numeric pickup disagree.",
+                            "frame_ids": ["pickup_after"],
+                        }
+                    ],
+                },
             },
             "visual_self_reflection": {
                 "passed": True,
@@ -87,18 +125,80 @@ class FeedbackAgentTests(unittest.TestCase):
             "artifacts": {"scene_image": "evidence/initial_head.png"},
         }
         with tempfile.TemporaryDirectory() as temp:
+            provider = FakeProvider()
             feedback = FeedbackAgent(
                 repo_root,
-                FakeProvider(),
+                provider,
                 model="fake-feedback",
             ).generate(evidence, output_dir=Path(temp))
             self.assertEqual(feedback["answer"], FEEDBACK["answer"])
             self.assertTrue((Path(temp) / "feedback.json").is_file())
+            self.assertIn("禁止从 episode", provider.prompts[0])
+            self.assertIn("simulator numeric Tool", provider.prompts[0])
+            self.assertTrue(feedback["evidence_policy"]["evidence_conflict"])
+            self.assertFalse(
+                feedback["evidence_policy"]["episode_math_by_feedback_agent"]
+            )
             report = render_evaluation_report(evidence, feedback)
             self.assertIn("`beat_block_hammer`", report)
             self.assertIn("policy success: `0.0`", report)
             self.assertIn("visual repairs used: `1`", report)
+            self.assertIn("Deterministic Aggregate Toolkit", report)
+            self.assertIn('"success_rate"', report)
+            self.assertIn("Execution VQA", report)
+            self.assertIn('"evidence_conflict": true', report)
+            self.assertIn(
+                "Simulator numeric Tool 保持权威", report
+            )
             self.assertIn(FEEDBACK["recommended_next_step"], report)
+
+    def test_deterministic_aggregate_success_overrides_legacy_summary(self):
+        repo_root = Path(__file__).resolve().parents[2]
+        evidence = {
+            "observations": {
+                "policy_success": 1.0,
+                "aggregate": {
+                    "status": "passed",
+                    "metrics": [
+                        {
+                            "metric": "official_check_success",
+                            "cohorts": [
+                                {
+                                    "role": "policy_under_evaluation",
+                                    "summary": {
+                                        "statistics": {
+                                            "success_rate": {"value": 0.0},
+                                        }
+                                    },
+                                },
+                                {
+                                    "role": "expert_validation",
+                                    "summary": {
+                                        "statistics": {
+                                            "success_rate": {"value": 1.0},
+                                        }
+                                    },
+                                },
+                            ],
+                        }
+                    ],
+                },
+            }
+        }
+        with tempfile.TemporaryDirectory() as temp:
+            feedback = FeedbackAgent(
+                repo_root,
+                AlwaysContradictoryProvider(),
+                model="fake-feedback",
+            ).generate(evidence, output_dir=Path(temp))
+        self.assertIn("未完成任务", feedback["answer"])
+        self.assertTrue(
+            feedback["consistency_validation"]["deterministic_correction"]
+        )
+        self.assertEqual(
+            feedback["evidence_policy"]["aggregate_source"],
+            "deterministic_aggregate",
+        )
 
     def test_retries_feedback_that_contradicts_policy_result(self):
         repo_root = Path(__file__).resolve().parents[2]
