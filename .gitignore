@@ -38,3 +38,4 @@ envs/curobo/*
 
 # Plan Agent runtime plans and child-run links.
 /mea/evaluation_runs/eval_*/
+/mea/evaluation_runs/history.sqlite3*

@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from mea.planner.evidence_policy import assess_evidence
 from mea.taskgen import extract_json_response
 from mea.toolgen import (
     contact_tool_request,
@@ -203,6 +204,36 @@ def _materialize_round(template_id: str, round_number: int) -> dict[str, Any]:
     }
 
 
+def _base_template_id(round_plan: dict[str, Any]) -> str:
+    return str(round_plan.get("verification_of") or round_plan["template_id"])
+
+
+def _verification_seed(rounds: list[dict[str, Any]]) -> int:
+    used = [
+        int(seed)
+        for round_plan in rounds
+        for seed in round_plan.get("execution", {}).get("seeds", [])
+    ]
+    return max(used, default=99999) + 1
+
+
+def _materialize_verification_round(
+    current_plan: dict[str, Any],
+    *,
+    template_id: str,
+    trigger: str,
+) -> dict[str, Any]:
+    round_number = len(current_plan["rounds"]) + 1
+    result = _materialize_round(template_id, round_number)
+    result["route"] = "reuse"
+    result["execution"]["seeds"] = [_verification_seed(current_plan["rounds"])]
+    result["execution"]["num_episodes"] = 1
+    result["verification_of"] = template_id
+    result["verification_trigger"] = trigger
+    result["verification_attempt"] = 1
+    return result
+
+
 def _validate_current_plan(plan: Any) -> dict[str, Any]:
     if not isinstance(plan, dict):
         raise PlanAgentError("current_plan 必须是 JSON object")
@@ -219,17 +250,41 @@ def _validate_current_plan(plan: Any) -> dict[str, Any]:
     if not isinstance(rounds, list) or not rounds or len(rounds) > MAX_ROUNDS:
         raise PlanAgentError("current_plan.rounds 数量必须在 [1, 3]")
     executed: list[str] = []
+    verification_counts: dict[str, int] = {}
+    validated_rounds: list[dict[str, Any]] = []
     for number, round_plan in enumerate(rounds, start=1):
         if not isinstance(round_plan, dict):
             raise PlanAgentError(f"round_{number} 必须是 object")
         template_id = round_plan.get("template_id")
         if template_id not in requested:
             raise PlanAgentError("round template 必须来自 requested_template_ids")
-        if template_id in executed:
-            raise PlanAgentError("同一 template 不得重复执行")
-        if round_plan != _materialize_round(template_id, number):
+        verification_of = round_plan.get("verification_of")
+        if verification_of is None:
+            if template_id in executed:
+                raise PlanAgentError("同一 template 只能由受限 verification 重复")
+            expected = _materialize_round(template_id, number)
+            executed.append(template_id)
+        else:
+            if number == 1 or verification_of != template_id:
+                raise PlanAgentError("verification 必须复核一个已执行的同名 template")
+            if _base_template_id(validated_rounds[-1]) != verification_of:
+                raise PlanAgentError("verification 只能紧跟被复核的 sub-aspect")
+            if verification_counts.get(verification_of, 0) >= 1:
+                raise PlanAgentError("每个 template 最多允许一次 verification")
+            trigger = round_plan.get("verification_trigger")
+            if trigger not in {"evidence_conflict", "aggregate_uncertain"}:
+                raise PlanAgentError("verification_trigger 不受支持")
+            expected = _materialize_verification_round(
+                {"rounds": validated_rounds},
+                template_id=verification_of,
+                trigger=trigger,
+            )
+            verification_counts[verification_of] = (
+                verification_counts.get(verification_of, 0) + 1
+            )
+        if round_plan != expected:
             raise PlanAgentError(f"round_{number} 与 trusted catalog 不一致")
-        executed.append(template_id)
+        validated_rounds.append(round_plan)
     return plan
 
 
@@ -303,41 +358,40 @@ def validate_next_round_decision(
         raise PlanAgentError("NextRoundDecision.schema_version 必须是 2")
 
     action = decision.get("action")
-    if action not in {"continue", "stop"}:
-        raise PlanAgentError("action 只允许 continue 或 stop")
+    if action not in {"continue", "verify", "stop"}:
+        raise PlanAgentError("action 只允许 continue、verify 或 stop")
     summary = _require_string(
         decision.get("observation_summary"), "observation_summary"
     )
     reason = _require_string(decision.get("decision_reason"), "decision_reason")
-    executed = [item["template_id"] for item in current["rounds"]]
-    remaining = [
-        item for item in current["requested_template_ids"] if item not in executed
-    ]
-    latest_pipeline_passed = history[-1]["pipeline_passed"]
-    budget_exhausted = len(current["rounds"]) >= current["max_rounds"]
-    stop_is_forced = (
-        not latest_pipeline_passed or budget_exhausted or not remaining
-    )
+    assessment = assess_evidence(current, history)
+    remaining = assessment["remaining_template_ids"]
+    required_action = assessment["required_action"]
     next_template_id = decision.get("next_template_id")
 
-    if stop_is_forced and action != "stop":
+    if action != required_action:
         raise PlanAgentError(
-            "pipeline failure、round budget exhausted 或无剩余 template 时必须 stop"
-        )
-    if not stop_is_forced and action != "continue":
-        raise PlanAgentError(
-            "pipeline 通过且仍有用户请求的 template 时必须继续收集证据"
+            f"当前 evidence policy 要求 action={required_action}，实际为 {action}"
         )
     if action == "stop":
         if next_template_id is not None:
             raise PlanAgentError("stop decision 的 next_template_id 必须为 null")
         next_round = None
-    else:
+    elif action == "continue":
         if next_template_id not in remaining:
             raise PlanAgentError(
                 "continue 只能选择尚未执行且由用户请求的 template"
             )
         next_round = _materialize_round(next_template_id, len(current["rounds"]) + 1)
+    else:
+        verification_of = assessment["verification_of"]
+        if next_template_id != verification_of:
+            raise PlanAgentError("verify 必须复核 evidence policy 指定的同一 template")
+        next_round = _materialize_verification_round(
+            current,
+            template_id=verification_of,
+            trigger=assessment["state"],
+        )
 
     return {
         "schema_version": 2,
@@ -347,6 +401,7 @@ def validate_next_round_decision(
         "next_template_id": next_template_id,
         "remaining_template_ids_before_decision": remaining,
         "round_budget_before_decision": current["max_rounds"] - len(current["rounds"]),
+        "evidence_assessment": assessment,
         "next_round": next_round,
     }
 
@@ -363,7 +418,55 @@ def _catalog_for_prompt() -> dict[str, Any]:
     }
 
 
-def _initial_plan_prompt(repo_root: Path, user_request: str) -> str:
+def _compact_history_context(
+    history_context: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]]:
+    compact: list[dict[str, Any]] = []
+    for item in history_context or []:
+        if not isinstance(item, dict):
+            continue
+        policy = item.get("policy") or {}
+        planning = item.get("planning") or {}
+        outcome = item.get("outcome") or {}
+        compatibility = item.get("compatibility") or {}
+        artifacts = item.get("artifacts") or {}
+        executed_rounds = planning.get("executed_rounds") or []
+        compact.append(
+            {
+                "evaluation_id": item.get("evaluation_id"),
+                "similarity": item.get("similarity"),
+                "user_request": item.get("user_request"),
+                "task_name": item.get("task_name"),
+                "policy_name": policy.get("name"),
+                "checkpoint_setting": policy.get("checkpoint_setting"),
+                "requested_template_ids": planning.get(
+                    "requested_template_ids", []
+                ),
+                "completed_template_ids": [
+                    value.get("template_id")
+                    for value in executed_rounds
+                    if isinstance(value, dict) and value.get("template_id")
+                ],
+                "planning_state": planning.get("planning_state"),
+                "status": outcome.get("status"),
+                "pipeline_passed": outcome.get("pipeline_passed"),
+                "evidence_conflict": outcome.get("evidence_conflict"),
+                "same_policy": compatibility.get("same_policy"),
+                "same_checkpoint": compatibility.get("same_checkpoint"),
+                "base_commit": compatibility.get("base_commit"),
+                "plan_path": artifacts.get("plan"),
+                "evidence_path": artifacts.get("evidence"),
+                "report_path": artifacts.get("report"),
+            }
+        )
+    return compact
+
+
+def _initial_plan_prompt(
+    repo_root: Path,
+    user_request: str,
+    history_context: list[dict[str, Any]] | None = None,
+) -> str:
     agent_readme = (repo_root / "mea/planner/README.Agent.md").read_text(
         encoding="utf-8"
     )
@@ -388,7 +491,12 @@ POLICY / SIMULATOR CAPABILITIES:
 TRUSTED SUB-ASPECT CATALOG:
 {json.dumps(_catalog_for_prompt(), ensure_ascii=False, indent=2)}
 
+SIMILAR COMPLETED EVALUATION PLANS (planning prior only):
+{json.dumps(_compact_history_context(history_context), ensure_ascii=False, indent=2)}
+
 只选择用户明确要求的 template。初始阶段只输出 requested_template_ids 和第一个 template，
+相似历史仅用于保持 sub-aspect decomposition 一致；不得把历史 policy 数值当成本次证据，
+也不得选择用户本次没有要求的 template。
 不要输出 rounds 或任何执行字段。输出严格 JSON，不要 Markdown。示例：
 {json.dumps(example, ensure_ascii=False, indent=2)}
 """
@@ -400,26 +508,21 @@ def _decision_prompt(
     observation_history: list[dict[str, Any]],
 ) -> str:
     executed = [item["template_id"] for item in current_plan["rounds"]]
-    remaining = [
-        item
-        for item in current_plan["requested_template_ids"]
-        if item not in executed
-    ]
-    forced_stop = (
-        not observation_history[-1]["pipeline_passed"]
-        or len(current_plan["rounds"]) >= current_plan["max_rounds"]
-        or not remaining
-    )
+    assessment = assess_evidence(current_plan, observation_history)
+    remaining = assessment["remaining_template_ids"]
+    required_action = assessment["required_action"]
     example = {
         "schema_version": 2,
-        "action": "stop" if forced_stop else "continue",
+        "action": required_action,
         "observation_summary": "概括全部已有 observation，并区分 pipeline 与 policy 结果。",
-        "decision_reason": (
-            "流水线失败、预算耗尽或用户要求已经覆盖。"
-            if forced_stop
-            else "继续收集尚未覆盖的用户请求证据。"
+        "decision_reason": "遵守 deterministic evidence policy，并说明当前证据状态。",
+        "next_template_id": (
+            None
+            if required_action == "stop"
+            else assessment["verification_of"]
+            if required_action == "verify"
+            else remaining[0]
         ),
-        "next_template_id": None if forced_stop else remaining[0],
     }
     return f"""你是 MEA 的外层 Plan Agent。根据完整 observation history 决定继续或停止。
 模型只选择 action 和 template id；系统负责注入下一轮的所有执行字段。
@@ -439,9 +542,14 @@ EXECUTED TEMPLATE IDS:
 REMAINING REQUESTED TEMPLATE IDS:
 {json.dumps(remaining, ensure_ascii=False)}
 
-规则：最新 pipeline_passed=false、max_rounds={MAX_ROUNDS} 已用尽或没有剩余 template 时必须 stop。
-否则必须 continue 到一个 remaining template。可根据 observations 决定剩余项目的顺序，
-但不得跳过用户已请求的证据、重复 template 或选择 catalog 外项目。
+DETERMINISTIC EVIDENCE ASSESSMENT:
+{json.dumps(assessment, ensure_ascii=False, indent=2)}
+
+规则：action 必须等于 evidence assessment 的 required_action。
+- verify 只能复核 verification_of 指定的同一 template，系统会注入新 seed，且每个 template 最多一次；
+- continue 只能从 remaining requested templates 中选择，可根据 observations 决定顺序；
+- stop 的 next_template_id 必须为 null。max_rounds={MAX_ROUNDS} 是硬上限。
+历史 evaluation 只能帮助规划保持一致，不能替代本次 observation 或改变上述 hard guard。
 只输出以下严格 JSON 结构，不要输出 next_round、seed、gate 或 route：
 {json.dumps(example, ensure_ascii=False, indent=2)}
 """
@@ -460,6 +568,8 @@ class PlanAgentPrototype:
         user_request: str,
         *,
         evaluation_id: str | None = None,
+        history_context: list[dict[str, Any]] | None = None,
+        history_metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         request = _require_string(user_request, "user_request")
         evaluation_id = evaluation_id or make_evaluation_id()
@@ -484,7 +594,24 @@ class PlanAgentPrototype:
         _write_json(evaluation_dir / "request.json", {"user_request": request})
         _write_json(evaluation_dir / "manifest.json", manifest)
 
-        prompt = _initial_plan_prompt(self.repo_root, request)
+        compact_history = _compact_history_context(history_context)
+        history_retrieval = {
+            "schema_version": 1,
+            "status": "passed" if compact_history else "empty",
+            "match_count": len(compact_history),
+            "matches": compact_history,
+            **deepcopy(history_metadata or {}),
+        }
+        _write_json(
+            evaluation_dir / "plan/history_retrieval.json",
+            history_retrieval,
+        )
+
+        prompt = _initial_plan_prompt(
+            self.repo_root,
+            request,
+            compact_history,
+        )
         (evaluation_dir / "plan/round_1_prompt.md").write_text(
             prompt, encoding="utf-8"
         )
@@ -522,6 +649,8 @@ class PlanAgentPrototype:
             {
                 "status": "planned_round_1",
                 "plan_path": "plan/evaluation_plan.json",
+                "history_retrieval_path": "plan/history_retrieval.json",
+                "history_retrieval": history_retrieval,
                 "plan": plan,
                 "planner": {
                     "model_requested": self.model,
@@ -551,6 +680,11 @@ class PlanAgentPrototype:
         current = _validate_current_plan(current_plan)
         history = _validate_observation_history(current, observation_history)
         completed_round = len(current["rounds"])
+        assessment = assess_evidence(current, history)
+        evidence_path = (
+            evaluation_dir / f"plan/evidence_after_round_{completed_round}.json"
+        )
+        _write_json(evidence_path, assessment)
         prompt = _decision_prompt(
             _require_string(user_request, "user_request"), current, history
         )
@@ -592,7 +726,7 @@ class PlanAgentPrototype:
 
         updated_plan = deepcopy(current)
         updated_plan.setdefault("round_decisions", []).append(decision)
-        if decision["action"] == "continue":
+        if decision["action"] in {"continue", "verify"}:
             updated_plan["rounds"].append(decision["next_round"])
             next_number = len(updated_plan["rounds"])
             updated_plan["planning_state"] = (
@@ -611,6 +745,9 @@ class PlanAgentPrototype:
                 "status": updated_plan["planning_state"],
                 "plan": updated_plan,
                 f"{stem}_path": f"plan/{stem}.json",
+                f"evidence_after_round_{completed_round}_path": (
+                    f"plan/evidence_after_round_{completed_round}.json"
+                ),
             }
         )
         planner = manifest.setdefault("planner", {})

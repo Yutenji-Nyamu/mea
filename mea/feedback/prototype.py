@@ -203,6 +203,8 @@ EVIDENCE INTERPRETATION CONTRACT:
    Execution VQA 只补充颜色、可见抬起、可见位移等视觉现象，不能覆盖数值 Tool。
 4. 若 Execution VQA 含 `evidence_conflict=true`，明确报告冲突和对应 frame，保留
    simulator Tool 结论，并建议复查或追加测试；不要替视觉或数值一方消除冲突。
+5. `history_retrieval` 只用于保持 planning decomposition 一致。历史 policy outcome
+   不是本次 evaluation evidence，禁止与本次 Aggregate 合并或据此声称本次成功。
 
 AGENT RULES:
 {instructions}
@@ -372,6 +374,15 @@ def render_evaluation_report(
         if execution_vqa_entries
         else "No Execution VQA observation was available."
     )
+    history_retrieval = evidence.get("history_retrieval") or {}
+    history_markdown = (
+        "以下历史只作为 planning prior，不属于本次 policy evidence。\n\n"
+        "```json\n"
+        + json.dumps(history_retrieval, ensure_ascii=False, indent=2)
+        + "\n```"
+        if history_retrieval
+        else "No historical planning context was available."
+    )
 
     if evidence.get("rounds"):
         observations = evidence["observations"]
@@ -496,6 +507,10 @@ def render_evaluation_report(
         decision_artifact_lines = "\n".join(
             f"- Plan decision: `{path}`" for path in decision_artifacts
         ) or "- Plan decision: `none`"
+        assessment_artifact_lines = "\n".join(
+            f"- Evidence assessment: `{path}`"
+            for path in artifacts.get("evidence_assessments", [])
+        ) or "- Evidence assessment: `none`"
         round_artifact_lines = []
         for round_index, round_artifacts in enumerate(
             artifacts.get("round_artifacts", []), start=1
@@ -526,6 +541,10 @@ def render_evaluation_report(
 ```json
 {json.dumps(evidence['plan']['round_decisions'], ensure_ascii=False, indent=2)}
 ```
+
+## Historical planning retrieval
+
+{history_markdown}
 
 ## Round evidence
 
@@ -570,7 +589,9 @@ def render_evaluation_report(
 ## Artifact index
 
 - evaluation plan: `{artifacts['evaluation_plan']}`
+- history retrieval: `{artifacts.get('history_retrieval')}`
 {decision_artifact_lines}
+{assessment_artifact_lines}
 - machine-readable summary: `{artifacts['summary']}`
 - deterministic aggregate: `{artifacts.get('aggregate')}`
 {round_artifact_markdown}

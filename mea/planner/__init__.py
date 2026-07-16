@@ -1,5 +1,6 @@
 """Outer planning agent for query-driven manipulation evaluation."""
 
+from .evidence_policy import assess_evidence
 from .prototype import (
     BLUE_TASK_INSTRUCTION,
     MAX_ROUNDS,
@@ -19,6 +20,7 @@ __all__ = [
     "POSITION_TASK_INSTRUCTION",
     "SUB_ASPECT_CATALOG",
     "TIMING_TASK_INSTRUCTION",
+    "assess_evidence",
     "PlanAgentError",
     "PlanAgentPrototype",
     "make_evaluation_id",

@@ -33,6 +33,11 @@ The model initially emits only `requested_template_ids` and
 `first_template_id`. It must select only aspects explicitly requested by the
 user. The runtime materializes the complete first round from the catalog.
 
+Up to three similar completed evaluations may be included as planning priors.
+They preserve prior query-to-template decompositions and policy labels. They
+are not current-run evidence and must never be merged into the current
+Aggregate or used to claim current policy success.
+
 ## Tool planning boundary
 
 - A template contains a semantic `tool_request`, never a Tool route.
@@ -48,14 +53,20 @@ user. The runtime materializes the complete first round from the catalog.
 
 - `max_rounds` is exactly 3, but the evaluation may stop earlier.
 - After every executed round, the Plan Agent receives the complete observation
-  history and chooses either `continue` with one unexecuted requested template,
-  or `stop`.
-- A template can run at most once. The model cannot select a template omitted
-  from `requested_template_ids`.
-- Latest `pipeline_passed=false`, an exhausted round budget, or no remaining
-  requested template forces `stop`.
-- Otherwise the model must continue to one remaining user-requested template;
-  observations may determine the order, but cannot erase an explicit request.
+  history plus a deterministic `EvidenceAssessment` and explains one of
+  `continue`, `verify`, or `stop`.
+- `evidence_conflict` or incomplete/invalid Aggregate coverage forces one
+  same-template `verify` round with a fresh trusted seed when budget remains.
+  A template may be verified at most once; arbitrary duplicate execution is
+  forbidden.
+- Clear positive and clear negative Tool results are both sufficient evidence.
+  A documented semantic absence such as `contact_not_observed_after_pickup`
+  is not treated as missing telemetry.
+- Pipeline failure, an unresolved second conflict/uncertainty, or exhausted
+  budget forces `stop`. Sufficient evidence continues only to an unexecuted
+  user-requested template; after all requested aspects are covered it stops.
+- The model cannot override the deterministic required action, invent a
+  verification seed, or select a template omitted from the user request.
 - Every executable round runs ordered gates `ast`, `render`, `rule`, `vision`,
   `expert`, and `act`.
 

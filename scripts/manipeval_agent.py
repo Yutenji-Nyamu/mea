@@ -16,6 +16,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from mea.execution_vqa import run_execution_vqa
 from mea.feedback import FeedbackAgent, render_evaluation_report
+from mea.history import EvaluationHistoryDB
 from mea.planner import PlanAgentPrototype
 from mea.providers import (
     OpenAICompatibleProvider,
@@ -876,6 +877,19 @@ def build_evidence_bundle(
         )
         for round_number in range(1, len(plan.get("round_decisions", [])) + 1)
     ]
+    evidence_assessment_artifacts = [
+        str(
+            evaluation_relative
+            / f"plan/evidence_after_round_{round_number}.json"
+        )
+        for round_number in range(1, len(plan.get("round_decisions", [])) + 1)
+    ]
+    history_path = repo_root / evaluation_relative / "plan/history_retrieval.json"
+    history_retrieval = (
+        json.loads(history_path.read_text(encoding="utf-8"))
+        if history_path.is_file()
+        else {"status": "missing", "matches": []}
+    )
     return {
         "schema_version": 2,
         "evaluation_id": evaluation_id,
@@ -922,6 +936,7 @@ def build_evidence_bundle(
             ),
         },
         "total_episodes": total_episodes,
+        "history_retrieval": history_retrieval,
         "limitations": {
             "bounded_three_round_prototype": True,
             "few_episodes_are_not_a_generalization_benchmark": True,
@@ -932,6 +947,10 @@ def build_evidence_bundle(
                 evaluation_relative / "plan/evaluation_plan.json"
             ),
             "plan_decisions": decision_artifacts,
+            "evidence_assessments": evidence_assessment_artifacts,
+            "history_retrieval": str(
+                evaluation_relative / "plan/history_retrieval.json"
+            ),
             "summary": str(evaluation_relative / "summary/summary.json"),
             "aggregate": str(
                 evaluation_relative / "summary/aggregate_result.json"
@@ -969,6 +988,20 @@ def parse_args() -> argparse.Namespace:
         help="Maximum visual diagnosis-driven CodeGen repairs per TaskGen run.",
     )
     parser.add_argument("--plan-only", action="store_true")
+    parser.add_argument(
+        "--history-database",
+        type=Path,
+        help=(
+            "SQLite planning-history cache. Defaults to "
+            "mea/evaluation_runs/history.sqlite3 under --repo-root."
+        ),
+    )
+    parser.add_argument("--history-limit", type=int, default=3)
+    parser.add_argument(
+        "--no-history",
+        action="store_true",
+        help="Disable cross-evaluation planning retrieval and indexing.",
+    )
     return parser.parse_args()
 
 
@@ -996,7 +1029,51 @@ def main() -> None:
         provider,
         model=models["planner"],
     )
-    manifest = planner.plan(args.request, evaluation_id=args.evaluation_id)
+    history_database = None
+    history_context: list[dict[str, Any]] = []
+    history_retrieval: dict[str, Any] = {
+        "schema_version": 1,
+        "status": "disabled" if args.no_history else "empty",
+        "candidates": [],
+    }
+    history_path = (
+        args.history_database.expanduser().resolve()
+        if args.history_database
+        else repo_root / "mea/evaluation_runs/history.sqlite3"
+    )
+    if not args.no_history:
+        try:
+            history_database = EvaluationHistoryDB(
+                history_path,
+                repo_root=repo_root,
+            )
+            history_retrieval = history_database.retrieve_similar(
+                args.request,
+                task_name="beat_block_hammer",
+                policy_name="ACT",
+                checkpoint_setting="demo_clean",
+                limit=args.history_limit,
+                exclude_evaluation_id=args.evaluation_id,
+            )
+            history_retrieval["status"] = "passed"
+            history_context = list(history_retrieval.get("candidates", []))
+        except Exception as exc:
+            history_retrieval = {
+                "schema_version": 1,
+                "status": "failed",
+                "candidates": [],
+                "error": f"{type(exc).__name__}: {exc}",
+            }
+    manifest = planner.plan(
+        args.request,
+        evaluation_id=args.evaluation_id,
+        history_context=history_context,
+        history_metadata={
+            key: value
+            for key, value in history_retrieval.items()
+            if key != "candidates"
+        },
+    )
     evaluation_id = manifest["evaluation_id"]
     evaluation_dir = repo_root / "mea/evaluation_runs" / evaluation_id
     plan = manifest["plan"]
@@ -1004,6 +1081,12 @@ def main() -> None:
         evaluation_dir,
         model_profile=args.model_profile,
         resolved_models=models,
+        history_database=(
+            str(history_path.relative_to(repo_root))
+            if history_path.is_relative_to(repo_root)
+            else str(history_path)
+        ),
+        history_retrieval_status=history_retrieval.get("status"),
     )
 
     if args.plan_only:
@@ -1121,6 +1204,21 @@ def main() -> None:
             summary=summary,
             feedback=feedback,
         )
+        history_index = {
+            "status": "disabled" if args.no_history else "not_available"
+        }
+        if history_database is not None:
+            try:
+                history_index = {
+                    "status": "passed",
+                    **history_database.index_evaluation_dir(evaluation_dir),
+                }
+            except Exception as exc:
+                history_index = {
+                    "status": "failed",
+                    "error": f"{type(exc).__name__}: {exc}",
+                }
+        update_manifest(evaluation_dir, history_index=history_index)
         print(
             json.dumps(
                 {
@@ -1130,6 +1228,11 @@ def main() -> None:
                     ],
                     "summary": summary,
                     "feedback": feedback,
+                    "history_retrieval": {
+                        "status": history_retrieval.get("status"),
+                        "selected_count": len(history_context),
+                    },
+                    "history_index": history_index,
                     "report_path": str(report_path.relative_to(repo_root)),
                 },
                 ensure_ascii=False,
