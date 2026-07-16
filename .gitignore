@@ -39,3 +39,6 @@ envs/curobo/*
 # Plan Agent runtime plans and child-run links.
 /mea/evaluation_runs/eval_*/
 /mea/evaluation_runs/history.sqlite3*
+
+# Strict paired-evaluation runtime artifacts (run_id is user-selectable).
+/mea/paired_runs/*/

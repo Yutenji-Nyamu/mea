@@ -30,6 +30,7 @@ def load_task_args(
     task_config: str,
     ckpt_setting: str,
     overlay_path: Path | None,
+    eval_mode: bool = False,
 ) -> dict[str, Any]:
     # Simulator dependencies are needed only when a probe actually executes.
     from envs import CONFIGS_PATH
@@ -50,7 +51,7 @@ def load_task_args(
     args["task_config"] = task_config
     args["ckpt_setting"] = ckpt_setting
     args["policy_name"] = "ACT"
-    args["eval_mode"] = False
+    args["eval_mode"] = bool(eval_mode)
     args["eval_video_save_dir"] = None
 
     with open(os.path.join(CONFIGS_PATH, "_embodiment_config.yml"), "r", encoding="utf-8") as handle:
@@ -193,6 +194,7 @@ def run_probe(arguments: argparse.Namespace) -> dict[str, Any]:
         "render_success": False,
         "expert_requested": arguments.expert,
         "telemetry_requested": arguments.telemetry_dir is not None,
+        "eval_mode": bool(getattr(arguments, "eval_mode", False)),
     }
     task = None
     recorder = None
@@ -213,6 +215,7 @@ def run_probe(arguments: argparse.Namespace) -> dict[str, Any]:
             task_config=arguments.task_config,
             ckpt_setting=arguments.ckpt_setting,
             overlay_path=arguments.overlay,
+            eval_mode=bool(getattr(arguments, "eval_mode", False)),
         )
         module = importlib.import_module(arguments.task_module)
         task_class = getattr(module, arguments.task_name)
@@ -389,6 +392,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--image", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--expert", action="store_true")
+    parser.add_argument(
+        "--eval-mode",
+        action="store_true",
+        help="Use the evaluator distribution (including unseen randomization).",
+    )
     parser.add_argument("--telemetry-dir", type=Path)
     parser.add_argument(
         "--telemetry-profile",

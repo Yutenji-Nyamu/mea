@@ -13,6 +13,7 @@
 | 检索与历史 | `mea/retrieval/`、`mea/history/`、`mea/knowledge/` | 检索任务/源码知识，复用历史评估上下文 |
 | TaskGen | `scripts/manipeval_taskgen.py`、`mea/taskgen/` | 生成或复用受限 task overlay；也可创建不改官方源码的 passthrough run |
 | RoboTwin 执行 | `mea/taskgen/probe.py`、`policy/ACT/eval_mea.sh` | setup/render、official expert `play_once()`、ACT rollout |
+| 严格 paired 评估 | `scripts/manipeval_paired.py`、`mea/paired.py` | 冻结 exact seed，运行 Easy/Hard eligibility 与 ACT，并做确定性逐 seed 统计 |
 | Checkpoint 获取 | `scripts/download_act_checkpoint.py` | 按任务和固定 revision 只下载 ACT 所需的 policy/stats 文件 |
 | 任务语义与记录 | `mea/toolkit/schema.py`、`mea/toolkit/recorder.py`、`mea/toolkit/schemas/` | 用 TaskSchema 跟踪 actor/语义，写 telemetry、事件和视觉证据 |
 | 可信测量 | `mea/toolkit/tools.py`、`mea/toolgen/` | 复用 Trusted Tool，或生成并验证 evaluation-local Tool |
@@ -91,6 +92,41 @@ setup/render/rule probe，随后由 RoboTwin ACT evaluator 执行其原生 exper
 两边最终实际 seed，不一致即失败，但仍不能替代带显式 seed manifest 和 Easy/Hard 统计的
 exact-seed paired protocol。
 
+### 2.3 Exact-seed Easy/Hard paired 路线
+
+`scripts/manipeval_paired.py` 是与 Agent 解耦的确定性实验入口。它不调用 UIUI、planning、
+Execution VQA 或反馈模型；其职责是让同一个官方任务、同一个 `demo_clean-50` ACT
+checkpoint 在两个环境 condition 上使用相同的 numeric seed，并保留完整拒绝原因：
+
+```text
+显式 --seeds 或已有 seed manifest
+→ 验证任务名、顺序、非负整数、非空且无重复
+→ 冻结 seed_manifest.json（Easy=demo_clean，Hard=demo_randomized）
+→ 以 ACT 的 eval mode 对每个请求 seed 分别做两边 exact expert eligibility probe
+→ 固化两边都 eligible 的有序交集（不扫描、不替换）
+→ 两个 condition 分别调用 ACT exact-seed evaluator
+→ 核验 evaluator 实际 seed 与冻结交集完全一致
+→ 读取 policy success 与 telemetry time-to-success
+→ mea/paired.py 按 seed join 并写 paired summary
+```
+
+eligible 但另一边不 eligible 的 seed 也保留在结果里，只是不进入 paired policy denominator。
+任何 evaluator 少跑、多跑、重复或替换 seed 都是 protocol violation，而不是可以忽略的失败
+episode。summary 的成功率分母是两边均实际执行 policy 的 paired seed；同时保存请求数、
+共同 eligibility、coverage 和四格结果（双成功、仅 Easy、仅 Hard、双失败）。
+`time-to-success` 只在两边都成功且都有有效时间的 seed 上比较，因此是 survivor-conditional
+辅助指标，不能代替全样本成功率。
+
+严格之处是 seed 清单、顺序和“不替换”契约，不是 identical-scene 因果控制。Easy 与 Hard
+的配置分支可能在 actor 放置前消费不同数量的随机数，因此相同 numeric seed 仍可能对应不同
+的潜在几何。当前结果应称为 same-seed paired comparison；若论文需要“同一底层场景仅改变
+随机化强度”，必须进一步拆分 RNG stream 或持久化并重放 scene specification。任何协议
+违反都会令 `valid_for_comparison=false`，默认以非零状态退出。
+
+这条路线面向可复现数值实验，不生成视觉解释；需要视觉证据和自然语言报告时，仍由 Agent
+路径单独完成。两者的结果不能仅凭相同 `run_id` 自动视为同一实验，必须以 seed manifest、
+condition、checkpoint 设置和 artifact 路径核对。
+
 ## 3. TaskSchema 是跨任务边界
 
 `mea/toolkit/schemas/<task_name>.json` 声明：
@@ -165,6 +201,12 @@ mea/generated_tasks/<run_id>/
 │   ├── act/episode_*/
 │   └── expert/episode_*/
 └── manifest.json
+
+mea/paired_runs/<run_id>/
+├── seed_manifest.json            # 请求 seed、condition 与 checkpoint contract
+├── eligibility/                  # Easy/Hard 逐 seed probe 与冻结交集
+├── conditions/                   # 两个 condition 的 exact-seed ACT 结果与 telemetry
+└── paired_summary.json           # 确定性 paired join、coverage、成功率与时间指标
 ```
 
 ## 5. 可信边界
@@ -193,7 +235,7 @@ rollout 中的可见现象。official passthrough 不生成场景，因此不需
 | 新数值 metric | 已有 Trusted Tool 或 ToolGen target + required signals | Recorder 未记录的信号不能事后推断 |
 | 更高频动力学 | 新显式 telemetry profile | 默认 `balanced_v1` 只保存 50 Hz dynamics |
 | 更丰富视觉 | 新 visual capture profile | `event_keyframes_v1` 无 depth/segmentation，也不连续 |
-| expert/ACT 严格对照 | 显式 seed manifest、paired runner、Easy/Hard 统计 | `both` 会拒绝实际 seed 不一致，但尚无预先锁定与 paired 统计 |
+| Easy/Hard 严格对照 | `scripts/manipeval_paired.py`、`mea/paired.py` | 已支持 exact seed 与 paired 统计；当前独立于 Agent/VQA，正式论文结论仍需足量预注册 seed |
 
 可读性维护约定：当入口、路线、artifact contract 或可信边界改变时，简要同步本文件；
 当安装/命令改变时同步运行指引；真实实验结果放入 development log，不把易过期的单次
