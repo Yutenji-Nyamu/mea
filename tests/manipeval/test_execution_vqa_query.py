@@ -95,6 +95,24 @@ class ExecutionVQAQueryTests(unittest.TestCase):
         )
         self.assertEqual(parsed["phenomena"][0]["id"], "bell_visibly_pressed")
 
+    def test_new_official_tasks_select_their_own_visual_contracts(self):
+        expected = {
+            "adjust_bottle": "bottle_visibly_repositioned",
+            "grab_roller": "roller_visibly_lifted",
+        }
+        for task_name, phenomenon_id in expected.items():
+            with self.subTest(task_name=task_name):
+                query = build_execution_vqa_query(
+                    task_name=task_name,
+                    template_id="task_execution.official_baseline",
+                    tool_contract={"metric": "official_check_success"},
+                )
+                self.assertEqual(query["phenomenon_ids"], [phenomenon_id])
+                self.assertIn(
+                    f"task_metric:{task_name}:official_check_success",
+                    query["selection_reasons"],
+                )
+
     def test_timing_context_selects_only_relevant_visual_questions(self):
         query = build_execution_vqa_query(
             task_name="beat_block_hammer",

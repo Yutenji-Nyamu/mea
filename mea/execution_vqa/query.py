@@ -49,6 +49,23 @@ QUESTION_CATALOG: dict[str, dict[str, Any]] = {
         "visual_scope": "rollout_change",
         "numeric_authority": "official_check_success_is_authoritative",
     },
+    "bottle_visibly_repositioned": {
+        "question_type": "visible_state_change",
+        "target_role": "manipulated_object",
+        "question": (
+            "Is the target bottle visibly moved from its initial resting pose "
+            "to the elevated side placement?"
+        ),
+        "visual_scope": "rollout_change",
+        "numeric_authority": "official_check_success_is_authoritative",
+    },
+    "roller_visibly_lifted": {
+        "question_type": "visible_state_change",
+        "target_role": "manipulated_object",
+        "question": "Is the target roller visibly lifted by both robot arms?",
+        "visual_scope": "rollout_change",
+        "numeric_authority": "official_check_success_is_authoritative",
+    },
 }
 
 # Keep the implicit legacy profile frozen even as task-specific catalog entries
@@ -68,6 +85,12 @@ TEMPLATE_QUESTION_RULES: dict[str, tuple[str, ...]] = {
 TASK_TEMPLATE_QUESTION_RULES: dict[tuple[str, str], tuple[str, ...]] = {
     ("click_bell", "task_execution.official_baseline"): (
         "bell_visibly_pressed",
+    ),
+    ("adjust_bottle", "task_execution.official_baseline"): (
+        "bottle_visibly_repositioned",
+    ),
+    ("grab_roller", "task_execution.official_baseline"): (
+        "roller_visibly_lifted",
     ),
 }
 SUB_ASPECT_QUESTION_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
@@ -95,6 +118,12 @@ METRIC_QUESTION_RULES: dict[str, tuple[str, ...]] = {
 }
 TASK_METRIC_QUESTION_RULES: dict[tuple[str, str], tuple[str, ...]] = {
     ("click_bell", "official_check_success"): ("bell_visibly_pressed",),
+    ("adjust_bottle", "official_check_success"): (
+        "bottle_visibly_repositioned",
+    ),
+    ("grab_roller", "official_check_success"): (
+        "roller_visibly_lifted",
+    ),
 }
 
 QUERY_KEYS = {

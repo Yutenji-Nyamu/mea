@@ -95,7 +95,13 @@ def read_contact_events(path: str | Path | None) -> list[dict[str, Any]]:
 
 
 def read_semantic_timeline(path: str | Path | None) -> dict[int, int]:
-    """Return the recorded physics-step to policy-frame mapping."""
+    """Return the recorded physics-step to rollout-video frame mapping.
+
+    Continuous ACT videos use one frame per policy step.  Sparse expert visual
+    capture can instead persist an explicit ``video_frame_index`` column.  The
+    latter is preferred whenever present so expert evidence is never projected
+    through its single synthetic policy step.
+    """
 
     if path is None:
         return {}
@@ -107,17 +113,22 @@ def read_semantic_timeline(path: str | Path | None) -> dict[int, int]:
     except ImportError as exc:  # pragma: no cover - RoboTwin depends on NumPy
         raise ExecutionVQAError("Reading semantic timeline requires NumPy") from exc
     with np.load(source) as archive:
-        if "physics_step" not in archive or "policy_step" not in archive:
+        frame_key = (
+            "video_frame_index"
+            if "video_frame_index" in archive
+            else "policy_step"
+        )
+        if "physics_step" not in archive or frame_key not in archive:
             raise ExecutionVQAError(
-                f"semantic timeline lacks physics_step/policy_step: {source}"
+                f"semantic timeline lacks physics_step/{frame_key}: {source}"
             )
         physics = archive["physics_step"].reshape(-1)
-        policy = archive["policy_step"].reshape(-1)
-        if len(physics) != len(policy):
+        frames = archive[frame_key].reshape(-1)
+        if len(physics) != len(frames):
             raise ExecutionVQAError("semantic timeline arrays have different lengths")
         return {
-            int(physics_step): max(int(policy_step), 0)
-            for physics_step, policy_step in zip(physics, policy)
+            int(physics_step): max(int(frame_index), 0)
+            for physics_step, frame_index in zip(physics, frames)
         }
 
 
@@ -133,6 +144,12 @@ def _evidence_frame(
     evidence = result.get("evidence")
     if isinstance(evidence, list) and evidence and isinstance(evidence[0], Mapping):
         item = evidence[0]
+        exact_frame = item.get("video_frame_index")
+        if isinstance(exact_frame, (int, float)) and not isinstance(
+            exact_frame, bool
+        ):
+            frame = int(exact_frame)
+            return max(frame - 1, 0) if which == "before" else max(frame, 0)
         keys = (
             ("video_frame_before", "policy_step")
             if which == "before"
@@ -164,6 +181,30 @@ def _evidence_frame(
             if policy_step is not None:
                 return max(int(policy_step) + (which == "after"), 0)
     return None
+
+
+def _success_transition_frames(
+    by_name: Mapping[str, Mapping[str, Any]],
+    *,
+    physics_to_policy: Mapping[int, int] | None = None,
+) -> tuple[int | None, int | None]:
+    """Return frames bracketing the authoritative official success event."""
+
+    success = by_name.get("official_check_success")
+    if success is None or success.get("value") is not True:
+        return None, None
+    return (
+        _evidence_frame(
+            success,
+            "before",
+            physics_to_policy=physics_to_policy,
+        ),
+        _evidence_frame(
+            success,
+            "after",
+            physics_to_policy=physics_to_policy,
+        ),
+    )
 
 
 def _first_event_frame(events: Iterable[Mapping[str, Any]]) -> int | None:
@@ -272,6 +313,19 @@ def select_keyframes(
         candidates.append(("contact_before", contact_before, "contact_timeline"))
     if contact_after is not None:
         candidates.append(("contact_after", contact_after, "contact_timeline"))
+
+    success_before, success_after = _success_transition_frames(
+        by_name,
+        physics_to_policy=physics_to_policy,
+    )
+    if success_before is not None:
+        candidates.append(
+            ("success_before", success_before, "official_success_event")
+        )
+    if success_after is not None:
+        candidates.append(
+            ("success_after", success_after, "official_success_event")
+        )
     candidates.append(("final", frame_count - 1, "video_boundary"))
 
     # Preserve semantic labels while de-duplicating clamped frame indices.

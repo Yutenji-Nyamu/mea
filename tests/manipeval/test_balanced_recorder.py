@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import numpy as np
 
@@ -223,6 +224,213 @@ class BalancedRecorderTests(unittest.TestCase):
                 episode_index=0,
                 policy_name="test",
                 telemetry_profile_id="agent_supplied_python",
+            )
+
+    def test_event_keyframes_dedupe_contact_and_success_on_same_step(self):
+        success = {"value": False}
+        contacts = {"value": []}
+        self.task.check_success = lambda: success["value"]
+        self.task.scene.get_contacts = lambda: contacts["value"]
+
+        def save_camera_rgb(path, *, camera_name):
+            self.assertEqual(camera_name, "head_camera")
+            Path(path).write_bytes(b"png")
+
+        self.task.save_camera_rgb = save_camera_rgb
+        target_body = SimpleNamespace(entity=SimpleNamespace(name="target"))
+        gripper_body = SimpleNamespace(entity=SimpleNamespace(name="gripper"))
+        table_body = SimpleNamespace(entity=SimpleNamespace(name="table"))
+        contact_point = SimpleNamespace(
+            impulse=np.asarray([0.1, 0.0, 0.0]),
+            separation=-0.001,
+            position=np.asarray([0.0, 0.0, 0.0]),
+            normal=np.asarray([0.0, 0.0, 1.0]),
+        )
+        contact = SimpleNamespace(
+            bodies=[target_body, gripper_body],
+            points=[contact_point],
+        )
+        support_contact = SimpleNamespace(
+            bodies=[target_body, table_body],
+            points=[contact_point],
+        )
+        contacts["value"] = [support_contact]
+        recorder = EpisodeRecorder(
+            self.root,
+            self.episode,
+            task_name="generic_task",
+            seed=7,
+            episode_index=0,
+            policy_name="expert",
+            visual_capture_profile_id="event_keyframes_v1",
+        )
+
+        def encode(command, **kwargs):
+            Path(command[-1]).write_bytes(b"mp4")
+            return SimpleNamespace(returncode=0, stderr="")
+
+        with patch("mea.toolkit.recorder.subprocess.run", side_effect=encode):
+            recorder.start(self.task)
+            contacts["value"] = [support_contact, contact]
+            success["value"] = True
+            recorder.on_physics_step(self.task)
+            contacts["value"] = []
+            recorder.on_physics_step(self.task)
+            metadata = recorder.finish(self.task, success=True)
+
+        manifest = json.loads(
+            (self.episode / "visual_keyframes.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(manifest["status"], "completed")
+        self.assertEqual(manifest["frame_count"], 3)
+        self.assertEqual(manifest["frames"][0]["reasons"], ["initial"])
+        self.assertEqual(
+            set(manifest["frames"][1]["reasons"]),
+            {"success_transition", "first_physical_contact"},
+        )
+        self.assertEqual(manifest["frames"][2]["reasons"], ["final"])
+        self.assertTrue((self.episode / "video.mp4").is_file())
+        self.assertEqual(metadata["artifacts"]["video"], "video.mp4")
+        self.assertEqual(metadata["video_alignment"]["mode"], "event_keyframes")
+
+        events = [
+            json.loads(line)
+            for line in (self.episode / "events.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+        ]
+        success_event = next(
+            item for item in events if item["type"] == "success_transition"
+        )
+        contact_event = next(
+            item
+            for item in events
+            if item["type"] == "contact_interval"
+            and "gripper" in item["actors"]
+        )
+        support_event = next(
+            item
+            for item in events
+            if item["type"] == "contact_interval"
+            and "table" in item["actors"]
+        )
+        self.assertEqual(success_event["video_frame_index"], 1)
+        self.assertEqual(contact_event["first_physical_video_frame_index"], 1)
+        self.assertIsNone(support_event["first_physical_video_frame_index"])
+        with np.load(self.episode / "semantic_trace.npz") as archive:
+            self.assertEqual(archive["video_frame_index"].tolist(), [0, 1, 1])
+
+    def test_visual_capture_failure_preserves_numeric_telemetry(self):
+        def fail_capture(path, *, camera_name):
+            raise RuntimeError("camera unavailable")
+
+        self.task.save_camera_rgb = fail_capture
+        stale_keyframes = self.episode / "visual_keyframes"
+        stale_keyframes.mkdir(parents=True)
+        (stale_keyframes / "frame_099.png").write_bytes(b"stale")
+        (self.episode / "visual_keyframes.json").write_text(
+            "{}", encoding="utf-8"
+        )
+        (self.episode / "video.mp4").write_bytes(b"stale")
+        recorder = EpisodeRecorder(
+            self.root,
+            self.episode,
+            task_name="generic_task",
+            seed=7,
+            episode_index=0,
+            policy_name="expert",
+            visual_capture_profile_id="event_keyframes_v1",
+        )
+        recorder.start(self.task)
+        recorder.on_physics_step(self.task)
+        metadata = recorder.finish(self.task, success=False)
+
+        self.assertEqual(metadata["visual_capture"]["status"], "failed")
+        self.assertNotIn("video", metadata["artifacts"])
+        self.assertFalse((self.episode / "video.mp4").exists())
+        self.assertFalse((stale_keyframes / "frame_099.png").exists())
+        self.assertTrue((self.episode / "states.csv").is_file())
+        self.assertTrue((self.episode / "semantic_trace.npz").is_file())
+        self.assertTrue((self.episode / "events.jsonl").is_file())
+
+    def test_ffmpeg_failure_preserves_keyframes_and_numeric_telemetry(self):
+        self.task.save_camera_rgb = lambda path, *, camera_name: Path(
+            path
+        ).write_bytes(b"png")
+        recorder = EpisodeRecorder(
+            self.root,
+            self.episode,
+            task_name="generic_task",
+            seed=7,
+            episode_index=0,
+            policy_name="expert",
+            visual_capture_profile_id="event_keyframes_v1",
+        )
+        with patch(
+            "mea.toolkit.recorder.subprocess.run",
+            return_value=SimpleNamespace(returncode=1, stderr="encoder failed"),
+        ):
+            recorder.start(self.task)
+            metadata = recorder.finish(self.task, success=False)
+
+        self.assertEqual(metadata["visual_capture"]["status"], "failed")
+        self.assertEqual(metadata["visual_capture"]["frame_count"], 1)
+        self.assertNotIn("video", metadata["artifacts"])
+        self.assertTrue((self.episode / "visual_keyframes/frame_000.png").is_file())
+        self.assertTrue((self.episode / "visual_keyframes.json").is_file())
+        self.assertTrue((self.episode / "dynamics_trace.npz").is_file())
+
+    def test_visual_manifest_failure_cannot_abort_numeric_telemetry(self):
+        self.task.save_camera_rgb = lambda path, *, camera_name: Path(
+            path
+        ).write_bytes(b"png")
+        recorder = EpisodeRecorder(
+            self.root,
+            self.episode,
+            task_name="generic_task",
+            seed=7,
+            episode_index=0,
+            policy_name="expert",
+            visual_capture_profile_id="event_keyframes_v1",
+        )
+
+        def encode(command, **kwargs):
+            Path(command[-1]).write_bytes(b"mp4")
+            return SimpleNamespace(returncode=0, stderr="")
+
+        recorder.start(self.task)
+        with patch(
+            "mea.toolkit.recorder.subprocess.run", side_effect=encode
+        ), patch.object(
+            EpisodeRecorder,
+            "_write_visual_manifest",
+            side_effect=OSError("manifest unavailable"),
+        ):
+            metadata = recorder.finish(self.task, success=False)
+
+        self.assertEqual(metadata["visual_capture"]["status"], "failed")
+        self.assertEqual(
+            metadata["visual_capture"]["errors"][-1]["stage"], "finalize"
+        )
+        self.assertNotIn("visual_keyframes", metadata["artifacts"])
+        self.assertNotIn("video", metadata["artifacts"])
+        self.assertFalse((self.episode / "video.mp4").exists())
+        self.assertFalse((self.episode / "visual_keyframes.json").exists())
+        self.assertTrue((self.episode / "states.csv").is_file())
+        self.assertTrue((self.episode / "semantic_trace.npz").is_file())
+        self.assertTrue((self.episode / "events.jsonl").is_file())
+        self.assertTrue((self.episode / "episode.json").is_file())
+
+    def test_unknown_visual_profile_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "unknown visual capture profile"):
+            EpisodeRecorder(
+                self.root,
+                self.episode,
+                task_name="generic_task",
+                seed=7,
+                episode_index=0,
+                policy_name="expert",
+                visual_capture_profile_id="model_supplied_capture_code",
             )
 
 

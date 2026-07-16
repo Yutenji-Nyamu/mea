@@ -174,6 +174,220 @@ class AgentEvidenceIntegrationTests(unittest.TestCase):
             )
             self.assertIn("missing video.mp4", saved["reason"])
 
+    def test_official_route_uses_expert_video_and_numeric_evidence(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            repo_root = Path(temporary)
+            child_dir = repo_root / "mea/generated_tasks/run"
+            episode_dir = child_dir / "evaluation/telemetry/expert/episode_0"
+            episode_dir.mkdir(parents=True)
+            (episode_dir / "video.mp4").write_bytes(b"video")
+            (episode_dir / "episode.json").write_text(
+                json.dumps(
+                    {
+                        "visual_capture": {"status": "completed"},
+                        "artifacts": {"video": "video.mp4"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            execution_dir = repo_root / "mea/evaluation_runs/e/execution/round_1"
+            manifest = {
+                "task_name": "click_bell",
+                "trusted_tool_evaluation": {
+                    "episodes": [
+                        {
+                            "episode_dir": "expert/episode_0",
+                            "policy_name": "expert",
+                            "seed": 7,
+                            "tool_results": [
+                                {
+                                    "tool": "official_check_success",
+                                    "value": True,
+                                    "evidence_steps": [12],
+                                }
+                            ],
+                        }
+                    ]
+                },
+            }
+            round_plan = {
+                "route": "official",
+                "task_name": "click_bell",
+                "template_id": "task_execution.official_baseline",
+                "sub_aspect": "task_execution.official_baseline",
+                "tool_request": {
+                    "task_name": "click_bell",
+                    "metric": "official_check_success",
+                },
+            }
+            captured = {}
+
+            def fake_vqa(**kwargs):
+                captured.update(kwargs)
+                return {
+                    "schema_version": 1,
+                    "observation": {},
+                    "evidence_conflict": False,
+                    "artifacts": {},
+                }
+
+            with patch(
+                "scripts.manipeval_agent.run_execution_vqa",
+                side_effect=fake_vqa,
+            ):
+                result = run_round_execution_vqa(
+                    repo_root=repo_root,
+                    child_manifest=manifest,
+                    child_dir=child_dir,
+                    tool_evaluation=None,
+                    execution_dir=execution_dir,
+                    provider=object(),
+                    model="vision",
+                    round_plan=round_plan,
+                )
+
+            self.assertEqual(result["status"], "passed")
+            self.assertEqual(captured["video_path"], episode_dir / "video.mp4")
+            self.assertEqual(
+                captured["numeric_tool_results"][0]["tool"],
+                "official_check_success",
+            )
+
+    def test_official_episode_without_video_remains_auditable_skip(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            repo_root = Path(temporary)
+            child_dir = repo_root / "mea/generated_tasks/run"
+            episode_dir = child_dir / "evaluation/telemetry/expert/episode_0"
+            episode_dir.mkdir(parents=True)
+            (episode_dir / "episode.json").write_text(
+                json.dumps(
+                    {
+                        "visual_capture": {
+                            "profile_id": "event_keyframes_v1",
+                            "status": "failed",
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            # A residual file is not valid evidence when the episode contract
+            # says visual capture failed.
+            (episode_dir / "video.mp4").write_bytes(b"unapproved video")
+            execution_dir = repo_root / "mea/evaluation_runs/e/execution/round_1"
+            manifest = {
+                "task_name": "click_bell",
+                "trusted_tool_evaluation": {
+                    "episodes": [
+                        {
+                            "episode_dir": "expert/episode_0",
+                            "policy_name": "expert",
+                            "seed": 7,
+                            "tool_results": [],
+                        }
+                    ]
+                },
+            }
+            result = run_round_execution_vqa(
+                repo_root=repo_root,
+                child_manifest=manifest,
+                child_dir=child_dir,
+                tool_evaluation=None,
+                execution_dir=execution_dir,
+                provider=object(),
+                model="vision",
+                round_plan={
+                    "route": "official",
+                    "task_name": "click_bell",
+                    "template_id": "task_execution.official_baseline",
+                    "sub_aspect": "task_execution.official_baseline",
+                    "tool_request": {
+                        "task_name": "click_bell",
+                        "metric": "official_check_success",
+                    },
+                },
+            )
+            self.assertEqual(result["status"], "skipped")
+            self.assertEqual(result["visual_capture"]["status"], "failed")
+            self.assertTrue(
+                (execution_dir / "execution_vqa_skipped.json").is_file()
+            )
+
+    def test_official_route_prefers_later_expert_episode_with_video(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            repo_root = Path(temporary)
+            child_dir = repo_root / "mea/generated_tasks/run"
+            missing = child_dir / "evaluation/telemetry/expert/episode_0"
+            available = child_dir / "evaluation/telemetry/expert/episode_1"
+            missing.mkdir(parents=True)
+            available.mkdir(parents=True)
+            (available / "video.mp4").write_bytes(b"video")
+            (available / "episode.json").write_text(
+                json.dumps(
+                    {
+                        "visual_capture": {"status": "completed"},
+                        "artifacts": {"video": "video.mp4"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            execution_dir = repo_root / "mea/evaluation_runs/e/execution/round_1"
+            manifest = {
+                "task_name": "click_bell",
+                "trusted_tool_evaluation": {
+                    "episodes": [
+                        {
+                            "episode_dir": "expert/episode_0",
+                            "policy_name": "expert",
+                            "seed": 7,
+                            "tool_results": [],
+                        },
+                        {
+                            "episode_dir": "expert/episode_1",
+                            "policy_name": "expert",
+                            "seed": 8,
+                            "tool_results": [],
+                        },
+                    ]
+                },
+            }
+            captured = {}
+
+            def fake_vqa(**kwargs):
+                captured.update(kwargs)
+                return {
+                    "schema_version": 1,
+                    "observation": {},
+                    "evidence_conflict": False,
+                    "artifacts": {},
+                }
+
+            with patch(
+                "scripts.manipeval_agent.run_execution_vqa",
+                side_effect=fake_vqa,
+            ):
+                result = run_round_execution_vqa(
+                    repo_root=repo_root,
+                    child_manifest=manifest,
+                    child_dir=child_dir,
+                    tool_evaluation=None,
+                    execution_dir=execution_dir,
+                    provider=object(),
+                    model="vision",
+                    round_plan={
+                        "route": "official",
+                        "task_name": "click_bell",
+                        "template_id": "task_execution.official_baseline",
+                        "sub_aspect": "task_execution.official_baseline",
+                        "tool_request": {
+                            "task_name": "click_bell",
+                            "metric": "official_check_success",
+                        },
+                    },
+                )
+
+            self.assertEqual(result["status"], "passed")
+            self.assertEqual(captured["video_path"], available / "video.mp4")
+
 
 if __name__ == "__main__":
     unittest.main()

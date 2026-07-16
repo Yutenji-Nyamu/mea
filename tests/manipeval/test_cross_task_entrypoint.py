@@ -16,7 +16,11 @@ from scripts.manipeval_agent import (
     run_round_execution_vqa,
     summarize_round,
 )
-from scripts.manipeval_taskgen import run_act, run_official_expert_episodes
+from scripts.manipeval_taskgen import (
+    run_act,
+    run_official_expert_episodes,
+    run_probe,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -260,7 +264,16 @@ class CrossTaskEntrypointTests(unittest.TestCase):
                     "rule_check": {"passed": True},
                     "expert": {"passed": True},
                     "image": f"image-{index}",
-                    "telemetry": {"episode_dir": f"episode-{index}"},
+                    "telemetry": {
+                        "episode_dir": f"episode-{index}",
+                        "metadata": {
+                            "artifacts": {"video": "video.mp4"},
+                            "visual_capture": {
+                                "profile_id": "event_keyframes_v1",
+                                "status": "completed",
+                            },
+                        },
+                    },
                 }
                 for index in range(2)
             ]
@@ -281,6 +294,120 @@ class CrossTaskEntrypointTests(unittest.TestCase):
                 [call.kwargs["episode_index"] for call in probe.call_args_list],
                 [0, 1],
             )
+            self.assertEqual(
+                [
+                    call.kwargs["visual_capture_profile_id"]
+                    for call in probe.call_args_list
+                ],
+                ["event_keyframes_v1", "event_keyframes_v1"],
+            )
+            self.assertEqual(
+                result["expert_batch"]["episodes"][0]["video"],
+                str(Path("episode-0") / "video.mp4"),
+            )
+            self.assertEqual(result["expert_batch"]["rejected_seed_count"], 0)
+
+    def test_official_expert_skips_unstable_seed_with_audit_record(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            run_dir = root / "mea/generated_tasks/run_adjust"
+
+            def accepted_scene(index):
+                return {
+                    "returncode": 0,
+                    "setup_success": True,
+                    "render_success": True,
+                    "rule_check": {"passed": True},
+                    "expert": {"passed": True},
+                    "image": f"image-{index}",
+                    "telemetry": {
+                        "episode_dir": f"episode-{index}",
+                        "metadata": {
+                            "artifacts": {"video": "video.mp4"},
+                            "visual_capture": {"status": "completed"},
+                        },
+                    },
+                }
+
+            scenes = [
+                {
+                    "returncode": 1,
+                    "error": {
+                        "type": "UnStableError",
+                        "message": "bottle unstable",
+                    },
+                },
+                accepted_scene(0),
+                accepted_scene(1),
+            ]
+            with patch(
+                "scripts.manipeval_taskgen.run_probe", side_effect=scenes
+            ) as probe:
+                result = run_official_expert_episodes(
+                    root,
+                    run_dir,
+                    {"task_name": "adjust_bottle"},
+                    start_seed=100,
+                    num_episodes=2,
+                    telemetry_profile="balanced_v1",
+                    max_seed_candidates=3,
+                )
+
+            self.assertEqual(
+                [call.kwargs["seed"] for call in probe.call_args_list],
+                [100, 101, 102],
+            )
+            self.assertEqual(
+                [call.kwargs["episode_index"] for call in probe.call_args_list],
+                [0, 0, 1],
+            )
+            self.assertTrue(
+                all(
+                    call.kwargs["raise_on_failure"] is False
+                    for call in probe.call_args_list
+                )
+            )
+            self.assertEqual(result["expert_batch"]["episode_count"], 2)
+            self.assertEqual(result["expert_batch"]["candidate_count"], 3)
+            self.assertEqual(result["expert_batch"]["rejected_seed_count"], 1)
+            self.assertEqual(
+                result["expert_batch"]["rejected_seeds"][0]["seed"], 100
+            )
+
+    def test_probe_command_forwards_visual_capture_only_when_requested(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            run_dir = root / "mea/generated_tasks/run_click"
+            (run_dir / "validation").mkdir(parents=True)
+            manifest = {
+                "task_name": "click_bell",
+                "task_module": "envs.click_bell",
+            }
+            with patch(
+                "scripts.manipeval_taskgen.run_command", return_value=0
+            ) as invoked:
+                run_probe(
+                    root,
+                    run_dir,
+                    manifest,
+                    seed=7,
+                    expert=True,
+                    visual_capture_profile_id="event_keyframes_v1",
+                )
+                visual_command = invoked.call_args.args[0]
+                run_probe(
+                    root,
+                    run_dir,
+                    manifest,
+                    seed=8,
+                    expert=False,
+                )
+                default_command = invoked.call_args.args[0]
+            flag_index = visual_command.index("--visual-capture-profile")
+            self.assertEqual(
+                visual_command[flag_index + 1], "event_keyframes_v1"
+            )
+            self.assertNotIn("--visual-capture-profile", default_command)
 
     def test_act_wrapper_receives_telemetry_profile_as_twelfth_argument(self):
         with tempfile.TemporaryDirectory() as temporary:

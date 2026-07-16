@@ -74,6 +74,7 @@ def run_probe(
     max_expert_attempts: int = 3,
     telemetry_dir: Path | None = None,
     telemetry_profile: str = "balanced_v1",
+    visual_capture_profile_id: str | None = None,
 ) -> dict[str, Any]:
     scene_json = scene_json or run_dir / "validation/scene.json"
     image = image or run_dir / "evidence/initial_head.png"
@@ -109,6 +110,10 @@ def run_probe(
         command.append("--expert")
     if telemetry_dir is not None:
         command.extend(["--telemetry-dir", str(telemetry_dir)])
+    if visual_capture_profile_id is not None:
+        command.extend(
+            ["--visual-capture-profile", visual_capture_profile_id]
+        )
 
     attempts: list[dict[str, Any]] = []
     attempt_logs: list[Path] = []
@@ -168,13 +173,19 @@ def run_official_expert_episodes(
     start_seed: int,
     num_episodes: int,
     telemetry_profile: str,
+    max_seed_candidates: int | None = None,
 ) -> dict[str, Any]:
-    """Execute one or more unchanged official-task expert probes."""
+    """Execute unchanged expert probes on solvable official-task seeds."""
 
     episode_summaries: list[dict[str, Any]] = []
+    rejected_seeds: list[dict[str, Any]] = []
     first_scene: dict[str, Any] | None = None
-    for episode_index in range(num_episodes):
-        seed = start_seed + episode_index
+    candidate_limit = max_seed_candidates or max(num_episodes * 10, num_episodes + 5)
+    for candidate_index in range(candidate_limit):
+        if len(episode_summaries) >= num_episodes:
+            break
+        episode_index = len(episode_summaries)
+        seed = start_seed + candidate_index
         is_first = episode_index == 0
         scene = run_probe(
             repo_root,
@@ -207,9 +218,36 @@ def run_official_expert_episodes(
                 / f"episode_{episode_index:03d}_seed_{seed}"
             ),
             telemetry_profile=telemetry_profile,
+            visual_capture_profile_id="event_keyframes_v1",
+            raise_on_failure=False,
         )
+        returncode = int(scene.get("returncode", 0))
+        if returncode != 0:
+            error = scene.get("error") or {}
+            if error.get("type") == "UnStableError":
+                rejected_seeds.append(
+                    {
+                        "seed": seed,
+                        "reason": "unstable_initial_scene",
+                        "error_type": error.get("type"),
+                        "message": error.get("message"),
+                    }
+                )
+                continue
+            raise RuntimeError(
+                "official expert probe failed for "
+                f"seed={seed}, returncode={returncode}: "
+                f"{error.get('type') or 'unknown error'}"
+            )
+        if not bool(scene.get("expert", {}).get("passed")):
+            raise RuntimeError(
+                f"official expert did not pass for stable seed={seed}"
+            )
         if first_scene is None:
             first_scene = scene
+        telemetry = scene.get("telemetry", {})
+        telemetry_metadata = telemetry.get("metadata", {})
+        video_artifact = telemetry_metadata.get("artifacts", {}).get("video")
         episode_summaries.append(
             {
                 "episode_index": episode_index,
@@ -219,13 +257,27 @@ def run_official_expert_episodes(
                 "rule_passed": bool(scene.get("rule_check", {}).get("passed")),
                 "expert_passed": bool(scene.get("expert", {}).get("passed")),
                 "image": scene.get("image"),
-                "telemetry": scene.get("telemetry", {}).get("episode_dir"),
+                "telemetry": telemetry.get("episode_dir"),
+                "video": (
+                    str(Path(telemetry["episode_dir"]) / video_artifact)
+                    if telemetry.get("episode_dir") and video_artifact
+                    else None
+                ),
+                "visual_capture": telemetry_metadata.get("visual_capture"),
             }
         )
-    assert first_scene is not None
+    if first_scene is None or len(episode_summaries) < num_episodes:
+        raise RuntimeError(
+            "official expert seed scan exhausted before collecting "
+            f"{num_episodes} episodes; accepted={len(episode_summaries)}, "
+            f"rejected={len(rejected_seeds)}, candidates={candidate_limit}"
+        )
     first_scene["expert_batch"] = {
         "passed": all(item["expert_passed"] for item in episode_summaries),
         "episode_count": len(episode_summaries),
+        "candidate_count": len(episode_summaries) + len(rejected_seeds),
+        "rejected_seed_count": len(rejected_seeds),
+        "rejected_seeds": rejected_seeds,
         "episodes": episode_summaries,
     }
     write_json(run_dir / "validation/scene.json", first_scene)
@@ -522,6 +574,8 @@ def run_act(
     num_episodes: int,
     telemetry_profile: str = "balanced_v1",
 ) -> dict[str, Any]:
+    """Run the current BBH-specific ACT bridge and attach its videos to telemetry."""
+
     previous_attempt = archive_previous_act_attempt(run_dir)
     telemetry_root = run_dir / "evaluation/telemetry/act"
     eval_root = repo_root / "eval_result/beat_block_hammer/ACT/demo_clean/demo_clean"

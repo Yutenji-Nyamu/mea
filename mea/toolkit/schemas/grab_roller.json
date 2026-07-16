@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "task_name": "grab_roller",
+  "task_family": "dual_arm_lift",
+  "trusted_tool_profile": "generic_success",
+  "physics_timestep_seconds": 0.004,
+  "action_dimension": 14,
+  "tracked_actors": [
+    {
+      "id": "roller",
+      "task_attribute": "roller",
+      "scene_name": "102_roller",
+      "functional_points": [],
+      "contact_points": [0, 1]
+    }
+  ],
+  "contact_focus_actor_ids": ["roller"],
+  "semantic_fields": [
+    {
+      "name": "roller_position",
+      "source": "actor_position",
+      "actor_id": "roller"
+    },
+    {
+      "name": "roller_left_contact_position",
+      "source": "actor_contact_position",
+      "actor_id": "roller",
+      "point_id": 0
+    },
+    {
+      "name": "roller_right_contact_position",
+      "source": "actor_contact_position",
+      "actor_id": "roller",
+      "point_id": 1
+    },
+    {
+      "name": "left_tcp_position",
+      "source": "robot_tcp_position",
+      "side": "left"
+    },
+    {
+      "name": "right_tcp_position",
+      "source": "robot_tcp_position",
+      "side": "right"
+    }
+  ],
+  "semantic_roles": {
+    "manipulated_object_position": "roller_position",
+    "left_target_contact_position": "roller_left_contact_position",
+    "right_target_contact_position": "roller_right_contact_position",
+    "left_tcp_position": "left_tcp_position",
+    "right_tcp_position": "right_tcp_position"
+  },
+  "success_contract": {
+    "type": "official_check_success",
+    "target_actor_id": "roller",
+    "minimum_height_m": 0.8,
+    "requires_left_gripper_closed": true,
+    "requires_right_gripper_closed": true
+  }
+}

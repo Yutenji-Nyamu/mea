@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_name": "adjust_bottle",
+  "task_family": "object_reposition",
+  "trusted_tool_profile": "generic_success",
+  "physics_timestep_seconds": 0.004,
+  "action_dimension": 14,
+  "tracked_actors": [
+    {
+      "id": "bottle",
+      "task_attribute": "bottle",
+      "scene_name": "001_bottle",
+      "functional_points": [0],
+      "contact_points": []
+    }
+  ],
+  "contact_focus_actor_ids": ["bottle"],
+  "semantic_fields": [
+    {
+      "name": "bottle_position",
+      "source": "actor_position",
+      "actor_id": "bottle"
+    },
+    {
+      "name": "bottle_functional_position",
+      "source": "actor_functional_position",
+      "actor_id": "bottle",
+      "point_id": 0
+    },
+    {
+      "name": "left_tcp_position",
+      "source": "robot_tcp_position",
+      "side": "left"
+    },
+    {
+      "name": "right_tcp_position",
+      "source": "robot_tcp_position",
+      "side": "right"
+    }
+  ],
+  "semantic_roles": {
+    "manipulated_object_position": "bottle_position",
+    "manipulated_functional_position": "bottle_functional_position",
+    "left_tcp_position": "left_tcp_position",
+    "right_tcp_position": "right_tcp_position"
+  },
+  "success_contract": {
+    "type": "official_check_success",
+    "target_actor_id": "bottle",
+    "target_functional_point": 0,
+    "minimum_height_m": 0.9,
+    "minimum_absolute_x_m": 0.15,
+    "target_side_source": "initial_bottle_x_sign",
+    "target_side_semantic_field": "bottle_functional_position"
+  }
+}

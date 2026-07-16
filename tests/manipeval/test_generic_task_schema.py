@@ -28,15 +28,29 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class GenericTaskSchemaTests(unittest.TestCase):
-    def test_registry_discovers_bbh_and_click_bell(self):
+    def test_registry_discovers_all_onboarded_tasks(self):
         summaries = {item["task_name"]: item for item in list_task_schemas(REPO_ROOT)}
         self.assertIn("beat_block_hammer", summaries)
         self.assertIn("click_bell", summaries)
+        self.assertIn("adjust_bottle", summaries)
+        self.assertIn("grab_roller", summaries)
         self.assertEqual(summaries["click_bell"]["tracked_actor_ids"], ["bell"])
         self.assertEqual(
             summaries["click_bell"]["trusted_tool_profile"],
             "generic_success",
         )
+        self.assertEqual(summaries["adjust_bottle"]["tracked_actor_ids"], ["bottle"])
+        self.assertEqual(summaries["grab_roller"]["tracked_actor_ids"], ["roller"])
+
+    def test_new_task_schemas_use_only_generic_recorder_sources(self):
+        adjust = load_task_schema(REPO_ROOT, "adjust_bottle")
+        roller = load_task_schema(REPO_ROOT, "grab_roller")
+        self.assertEqual(adjust["trusted_tool_profile"], "generic_success")
+        self.assertEqual(adjust["tracked_actors"][0]["functional_points"], [0])
+        self.assertEqual(roller["trusted_tool_profile"], "generic_success")
+        self.assertEqual(roller["tracked_actors"][0]["contact_points"], [0, 1])
+        self.assertIn("bottle_functional_position", required_trace_keys(adjust))
+        self.assertIn("roller_left_contact_position", required_trace_keys(roller))
 
     def test_click_bell_declares_exact_trace_contract(self):
         schema = load_task_schema(REPO_ROOT, "click_bell")

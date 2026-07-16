@@ -285,6 +285,9 @@ def run_probe(arguments: argparse.Namespace) -> dict[str, Any]:
                 task_config=arguments.task_config,
                 checkpoint_setting=arguments.ckpt_setting,
                 telemetry_profile_id=arguments.telemetry_profile,
+                visual_capture_profile_id=getattr(
+                    arguments, "visual_capture_profile", None
+                ),
             )
             task._mea_recorder = recorder
             try:
@@ -391,6 +394,10 @@ def parse_args() -> argparse.Namespace:
         "--telemetry-profile",
         choices=["balanced_v1", "legacy_v1"],
         default="balanced_v1",
+    )
+    parser.add_argument(
+        "--visual-capture-profile",
+        choices=["event_keyframes_v1"],
     )
     return parser.parse_args()
 

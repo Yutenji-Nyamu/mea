@@ -10,6 +10,7 @@ from __future__ import annotations
 import csv
 import json
 import math
+import subprocess
 import time
 from copy import deepcopy
 from pathlib import Path
@@ -23,6 +24,10 @@ from .schema import load_task_schema
 
 class RecorderError(RuntimeError):
     """Raised when a task cannot satisfy its declared telemetry schema."""
+
+
+_VISUAL_CAPTURE_PROFILES = {"event_keyframes_v1"}
+_VISUAL_CAPTURE_FPS = 2
 
 
 def _numbers(value: Any) -> list[float]:
@@ -100,6 +105,7 @@ class EpisodeRecorder:
         task_config: str | None = None,
         checkpoint_setting: str | None = None,
         telemetry_profile_id: str = "balanced_v1",
+        visual_capture_profile_id: str | None = None,
     ):
         self.repo_root = Path(repo_root).expanduser().resolve()
         self.output_dir = Path(output_dir).expanduser().resolve()
@@ -117,6 +123,15 @@ class EpisodeRecorder:
         self.telemetry_profile_hash = telemetry_profile_sha256(
             self.telemetry_profile
         )
+        if (
+            visual_capture_profile_id is not None
+            and visual_capture_profile_id not in _VISUAL_CAPTURE_PROFILES
+        ):
+            raise ValueError(
+                "unknown visual capture profile: "
+                f"{visual_capture_profile_id!r}"
+            )
+        self.visual_capture_profile_id = visual_capture_profile_id
         dynamics_stream = self.telemetry_profile.get("streams", {}).get(
             "dynamics_trace"
         )
@@ -142,6 +157,13 @@ class EpisodeRecorder:
         self.started_at = time.time()
         self.finished = False
         self._task: Any = None
+        self.visual_frames: list[dict[str, Any]] = []
+        self.visual_capture_errors: list[dict[str, str]] = []
+        self.first_physical_contact_seen = False
+        self.initial_physical_contacts: set[tuple[str, str]] = set()
+        self.visual_keyframe_dir = self.output_dir / "visual_keyframes"
+        if self.visual_capture_profile_id is not None:
+            self._prepare_visual_capture()
 
         (self.output_dir / "schema.json").write_text(
             json.dumps(self.schema, ensure_ascii=False, indent=2) + "\n",
@@ -155,9 +177,167 @@ class EpisodeRecorder:
     def start(self, task: Any) -> None:
         self._task = task
         self._validate_task(task)
+        if self.visual_capture_profile_id is not None:
+            # Resting/support contacts exist before expert motion and must not
+            # consume the first action-induced contact keyframe.
+            self.initial_physical_contacts = {
+                pair
+                for pair, sample in self._contact_samples(task).items()
+                if sample["physical_contact"]
+            }
+        self._capture_visual_keyframe(task, reason="initial")
         self.policy_rows.append(self._full_state(task, phase="initial", action=None))
         self.semantic_rows.append(self._semantic_state(task))
         self._record_dynamics(task, force=True)
+
+    def _visual_capture_error(self, stage: str, error: Exception) -> None:
+        self.visual_capture_errors.append(
+            {
+                "stage": stage,
+                "type": type(error).__name__,
+                "message": str(error),
+            }
+        )
+
+    def _prepare_visual_capture(self) -> None:
+        """Remove stale visual artifacts before a retried expert probe."""
+
+        try:
+            self.visual_keyframe_dir.mkdir(parents=True, exist_ok=True)
+            for path in self.visual_keyframe_dir.glob("frame_*.png"):
+                path.unlink()
+            for path in (
+                self.output_dir / "visual_keyframes.json",
+                self.output_dir / "video.mp4",
+                self.output_dir / "video.partial.mp4",
+            ):
+                if path.exists():
+                    path.unlink()
+        except Exception as exc:
+            self._visual_capture_error("prepare", exc)
+
+    def _capture_visual_keyframe(
+        self,
+        task: Any,
+        *,
+        reason: str,
+    ) -> int | None:
+        """Capture one sparse head-camera frame without affecting telemetry."""
+
+        if self.visual_capture_profile_id is None:
+            return None
+        if (
+            self.visual_frames
+            and self.visual_frames[-1]["physics_step"] == self.physics_step
+        ):
+            reasons = self.visual_frames[-1]["reasons"]
+            if reason not in reasons:
+                reasons.append(reason)
+            return int(self.visual_frames[-1]["frame_index"])
+        frame_index = len(self.visual_frames)
+        relative_image = Path("visual_keyframes") / f"frame_{frame_index:03d}.png"
+        destination = self.output_dir / relative_image
+        try:
+            save_camera_rgb = getattr(task, "save_camera_rgb")
+            save_camera_rgb(str(destination), camera_name="head_camera")
+            if not destination.is_file() or destination.stat().st_size <= 0:
+                raise RecorderError(
+                    f"head-camera keyframe was not written: {destination}"
+                )
+        except Exception as exc:
+            self._visual_capture_error(f"capture:{reason}", exc)
+            return None
+        self.visual_frames.append(
+            {
+                "frame_index": frame_index,
+                "physics_step": self.physics_step,
+                "simulation_time_seconds": self.physics_step * self.physics_dt,
+                "reasons": [reason],
+                "image": relative_image.as_posix(),
+            }
+        )
+        return frame_index
+
+    def _finalize_visual_capture(self) -> dict[str, Any] | None:
+        if self.visual_capture_profile_id is None:
+            return None
+
+        video = self.output_dir / "video.mp4"
+        partial_video = self.output_dir / "video.partial.mp4"
+        if not self.visual_frames:
+            self.visual_capture_errors.append(
+                {
+                    "stage": "encode",
+                    "type": "RecorderError",
+                    "message": "no visual keyframes were captured",
+                }
+            )
+        if not self.visual_capture_errors:
+            command = [
+                "ffmpeg",
+                "-y",
+                "-loglevel",
+                "error",
+                "-framerate",
+                str(_VISUAL_CAPTURE_FPS),
+                "-start_number",
+                "0",
+                "-i",
+                str(self.visual_keyframe_dir / "frame_%03d.png"),
+                "-vf",
+                "pad=ceil(iw/2)*2:ceil(ih/2)*2",
+                "-pix_fmt",
+                "yuv420p",
+                "-vcodec",
+                "libx264",
+                "-crf",
+                "23",
+                str(partial_video),
+            ]
+            try:
+                process = subprocess.run(
+                    command,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=False,
+                    timeout=60,
+                )
+                if process.returncode != 0:
+                    raise RecorderError(
+                        "ffmpeg failed with return code "
+                        f"{process.returncode}: {process.stderr.strip()}"
+                    )
+                if not partial_video.is_file() or partial_video.stat().st_size <= 0:
+                    raise RecorderError("ffmpeg did not produce a non-empty video")
+                partial_video.replace(video)
+            except Exception as exc:
+                self._visual_capture_error("encode", exc)
+        if partial_video.exists():
+            try:
+                partial_video.unlink()
+            except OSError:
+                pass
+
+        completed = not self.visual_capture_errors and video.is_file()
+        result = {
+            "schema_version": 1,
+            "profile_id": self.visual_capture_profile_id,
+            "status": "completed" if completed else "failed",
+            "camera": "head_camera",
+            "frame_count": len(self.visual_frames),
+            "nominal_frame_rate_hz": _VISUAL_CAPTURE_FPS,
+            "frames": self.visual_frames,
+            "errors": self.visual_capture_errors,
+        }
+        self._write_visual_manifest(result)
+        return result
+
+    def _write_visual_manifest(self, result: dict[str, Any]) -> None:
+        (self.output_dir / "visual_keyframes.json").write_text(
+            json.dumps(result, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
 
     def _validate_task(self, task: Any) -> None:
         missing = [
@@ -245,6 +425,12 @@ class EpisodeRecorder:
             "simulation_time_seconds": self.physics_step * self.physics_dt,
             "success": bool(getattr(task, "eval_success", False)),
         }
+        if self.visual_capture_profile_id is not None:
+            values["video_frame_index"] = (
+                int(self.visual_frames[-1]["frame_index"])
+                if self.visual_frames
+                else 0
+            )
         actor_specs = {
             item["id"]: item for item in self.schema["tracked_actors"]
         }
@@ -536,8 +722,23 @@ class EpisodeRecorder:
         samples = self._contact_samples(task)
         current = set(samples)
         previous = set(self.active_contacts)
+        visual_capture_enabled = (
+            getattr(self, "visual_capture_profile_id", None) is not None
+        )
         for pair in sorted(current - previous):
             sample = samples[pair]
+            contact_frame_index = None
+            if (
+                visual_capture_enabled
+                and sample["physical_contact"]
+                and pair not in self.initial_physical_contacts
+                and not getattr(self, "first_physical_contact_seen", False)
+            ):
+                self.first_physical_contact_seen = True
+                contact_frame_index = self._capture_visual_keyframe(
+                    task,
+                    reason="first_physical_contact",
+                )
             self.active_contacts[pair] = {
                 "type": "contact_interval",
                 "actors": list(pair),
@@ -558,6 +759,15 @@ class EpisodeRecorder:
                     self.physics_step * self.physics_dt
                     if sample["physical_contact"]
                     else None
+                ),
+                **(
+                    {
+                        "first_physical_video_frame_index": (
+                            contact_frame_index
+                        )
+                    }
+                    if visual_capture_enabled
+                    else {}
                 ),
                 "peak_policy_step": self.policy_step,
                 "peak_physics_step": self.physics_step,
@@ -587,6 +797,21 @@ class EpisodeRecorder:
                 interval["first_physical_simulation_time_seconds"] = (
                     self.physics_step * self.physics_dt
                 )
+                contact_frame_index = None
+                if (
+                    visual_capture_enabled
+                    and pair not in self.initial_physical_contacts
+                    and not getattr(self, "first_physical_contact_seen", False)
+                ):
+                    self.first_physical_contact_seen = True
+                    contact_frame_index = self._capture_visual_keyframe(
+                        task,
+                        reason="first_physical_contact",
+                    )
+                if visual_capture_enabled:
+                    interval["first_physical_video_frame_index"] = (
+                        contact_frame_index
+                    )
             if float(sample["max_impulse"]) > interval["max_impulse"]:
                 interval["max_impulse"] = float(sample["max_impulse"])
                 interval["peak_policy_step"] = self.policy_step
@@ -612,13 +837,18 @@ class EpisodeRecorder:
         if self.success_seen:
             return
         self.success_seen = True
+        video_frame_index = (
+            self._capture_visual_keyframe(task, reason="success_transition")
+            if getattr(self, "visual_capture_profile_id", None) is not None
+            else max(self.policy_step, 0)
+        )
         self.events.append(
             {
                 "type": "success_transition",
                 "policy_step": self.policy_step,
                 "physics_step": self.physics_step,
                 "simulation_time_seconds": self.physics_step * self.physics_dt,
-                "video_frame_index": max(self.policy_step, 0),
+                "video_frame_index": video_frame_index,
             }
         )
 
@@ -661,6 +891,7 @@ class EpisodeRecorder:
             self._close_contact(pair, reason="episode_end")
         if success:
             self._record_success(task)
+        self._capture_visual_keyframe(task, reason="final")
         self.policy_rows.append(
             self._full_state(task, phase="final", action=None)
         )
@@ -669,6 +900,32 @@ class EpisodeRecorder:
         semantic_arrays = self._write_semantic_npz()
         dynamics_arrays = self._write_dynamics_npz()
         self._write_events()
+        try:
+            visual_capture = self._finalize_visual_capture()
+        except Exception as exc:  # visual evidence is always best-effort
+            self._visual_capture_error("finalize", exc)
+            # A container produced before the manifest failed is not a
+            # contract-complete artifact. Remove it so path-only consumers
+            # cannot mistake best-effort output for approved visual evidence.
+            for path in (
+                self.output_dir / "video.mp4",
+                self.output_dir / "video.partial.mp4",
+                self.output_dir / "visual_keyframes.json",
+            ):
+                try:
+                    path.unlink(missing_ok=True)
+                except OSError as cleanup_exc:
+                    self._visual_capture_error("cleanup", cleanup_exc)
+            visual_capture = {
+                "schema_version": 1,
+                "profile_id": self.visual_capture_profile_id,
+                "status": "failed",
+                "camera": "head_camera",
+                "frame_count": len(self.visual_frames),
+                "nominal_frame_rate_hz": _VISUAL_CAPTURE_FPS,
+                "frames": self.visual_frames,
+                "errors": self.visual_capture_errors,
+            }
         stream_metadata: dict[str, Any] = {
             "policy_state": {
                 "artifact": "states.csv",
@@ -700,6 +957,9 @@ class EpisodeRecorder:
                 "rows": len(self.dynamics_rows),
                 "arrays": dynamics_arrays,
             }
+        visual_completed = bool(
+            visual_capture and visual_capture.get("status") == "completed"
+        )
         metadata = {
             "schema_version": 1,
             "recorder_schema_version": 2,
@@ -731,6 +991,27 @@ class EpisodeRecorder:
                 item.get("type") == "contact_interval" for item in self.events
             ),
             "error": error,
+            **(
+                {"visual_capture": visual_capture}
+                if visual_capture is not None
+                else {}
+            ),
+            **(
+                {
+                    "video_alignment": {
+                        "schema_version": 1,
+                        "mode": "event_keyframes",
+                        "nominal_frame_rate_hz": _VISUAL_CAPTURE_FPS,
+                        "frame_manifest": "visual_keyframes.json",
+                        "frame_semantics": (
+                            "ordered sparse event evidence; not continuous-time "
+                            "video"
+                        ),
+                    }
+                }
+                if visual_completed
+                else {}
+            ),
             "artifacts": {
                 "policy_states": "states.csv",
                 "semantic_trace": "semantic_trace.npz",
@@ -742,6 +1023,12 @@ class EpisodeRecorder:
                 "events": "events.jsonl",
                 "task_schema": "schema.json",
                 "telemetry_profile": "telemetry_profile.json",
+                **(
+                    {"visual_keyframes": "visual_keyframes.json"}
+                    if (self.output_dir / "visual_keyframes.json").is_file()
+                    else {}
+                ),
+                **({"video": "video.mp4"} if visual_completed else {}),
             },
         }
         (self.output_dir / "episode.json").write_text(

@@ -362,17 +362,64 @@ def aggregate_evaluation_results(
     return aggregate_tool_executions(sources, output_path=output_path)
 
 
+def _execution_vqa_video_contract(
+    episode_dir: Path,
+    *,
+    route: str | None,
+) -> tuple[bool, dict[str, Any], str]:
+    """Validate route-specific video evidence before it can reach a VQA model."""
+
+    metadata_path = episode_dir / "episode.json"
+    metadata: dict[str, Any] = {}
+    metadata_error: str | None = None
+    if metadata_path.is_file():
+        try:
+            loaded = json.loads(metadata_path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                metadata = loaded
+            else:
+                metadata_error = "episode.json is not a JSON object"
+        except (OSError, json.JSONDecodeError) as exc:
+            metadata_error = f"episode.json is unreadable: {type(exc).__name__}"
+
+    if not (episode_dir / "video.mp4").is_file():
+        return False, metadata, "is missing video.mp4"
+    if route != "official":
+        return True, metadata, ""
+    if metadata_error:
+        return False, metadata, metadata_error
+
+    visual_capture = metadata.get("visual_capture") or {}
+    if visual_capture.get("status") != "completed":
+        return False, metadata, "does not declare a completed visual_capture"
+    if (metadata.get("artifacts") or {}).get("video") != "video.mp4":
+        return False, metadata, "does not declare artifacts.video=video.mp4"
+    return True, metadata, ""
+
+
 def _policy_episode_for_execution_vqa(
-    child_manifest: dict[str, Any], child_dir: Path
+    child_manifest: dict[str, Any],
+    child_dir: Path,
+    *,
+    route: str | None = None,
 ) -> tuple[Path, dict[str, Any], list[dict[str, Any]]] | None:
+    """Select evidence from the backend that this round actually evaluated."""
+
+    desired_policy = "expert" if route == "official" else "act"
     trusted = child_manifest.get("trusted_tool_evaluation") or {}
     candidates = sorted(
         (
             episode
             for episode in trusted.get("episodes", [])
-            if str(episode.get("policy_name", "")).casefold() == "act"
+            if str(episode.get("policy_name", "")).casefold() == desired_policy
         ),
         key=lambda episode: (
+            not _execution_vqa_video_contract(
+                child_dir
+                / "evaluation/telemetry"
+                / str(episode.get("episode_dir") or ""),
+                route=route,
+            )[0],
             int(episode.get("seed") or 0),
             str(episode.get("episode_dir") or ""),
         ),
@@ -411,6 +458,8 @@ def run_round_execution_vqa(
     model: str,
     round_plan: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """Run VQA on official-expert or ACT evidence without mixing their roles."""
+
     query = build_execution_vqa_query(
         task_name=(
             str((round_plan or {}).get("task_name") or child_manifest.get("task_name"))
@@ -422,12 +471,18 @@ def run_round_execution_vqa(
         tool_contract=(round_plan or {}).get("tool_request"),
     )
     write_json(execution_dir / "execution_vqa_query.json", query)
-    selected = _policy_episode_for_execution_vqa(child_manifest, child_dir)
+    route = (round_plan or {}).get("route")
+    selected = _policy_episode_for_execution_vqa(
+        child_manifest,
+        child_dir,
+        route=route,
+    )
     if selected is None:
+        backend = "expert" if route == "official" else "ACT"
         result = {
             "schema_version": 1,
             "status": "skipped",
-            "reason": "no completed ACT telemetry episode was available",
+            "reason": f"no completed {backend} telemetry episode was available",
             "evidence_conflict": False,
             "query": query,
         }
@@ -435,16 +490,30 @@ def run_round_execution_vqa(
         return result
     episode_dir, representative, numeric_results = selected
     representative_path = str(episode_dir.relative_to(repo_root))
-    if not (episode_dir / "video.mp4").is_file():
+    video_ready, metadata, video_reason = _execution_vqa_video_contract(
+        episode_dir,
+        route=route,
+    )
+    if not video_ready:
+        backend = "expert" if route == "official" else "ACT"
         result = {
             "schema_version": 1,
-            "status": "failed",
-            "reason": "completed ACT telemetry episode is missing video.mp4",
+            "status": "skipped" if route == "official" else "failed",
+            "reason": f"completed {backend} telemetry episode {video_reason}",
             "representative_episode": representative_path,
             "evidence_conflict": False,
             "query": query,
+            "visual_capture": metadata.get("visual_capture"),
         }
-        write_json(execution_dir / "execution_vqa_error.json", result)
+        write_json(
+            execution_dir
+            / (
+                "execution_vqa_skipped.json"
+                if route == "official"
+                else "execution_vqa_error.json"
+            ),
+            result,
+        )
         return result
     known_tools = {item.get("tool") for item in numeric_results}
     for episode in (tool_evaluation or {}).get("episodes", []):
@@ -751,9 +820,21 @@ def _round_evidence(
     knowledge = child_manifest.get("knowledge_retrieval") or {}
     trusted_tool_evaluation = child_manifest.get("trusted_tool_evaluation") or {}
     child_relative = child_dir.relative_to(repo_root)
-    episode_videos = sorted(
+    act_videos = sorted(
         str(path.relative_to(repo_root))
         for path in (child_dir / "evaluation").glob("episode*.mp4")
+    )
+    rollout_video_paths = {
+        child_dir
+        / "evaluation/telemetry"
+        / str(episode.get("episode_dir") or "")
+        / "video.mp4"
+        for episode in trusted_tool_evaluation.get("episodes", [])
+    }
+    rollout_videos = sorted(
+        str(path.relative_to(repo_root))
+        for path in rollout_video_paths
+        if path.is_file()
     )
     variant_spec_path = child_dir / "variant_spec.json"
     variant_spec = (
@@ -861,7 +942,8 @@ def _round_evidence(
                 child_relative / "validation/position_samples.json"
             ),
             "reflection_summary": str(child_relative / "reflection/summary.json"),
-            "act_videos": episode_videos,
+            "act_videos": act_videos,
+            "rollout_videos": rollout_videos,
             "act_result": str(child_relative / "evaluation/_result.txt"),
             "trusted_tools": trusted_tool_evaluation.get("artifact"),
             "planned_tool": tool_evaluation.get("artifacts", {}).get(

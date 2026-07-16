@@ -146,6 +146,30 @@ class ExecutionVQATests(unittest.TestCase):
         self.assertEqual(frames["contact_before"], 50)
         self.assertEqual(frames["contact_after"], 51)
 
+    def test_official_success_event_uses_exact_sparse_video_frame(self):
+        selected = select_keyframes(
+            frame_count=4,
+            tool_results=[
+                {
+                    "tool": "official_check_success",
+                    "value": True,
+                    "evidence_steps": [843],
+                    "evidence": [
+                        {
+                            "type": "success_transition",
+                            "physics_step": 843,
+                            "video_frame_index": 2,
+                        }
+                    ],
+                }
+            ],
+        )
+        frames = {item["frame_id"]: item["frame_index"] for item in selected}
+        self.assertEqual(frames["success_before"], 1)
+        self.assertEqual(frames["success_after"], 2)
+        self.assertEqual(frames["initial"], 0)
+        self.assertEqual(frames["final"], 3)
+
     def test_duration_without_contact_never_creates_contact_frame_labels(self):
         selected = select_keyframes(
             frame_count=100,
