@@ -47,6 +47,18 @@ def child_run_id(evaluation_id: str, round_id: str) -> str:
     return f"run_{evaluation_id.removeprefix('eval_')}_{round_id}"
 
 
+def round_execution_backend(round_plan: dict[str, Any]) -> str:
+    """Resolve policy execution independently from the TaskGen route."""
+
+    raw = (round_plan.get("execution") or {}).get("backend")
+    if raw is None:
+        raw = "expert" if round_plan.get("route") == "official" else "act"
+    backend = str(raw).casefold()
+    if backend not in {"expert", "act", "both"}:
+        raise ValueError(f"unsupported execution backend: {raw!r}")
+    return backend
+
+
 def build_taskgen_command(
     repo_root: Path,
     evaluation_id: str,
@@ -65,6 +77,7 @@ def build_taskgen_command(
     task_name = str(round_plan.get("task_name") or "beat_block_hammer")
     task_module = round_plan.get("task_module")
     route = str(round_plan["route"])
+    execution_backend = round_execution_backend(round_plan)
     command = [
         sys.executable,
         str(repo_root / "scripts/manipeval_taskgen.py"),
@@ -91,14 +104,20 @@ def build_taskgen_command(
         "--telemetry-profile",
         telemetry_profile,
         "--probe",
-        "--expert",
         "--max-reflections",
         str(max_reflections),
     ]
     if task_module:
         command.extend(["--task-module", str(task_module)])
-    if route != "official":
-        command.extend(["--vision-check", "--run-act"])
+    if route == "official":
+        if execution_backend in {"expert", "both"}:
+            command.append("--expert")
+        if execution_backend in {"act", "both"}:
+            command.append("--run-act")
+    else:
+        # The bounded generated-task prototype keeps its original expert
+        # solvability gate before the ACT policy rollout.
+        command.extend(["--expert", "--vision-check", "--run-act"])
     if base_url:
         command.extend(["--base-url", base_url])
     return command, run_id
@@ -365,9 +384,9 @@ def aggregate_evaluation_results(
 def _execution_vqa_video_contract(
     episode_dir: Path,
     *,
-    route: str | None,
+    execution_backend: str,
 ) -> tuple[bool, dict[str, Any], str]:
-    """Validate route-specific video evidence before it can reach a VQA model."""
+    """Validate backend-specific video evidence before it reaches VQA."""
 
     metadata_path = episode_dir / "episode.json"
     metadata: dict[str, Any] = {}
@@ -381,19 +400,23 @@ def _execution_vqa_video_contract(
                 metadata_error = "episode.json is not a JSON object"
         except (OSError, json.JSONDecodeError) as exc:
             metadata_error = f"episode.json is unreadable: {type(exc).__name__}"
+    else:
+        metadata_error = "episode.json is missing"
 
     if not (episode_dir / "video.mp4").is_file():
         return False, metadata, "is missing video.mp4"
-    if route != "official":
-        return True, metadata, ""
+    if (episode_dir / "video.mp4").stat().st_size <= 0:
+        return False, metadata, "has an empty video.mp4"
     if metadata_error:
         return False, metadata, metadata_error
+    if (metadata.get("artifacts") or {}).get("video") != "video.mp4":
+        return False, metadata, "does not declare artifacts.video=video.mp4"
+    if execution_backend != "expert":
+        return True, metadata, ""
 
     visual_capture = metadata.get("visual_capture") or {}
     if visual_capture.get("status") != "completed":
         return False, metadata, "does not declare a completed visual_capture"
-    if (metadata.get("artifacts") or {}).get("video") != "video.mp4":
-        return False, metadata, "does not declare artifacts.video=video.mp4"
     return True, metadata, ""
 
 
@@ -401,11 +424,11 @@ def _policy_episode_for_execution_vqa(
     child_manifest: dict[str, Any],
     child_dir: Path,
     *,
-    route: str | None = None,
+    execution_backend: str,
 ) -> tuple[Path, dict[str, Any], list[dict[str, Any]]] | None:
     """Select evidence from the backend that this round actually evaluated."""
 
-    desired_policy = "expert" if route == "official" else "act"
+    desired_policy = "expert" if execution_backend == "expert" else "act"
     trusted = child_manifest.get("trusted_tool_evaluation") or {}
     candidates = sorted(
         (
@@ -418,7 +441,7 @@ def _policy_episode_for_execution_vqa(
                 child_dir
                 / "evaluation/telemetry"
                 / str(episode.get("episode_dir") or ""),
-                route=route,
+                execution_backend=execution_backend,
             )[0],
             int(episode.get("seed") or 0),
             str(episode.get("episode_dir") or ""),
@@ -472,33 +495,47 @@ def run_round_execution_vqa(
     )
     write_json(execution_dir / "execution_vqa_query.json", query)
     route = (round_plan or {}).get("route")
+    execution_backend = round_execution_backend(
+        round_plan or {"route": route}
+    )
+    evidence_backend = (
+        "expert" if execution_backend == "expert" else "act"
+    )
     selected = _policy_episode_for_execution_vqa(
         child_manifest,
         child_dir,
-        route=route,
+        execution_backend=evidence_backend,
     )
     if selected is None:
-        backend = "expert" if route == "official" else "ACT"
+        backend = "expert" if evidence_backend == "expert" else "ACT"
         result = {
             "schema_version": 1,
-            "status": "skipped",
+            "status": "skipped" if evidence_backend == "expert" else "failed",
             "reason": f"no completed {backend} telemetry episode was available",
             "evidence_conflict": False,
             "query": query,
         }
-        write_json(execution_dir / "execution_vqa_skipped.json", result)
+        write_json(
+            execution_dir
+            / (
+                "execution_vqa_skipped.json"
+                if evidence_backend == "expert"
+                else "execution_vqa_error.json"
+            ),
+            result,
+        )
         return result
     episode_dir, representative, numeric_results = selected
     representative_path = str(episode_dir.relative_to(repo_root))
     video_ready, metadata, video_reason = _execution_vqa_video_contract(
         episode_dir,
-        route=route,
+        execution_backend=evidence_backend,
     )
     if not video_ready:
-        backend = "expert" if route == "official" else "ACT"
+        backend = "expert" if evidence_backend == "expert" else "ACT"
         result = {
             "schema_version": 1,
-            "status": "skipped" if route == "official" else "failed",
+            "status": "skipped" if evidence_backend == "expert" else "failed",
             "reason": f"completed {backend} telemetry episode {video_reason}",
             "representative_episode": representative_path,
             "evidence_conflict": False,
@@ -509,15 +546,20 @@ def run_round_execution_vqa(
             execution_dir
             / (
                 "execution_vqa_skipped.json"
-                if route == "official"
+                if evidence_backend == "expert"
                 else "execution_vqa_error.json"
             ),
             result,
         )
         return result
     known_tools = {item.get("tool") for item in numeric_results}
+    desired_role = (
+        "expert_validation"
+        if evidence_backend == "expert"
+        else "policy_under_evaluation"
+    )
     for episode in (tool_evaluation or {}).get("episodes", []):
-        if episode.get("role") != "policy_under_evaluation":
+        if episode.get("role") != desired_role:
             continue
         if not _same_telemetry_episode(episode, representative):
             continue
@@ -526,6 +568,17 @@ def run_round_execution_vqa(
             numeric_results.append(result)
             known_tools.add(result.get("tool"))
     try:
+        scene_seed = (child_manifest.get("scene_validation") or {}).get("seed")
+        representative_seed = representative.get("seed")
+        reference_scene = child_dir / "evidence/initial_head.png"
+        if (
+            scene_seed is not None
+            and representative_seed is not None
+            and int(scene_seed) != int(representative_seed)
+        ):
+            # Never label an image from a skipped seed as the rollout's
+            # reference scene. The rollout video remains valid evidence.
+            reference_scene = None
         result = run_execution_vqa(
             provider=provider,
             model=model,
@@ -534,7 +587,7 @@ def run_round_execution_vqa(
             numeric_tool_results=numeric_results,
             events_path=episode_dir / "events.jsonl",
             semantic_trace_path=episode_dir / "semantic_trace.npz",
-            reference_scene=child_dir / "evidence/initial_head.png",
+            reference_scene=reference_scene,
             query=query,
         )
     except Exception as exc:
@@ -601,14 +654,27 @@ def summarize_round(
     policy_success = read_policy_success(child_dir / "evaluation/_result.txt")
     trusted_tools = compact_trusted_tools(child_manifest)
     is_official = round_plan.get("route") == "official"
+    execution_backend = round_execution_backend(round_plan)
+    uses_act = execution_backend in {"act", "both"}
+    uses_expert = execution_backend in {"expert", "both"}
+    if uses_act:
+        actual_seeds = [int(value) for value in act.get("actual_seeds", [])]
+    else:
+        actual_seeds = [
+            int(item["seed"])
+            for item in scene.get("expert_batch", {}).get("episodes", [])
+            if item.get("seed") is not None
+        ]
     if is_official:
         expert_batch = scene.get("expert_batch") or expert
         pipeline_passed = bool(
-            child_manifest.get("status") == "completed_without_act"
+            child_manifest.get("status")
+            == ("completed" if uses_act else "completed_without_act")
             and taskgen_returncode == 0
             and scene.get("render_success")
             and scene.get("rule_check", {}).get("passed")
-            and expert_batch.get("passed")
+            and (not uses_expert or expert_batch.get("passed"))
+            and (not uses_act or act.get("passed"))
             and child_manifest.get("trusted_tool_evaluation", {}).get(
                 "episode_count"
             )
@@ -620,6 +686,8 @@ def summarize_round(
             and execution_vqa.get("status") in {"passed", "skipped"}
         )
     else:
+        # Generated BBH rounds keep their existing expert, visual and
+        # position gates while ACT remains the policy under evaluation.
         pipeline_passed = bool(
             child_manifest.get("status") == "completed"
             and taskgen_returncode == 0
@@ -644,16 +712,24 @@ def summarize_round(
         "taskgen_returncode": taskgen_returncode,
         "execution": round_plan["execution"],
         "observations": {
-            "execution_backend": "expert" if is_official else "ACT",
+            "execution_backend": {
+                "expert": "expert",
+                "act": "ACT",
+                "both": "ACT+expert",
+            }[execution_backend],
+            "requested_seeds": [
+                int(value) for value in round_plan["execution"].get("seeds", [])
+            ],
+            "actual_seeds": actual_seeds,
             "scene_alignment": bool(scene.get("rule_check", {}).get("passed")),
             "observed_color": vision.get("observed_color"),
-            "expert_solvable": bool(
-                (scene.get("expert_batch") or expert).get("passed")
+            "expert_solvable": (
+                bool((scene.get("expert_batch") or expert).get("passed"))
+                if uses_expert or not is_official
+                else None
             ),
-            "act_pipeline_status": (
-                None if is_official else bool(act.get("passed"))
-            ),
-            "policy_success": None if is_official else policy_success,
+            "act_pipeline_status": bool(act.get("passed")) if uses_act else None,
+            "policy_success": policy_success if uses_act else None,
             "position_samples": positions.get("samples", []),
             "position_metrics": positions.get("metrics", {}),
             "trusted_tools": trusted_tools,
@@ -663,9 +739,7 @@ def summarize_round(
         },
         "pipeline_passed": pipeline_passed,
         "interpretation": (
-            "official route 使用 expert backend，ACT/policy 字段为 N/A；"
-            if is_official
-            else "场景生成和评估流水线状态与 policy_success 分开报告；"
+            "任务路由与执行后端分别记录；ACT 策略结果和流水线状态分开报告，"
             "策略失败不会被误记为 pipeline failure。"
         ),
     }
@@ -883,7 +957,11 @@ def _round_evidence(
         "sub_aspect": round_plan["sub_aspect"],
         "task_instruction": round_plan["task_instruction"],
         "route": round_plan["route"],
-        "seeds": round_plan["execution"]["seeds"],
+        "seeds": (
+            round_summary["observations"].get("actual_seeds")
+            or round_plan["execution"]["seeds"]
+        ),
+        "requested_seeds": round_plan["execution"]["seeds"],
         "num_episodes": round_plan["execution"]["num_episodes"],
         "task_retrieval": {
             "catalog_size": retrieval.get("catalog_size"),
@@ -1045,6 +1123,12 @@ def build_evidence_bundle(
     measured_act_statuses = [
         bool(value) for value in act_statuses if value is not None
     ]
+    expert_statuses = [
+        item["observations"].get("expert_solvable") for item in rounds
+    ]
+    measured_expert_statuses = [
+        bool(value) for value in expert_statuses if value is not None
+    ]
     return {
         "schema_version": 2,
         "evaluation_id": evaluation_id,
@@ -1070,8 +1154,10 @@ def build_evidence_bundle(
             "observed_color_by_round": [
                 item["observations"]["observed_color"] for item in rounds
             ],
-            "expert_solvable": all(
-                item["observations"]["expert_solvable"] for item in rounds
+            "expert_solvable": (
+                all(measured_expert_statuses)
+                if measured_expert_statuses
+                else None
             ),
             "act_pipeline_status": (
                 all(measured_act_statuses) if measured_act_statuses else None
@@ -1134,6 +1220,14 @@ def parse_args() -> argparse.Namespace:
         "--task-module",
         help="Optional Python module for an official schema-backed task.",
     )
+    parser.add_argument(
+        "--execution-backend",
+        choices=["expert", "act", "both"],
+        help=(
+            "Policy backend for schema-backed official tasks. Defaults to "
+            "expert; both evaluates ACT and keeps expert as validation."
+        ),
+    )
     parser.add_argument("--start-seed", type=int, default=100000)
     parser.add_argument("--num-episodes", type=int, default=1)
     parser.add_argument(
@@ -1185,6 +1279,16 @@ def main() -> None:
     args = parse_args()
     if args.num_episodes <= 0:
         raise SystemExit("--num-episodes must be positive")
+    if args.task_name == "beat_block_hammer" and args.execution_backend:
+        raise SystemExit(
+            "--execution-backend currently applies to schema-backed official "
+            "tasks; beat_block_hammer keeps its bounded generated-task flow"
+        )
+    execution_backend = (
+        "act"
+        if args.task_name == "beat_block_hammer"
+        else (args.execution_backend or "expert")
+    )
     repo_root = args.repo_root.expanduser().resolve()
     models = resolve_model_profile(
         args.model_profile,
@@ -1222,6 +1326,7 @@ def main() -> None:
             start_seed=args.start_seed,
             num_episodes=args.num_episodes,
             telemetry_profile=args.telemetry_profile,
+            execution_backend=execution_backend,
         )
     history_database = None
     history_context: list[dict[str, Any]] = []
@@ -1245,7 +1350,7 @@ def main() -> None:
                 args.request,
                 task_name=args.task_name,
                 policy_name=(
-                    "ACT" if args.task_name == "beat_block_hammer" else "expert"
+                    "ACT" if execution_backend in {"act", "both"} else "expert"
                 ),
                 checkpoint_setting="demo_clean",
                 limit=args.history_limit,
@@ -1286,6 +1391,7 @@ def main() -> None:
         task_name=args.task_name,
         task_module=args.task_module,
         telemetry_profile=args.telemetry_profile,
+        execution_backend=execution_backend,
     )
 
     if args.plan_only:

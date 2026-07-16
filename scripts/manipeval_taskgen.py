@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -220,6 +221,7 @@ def run_official_expert_episodes(
             telemetry_profile=telemetry_profile,
             visual_capture_profile_id="event_keyframes_v1",
             raise_on_failure=False,
+            max_expert_attempts=1,
         )
         returncode = int(scene.get("returncode", 0))
         if returncode != 0:
@@ -234,15 +236,31 @@ def run_official_expert_episodes(
                     }
                 )
                 continue
+            if returncode == 2:
+                rejected_seeds.append(
+                    {
+                        "seed": seed,
+                        "reason": "expert_unsolvable",
+                        "error_type": error.get("type"),
+                        "message": error.get("message"),
+                    }
+                )
+                continue
             raise RuntimeError(
                 "official expert probe failed for "
                 f"seed={seed}, returncode={returncode}: "
                 f"{error.get('type') or 'unknown error'}"
             )
         if not bool(scene.get("expert", {}).get("passed")):
-            raise RuntimeError(
-                f"official expert did not pass for stable seed={seed}"
+            rejected_seeds.append(
+                {
+                    "seed": seed,
+                    "reason": "expert_unsolvable",
+                    "error_type": None,
+                    "message": "official expert did not satisfy check_success",
+                }
             )
+            continue
         if first_scene is None:
             first_scene = scene
         telemetry = scene.get("telemetry", {})
@@ -537,9 +555,27 @@ def run_visual_self_reflection(
     return summary, final_scene, final_vision
 
 
-def newest_eval_dir(repo_root: Path, before: set[Path]) -> Path | None:
-    root = repo_root / "eval_result/beat_block_hammer/ACT/demo_clean/demo_clean"
-    after = {path for path in root.glob("*") if path.is_dir()} if root.exists() else set()
+def newest_eval_dir(
+    repo_root: Path,
+    before: set[Path],
+    *,
+    task_name: str = "beat_block_hammer",
+    task_config: str = "demo_clean",
+    checkpoint_setting: str = "demo_clean",
+) -> Path | None:
+    eval_root = (
+        repo_root
+        / "eval_result"
+        / task_name
+        / "ACT"
+        / task_config
+        / checkpoint_setting
+    )
+    after = (
+        {path for path in eval_root.glob("*") if path.is_dir()}
+        if eval_root.exists()
+        else set()
+    )
     created = after - before
     return max(created, key=lambda path: path.stat().st_mtime) if created else None
 
@@ -574,22 +610,60 @@ def run_act(
     num_episodes: int,
     telemetry_profile: str = "balanced_v1",
 ) -> dict[str, Any]:
-    """Run the current BBH-specific ACT bridge and attach its videos to telemetry."""
+    """Run a task-specific ACT checkpoint and attach videos to telemetry."""
+
+    task_name = str(manifest["task_name"])
+    task_config = str(manifest.get("task_config") or "demo_clean")
+    checkpoint_setting = str(
+        manifest.get("checkpoint_setting") or "demo_clean"
+    )
+    expert_data_num = int(manifest.get("expert_data_num") or 50)
+    policy_seed = int(manifest.get("policy_seed") or 0)
+    checkpoint_dir = (
+        repo_root
+        / "policy/ACT/act_ckpt"
+        / f"act-{task_name}"
+        / f"{checkpoint_setting}-{expert_data_num}"
+    )
+    required_checkpoint_files = [
+        checkpoint_dir / "policy_last.ckpt",
+        checkpoint_dir / "dataset_stats.pkl",
+    ]
+    missing_checkpoint_files = [
+        path for path in required_checkpoint_files if not path.is_file()
+    ]
+    if missing_checkpoint_files:
+        missing = ", ".join(
+            str(path.relative_to(repo_root)) for path in missing_checkpoint_files
+        )
+        raise RuntimeError(
+            f"ACT checkpoint preflight failed for {task_name}: {missing}. "
+            "Download it on the server with "
+            f"`python scripts/download_act_checkpoint.py {task_name}`; "
+            "do not relay routine checkpoints through a local workstation."
+        )
 
     previous_attempt = archive_previous_act_attempt(run_dir)
     telemetry_root = run_dir / "evaluation/telemetry/act"
-    eval_root = repo_root / "eval_result/beat_block_hammer/ACT/demo_clean/demo_clean"
+    eval_root = (
+        repo_root
+        / "eval_result"
+        / task_name
+        / "ACT"
+        / task_config
+        / checkpoint_setting
+    )
     before = {path for path in eval_root.glob("*") if path.is_dir()} if eval_root.exists() else set()
     command = [
         "env",
         f"PYTHON_BIN={sys.executable}",
         "bash",
         "policy/ACT/eval_mea.sh",
-        "beat_block_hammer",
-        "demo_clean",
-        "demo_clean",
-        "50",
-        "0",
+        task_name,
+        task_config,
+        checkpoint_setting,
+        str(expert_data_num),
+        str(policy_seed),
         str(gpu),
         str(num_episodes),
         manifest["task_module"],
@@ -604,8 +678,15 @@ def run_act(
         cwd=repo_root,
         log_path=run_dir / "evaluation/act.log",
     )
-    source_dir = newest_eval_dir(repo_root, before)
+    source_dir = newest_eval_dir(
+        repo_root,
+        before,
+        task_name=task_name,
+        task_config=task_config,
+        checkpoint_setting=checkpoint_setting,
+    )
     copied = []
+    result_file_copied = False
     if source_dir:
         sources = sorted(source_dir.glob("episode*.mp4"))
         result_file = source_dir / "_result.txt"
@@ -616,19 +697,67 @@ def run_act(
                 destination = run_dir / "evaluation" / source.name
                 shutil.copy2(source, destination)
                 copied.append(str(destination.relative_to(repo_root)))
+                if source.name == "_result.txt":
+                    result_file_copied = True
 
-    copied_videos = sorted((run_dir / "evaluation").glob("episode*.mp4"))
-    telemetry_episodes = sorted(
+    copied_video_paths = list((run_dir / "evaluation").glob("episode*.mp4"))
+    telemetry_episode_paths = list(
         metadata.parent
         for metadata in telemetry_root.glob("episode_*/episode.json")
     )
+    index_issues: list[str] = []
+    video_by_index: dict[int, Path] = {}
+    telemetry_by_index: dict[int, Path] = {}
+    for video in copied_video_paths:
+        match = re.fullmatch(r"episode(\d+)\.mp4", video.name)
+        if match is None:
+            index_issues.append(f"unrecognized ACT video name: {video.name}")
+            continue
+        episode_index = int(match.group(1))
+        if episode_index in video_by_index:
+            index_issues.append(f"duplicate ACT video index: {episode_index}")
+            continue
+        if video.stat().st_size <= 0:
+            index_issues.append(f"empty ACT video: {video.name}")
+        video_by_index[episode_index] = video
+    for episode_dir in telemetry_episode_paths:
+        match = re.match(r"episode_(\d+)(?:_|$)", episode_dir.name)
+        if match is None:
+            index_issues.append(
+                f"unrecognized ACT telemetry directory: {episode_dir.name}"
+            )
+            continue
+        episode_index = int(match.group(1))
+        if episode_index in telemetry_by_index:
+            index_issues.append(
+                f"duplicate ACT telemetry index: {episode_index}"
+            )
+            continue
+        telemetry_by_index[episode_index] = episode_dir
+    video_indices = set(video_by_index)
+    telemetry_indices = set(telemetry_by_index)
+    if video_indices != telemetry_indices:
+        index_issues.append(
+            "ACT video/telemetry indices differ: "
+            f"videos={sorted(video_indices)}, telemetry={sorted(telemetry_indices)}"
+        )
+    paired_indices = sorted(video_indices & telemetry_indices)
+    copied_videos = [video_by_index[index] for index in sorted(video_indices)]
+    telemetry_episodes = [
+        telemetry_by_index[index] for index in sorted(telemetry_indices)
+    ]
     video_associations = []
-    for episode_dir, video in zip(telemetry_episodes, copied_videos):
+    actual_seeds: list[int] = []
+    for episode_index in paired_indices:
+        episode_dir = telemetry_by_index[episode_index]
+        video = video_by_index[episode_index]
         destination = episode_dir / "video.mp4"
         shutil.copy2(video, destination)
         metadata_path = episode_dir / "episode.json"
         if metadata_path.is_file():
             metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            if metadata.get("seed") is not None:
+                actual_seeds.append(int(metadata["seed"]))
             metadata.setdefault("artifacts", {})["video"] = "video.mp4"
             metadata["video_alignment"] = {
                 "policy_frame_rate_hz": 10,
@@ -639,6 +768,7 @@ def run_act(
             {
                 "episode_dir": str(episode_dir.relative_to(repo_root)),
                 "video": str(destination.relative_to(repo_root)),
+                "episode_index": episode_index,
             }
         )
 
@@ -647,13 +777,33 @@ def run_act(
         "started_at": started,
         "finished_at": datetime.now().astimezone().isoformat(),
         "returncode": returncode,
+        "task_name": task_name,
+        "task_config": task_config,
+        "checkpoint_setting": checkpoint_setting,
+        "expert_data_num": expert_data_num,
+        "policy_seed": policy_seed,
         "num_episodes": num_episodes,
+        "actual_seeds": actual_seeds,
+        "checkpoint": {
+            "directory": str(checkpoint_dir.relative_to(repo_root)),
+            "required_files": [
+                str(path.relative_to(repo_root))
+                for path in required_checkpoint_files
+            ],
+            "preflight_passed": True,
+        },
         "source_eval_dir": str(source_dir) if source_dir else None,
         "copied_artifacts": copied,
         "copied_video_count": len(copied_videos),
         "telemetry_root": str(telemetry_root.relative_to(repo_root)),
         "telemetry_episode_count": len(telemetry_episodes),
         "video_associations": video_associations,
+        "episode_index_alignment": {
+            "passed": not index_issues,
+            "video_indices": sorted(video_indices),
+            "telemetry_indices": sorted(telemetry_indices),
+            "issues": index_issues,
+        },
         "previous_attempt_archive": (
             str(previous_attempt.relative_to(repo_root))
             if previous_attempt is not None
@@ -661,8 +811,12 @@ def run_act(
         ),
         "passed": (
             returncode == 0
+            and source_dir is not None
+            and result_file_copied
+            and not index_issues
             and len(copied_videos) == num_episodes
             and len(telemetry_episodes) == num_episodes
+            and len(actual_seeds) == num_episodes
         ),
     }
     write_json(run_dir / "evaluation/act.json", result)
@@ -789,13 +943,28 @@ def main() -> None:
             )
         run_dir = repo_root / "mea/generated_tasks" / manifest["run_id"]
 
+    requested_execution_backend = (
+        (
+            "both" if args.expert and args.run_act
+            else "act" if args.run_act
+            else "expert" if args.expert
+            else "setup_probe"
+        )
+        if manifest.get("mode") == "official"
+        else ("act" if args.run_act else "expert" if args.expert else "setup_probe")
+    )
+    update_manifest(
+        run_dir,
+        requested_execution_backend=requested_execution_backend,
+    )
+
     try:
         if manifest.get("mode") == "official" and (
-            args.vision_check or args.reflection_fixture or args.run_act
+            args.vision_check or args.reflection_fixture
         ):
             raise RuntimeError(
-                "official route supports expert probe/telemetry only; "
-                "scene reflection and ACT require a task-specific integration"
+                "official route bypasses generated-scene vision/reflection; "
+                "use expert, act, or both execution without scene codegen"
             )
         if args.reflection_fixture:
             if args.resume_run:
@@ -844,6 +1013,18 @@ def main() -> None:
                 telemetry_profile=args.telemetry_profile,
             )
             update_manifest(run_dir, status="probe_passed", scene_validation=scene)
+        elif manifest.get("mode") == "official" and args.run_act:
+            # ACT-only evaluates the learned policy; this probe validates only
+            # simulator setup/render/rules and does not create expert evidence.
+            scene = run_probe(
+                repo_root,
+                run_dir,
+                manifest,
+                seed=args.seed,
+                expert=False,
+                telemetry_profile=args.telemetry_profile,
+            )
+            update_manifest(run_dir, status="probe_passed", scene_validation=scene)
         elif args.expert or args.run_act:
             expert_telemetry_dir = (
                 run_dir
@@ -875,14 +1056,30 @@ def main() -> None:
             update_manifest(run_dir, scene_validation=scene)
 
         if args.run_act:
-            position_samples = collect_position_samples(
-                repo_root,
-                run_dir,
-                manifest,
-                start_seed=args.seed,
-                num_episodes=args.num_episodes,
-                first_scene=scene,
-            )
+            if manifest["task_name"] == "beat_block_hammer":
+                position_samples = collect_position_samples(
+                    repo_root,
+                    run_dir,
+                    manifest,
+                    start_seed=args.seed,
+                    num_episodes=args.num_episodes,
+                    first_scene=scene,
+                )
+            else:
+                position_samples = {
+                    "status": "not_applicable",
+                    "reason": (
+                        "official passthrough tasks have no BBH block-position "
+                        "contract"
+                    ),
+                    "passed": True,
+                    "samples": [],
+                    "metrics": {},
+                }
+                write_json(
+                    run_dir / "validation/position_samples.json",
+                    position_samples,
+                )
             update_manifest(run_dir, position_samples=position_samples)
             act = run_act(
                 repo_root,
@@ -893,6 +1090,48 @@ def main() -> None:
                 num_episodes=args.num_episodes,
                 telemetry_profile=args.telemetry_profile,
             )
+            alignment = {
+                "status": "not_applicable",
+                "passed": True,
+                "reason": "paired expert/ACT execution was not requested",
+                "expert_seeds": [],
+                "act_seeds": act.get("actual_seeds", []),
+            }
+            if manifest.get("mode") == "official" and args.expert:
+                expert_seeds = [
+                    int(item["seed"])
+                    for item in (scene or {}).get("expert_batch", {}).get(
+                        "episodes", []
+                    )
+                ]
+                act_seeds = [int(value) for value in act.get("actual_seeds", [])]
+                aligned = expert_seeds == act_seeds
+                alignment = {
+                    "status": "passed" if aligned else "failed",
+                    "passed": aligned,
+                    "reason": (
+                        "expert and ACT used the same ordered seeds"
+                        if aligned
+                        else "expert and ACT ordered seeds differ"
+                    ),
+                    "expert_seeds": expert_seeds,
+                    "act_seeds": act_seeds,
+                }
+            write_json(
+                run_dir / "evaluation/backend_seed_alignment.json",
+                alignment,
+            )
+            update_manifest(
+                run_dir,
+                act_evaluation=act,
+                backend_seed_alignment=alignment,
+            )
+            if not alignment["passed"]:
+                raise RuntimeError(
+                    "paired expert/ACT seed alignment failed: "
+                    f"expert={alignment['expert_seeds']}, "
+                    f"ACT={alignment['act_seeds']}"
+                )
             trusted_tools = evaluate_run_telemetry(
                 repo_root,
                 run_dir,
@@ -903,6 +1142,10 @@ def main() -> None:
                 status="completed",
                 failure=None,
                 act_evaluation=act,
+                execution_backends=(
+                    ["expert", "ACT"] if args.expert else ["ACT"]
+                ),
+                backend_seed_alignment=alignment,
                 trusted_tool_evaluation=trusted_tools,
             )
         else:
@@ -911,6 +1154,7 @@ def main() -> None:
                 "failure": None,
             }
             if args.expert:
+                updates["execution_backends"] = ["expert"]
                 updates["trusted_tool_evaluation"] = evaluate_run_telemetry(
                     repo_root,
                     run_dir,

@@ -17,7 +17,9 @@ from .prototype import PlanAgentError, make_evaluation_id
 
 
 OFFICIAL_TEMPLATE_ID = "task_execution.official_baseline"
-OFFICIAL_GATES = ["render", "rule", "expert", "toolkit", "planned_tool", "aggregate"]
+OFFICIAL_GATES = ["render", "rule"]
+OFFICIAL_POST_EXECUTION_GATES = ["toolkit", "planned_tool", "aggregate"]
+EXECUTION_BACKENDS = {"expert", "act", "both"}
 
 
 def _write_json(path: Path, value: Any) -> None:
@@ -41,7 +43,7 @@ def _git_head(repo_root: Path) -> str | None:
 
 
 class OfficialTaskPlanAgent:
-    """Plan exactly one expert-backed official-task execution.
+    """Plan exactly one schema-backed official-task execution.
 
     This route intentionally does not ask an LLM to invent a sub-aspect or
     source change.  It proves cross-task execution independently from the
@@ -57,6 +59,7 @@ class OfficialTaskPlanAgent:
         start_seed: int = 100000,
         num_episodes: int = 1,
         telemetry_profile: str = "balanced_v1",
+        execution_backend: str = "expert",
     ):
         self.repo_root = Path(repo_root).expanduser().resolve()
         self.task_name = task_name
@@ -64,8 +67,13 @@ class OfficialTaskPlanAgent:
         self.start_seed = int(start_seed)
         self.num_episodes = int(num_episodes)
         self.telemetry_profile = telemetry_profile
+        self.execution_backend = str(execution_backend).casefold()
         if self.num_episodes <= 0:
             raise PlanAgentError("num_episodes must be positive")
+        if self.execution_backend not in EXECUTION_BACKENDS:
+            raise PlanAgentError(
+                "execution_backend must be one of expert, act, both"
+            )
         load_task_schema(self.repo_root, task_name)
 
     def _round(self, user_request: str) -> dict[str, Any]:
@@ -75,8 +83,8 @@ class OfficialTaskPlanAgent:
             "template_id": OFFICIAL_TEMPLATE_ID,
             "sub_aspect": "task_execution.official_baseline",
             "rationale": (
-                "Run the unchanged schema-backed task through an expert probe "
-                "before adding task-specific TaskGen behavior."
+                "Run the unchanged schema-backed task through the requested "
+                f"{self.execution_backend} execution backend."
             ),
             "task_instruction": user_request,
             "task_name": self.task_name,
@@ -85,10 +93,23 @@ class OfficialTaskPlanAgent:
             "route": "official",
             "variant_hint": {},
             "execution": {
-                "backend": "expert",
+                "backend": self.execution_backend,
                 "seeds": seeds,
                 "num_episodes": len(seeds),
-                "gates": list(OFFICIAL_GATES),
+                "gates": (
+                    list(OFFICIAL_GATES)
+                    + (
+                        ["expert"]
+                        if self.execution_backend in {"expert", "both"}
+                        else []
+                    )
+                    + (
+                        ["act"]
+                        if self.execution_backend in {"act", "both"}
+                        else []
+                    )
+                    + list(OFFICIAL_POST_EXECUTION_GATES)
+                ),
             },
             "observations": [
                 "scene_alignment",
@@ -138,9 +159,11 @@ class OfficialTaskPlanAgent:
             "schema_version": 5,
             "task_name": self.task_name,
             "policy": {
-                "name": "expert",
+                "name": "expert" if self.execution_backend == "expert" else "ACT",
                 "checkpoint_setting": "demo_clean",
-                "expert_data_num": None,
+                "expert_data_num": (
+                    None if self.execution_backend == "expert" else 50
+                ),
                 "language_conditioned": False,
             },
             "evaluation_goal": "validate_schema_backed_official_task_execution",
@@ -195,7 +218,7 @@ class OfficialTaskPlanAgent:
             "schema_version": 2,
             "action": "stop",
             "observation_summary": (
-                "The official expert-backed task round completed; inspect its "
+                "The official schema-backed task round completed; inspect its "
                 "pipeline status and aggregate evidence."
             ),
             "decision_reason": assessment["reason"],

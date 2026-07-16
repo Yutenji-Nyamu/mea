@@ -24,7 +24,14 @@
 `scripts/manipeval_taskgen.py` 是内层入口；它也适合做 setup/expert/ACT 的单次调试。
 `scripts/manipeval_agent.py` 是正常端到端入口，负责把多个内层 run 组织成一次 evaluation。
 
-## 2. 当前两条执行路线
+## 2. Route 与 execution backend
+
+Route 决定任务定义从哪里来，execution backend 决定用什么执行：
+
+- `generated` route：使用受限生成/修复的 task overlay；当前仅完整覆盖 BBH；
+- `official` route：直接复用 RoboTwin 官方任务，不生成或改写任务源码；
+- `expert|act|both` backend：分别表示只运行 expert、以 ACT 为被评 policy，或同时保留
+  expert 验证与 ACT 评估。official route 可使用这三种 backend，不再与 expert 绑定。
 
 ### 2.1 Generated + ACT 路线
 
@@ -58,11 +65,11 @@ policy/ACT/eval_mea.sh
 ```
 
 这条路线需要相应 ACT checkpoint。`scripts/download_act_checkpoint.py` 可按任务选择性
-下载官方 `policy_last.ckpt` 和 `dataset_stats.pkl`，避免拉取整个大数据仓库。当前外层
-`run_act()` 仍固定为 BBH；“下载了其他任务 checkpoint”不等于 Agent 已能用 ACT 跑该
-任务，后者还需要把 ACT backend 的 task、checkpoint 和输出目录参数化。
+下载官方 `policy_last.ckpt` 和 `dataset_stats.pkl`，避免拉取整个大数据仓库。TaskGen 的
+ACT runner 会从当前 manifest 读取 task/module，并在启动仿真前检查该任务的 checkpoint；
+当前 Agent contract 固定使用官方 `demo_clean-50` 布局。
 
-### 2.2 Official expert 路线
+### 2.2 Official passthrough 路线
 
 `click_bell`、`adjust_bottle`、`grab_roller` 等已有 TaskSchema 的官方任务走确定性路线：
 
@@ -71,15 +78,18 @@ policy/ACT/eval_mea.sh
 → OfficialTaskPlanAgent
 → official passthrough run（不生成 task 代码、不改官方任务）
 → setup_demo(seed) + schema/rule checks
-→ official expert play_once()
-→ Recorder（balanced_v1 + event_keyframes_v1）
+→ execution backend：expert / ACT / ACT + expert
+→ Recorder（expert 事件关键帧或 ACT 连续 rollout）
 → generic Trusted Tools / Aggregate / Execution VQA
 → Feedback → evaluation_report.md
 ```
 
-这条路线不执行 ACT，因此不需要该任务的 ACT checkpoint。它验证的是官方 expert、
-跨任务记录/工具/报告通路，不应在报告中写成 ACT policy 性能。初始化不稳定的 seed 会被
-记录为 rejected seed，并继续扫描候选 seed；稳定但 expert 失败仍视为真实失败。
+`expert` 不需要 checkpoint，并把官方 expert 作为主执行证据。`act` 先做非 expert 的
+setup/render/rule probe，随后由 RoboTwin ACT evaluator 执行其原生 expert eligibility
+筛选；`both` 同时保留 expert 验证和 ACT 结果，并以 ACT 作为 VQA/报告的主 policy 证据。
+初始化不稳定的 expert seed 会被记录为 rejected seed 并继续扫描候选 seed；`both` 会核对
+两边最终实际 seed，不一致即失败，但仍不能替代带显式 seed manifest 和 Easy/Hard 统计的
+exact-seed paired protocol。
 
 ## 3. TaskSchema 是跨任务边界
 
@@ -122,7 +132,8 @@ point 和左右 TCP，不应为每个新任务增加 `if task_name == ...`。BBH
 
 两种 `video.mp4` 不能当成同一种时间序列：
 
-- ACT 视频约 10 FPS，一帧对应一个 policy observation；
+- ACT 视频约 10 FPS，一帧对应一个 policy observation；当 backend 为 `act` 或 `both` 时，
+  Execution VQA 选择这份连续视频作为主视觉证据；
 - official expert 的 `event_keyframes_v1` 只抓 initial、首次新增 physical contact、
   success transition、final，并以 2 FPS 编码成兼容 VQA 的短视频。它是有序事件证据，
   不是连续运动录像；
@@ -177,11 +188,12 @@ rollout 中的可见现象。official passthrough 不生成场景，因此不需
 | 需求 | 优先扩展位置 | 当前限制 |
 | --- | --- | --- |
 | 新 official expert 任务 | TaskSchema、任务 VQA 映射、必要的 Trusted Tool | 可复用 Recorder/聚合；需真实 seed 验收 |
-| 新任务 ACT 评估 | 选择性 checkpoint 下载、通用 ACT backend、preflight、paired seed | 下载入口已有；外层 ACT runner 当前仍固定 BBH |
+| 新任务 ACT 评估 | TaskSchema、选择性 checkpoint 下载、通用 ACT backend、preflight | official passthrough 已支持；当前仅约定 `demo_clean-50` |
 | 新 generated 任务族 | planner template、TaskGen contract、知识卡、repair gate | 当前生成/修复 contract 仍以 BBH 为主 |
 | 新数值 metric | 已有 Trusted Tool 或 ToolGen target + required signals | Recorder 未记录的信号不能事后推断 |
 | 更高频动力学 | 新显式 telemetry profile | 默认 `balanced_v1` 只保存 50 Hz dynamics |
 | 更丰富视觉 | 新 visual capture profile | `event_keyframes_v1` 无 depth/segmentation，也不连续 |
+| expert/ACT 严格对照 | 显式 seed manifest、paired runner、Easy/Hard 统计 | `both` 会拒绝实际 seed 不一致，但尚无预先锁定与 paired 统计 |
 
 可读性维护约定：当入口、路线、artifact contract 或可信边界改变时，简要同步本文件；
 当安装/命令改变时同步运行指引；真实实验结果放入 development log，不把易过期的单次

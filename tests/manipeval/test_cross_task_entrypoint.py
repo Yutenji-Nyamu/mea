@@ -39,7 +39,10 @@ def make_schema_repo(root: Path) -> None:
     )
 
 
-def official_round() -> dict:
+def official_round(execution_backend: str | None = None) -> dict:
+    execution = {"seeds": [7], "num_episodes": 1}
+    if execution_backend is not None:
+        execution["backend"] = execution_backend
     return {
         "round_id": "round_1",
         "template_id": "task_execution.official_baseline",
@@ -48,7 +51,7 @@ def official_round() -> dict:
         "task_name": "click_bell",
         "task_module": "envs.click_bell",
         "route": "official",
-        "execution": {"seeds": [7], "num_episodes": 1},
+        "execution": execution,
         "tool_request": {
             "schema_version": 1,
             "task_name": "click_bell",
@@ -153,6 +156,32 @@ class CrossTaskEntrypointTests(unittest.TestCase):
             self.assertEqual(decision["action"], "stop")
             self.assertEqual(updated["planning_state"], "stopped_after_round_1")
 
+    def test_official_planner_materializes_requested_execution_backend(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            make_schema_repo(root)
+            for backend in ("act", "both"):
+                planner = OfficialTaskPlanAgent(
+                    root,
+                    task_name="click_bell",
+                    start_seed=20,
+                    num_episodes=2,
+                    execution_backend=backend,
+                )
+                manifest = planner.plan(
+                    "evaluate click_bell",
+                    evaluation_id=f"eval_click_bell_{backend}",
+                )
+                plan = manifest["plan"]
+                round_plan = plan["rounds"][0]
+                self.assertEqual(round_plan["route"], "official")
+                self.assertEqual(round_plan["execution"]["backend"], backend)
+                self.assertEqual(round_plan["execution"]["seeds"], [20, 21])
+                self.assertIn("act", round_plan["execution"]["gates"])
+                self.assertEqual(plan["policy"]["name"], "ACT")
+                if backend == "both":
+                    self.assertIn("expert", round_plan["execution"]["gates"])
+
     def test_official_command_uses_expert_probe_without_act_or_codegen_vqa(self):
         command, _ = build_taskgen_command(
             Path("/repo"),
@@ -171,6 +200,32 @@ class CrossTaskEntrypointTests(unittest.TestCase):
         self.assertIn("--expert", command)
         self.assertNotIn("--run-act", command)
         self.assertNotIn("--vision-check", command)
+
+    def test_official_command_flags_follow_execution_backend(self):
+        expected = {
+            "expert": {"--expert"},
+            "act": {"--run-act"},
+            "both": {"--expert", "--run-act"},
+        }
+        for backend, expected_flags in expected.items():
+            with self.subTest(backend=backend):
+                command, _ = build_taskgen_command(
+                    Path("/repo"),
+                    f"eval_click_{backend}",
+                    official_round(backend),
+                    text_model="text",
+                    vision_model="vision",
+                    base_url=None,
+                    gpu=0,
+                    max_reflections=2,
+                )
+                actual_flags = {
+                    flag
+                    for flag in ("--expert", "--run-act")
+                    if flag in command
+                }
+                self.assertEqual(actual_flags, expected_flags)
+                self.assertNotIn("--vision-check", command)
 
     def test_click_bell_vqa_query_is_saved_even_when_execution_vqa_skips(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -252,6 +307,46 @@ class CrossTaskEntrypointTests(unittest.TestCase):
                 evidence["observations"]["execution_backends"], ["expert"]
             )
             self.assertIsNone(evidence["observations"]["act_pipeline_status"])
+
+    def test_official_act_policy_failure_is_not_pipeline_failure(self):
+        round_plan = official_round("act")
+        child_manifest = {
+            "run_id": "run_click_act",
+            "status": "completed",
+            "scene_validation": {
+                "render_success": True,
+                "rule_check": {"passed": True},
+            },
+            "act_evaluation": {"passed": True, "actual_seeds": [8]},
+            "trusted_tool_evaluation": {
+                "episode_count": 1,
+                "episodes": [],
+            },
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            child_dir = Path(temporary) / "mea/generated_tasks/run_click_act"
+            evaluation_dir = child_dir / "evaluation"
+            evaluation_dir.mkdir(parents=True)
+            (evaluation_dir / "_result.txt").write_text(
+                "0.0\n", encoding="utf-8"
+            )
+            summary = summarize_round(
+                round_plan,
+                child_manifest,
+                child_dir,
+                {"status": "passed", "episodes": []},
+                {"status": "passed", "metrics": []},
+                {"status": "passed", "evidence_conflict": False},
+                0,
+            )
+
+        self.assertTrue(summary["pipeline_passed"])
+        self.assertEqual(summary["observations"]["execution_backend"], "ACT")
+        self.assertTrue(summary["observations"]["act_pipeline_status"])
+        self.assertEqual(summary["observations"]["policy_success"], 0.0)
+        self.assertIsNone(summary["observations"]["expert_solvable"])
+        self.assertEqual(summary["observations"]["requested_seeds"], [7])
+        self.assertEqual(summary["observations"]["actual_seeds"], [8])
 
     def test_official_episode_index_is_forwarded_to_recorder_probe(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -374,6 +469,46 @@ class CrossTaskEntrypointTests(unittest.TestCase):
                 result["expert_batch"]["rejected_seeds"][0]["seed"], 100
             )
 
+    def test_official_expert_skips_unsolvable_seed_once(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            run_dir = root / "mea/generated_tasks/run_click"
+            accepted = {
+                "returncode": 0,
+                "setup_success": True,
+                "render_success": True,
+                "rule_check": {"passed": True},
+                "expert": {"passed": True},
+                "telemetry": {"episode_dir": "expert/accepted", "metadata": {}},
+            }
+            with patch(
+                "scripts.manipeval_taskgen.run_probe",
+                side_effect=[
+                    {"returncode": 2, "expert": {"passed": False}},
+                    accepted,
+                ],
+            ) as probe:
+                result = run_official_expert_episodes(
+                    root,
+                    run_dir,
+                    {"task_name": "click_bell"},
+                    start_seed=7,
+                    num_episodes=1,
+                    telemetry_profile="balanced_v1",
+                    max_seed_candidates=2,
+                )
+            self.assertEqual(result["expert_batch"]["episodes"][0]["seed"], 8)
+            self.assertEqual(
+                result["expert_batch"]["rejected_seeds"][0]["reason"],
+                "expert_unsolvable",
+            )
+            self.assertTrue(
+                all(
+                    call.kwargs["max_expert_attempts"] == 1
+                    for call in probe.call_args_list
+                )
+            )
+
     def test_probe_command_forwards_visual_capture_only_when_requested(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -414,6 +549,13 @@ class CrossTaskEntrypointTests(unittest.TestCase):
             root = Path(temporary)
             run_dir = root / "mea/generated_tasks/run_act_profile"
             (run_dir / "evaluation").mkdir(parents=True)
+            checkpoint_dir = (
+                root
+                / "policy/ACT/act_ckpt/act-beat_block_hammer/demo_clean-50"
+            )
+            checkpoint_dir.mkdir(parents=True)
+            (checkpoint_dir / "policy_last.ckpt").write_bytes(b"checkpoint")
+            (checkpoint_dir / "dataset_stats.pkl").write_bytes(b"stats")
             with patch(
                 "scripts.manipeval_taskgen.run_command", return_value=0
             ) as invoked:
@@ -421,7 +563,10 @@ class CrossTaskEntrypointTests(unittest.TestCase):
                     run_act(
                         root,
                         run_dir,
-                        {"task_module": "mea.tasks.beat_block_hammer"},
+                        {
+                            "task_name": "beat_block_hammer",
+                            "task_module": "mea.tasks.beat_block_hammer",
+                        },
                         seed=7,
                         gpu=0,
                         num_episodes=1,
@@ -429,6 +574,155 @@ class CrossTaskEntrypointTests(unittest.TestCase):
                     )
             command = invoked.call_args.args[0]
             self.assertEqual(command[-1], "legacy_v1")
+
+    def test_act_wrapper_uses_click_bell_checkpoint_and_eval_tree(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            run_dir = root / "mea/generated_tasks/run_click_act"
+            (run_dir / "evaluation").mkdir(parents=True)
+            checkpoint_dir = (
+                root / "policy/ACT/act_ckpt/act-click_bell/demo_clean-50"
+            )
+            checkpoint_dir.mkdir(parents=True)
+            (checkpoint_dir / "policy_last.ckpt").write_bytes(b"checkpoint")
+            (checkpoint_dir / "dataset_stats.pkl").write_bytes(b"stats")
+            eval_root = root / "eval_result/click_bell/ACT/demo_clean/demo_clean"
+            telemetry_episode = (
+                run_dir / "evaluation/telemetry/act/episode_000_seed_7"
+            )
+
+            def fake_run(command, *, cwd, log_path):
+                self.assertEqual(cwd, root)
+                output = eval_root / "mock_eval"
+                output.mkdir(parents=True)
+                (output / "episode0.mp4").write_bytes(b"video")
+                (output / "_result.txt").write_text(
+                    "1.0\n", encoding="utf-8"
+                )
+                telemetry_episode.mkdir(parents=True)
+                (telemetry_episode / "episode.json").write_text(
+                    json.dumps({"seed": 7}), encoding="utf-8"
+                )
+                return 0
+
+            with patch(
+                "scripts.manipeval_taskgen.run_command",
+                side_effect=fake_run,
+            ) as invoked:
+                result = run_act(
+                    root,
+                    run_dir,
+                    {
+                        "task_name": "click_bell",
+                        "task_module": "envs.click_bell",
+                    },
+                    seed=7,
+                    gpu=0,
+                    num_episodes=1,
+                    telemetry_profile="legacy_v1",
+                )
+
+            command = invoked.call_args.args[0]
+            self.assertEqual(
+                command[4:10],
+                ["click_bell", "demo_clean", "demo_clean", "50", "0", "0"],
+            )
+            self.assertEqual(command[11], "envs.click_bell")
+            self.assertEqual(command[-1], "legacy_v1")
+            self.assertTrue(result["passed"])
+            self.assertEqual(result["task_name"], "click_bell")
+            self.assertEqual(result["actual_seeds"], [7])
+            self.assertTrue(result["checkpoint"]["preflight_passed"])
+            metadata = json.loads(
+                (telemetry_episode / "episode.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(metadata["artifacts"]["video"], "video.mp4")
+
+    def test_act_checkpoint_preflight_fails_before_launch(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            run_dir = root / "mea/generated_tasks/run_click_act"
+            (run_dir / "evaluation").mkdir(parents=True)
+            with patch("scripts.manipeval_taskgen.run_command") as invoked:
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "ACT checkpoint preflight failed for click_bell",
+                ):
+                    run_act(
+                        root,
+                        run_dir,
+                        {
+                            "task_name": "click_bell",
+                            "task_module": "envs.click_bell",
+                        },
+                        seed=7,
+                        gpu=0,
+                        num_episodes=1,
+                    )
+            invoked.assert_not_called()
+
+    def test_act_video_association_uses_numeric_episode_indices(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            run_dir = root / "mea/generated_tasks/run_click_act"
+            (run_dir / "evaluation").mkdir(parents=True)
+            checkpoint_dir = (
+                root / "policy/ACT/act_ckpt/act-click_bell/demo_clean-50"
+            )
+            checkpoint_dir.mkdir(parents=True)
+            (checkpoint_dir / "policy_last.ckpt").write_bytes(b"checkpoint")
+            (checkpoint_dir / "dataset_stats.pkl").write_bytes(b"stats")
+            eval_root = root / "eval_result/click_bell/ACT/demo_clean/demo_clean"
+
+            def fake_run(command, *, cwd, log_path):
+                output = eval_root / "mock_eval"
+                output.mkdir(parents=True)
+                (output / "episode2.mp4").write_bytes(b"video-two")
+                (output / "episode10.mp4").write_bytes(b"video-ten")
+                (output / "_result.txt").write_text("0.5\n", encoding="utf-8")
+                for index, seed in ((2, 22), (10, 110)):
+                    episode = (
+                        run_dir
+                        / "evaluation/telemetry/act"
+                        / f"episode_{index:03d}_seed_{seed}"
+                    )
+                    episode.mkdir(parents=True)
+                    (episode / "episode.json").write_text(
+                        json.dumps({"seed": seed}), encoding="utf-8"
+                    )
+                return 0
+
+            with patch(
+                "scripts.manipeval_taskgen.run_command",
+                side_effect=fake_run,
+            ):
+                result = run_act(
+                    root,
+                    run_dir,
+                    {
+                        "task_name": "click_bell",
+                        "task_module": "envs.click_bell",
+                    },
+                    seed=7,
+                    gpu=0,
+                    num_episodes=2,
+                )
+            self.assertTrue(result["episode_index_alignment"]["passed"])
+            self.assertEqual(result["actual_seeds"], [22, 110])
+            self.assertEqual(
+                (
+                    run_dir
+                    / "evaluation/telemetry/act/episode_002_seed_22/video.mp4"
+                ).read_bytes(),
+                b"video-two",
+            )
+            self.assertEqual(
+                (
+                    run_dir
+                    / "evaluation/telemetry/act/episode_010_seed_110/video.mp4"
+                ).read_bytes(),
+                b"video-ten",
+            )
 
 
 if __name__ == "__main__":

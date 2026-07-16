@@ -67,6 +67,10 @@ python scripts/download_act_checkpoint.py --max-workers 1 \
 Easy/Hard 配置含义以 [RoboTwin 官方 ACT 指南](https://robotwin-platform.github.io/doc/usage/ACT.html)
 为准。
 
+MEA 会在启动 ACT 前检查当前任务的 `policy_last.ckpt` 和 `dataset_stats.pkl`；缺失时会
+在进入仿真前报错，并给出选择性下载提示。当前 Agent backend 仅支持官方发布的
+`demo_clean-50` checkpoint 布局；其他配置仍可直接使用 RoboTwin/ACT 原生入口实验。
+
 ## 3. 先跑无模型密钥的 official expert
 
 仓库中已有 TaskSchema 的任务可复用官方任务实现、expert、Recorder 和 Trusted Tools。
@@ -112,10 +116,10 @@ policy/ACT/eval_mea.sh \
 用 `demo_randomized` 替换第二个 `demo_clean`，即可测试同一 `demo_clean` checkpoint 的
 randomized 环境。
 
-当前版本的端到端 Agent 在 `beat_block_hammer` 变体链路中自动运行 ACT；其他
-schema-backed 任务走 official expert route。它们的 ACT checkpoint 仍然可由本节 wrapper
-直接评估。在通用 ACT backend 接入 Agent 前，不要把 official expert success 写成 ACT
-policy success。
+端到端 Agent 已把任务 route 与 execution backend 解耦：`official` 表示复用官方任务、
+不生成或改写任务源码；它不再等同于“只运行 expert”。只要任务有 TaskSchema 和对应
+checkpoint，official passthrough 也可选择 ACT。`beat_block_hammer` 变体仍走受限
+generated route。
 
 ## 5. 运行端到端 Agent
 
@@ -134,9 +138,25 @@ python scripts/manipeval_agent.py \
   --task-module envs.click_bell \
   --start-seed 100000 \
   --num-episodes 2 \
+  --execution-backend act \
   --telemetry-profile balanced_v1 \
   --model-profile economy
 ```
+
+`--execution-backend` 有三种取值：
+
+- `expert`：只运行官方 expert；无需 ACT checkpoint，expert 是被展示的执行证据；
+- `act`：TaskGen 先做非 expert 的 setup/render/rule probe，随后 ACT evaluator 沿用
+  RoboTwin 的 expert eligibility 筛选；报告中的 policy success 来自 ACT；
+- `both`：同时保留 expert 验证与 ACT 评估，ACT 是 VQA 和报告的主 policy 证据。
+
+`act`/`both` 的 Execution VQA 读取 ACT 连续 rollout 视频；`expert` 读取
+`event_keyframes_v1` 稀疏事件视频。完整 Agent 仍需要有效的 `UIUI_API_KEY` 才能完成
+视觉问答与最终反馈；无 key 时可先用第 3、4 节入口检查仿真、telemetry 和 checkpoint。
+
+`both` 会在本次运行结束时比较两类 episode 的实际有序 seed；若不一致则把流水线标为
+失败，避免静默混用。但它尚未由一个显式 seed manifest 驱动，也没有 Easy/Hard paired
+统计，因此仍只适合 smoke test 和通路核验，不能直接当作论文级 paired 对照实验。
 
 `beat_block_hammer` 还支持受限 TaskGen/ACT 变体流程；日常使用应优先从
 `scripts/manipeval_agent.py` 进入，只有调试内部阶段时才直接调用

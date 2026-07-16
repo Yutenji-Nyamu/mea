@@ -158,6 +158,13 @@ class MultiRoundRuntimeTests(unittest.TestCase):
                     "scripts.manipeval_agent.execute_tool_request",
                     return_value=tool_evaluation,
                 ) as routed_tool,
+                patch(
+                    "scripts.manipeval_agent.run_round_execution_vqa",
+                    return_value={
+                        "status": "passed",
+                        "evidence_conflict": False,
+                    },
+                ),
             ):
                 (
                     returned_manifest,
