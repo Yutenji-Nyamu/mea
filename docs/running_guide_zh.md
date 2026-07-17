@@ -2,7 +2,8 @@
 
 本文面向第一次运行 MEA 的用户，给出从 RoboTwin 环境到 expert、ACT 和 Agent
 入口的最短路径。MEA 是基于 RoboTwin 2.0 的完整 fork；实现边界和数据流另见
-[当前架构与数据流](architecture_and_dataflow_zh.md)。
+[当前架构与数据流](architecture_and_dataflow_zh.md)。项目目的、论文对应关系、开发取舍和
+跨对话约定见 [MEA 项目手册](project_playbook_zh.md)。
 
 ## 1. 准备 RoboTwin 环境
 
