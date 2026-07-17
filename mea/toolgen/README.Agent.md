@@ -20,12 +20,14 @@ The function runs after rollout and receives a fresh, read-only-style
 }
 ```
 
-Available trajectory data:
+Available trajectory data is declared by the task schema. The current bounded
+prototypes expose:
 
-- `trajectory.trace`: 250 Hz NumPy arrays: `physics_step`, `policy_step`,
-  `simulation_time_seconds`, `success`, `hammer_position`, `block_position`,
-  `hammer_functional_position`, `block_functional_position`,
-  `left_tcp_position`, `right_tcp_position`.
+- `trajectory.trace`: 250 Hz NumPy arrays. Common fields include
+  `physics_step`, `policy_step`, `simulation_time_seconds`, `success`,
+  `left_tcp_position`, and `right_tcp_position`. BBH additionally declares
+  hammer/block pose and functional-point arrays. `click_bell` additionally
+  declares `bell_position` and `bell_contact_position`.
 - `trajectory.events`: contact intervals, success transitions, and errors.
 - `trajectory.hammer_block_contacts()`: hammer-block contact intervals.
 - `trajectory.metadata`: episode identity, seed, policy, success, and counts.
@@ -46,6 +48,8 @@ Rules:
 - `evidence_steps` contains physics steps, not policy steps or video frames.
 - No type annotations, decorators, helper functions, or top-level statements.
 - Prefer simulator values over visual inference.
+- Only access arrays as `trajectory.trace["field_name"]`;
+  `trajectory.semantic_trace` does not exist.
 
 For `pickup_to_first_contact_time`, pickup is the first trace sample whose
 hammer center Z rise from the initial sample is at least
@@ -53,3 +57,10 @@ hammer center Z rise from the initial sample is at least
 not claimed to be the first stable gripper grasp. Contact must be strict
 physical contact. Return `value=None` when pickup/contact is missing or contact
 precedes pickup, and explain the case in `details.reason`.
+
+For `bell_active_tcp_min_xy_error`, choose the active arm from the initial bell
+X coordinate (negative is left, otherwise right), compute finite XY distances
+to `bell_contact_position`, and return the minimum in metres with
+`passed=None`. The evidence step is the physics step at that minimum. This is a
+diagnostic for the requested position aspect; it does not replace the official
+task success check.

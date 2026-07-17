@@ -15,6 +15,7 @@ from typing import Any
 import yaml
 
 from mea.toolkit import load_task_schema
+from mea.taskgen.capabilities import CapabilityError, build_variant_spec
 
 
 CLICK_BELL_PROTECTED_PATHS = (
@@ -140,6 +141,7 @@ def create_click_bell_variant_run(
     user_request: str,
     *,
     variant_hint: Any,
+    variant_id: str | None = None,
     run_id: str | None = None,
     telemetry_profile: str = "balanced_v1",
 ) -> dict[str, Any]:
@@ -175,22 +177,32 @@ def create_click_bell_variant_run(
         if bell_change.get("instance_mode") == "fixed"
         else "object_position"
     )
-    spec = {
-        "schema_version": 1,
-        "task_name": "click_bell",
-        "intent": f"evaluate_bell_{controlled_axis}_generalization",
-        "controlled_axis": controlled_axis,
-        "generation_mode": "bounded_variant_overlay",
-        "changes": normalized,
-        "preserve": [
-            "official_pose_rng_consumption",
-            "official_instance_rng_consumption",
-            "official_bell_assets",
-            "play_once",
-            "check_success",
-            "checkpoint",
-        ],
-    }
+    capability_id = {
+        "object_position": "object_position.fixed_xy",
+        "object_instance": "object_instance.official_id",
+    }[controlled_axis]
+    resolved_variant_id = str(
+        variant_id
+        or (
+            f"object_instance.base{bell_change['bell_id']}"
+            if controlled_axis == "object_instance"
+            else (
+                "object_position.left_fixed"
+                if bell_change["xy"][0] < 0
+                else "object_position.right_fixed"
+            )
+        )
+    )
+    try:
+        spec = build_variant_spec(
+            task_name="click_bell",
+            variant_id=resolved_variant_id,
+            capability_id=capability_id,
+            intent=f"evaluate_bell_{controlled_axis}_generalization",
+            changes=normalized,
+        )
+    except CapabilityError as exc:
+        raise ClickBellTaskGenError(str(exc)) from exc
     protected_after = _protected_hashes(root)
     static_validation = {
         "variant_spec": {"valid": True, "normalized": normalized},
@@ -225,6 +237,8 @@ def create_click_bell_variant_run(
         "user_request": request,
         "task_name": "click_bell",
         "task_module": "mea.tasks.click_bell",
+        "variant_id": resolved_variant_id,
+        "capability_id": capability_id,
         "mode": "reuse",
         "generation_kind": "bounded_variant_overlay",
         "base_commit": _git_head(root),

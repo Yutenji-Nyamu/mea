@@ -297,6 +297,7 @@ def score_vqa_case(repo_root: Path, case: Mapping[str, Any]) -> dict[str, Any]:
         "phenomenon_id": phenomenon_id,
         "gold_observed": gold["observed"],
         "label_source": gold["label_source"],
+        "perturbation": str(case.get("perturbation") or "clean"),
         "schema_valid": True,
         "error": None,
         "predicted_observed": observed,
@@ -316,6 +317,7 @@ def _failed_vqa_case(case: Mapping[str, Any], error: Exception) -> dict[str, Any
         "phenomenon_id": case["phenomenon_id"],
         "gold_observed": case["gold"]["observed"],
         "label_source": case["gold"]["label_source"],
+        "perturbation": str(case.get("perturbation") or "clean"),
         "schema_valid": False,
         "error": f"{type(error).__name__}: {error}",
         "predicted_observed": None,
@@ -396,6 +398,14 @@ def aggregate_vqa_cases(cases: list[dict[str, Any]]) -> dict[str, Any]:
         )
         for source in sorted(counts)
     }
+    perturbations = Counter(case.get("perturbation", "clean") for case in cases)
+    result["perturbation_counts"] = dict(sorted(perturbations.items()))
+    result["by_perturbation"] = {
+        condition: _aggregate_vqa_core(
+            [case for case in cases if case.get("perturbation", "clean") == condition]
+        )
+        for condition in sorted(perturbations)
+    }
     return result
 
 
@@ -454,6 +464,9 @@ def validate_suite(value: Any) -> dict[str, Any]:
                     raise ValidationError(
                         f"{case_id}.gold.label_source must be one of {sorted(LABEL_SOURCES)}"
                     )
+                perturbation = case.get("perturbation", "clean")
+                if not isinstance(perturbation, str) or not perturbation:
+                    raise ValidationError(f"{case_id}.perturbation must be non-empty")
     return dict(value)
 
 

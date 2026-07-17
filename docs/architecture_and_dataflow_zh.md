@@ -13,8 +13,11 @@
 | 规划 | `mea/planner/` | BBH 使用受限 Plan Agent；`click_bell` 可使用证据约束的属性 Planner；其他已注册任务使用确定性的 official planner |
 | 检索与历史 | `mea/retrieval/`、`mea/history/`、`mea/knowledge/` | 检索任务/源码知识，复用历史评估上下文 |
 | TaskGen | `scripts/manipeval_taskgen.py`、`mea/taskgen/` | 生成或复用受限 task overlay；也可创建不改官方源码的 passthrough run |
+| TaskGen capability | `mea/taskgen/capabilities.py` | 用共享 capability catalog 和 `VariantSpec` v2 固定受控轴、生成模式与必须保留的官方语义 |
 | RoboTwin 执行 | `mea/taskgen/probe.py`、`policy/ACT/eval_mea.sh` | setup/render、official expert `play_once()`、ACT rollout |
 | 严格 paired 评估 | `scripts/manipeval_paired.py`、`mea/paired.py` | 冻结 exact seed，运行 Easy/Hard eligibility 与 ACT，并做确定性逐 seed 统计 |
+| 完整 Agent 协议 | `scripts/manipeval_protocol.py`、`mea/protocol.py` | 用 1 / 3 / 5 预算重复完整 ACT Agent；generated 样本按 `(variant_id, seed)` 核验并逐变体统计 |
+| 小型实验/验证 | `mea/benchmark_pilot.py`、`mea/query_dataset.py`、`mea/vqa_perturbations.py` | 三任务 N=1 聚合、20-query 草稿校验和缓存 montage 图像代理扰动 |
 | Checkpoint 获取 | `scripts/download_act_checkpoint.py` | 按任务和固定 revision 只下载 ACT 所需的 policy/stats 文件 |
 | 任务语义与记录 | `mea/toolkit/schema.py`、`mea/toolkit/recorder.py`、`mea/toolkit/schemas/` | 用 TaskSchema 跟踪 actor/语义，写 telemetry、事件和视觉证据 |
 | 可信测量 | `mea/toolkit/tools.py`、`mea/toolgen/` | 复用 Trusted Tool，或生成并验证 evaluation-local Tool |
@@ -128,7 +131,7 @@ episode。summary 的成功率分母是两边均实际执行 policy 的 paired s
 路径单独完成。两者的结果不能仅凭相同 `run_id` 自动视为同一实验，必须以 seed manifest、
 condition、checkpoint 设置和 artifact 路径核对。
 
-## 3. TaskSchema 是跨任务边界
+## 3. TaskSchema 与 TaskGen Capability 是两条跨任务边界
 
 `mea/toolkit/schemas/<task_name>.json` 声明：
 
@@ -151,6 +154,22 @@ point 和左右 TCP，不应为每个新任务增加 `if task_name == ...`。BBH
 
 如果要生成该任务的场景变式，还需新增 planner template、TaskGen allowlist/repair contract
 和检索知识；仅有 TaskSchema 并不授权模型任意改任务代码。
+
+`mea/taskgen/capabilities.py` 进一步把“可生成什么”从 BBH 和 `click_bell` 的薄适配层中抽出。
+共享 capability card 声明 `capability_id`、受控轴、允许的 generation mode、默认 metric，以及
+必须保留的官方 pose/instance RNG、`play_once()`、`check_success()` 和 checkpoint 语义。
+`VariantSpec` v2 的固定 envelope 为：
+
+```text
+task_name + variant_id + capability_id + intent
++ controlled_axis + generation_mode + changes + preserve
+```
+
+受信 catalog 注入 `controlled_axis`、`generation_mode` 和 `preserve`；任务适配层只能填写已经
+过任务级验证的 `changes`。旧 BBH/`click_bell` spec 可读取并升级，但新 artifact 统一写 v2。
+Capability 描述 TaskGen 权限，TaskSchema 描述 telemetry 语义；两者故意分离，增加 generated
+能力不会静默改变 Recorder 或使已验证 Tool 缓存失效。这是论文 Sec. 3.3.1、Fig. 3 的共享
+TaskGen 合同骨架，当前只覆盖两个任务族和少量受限轴，不是通用 3D task generator。
 
 ## 4. Telemetry 与证据流
 
@@ -260,8 +279,15 @@ protocol config + seed schedule
 → protocol_summary.json + protocol_report.md
 ```
 
-这一层是低成本论文协议骨架，不是论文的正式 10-repeat 实验。N=1 明确标为 smoke；重复
-实际 seed、缺 artifact 或 pipeline failure 会令结果不可比较。
+official profile 继续以 `seed` 作为样本身份；`click_bell position_lr` 的 v2 协议把样本身份
+升级为 `(variant_id, seed)`。同一个 numeric seed 出现在 left/right 两个 variant 中是设计内
+现象，只记为诊断；缺失、额外或重复的复合身份才是 protocol violation。manifest 冻结预期
+variant 集，summary 同时输出整体和逐 variant 的 requested/observed、coverage、成功率、policy
+step、physics step、simulation time 与 rollout wall-clock，避免把两轮错误折叠成一个 seed。
+
+这一层是论文 Sec. 3.2、Fig. 5 和 Tables 1–2 所需的低成本实验协议骨架，不是论文的正式
+10-repeat 实验。N=1 明确标为 smoke；缺 artifact、身份漂移或 pipeline failure 会令结果不可
+比较。恢复仍以 repetition 为粒度，尚不能从某个 variant 中间继续。
 
 ### 7.2 第二个 generated family：click_bell 属性自适应
 
@@ -317,3 +343,53 @@ mea/validation_runs/<run_id>/
 
 当前验证层完成的是可审计的 scorer 与 cached smoke；真正补齐论文 Table 6–8 仍需要独立、
 人工标注且覆盖正负/困难扰动的 Planner 与 VQA 数据集。
+
+## 8. 2026-07-17 新增的论文对齐最小通路
+
+### 8.1 `click_bell` aspect-driven ToolGen
+
+`object_position.fixed_xy` capability 会请求新 target
+`bell_active_tcp_min_xy_error`：根据初始 bell x 选择官方 active arm，在完整 semantic trace 上
+计算对应 TCP 到 bell contact point 的最小 XY 距离，并保存最小值所在 physics step、仿真时间
+和 arm。它是连续数值，不强行设 pass threshold，因此 `passed=null`。私有 oracle 只用于生成
+时的独立校验，模型生成的工具不能读取 oracle 输出。
+
+```text
+aspect + required telemetry signals
+→ generate candidate Tool
+→ static safety / schema / oracle / determinism validation
+→ register in evaluation-local registry
+→ later round resolves the same request and reuses registered Tool
+```
+
+这条 `generate → validate → register → reuse` 通路对应论文 Sec. 3.3.2、Fig. 4。它已证明
+`click_bell` 不只使用固定 Trusted Tool；但 registry 仍限定在单次 evaluation，且一个 metric
+不能证明论文中的开放式 ToolGen 覆盖率。
+
+### 8.2 ACT 三任务 N=1 聚合
+
+`scripts/manipeval_benchmark_pilot.py` 读取配置中明确列出的 `adjust_bottle`、`grab_roller`、
+`click_bell` 同 task/seed direct official ACT artifact 与完整 Agent protocol artifact。聚合器先
+验证 direct paired summary 和 Agent protocol 都可比较，再记录 binary success、policy steps、
+physics steps、rollout/process wall-clock 和 exact binary agreement。
+
+该入口为 Tables 1–2 的计量基础做 instrumentation smoke。N=1 没有方差，direct route 也没有
+可比的外层进程墙钟，因此 `table2_consistency=null`、`paper_table_eligible=false`；它不能被称为
+论文效率表或结论一致性复现。
+
+### 8.3 20-query 草稿与缓存 montage 扰动
+
+`configs/manipeval_validation/query_aspects_draft_v1.json` 固定 20 条开放 query/aspect 草稿，
+其中当前 capability 支持 5 条、未支持 15 条。每条都强制保存
+`source=model_draft`、`review_status=unreviewed`、空 `human_votes`；校验器不会输出人机一致性。
+它只是论文 Table 6 的人工 review/import 前置格式，不是 human gold。
+
+`scripts/manipeval_vqa_perturb.py` 对缓存的真实 rollout montage 确定性生成 clean、scene-clutter
+image proxy、background-texture image proxy 和 lighting image proxy，保持原 query 与数值证据
+hash，再调用现有 Execution VQA。结果按 perturbation 与 label source 聚合；clean 图做字节级
+核对，派生图记录 transform/hash。这对应 Tables 7–8 的低成本接口验证，但扰动发生在缓存图像
+而非 RoboTwin simulator，标签来自 simulator proxy 而非人工标注，所以
+`paper_table_eligible=false`，也不能把其 accuracy/AUROC 写成论文指标。
+
+本批实现、真实 smoke 和限制集中记录在
+[2026-07-17 generated protocol / capability / ToolGen / pilot 开发记录](development_log_20260717_generated_protocol_capability_toolgen_pilot_zh.md)。

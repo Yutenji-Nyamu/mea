@@ -189,6 +189,7 @@ def _materialize_round(template_id: str, round_number: int) -> dict[str, Any]:
     return {
         "round_id": f"round_{round_number}",
         "template_id": template_id,
+        "capability_id": "object_appearance.color",
         "sub_aspect": template["sub_aspect"],
         "rationale": template["rationale"],
         "task_instruction": template["task_instruction"],

@@ -9,6 +9,7 @@ from .prototype import (
 )
 from .orchestration import (
     ToolOrchestrationError,
+    bell_active_tcp_min_xy_error_tool_request,
     contact_tool_request,
     contact_tool_spec,
     execute_tool_request,
@@ -31,7 +32,11 @@ from .registry import (
     load_registry,
     request_candidate_promotion,
 )
-from .targets import PICKUP_TO_CONTACT_METRIC, evaluate_target_oracle
+from .targets import (
+    BELL_ACTIVE_TCP_MIN_XY_ERROR_METRIC,
+    PICKUP_TO_CONTACT_METRIC,
+    evaluate_target_oracle,
+)
 
 __all__ = [
     "ToolGenError",
@@ -40,6 +45,7 @@ __all__ = [
     "extract_generated_tool",
     "validate_generated_tool",
     "ToolOrchestrationError",
+    "bell_active_tcp_min_xy_error_tool_request",
     "ToolRouterError",
     "RunLocalRegistryError",
     "contact_tool_request",
@@ -58,5 +64,6 @@ __all__ = [
     "load_registry",
     "request_candidate_promotion",
     "PICKUP_TO_CONTACT_METRIC",
+    "BELL_ACTIVE_TCP_MIN_XY_ERROR_METRIC",
     "evaluate_target_oracle",
 ]

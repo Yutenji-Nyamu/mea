@@ -126,6 +126,8 @@ def build_taskgen_command(
                 ),
             ]
         )
+    if round_plan.get("template_id"):
+        command.extend(["--variant-id", str(round_plan["template_id"])])
     if route == "official":
         if execution_backend in {"expert", "both"}:
             command.append("--expert")
@@ -732,6 +734,7 @@ def summarize_round(
         )
     return {
         "round_id": round_plan["round_id"],
+        "variant_id": round_plan.get("template_id"),
         "sub_aspect": round_plan["sub_aspect"],
         "task_instruction": round_plan["task_instruction"],
         "route": round_plan["route"],
@@ -997,6 +1000,7 @@ def _round_evidence(
     return {
         "round_id": round_plan["round_id"],
         "child_run_id": child_manifest.get("run_id"),
+        "variant_id": round_plan.get("template_id"),
         "sub_aspect": round_plan["sub_aspect"],
         "task_instruction": round_plan["task_instruction"],
         "route": round_plan["route"],

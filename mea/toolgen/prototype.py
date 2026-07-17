@@ -21,6 +21,7 @@ from mea.toolkit.tools import TOOL_CATALOG, TrajectoryView
 
 from .examples import EXAMPLE_CATALOG
 from .targets import (
+    BELL_ACTIVE_TCP_MIN_XY_ERROR_METRIC,
     PICKUP_TO_CONTACT_METRIC,
     evaluate_target_oracle,
     target_definition,
@@ -166,11 +167,15 @@ ALLOWED_NUMPY_CHAINS = {
     ("clip",),
     ("diff",),
     ("isfinite",),
+    ("inf",),
     ("linalg",),
     ("linalg", "norm"),
     ("max",),
     ("mean",),
     ("min",),
+    ("nanargmin",),
+    ("nanmin",),
+    ("sqrt",),
     ("sum",),
     ("where",),
 }
@@ -216,6 +221,33 @@ def _validate_episode_for_toolgen(episode_dir: Path) -> TrajectoryView:
     if metadata_task != "beat_block_hammer" or schema_task != metadata_task:
         raise ToolGenError(
             "第一版 ToolGen 只接受 metadata/schema 一致的 beat_block_hammer"
+        )
+    return trajectory
+
+
+_validate_bbh_episode_for_toolgen = _validate_episode_for_toolgen
+
+
+def _validate_episode_for_toolgen(
+    episode_dir: Path,
+    *,
+    supported_task_names: set[str] | None = None,
+) -> TrajectoryView:
+    """Load a complete episode and enforce the selected target's task family."""
+
+    if supported_task_names is None or supported_task_names == {"beat_block_hammer"}:
+        return _validate_bbh_episode_for_toolgen(episode_dir)
+    _artifact_hashes(episode_dir)
+    trajectory = TrajectoryView(episode_dir)
+    if trajectory.metadata.get("error") is not None:
+        raise ToolGenError("ToolGen does not accept an episode with an error")
+    metadata_task = trajectory.metadata.get("task_name")
+    if (
+        ("*" not in supported_task_names and metadata_task not in supported_task_names)
+        or trajectory.schema.get("task_name") != metadata_task
+    ):
+        raise ToolGenError(
+            "ToolGen requires matching metadata/schema for a target-supported task"
         )
     return trajectory
 
@@ -732,6 +764,16 @@ def _prompt(
 - `.append()` is forbidden by the AST gate. Build evidence without mutation,
   for example `sorted([step for step in [pickup_step, contact_step] if step is
   not None])`."""
+    elif target_metric == BELL_ACTIVE_TCP_MIN_XY_ERROR_METRIC:
+        target_guidance = """- select the active arm from initial bell_position X:
+  negative selects left_tcp_position, otherwise right_tcp_position.
+- access every recorded array only as `trajectory.trace["field_name"]`;
+  `trajectory.semantic_trace` does not exist and must never be used.
+- compute Euclidean XY distance to bell_contact_position at every trace row.
+- prefer the supported finite reduction `np.argmin(np.where(np.isfinite(d), d, np.inf))`.
+- return the finite minimum in meters with passed=None.
+- evidence is the physics step at the minimum; details must contain exactly
+  active_arm, min_error_physics_step, and simulation_time_seconds."""
     else:
         target_guidance = (
             "- preserve the exact result semantics demonstrated by the "
@@ -828,13 +870,18 @@ class ToolGenPrototype:
             raise ToolGenError("differential gate 至少需要两个 episode")
         if len(set(episodes)) != len(episodes):
             raise ToolGenError("differential gate 不允许重复 episode path")
+        supported_task_names = set(definition.get("supported_task_names", []))
         for episode in episodes:
-            _validate_episode_for_toolgen(episode)
+            _validate_episode_for_toolgen(
+                episode, supported_task_names=supported_task_names
+            )
         oracle_values = [
             _jsonable(
                 evaluate_target_oracle(
                     target_metric,
-                    _validate_episode_for_toolgen(episode),
+                    _validate_episode_for_toolgen(
+                        episode, supported_task_names=supported_task_names
+                    ),
                     reference_tool=reference_tool,
                 ).get("value")
             )
@@ -855,7 +902,7 @@ class ToolGenPrototype:
             raise ToolGenError(
                 "contact ToolGen 必须同时提供 physical-contact 正例和负例"
             )
-        if definition["oracle_kind"] == "composite_trusted_tools":
+        if target_metric == PICKUP_TO_CONTACT_METRIC:
             numeric_values = [
                 value
                 for value in oracle_values

@@ -111,12 +111,14 @@ def adaptive_observation(
         "observations": {
             "policy_success": policy_success,
             "planned_tool": {
-                "route_decision": {"metric": "official_check_success"},
+                "route_decision": {
+                    "metric": "bell_active_tcp_min_xy_error"
+                },
                 "episodes": [
                     {
                         "role": "policy_under_evaluation",
-                        "value": policy_success,
-                        "details": {},
+                        "value": 0.05 if policy_success == 0.0 else 0.02,
+                        "details": {"active_arm": "left"},
                     }
                 ],
             },
@@ -125,7 +127,7 @@ def adaptive_observation(
                 "input_issues": [] if aggregate_complete else ["missing row"],
                 "metrics": [
                     {
-                        "metric": "official_check_success",
+                        "metric": "bell_active_tcp_min_xy_error",
                         "cohorts": [
                             {
                                 "role": "policy_under_evaluation",

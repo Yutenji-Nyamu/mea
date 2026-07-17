@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from mea.retrieval import KnowledgeRetriever, TaskRetriever
+from mea.taskgen.capabilities import CapabilityError, build_variant_spec
 
 
 class TaskGenError(RuntimeError):
@@ -230,6 +231,30 @@ def validate_variant_spec(spec: dict[str, Any], task_name: str) -> dict[str, Any
     if normalized["changes"]["block"]["scale"] <= 0:
         raise TaskGenError("block.scale 必须为正数")
     return normalized
+
+
+_validate_legacy_variant_spec = validate_variant_spec
+
+
+def validate_variant_spec(spec: dict[str, Any], task_name: str) -> dict[str, Any]:
+    """Wrap task-specific BBH changes in the trusted VariantSpec v2 envelope."""
+
+    legacy = _validate_legacy_variant_spec(spec, task_name)
+    try:
+        return build_variant_spec(
+            task_name=task_name,
+            variant_id=str(
+                spec.get("variant_id") or "object_appearance.color_custom"
+            ),
+            capability_id="object_appearance.color",
+            intent=str(legacy.get("intent") or "change_object_appearance"),
+            changes=legacy["changes"],
+            generation_mode=str(
+                spec.get("generation_mode") or "force_codegen"
+            ),
+        )
+    except CapabilityError as exc:
+        raise TaskGenError(str(exc)) from exc
 
 
 def _assigned_names(function: ast.FunctionDef) -> set[str]:
@@ -502,6 +527,7 @@ class TaskGenPrototype:
         task_name: str = "beat_block_hammer",
         mode: str = "force_codegen",
         run_id: str | None = None,
+        variant_id: str | None = None,
     ) -> dict[str, Any]:
         if mode not in {"force_codegen", "reuse"}:
             raise TaskGenError(f"不支持的 generation mode: {mode}")
@@ -552,7 +578,27 @@ class TaskGenPrototype:
             "proposal": dict(getattr(self.provider, "last_metadata", {}))
         }
         spec = validate_variant_spec(extract_json_response(proposal_response), task_name)
-        spec["generation_mode"] = mode
+        if variant_id and spec["variant_id"] != str(variant_id):
+            spec = build_variant_spec(
+                task_name=task_name,
+                variant_id=str(variant_id),
+                capability_id=spec["capability_id"],
+                intent=spec["intent"],
+                changes=spec["changes"],
+                generation_mode=spec["generation_mode"],
+            )
+        if spec["generation_mode"] != mode:
+            try:
+                spec = build_variant_spec(
+                    task_name=task_name,
+                    variant_id=spec["variant_id"],
+                    capability_id=spec["capability_id"],
+                    intent=spec["intent"],
+                    changes=spec["changes"],
+                    generation_mode=mode,
+                )
+            except CapabilityError as exc:
+                raise TaskGenError(str(exc)) from exc
         _write_json(run_dir / "variant_spec.json", spec)
 
         overlay = compile_overlay(spec)

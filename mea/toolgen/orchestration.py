@@ -21,9 +21,11 @@ from .router import (
     route_tool_request,
 )
 from .targets import (
+    BELL_ACTIVE_TCP_MIN_XY_ERROR_METRIC,
     COMPOSITE_TARGETS,
     PICKUP_TO_CONTACT_METRIC,
     evaluate_target_oracle,
+    target_definition,
 )
 
 
@@ -78,6 +80,10 @@ PICKUP_TO_CONTACT_VALIDATION_REQUIREMENTS = {
     "distinct_reference_values": True,
     "required_reference_values": [],
 }
+BELL_ACTIVE_TCP_MIN_XY_ERROR_QUESTION = (
+    "What was the minimum XY distance between the official active-arm TCP "
+    "and the bell contact point during this rollout?"
+)
 TOOL_SPEC_KEYS = {
     "schema_version",
     "task_name",
@@ -110,6 +116,17 @@ def pickup_to_contact_tool_request() -> dict[str, Any]:
         "task_name": "beat_block_hammer",
         "metric": PICKUP_TO_CONTACT_METRIC,
         "question": PICKUP_TO_CONTACT_QUESTION,
+    }
+
+
+def bell_active_tcp_min_xy_error_tool_request() -> dict[str, Any]:
+    """Request the object-position diagnostic used for both bell sides."""
+
+    return {
+        "schema_version": 1,
+        "task_name": "click_bell",
+        "metric": BELL_ACTIVE_TCP_MIN_XY_ERROR_METRIC,
+        "question": BELL_ACTIVE_TCP_MIN_XY_ERROR_QUESTION,
     }
 
 
@@ -172,6 +189,45 @@ def pickup_to_contact_tool_spec(route: str = "force_codegen") -> dict[str, Any]:
     }
 
 
+def _composite_tool_spec(
+    metric: str,
+    question: str,
+    task_name: str,
+    *,
+    route: str = "force_codegen",
+) -> dict[str, Any]:
+    if route != "force_codegen" or metric not in COMPOSITE_TARGETS:
+        raise ToolOrchestrationError("composite targets require force_codegen")
+    definition = target_definition(metric)
+    supported = set(definition.get("supported_task_names", []))
+    if task_name not in supported:
+        raise ToolOrchestrationError(
+            f"ToolSpec metric {metric!r} is incompatible with task {task_name!r}"
+        )
+    if metric == PICKUP_TO_CONTACT_METRIC:
+        spec = pickup_to_contact_tool_spec(route)
+        spec["question"] = question
+        return spec
+    return {
+        "schema_version": 1,
+        "task_name": task_name,
+        "metric": metric,
+        "question": question,
+        "route": route,
+        "reference_tool": None,
+        "required_signals": list(definition.get("required_signals", [])),
+        "output_contract": dict(definition.get("output_contract", {})),
+        "validation_requirements": {
+            **definition.get("validation_requirements", {}),
+            "required_reference_values": list(
+                definition.get("validation_requirements", {}).get(
+                    "required_reference_values", []
+                )
+            ),
+        },
+    }
+
+
 def _generic_trusted_tool_spec(
     metric: str,
     question: str,
@@ -229,8 +285,16 @@ def validate_tool_spec(
         )
     if metric == CONTACT_METRIC:
         expected = contact_tool_spec(route)
-    elif metric == PICKUP_TO_CONTACT_METRIC:
-        expected = pickup_to_contact_tool_spec(route)
+    elif metric in COMPOSITE_TARGETS:
+        question = value.get("question")
+        task_name = value.get("task_name")
+        if not isinstance(question, str) or not question.strip():
+            raise ToolOrchestrationError("ToolSpec.question must be non-empty")
+        if not isinstance(task_name, str) or not task_name.strip():
+            raise ToolOrchestrationError("ToolSpec.task_name must be non-empty")
+        expected = _composite_tool_spec(
+            metric, question.strip(), task_name.strip(), route=route
+        )
     elif route == "reuse" and metric in TOOL_CATALOG:
         question = value.get("question")
         if not isinstance(question, str) or not question.strip():
@@ -761,11 +825,16 @@ def _resolved_spec_from_request(
                 metric, question, tool_request["task_name"]
             )
     elif resolved_route == "force_codegen":
-        if metric != PICKUP_TO_CONTACT_METRIC or metric not in COMPOSITE_TARGETS:
+        if metric not in COMPOSITE_TARGETS:
             raise ToolOrchestrationError(
                 f"no executable composite ToolSpec for metric: {metric}"
             )
-        spec = pickup_to_contact_tool_spec("force_codegen")
+        spec = _composite_tool_spec(
+            metric,
+            question,
+            tool_request["task_name"],
+            route="force_codegen",
+        )
     else:
         raise ToolOrchestrationError(
             f"automatic Tool route is not executable: {resolved_route}"

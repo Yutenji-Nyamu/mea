@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from typing import Any
 
+import numpy as np
+
 from mea.toolkit.tools import TOOL_CATALOG, TrajectoryView
 
 
 PICKUP_TO_CONTACT_METRIC = "pickup_to_first_contact_time"
+BELL_ACTIVE_TCP_MIN_XY_ERROR_METRIC = "bell_active_tcp_min_xy_error"
 
 
 COMPOSITE_TARGETS: dict[str, dict[str, Any]] = {
@@ -17,6 +20,8 @@ COMPOSITE_TARGETS: dict[str, dict[str, Any]] = {
             "crossing to the first strict physical hammer-block contact."
         ),
         "oracle_kind": "composite_trusted_tools",
+        "supported_task_names": ["beat_block_hammer"],
+        "aspect_ids": ["performance.pickup_to_contact_timing"],
         "supporting_examples": [
             "first_hammer_pickup_step",
             "first_contact_step",
@@ -49,7 +54,43 @@ COMPOSITE_TARGETS: dict[str, dict[str, Any]] = {
             "pickup_height_threshold_m": "number",
             "reason": "measured_or_missing_reason",
         },
-    }
+    },
+    BELL_ACTIVE_TCP_MIN_XY_ERROR_METRIC: {
+        "description": (
+            "Minimum XY distance between the official active-arm TCP and the "
+            "bell contact point over the recorded trajectory."
+        ),
+        "oracle_kind": "private_semantic_trace_oracle",
+        "supported_task_names": ["click_bell"],
+        "aspect_ids": ["object_position"],
+        "supporting_examples": ["time_to_success"],
+        "unit": "m",
+        "available_schema_keys": ["physics_timestep_seconds"],
+        "required_signals": [
+            "semantic_trace.bell_position",
+            "semantic_trace.bell_contact_position",
+            "semantic_trace.left_tcp_position",
+            "semantic_trace.right_tcp_position",
+            "semantic_trace.physics_step",
+            "semantic_trace.simulation_time_seconds",
+        ],
+        "output_contract": {
+            "value_type": "number",
+            "unit": "m",
+            "passed_rule": "always_null",
+            "evidence_rule": "minimum_error_physics_step",
+            "details_keys": [
+                "active_arm",
+                "min_error_physics_step",
+                "simulation_time_seconds",
+            ],
+        },
+        "validation_requirements": {
+            "min_episodes": 2,
+            "distinct_reference_values": True,
+            "required_reference_values": [],
+        },
+    },
 }
 
 
@@ -75,6 +116,9 @@ def target_definition(
         "oracle_kind": "exact_trusted_tool",
         "supporting_examples": [reference],
         "reference_tool": reference,
+        "supported_task_names": list(
+            TOOL_CATALOG[reference].get("supported_task_names", [])
+        ),
     }
 
 
@@ -170,6 +214,31 @@ def _pickup_to_first_contact_time(
     }
 
 
+def _bell_active_tcp_min_xy_error(
+    trajectory: TrajectoryView,
+) -> dict[str, Any]:
+    bell = trajectory.trace["bell_position"]
+    contact = trajectory.trace["bell_contact_position"]
+    active_arm = "left" if float(bell[0, 0]) < 0 else "right"
+    tcp = trajectory.trace[f"{active_arm}_tcp_position"]
+    distances = np.linalg.norm(tcp[:, :2] - contact[:, :2], axis=1)
+    index = int(np.argmin(distances))
+    physics_step = int(trajectory.trace["physics_step"][index])
+    return {
+        "value": float(distances[index]),
+        "unit": "m",
+        "passed": None,
+        "evidence_steps": [physics_step],
+        "details": {
+            "active_arm": active_arm,
+            "min_error_physics_step": physics_step,
+            "simulation_time_seconds": float(
+                trajectory.trace["simulation_time_seconds"][index]
+            ),
+        },
+    }
+
+
 def evaluate_target_oracle(
     target_metric: str,
     trajectory: TrajectoryView,
@@ -188,4 +257,6 @@ def evaluate_target_oracle(
         )
     if target_metric == PICKUP_TO_CONTACT_METRIC:
         return _pickup_to_first_contact_time(trajectory)
+    if target_metric == BELL_ACTIVE_TCP_MIN_XY_ERROR_METRIC:
+        return _bell_active_tcp_min_xy_error(trajectory)
     raise KeyError(f"no oracle evaluator for target: {target_metric}")

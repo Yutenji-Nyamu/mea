@@ -1179,6 +1179,10 @@ def parse_args() -> argparse.Namespace:
         help="Trusted planner-owned JSON for a bounded declarative task variant.",
     )
     parser.add_argument(
+        "--variant-id",
+        help="Trusted planner template id recorded in VariantSpec v2.",
+    )
+    parser.add_argument(
         "--mode",
         choices=["reuse", "force_codegen", "official"],
         default="force_codegen",
@@ -1273,6 +1277,7 @@ def main() -> None:
                 repo_root,
                 args.request,
                 variant_hint=variant_hint,
+                variant_id=args.variant_id,
                 run_id=args.run_id,
                 telemetry_profile=args.telemetry_profile,
             )
@@ -1283,6 +1288,7 @@ def main() -> None:
                 task_name=args.task_name,
                 mode=args.mode,
                 run_id=args.run_id,
+                variant_id=args.variant_id,
             )
         run_dir = repo_root / "mea/generated_tasks" / manifest["run_id"]
 

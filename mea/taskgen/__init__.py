@@ -28,6 +28,15 @@ from .click_bell import (
     create_click_bell_variant_run,
     validate_click_bell_variant_hint,
 )
+from .capabilities import (
+    TASK_CAPABILITIES,
+    CapabilityError,
+    build_variant_spec,
+    capability_card,
+    get_capability,
+    load_legacy_variant_spec,
+    validate_variant_spec_envelope,
+)
 
 __all__ = [
     "TaskGenError",
@@ -50,4 +59,11 @@ __all__ = [
     "compile_click_bell_overlay",
     "create_click_bell_variant_run",
     "validate_click_bell_variant_hint",
+    "TASK_CAPABILITIES",
+    "CapabilityError",
+    "build_variant_spec",
+    "capability_card",
+    "get_capability",
+    "load_legacy_variant_spec",
+    "validate_variant_spec_envelope",
 ]

@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "suite_id": "mea_cached_vqa_perturbation_proxy_v1",
+  "cases": [
+    {
+      "id": "vqa_proxy_001_click_left_failure",
+      "source_artifact": "mea/evaluation_runs/eval_20260717_click_bell_adaptive_live_2/execution/round_1/execution_vqa/execution_vqa.json",
+      "phenomenon_id": "bell_visibly_pressed",
+      "gold_observed": false,
+      "label_source": "simulator_proxy",
+      "transform_seed": 7001
+    },
+    {
+      "id": "vqa_proxy_002_click_right_success",
+      "source_artifact": "mea/evaluation_runs/eval_20260717_click_bell_adaptive_live_2/execution/round_2/execution_vqa/execution_vqa.json",
+      "phenomenon_id": "bell_visibly_pressed",
+      "gold_observed": true,
+      "label_source": "simulator_proxy",
+      "transform_seed": 7002
+    },
+    {
+      "id": "vqa_proxy_003_adjust_success",
+      "source_artifact": "mea/evaluation_runs/eval_20260716_adjust_bottle_generic_act_vqa_1/execution/round_1/execution_vqa/execution_vqa.json",
+      "phenomenon_id": "bottle_visibly_repositioned",
+      "gold_observed": true,
+      "label_source": "simulator_proxy",
+      "transform_seed": 7003
+    },
+    {
+      "id": "vqa_proxy_004_click_instance_success",
+      "source_artifact": "mea/evaluation_runs/eval_20260717_click_bell_adaptive_live_2/execution/round_3/execution_vqa/execution_vqa.json",
+      "phenomenon_id": "bell_visibly_pressed",
+      "gold_observed": true,
+      "label_source": "simulator_proxy",
+      "transform_seed": 7004
+    },
+    {
+      "id": "vqa_proxy_005_click_generic_success",
+      "source_artifact": "mea/evaluation_runs/eval_20260716_click_bell_generic_act_vqa_1/execution/round_1/execution_vqa/execution_vqa.json",
+      "phenomenon_id": "bell_visibly_pressed",
+      "gold_observed": true,
+      "label_source": "simulator_proxy",
+      "transform_seed": 7005
+    }
+  ]
+}

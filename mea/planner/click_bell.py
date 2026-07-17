@@ -12,7 +12,10 @@ from pathlib import Path
 from typing import Any
 
 from mea.taskgen import TaskGenError, extract_json_response
-from mea.toolgen import official_success_tool_request
+from mea.toolgen import (
+    bell_active_tcp_min_xy_error_tool_request,
+    official_success_tool_request,
+)
 from mea.toolkit import load_task_schema
 
 from .prototype import PlanAgentError, make_evaluation_id
@@ -168,6 +171,7 @@ class ClickBellPositionPlanAgent:
         return {
             "round_id": f"round_{round_number}",
             "template_id": template_id,
+            "capability_id": "object_position.fixed_xy",
             "sub_aspect": template_id,
             "rationale": (
                 f"Hold the bell at a safe fixed {side}-workspace position and "
@@ -208,7 +212,7 @@ class ClickBellPositionPlanAgent:
                 "trusted_tools",
                 "execution_vqa",
             ],
-            "tool_request": official_success_tool_request("click_bell"),
+            "tool_request": bell_active_tcp_min_xy_error_tool_request(),
         }
 
     def plan(
@@ -419,9 +423,15 @@ class ClickBellAdaptivePlanAgent:
             raise PlanAgentError(f"unknown click_bell template: {template_id}")
         template = CLICK_BELL_ADAPTIVE_TEMPLATES[template_id]
         seeds = [self.start_seed + index for index in range(self.num_episodes)]
+        capability_id = (
+            "object_position.fixed_xy"
+            if template["aspect_id"] == "object_position"
+            else "object_instance.official_id"
+        )
         return {
             "round_id": f"round_{round_number}",
             "template_id": template_id,
+            "capability_id": capability_id,
             "sub_aspect": template["aspect_id"],
             "aspect_id": template["aspect_id"],
             "probe_role": template["probe_role"],
@@ -460,7 +470,11 @@ class ClickBellAdaptivePlanAgent:
                 "trusted_tools",
                 "execution_vqa",
             ],
-            "tool_request": official_success_tool_request("click_bell"),
+            "tool_request": (
+                bell_active_tcp_min_xy_error_tool_request()
+                if template["aspect_id"] == "object_position"
+                else official_success_tool_request("click_bell")
+            ),
         }
 
     def _validate_proposal(

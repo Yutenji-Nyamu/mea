@@ -24,6 +24,7 @@ if str(REPO_ROOT) not in sys.path:
 from mea.protocol import (
     AGILE_BUDGETS,
     ProtocolError,
+    build_expected_sample_identities,
     build_repetition_schedule,
     canonical_sha256,
     collect_evaluation_measurement,
@@ -35,6 +36,7 @@ from mea.protocol import (
     validate_run_id,
     write_json_atomic,
 )
+from mea.planner.click_bell import CLICK_BELL_TEMPLATE_IDS
 from mea.providers import available_model_profiles
 from mea.toolkit import load_task_schema
 
@@ -147,6 +149,15 @@ def _agent_command(
         str(config["max_reflections"]),
         "--no-history",
     ]
+    if config.get("task_profile", "official") != "official":
+        command.extend(
+            [
+                "--task-profile",
+                config["task_profile"],
+                "--generated-rounds",
+                str(config["generated_rounds"]),
+            ]
+        )
     if config.get("task_module"):
         command.extend(["--task-module", config["task_module"]])
     if config.get("base_url"):
@@ -220,6 +231,19 @@ def _new_manifest(args: argparse.Namespace, repo_root: Path) -> dict[str, Any]:
             "protocol_v1 supports schema-backed official ACT tasks only; "
             "beat_block_hammer keeps its generated-task route"
         )
+    task_profile = str(args.task_profile)
+    if task_profile == "position_lr":
+        if args.task_name != "click_bell":
+            raise ProtocolError("position_lr is only available for click_bell")
+        if args.generated_rounds not in {1, 2}:
+            raise ProtocolError("position_lr generated_rounds must be 1 or 2")
+        expected_variant_ids = list(
+            CLICK_BELL_TEMPLATE_IDS[: int(args.generated_rounds)]
+        )
+    elif task_profile == "official":
+        expected_variant_ids = []
+    else:
+        raise ProtocolError("the protocol runner supports official or position_lr")
     try:
         load_task_schema(repo_root, args.task_name)
     except Exception as exc:
@@ -263,12 +287,24 @@ def _new_manifest(args: argparse.Namespace, repo_root: Path) -> dict[str, Any]:
         "max_reflections": int(args.max_reflections),
         "base_url": _validate_base_url(args.base_url),
         "history": "disabled_for_repetition_comparability",
+        "task_profile": task_profile,
+        "generated_rounds": (
+            int(args.generated_rounds) if task_profile == "position_lr" else None
+        ),
+        "expected_variant_ids": expected_variant_ids,
+        "sample_identity_fields": (
+            ["variant_id", "seed"] if expected_variant_ids else ["seed"]
+        ),
     }
     if not config["request"]:
         raise ProtocolError("--request must be non-empty")
     return {
-        "schema_version": 1,
-        "protocol": "agent_act_agile_v1",
+        "schema_version": 2 if expected_variant_ids else 1,
+        "protocol": (
+            "agent_act_generated_agile_v2"
+            if expected_variant_ids
+            else "agent_act_agile_v1"
+        ),
         "run_id": run_id,
         "status": "created",
         "created_at": now_iso(),
@@ -293,7 +329,11 @@ def _load_manifest(repo_root: Path, run_id: str) -> tuple[Path, dict[str, Any]]:
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict) or value.get("run_id") != resolved:
         raise ProtocolError("protocol manifest identity mismatch")
-    if value.get("schema_version") != 1 or value.get("protocol") != "agent_act_agile_v1":
+    supported = {
+        (1, "agent_act_agile_v1"),
+        (2, "agent_act_generated_agile_v2"),
+    }
+    if (value.get("schema_version"), value.get("protocol")) not in supported:
         raise ProtocolError("unsupported protocol manifest schema")
     if value.get("config_sha256") != canonical_sha256(value.get("config") or {}):
         raise ProtocolError("protocol config hash mismatch")
@@ -318,6 +358,19 @@ def _load_manifest(repo_root: Path, run_id: str) -> tuple[Path, dict[str, Any]]:
             "repository HEAD changed since protocol creation; start a new run"
         )
     return run_dir, value
+
+
+def _expected_samples(
+    config: dict[str, Any], repetition: dict[str, Any]
+) -> list[dict[str, Any]] | None:
+    variant_ids = list(config.get("expected_variant_ids") or [])
+    if not variant_ids:
+        return None
+    return build_expected_sample_identities(
+        variant_ids=variant_ids,
+        episodes=repetition["requested_episodes"],
+        start_seed=repetition["start_seed"],
+    )
 
 
 def run_protocol(args: argparse.Namespace) -> dict[str, Any]:
@@ -363,6 +416,9 @@ def run_protocol(args: argparse.Namespace) -> dict[str, Any]:
                     requested_episodes=repetition["requested_episodes"],
                     returncode=0,
                     agent_wall_duration_seconds=0.0,
+                    expected_sample_identities=_expected_samples(
+                        manifest["config"], repetition
+                    ),
                 )
             if attempt and recovered and recovered["completed"]:
                 attempt["measurement"] = recovered
@@ -458,6 +514,9 @@ def run_protocol(args: argparse.Namespace) -> dict[str, Any]:
                     requested_episodes=repetition["requested_episodes"],
                     returncode=returncode,
                     agent_wall_duration_seconds=duration,
+                    expected_sample_identities=_expected_samples(
+                        manifest["config"], repetition
+                    ),
                 )
             except BaseException as exc:
                 duration = time.perf_counter() - started
@@ -468,6 +527,9 @@ def run_protocol(args: argparse.Namespace) -> dict[str, Any]:
                         requested_episodes=repetition["requested_episodes"],
                         returncode=130 if isinstance(exc, KeyboardInterrupt) else 1,
                         agent_wall_duration_seconds=duration,
+                        expected_sample_identities=_expected_samples(
+                            manifest["config"], repetition
+                        ),
                     )
                 except Exception:
                     measurement = {
@@ -514,6 +576,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--resume-run")
     parser.add_argument("--task-name", default="click_bell")
     parser.add_argument("--task-module")
+    parser.add_argument(
+        "--task-profile",
+        choices=["official", "position_lr"],
+        default="official",
+    )
+    parser.add_argument("--generated-rounds", type=int, choices=[1, 2], default=2)
     parser.add_argument("--repetitions", type=int, choices=AGILE_BUDGETS, default=1)
     parser.add_argument("--episodes", type=int, choices=AGILE_BUDGETS, default=1)
     parser.add_argument("--chunk-size", type=int, choices=AGILE_BUDGETS, default=1)

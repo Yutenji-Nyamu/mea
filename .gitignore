@@ -46,3 +46,4 @@ envs/curobo/*
 # Agile Agent-protocol and cached validation runtime artifacts.
 /mea/protocol_runs/*/
 /mea/validation_runs/*/
+/mea/benchmark_runs/*/

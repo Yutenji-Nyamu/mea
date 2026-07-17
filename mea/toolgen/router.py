@@ -121,7 +121,11 @@ def route_tool_request(
     trusted_task_supported = trusted_entry is not None and (
         "*" in supported_task_names or task_name in supported_task_names
     )
-    composite_task_supported = task_name == "beat_block_hammer"
+    composite_entry = COMPOSITE_TARGETS.get(metric)
+    composite_task_supported = bool(
+        composite_entry
+        and task_name in set(composite_entry.get("supported_task_names", []))
+    )
 
     if run_local_registration is not None:
         if (

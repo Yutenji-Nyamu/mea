@@ -236,9 +236,10 @@ git status --short
 
 ## 7. ACT-only 敏捷协议 runner（1 / 3 / 5）
 
-完整 Agent 的小规模重复评估使用 `scripts/manipeval_protocol.py`。第一版只接受已有
-TaskSchema 的 official 任务，policy 固定为 ACT，默认 `1 repetition × 1 episode`；3 和 5
-只在 smoke 通过后显式放大。它不会接入第二种 policy，也不支持 BBH generated route。
+完整 Agent 的小规模重复评估使用 `scripts/manipeval_protocol.py`。它接受已有 TaskSchema 的
+official 任务，也接受 `click_bell --task-profile position_lr` 的受限 generated 两轮；policy
+固定为 ACT，默认 `1 repetition × 1 episode`，3 和 5 只在 smoke 通过后显式放大。它不会
+接入第二种 policy，也不支持 BBH generated route。
 
 ```bash
 export UIUI_API_KEY='只放在当前 shell 环境变量中'
@@ -269,6 +270,27 @@ python scripts/manipeval_protocol.py --repo-root "$PWD" \
 逐 episode 统计、JSON summary 和 Markdown report。恢复时会校验 Git HEAD、seed schedule 和
 配置 hash；缺 episode、重复实际 seed、pipeline failure 或损坏 artifact 不会被算作有效完成。
 `1/3/5` 都是开发预算，不等同于论文的 10 次正式重复。
+
+generated `position_lr` 的最小协议命令为：
+
+```bash
+python scripts/manipeval_protocol.py \
+  --repo-root "$PWD" \
+  --request '评估 click_bell 对左右位置变化的 ACT 泛化' \
+  --task-name click_bell \
+  --task-profile position_lr \
+  --generated-rounds 2 \
+  --run-id protocol_click_bell_position_lr_smoke \
+  --repetitions 1 \
+  --episodes 1 \
+  --chunk-size 1 \
+  --start-seed 100401 \
+  --model-profile economy
+```
+
+这个 profile 的样本身份是 `(variant_id, seed)`，不是只看 seed。summary 会分别给出 left/right
+variant 的 coverage、成功率、policy/physics steps、simulation time 和 rollout wall-clock；同一
+numeric seed 跨 variant 复用是预期行为，复合身份缺失、额外或重复才是协议错误。
 
 ## 8. click_bell 的受限 generated 属性族
 
@@ -317,9 +339,14 @@ python scripts/manipeval_agent.py \
 `object_position` 的受信 variant 是 left/right fixed XY；`object_instance` 是 RoboTwin 官方
 base0/base1 实例，位置保持官方随机。实例 ID 以 simulator `task_attributes.bell_id` 为权威，
 不是由 VQA 猜测。两种属性都复用同一个 `click_bell` ACT checkpoint，不需要为每个 variant
-另下权重。`--generated-rounds` 仅接受 1 / 2 / 3；每轮默认 1 个 rollout，真实开发应先跑 1，
-再按需要放大到每轮 3 或 5。该入口目前不是 `manipeval_protocol.py` 的论文式重复统计，N=1
-结果只能称为通路 smoke。
+另下权重。位置方面会请求 `bell_active_tcp_min_xy_error`，触发 ToolGen 的
+`generate → validate → register → reuse`；生成工具只在当前 evaluation 内注册，测量最小 XY
+误差而不自行发明成功阈值。可在 `execution/<round_id>/planned_tool/` 和 `tool_registry/` 核对
+生成、验证及后轮复用证据。
+
+`--generated-rounds` 仅接受 1 / 2 / 3；每轮默认 1 个 rollout，真实开发应先跑 1，再按需要
+放大到每轮 3 或 5。上面的直接 Agent 命令本身不做跨 repetition 统计；需要冻结复合身份和
+逐变体汇总时，使用第 7 节的 `position_lr` protocol 命令。任何 N=1 结果都只能称为通路 smoke。
 
 ## 9. 缓存 Planner / VQA 小验证
 
@@ -339,3 +366,56 @@ python scripts/manipeval_validate.py \
 template precision/recall/F1、exact-set 与 first-template accuracy；VQA 报告 strict accuracy、
 coverage、precision 和 AUROC。`human`、`simulator_proxy` 标签分层统计，proxy 结果不得描述为
 论文的人类标注指标。产物位于 `mea/validation_runs/<run_id>/`。
+
+## 10. ACT 三任务 N=1 instrumentation pilot
+
+先分别完成配置指定的三个 official ACT Agent protocol，再聚合与既有 direct official ACT 的
+同 task/seed 结果：
+
+```bash
+python scripts/manipeval_benchmark_pilot.py \
+  --repo-root "$PWD" \
+  --config configs/manipeval/act_three_task_n1.json \
+  --output-dir "$PWD/mea/benchmark_runs/act_three_task_n1_smoke"
+```
+
+输出目录必须位于仓库内且尚不存在。聚合器会验证 direct paired 和 Agent protocol 的
+`valid_for_comparison`，然后报告三个任务的 binary success、steps、rollout wall-clock 与同 seed
+二元结论是否一致。这只是 Tables 1–2 的计量 smoke：N=1 无方差，不能计算论文式结论一致性，
+报告会固定写 `paper_table_eligible=false`。
+
+## 11. 校验 20-query aspect 草稿
+
+这个入口无需模型 key，也不会启动仿真：
+
+```bash
+python scripts/manipeval_query_dataset.py \
+  --dataset configs/manipeval_validation/query_aspects_draft_v1.json
+```
+
+它只检查 20 条 query 的字段、aspect 集和 annotation 边界，并汇总当前 capability 支持/未支持
+数量。所有条目都是 `model_draft_unreviewed`，不是 human gold；在完成多人 review 与 majority
+import 前，`human_agent_agreement` 必须为 `null`，因此不能作为论文 Table 6 的结果。
+
+## 12. 缓存 montage 的 VQA image-proxy 扰动
+
+该入口从 suite 指向的已有 Execution VQA artifact 读取真实 rollout montage；它需要视觉模型
+key，但不重跑 RoboTwin：
+
+```bash
+export UIUI_API_KEY='只放在当前 shell 环境变量中'
+
+python scripts/manipeval_vqa_perturb.py \
+  --repo-root "$PWD" \
+  --suite configs/manipeval_validation/vqa_perturbation_suite_v1.json \
+  --budget 1 \
+  --run-id validation_vqa_proxy_budget1 \
+  --model-profile economy
+```
+
+预算只能为 1 / 3 / 5；每个 source clip 固定产生 clean、scene-clutter image proxy、
+background-texture image proxy、lighting image proxy 四个视觉调用，所以预算 1/3/5 分别请求
+4/12/20 次调用。产物位于 `mea/validation_runs/<run_id>/`，保存派生图与 source/query/numeric
+evidence hash，并分别汇总各扰动。这里的变化是缓存图像变换，不是 simulator-level clutter、
+纹理或光照；标签也是 simulator proxy 而非人工标注。它只验证 Tables 7–8 所需的数据通路，
+accuracy/AUROC 不得作为论文复现指标。

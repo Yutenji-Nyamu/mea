@@ -45,12 +45,12 @@ MEA 是 RoboTwin 的评估层扩展。以下事实必须始终保持清楚：
 | 论文部分 | 论文要点 | 当前项目承载位置 | 复现判断标准 |
 | --- | --- | --- | --- |
 | Fig. 2、Sec. 3.2 | 开放问题驱动、多轮动态 Proposal | `mea/planner/`、`mea/history/` | 不能只从单任务固定模板中依次取值；前轮证据应真实改变后轮方向 |
-| Sec. 3.3.1、Fig. 3 | reuse-first TaskGen、任务/资产/文档 RAG、视觉自反思 | `mea/taskgen/`、`mea/retrieval/`、scene validation | 多个任务族共享同一协议；生成场景需通过结构、渲染和语义 gate |
-| Sec. 3.3.2、Fig. 4 | reuse-first ToolGen、规则工具与 VQA | `mea/toolgen/`、`mea/toolkit/`、`mea/execution_vqa/` | sub-aspect 能映射到可信测量；新工具须隔离、测试、验证后才能执行 |
+| Sec. 3.3.1、Fig. 3 | reuse-first TaskGen、任务/资产/文档 RAG、视觉自反思 | shared capability catalog、`VariantSpec` v2、`mea/taskgen/`、scene validation | 多个任务族共享同一 envelope；受控轴与 preserve contract 不得由模型改写；场景通过结构、渲染和语义 gate |
+| Sec. 3.3.2、Fig. 4 | reuse-first ToolGen、规则工具与 VQA | `mea/toolgen/`、`mea/toolkit/`、`mea/execution_vqa/` | sub-aspect 能映射到可信测量；新工具须 generate→validate→register 后才能在 evaluation 内 reuse |
 | Eq. 3–4 | rollout、逐样本测量和确定性聚合 | ACT/expert backend、Recorder、Aggregate | 保存真实分母、seed、成功、样本数和 wall-clock，模型不自行做统计 |
 | Fig. 5、App. A.3.5 | observation 回流并驱动继续深入 | Agent orchestration、round decision、Feedback | policy failure 是证据而非流水线失败；下一轮由聚合证据决定 |
-| App. A.1、Tables 1–5 | 少样本成本与标准 benchmark 结论一致性 | protocol runner、benchmark comparison | smoke 用 1 / 3 / 5；正式结果再按论文预算并统一计算时间/样本 |
-| Tables 6–8 | Planner 人类一致性与 VQA 准确/鲁棒性 | validation scorer + 待建人工数据集 | 人工标签与 proxy 分层；报告 precision、accuracy、AUROC 等真实指标 |
+| App. A.1、Tables 1–5 | 少样本成本与标准 benchmark 结论一致性 | generated protocol v2、ACT 三任务 N=1 pilot | smoke 用 1 / 3 / 5；N=1 只验计量，正式结果再按论文预算统一计算时间/样本与方差 |
+| Tables 6–8 | Planner 人类一致性与 VQA 准确/鲁棒性 | 20-query model-draft + cached-montage image-proxy runner | unreviewed/proxy 与 human gold/simulator perturbation 分层；只有后者能形成论文指标 |
 | Table 9 | policy 排名与 benchmark 一致 | 后续多 policy 实验 | 当前 ACT-only 阶段不宣称已复现该结论 |
 
 “有文件或接口”不等于“已复现论文”。只有真实 artifact 贯穿对应数据流，并且实验指标能验证
@@ -63,6 +63,7 @@ MEA 是 RoboTwin 的评估层扩展。以下事实必须始终保持清楚：
 | 资产 | 可复用能力 | 扩展时通常只需补什么 |
 | --- | --- | --- |
 | TaskSchema + generic Recorder | actor 语义、轨迹、事件、视频索引 | 新任务 schema 与真实 seed 验收 |
+| TaskGen capability + `VariantSpec` v2 | 统一受控轴、generation mode、preserve contract 和 variant 身份 | 新 capability card、任务级 `changes` 校验和薄编译器 |
 | official passthrough | 不改官方任务即可接 expert/ACT/工具/VQA | TaskSchema、任务 checkpoint、受限 VQA 映射 |
 | ACT backend + preflight | checkpoint 检查、原生 evaluator、连续 rollout | 服务器侧按任务下载 checkpoint |
 | Trusted Tools + Aggregate | 可信数值和跨 episode 统计 | 新 metric 的显式 signal contract |
@@ -70,7 +71,8 @@ MEA 是 RoboTwin 的评估层扩展。以下事实必须始终保持清楚：
 | Task/asset/doc retrieval | 发现 RoboTwin 任务和代码上下文 | 把单任务知识升级为通用 capability card |
 | generated overlay/gates | 薄变式、render/rule/expert solvability 检查 | 新 `VariantSpec` 编译器和受限 repair contract |
 | Agent artifact contract | plan、round、execution、summary、feedback 的可审计目录 | 新 planner/task profile 接同一结构 |
-| paired/protocol/validation runners | exact-seed 比较、chunk/resume、cached scorer | 新协议范围和人工数据，不重写统计器 |
+| paired/protocol/validation runners | exact-seed 比较、generated `(variant_id, seed)` 身份、chunk/resume、cached scorer | 新协议范围和人工数据，不重写统计器 |
+| benchmark/query/perturbation pilots | 三任务计量、query review 格式、VQA image-proxy 扰动 | 扩大预算前补真实 repetition、human review 和 simulator-level 变化 |
 
 ## 5. 开发优先级怎样决定
 
@@ -105,6 +107,8 @@ MEA 是 RoboTwin 的评估层扩展。以下事实必须始终保持清楚：
    `if task_name == ...`。
 5. 先跑静态/单元测试，再跑 1 个真实 rollout；通过后才按 3、5 放大。
 6. 记录输入、seed、checkpoint、Git HEAD、wall-clock、sample count、失败阶段和 artifact 路径。
+   generated 多变体实验必须把 `(variant_id, seed)` 作为样本身份，并同时报告 pooled 与逐变体
+   coverage；不能把跨 variant 的同 seed 当成重复样本。
 7. 更新受影响的运行/架构文档和 development log；执行 `git diff --check` 与测试。
 8. 使用 DCO signed-off commit，推送 GitHub，最后再次核对 server HEAD、origin 与 clean status。
 
@@ -134,7 +138,24 @@ MEA 是 RoboTwin 的评估层扩展。以下事实必须始终保持清楚：
 入口、route、artifact contract 或可信边界变化时更新架构文档；命令和依赖变化时更新运行
 指引；稳定协作规则变化时更新本手册；每次完成开发后刷新最新 handoff。
 
-## 9. 新对话最短启动清单
+## 9. 复现成熟度的命名约定
+
+为避免“入口存在”被误读成“论文复现”，所有对外总结使用以下层级：
+
+| 层级 | 可以声称 | 还不能声称 |
+| --- | --- | --- |
+| plumbing | schema、入口、artifact 和失败检查可运行 | 方法有效或指标提升 |
+| cached smoke | 既有真实 artifact 能走完 scorer/tool reuse | 新 rollout 可靠、跨 seed 泛化 |
+| live N=1 pilot | 单个真实 seed/rollout 贯穿完整链路 | 均值、方差、稳健性或论文表结论 |
+| agile 3/5 | 在小预算下观察趋势并暴露随机性 | 等同论文完整 repetition、policy/benchmark 覆盖 |
+| paper-eligible | 预算、人工标注、扰动层级、policy/benchmark 和统计合同与论文一致 | 超出该预注册范围的泛化主张 |
+
+当前 generated protocol v2、`click_bell` ToolGen 和三任务聚合分别属于协议骨架、live/cached
+smoke 与 N=1 instrumentation pilot。20-query 数据集是 `model_draft_unreviewed`，缓存 montage
+变化是 image proxy；前者不能填 Table 6，后者不能填 Tables 7–8。只有完成多人标注、真实
+simulator 扰动和足量 repetition 后，才升级对应结论的命名。
+
+## 10. 新对话最短启动清单
 
 ```text
 1. 读取外部 project context 与 latest handoff
