@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "spec_id": "vqa_click_bell_background_texture_v1",
+  "task_name": "click_bell",
+  "template_ids": [
+    "scene_background_texture.unseen"
+  ],
+  "sub_aspect_prefixes": [
+    "scene_background_texture"
+  ],
+  "tool_metrics": [
+    "official_check_success"
+  ],
+  "phenomenon_ids": [
+    "bell_visibly_pressed",
+    "bell_visible_with_unseen_background_texture"
+  ],
+  "answer_contract_id": "execution_vqa_binary_v1"
+}

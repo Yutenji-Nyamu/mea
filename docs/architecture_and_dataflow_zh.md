@@ -515,3 +515,70 @@ attempt 的 started/result 文件均 append-only 保存。
 
 本批实现、真实同 seed Clean/Clutter `N=1`、开发代理标注结果和明确的论文边界见
 [2026-07-17 Planner/VQA 代理验证、真实 Clutter 与协议补齐](development_log_20260717_proxy_clutter_protocol_zh.md)。
+
+## 10. 预注册执行身份、原生场景轴与性能路线
+
+### 10.1 Evidence identity 从 parent 贯穿 child
+
+`mea/evidence_manifest.py` 在 clean Git HEAD 上把 Query、候选 template suite、checkpoint 文件
+内容、telemetry profile、`(strategy, variant_id, seed)` 样本表和源 artifact 固定为 SHA-256
+identity。`mea/strategy_plan.py` 再从该 manifest 生成不可执行的 registered route、fixed/dynamic
+精确 argv 和后处理配置；生成这两类文件本身均启动 `0` 次 ACT。
+
+```text
+prereg config
+→ hash-pinned evidence manifest
+→ registered route + exact command plan
+→ Agent preflight validates manifest / plan / route / observed argv
+→ parent registration_identity
+→ TaskGen child --registration-identity-json
+→ child manifest returns the same identity
+→ parent rejects mismatch
+→ completed strategy artifacts
+→ registered comparator revalidates identity before comparison
+```
+
+registered execution 禁止 live `--auto-route`，避免运行时模型重新选择不同 task/suite。manifest、
+route、plan、evaluation id 或实参缺失/漂移都会 fail closed；parent 还会拒绝 candidate suite 与
+child identity 变化。canonical self-hash 只证明文件内容未变，不能单独证明命令已执行；真实
+证据仍由 parent/child artifact 和 post-hoc comparator 共同形成。
+
+当前注册协议只覆盖 `click_bell`、同一 seed、每个 candidate 一次。fixed 必须遍历完整冻结
+suite，dynamic 可由证据提前停止；这验证 Tables 1-facing 的样本节省机制，不提供 N=1 下不存在
+的 Table 2 consistency。
+
+### 10.2 `click_bell` 的 simulator-native scene capabilities
+
+`adaptive_properties` 现在除 position、instance、clutter 外，还支持：
+
+| Capability / template | RoboTwin 原生变化 | simulator 数值权威 | VQA 角色 |
+| --- | --- | --- | --- |
+| `scene_background_texture` / `scene_background_texture.unseen` | `random_background=true`、`clean_background_rate=0`，eval mode 选择 unseen wall/table texture | `task.info.texture_info` | bell 在 unseen 背景下是否仍清晰可见 |
+| `scene_lighting` / `scene_lighting.static_random` | `random_light=true`、`crazy_random_light_rate=0`，每 episode 静态随机光色 | simulator light configuration | bell 是否因曝光问题而不可见 |
+
+两者都编译为 bounded overlay，保留官方 bell、pose/instance sampling、任务成功语义和 ACT
+checkpoint，并继续经过 structure、simulator state、render/rule 与 expert gates。它们不同于
+缓存 montage 的 image proxy；VQA 只能判断 allowlist 中的可见现象，不能覆盖 simulator state
+或 `check_success()`。
+
+### 10.3 Official performance route
+
+`performance.completion_time_stability` 不生成任务变化，而选择
+`performance.completion_time_stability.official`：
+
+```text
+open Query
+→ global catalog: click_bell / adaptive_properties / performance
+→ task_execution.official_passthrough（原官方场景与 ACT checkpoint）
+→ trusted time_to_success
+→ Aggregate：success-conditioned completion-time statistics
+→ bell_visibly_pressed VQA
+→ evidence transition / final feedback
+```
+
+该路线明确区分“任务生成能力”和“在官方任务上执行的性能测量”。`time_to_success` 读取记录器中
+首次成功时间，不由模型估计；VQA 仅补充可见按铃证据。预算 1 只验证接线，3/5 才能形成小样本
+稳定性描述。
+
+完整实现边界与待回填服务器验证见
+[2026-07-17 预注册、原生场景轴与性能能力](development_log_20260717_prereg_scene_performance_zh.md)。

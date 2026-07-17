@@ -148,6 +148,25 @@ def official_success_tool_request(task_name: str) -> dict[str, Any]:
     }
 
 
+def time_to_success_tool_request(task_name: str) -> dict[str, Any]:
+    """Request the trusted first-success timestamp for an official task.
+
+    Aggregate Toolkit computes the cross-seed mean and dispersion.  Keeping
+    this request route-free lets the Tool router prove that the implementation
+    came from the audited Trusted Tool catalog rather than model-generated
+    measurement code.
+    """
+
+    if not isinstance(task_name, str) or not task_name.strip():
+        raise ToolOrchestrationError("task_name must be a non-empty string")
+    return {
+        "schema_version": 1,
+        "task_name": task_name.strip(),
+        "metric": "time_to_success",
+        "question": "When did the rollout first satisfy the official success check?",
+    }
+
+
 def contact_tool_spec(route: str) -> dict[str, Any]:
     """Return the exact first-version contact ToolSpec for a route."""
 

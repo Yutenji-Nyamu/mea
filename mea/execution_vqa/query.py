@@ -56,6 +56,26 @@ QUESTION_CATALOG: dict[str, dict[str, Any]] = {
         "visual_scope": "rollout_change",
         "numeric_authority": "official_check_success_is_authoritative",
     },
+    "bell_visible_with_unseen_background_texture": {
+        "question_type": "visible_target_under_scene_shift",
+        "target_role": "task_target",
+        "question": (
+            "With the unseen wall and table textures, does the target bell "
+            "remain clearly visible and distinguishable?"
+        ),
+        "visual_scope": "scene_appearance",
+        "numeric_authority": "simulator_texture_info_is_authoritative",
+    },
+    "bell_visible_under_random_lighting": {
+        "question_type": "visible_target_under_scene_shift",
+        "target_role": "task_target",
+        "question": (
+            "Under the randomized static lighting, does the target bell remain "
+            "clearly visible without unusable under- or over-exposure?"
+        ),
+        "visual_scope": "scene_appearance",
+        "numeric_authority": "simulator_light_configuration_is_authoritative",
+    },
     "bottle_visibly_repositioned": {
         "question_type": "visible_state_change",
         "target_role": "manipulated_object",
@@ -97,6 +117,17 @@ TASK_TEMPLATE_QUESTION_RULES: dict[tuple[str, str], tuple[str, ...]] = {
         "bell_visibly_pressed",
         "bell_target_selected_among_clutter",
     ),
+    ("click_bell", "scene_background_texture.unseen"): (
+        "bell_visibly_pressed",
+        "bell_visible_with_unseen_background_texture",
+    ),
+    ("click_bell", "scene_lighting.static_random"): (
+        "bell_visibly_pressed",
+        "bell_visible_under_random_lighting",
+    ),
+    ("click_bell", "performance.completion_time_stability.official"): (
+        "bell_visibly_pressed",
+    ),
     ("adjust_bottle", "task_execution.official_baseline"): (
         "bottle_visibly_repositioned",
     ),
@@ -127,6 +158,7 @@ METRIC_QUESTION_RULES: dict[str, tuple[str, ...]] = {
 }
 TASK_METRIC_QUESTION_RULES: dict[tuple[str, str], tuple[str, ...]] = {
     ("click_bell", "official_check_success"): ("bell_visibly_pressed",),
+    ("click_bell", "time_to_success"): ("bell_visibly_pressed",),
     ("adjust_bottle", "official_check_success"): ("bottle_visibly_repositioned",),
     ("grab_roller", "official_check_success"): ("roller_visibly_lifted",),
 }

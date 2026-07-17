@@ -138,6 +138,35 @@ class GlobalQueryRouterTests(unittest.TestCase):
             dispatched = route_to_planner_proposal(click_route(), catalog)
             self.assertEqual(dispatched["planner_kind"], "model_click_bell_adaptive_v1")
 
+            click_task = next(
+                task for task in catalog["tasks"] if task["task_name"] == "click_bell"
+            )
+            completion = next(
+                aspect
+                for aspect in click_task["aspects"]
+                if aspect["aspect_id"] == "performance.completion_time_stability"
+            )
+            self.assertEqual(
+                completion["template_ids"],
+                ["performance.completion_time_stability.official"],
+            )
+            self.assertEqual(completion["taskgen_route"], "official")
+            self.assertEqual(completion["default_metric"], "time_to_success")
+            scene_route = {
+                **click_route(),
+                "evaluation_goal": "evaluate background and lighting shifts",
+                "requested_aspect_ids": [
+                    "scene_background_texture",
+                    "scene_lighting",
+                ],
+                "first_aspect_id": "scene_background_texture",
+            }
+            scene = route_to_click_proposal(scene_route, catalog)
+            self.assertEqual(
+                scene["requested_aspect_ids"],
+                ["scene_background_texture", "scene_lighting"],
+            )
+
     def test_extra_fields_and_catalog_violations_are_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -151,8 +180,8 @@ class GlobalQueryRouterTests(unittest.TestCase):
                 validate_route_selection(wrong_profile, catalog)
             unknown_aspect = {
                 **click_route(),
-                "requested_aspect_ids": ["scene_lighting"],
-                "first_aspect_id": "scene_lighting",
+                "requested_aspect_ids": ["camera_viewpoint"],
+                "first_aspect_id": "camera_viewpoint",
             }
             with self.assertRaisesRegex(GlobalRouteError, "unsupported routed aspects"):
                 validate_route_selection(unknown_aspect, catalog)
@@ -167,11 +196,11 @@ class GlobalQueryRouterTests(unittest.TestCase):
                 "decision": "unsupported",
                 "task_name": None,
                 "task_profile": None,
-                "evaluation_goal": "evaluate lighting robustness",
+                "evaluation_goal": "evaluate camera-viewpoint robustness",
                 "requested_aspect_ids": [],
                 "first_aspect_id": None,
                 "unsupported_capabilities": [
-                    {"task_name": "click_bell", "aspect_id": "scene_lighting"}
+                    {"task_name": "click_bell", "aspect_id": "camera_viewpoint"}
                 ],
             }
             self.assertEqual(
@@ -193,7 +222,7 @@ class GlobalQueryRouterTests(unittest.TestCase):
                 "unsupported_capabilities": [
                     {
                         "task_name": "beat_block_hammer",
-                        "aspect_id": "object_instance",
+                        "aspect_id": "scene_background_texture",
                     }
                 ],
             }

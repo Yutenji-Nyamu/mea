@@ -9,6 +9,22 @@
       "spec_sha256": "921044216807e5f09421b239ebf96c551a3ccb58accd88d578834d0cc69e082b",
       "review_artifact": "entries/vqa_click_bell_scene_clutter_v1/review.json",
       "review_artifact_sha256": "7654e333f93b2eda61019859076c983a2c5e45520ca028aa2eb625400ba0e931"
+    },
+    {
+      "spec_id": "vqa_click_bell_background_texture_v1",
+      "spec_artifact": "entries/vqa_click_bell_background_texture_v1/spec.json",
+      "spec_artifact_sha256": "b399377751755ec34a174e8cac1208cfddd98c18a5fd771507507b477a75d393",
+      "spec_sha256": "2d31d95f6b2e0ca04d914441ed78627ef0b86221eab4a847c89c75588c40d930",
+      "review_artifact": "entries/vqa_click_bell_background_texture_v1/review.json",
+      "review_artifact_sha256": "ee2d3b21d1dad7601b3d1449c6fc0ff80f6467fbdcdbb42ef4a1e1a1fd4d6236"
+    },
+    {
+      "spec_id": "vqa_click_bell_lighting_v1",
+      "spec_artifact": "entries/vqa_click_bell_lighting_v1/spec.json",
+      "spec_artifact_sha256": "87d0dc43bf7ba2a233460b6220e5ef2baff10f47375e63ae18cb987976758d37",
+      "spec_sha256": "43783ef657f7e9e4bd50f6fa66d47410aa158a34132a22614369c56864387559",
+      "review_artifact": "entries/vqa_click_bell_lighting_v1/review.json",
+      "review_artifact_sha256": "32e9a43e5691f6cf0b7b8175544cecd59fb5316cd1d8c0da7788f4fd51f99c61"
     }
   ]
 }

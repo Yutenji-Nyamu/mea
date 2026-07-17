@@ -115,6 +115,47 @@ class ExecutionVQAQueryTests(unittest.TestCase):
         )
         self.assertNotIn("block_color_blue", query["phenomenon_ids"])
 
+    def test_completion_time_uses_bell_visual_cross_check(self):
+        query = build_execution_vqa_query(
+            task_name="click_bell",
+            template_id="performance.completion_time_stability.official",
+            sub_aspect="performance.completion_time_stability",
+            tool_contract={"metric": "time_to_success"},
+        )
+        self.assertEqual(query["phenomenon_ids"], ["bell_visibly_pressed"])
+        self.assertIn(
+            "task_metric:click_bell:time_to_success",
+            query["selection_reasons"],
+        )
+
+    def test_scene_texture_and_lighting_templates_select_visibility_questions(self):
+        cases = {
+            "scene_background_texture.unseen": (
+                "scene_background_texture",
+                "bell_visible_with_unseen_background_texture",
+            ),
+            "scene_lighting.static_random": (
+                "scene_lighting",
+                "bell_visible_under_random_lighting",
+            ),
+        }
+        for template_id, (aspect_id, phenomenon_id) in cases.items():
+            with self.subTest(template_id=template_id):
+                query = build_execution_vqa_query(
+                    task_name="click_bell",
+                    template_id=template_id,
+                    sub_aspect=aspect_id,
+                    tool_contract={"metric": "official_check_success"},
+                )
+                self.assertEqual(
+                    query["phenomenon_ids"],
+                    ["bell_visibly_pressed", phenomenon_id],
+                )
+                question = next(
+                    item for item in query["questions"] if item["id"] == phenomenon_id
+                )
+                self.assertEqual(question["visual_scope"], "scene_appearance")
+
     def test_reviewed_clutter_spec_is_hash_pinned_and_reused(self):
         repo_root = Path(__file__).resolve().parents[2]
         registry = repo_root / "mea/vqa_query_registry/reviewed"
@@ -137,6 +178,40 @@ class ExecutionVQAQueryTests(unittest.TestCase):
                 "reviewed_vqa_query_spec:vqa_click_bell_scene_clutter_v1:"
             )
         )
+
+    def test_reviewed_scene_specs_are_hash_pinned_and_reused(self):
+        repo_root = Path(__file__).resolve().parents[2]
+        registry = repo_root / "mea/vqa_query_registry/reviewed"
+        cases = {
+            "scene_background_texture.unseen": (
+                "scene_background_texture",
+                "bell_visible_with_unseen_background_texture",
+                "vqa_click_bell_background_texture_v1",
+            ),
+            "scene_lighting.static_random": (
+                "scene_lighting",
+                "bell_visible_under_random_lighting",
+                "vqa_click_bell_lighting_v1",
+            ),
+        }
+        for template_id, (aspect_id, phenomenon_id, spec_id) in cases.items():
+            with self.subTest(template_id=template_id):
+                query = build_execution_vqa_query(
+                    task_name="click_bell",
+                    template_id=template_id,
+                    sub_aspect=aspect_id,
+                    tool_contract={"metric": "official_check_success"},
+                    reviewed_registry_dir=registry,
+                )
+                self.assertEqual(
+                    query["phenomenon_ids"],
+                    ["bell_visibly_pressed", phenomenon_id],
+                )
+                self.assertTrue(
+                    query["selection_reasons"][0].startswith(
+                        f"reviewed_vqa_query_spec:{spec_id}:"
+                    )
+                )
 
     def test_new_official_tasks_select_their_own_visual_contracts(self):
         expected = {

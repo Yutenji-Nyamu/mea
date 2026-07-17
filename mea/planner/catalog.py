@@ -38,11 +38,17 @@ _CLICK_CAPABILITY = {
     "object_position": "object_position.fixed_xy",
     "object_instance": "object_instance.official_id",
     "robustness.scene_clutter": "robustness.scene_clutter",
+    "scene_background_texture": "scene_background_texture",
+    "scene_lighting": "scene_lighting",
+    "performance.completion_time_stability": "task_execution.official_passthrough",
 }
 _CLICK_METRIC = {
     "object_position": "bell_active_tcp_min_xy_error",
     "object_instance": "official_check_success",
     "robustness.scene_clutter": "official_check_success",
+    "scene_background_texture": "official_check_success",
+    "scene_lighting": "official_check_success",
+    "performance.completion_time_stability": "time_to_success",
 }
 
 
@@ -99,7 +105,11 @@ def _click_aspects() -> list[dict[str, Any]]:
                 "description": str(aspect["description"]),
                 "template_ids": template_ids,
                 "taskgen_capability_id": _CLICK_CAPABILITY[aspect_id],
-                "taskgen_route": "reuse",
+                "taskgen_route": str(
+                    CLICK_BELL_ADAPTIVE_TEMPLATES[template_ids[0]].get(
+                        "route", "reuse"
+                    )
+                ),
                 "default_metric": _CLICK_METRIC[aspect_id],
             }
         )

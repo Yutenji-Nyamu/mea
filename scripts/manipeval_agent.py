@@ -41,6 +41,10 @@ from mea.recovery import (
 )
 from mea.toolgen import ToolOrchestrationError, execute_tool_request
 from mea.toolkit import aggregate_tool_executions
+from mea.strategy_plan import (
+    StrategyPlanError,
+    load_registered_execution,
+)
 
 
 def write_json(path: Path, value: Any) -> None:
@@ -195,6 +199,7 @@ def build_taskgen_command(
     gpu: int,
     max_reflections: int,
     telemetry_profile: str = "balanced_v1",
+    registration_identity: dict[str, Any] | None = None,
 ) -> tuple[list[str], str]:
     run_id = child_run_id(evaluation_id, round_plan["round_id"])
     execution = round_plan["execution"]
@@ -259,6 +264,18 @@ def build_taskgen_command(
         command.extend(["--expert", "--vision-check", "--run-act"])
     if base_url:
         command.extend(["--base-url", base_url])
+    if registration_identity is not None:
+        command.extend(
+            [
+                "--registration-identity-json",
+                json.dumps(
+                    registration_identity,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+            ]
+        )
     return command, run_id
 
 
@@ -927,6 +944,7 @@ def execute_round(
     reviewed_vqa_registry: Path | None = None,
     tool_recovery_max_restarts: int = 1,
     inject_tool_exception_once: bool = False,
+    registration_identity: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], Path, dict[str, Any], dict[str, Any], int,]:
     round_id = round_plan["round_id"]
     command, run_id = build_taskgen_command(
@@ -939,6 +957,7 @@ def execute_round(
         gpu=gpu,
         max_reflections=max_reflections,
         telemetry_profile=telemetry_profile,
+        registration_identity=registration_identity,
     )
     execution_dir = evaluation_dir / "execution" / round_id
     write_json(
@@ -960,6 +979,12 @@ def execute_round(
     if not child_manifest_path.is_file():
         raise RuntimeError(f"child TaskGen manifest 不存在: {child_manifest_path}")
     child_manifest = json.loads(child_manifest_path.read_text(encoding="utf-8"))
+    if registration_identity is not None and child_manifest.get(
+        "registration_identity"
+    ) != registration_identity:
+        raise RuntimeError(
+            f"child registration identity mismatch: {run_id}"
+        )
     write_json(
         execution_dir / "child_run.json",
         {
@@ -1583,6 +1608,23 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable cross-evaluation planning retrieval and indexing.",
     )
+    parser.add_argument(
+        "--evidence-manifest",
+        help="Repo-relative hash-pinned preregistration for a registered run.",
+    )
+    parser.add_argument(
+        "--command-plan",
+        help="Repo-relative inert fixed/dynamic command plan.",
+    )
+    parser.add_argument(
+        "--registered-route",
+        help="Repo-relative deterministic validated route produced by the command plan.",
+    )
+    parser.add_argument(
+        "--registered-strategy",
+        choices=["fixed_predeclared_v1", "dynamic_evidence_v1"],
+        help="Strategy identity bound by the command plan.",
+    )
     return parser.parse_args()
 
 
@@ -1598,7 +1640,38 @@ def main() -> None:
         raise SystemExit(
             "--auto-route resolves a trusted task module; do not pass --task-module"
         )
+    registered_values = (
+        args.evidence_manifest,
+        args.command_plan,
+        args.registered_route,
+        args.registered_strategy,
+    )
+    if any(value is not None for value in registered_values) and not all(
+        value is not None for value in registered_values
+    ):
+        raise SystemExit(
+            "registered execution requires --evidence-manifest, --command-plan, "
+            "--registered-route, and --registered-strategy together"
+        )
+    if args.registered_strategy is not None and args.auto_route:
+        raise SystemExit("registered execution forbids live --auto-route")
+    if args.registered_strategy is not None and args.evaluation_id is None:
+        raise SystemExit("registered execution requires an explicit --evaluation-id")
     repo_root = args.repo_root.expanduser().resolve()
+    registered_execution: dict[str, Any] | None = None
+    if args.registered_strategy is not None:
+        try:
+            registered_execution = load_registered_execution(
+                repo_root,
+                evidence_manifest_path=str(args.evidence_manifest),
+                command_plan_path=str(args.command_plan),
+                registered_route_path=str(args.registered_route),
+                strategy=str(args.registered_strategy),
+                evaluation_id=str(args.evaluation_id),
+                observed_argv=list(sys.argv),
+            )
+        except StrategyPlanError as exc:
+            raise SystemExit(f"registered execution preflight failed: {exc}") from exc
     models = resolve_model_profile(
         args.model_profile,
         {
@@ -1633,8 +1706,14 @@ def main() -> None:
         "candidates": [],
     }
     global_router: GlobalQueryRouter | None = None
-    validated_proposal: dict[str, Any] | None = None
-    routed_task_profile: str | None = None
+    validated_proposal: dict[str, Any] | None = (
+        registered_execution["validated_proposal"]
+        if registered_execution is not None
+        else None
+    )
+    routed_task_profile: str | None = (
+        "adaptive_properties" if registered_execution is not None else None
+    )
 
     if args.auto_route:
         provider = OpenAICompatibleProvider(
@@ -1855,6 +1934,29 @@ def main() -> None:
         if adaptive_click_bell
         else None
     )
+    registration_identity: dict[str, Any] | None = None
+    if registered_execution is not None:
+        registration_identity = dict(
+            registered_execution["registration_identity"]
+        )
+        if planning_policy != args.registered_strategy:
+            raise RuntimeError(
+                "registered strategy does not match resolved planner policy"
+            )
+        if candidate_suite != registered_execution["expected_candidate_suite"]:
+            update_manifest(
+                evaluation_dir,
+                status="registration_failed",
+                registration_identity=registration_identity,
+                registration_failure="planner candidate suite differs from preregistration",
+            )
+            raise RuntimeError(
+                "planner candidate suite differs from preregistered route"
+            )
+        write_json(
+            evaluation_dir / "plan/registered_route.json",
+            registered_execution["route"],
+        )
     if (
         global_catalog is not None
         and global_route_result is not None
@@ -1923,6 +2025,16 @@ def main() -> None:
             "restarts_policy_or_simulator": False,
             "development_fault_injection": bool(args.inject_tool_exception_once),
         },
+        registration_identity=registration_identity,
+        evidence_manifest=(
+            str(args.evidence_manifest) if registration_identity is not None else None
+        ),
+        command_plan=(
+            str(args.command_plan) if registration_identity is not None else None
+        ),
+        registered_route=(
+            str(args.registered_route) if registration_identity is not None else None
+        ),
     )
 
     if args.plan_only:
@@ -1960,6 +2072,7 @@ def main() -> None:
                 reviewed_vqa_registry=reviewed_vqa_registry,
                 tool_recovery_max_restarts=args.tool_recovery_max_restarts,
                 inject_tool_exception_once=args.inject_tool_exception_once,
+                registration_identity=registration_identity,
             )
             round_runs.append(
                 {

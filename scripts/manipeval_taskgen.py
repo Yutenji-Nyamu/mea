@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 import shutil
 import subprocess
@@ -32,6 +33,83 @@ from mea.taskgen import (
     create_official_task_run,
     validate_click_bell_variant_hint,
 )
+
+
+_REGISTRATION_KEYS = {
+    "schema_version",
+    "registration_id",
+    "evidence_manifest_payload_sha256",
+    "command_plan_sha256",
+    "registered_route_sha256",
+    "checkpoint_file_set_sha256",
+    "source_artifact_file_set_sha256",
+    "base_commit",
+    "candidate_suite_sha256",
+    "trusted_catalog_sha256",
+    "trusted_template_contract_sha256",
+    "strategy",
+    "expected_evaluation_id",
+    "expected_child_run_prefix",
+}
+
+
+def validate_registration_identity(value: Any, *, run_id: str | None = None) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) != _REGISTRATION_KEYS:
+        raise ValueError("registration identity fields changed")
+    if value.get("schema_version") != 1:
+        raise ValueError("registration identity schema_version must be 1")
+    for field in (
+        "evidence_manifest_payload_sha256",
+        "command_plan_sha256",
+        "registered_route_sha256",
+        "checkpoint_file_set_sha256",
+        "source_artifact_file_set_sha256",
+        "candidate_suite_sha256",
+        "trusted_catalog_sha256",
+        "trusted_template_contract_sha256",
+    ):
+        if not re.fullmatch(r"[0-9a-f]{64}", str(value.get(field) or "")):
+            raise ValueError(f"invalid registration hash: {field}")
+    if not re.fullmatch(r"[0-9a-f]{40}", str(value.get("base_commit") or "")):
+        raise ValueError("invalid registration base_commit")
+    if value.get("strategy") not in {
+        "fixed_predeclared_v1",
+        "dynamic_evidence_v1",
+    }:
+        raise ValueError("invalid registered strategy")
+    evaluation_id = value.get("expected_evaluation_id")
+    if not isinstance(evaluation_id, str) or not re.fullmatch(
+        r"eval_[A-Za-z0-9_]+", evaluation_id
+    ):
+        raise ValueError("invalid registered evaluation id")
+    expected_prefix = f"run_{evaluation_id.removeprefix('eval_')}_"
+    if value.get("expected_child_run_prefix") != expected_prefix:
+        raise ValueError("invalid registered child run prefix")
+    if run_id is not None and not run_id.startswith(expected_prefix):
+        raise ValueError("TaskGen run_id differs from registered parent")
+    return dict(value)
+
+
+def bind_registration_to_episode_metadata(
+    run_dir: Path, registration_identity: dict[str, Any]
+) -> None:
+    telemetry = (run_dir / "evaluation/telemetry").resolve()
+    if not telemetry.is_dir():
+        return
+    for path in sorted(telemetry.rglob("episode.json")):
+        if path.is_symlink():
+            raise RuntimeError("episode metadata may not be a symlink")
+        resolved = path.resolve(strict=True)
+        if not resolved.is_relative_to(telemetry):
+            raise RuntimeError("episode metadata path escapes telemetry root")
+        value = json.loads(resolved.read_text(encoding="utf-8"))
+        if not isinstance(value, dict):
+            raise RuntimeError("episode metadata must be an object")
+        existing = value.get("registration_identity")
+        if existing is not None and existing != registration_identity:
+            raise RuntimeError("episode registration identity already differs")
+        value["registration_identity"] = registration_identity
+        write_json(resolved, value)
 
 
 def write_json(path: Path, value: Any) -> None:
@@ -113,6 +191,9 @@ def run_probe(
     ]
     if expert:
         command.append("--expert")
+    if manifest.get("capability_id") == "scene_background_texture":
+        # RoboTwin selects assets/background_texture/unseen only in eval mode.
+        command.append("--eval-mode")
     if telemetry_dir is not None:
         command.extend(["--telemetry-dir", str(telemetry_dir)])
     if visual_capture_profile_id is not None:
@@ -388,7 +469,16 @@ def collect_click_bell_position_samples(
     spec = json.loads((run_dir / "variant_spec.json").read_text(encoding="utf-8"))
     changes = spec["changes"]
     bell_change = changes.get("bell")
-    clutter_change = changes.get("domain_randomization")
+    randomization_change = changes.get("domain_randomization") or {}
+    clutter_change = (
+        randomization_change if "cluttered_table" in randomization_change else None
+    )
+    background_change = (
+        randomization_change if "random_background" in randomization_change else None
+    )
+    lighting_change = (
+        randomization_change if "random_light" in randomization_change else None
+    )
     expected_xy = (
         [float(value) for value in bell_change["xy"]]
         if bell_change and bell_change.get("position_mode") == "fixed"
@@ -420,6 +510,8 @@ def collect_click_bell_position_samples(
         position_check = variant_check["position"]
         instance_check = variant_check["instance"]
         clutter_check = variant_check["clutter"]
+        background_check = variant_check["background_texture"]
+        lighting_check = variant_check["lighting"]
         samples.append(
             {
                 "episode_index": episode_index,
@@ -437,6 +529,19 @@ def collect_click_bell_position_samples(
                 "clutter_objects": clutter_check.get("actual_objects", []),
                 "clutter_matched": bool(clutter_check.get("passed")),
                 "clutter_authority": clutter_check.get("authority"),
+                "background_texture_expected": bool(background_change),
+                "background_texture_split": background_check.get("actual_split"),
+                "wall_texture": background_check.get("actual_wall_texture"),
+                "table_texture": background_check.get("actual_table_texture"),
+                "background_texture_matched": bool(background_check.get("passed")),
+                "background_texture_authority": background_check.get("authority"),
+                "lighting_expected": bool(lighting_change),
+                "random_light": lighting_check.get("actual_random_light"),
+                "crazy_random_light_rate": lighting_check.get(
+                    "actual_crazy_random_light_rate"
+                ),
+                "lighting_matched": bool(lighting_check.get("passed")),
+                "lighting_authority": lighting_check.get("authority"),
                 "variant_matched": bool(variant_check.get("passed")),
                 "rule_passed": bool(scene.get("rule_check", {}).get("passed")),
                 "expert_passed": bool(scene.get("expert", {}).get("passed")),
@@ -480,6 +585,20 @@ def collect_click_bell_position_samples(
             "minimum_clutter_count": 1 if clutter_change else 0,
             "all_clutter_matched": all(item["clutter_matched"] for item in samples),
             "clutter_counts": [item["clutter_count"] for item in samples],
+            "expected_background_texture": bool(background_change),
+            "required_texture_split": "unseen" if background_change else None,
+            "all_background_textures_matched": all(
+                item["background_texture_matched"] for item in samples
+            ),
+            "observed_texture_splits": sorted(
+                {
+                    str(item["background_texture_split"])
+                    for item in samples
+                    if item.get("background_texture_split") is not None
+                }
+            ),
+            "expected_random_lighting": bool(lighting_change),
+            "all_lighting_matched": all(item["lighting_matched"] for item in samples),
         },
         "passed": len(samples) == num_episodes
         and all(
@@ -508,7 +627,20 @@ def run_vision_check(
     result_path = result_path or run_dir / "validation/vision.json"
     if spec.get("task_name") == "click_bell":
         bell_change = spec["changes"].get("bell")
-        clutter_change = spec["changes"].get("domain_randomization")
+        randomization_change = spec["changes"].get("domain_randomization") or {}
+        clutter_change = (
+            randomization_change
+            if "cluttered_table" in randomization_change
+            else None
+        )
+        background_change = (
+            randomization_change
+            if "random_background" in randomization_change
+            else None
+        )
+        lighting_change = (
+            randomization_change if "random_light" in randomization_change else None
+        )
         if clutter_change is not None:
             contract_description = (
                 "This round intentionally enables RoboTwin's simulator-native "
@@ -517,6 +649,22 @@ def run_vision_check(
                 "change. Check that the target bell remains visible and the "
                 "physical scene is plausible; exact clutter count is checked from "
                 "simulator task state."
+            )
+        elif background_change is not None:
+            contract_description = (
+                "This round enables RoboTwin's simulator-native random_background "
+                "with clean_background_rate=0 and eval_mode=true. Both table and "
+                "wall therefore use the upstream unseen texture split. Check only "
+                "that the bell remains visible and the rendered scene is plausible; "
+                "exact texture ids and split are checked from simulator task info."
+            )
+        elif lighting_change is not None:
+            contract_description = (
+                "This round enables RoboTwin's simulator-native random_light with "
+                "crazy_random_light_rate=0, so point and directional light colors "
+                "are randomized once at setup without per-frame flicker. Check only "
+                "that the bell remains visible and illumination is usable; the "
+                "configuration branch is checked from simulator task attributes."
             )
         elif bell_change and bell_change.get("instance_mode") == "fixed":
             bell_id = int(bell_change["bell_id"])
@@ -602,10 +750,23 @@ def validate_click_bell_scene_contract(
         raise ClickBellTaskGenError("scene contract requires a click_bell variant spec")
     normalized = validate_click_bell_variant_hint(spec.get("changes"))
     bell_change = normalized.get("bell")
-    clutter_change = normalized.get("domain_randomization")
+    randomization_change = normalized.get("domain_randomization") or {}
+    clutter_change = (
+        randomization_change if "cluttered_table" in randomization_change else None
+    )
+    background_change = (
+        randomization_change if "random_background" in randomization_change else None
+    )
+    lighting_change = (
+        randomization_change if "random_light" in randomization_change else None
+    )
     expected_axis = (
         "robustness.scene_clutter"
         if clutter_change is not None
+        else "scene_background_texture"
+        if background_change is not None
+        else "scene_lighting"
+        if lighting_change is not None
         else "object_instance"
         if bell_change and bell_change.get("instance_mode") == "fixed"
         else "object_position"
@@ -715,7 +876,140 @@ def validate_click_bell_scene_contract(
             "authority": "simulator_task_info:cluttered_table_info",
         }
 
-    passed = bool(position["passed"] and instance["passed"] and clutter["passed"])
+    actual_random_background = randomization.get("random_background")
+    actual_wall_texture = randomization.get("wall_texture")
+    actual_table_texture = randomization.get("table_texture")
+    actual_texture_split = randomization.get("texture_split")
+    if background_change is not None:
+        background_passed = bool(
+            scene.get("eval_mode") is True
+            and actual_random_background is True
+            and randomization.get("clean_background_rate") == 0.0
+            and isinstance(actual_wall_texture, str)
+            and actual_wall_texture.startswith("unseen/")
+            and isinstance(actual_table_texture, str)
+            and actual_table_texture.startswith("unseen/")
+            and actual_texture_split == "unseen"
+            and randomization.get("background_authority")
+            == "simulator_task_info:texture_info"
+        )
+        background_texture = {
+            "status": "passed" if background_passed else "failed",
+            "passed": background_passed,
+            "expected_random_background": True,
+            "expected_clean_background_rate": 0.0,
+            "expected_eval_mode": True,
+            "expected_split": "unseen",
+            "actual_random_background": actual_random_background,
+            "actual_clean_background_rate": randomization.get(
+                "clean_background_rate"
+            ),
+            "actual_eval_mode": scene.get("eval_mode"),
+            "actual_split": actual_texture_split,
+            "actual_wall_texture": actual_wall_texture,
+            "actual_table_texture": actual_table_texture,
+            "authority": "simulator_task_info:texture_info",
+        }
+    else:
+        background_texture = {
+            "status": "not_applicable",
+            "passed": True,
+            "expected_random_background": None,
+            "expected_clean_background_rate": None,
+            "expected_eval_mode": None,
+            "expected_split": None,
+            "actual_random_background": actual_random_background,
+            "actual_clean_background_rate": randomization.get(
+                "clean_background_rate"
+            ),
+            "actual_eval_mode": scene.get("eval_mode"),
+            "actual_split": actual_texture_split,
+            "actual_wall_texture": actual_wall_texture,
+            "actual_table_texture": actual_table_texture,
+            "authority": "simulator_task_info:texture_info",
+        }
+
+    actual_random_light = randomization.get("random_light")
+    actual_crazy_rate = randomization.get("crazy_random_light_rate")
+    actual_crazy_light = randomization.get("crazy_random_light")
+    direction_light_count = randomization.get("direction_light_count")
+    point_light_count = randomization.get("point_light_count")
+    direction_light_colors = randomization.get("direction_light_colors")
+    point_light_colors = randomization.get("point_light_colors")
+
+    def valid_light_colors(colors: Any, count: Any) -> bool:
+        return bool(
+            isinstance(count, int)
+            and not isinstance(count, bool)
+            and count >= 1
+            and isinstance(colors, list)
+            and len(colors) == count
+            and all(
+                isinstance(color, list)
+                and len(color) == 3
+                and all(
+                    isinstance(value, (int, float))
+                    and not isinstance(value, bool)
+                    and math.isfinite(float(value))
+                    and 0.0 <= float(value) <= 1.0
+                    for value in color
+                )
+                for color in colors
+            )
+        )
+
+    if lighting_change is not None:
+        lighting_passed = bool(
+            actual_random_light is True
+            and actual_crazy_rate == 0.0
+            and actual_crazy_light is False
+            and valid_light_colors(direction_light_colors, direction_light_count)
+            and valid_light_colors(point_light_colors, point_light_count)
+            and randomization.get("lighting_authority")
+            == (
+                "simulator_task_attributes:random_light,crazy_random_light_rate,"
+                "crazy_random_light;simulator_light_components:get_color"
+            )
+        )
+        lighting = {
+            "status": "passed" if lighting_passed else "failed",
+            "passed": lighting_passed,
+            "expected_random_light": True,
+            "expected_crazy_random_light_rate": 0.0,
+            "expected_temporal_flicker": False,
+            "actual_random_light": actual_random_light,
+            "actual_crazy_random_light_rate": actual_crazy_rate,
+            "actual_crazy_random_light": actual_crazy_light,
+            "direction_light_count": direction_light_count,
+            "point_light_count": point_light_count,
+            "direction_light_colors": direction_light_colors,
+            "point_light_colors": point_light_colors,
+            "authority": randomization.get("lighting_authority"),
+        }
+    else:
+        lighting = {
+            "status": "not_applicable",
+            "passed": True,
+            "expected_random_light": None,
+            "expected_crazy_random_light_rate": None,
+            "expected_temporal_flicker": None,
+            "actual_random_light": actual_random_light,
+            "actual_crazy_random_light_rate": actual_crazy_rate,
+            "actual_crazy_random_light": actual_crazy_light,
+            "direction_light_count": direction_light_count,
+            "point_light_count": point_light_count,
+            "direction_light_colors": direction_light_colors,
+            "point_light_colors": point_light_colors,
+            "authority": randomization.get("lighting_authority"),
+        }
+
+    passed = bool(
+        position["passed"]
+        and instance["passed"]
+        and clutter["passed"]
+        and background_texture["passed"]
+        and lighting["passed"]
+    )
     return {
         "status": "passed" if passed else "failed",
         "passed": passed,
@@ -724,10 +1018,14 @@ def validate_click_bell_scene_contract(
         "position": position,
         "instance": instance,
         "clutter": clutter,
+        "background_texture": background_texture,
+        "lighting": lighting,
         "authorities": [
             position["authority"],
             instance["authority"],
             clutter["authority"],
+            background_texture["authority"],
+            lighting["authority"],
         ],
     }
 
@@ -1256,6 +1554,10 @@ def parse_args() -> argparse.Namespace:
         help="Test-only injected visual mismatch used to exercise the repair loop.",
     )
     parser.add_argument("--run-act", action="store_true")
+    parser.add_argument(
+        "--registration-identity-json",
+        help="Parent Agent registration identity propagated to child/episode artifacts.",
+    )
     return parser.parse_args()
 
 
@@ -1264,6 +1566,16 @@ def main() -> None:
     if args.num_episodes <= 0:
         raise SystemExit("--num-episodes 必须是正整数")
     repo_root = args.repo_root.expanduser().resolve()
+    registration_identity: dict[str, Any] | None = None
+    if args.registration_identity_json is not None:
+        if args.resume_run:
+            raise SystemExit("registered TaskGen execution cannot use --resume-run")
+        try:
+            registration_identity = validate_registration_identity(
+                json.loads(args.registration_identity_json)
+            )
+        except (json.JSONDecodeError, ValueError) as exc:
+            raise SystemExit(f"invalid --registration-identity-json: {exc}") from exc
     bounded_click_bell = bool(
         not args.resume_run
         and args.task_name == "click_bell"
@@ -1333,6 +1645,18 @@ def main() -> None:
                 variant_id=args.variant_id,
             )
         run_dir = repo_root / "mea/generated_tasks" / manifest["run_id"]
+
+    if registration_identity is not None:
+        try:
+            registration_identity = validate_registration_identity(
+                registration_identity, run_id=str(manifest["run_id"])
+            )
+        except ValueError as exc:
+            raise SystemExit(f"child registration binding failed: {exc}") from exc
+        update_manifest(
+            run_dir,
+            registration_identity=registration_identity,
+        )
 
     requested_execution_backend = (
         (
@@ -1541,6 +1865,10 @@ def main() -> None:
                     f"expert={alignment['expert_seeds']}, "
                     f"ACT={alignment['act_seeds']}"
                 )
+            if registration_identity is not None:
+                bind_registration_to_episode_metadata(
+                    run_dir, registration_identity
+                )
             trusted_tools = evaluate_run_telemetry(
                 repo_root,
                 run_dir,
@@ -1562,6 +1890,10 @@ def main() -> None:
             }
             if args.expert:
                 updates["execution_backends"] = ["expert"]
+                if registration_identity is not None:
+                    bind_registration_to_episode_metadata(
+                        run_dir, registration_identity
+                    )
                 updates["trusted_tool_evaluation"] = evaluate_run_telemetry(
                     repo_root,
                     run_dir,

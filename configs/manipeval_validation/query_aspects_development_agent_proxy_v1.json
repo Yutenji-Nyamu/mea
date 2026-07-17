@@ -123,11 +123,11 @@
       "query": "Evaluate click_bell across dark, normal, and bright lighting.",
       "setting": "single_task",
       "task_name": "click_bell",
-      "task_profile": "generated",
+      "task_profile": "adaptive_properties",
       "paper_category": "generalization_scene",
       "gold_sub_aspect_ids": ["scene_lighting"],
       "acceptable_first_sub_aspect_ids": ["scene_lighting"],
-      "capability_status": "unsupported",
+      "capability_status": "supported",
       "annotation": {"source": "development_agent_proxy", "review_status": "proxy_reviewed", "annotator_id": "codex_development_agent", "human_votes": [], "paper_eligible": false}
     },
     {
@@ -159,11 +159,11 @@
       "query": "How stable is completion time across repeated seeds?",
       "setting": "single_task",
       "task_name": "click_bell",
-      "task_profile": "official",
+      "task_profile": "adaptive_properties",
       "paper_category": "performance",
       "gold_sub_aspect_ids": ["performance.completion_time_stability"],
       "acceptable_first_sub_aspect_ids": ["performance.completion_time_stability"],
-      "capability_status": "unsupported",
+      "capability_status": "supported",
       "annotation": {"source": "development_agent_proxy", "review_status": "proxy_reviewed", "annotator_id": "codex_development_agent", "human_votes": [], "paper_eligible": false}
     },
     {

@@ -77,8 +77,40 @@ class TaskCapabilityTests(unittest.TestCase):
                 "object_position.fixed_xy",
                 "object_instance.official_id",
                 "robustness.scene_clutter",
+                "scene_background_texture",
+                "scene_lighting",
             },
         )
+
+    def test_scene_capabilities_preserve_upstream_simulator_contracts(self):
+        background = build_variant_spec(
+            task_name="click_bell",
+            variant_id="scene_background_texture.unseen",
+            capability_id="scene_background_texture",
+            intent="evaluate_scene_background_texture",
+            changes={
+                "domain_randomization": {
+                    "random_background": True,
+                    "clean_background_rate": 0.0,
+                }
+            },
+        )
+        self.assertEqual(background["controlled_axis"], "scene_background_texture")
+        self.assertIn("eval_mode_unseen_texture_split", background["preserve"])
+        lighting = build_variant_spec(
+            task_name="click_bell",
+            variant_id="scene_lighting.static_random",
+            capability_id="scene_lighting",
+            intent="evaluate_scene_lighting",
+            changes={
+                "domain_randomization": {
+                    "random_light": True,
+                    "crazy_random_light_rate": 0.0,
+                }
+            },
+        )
+        self.assertEqual(lighting["controlled_axis"], "scene_lighting")
+        self.assertIn("static_per_episode_lighting", lighting["preserve"])
 
 
 if __name__ == "__main__":

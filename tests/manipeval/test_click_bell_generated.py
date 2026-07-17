@@ -18,7 +18,7 @@ from mea.taskgen import (
     validate_click_bell_variant_hint,
     validate_click_bell_vision_observation,
 )
-from mea.taskgen.probe import task_attribute_summary
+from mea.taskgen.probe import light_component_colors, task_attribute_summary
 from scripts.manipeval_agent import build_taskgen_command
 from scripts.manipeval_taskgen import (
     validate_click_bell_scene_contract,
@@ -225,6 +225,58 @@ class ClickBellGeneratedTests(unittest.TestCase):
             ):
                 validate_click_bell_variant_hint(invalid)
 
+    def test_simulator_background_and_lighting_variants_are_strict(self):
+        background = {
+            "domain_randomization": {
+                "random_background": True,
+                "clean_background_rate": 0.0,
+            }
+        }
+        lighting = {
+            "domain_randomization": {
+                "random_light": True,
+                "crazy_random_light_rate": 0.0,
+            }
+        }
+        for hint in (background, lighting):
+            with self.subTest(hint=hint):
+                self.assertEqual(validate_click_bell_variant_hint(hint), hint)
+                self.assertEqual(
+                    compile_click_bell_overlay(hint),
+                    {"domain_randomization": hint["domain_randomization"]},
+                )
+        invalid = (
+            {
+                "domain_randomization": {
+                    "random_background": False,
+                    "clean_background_rate": 0.0,
+                }
+            },
+            {
+                "domain_randomization": {
+                    "random_background": True,
+                    "clean_background_rate": 1.0,
+                }
+            },
+            {
+                "domain_randomization": {
+                    "random_light": True,
+                    "crazy_random_light_rate": 1.0,
+                }
+            },
+            {
+                "domain_randomization": {
+                    "random_background": True,
+                    "random_light": True,
+                    "clean_background_rate": 0.0,
+                    "crazy_random_light_rate": 0.0,
+                }
+            },
+        )
+        for hint in invalid:
+            with self.subTest(hint=hint), self.assertRaises(ClickBellTaskGenError):
+                validate_click_bell_variant_hint(hint)
+
     def test_bounded_run_records_overlay_not_codegen(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -295,6 +347,140 @@ class ClickBellGeneratedTests(unittest.TestCase):
             ).read_text(encoding="utf-8")
             self.assertIn("cluttered_table: true", overlay)
             self.assertNotIn("random_light", overlay)
+
+    def test_scene_runs_record_native_background_and_lighting_capabilities(self):
+        cases = (
+            (
+                "run_click_bell_background_test",
+                {
+                    "domain_randomization": {
+                        "random_background": True,
+                        "clean_background_rate": 0.0,
+                    }
+                },
+                "scene_background_texture",
+                "scene_background_texture.unseen",
+            ),
+            (
+                "run_click_bell_lighting_test",
+                {
+                    "domain_randomization": {
+                        "random_light": True,
+                        "crazy_random_light_rate": 0.0,
+                    }
+                },
+                "scene_lighting",
+                "scene_lighting.static_random",
+            ),
+        )
+        for run_id, hint, capability_id, variant_id in cases:
+            with self.subTest(capability_id=capability_id), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                make_repo(root)
+                manifest = create_click_bell_variant_run(
+                    root,
+                    f"evaluate {capability_id}",
+                    variant_hint=hint,
+                    run_id=run_id,
+                )
+                spec = json.loads(
+                    (root / f"mea/generated_tasks/{run_id}/variant_spec.json").read_text(
+                        encoding="utf-8"
+                    )
+                )
+                self.assertEqual(manifest["capability_id"], capability_id)
+                self.assertEqual(spec["controlled_axis"], capability_id)
+                self.assertEqual(spec["variant_id"], variant_id)
+
+    def test_adaptive_planner_materializes_scene_texture_and_lighting_templates(self):
+        proposal = json.dumps(
+            {
+                "schema_version": 1,
+                "task_name": "click_bell",
+                "evaluation_goal": "evaluate scene appearance generalization",
+                "requested_aspect_ids": [
+                    "scene_background_texture",
+                    "scene_lighting",
+                ],
+                "first_aspect_id": "scene_background_texture",
+            }
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            make_repo(root)
+            planner = ClickBellAdaptivePlanAgent(
+                root,
+                SequenceProvider([proposal]),
+                model="fake",
+                max_rounds=2,
+            )
+            manifest = planner.plan(
+                "evaluate background textures and lighting",
+                evaluation_id="eval_bell_scene_axes",
+            )
+            plan = manifest["plan"]
+            self.assertEqual(
+                plan["requested_template_ids"],
+                [
+                    "scene_background_texture.unseen",
+                    "scene_lighting.static_random",
+                ],
+            )
+            self.assertEqual(
+                plan["rounds"][0]["capability_id"],
+                "scene_background_texture",
+            )
+
+    def test_completion_time_capability_uses_official_act_and_trusted_tool(self):
+        proposal = {
+            "schema_version": 1,
+            "task_name": "click_bell",
+            "evaluation_goal": "measure completion-time stability",
+            "requested_aspect_ids": ["performance.completion_time_stability"],
+            "first_aspect_id": "performance.completion_time_stability",
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            make_repo(root)
+            planner = ClickBellAdaptivePlanAgent(
+                root,
+                SequenceProvider([]),
+                model="fake",
+                start_seed=20,
+                num_episodes=3,
+                max_rounds=1,
+            )
+            manifest = planner.plan(
+                "How stable is completion time across seeds?",
+                evaluation_id="eval_bell_completion_time",
+                validated_proposal=proposal,
+            )
+            round_plan = manifest["plan"]["rounds"][0]
+            self.assertEqual(
+                round_plan["template_id"],
+                "performance.completion_time_stability.official",
+            )
+            self.assertEqual(round_plan["route"], "official")
+            self.assertEqual(round_plan["task_module"], "envs.click_bell")
+            self.assertEqual(round_plan["variant_hint"], {})
+            self.assertEqual(round_plan["execution"]["seeds"], [20, 21, 22])
+            self.assertEqual(round_plan["tool_request"]["metric"], "time_to_success")
+            self.assertIn("aggregate", round_plan["execution"]["gates"])
+
+            command, _ = build_taskgen_command(
+                root,
+                "eval_bell_completion_time",
+                round_plan,
+                text_model="text",
+                vision_model="vision",
+                base_url=None,
+                gpu=0,
+                max_reflections=0,
+            )
+            self.assertIn("--run-act", command)
+            self.assertNotIn("--expert", command)
+            self.assertNotIn("--vision-check", command)
+            self.assertNotIn("--variant-hint-json", command)
 
     def test_planner_continues_left_to_right_with_same_seeds(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -754,6 +940,111 @@ class ClickBellGeneratedTests(unittest.TestCase):
         )
         self.assertFalse(without_clutter["passed"])
 
+    def test_background_texture_scene_gate_uses_unseen_simulator_texture_info(self):
+        spec = {
+            "task_name": "click_bell",
+            "controlled_axis": "scene_background_texture",
+            "changes": {
+                "domain_randomization": {
+                    "random_background": True,
+                    "clean_background_rate": 0.0,
+                }
+            },
+        }
+        scene = {
+            "eval_mode": True,
+            "tracked_actors": [{"id": "bell", "position": [-0.2, -0.08, 0.741]}],
+            "task_attributes": {"bell_id": 1},
+            "domain_randomization": {
+                "random_background": True,
+                "clean_background_rate": 0.0,
+                "wall_texture": "unseen/3",
+                "table_texture": "unseen/7",
+                "texture_split": "unseen",
+                "background_authority": "simulator_task_info:texture_info",
+            },
+        }
+        result = validate_click_bell_scene_contract(scene, spec)
+        self.assertTrue(result["passed"])
+        self.assertEqual(
+            result["background_texture"]["authority"],
+            "simulator_task_info:texture_info",
+        )
+        self.assertFalse(
+            validate_click_bell_scene_contract(
+                {
+                    **scene,
+                    "domain_randomization": {
+                        **scene["domain_randomization"],
+                        "table_texture": None,
+                    },
+                },
+                spec,
+            )["passed"]
+        )
+
+    def test_lighting_scene_gate_uses_static_simulator_light_configuration(self):
+        spec = {
+            "task_name": "click_bell",
+            "controlled_axis": "scene_lighting",
+            "changes": {
+                "domain_randomization": {
+                    "random_light": True,
+                    "crazy_random_light_rate": 0.0,
+                }
+            },
+        }
+        scene = {
+            "eval_mode": True,
+            "tracked_actors": [{"id": "bell", "position": [0.2, -0.08, 0.741]}],
+            "task_attributes": {"bell_id": 0},
+            "domain_randomization": {
+                "random_light": True,
+                "crazy_random_light_rate": 0.0,
+                "crazy_random_light": False,
+                "direction_light_count": 1,
+                "point_light_count": 2,
+                "direction_light_colors": [[0.2, 0.4, 0.6]],
+                "point_light_colors": [[0.1, 0.3, 0.5], [0.7, 0.8, 0.9]],
+                "lighting_authority": (
+                    "simulator_task_attributes:random_light,"
+                    "crazy_random_light_rate,crazy_random_light;"
+                    "simulator_light_components:get_color"
+                ),
+            },
+        }
+        result = validate_click_bell_scene_contract(scene, spec)
+        self.assertTrue(result["passed"])
+        self.assertFalse(result["lighting"]["expected_temporal_flicker"])
+        self.assertEqual(
+            result["lighting"]["direction_light_colors"], [[0.2, 0.4, 0.6]]
+        )
+        self.assertFalse(
+            validate_click_bell_scene_contract(
+                {
+                    **scene,
+                    "domain_randomization": {
+                        **scene["domain_randomization"],
+                        "crazy_random_light_rate": 1.0,
+                        "crazy_random_light": True,
+                    },
+                },
+                spec,
+            )["passed"]
+        )
+        self.assertFalse(
+            validate_click_bell_scene_contract(
+                {
+                    **scene,
+                    "domain_randomization": {
+                        **scene["domain_randomization"],
+                        "point_light_colors": [[0.1, 0.3, 0.5]],
+                    },
+                },
+                spec,
+            )["passed"]
+        )
+
     def test_probe_task_attribute_summary_normalizes_scalar(self):
         class Scalar:
             def item(self):
@@ -764,6 +1055,16 @@ class ClickBellGeneratedTests(unittest.TestCase):
             {"probe_task_attributes": ["bell_id"]},
         )
         self.assertEqual(summary, {"bell_id": 1})
+
+    def test_probe_reads_simulator_light_component_colors(self):
+        lights = [
+            SimpleNamespace(get_color=lambda: [0.1, 0.2, 0.3]),
+            SimpleNamespace(get_color=lambda: [0.4, 0.5, 0.6]),
+        ]
+        self.assertEqual(
+            light_component_colors(lights),
+            [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]],
+        )
 
     def test_click_bell_vqa_rejects_string_booleans_and_wrong_actor(self):
         base = {

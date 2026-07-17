@@ -213,3 +213,25 @@ smoke 与 N=1 instrumentation pilot。20-query 同时保留 `model_draft_unrevie
   重复，因此该机制应称 conservative orchestration retry，不得冒充论文 App. A.3.4 的整轮恢复。
 - fault injection、cached counterfactual 与 N=1 都是功能证据，不产生成功率、方差、AUROC 或
   论文消融结论。报告必须同时写出不可用指标及原因。
+
+## 12. 预注册与最小实验的长期规则
+
+- 功能优先于扩大实验。新通路先用静态测试、`0-ACT` prepare/audit 或一个真实 rollout 验证；
+  只有身份和失败处理稳定后才按 `1 → 3 → 5` 扩大。论文的 10 次完整 repetition 不作为日常
+  开发默认值。
+- 当前只评 ACT。不得为了“表格更完整”擅自接入第二种 policy；official expert 只做 seed/
+  solvability gate，不能替代 ACT checkpoint 验证。
+- checkpoint、数据集、模型权重和 rollout 大包仍只在服务器侧下载、生成与保存；Windows/Codex
+  工作区只接收代码、配置、小型报告和必要的压缩源码。
+- preregistration 必须绑定真实执行：至少把 manifest、registered route、command plan 与观测到
+  的 argv 在 Agent preflight 中共同校验，把同一 registration identity 传到 child artifact，并在
+  post-hoc comparator 再校验。仅生成一个带 hash 的 JSON 不算预注册执行。
+- canonical self-hash 只能发现内容漂移，不能证明执行发生、代码可信或结果独立。报告必须同时
+  指向 parent/child completed artifact、checkpoint/source hash 和比较器检查；计划产物固定写
+  `act_rollouts_started=0`。
+- module-off 的 prepare 与 audit 都是 artifact-only。completed manifest 中的
+  `provider_called / simulator_called / act_rollouts_started` 是历史 runner 的 self-attested 声明，
+  audit 没有旁观运行；只有真正按冻结 switch 执行、完整 matched、typed outcome 可核验时才可
+  报 functional effect，否则 effect 保持 `null`。
+- provenance 不是 outcome。RAG source 存在、视觉 gate 接线或 Tool validation 配置存在，只能
+  证明对应模块可追踪，不能直接作为 Table 3 生成成功率或消融效果。

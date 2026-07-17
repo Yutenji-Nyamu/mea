@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "spec_id": "vqa_click_bell_lighting_v1",
+  "task_name": "click_bell",
+  "template_ids": [
+    "scene_lighting.static_random"
+  ],
+  "sub_aspect_prefixes": [
+    "scene_lighting"
+  ],
+  "tool_metrics": [
+    "official_check_success"
+  ],
+  "phenomenon_ids": [
+    "bell_visibly_pressed",
+    "bell_visible_under_random_lighting"
+  ],
+  "answer_contract_id": "execution_vqa_binary_v1"
+}

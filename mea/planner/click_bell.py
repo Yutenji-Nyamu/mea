@@ -14,6 +14,7 @@ from mea.taskgen import TaskGenError, extract_json_response
 from mea.toolgen import (
     bell_active_tcp_min_xy_error_tool_request,
     official_success_tool_request,
+    time_to_success_tool_request,
 )
 from mea.toolkit import load_task_schema
 
@@ -58,6 +59,30 @@ CLICK_BELL_ADAPTIVE_ASPECTS = {
             "and ACT checkpoint."
         ),
         "template_ids": ["robustness.scene_clutter.official_table"],
+    },
+    "scene_background_texture": {
+        "description": (
+            "Generalization to RoboTwin's simulator-native unseen wall and "
+            "table textures in eval mode while preserving the official bell, "
+            "task logic, and ACT checkpoint."
+        ),
+        "template_ids": ["scene_background_texture.unseen"],
+    },
+    "scene_lighting": {
+        "description": (
+            "Generalization to RoboTwin's simulator-native per-episode random "
+            "directional and point-light colors without temporal light flicker."
+        ),
+        "template_ids": ["scene_lighting.static_random"],
+    },
+    "performance.completion_time_stability": {
+        "description": (
+            "Completion-time stability across official click_bell ACT seeds. "
+            "The trusted time_to_success Tool and deterministic Aggregate "
+            "report success-conditioned mean and dispersion; N=1 is wiring "
+            "only, while budgets 3 or 5 support a small stability estimate."
+        ),
+        "template_ids": ["performance.completion_time_stability.official"],
     },
 }
 
@@ -111,6 +136,44 @@ CLICK_BELL_ADAPTIVE_TEMPLATES = {
                 "clean_background_rate": 0.0,
             }
         },
+    },
+    "scene_background_texture.unseen": {
+        "aspect_id": "scene_background_texture",
+        "probe_role": "sentinel",
+        "description": (
+            "RoboTwin random_background with clean_background_rate=0 and the "
+            "unseen texture split selected by eval mode."
+        ),
+        "variant_hint": {
+            "domain_randomization": {
+                "random_background": True,
+                "clean_background_rate": 0.0,
+            }
+        },
+    },
+    "scene_lighting.static_random": {
+        "aspect_id": "scene_lighting",
+        "probe_role": "sentinel",
+        "description": (
+            "RoboTwin random_light enabled with crazy_random_light_rate=0, "
+            "yielding one static randomized light setup per episode."
+        ),
+        "variant_hint": {
+            "domain_randomization": {
+                "random_light": True,
+                "crazy_random_light_rate": 0.0,
+            }
+        },
+    },
+    "performance.completion_time_stability.official": {
+        "aspect_id": "performance.completion_time_stability",
+        "probe_role": "sentinel",
+        "description": (
+            "Unchanged official click_bell scene measured with the trusted "
+            "first-success timestamp over the requested ACT seed budget."
+        ),
+        "route": "official",
+        "variant_hint": {},
     },
 }
 
@@ -457,7 +520,37 @@ class ClickBellAdaptivePlanAgent:
             "object_position": "object_position.fixed_xy",
             "object_instance": "object_instance.official_id",
             "robustness.scene_clutter": "robustness.scene_clutter",
+            "scene_background_texture": "scene_background_texture",
+            "scene_lighting": "scene_lighting",
+            "performance.completion_time_stability": (
+                "task_execution.official_passthrough"
+            ),
         }[template["aspect_id"]]
+        route = str(template.get("route") or "reuse")
+        official_performance = route == "official"
+        gates = (
+            [
+                "render",
+                "rule",
+                "act",
+                "toolkit",
+                "planned_tool",
+                "aggregate",
+                "execution_vqa",
+            ]
+            if official_performance
+            else [
+                "variant_spec",
+                "render",
+                "rule",
+                "scene_variant",
+                "vision",
+                "expert",
+                "act",
+                "toolkit",
+                "aggregate",
+            ]
+        )
         return {
             "round_id": f"round_{round_number}",
             "template_id": template_id,
@@ -467,42 +560,42 @@ class ClickBellAdaptivePlanAgent:
             "probe_role": template["probe_role"],
             "rationale": template["description"],
             "task_instruction": (
-                f"{user_request} Trusted bounded variant: " f"{template['description']}"
+                f"{user_request} Trusted "
+                f"{'official measurement' if official_performance else 'bounded variant'}: "
+                f"{template['description']}"
             ),
             "task_name": "click_bell",
-            "task_module": "mea.tasks.click_bell",
+            "task_module": (
+                "envs.click_bell" if official_performance else "mea.tasks.click_bell"
+            ),
             "telemetry_profile": self.telemetry_profile,
-            "route": "reuse",
+            "route": route,
             "variant_hint": deepcopy(template["variant_hint"]),
             "execution": {
                 "backend": "act",
                 "seeds": seeds,
                 "num_episodes": len(seeds),
-                "gates": [
-                    "variant_spec",
-                    "render",
-                    "rule",
-                    "scene_variant",
-                    "vision",
-                    "expert",
-                    "act",
-                    "toolkit",
-                    "aggregate",
-                ],
+                "gates": gates,
             },
             "observations": [
                 "scene_alignment",
                 "bell_position",
                 "bell_instance_id",
                 "scene_clutter",
+                "scene_background_texture",
+                "scene_lighting",
                 "expert_solvable",
                 "policy_success",
                 "trusted_tools",
+                "completion_time_statistics",
                 "execution_vqa",
             ],
             "tool_request": (
                 bell_active_tcp_min_xy_error_tool_request()
                 if template["aspect_id"] == "object_position"
+                else time_to_success_tool_request("click_bell")
+                if template["aspect_id"]
+                == "performance.completion_time_stability"
                 else official_success_tool_request("click_bell")
             ),
         }

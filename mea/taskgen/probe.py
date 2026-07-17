@@ -23,6 +23,21 @@ def deep_update(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     return base
 
 
+def light_component_colors(lights: Any) -> list[list[float] | None]:
+    """Read RGB values from SAPIEN light components for simulator-side evidence."""
+
+    colors: list[list[float] | None] = []
+    for light in lights if isinstance(lights, (list, tuple)) else []:
+        try:
+            getter = getattr(light, "get_color", None)
+            color = getter() if callable(getter) else getattr(light, "color", None)
+            values = [float(value) for value in color]
+            colors.append(values if len(values) == 3 else None)
+        except (TypeError, ValueError, AttributeError):
+            colors.append(None)
+    return colors
+
+
 def load_task_args(
     repo_root: Path,
     *,
@@ -242,17 +257,53 @@ def run_probe(arguments: argparse.Namespace) -> dict[str, Any]:
         task = task_class()
         task.setup_demo(now_ep_num=0, seed=arguments.seed, is_test=True, **args)
         result["setup_success"] = True
-        cluttered_objects = (getattr(task, "info", {}) or {}).get(
-            "cluttered_table_info", []
-        )
+        task_info = getattr(task, "info", {}) or {}
+        cluttered_objects = task_info.get("cluttered_table_info", [])
         if not isinstance(cluttered_objects, list):
             cluttered_objects = []
+        texture_info = task_info.get("texture_info", {})
+        if not isinstance(texture_info, dict):
+            texture_info = {}
+        wall_texture = texture_info.get("wall_texture")
+        table_texture = texture_info.get("table_texture")
+        texture_prefixes = {
+            value.split("/", 1)[0]
+            for value in (wall_texture, table_texture)
+            if isinstance(value, str) and "/" in value
+        }
+        texture_split = (
+            next(iter(texture_prefixes)) if len(texture_prefixes) == 1 else None
+        )
+        direction_lights = getattr(task, "direction_light_lst", [])
+        point_lights = getattr(task, "point_light_lst", [])
+        direction_light_colors = light_component_colors(direction_lights)
+        point_light_colors = light_component_colors(point_lights)
         result["domain_randomization"] = {
             "cluttered_table": bool(getattr(task, "cluttered_table", False)),
             "clean_background_rate": float(getattr(task, "clean_background_rate", 1.0)),
             "cluttered_object_count": len(cluttered_objects),
             "cluttered_objects": cluttered_objects,
             "authority": "simulator_task_info:cluttered_table_info",
+            "random_background": bool(getattr(task, "random_background", False)),
+            "wall_texture": wall_texture,
+            "table_texture": table_texture,
+            "texture_split": texture_split,
+            "background_authority": "simulator_task_info:texture_info",
+            "random_light": bool(getattr(task, "random_light", False)),
+            "crazy_random_light_rate": float(
+                getattr(task, "crazy_random_light_rate", 0.0)
+            ),
+            "crazy_random_light": bool(
+                getattr(task, "crazy_random_light", False)
+            ),
+            "direction_light_count": len(direction_lights),
+            "point_light_count": len(point_lights),
+            "direction_light_colors": direction_light_colors,
+            "point_light_colors": point_light_colors,
+            "lighting_authority": (
+                "simulator_task_attributes:random_light,crazy_random_light_rate,"
+                "crazy_random_light;simulator_light_components:get_color"
+            ),
         }
         result["actors"] = actor_summary(task)
         result["tracked_actors"] = tracked_actor_summary(task, schema)

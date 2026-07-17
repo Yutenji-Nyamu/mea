@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "decision": "approved",
+  "review_scope": "persistent_vqa_query_spec_reuse",
+  "reviewer": {
+    "id": "codex-development-agent-proxy-20260717",
+    "kind": "development_agent_proxy"
+  },
+  "reviewed_at": "2026-07-17T18:00:00+08:00",
+  "spec_sha256": "2d31d95f6b2e0ca04d914441ed78627ef0b86221eab4a847c89c75588c40d930",
+  "checks": {
+    "task_scope_reviewed": true,
+    "phenomena_reviewed": true,
+    "numeric_authority_reviewed": true,
+    "answer_contract_reviewed": true,
+    "tests_reviewed": true
+  },
+  "notes": "Development-agent proxy review for the bounded simulator-native unseen background texture selector; not human gold."
+}

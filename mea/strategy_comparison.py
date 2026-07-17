@@ -69,6 +69,9 @@ def _strategy_run(
     evaluation_dir = _inside(root, relative)
     manifest = _read_object(evaluation_dir / "manifest.json")
     summary = _read_object(evaluation_dir / "summary/summary.json")
+    registration = manifest.get("registration_identity")
+    if registration is not None and not isinstance(registration, dict):
+        raise StrategyComparisonError(f"invalid registration identity: {relative}")
     if manifest.get("lifecycle_status") != "completed" or manifest.get(
         "status"
     ) not in {
@@ -86,6 +89,15 @@ def _strategy_run(
         raise StrategyComparisonError(
             f"planning policy mismatch for {relative}: {planning_policy!r}"
         )
+    if registration is not None:
+        if (
+            registration.get("strategy") != expected_policy
+            or registration.get("expected_evaluation_id")
+            != manifest.get("evaluation_id")
+        ):
+            raise StrategyComparisonError(
+                f"parent registration identity mismatch: {relative}"
+            )
     plan = manifest.get("plan")
     if not isinstance(plan, dict):
         raise StrategyComparisonError(f"evaluation has no plan object: {relative}")
@@ -137,6 +149,16 @@ def _strategy_run(
             raise StrategyComparisonError(
                 f"child manifest identity/status mismatch: {child_id}"
             )
+        if registration is not None:
+            if (
+                not child_id.startswith(
+                    str(registration.get("expected_child_run_prefix") or "")
+                )
+                or child.get("registration_identity") != registration
+            ):
+                raise StrategyComparisonError(
+                    f"child registration identity mismatch: {child_id}"
+                )
         trusted = child.get("trusted_tool_evaluation")
         episodes = trusted.get("episodes") if isinstance(trusted, dict) else None
         if not isinstance(episodes, list):
@@ -156,6 +178,12 @@ def _strategy_run(
             telemetry_root = (child_dir / "evaluation/telemetry").resolve()
             episode_path = _inside(telemetry_root, f"{episode_dir}/episode.json")
             episode = _read_object(episode_path)
+            if registration is not None and episode.get(
+                "registration_identity"
+            ) != registration:
+                raise StrategyComparisonError(
+                    f"episode registration identity mismatch: {child_id}/{episode_dir}"
+                )
             if str(episode.get("policy_name", "")).casefold() != "act":
                 raise StrategyComparisonError(
                     f"episode is not ACT: {child_id}/{episode_dir}"
@@ -229,6 +257,7 @@ def _strategy_run(
         "policy": policy,
         "candidate_suite": candidates,
         "candidate_suite_sha256": suite_sha256,
+        "registration_identity": registration,
         "process_wall_seconds": _duration_seconds(manifest),
         "samples": samples,
     }

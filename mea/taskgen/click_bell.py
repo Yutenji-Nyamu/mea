@@ -74,29 +74,63 @@ def validate_click_bell_variant_hint(value: Any) -> dict[str, Any]:
         raise ClickBellTaskGenError("variant_hint must be an object")
     if set(value) == {"domain_randomization"}:
         randomization = value.get("domain_randomization")
-        if not isinstance(randomization, dict) or set(randomization) != {
-            "cluttered_table",
-            "clean_background_rate",
-        }:
-            raise ClickBellTaskGenError(
-                "clutter variant requires exactly cluttered_table and "
-                "clean_background_rate"
-            )
-        rate = randomization.get("clean_background_rate")
-        if randomization.get("cluttered_table") is not True:
-            raise ClickBellTaskGenError("cluttered_table must be true")
-        if isinstance(rate, bool) or not isinstance(rate, (int, float)):
-            raise ClickBellTaskGenError("clean_background_rate must be numeric")
-        if float(rate) != 0.0:
-            raise ClickBellTaskGenError(
-                "scene clutter probes require clean_background_rate=0"
-            )
-        return {
-            "domain_randomization": {
-                "cluttered_table": True,
-                "clean_background_rate": 0.0,
+        if not isinstance(randomization, dict):
+            raise ClickBellTaskGenError("domain_randomization must be an object")
+        fields = set(randomization)
+        if fields == {"cluttered_table", "clean_background_rate"}:
+            rate = randomization.get("clean_background_rate")
+            if randomization.get("cluttered_table") is not True:
+                raise ClickBellTaskGenError("cluttered_table must be true")
+            if isinstance(rate, bool) or not isinstance(rate, (int, float)):
+                raise ClickBellTaskGenError("clean_background_rate must be numeric")
+            if float(rate) != 0.0:
+                raise ClickBellTaskGenError(
+                    "scene clutter probes require clean_background_rate=0"
+                )
+            return {
+                "domain_randomization": {
+                    "cluttered_table": True,
+                    "clean_background_rate": 0.0,
+                }
             }
-        }
+        if fields == {"random_background", "clean_background_rate"}:
+            rate = randomization.get("clean_background_rate")
+            if randomization.get("random_background") is not True:
+                raise ClickBellTaskGenError("random_background must be true")
+            if isinstance(rate, bool) or not isinstance(rate, (int, float)):
+                raise ClickBellTaskGenError("clean_background_rate must be numeric")
+            if float(rate) != 0.0:
+                raise ClickBellTaskGenError(
+                    "background texture probes require clean_background_rate=0"
+                )
+            return {
+                "domain_randomization": {
+                    "random_background": True,
+                    "clean_background_rate": 0.0,
+                }
+            }
+        if fields == {"random_light", "crazy_random_light_rate"}:
+            rate = randomization.get("crazy_random_light_rate")
+            if randomization.get("random_light") is not True:
+                raise ClickBellTaskGenError("random_light must be true")
+            if isinstance(rate, bool) or not isinstance(rate, (int, float)):
+                raise ClickBellTaskGenError(
+                    "crazy_random_light_rate must be numeric"
+                )
+            if float(rate) != 0.0:
+                raise ClickBellTaskGenError(
+                    "bounded lighting probes require crazy_random_light_rate=0"
+                )
+            return {
+                "domain_randomization": {
+                    "random_light": True,
+                    "crazy_random_light_rate": 0.0,
+                }
+            }
+        raise ClickBellTaskGenError(
+            "domain_randomization must select exactly one trusted clutter, "
+            "background-texture, or static-lighting axis"
+        )
     if set(value) != {"bell"}:
         raise ClickBellTaskGenError(
             "variant_hint must contain only bell or domain_randomization"
@@ -198,9 +232,19 @@ def create_click_bell_variant_run(
     )
     bell_change = normalized.get("bell")
     if bell_change is None:
-        controlled_axis = "robustness.scene_clutter"
-        capability_id = "robustness.scene_clutter"
-        default_variant_id = "robustness.scene_clutter.official10"
+        randomization = normalized["domain_randomization"]
+        if "cluttered_table" in randomization:
+            controlled_axis = "robustness.scene_clutter"
+            capability_id = "robustness.scene_clutter"
+            default_variant_id = "robustness.scene_clutter.official10"
+        elif "random_background" in randomization:
+            controlled_axis = "scene_background_texture"
+            capability_id = "scene_background_texture"
+            default_variant_id = "scene_background_texture.unseen"
+        else:
+            controlled_axis = "scene_lighting"
+            capability_id = "scene_lighting"
+            default_variant_id = "scene_lighting.static_random"
     else:
         controlled_axis = (
             "object_instance"

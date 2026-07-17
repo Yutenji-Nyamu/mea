@@ -399,7 +399,7 @@ base0/base1 实例，位置保持官方随机。实例 ID 以 simulator `task_at
 reviewed persistent registry，供后续 evaluation 精确复用；这仍不等于 Trusted Tool。可在
 `execution/<round_id>/planned_tool/` 和 `tool_registry/` 核对生成、验证及后轮复用证据。
 
-`--generated-rounds` 仅接受 1 / 2 / 3；每轮默认 1 个 rollout，真实开发应先跑 1，再按需要
+`--generated-rounds` 最多接受 5；每轮默认 1 个 rollout，真实开发应先跑 1，再按需要
 放大到每轮 3 或 5。上面的直接 Agent 命令本身不做跨 repetition 统计；需要冻结复合身份和
 逐变体汇总时，使用第 7 节的 `position_lr` protocol 命令。任何 N=1 结果都只能称为通路 smoke。
 
@@ -643,3 +643,133 @@ python scripts/manipeval_agent.py ... \
 `execution/<round_id>/tool_recovery/attempt_*/attempt_started.json`、
 `attempt_result.json` 与
 `recovery_summary.json`；正常实验不要启用故障注入。
+
+## 17. Hash 预注册与 fixed/dynamic `0-ACT` 计划
+
+这组入口目前只支持 `click_bell demo_clean-50` 的最小 matched N=1 协议。先确认 tracked files
+clean、读取当前完整 commit，并在服务器侧查看 checkpoint hash；不要把 checkpoint 复制到本机：
+
+```bash
+git status --short
+git rev-parse HEAD
+sha256sum \
+  policy/ACT/act_ckpt/act-click_bell/demo_clean-50/policy_last.ckpt \
+  policy/ACT/act_ckpt/act-click_bell/demo_clean-50/dataset_stats.pkl
+```
+
+在被 Git 忽略的 `mea/validation_runs/prereg_inputs/<id>/` 中准备
+`prereg_config.json`。它必须使用当前 `base_commit`，并显式列出 `registration_id / claim_scope /
+task_name / query / candidate_suite / checkpoint_setting / expert_data_num / checkpoint_files /
+telemetry_profile / sample_schedule / source_artifacts`；fixed 与 dynamic 对每个 candidate 登记相同
+seed 的一条样本。checkpoint 路径必须就是上面两项，`source_artifacts` 应包含本次依赖的 runner、
+catalog、配置和 reviewed registry 文件。然后生成并立即复核 manifest：
+
+```bash
+python scripts/manipeval_evidence_manifest.py \
+  --repo-root "$PWD" prepare \
+  --config mea/validation_runs/prereg_inputs/<id>/prereg_config.json \
+  --output mea/validation_runs/prereg_inputs/<id>/evidence_manifest.json
+
+python scripts/manipeval_evidence_manifest.py \
+  --repo-root "$PWD" validate \
+  --manifest mea/validation_runs/prereg_inputs/<id>/evidence_manifest.json
+```
+
+再在同一输入目录准备 `strategy_plan_config.json`，字段为 `schema_version / plan_id /
+evidence_manifest / task_name / model_profile / python_executable / gpu / reviewed_tool_registry /
+reviewed_vqa_registry`。registry 可为 `null`；若使用，目录内依赖文件必须已包含在 manifest 的
+`source_artifacts`。`plan_id` 对应的输出目录必须尚不存在：
+
+```bash
+python scripts/manipeval_plan_strategy_pair.py \
+  --repo-root "$PWD" \
+  --config mea/validation_runs/prereg_inputs/<id>/strategy_plan_config.json \
+  --output-dir mea/validation_runs/<plan_id>
+```
+
+输出的 `commands.md`、`command_plan.json`、`registered_route.json` 与
+`strategy_comparison_config.json` 均为计划，不会自动运行命令，固定报告 provider=`false`、
+ACT=`0`。先人工核对 `commands.md` 中的预算和 identity；只有决定支付最多
+`2 × candidate_count` 条 ACT rollout 后，才依次执行其中的 validate、fixed、dynamic、validate
+与 registered compare 命令。不要给 registered Agent 命令另加 `--auto-route` 或改 argv；任何
+漂移都应被 preflight/post-hoc 拒绝。N=1 的 Table 2 consistency 必须保持不可用。
+
+## 18. TaskGen / ToolGen module-off prepare 与 audit
+
+在 ignored 输入目录创建 `module_ablation_config.json`，冻结 `study_id`、repo-relative
+`artifact_root` 以及 TaskGen/ToolGen matched cases。TaskGen condition 只能选
+`complete / no_rag / no_visual_gate`，ToolGen 只能选 `complete / no_tool_validation`；每个 case
+同时提供相同的 `input_identity` 和 `execution_identity`（Git、runner+hash、provider model、
+config hash、seed）。先只生成 schedule：
+
+```bash
+python scripts/manipeval_module_ablation.py \
+  --repo-root "$PWD" prepare \
+  --config mea/validation_runs/prereg_inputs/<study>/module_ablation_config.json \
+  --output-dir mea/validation_runs/<study>_schedule
+```
+
+外部 runner 完成 schedule 指向的 typed artifact 后，再用一个全新输出目录审核：
+
+```bash
+python scripts/manipeval_module_ablation.py \
+  --repo-root "$PWD" audit \
+  --schedule mea/validation_runs/<study>_schedule/schedule.json \
+  --output-dir mea/validation_runs/<study>_audit
+```
+
+这两个命令都不调用 provider、simulator 或 ACT。缺 artifact、缺 matched pair、只有 provenance
+或 runtime/identity 不可核验时，effect 必须为 `null`。completed manifest 中的历史 runtime 是
+self-attested；只有接入真正按 switch 执行的 runner 后，才可称 live functional ablation。
+
+## 19. 原生背景/光照 scene gate 与 completion-time
+
+下面两个命令使用 RoboTwin 原生变化，运行 probe、official expert 与视觉 scene gate，但不加
+`--run-act`，所以 ACT rollout 为 0。视觉 gate 需要 key 仅存在当前 shell：
+
+```bash
+export UIUI_API_KEY='当前会话临时 key'
+
+python scripts/manipeval_taskgen.py \
+  --repo-root "$PWD" \
+  --request 'Validate click_bell under unseen simulator background textures.' \
+  --run-id click_bell_background_scene_gate_n1 \
+  --task-name click_bell --mode reuse \
+  --variant-id scene_background_texture.unseen \
+  --variant-hint-json '{"domain_randomization":{"random_background":true,"clean_background_rate":0.0}}' \
+  --seed 100401 --num-episodes 1 --probe --expert --vision-check --max-reflections 0
+
+python scripts/manipeval_taskgen.py \
+  --repo-root "$PWD" \
+  --request 'Validate click_bell under static randomized simulator lighting.' \
+  --run-id click_bell_lighting_scene_gate_n1 \
+  --task-name click_bell --mode reuse \
+  --variant-id scene_lighting.static_random \
+  --variant-hint-json '{"domain_randomization":{"random_light":true,"crazy_random_light_rate":0.0}}' \
+  --seed 100401 --num-episodes 1 --probe --expert --vision-check --max-reflections 0
+```
+
+背景变化以 `task.info.texture_info` 为权威；光照变化以 simulator light configuration 为权威。
+若 gate 失败，先换一个 seed 或诊断场景，不要直接启动 ACT，也不要把缓存 image proxy 当作
+真实 simulator 结果。
+
+completion-time 复用未修改的 official scene 和同一 `click_bell` ACT checkpoint。先跑一轮只验
+接线；明确需要小样本稳定性时再把 episode 扩到 3 或 5：
+
+```bash
+python scripts/manipeval_agent.py \
+  --repo-root "$PWD" \
+  --request 'How stable is click_bell ACT completion time across seeds?' \
+  --task-name click_bell \
+  --task-profile adaptive_properties \
+  --generated-rounds 1 \
+  --start-seed 100401 \
+  --num-episodes 1 \
+  --telemetry-profile balanced_v1 \
+  --model-profile economy \
+  --no-history
+```
+
+核对 proposal 选择 `performance.completion_time_stability.official`，TaskGen child 为 official
+passthrough，Tool 为 Trusted `time_to_success`。N=1 只能证明 route/Tool/Aggregate/VQA/feedback
+接线，不能称 completion-time stability 结论。
