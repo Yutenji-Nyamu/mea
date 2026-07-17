@@ -135,20 +135,40 @@ paper_table_eligible = false
 的人机一致性或人工 precision。Tables 7–8 的 reviewed VQA spec 同样由开发代理审核，不是人工
 majority。
 
-## 7. 服务器验证结果（待主线完成后回填）
+## 7. 服务器验证结果
 
-以下项目在写本文时尚未取得最终服务器结果，不预填数字：
+功能代码与以下验证工件绑定到 commit
+`8ab6e3bad82d66ab3000b72ea7853c4ec40f0e99`：
 
-- unit/full test：`待回填`；
-- evidence manifest prepare + validate：`待回填 artifact`；
-- registered fixed/dynamic command plan（预期 0-ACT）：`待回填 artifact`；
-- module-off schedule prepare/audit（预期 0-ACT）：`待回填 artifact`；
-- background texture / static lighting scene-gate smoke：`待回填 seed 与 artifact`；
-- completion-time official route smoke：`待回填 budget 与 artifact`；
-- 20-query live proxy：`待回填 metrics 与 artifact`。
+- 完整单元回归：`333 tests in 40.359s, OK`；同时通过新脚本 `py_compile`、
+  `policy/ACT/eval_mea.sh` 语法和 `git diff --check`；
+- evidence manifest：
+  `mea/validation_runs/batch8_prereg_8ab6e3b/evidence_manifest.json`，prepare 后再次 validate
+  通过；payload SHA-256 为
+  `e5bcdad3f05e2efedb8dd9569be27c373ef9c75dedf41e3c08f45d1fb1e942fc`，只在服务器
+  以 1 MiB block 读取 checkpoint，ACT=`0`；
+- registered fixed/dynamic plan：
+  `mea/validation_runs/batch8_scene_pair_n1_8ab6e3b/command_plan.json`；冻结 background /
+  lighting 两个 candidate，pair 最大预算 4，生成时 ACT=`0`，命令含 `--registered-route`、不含
+  `--auto-route`，Table 2 consistency=`null`；
+- module-off：schedule 含 5 个 complete/module-off item；audit 时真实 completed artifact 为 0，
+  三个 effect 均为 `null`，audit 自身 ACT=`0`；
+- simulator-native scene smoke：seed=`100402`。`run_batch8_background_probe_8ab6e3b`
+  读取到 unseen texture split；`run_batch8_lighting_probe_8ab6e3b` 读取到
+  `random_light=true`、1 个方向光和 2 个点光；两者严格 scene contract 都通过，状态均为
+  `completed_without_act`；
+- completion-time：20-query 中 q013 真实 route 到
+  `click_bell / performance.completion_time_stability`，exact-set 与 first-aspect 都正确；
+  Tool/Aggregate/Agent materialization 由单测覆盖，本批没有启动 completion-time ACT rollout；
+- 20-query live proxy：
+  `query_validation_20260717_batch8_budget20_8ab6e3b`，模型 `gpt-5.6-luna`；schema-valid=`1.0`、
+  capability decision=`0.90`、task=`0.90`、aspect micro P/R/F1=`0.5714/0.5455/0.5581`、
+  exact-set=`0.55`、first-aspect=`0.875`。q010 lighting 与 q013 completion-time 均精确命中；
+  主要剩余误差是 unsupported aspect 同义词未归一化，以及 q008 将物体纹理误作背景纹理。
 
-若本批只完成代码测试和 0-ACT 计划，最终总结必须明确写“真实 ACT pair、live module-off effect、
-论文级 human/VQA 指标均未运行”，不能用计划产物替代实验结果。
+这些工件仍固定 `human_reviewer_count=0`、`paper_table_eligible=false`。真实 registered ACT pair、
+live module-off outcome、scene-shift 正负 ACT/VQA clip 和论文级人工指标均未运行，不能用上述计划或
+开发代理分数替代论文结果。
 
 ## 8. 剩余论文距离
 
