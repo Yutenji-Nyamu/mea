@@ -25,7 +25,9 @@ from mea.taskgen import (
     inject_oversized_block_fixture,
     inject_wrong_color_fixture,
     repair_generated_method,
+    validate_click_bell_vision_observation,
     validate_vision_observation,
+    create_click_bell_variant_run,
     create_official_task_run,
 )
 
@@ -374,6 +376,87 @@ def collect_position_samples(
     return result
 
 
+def collect_click_bell_position_samples(
+    repo_root: Path,
+    run_dir: Path,
+    manifest: dict[str, Any],
+    *,
+    start_seed: int,
+    num_episodes: int,
+    first_scene: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Verify the fixed bell XY and expert gate for every requested seed."""
+
+    spec = json.loads((run_dir / "variant_spec.json").read_text(encoding="utf-8"))
+    expected_xy = [float(value) for value in spec["changes"]["bell"]["xy"]]
+    sample_root = run_dir / "validation/position_samples"
+    samples: list[dict[str, Any]] = []
+    for episode_index in range(num_episodes):
+        seed = start_seed + episode_index
+        if episode_index == 0 and first_scene:
+            scene = first_scene
+        else:
+            scene = run_probe(
+                repo_root,
+                run_dir,
+                manifest,
+                seed=seed,
+                expert=True,
+                scene_json=sample_root / f"seed_{seed}.json",
+                image=sample_root / f"seed_{seed}.png",
+                log_path=sample_root / f"seed_{seed}.log",
+            )
+        position_check = validate_click_bell_scene_position(scene, spec)
+        samples.append(
+            {
+                "episode_index": episode_index,
+                "seed": seed,
+                "expected_xy": expected_xy,
+                "bell_position": position_check.get("actual_xy"),
+                "position_matched": bool(position_check.get("passed")),
+                "position_authority": position_check.get("authority"),
+                "rule_passed": bool(scene.get("rule_check", {}).get("passed")),
+                "expert_passed": bool(scene.get("expert", {}).get("passed")),
+                "image": scene.get("image"),
+            }
+        )
+
+    xy_values = [
+        item["bell_position"][:2]
+        for item in samples
+        if isinstance(item.get("bell_position"), list)
+        and len(item["bell_position"]) >= 2
+    ]
+    unique_xy = {
+        (round(value[0], 8), round(value[1], 8))
+        for value in xy_values
+        if isinstance(value, list) and len(value) >= 2
+    }
+    result = {
+        "start_seed": start_seed,
+        "num_episodes": num_episodes,
+        "position_contract": "fixed_bell_xy",
+        "samples": samples,
+        "metrics": {
+            "expected_xy": expected_xy,
+            "unique_xy_count": len(unique_xy),
+            "all_positions_matched": all(
+                item["position_matched"] for item in samples
+            ),
+            "position_varied": len(unique_xy) > 1,
+        },
+        "passed": len(samples) == num_episodes
+        and all(
+            item["position_matched"]
+            and item["rule_passed"]
+            and item["expert_passed"]
+            for item in samples
+        ),
+    }
+    write_json(run_dir / "validation/position_samples.json", result)
+    return result
+
+
 def run_vision_check(
     provider: OpenAICompatibleProvider,
     run_dir: Path,
@@ -389,8 +472,27 @@ def run_vision_check(
     prompt_path = prompt_path or run_dir / "validation/vision_prompt.md"
     response_path = response_path or run_dir / "validation/vision_response.txt"
     result_path = result_path or run_dir / "validation/vision.json"
-    expected_half_size = 0.025 * float(spec["changes"]["block"]["scale"])
-    prompt = f"""这是 RoboTwin beat_block_hammer 的初始场景首帧。
+    if spec.get("task_name") == "click_bell":
+        expected_xy = spec["changes"]["bell"]["xy"]
+        prompt = f"""这是 RoboTwin click_bell 受限位置变式的初始场景首帧。
+请只检查目标 bell 是否清晰可见、场景是否物理合理、是否存在明显多余或缺失物体。
+精确位置 xy={expected_xy} 已由 simulator tracked actor 数值检查负责，不能仅凭 RGB
+宣称精确坐标是否正确。
+
+只输出 JSON：
+{{
+  "aligned": true,
+  "target_actor": "bell",
+  "bell_visible": true,
+  "unexpected_changes": [],
+  "diagnosis": "目标铃是否可见以及场景是否存在明显异常",
+  "suggestions": [],
+  "confidence": 0.0
+}}
+"""
+    else:
+        expected_half_size = 0.025 * float(spec["changes"]["block"]["scale"])
+        prompt = f"""这是 RoboTwin beat_block_hammer 的初始场景首帧。
 请检查被锤子敲击的方块是否符合下面的 VariantSpec，并检查场景是否有明显异常：
 {json.dumps(spec, ensure_ascii=False, indent=2)}
 
@@ -421,10 +523,48 @@ half_size 是 ({expected_half_size:.6f}, {expected_half_size:.6f}, {expected_hal
     response_path.write_text(response + "\n", encoding="utf-8")
     from mea.taskgen import extract_json_response
 
-    result = validate_vision_observation(extract_json_response(response), spec)
+    parsed = extract_json_response(response)
+    result = (
+        validate_click_bell_vision_observation(parsed)
+        if spec.get("task_name") == "click_bell"
+        else validate_vision_observation(parsed, spec)
+    )
     result["provider_metadata"] = dict(provider.last_metadata)
     write_json(result_path, result)
     return result
+
+
+def validate_click_bell_scene_position(
+    scene: dict[str, Any], spec: dict[str, Any]
+) -> dict[str, Any]:
+    """Use simulator state, not VQA, as the exact fixed-position authority."""
+
+    expected = [float(value) for value in spec["changes"]["bell"]["xy"]]
+    bell = next(
+        (
+            actor
+            for actor in scene.get("tracked_actors", [])
+            if actor.get("id") == "bell"
+        ),
+        None,
+    )
+    actual = (
+        [float(value) for value in bell.get("position", [])[:2]]
+        if isinstance(bell, dict)
+        else []
+    )
+    passed = len(actual) == 2 and all(
+        abs(left - right) <= 1e-6 for left, right in zip(actual, expected)
+    )
+    return {
+        "status": "passed" if passed else "failed",
+        "passed": passed,
+        "actor_id": "bell",
+        "expected_xy": expected,
+        "actual_xy": actual,
+        "tolerance": 1e-6,
+        "authority": "simulator_tracked_actor_xy",
+    }
 
 
 def run_visual_self_reflection(
@@ -439,6 +579,7 @@ def run_visual_self_reflection(
     max_repairs: int,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     spec = json.loads((run_dir / "variant_spec.json").read_text(encoding="utf-8"))
+    is_click_bell = spec.get("task_name") == "click_bell"
     reflection_dir = run_dir / "reflection"
     reflection_dir.mkdir(parents=True, exist_ok=True)
 
@@ -458,11 +599,24 @@ def run_visual_self_reflection(
             log_path=attempt_dir / "probe.log",
             raise_on_failure=False,
         )
-        probe_passed = bool(
+        structural_probe_passed = bool(
             scene.get("setup_success")
             and scene.get("render_success")
             and scene.get("rule_check", {}).get("passed")
             and scene.get("returncode") == 0
+        )
+        position_validation = (
+            validate_click_bell_scene_position(scene, spec)
+            if is_click_bell and structural_probe_passed
+            else {
+                "status": "not_applicable",
+                "passed": True,
+                "authority": None,
+            }
+        )
+        write_json(attempt_dir / "position_validation.json", position_validation)
+        probe_passed = bool(
+            structural_probe_passed and position_validation.get("passed")
         )
         if probe_passed:
             vision = run_vision_check(
@@ -479,22 +633,38 @@ def run_visual_self_reflection(
             error = scene.get("error") or {}
             vision = {
                 "aligned": False,
-                "target_actor": "block",
-                "expected_color": "blue",
-                "observed_color": "unavailable",
-                "color_matches": False,
-                "unexpected_changes": ["scene_probe_failed"],
+                "target_actor": "bell" if is_click_bell else "block",
+                "unexpected_changes": [
+                    "scene_position_mismatch"
+                    if structural_probe_passed and is_click_bell
+                    else "scene_probe_failed"
+                ],
                 "diagnosis": (
-                    f"Scene setup/render/rule probe failed: "
+                    "Simulator bell XY did not match the validated variant."
+                    if structural_probe_passed and is_click_bell
+                    else f"Scene setup/render/rule probe failed: "
                     f"{error.get('type', 'unknown')}: {error.get('message', '')}"
                 ),
                 "suggestions": [
-                    "Repair load_actors() so setup, render, hammer/block actor checks pass."
+                    "Inspect the bounded position overlay."
+                    if is_click_bell
+                    else "Repair load_actors() so setup, render, hammer/block actor checks pass."
                 ],
                 "confidence": 1.0,
                 "passed": False,
+                "position_authority": (
+                    "simulator_tracked_actor_xy" if is_click_bell else None
+                ),
                 "provider_metadata": {},
             }
+            if not is_click_bell:
+                vision.update(
+                    {
+                        "expected_color": "blue",
+                        "observed_color": "unavailable",
+                        "color_matches": False,
+                    }
+                )
             write_json(attempt_dir / "vision.json", vision)
         return {
             "passed": bool(probe_passed and vision.get("passed")),
@@ -502,10 +672,18 @@ def run_visual_self_reflection(
             "scene_path": str(scene_path.relative_to(run_dir)),
             "image_path": str(image_path.relative_to(run_dir)),
             "vision_path": str((attempt_dir / "vision.json").relative_to(run_dir)),
+            "position_validation_path": str(
+                (attempt_dir / "position_validation.json").relative_to(run_dir)
+            ),
+            "position_validation": position_validation,
             "vision": vision,
         }
 
     def repair(repair_index: int, observation: dict[str, Any]) -> dict[str, Any]:
+        if is_click_bell:
+            raise VisualReflectionError(
+                "click_bell bounded overlay is validate-only and does not support repair"
+            )
         update_manifest(
             run_dir,
             status=f"visual_reflection_repair_{repair_index}",
@@ -526,11 +704,16 @@ def run_visual_self_reflection(
         )
         return result
 
+    effective_max_repairs = 0 if is_click_bell else max_repairs
     summary = execute_reflection_loop(
-        max_repairs=max_repairs,
+        max_repairs=effective_max_repairs,
         observe=observe,
         repair=repair,
     )
+    if is_click_bell:
+        summary["requested_max_repairs"] = max_repairs
+        summary["repair_supported"] = False
+        summary["validation_mode"] = "simulator_xy_plus_visual_plausibility"
     write_json(reflection_dir / "summary.json", summary)
     if not summary["passed"]:
         raise VisualReflectionError(
@@ -540,6 +723,11 @@ def run_visual_self_reflection(
     final_attempt = reflection_dir / f"attempt_{summary['final_attempt']:02d}"
     shutil.copy2(final_attempt / "render.png", run_dir / "evidence/initial_head.png")
     shutil.copy2(final_attempt / "vision.json", run_dir / "validation/vision.json")
+    if (final_attempt / "position_validation.json").is_file():
+        shutil.copy2(
+            final_attempt / "position_validation.json",
+            run_dir / "validation/position.json",
+        )
     if (final_attempt / "vision_prompt.md").is_file():
         shutil.copy2(
             final_attempt / "vision_prompt.md",
@@ -867,6 +1055,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--task-name", default="beat_block_hammer")
     parser.add_argument("--task-module")
     parser.add_argument(
+        "--variant-hint-json",
+        help="Trusted planner-owned JSON for a bounded declarative task variant.",
+    )
+    parser.add_argument(
         "--mode",
         choices=["reuse", "force_codegen", "official"],
         default="force_codegen",
@@ -905,8 +1097,27 @@ def main() -> None:
     if args.num_episodes <= 0:
         raise SystemExit("--num-episodes 必须是正整数")
     repo_root = args.repo_root.expanduser().resolve()
+    bounded_click_bell = bool(
+        not args.resume_run
+        and args.task_name == "click_bell"
+        and args.mode == "reuse"
+        and args.variant_hint_json
+    )
+    if (
+        not args.resume_run
+        and args.task_name == "click_bell"
+        and args.mode == "reuse"
+        and not args.variant_hint_json
+    ):
+        raise SystemExit(
+            "click_bell reuse requires trusted --variant-hint-json; "
+            "use --mode official for the unchanged upstream task"
+        )
     provider = None
-    if (not args.resume_run and args.mode != "official") or args.vision_check:
+    if (
+        (not args.resume_run and args.mode != "official" and not bounded_click_bell)
+        or args.vision_check
+    ):
         provider = OpenAICompatibleProvider(
             base_url=args.base_url,
             text_model=args.text_model,
@@ -930,6 +1141,18 @@ def main() -> None:
                 args.request,
                 task_name=args.task_name,
                 task_module=args.task_module,
+                run_id=args.run_id,
+                telemetry_profile=args.telemetry_profile,
+            )
+        elif bounded_click_bell:
+            try:
+                variant_hint = json.loads(args.variant_hint_json)
+            except json.JSONDecodeError as exc:
+                raise SystemExit(f"--variant-hint-json is invalid JSON: {exc}") from exc
+            manifest = create_click_bell_variant_run(
+                repo_root,
+                args.request,
+                variant_hint=variant_hint,
                 run_id=args.run_id,
                 telemetry_profile=args.telemetry_profile,
             )
@@ -967,6 +1190,10 @@ def main() -> None:
                 "use expert, act, or both execution without scene codegen"
             )
         if args.reflection_fixture:
+            if manifest.get("task_name") != "beat_block_hammer":
+                raise RuntimeError(
+                    "reflection fixtures are only defined for beat_block_hammer"
+                )
             if args.resume_run:
                 raise RuntimeError("reflection fixture 只允许用于新的 TaskGen run")
             if not args.vision_check:
@@ -1065,12 +1292,22 @@ def main() -> None:
                     num_episodes=args.num_episodes,
                     first_scene=scene,
                 )
+            elif manifest.get("generation_kind") == "bounded_variant_overlay" and manifest[
+                "task_name"
+            ] == "click_bell":
+                position_samples = collect_click_bell_position_samples(
+                    repo_root,
+                    run_dir,
+                    manifest,
+                    start_seed=args.seed,
+                    num_episodes=args.num_episodes,
+                    first_scene=scene,
+                )
             else:
                 position_samples = {
                     "status": "not_applicable",
                     "reason": (
-                        "official passthrough tasks have no BBH block-position "
-                        "contract"
+                        "non-BBH tasks have no BBH block-position contract"
                     ),
                     "passed": True,
                     "samples": [],

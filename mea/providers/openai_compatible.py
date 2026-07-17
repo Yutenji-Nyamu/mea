@@ -62,6 +62,15 @@ class OpenAICompatibleProvider(MultimodalProvider):
                     timeout=self.timeout,
                 )
                 retry_count = attempt
+                retryable_status = response.status_code in {
+                    408,
+                    409,
+                    425,
+                    429,
+                } or 500 <= response.status_code <= 599
+                if retryable_status and attempt < self.max_retries:
+                    time.sleep(self.retry_delay * (attempt + 1))
+                    continue
                 break
             except (requests.Timeout, requests.ConnectionError) as exc:
                 if attempt >= self.max_retries:

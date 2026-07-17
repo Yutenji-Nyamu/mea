@@ -86,6 +86,12 @@ TASK_TEMPLATE_QUESTION_RULES: dict[tuple[str, str], tuple[str, ...]] = {
     ("click_bell", "task_execution.official_baseline"): (
         "bell_visibly_pressed",
     ),
+    ("click_bell", "object_position.left_fixed"): (
+        "bell_visibly_pressed",
+    ),
+    ("click_bell", "object_position.right_fixed"): (
+        "bell_visibly_pressed",
+    ),
     ("adjust_bottle", "task_execution.official_baseline"): (
         "bottle_visibly_repositioned",
     ),

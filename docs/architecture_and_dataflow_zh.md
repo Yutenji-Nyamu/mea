@@ -240,3 +240,69 @@ rollout 中的可见现象。official passthrough 不生成场景，因此不需
 可读性维护约定：当入口、路线、artifact contract 或可信边界改变时，简要同步本文件；
 当安装/命令改变时同步运行指引；真实实验结果放入 development log，不把易过期的单次
 数值堆进架构文档。
+
+## 7. 2026-07-17 新增的三条最小通路
+
+### 7.1 ACT-only 完整 Agent 协议层
+
+`scripts/manipeval_protocol.py` 与 `mea/protocol.py` 位于 Agent 之上，不替代 Agent、RoboTwin
+或 paired runner。它按 repetition 调用完整 `manipeval_agent.py`，固定 `ACT + --no-history`，
+并从 evaluation manifest、child manifest 与 ACT `episode.json` 回收真实分母、成功、步数和
+wall-clock。预算限定为 1 / 3 / 5，默认 1；append-only attempt、chunk/resume、锁、PID 与
+Git/config/schedule 校验用于避免中断后覆盖或跨代码版本混算。
+
+```text
+protocol config + seed schedule
+→ complete Agent evaluation (official task, ACT)
+→ child TaskGen/ACT/Tool/VQA/Feedback artifacts
+→ validate ACT episode metadata and denominator
+→ protocol_summary.json + protocol_report.md
+```
+
+这一层是低成本论文协议骨架，不是论文的正式 10-repeat 实验。N=1 明确标为 smoke；重复
+实际 seed、缺 artifact 或 pipeline failure 会令结果不可比较。
+
+### 7.2 第二个真正 generated family：click_bell position_lr
+
+`ClickBellPositionPlanAgent` 生成 left-fixed 与 right-fixed 两个受信 template；
+`mea/taskgen/click_bell.py` 只编译 `bell.xy` declarative overlay；运行时薄 subclass 位于
+`mea/tasks/click_bell.py`。两轮共用同一组 seed，policy failure 是有效实验结果，不会阻止
+第二轮；scene/pipeline failure 才提前停止。
+
+```text
+position_lr Plan (left, right; same seeds)
+→ bounded VariantSpec + overlay.yml (no text codegen)
+→ preserve official RNG consumption and bell semantics
+→ simulator XY + rule + visual plausibility + expert gate per seed
+→ ACT rollout
+→ Trusted Tool + Aggregate + Dynamic Execution VQA
+→ round evidence with declared and measured bell positions
+```
+
+Scene VQA 不拥有精确坐标判定权；`tracked_actors[id=bell]` 的 simulator pose 才是数值权威。
+这证明系统已不再只有“BBH generated + 其他任务 passthrough”，但仍只是位置这一种受限变化，
+也仍使用确定性 template planner，不能冒充论文中的开放式任务生成。
+
+### 7.3 缓存式 Planner / VQA 验证层
+
+`scripts/manipeval_validate.py` 与 `mea/validation.py` 读取 suite 中显式列出的既有 artifact。
+它不创建 provider，也不启动仿真；每个 artifact 经过路径 containment、hash 和原 Planner /
+Execution VQA contract 校验后才计分。确定性 planner 自动排除出模型 Planner 指标；VQA 的
+human 与 simulator-proxy 标签分层汇总，单类别时 AUROC 为 unavailable，而不是伪造数值。
+
+新增运行产物：
+
+```text
+mea/protocol_runs/<run_id>/
+├── protocol_manifest.json
+├── repetitions/rep_*/attempt_*/
+├── summary/protocol_summary.json
+└── protocol_report.md
+
+mea/validation_runs/<run_id>/
+├── validation_summary.json
+└── validation_report.md
+```
+
+当前验证层完成的是可审计的 scorer 与 cached smoke；真正补齐论文 Table 6–8 仍需要独立、
+人工标注且覆盖正负/困难扰动的 Planner 与 VQA 数据集。

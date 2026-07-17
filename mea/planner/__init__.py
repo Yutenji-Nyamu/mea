@@ -18,6 +18,11 @@ from .official import (
     OFFICIAL_TEMPLATE_ID,
     OfficialTaskPlanAgent,
 )
+from .click_bell import (
+    CLICK_BELL_POSITIONS,
+    CLICK_BELL_TEMPLATE_IDS,
+    ClickBellPositionPlanAgent,
+)
 
 __all__ = [
     "BLUE_TASK_INSTRUCTION",
@@ -34,4 +39,7 @@ __all__ = [
     "OFFICIAL_GATES",
     "OFFICIAL_TEMPLATE_ID",
     "OfficialTaskPlanAgent",
+    "CLICK_BELL_POSITIONS",
+    "CLICK_BELL_TEMPLATE_IDS",
+    "ClickBellPositionPlanAgent",
 ]

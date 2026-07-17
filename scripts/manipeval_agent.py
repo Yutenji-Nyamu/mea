@@ -17,7 +17,11 @@ if str(REPO_ROOT) not in sys.path:
 from mea.execution_vqa import build_execution_vqa_query, run_execution_vqa
 from mea.feedback import FeedbackAgent, render_evaluation_report
 from mea.history import EvaluationHistoryDB
-from mea.planner import OfficialTaskPlanAgent, PlanAgentPrototype
+from mea.planner import (
+    ClickBellPositionPlanAgent,
+    OfficialTaskPlanAgent,
+    PlanAgentPrototype,
+)
 from mea.providers import (
     OpenAICompatibleProvider,
     available_model_profiles,
@@ -109,6 +113,18 @@ def build_taskgen_command(
     ]
     if task_module:
         command.extend(["--task-module", str(task_module)])
+    if round_plan.get("variant_hint"):
+        command.extend(
+            [
+                "--variant-hint-json",
+                json.dumps(
+                    round_plan["variant_hint"],
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+            ]
+        )
     if route == "official":
         if execution_backend in {"expert", "both"}:
             command.append("--expert")
@@ -686,7 +702,7 @@ def summarize_round(
             and execution_vqa.get("status") in {"passed", "skipped"}
         )
     else:
-        # Generated BBH rounds keep their existing expert, visual and
+        # Generated rounds keep their expert, visual, and task-specific
         # position gates while ACT remains the policy under evaluation.
         pipeline_passed = bool(
             child_manifest.get("status") == "completed"
@@ -723,6 +739,8 @@ def summarize_round(
             "actual_seeds": actual_seeds,
             "scene_alignment": bool(scene.get("rule_check", {}).get("passed")),
             "observed_color": vision.get("observed_color"),
+            "bell_visible": vision.get("bell_visible"),
+            "position_authority": vision.get("position_authority"),
             "expert_solvable": (
                 bool((scene.get("expert_batch") or expert).get("passed"))
                 if uses_expert or not is_official
@@ -894,6 +912,13 @@ def _round_evidence(
     knowledge = child_manifest.get("knowledge_retrieval") or {}
     trusted_tool_evaluation = child_manifest.get("trusted_tool_evaluation") or {}
     child_relative = child_dir.relative_to(repo_root)
+    task_module = str(child_manifest.get("task_module") or "")
+    module_source = repo_root / (task_module.replace(".", "/") + ".py")
+    generated_task_artifact = (
+        str(module_source.relative_to(repo_root))
+        if task_module and module_source.is_file()
+        else str(child_relative / "task.py")
+    )
     act_videos = sorted(
         str(path.relative_to(repo_root))
         for path in (child_dir / "evaluation").glob("episode*.mp4")
@@ -989,9 +1014,12 @@ def _round_evidence(
         "visual_observation": {
             "render_success": scene.get("render_success"),
             "aligned": vision.get("aligned"),
+            "target_actor": vision.get("target_actor"),
+            "bell_visible": vision.get("bell_visible"),
             "observed_color": vision.get("observed_color"),
             "unexpected_changes": vision.get("unexpected_changes"),
             "confidence": vision.get("confidence"),
+            "position_authority": vision.get("position_authority"),
         },
         "visual_self_reflection": {
             "passed": reflection.get("passed"),
@@ -1013,7 +1041,7 @@ def _round_evidence(
             "episodes": compact_trusted_tools(child_manifest),
         },
         "artifacts": {
-            "generated_task": str(child_relative / "task.py"),
+            "generated_task": generated_task_artifact,
             "scene_image": str(child_relative / "evidence/initial_head.png"),
             "vision_result": str(child_relative / "validation/vision.json"),
             "position_samples": str(
@@ -1076,13 +1104,37 @@ def build_evidence_bundle(
     policy_success = (
         weighted_success / measured_episodes if measured_episodes else None
     )
-    position_metrics = next(
-        (
-            item["observations"].get("position_metrics", {})
-            for item in rounds
-            if item["sub_aspect"] == "object_position"
-        ),
-        {},
+    position_rounds = [
+        item for item in rounds if str(item["sub_aspect"]).startswith("object_position")
+    ]
+    position_metrics_by_round = {
+        item["round_id"]: item["observations"].get("position_metrics", {})
+        for item in position_rounds
+    }
+    sampled_xy: list[list[float]] = []
+    for item in position_rounds:
+        for sample in item["observations"].get("position_samples", []):
+            position = sample.get("bell_position") or sample.get("block_position")
+            if isinstance(position, list) and len(position) >= 2:
+                sampled_xy.append([float(position[0]), float(position[1])])
+    unique_xy = {(round(item[0], 8), round(item[1], 8)) for item in sampled_xy}
+    position_metrics = (
+        {
+            "sample_count": len(sampled_xy),
+            "unique_xy_count": len(unique_xy),
+            "x_span": (
+                max(item[0] for item in sampled_xy)
+                - min(item[0] for item in sampled_xy)
+            ),
+            "y_span": (
+                max(item[1] for item in sampled_xy)
+                - min(item[1] for item in sampled_xy)
+            ),
+            "position_varied": len(unique_xy) > 1,
+            "by_round": position_metrics_by_round,
+        }
+        if sampled_xy
+        else {}
     )
     evaluation_relative = Path("mea/evaluation_runs") / evaluation_id
     completed_template_ids = [item["round_plan"]["template_id"] for item in round_runs]
@@ -1168,6 +1220,7 @@ def build_evidence_bundle(
             ],
             "position_varied": position_metrics.get("position_varied"),
             "position_metrics": position_metrics,
+            "position_metrics_by_round": position_metrics_by_round,
             "pipeline_passed": all(
                 item["observations"]["pipeline_passed"] for item in rounds
             ),
@@ -1219,6 +1272,22 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--task-module",
         help="Optional Python module for an official schema-backed task.",
+    )
+    parser.add_argument(
+        "--task-profile",
+        choices=["official", "position_lr"],
+        default="official",
+        help=(
+            "official preserves the upstream task. position_lr enables the "
+            "bounded two-round click_bell generated-family profile."
+        ),
+    )
+    parser.add_argument(
+        "--generated-rounds",
+        type=int,
+        choices=[1, 2],
+        default=2,
+        help="Round budget for the bounded click_bell position_lr profile.",
     )
     parser.add_argument(
         "--execution-backend",
@@ -1279,14 +1348,21 @@ def main() -> None:
     args = parse_args()
     if args.num_episodes <= 0:
         raise SystemExit("--num-episodes must be positive")
+    bounded_click_bell = args.task_profile == "position_lr"
+    if bounded_click_bell and args.task_name != "click_bell":
+        raise SystemExit("--task-profile position_lr is only defined for click_bell")
+    if args.task_name == "beat_block_hammer" and args.task_profile != "official":
+        raise SystemExit("beat_block_hammer does not use --task-profile position_lr")
     if args.task_name == "beat_block_hammer" and args.execution_backend:
         raise SystemExit(
             "--execution-backend currently applies to schema-backed official "
             "tasks; beat_block_hammer keeps its bounded generated-task flow"
         )
+    if bounded_click_bell and args.execution_backend not in {None, "act"}:
+        raise SystemExit("click_bell position_lr is ACT-only in the first version")
     execution_backend = (
         "act"
-        if args.task_name == "beat_block_hammer"
+        if args.task_name == "beat_block_hammer" or bounded_click_bell
         else (args.execution_backend or "expert")
     )
     repo_root = args.repo_root.expanduser().resolve()
@@ -1317,6 +1393,14 @@ def main() -> None:
             repo_root,
             provider,
             model=models["planner"],
+        )
+    elif bounded_click_bell:
+        planner = ClickBellPositionPlanAgent(
+            repo_root,
+            start_seed=args.start_seed,
+            num_episodes=args.num_episodes,
+            telemetry_profile=args.telemetry_profile,
+            max_rounds=args.generated_rounds,
         )
     else:
         planner = OfficialTaskPlanAgent(
@@ -1390,6 +1474,8 @@ def main() -> None:
         history_retrieval_status=history_retrieval.get("status"),
         task_name=args.task_name,
         task_module=args.task_module,
+        task_profile=args.task_profile,
+        generated_rounds=(args.generated_rounds if bounded_click_bell else None),
         telemetry_profile=args.telemetry_profile,
         execution_backend=execution_backend,
     )

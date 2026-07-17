@@ -228,3 +228,84 @@ git status --short
 若 rollout 失败，依次检查 GPU/Vulkan、assets、checkpoint 路径、`ffmpeg -version`、
 `manifest.json` 的 `failure` 字段和对应 episode 的 `episode.json`。不要在同一 `run_id`
 上盲目重跑；先保留失败产物，再使用新的 run/evaluation id。
+
+## 7. ACT-only 敏捷协议 runner（1 / 3 / 5）
+
+完整 Agent 的小规模重复评估使用 `scripts/manipeval_protocol.py`。第一版只接受已有
+TaskSchema 的 official 任务，policy 固定为 ACT，默认 `1 repetition × 1 episode`；3 和 5
+只在 smoke 通过后显式放大。它不会接入第二种 policy，也不支持 BBH generated route。
+
+```bash
+export UIUI_API_KEY='只放在当前 shell 环境变量中'
+
+python scripts/manipeval_protocol.py \
+  --repo-root "$PWD" \
+  --request '评估 click_bell 的完整 Agent + ACT 通路' \
+  --task-name click_bell \
+  --task-module envs.click_bell \
+  --run-id protocol_click_bell_smoke \
+  --repetitions 1 \
+  --episodes 1 \
+  --chunk-size 1 \
+  --start-seed 100401 \
+  --model-profile economy
+```
+
+放大为 3 次时可每次只执行一个 repetition，避免长任务中断后全部重跑：
+
+```bash
+python scripts/manipeval_protocol.py ... \
+  --run-id protocol_click_bell_r3 --repetitions 3 --episodes 1 --chunk-size 1
+python scripts/manipeval_protocol.py --repo-root "$PWD" \
+  --resume-run protocol_click_bell_r3 --chunk-size 1
+```
+
+协议目录为 `mea/protocol_runs/<run_id>/`，包含冻结配置、append-only attempt、Agent log、
+逐 episode 统计、JSON summary 和 Markdown report。恢复时会校验 Git HEAD、seed schedule 和
+配置 hash；缺 episode、重复实际 seed、pipeline failure 或损坏 artifact 不会被算作有效完成。
+`1/3/5` 都是开发预算，不等同于论文的 10 次正式重复。
+
+## 8. click_bell 的受限 generated 位置族
+
+下面的 profile 运行两个 round：bell 固定在安全左侧与安全右侧，两轮使用相同 ACT seed。
+它是经过验证的 declarative overlay，不是任意代码生成；官方 bell asset、随机数消费顺序、
+`play_once()` 和 `check_success()` 均保持不变。
+
+```bash
+python scripts/manipeval_agent.py \
+  --repo-root "$PWD" \
+  --request '评估 click_bell 对左右位置变化的 ACT 泛化' \
+  --task-name click_bell \
+  --task-profile position_lr \
+  --generated-rounds 2 \
+  --execution-backend act \
+  --start-seed 100401 \
+  --num-episodes 1 \
+  --max-reflections 0 \
+  --model-profile economy \
+  --no-history
+```
+
+每个 seed 都经过 simulator tracked-actor XY、rule 和 expert-solvability gate，再运行 ACT、
+Trusted Tool、Aggregate 与 Execution VQA。Scene VQA 只判断 bell 可见性和物理合理性，
+精确坐标始终以 simulator 数值为准。显式改为 `--num-episodes 3` 或 `5` 会增加每轮 ACT 与
+expert gate 成本；日常开发默认保持 1。
+
+## 9. 缓存 Planner / VQA 小验证
+
+`scripts/manipeval_validate.py` 只评分已有 artifact，不调用模型、不重跑仿真：
+
+```bash
+cp configs/manipeval_validation_suite.example.json /tmp/mea_validation.json
+# 把示例中的 artifact 路径替换为当前机器上的真实 evaluation artifact
+python scripts/manipeval_validate.py \
+  --repo-root "$PWD" \
+  --suite /tmp/mea_validation.json \
+  --budget 1 \
+  --target both
+```
+
+预算仍严格为 1、3 或 5，并要求每个所选 target 至少提供相同数量的 case。Planner 报告
+template precision/recall/F1、exact-set 与 first-template accuracy；VQA 报告 strict accuracy、
+coverage、precision 和 AUROC。`human`、`simulator_proxy` 标签分层统计，proxy 结果不得描述为
+论文的人类标注指标。产物位于 `mea/validation_runs/<run_id>/`。

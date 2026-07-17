@@ -300,7 +300,8 @@ class FeedbackAgentTests(unittest.TestCase):
                             {
                                 "episode_index": 0,
                                 "seed": 100001,
-                                "block_position": [0.1, 0.0, 0.76],
+                                "bell_position": [0.1, 0.0, 0.76],
+                                "position_matched": True,
                             },
                             {
                                 "episode_index": 1,
@@ -333,6 +334,7 @@ class FeedbackAgentTests(unittest.TestCase):
         self.assertIn("round_2", report)
         self.assertIn("position varied: `True`", report)
         self.assertIn("seed 100002", report)
+        self.assertIn("bell_position=[0.1, 0.0, 0.76], matched=True", report)
         self.assertIn("planned Tool requested route: `explicit`", report)
         self.assertIn("planned Tool resolved route: `force_codegen`", report)
         self.assertIn("ACT (policy_under_evaluation) seed 100000: value=False", report)

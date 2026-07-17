@@ -393,12 +393,29 @@ def render_evaluation_report(
         for item in evidence["rounds"]:
             round_observations = item["observations"]
             positions = round_observations.get("position_samples", [])
-            position_lines = "\n".join(
-                "  - episode {episode_index}, seed {seed}: {block_position}".format(
-                    **sample
+            position_rows = []
+            for sample in positions:
+                if "bell_position" in sample:
+                    position_name = "bell_position"
+                elif "block_position" in sample:
+                    position_name = "block_position"
+                else:
+                    position_name = "position"
+                matched = (
+                    f", matched={sample['position_matched']}"
+                    if "position_matched" in sample
+                    else ""
                 )
-                for sample in positions
-            ) or "  - none"
+                position_rows.append(
+                    "  - episode {episode}, seed {seed}: {name}={position}{matched}".format(
+                        episode=sample.get("episode_index", "unknown"),
+                        seed=sample.get("seed", "unknown"),
+                        name=position_name,
+                        position=sample.get(position_name),
+                        matched=matched,
+                    )
+                )
+            position_lines = "\n".join(position_rows) or "  - none"
             selected = ", ".join(
                 f"`{name}`"
                 for name in item.get("task_retrieval", {}).get(

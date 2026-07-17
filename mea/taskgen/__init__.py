@@ -15,11 +15,18 @@ from .reflection import (
     inject_oversized_block_fixture,
     inject_wrong_color_fixture,
     repair_generated_method,
+    validate_click_bell_vision_observation,
     validate_vision_observation,
 )
 from .official import (
     OfficialTaskRunError,
     create_official_task_run,
+)
+from .click_bell import (
+    ClickBellTaskGenError,
+    compile_click_bell_overlay,
+    create_click_bell_variant_run,
+    validate_click_bell_variant_hint,
 )
 
 __all__ = [
@@ -35,7 +42,12 @@ __all__ = [
     "inject_oversized_block_fixture",
     "inject_wrong_color_fixture",
     "repair_generated_method",
+    "validate_click_bell_vision_observation",
     "validate_vision_observation",
     "OfficialTaskRunError",
     "create_official_task_run",
+    "ClickBellTaskGenError",
+    "compile_click_bell_overlay",
+    "create_click_bell_variant_run",
+    "validate_click_bell_variant_hint",
 ]

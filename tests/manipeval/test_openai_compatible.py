@@ -75,6 +75,25 @@ class OpenAICompatibleProviderTests(unittest.TestCase):
         self.assertEqual(session.post.call_count, 2)
         self.assertEqual(provider.last_metadata["retry_count"], 1)
 
+    def test_retries_transient_http_502(self):
+        unavailable = Mock(status_code=502, text="temporary upstream failure")
+        recovered = Mock(status_code=200)
+        recovered.json.return_value = {
+            "choices": [{"message": {"content": "recovered"}}]
+        }
+        session = Mock()
+        session.post.side_effect = [unavailable, recovered]
+        provider = OpenAICompatibleProvider(
+            api_key="test-key",
+            session=session,
+            max_retries=2,
+            retry_delay=0,
+        )
+
+        self.assertEqual(provider.text("hello"), "recovered")
+        self.assertEqual(session.post.call_count, 2)
+        self.assertEqual(provider.last_metadata["retry_count"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

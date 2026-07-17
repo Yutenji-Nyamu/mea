@@ -6,6 +6,7 @@ import ast
 import copy
 import hashlib
 import json
+import math
 from pathlib import Path
 from typing import Any, Callable
 
@@ -88,6 +89,50 @@ def validate_vision_observation(
             f"Expected {expected} block alignment, observed color={observed}, "
             f"unexpected_changes={result['unexpected_changes']}."
         )
+    return result
+
+
+def validate_click_bell_vision_observation(value: Any) -> dict[str, Any]:
+    """Validate a visual plausibility check; simulator state owns exact XY."""
+
+    if not isinstance(value, dict):
+        raise VisualReflectionError("click_bell Vision observation must be an object")
+    if value.get("target_actor") != "bell":
+        raise VisualReflectionError("click_bell target_actor must be 'bell'")
+    for field in ("aligned", "bell_visible"):
+        if not isinstance(value.get(field), bool):
+            raise VisualReflectionError(f"click_bell {field} must be a JSON boolean")
+    unexpected = value.get("unexpected_changes")
+    if not isinstance(unexpected, list):
+        raise VisualReflectionError("click_bell unexpected_changes must be a list")
+    suggestions = value.get("suggestions")
+    if not isinstance(suggestions, list):
+        raise VisualReflectionError("click_bell suggestions must be a list")
+    if isinstance(value.get("confidence"), bool):
+        raise VisualReflectionError("click_bell confidence must be numeric")
+    try:
+        confidence = float(value.get("confidence", 0.0))
+    except (TypeError, ValueError) as exc:
+        raise VisualReflectionError("click_bell confidence must be numeric") from exc
+    if not math.isfinite(confidence) or not 0.0 <= confidence <= 1.0:
+        raise VisualReflectionError("click_bell confidence must be in [0, 1]")
+    result = {
+        "aligned": value["aligned"],
+        "target_actor": "bell",
+        "bell_visible": value["bell_visible"],
+        "unexpected_changes": [str(item) for item in unexpected],
+        "diagnosis": str(value.get("diagnosis") or "").strip(),
+        "suggestions": [str(item) for item in suggestions],
+        "confidence": confidence,
+        "position_authority": "simulator_tracked_actor_xy",
+    }
+    result["passed"] = bool(
+        result["aligned"]
+        and result["bell_visible"]
+        and not result["unexpected_changes"]
+    )
+    if not result["diagnosis"] and not result["passed"]:
+        result["diagnosis"] = "Bell visibility or scene plausibility check failed."
     return result
 
 

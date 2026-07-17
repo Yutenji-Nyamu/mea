@@ -42,3 +42,7 @@ envs/curobo/*
 
 # Strict paired-evaluation runtime artifacts (run_id is user-selectable).
 /mea/paired_runs/*/
+
+# Agile Agent-protocol and cached validation runtime artifacts.
+/mea/protocol_runs/*/
+/mea/validation_runs/*/
