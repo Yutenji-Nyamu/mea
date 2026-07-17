@@ -172,6 +172,44 @@ Agent 会调用兼容 OpenAI Chat Completions 的文本/视觉模型，用于 pl
 export UIUI_API_KEY='在当前 shell 中设置，不要写入文件'
 # 仅在使用非默认网关时设置：
 # export UIUI_BASE_URL='https://example.com/v1'
+```
+
+推荐先使用全局开放 Query 入口；不再手写 task/profile/aspect。下面的旗舰命令最多运行 3 个
+ACT rollout（每轮 1 个），证据会决定继续深挖当前方面、切换方面或停止：
+
+```bash
+python scripts/manipeval_agent.py \
+  --repo-root "$PWD" \
+  --request 'How well does ACT generalize across positions and official instances of the operated bell?' \
+  --auto-route \
+  --generated-rounds 3 \
+  --start-seed 100401 \
+  --num-episodes 1 \
+  --max-reflections 0 \
+  --model-profile economy \
+  --reviewed-tool-registry "$PWD/mea/tool_registry/reviewed"
+```
+
+`--auto-route` 只会选择 TaskSchema 与 ACT checkpoint 都就绪的可信 catalog 项；当前覆盖
+BBH 和 `click_bell`。若 query 超出 catalog，会写一个 `status=unsupported`、不启动仿真的
+evaluation。先验证路由和历史复用而不跑 TaskGen/ACT，可增加 `--plan-only`：
+
+```bash
+python scripts/manipeval_agent.py \
+  --repo-root "$PWD" \
+  --request '评估 ACT 对蓝色方块外观变化的泛化。' \
+  --auto-route \
+  --plan-only \
+  --evaluation-id eval_global_history_smoke
+```
+
+重复相近 query 时检查 `plan/global_query_route.json` 与
+`plan/history_retrieval.json`；它们只能引用 completed evaluation，plan-only 本身不会写入
+历史结果。
+
+仍可显式选择 official task 进行调试：
+
+```bash
 
 python scripts/manipeval_agent.py \
   --request '评估官方 click_bell 任务，并用视觉和轨迹证据解释结果' \
@@ -234,12 +272,28 @@ git status --short
 `manifest.json` 的 `failure` 字段和对应 episode 的 `episode.json`。不要在同一 `run_id`
 上盲目重跑；先保留失败产物，再使用新的 run/evaluation id。
 
+多轮 ACT 可能持续数分钟，不应让主进程的 stdout 直接依赖临时 SSH 连接。服务器上优先使用
+`tmux`，或把 stdout/stderr 重定向后用 `nohup` 脱离运行，再用短 SSH 连接读取 manifest：
+
+```bash
+export UIUI_API_KEY='只放在当前 shell 环境变量中'
+nohup python scripts/manipeval_agent.py ... \
+  > mea/evaluation_runs/<evaluation_id>.launcher.log 2>&1 </dev/null &
+grep -n '"status"' mea/evaluation_runs/<evaluation_id>/manifest.json | head
+```
+
+`.launcher.log` 和 evaluation 目录均为运行产物，不进入 Git。SSH 断线后先检查原 PID、manifest
+与子 run，再决定是否使用新 id 重跑；不要仅因客户端超时就重复占用 GPU。
+
 ## 7. ACT-only 敏捷协议 runner（1 / 3 / 5）
 
 完整 Agent 的小规模重复评估使用 `scripts/manipeval_protocol.py`。它接受已有 TaskSchema 的
 official 任务，也接受 `click_bell --task-profile position_lr` 的受限 generated 两轮；policy
 固定为 ACT，默认 `1 repetition × 1 episode`，3 和 5 只在 smoke 通过后显式放大。它不会
 接入第二种 policy，也不支持 BBH generated route。
+
+这里 `--num-episodes`/`--episodes` 是单轮内的 rollout 数；`1 / 3 / 5` 主要指完整 evaluation
+repetition 的敏捷预算。Stage 1 默认两者都取 1，只有在通路稳定且问题明确后才分别放大。
 
 ```bash
 export UIUI_API_KEY='只放在当前 shell 环境变量中'
@@ -341,12 +395,61 @@ base0/base1 实例，位置保持官方随机。实例 ID 以 simulator `task_at
 不是由 VQA 猜测。两种属性都复用同一个 `click_bell` ACT checkpoint，不需要为每个 variant
 另下权重。位置方面会请求 `bell_active_tcp_min_xy_error`，触发 ToolGen 的
 `generate → validate → register → reuse`；生成工具只在当前 evaluation 内注册，测量最小 XY
-误差而不自行发明成功阈值。可在 `execution/<round_id>/planned_tool/` 和 `tool_registry/` 核对
-生成、验证及后轮复用证据。
+误差而不自行发明成功阈值。若它经过第 8.1 节的显式源码/证据审核并固定完整 hashes，则可进入
+reviewed persistent registry，供后续 evaluation 精确复用；这仍不等于 Trusted Tool。可在
+`execution/<round_id>/planned_tool/` 和 `tool_registry/` 核对生成、验证及后轮复用证据。
 
 `--generated-rounds` 仅接受 1 / 2 / 3；每轮默认 1 个 rollout，真实开发应先跑 1，再按需要
 放大到每轮 3 或 5。上面的直接 Agent 命令本身不做跨 repetition 统计；需要冻结复合身份和
 逐变体汇总时，使用第 7 节的 `position_lr` protocol 命令。任何 N=1 结果都只能称为通路 smoke。
+
+### 8.1 审核后跨 evaluation 复用生成 Tool
+
+ToolGen 首次生成并通过静态、schema、determinism 和私有 oracle 校验后，只会自动进入当前
+evaluation 的 run-local registry。跨 evaluation 复用必须显式生成 review 模板、审阅源码和
+验证证据、把模板改成 `decision=approved` 并填写 reviewer/time/checks，再安装：
+
+```bash
+python scripts/manipeval_tool_registry.py template \
+  --source-registry mea/evaluation_runs/<source_eval>/tool_registry \
+  --registration-id <runlocal_registration_id> \
+  > /tmp/tool_review.json
+
+# 人工或开发代理实际审阅后再编辑 /tmp/tool_review.json；pending 文件不能安装。
+python scripts/manipeval_tool_registry.py install \
+  --source-registry mea/evaluation_runs/<source_eval>/tool_registry \
+  --registration-id <runlocal_registration_id> \
+  --review-manifest /tmp/tool_review.json \
+  --reviewed-registry mea/tool_registry/reviewed
+```
+
+后续 Agent 显式增加：
+
+```bash
+--reviewed-tool-registry "$PWD/mea/tool_registry/reviewed"
+```
+
+只有 code、ToolSpec、完整 contract 和当前 telemetry schema 均精确匹配时才走
+`reviewed_persistent_reuse`；每次仍重新跑当前轨迹的 determinism 与 oracle gate，且
+`provider_called=false`。它不会把生成工具加入 Trusted Tool catalog。registry 运行 artifact
+已由 `.gitignore` 排除。
+
+### 8.2 无 ACT 的 TaskGen 功能验收
+
+下面的命令只读复核既有真实 artifact，不调用模型、仿真或 ACT：
+
+```bash
+python scripts/manipeval_taskgen_acceptance.py \
+  --repo-root "$PWD" \
+  --output mea/validation_runs/taskgen_acceptance_stage1/acceptance.json
+```
+
+它同时核验 official reuse、`click_bell` overlay、BBH codegen/retrieval provenance 和一次
+`wrong_color` 场景错误的 visual reject→diagnosis→repair。输出固定标注
+`cached_artifact=true` 与 `paper_table_eligible=false`，不可当作新 rollout 或论文表结果。
+默认四个 run id 指向 canonical 服务器上被 Git 忽略的历史缓存；fresh clone 不会自带这些
+artifact。新环境须先分别生成四类真实 run，再用 `--official-run-id`、`--overlay-run-id`、
+`--codegen-run-id` 和 `--reflection-run-id` 显式传入，不能把缺少缓存误判成代码失败。
 
 ## 9. 缓存 Planner / VQA 小验证
 

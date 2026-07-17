@@ -64,3 +64,20 @@ to `bell_contact_position`, and return the minimum in metres with
 `passed=None`. The evidence step is the physics step at that minimum. This is a
 diagnostic for the requested position aspect; it does not replace the official
 task success check.
+
+## Registry scopes
+
+- `run_local`: automatically registered only after static, schema,
+  determinism, and private-oracle validation; executable only inside the same
+  evaluation.
+- `reviewed_persistent`: installed only from an explicit `approved` review
+  manifest pinned to the source registration, code, ToolSpec, full contract,
+  and telemetry-schema hashes.  It is still generated code, not a Trusted
+  Tool.
+
+Persistent lookup requires an exact task/metric/ToolSpec/contract/schema
+match.  Every reuse executes the reviewed source twice on the current
+trajectories and checks the private oracle again; provider calls remain zero.
+Pending reviews, candidate promotion, tampered artifacts, path escape, and
+symlinks are never executable.  If a reviewed lookup misses, normal codegen
+may run only when a provider was explicitly supplied.

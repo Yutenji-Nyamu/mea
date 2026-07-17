@@ -716,6 +716,91 @@ class EvaluationHistoryDB:
             "issues": sorted(issues, key=lambda item: item["evaluation_id"]),
         }
 
+    def retrieve_similar_global(
+        self,
+        user_query: str,
+        *,
+        allowed_task_names: Iterable[str],
+        policy_name: str | None = None,
+        checkpoint_setting: str | None = None,
+        limit: int = 3,
+        exclude_evaluation_id: str | None = None,
+        min_similarity: float = 0.0,
+    ) -> dict[str, Any]:
+        """Retrieve completed planning priors across a trusted task allowlist.
+
+        The allowlist comes from the global evaluation catalog; arbitrary task
+        names never enter routing context.  Each task contributes at most the
+        global limit because an item outside a task's top-k cannot enter the
+        global top-k.
+        """
+
+        query = _required_text(user_query, "user_query")
+        tasks = sorted(
+            {
+                _required_text(task_name, "allowed_task_name")
+                for task_name in allowed_task_names
+            }
+        )
+        if not tasks:
+            raise ValueError("allowed_task_names must not be empty")
+        if not isinstance(limit, int) or limit <= 0:
+            raise ValueError("limit must be a positive integer")
+
+        task_results = [
+            self.retrieve_similar(
+                query,
+                task_name=task_name,
+                policy_name=policy_name,
+                checkpoint_setting=checkpoint_setting,
+                limit=limit,
+                exclude_evaluation_id=exclude_evaluation_id,
+                min_similarity=min_similarity,
+            )
+            for task_name in tasks
+        ]
+        candidates = [
+            candidate
+            for result in task_results
+            for candidate in result.get("candidates", [])
+        ]
+        candidates.sort(
+            key=lambda item: (
+                -item["similarity"],
+                not item["compatibility"]["same_policy"],
+                not item["compatibility"]["same_checkpoint"],
+                item["evaluation_id"],
+            )
+        )
+        issues = sorted(
+            (
+                issue
+                for result in task_results
+                for issue in result.get("issues", [])
+            ),
+            key=lambda item: item["evaluation_id"],
+        )
+        return {
+            "schema_version": 1,
+            "query": query,
+            "allowed_task_names": tasks,
+            "policy_name": policy_name,
+            "checkpoint_setting": checkpoint_setting,
+            "selection_policy": {
+                "task_filter": "trusted_allowlist",
+                "policy_filter": False,
+                "similarity": "0.8_sequence_matcher_plus_0.2_character_bigram_jaccard",
+                "tie_break": "same_policy_then_same_checkpoint_then_evaluation_id",
+            },
+            "candidate_count": sum(
+                int(result.get("candidate_count", 0))
+                for result in task_results
+            ),
+            "selected_count": min(len(candidates), limit),
+            "candidates": candidates[:limit],
+            "issues": issues,
+        }
+
     def rebuild(
         self,
         evaluation_root: str | Path,

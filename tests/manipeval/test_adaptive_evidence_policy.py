@@ -1,6 +1,9 @@
 import unittest
 
-from mea.planner.evidence_policy import assess_evidence
+from mea.planner.evidence_policy import (
+    assess_conditional_transition,
+    assess_evidence,
+)
 
 
 def round_plan(
@@ -215,6 +218,102 @@ class AdaptiveEvidencePolicyTests(unittest.TestCase):
         result = assess_evidence(plan, [observation(planned)])
         self.assertEqual(result["required_action"], "stop")
         self.assertTrue(result["unresolved"])
+
+
+class ConditionalTransitionTests(unittest.TestCase):
+    CATALOG = {
+        "position": {"template_ids": ["position.left", "position.right"]},
+        "instance": {"template_ids": ["instance.base0", "instance.base1"]},
+    }
+
+    @staticmethod
+    def adaptive_round(template_id, aspect_id):
+        value = round_plan(template_id=template_id, episodes=1)
+        value["aspect_id"] = aspect_id
+        value["sub_aspect"] = aspect_id
+        return value
+
+    @staticmethod
+    def adaptive_observation(plan, *, success, pipeline_passed=True):
+        value = observation(
+            plan,
+            valid=1,
+            pipeline_passed=pipeline_passed,
+        )
+        value["observations"]["policy_success"] = success
+        return value
+
+    def plan(self, rounds, *, max_rounds=3):
+        return {
+            "rounds": rounds,
+            "requested_template_ids": [
+                template_id
+                for aspect in self.CATALOG.values()
+                for template_id in aspect["template_ids"]
+            ],
+            "requested_aspect_ids": list(self.CATALOG),
+            "max_rounds": max_rounds,
+        }
+
+    def test_failure_drills_into_same_aspect(self):
+        first = self.adaptive_round("position.left", "position")
+        result = assess_conditional_transition(
+            self.plan([first]),
+            [self.adaptive_observation(first, success=0.0)],
+            aspect_catalog=self.CATALOG,
+        )
+        self.assertEqual(result["required_action"], "continue")
+        self.assertEqual(result["required_transition"], "drill_down")
+        self.assertEqual(result["required_next_aspect_id"], "position")
+
+    def test_success_switches_to_uncovered_aspect(self):
+        first = self.adaptive_round("position.left", "position")
+        result = assess_conditional_transition(
+            self.plan([first]),
+            [self.adaptive_observation(first, success=1.0)],
+            aspect_catalog=self.CATALOG,
+        )
+        self.assertEqual(result["required_transition"], "switch_aspect")
+        self.assertEqual(result["required_next_aspect_id"], "instance")
+
+    def test_pipeline_failure_stops_before_navigation(self):
+        first = self.adaptive_round("position.left", "position")
+        result = assess_conditional_transition(
+            self.plan([first]),
+            [
+                self.adaptive_observation(
+                    first, success=0.0, pipeline_passed=False
+                )
+            ],
+            aspect_catalog=self.CATALOG,
+        )
+        self.assertEqual(result["required_action"], "stop")
+        self.assertEqual(result["required_transition"], "stop")
+
+    def test_final_conflict_stays_unresolved_when_all_variants_are_exhausted(self):
+        catalog = {"position": {"template_ids": ["position.left"]}}
+        first = self.adaptive_round("position.left", "position")
+        latest = observation(first, valid=1, conflict=True)
+        latest["observations"]["policy_success"] = 1.0
+        plan = {
+            "rounds": [first],
+            "requested_template_ids": ["position.left"],
+            "requested_aspect_ids": ["position"],
+            "max_rounds": 1,
+        }
+        result = assess_conditional_transition(
+            plan,
+            [latest],
+            aspect_catalog=catalog,
+        )
+        self.assertEqual(result["state"], "evidence_conflict")
+        self.assertEqual(result["required_action"], "stop")
+        self.assertEqual(result["required_transition"], "stop")
+        self.assertTrue(result["unresolved"])
+        self.assertIn(
+            "round_budget_exhausted_with_unresolved_evidence",
+            result["reasons"],
+        )
 
 
 if __name__ == "__main__":

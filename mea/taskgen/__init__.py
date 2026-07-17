@@ -37,6 +37,11 @@ from .capabilities import (
     load_legacy_variant_spec,
     validate_variant_spec_envelope,
 )
+from .acceptance import (
+    DEFAULT_ACCEPTANCE_RUNS,
+    TaskGenAcceptanceError,
+    build_cached_taskgen_acceptance,
+)
 
 __all__ = [
     "TaskGenError",
@@ -66,4 +71,7 @@ __all__ = [
     "get_capability",
     "load_legacy_variant_spec",
     "validate_variant_spec_envelope",
+    "DEFAULT_ACCEPTANCE_RUNS",
+    "TaskGenAcceptanceError",
+    "build_cached_taskgen_acceptance",
 ]

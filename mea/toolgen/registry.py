@@ -2,6 +2,9 @@
 
 This module deliberately stops at ``run_local`` scope.  It exposes promotion
 metadata for later candidate/trusted workflows, but it never promotes code.
+Cross-evaluation admission lives in :mod:`mea.toolgen.reviewed_registry` and
+requires a separate explicit approval manifest; candidate eligibility here is
+never executable authority.
 """
 
 from __future__ import annotations

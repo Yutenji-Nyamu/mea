@@ -32,6 +32,15 @@ from .registry import (
     load_registry,
     request_candidate_promotion,
 )
+from .reviewed_registry import (
+    ReviewedRegistryError,
+    build_review_manifest_template,
+    find_reviewed_registration,
+    install_reviewed_registration,
+    load_reviewed_registry,
+    public_reviewed_registration_summary,
+    validate_review_manifest,
+)
 from .targets import (
     BELL_ACTIVE_TCP_MIN_XY_ERROR_METRIC,
     PICKUP_TO_CONTACT_METRIC,
@@ -48,6 +57,7 @@ __all__ = [
     "bell_active_tcp_min_xy_error_tool_request",
     "ToolRouterError",
     "RunLocalRegistryError",
+    "ReviewedRegistryError",
     "contact_tool_request",
     "contact_tool_spec",
     "execute_tool_request",
@@ -63,6 +73,12 @@ __all__ = [
     "infer_registry_dir",
     "load_registry",
     "request_candidate_promotion",
+    "build_review_manifest_template",
+    "find_reviewed_registration",
+    "install_reviewed_registration",
+    "load_reviewed_registry",
+    "public_reviewed_registration_summary",
+    "validate_review_manifest",
     "PICKUP_TO_CONTACT_METRIC",
     "BELL_ACTIVE_TCP_MIN_XY_ERROR_METRIC",
     "evaluate_target_oracle",

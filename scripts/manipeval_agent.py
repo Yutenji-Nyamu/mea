@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from datetime import datetime
@@ -20,8 +21,12 @@ from mea.history import EvaluationHistoryDB
 from mea.planner import (
     ClickBellAdaptivePlanAgent,
     ClickBellPositionPlanAgent,
+    GlobalQueryRouter,
     OfficialTaskPlanAgent,
     PlanAgentPrototype,
+    build_act_catalog,
+    make_evaluation_id,
+    route_to_planner_proposal,
 )
 from mea.providers import (
     OpenAICompatibleProvider,
@@ -45,6 +50,82 @@ def update_manifest(evaluation_dir: Path, **updates: Any) -> dict[str, Any]:
     manifest = json.loads(path.read_text(encoding="utf-8"))
     manifest.update(updates)
     write_json(path, manifest)
+    return manifest
+
+
+def write_global_route_trace(
+    evaluation_dir: Path,
+    *,
+    catalog: dict[str, Any],
+    route_result: dict[str, Any],
+    router: GlobalQueryRouter,
+    history_retrieval: dict[str, Any],
+) -> None:
+    """Persist the bounded global route without leaking credentials."""
+
+    write_json(evaluation_dir / "plan/global_act_catalog.json", catalog)
+    write_json(
+        evaluation_dir / "plan/global_query_route.json",
+        {
+            **route_result,
+            "history_retrieval": history_retrieval,
+        },
+    )
+    if router.last_prompt is not None:
+        (evaluation_dir / "plan/global_query_prompt.md").write_text(
+            router.last_prompt, encoding="utf-8"
+        )
+    for index, response in enumerate(router.last_responses, start=1):
+        (evaluation_dir / f"plan/global_query_response_{index}.txt").write_text(
+            response + "\n", encoding="utf-8"
+        )
+
+
+def finish_unsupported_global_route(
+    repo_root: Path,
+    *,
+    evaluation_id: str | None,
+    user_request: str,
+    catalog: dict[str, Any],
+    route_result: dict[str, Any],
+    router: GlobalQueryRouter,
+    history_retrieval: dict[str, Any],
+) -> dict[str, Any]:
+    """Create an auditable no-execution result for an unsupported query."""
+
+    resolved_id = evaluation_id or make_evaluation_id()
+    if not re.fullmatch(r"eval_[A-Za-z0-9_]+", resolved_id):
+        raise ValueError("evaluation_id must match eval_[A-Za-z0-9_]+")
+    evaluation_dir = repo_root / "mea/evaluation_runs" / resolved_id
+    if evaluation_dir.exists():
+        raise RuntimeError(f"evaluation directory already exists: {evaluation_dir}")
+    for child in ("plan", "execution", "summary"):
+        (evaluation_dir / child).mkdir(parents=True, exist_ok=False)
+    write_json(evaluation_dir / "request.json", {"user_request": user_request})
+    write_global_route_trace(
+        evaluation_dir,
+        catalog=catalog,
+        route_result=route_result,
+        router=router,
+        history_retrieval=history_retrieval,
+    )
+    manifest = {
+        "schema_version": 1,
+        "evaluation_id": resolved_id,
+        "status": "unsupported",
+        "lifecycle_status": "completed_without_execution",
+        "created_at": datetime.now().astimezone().isoformat(),
+        "execution_finished_at": datetime.now().astimezone().isoformat(),
+        "user_request": user_request,
+        "auto_route": True,
+        "global_query_route_path": "plan/global_query_route.json",
+        "global_act_catalog_path": "plan/global_act_catalog.json",
+        "route": route_result["selection"],
+        "limitations": [
+            "query requires an aspect outside the trusted ACT catalog"
+        ],
+    }
+    write_json(evaluation_dir / "manifest.json", manifest)
     return manifest
 
 
@@ -798,6 +879,7 @@ def execute_round(
     provider: Any,
     toolgen_model: str,
     telemetry_profile: str = "balanced_v1",
+    reviewed_tool_registry: Path | None = None,
 ) -> tuple[
     dict[str, Any],
     Path,
@@ -850,13 +932,18 @@ def execute_round(
         "completed",
         "completed_without_act",
     } and returncode == 0:
+        tool_kwargs: dict[str, Any] = {
+            "provider": provider,
+            "model": toolgen_model,
+        }
+        if reviewed_tool_registry is not None:
+            tool_kwargs["reviewed_registry_dir"] = reviewed_tool_registry
         tool_evaluation = execute_tool_request(
             repo_root,
             child_dir,
             execution_dir / "planned_tool",
             round_plan["tool_request"],
-            provider=provider,
-            model=toolgen_model,
+            **tool_kwargs,
         )
     else:
         skip_reason = (
@@ -1185,6 +1272,14 @@ def build_evidence_bundle(
         if history_path.is_file()
         else {"status": "missing", "matches": []}
     )
+    global_route_path = (
+        repo_root / evaluation_relative / "plan/global_query_route.json"
+    )
+    global_route = (
+        json.loads(global_route_path.read_text(encoding="utf-8"))
+        if global_route_path.is_file()
+        else None
+    )
     execution_backends = sorted(
         {
             str(item["observations"].get("execution_backend") or "ACT")
@@ -1254,6 +1349,17 @@ def build_evidence_bundle(
         },
         "total_episodes": total_episodes,
         "history_retrieval": history_retrieval,
+        "global_query_route": (
+            {
+                "selection": global_route.get("selection"),
+                "resolved": global_route.get("resolved"),
+                "catalog_sha256": global_route.get("catalog_sha256"),
+                "provider_called": global_route.get("provider_called"),
+                "attempt_count": global_route.get("attempt_count"),
+            }
+            if global_route is not None
+            else None
+        ),
         "limitations": {
             "bounded_three_round_prototype": True,
             "few_episodes_are_not_a_generalization_benchmark": True,
@@ -1267,6 +1373,11 @@ def build_evidence_bundle(
             "evidence_assessments": evidence_assessment_artifacts,
             "history_retrieval": str(
                 evaluation_relative / "plan/history_retrieval.json"
+            ),
+            "global_query_route": (
+                str(evaluation_relative / "plan/global_query_route.json")
+                if global_route is not None
+                else None
             ),
             "summary": str(evaluation_relative / "summary/summary.json"),
             "aggregate": str(
@@ -1282,6 +1393,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--request", required=True)
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     parser.add_argument("--evaluation-id")
+    parser.add_argument(
+        "--auto-route",
+        action="store_true",
+        help=(
+            "Route the open query through the trusted ACT catalog. In this "
+            "mode task, profile, and initial aspects are selected and "
+            "validated before any task-specific planner runs."
+        ),
+    )
     parser.add_argument(
         "--task-name",
         default="beat_block_hammer",
@@ -1360,6 +1480,15 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--history-limit", type=int, default=3)
     parser.add_argument(
+        "--reviewed-tool-registry",
+        type=Path,
+        help=(
+            "Optional explicit reviewed generated-Tool registry. Exact "
+            "contract/schema/hash matches may be reused across evaluations "
+            "without a ToolGen provider call."
+        ),
+    )
+    parser.add_argument(
         "--no-history",
         action="store_true",
         help="Disable cross-evaluation planning retrieval and indexing.",
@@ -1371,6 +1500,116 @@ def main() -> None:
     args = parse_args()
     if args.num_episodes <= 0:
         raise SystemExit("--num-episodes must be positive")
+    if args.auto_route and args.task_module is not None:
+        raise SystemExit(
+            "--auto-route resolves a trusted task module; do not pass --task-module"
+        )
+    repo_root = args.repo_root.expanduser().resolve()
+    models = resolve_model_profile(
+        args.model_profile,
+        {
+            "planner": args.planner_model,
+            "taskgen": args.taskgen_model,
+            "toolgen": args.toolgen_model,
+            "vision": args.vision_model,
+            "feedback": args.feedback_model,
+        },
+    )
+    history_path = (
+        args.history_database.expanduser().resolve()
+        if args.history_database
+        else repo_root / "mea/evaluation_runs/history.sqlite3"
+    )
+    reviewed_tool_registry = (
+        args.reviewed_tool_registry.expanduser().resolve()
+        if args.reviewed_tool_registry is not None
+        else None
+    )
+    provider = None
+    global_catalog: dict[str, Any] | None = None
+    global_route_result: dict[str, Any] | None = None
+    global_history_retrieval: dict[str, Any] = {
+        "schema_version": 1,
+        "status": "disabled" if args.no_history else "empty",
+        "candidates": [],
+    }
+    global_router: GlobalQueryRouter | None = None
+    validated_proposal: dict[str, Any] | None = None
+    routed_task_profile: str | None = None
+
+    if args.auto_route:
+        provider = OpenAICompatibleProvider(
+            base_url=args.base_url,
+            text_model=models["planner"],
+            vision_model=models["vision"],
+            timeout=180.0,
+        )
+        global_catalog = build_act_catalog(repo_root)
+        ready_tasks = [
+            task["task_name"] for task in global_catalog.get("tasks", [])
+        ]
+        if not ready_tasks:
+            raise SystemExit("trusted ACT catalog has no checkpoint-ready tasks")
+        global_history_context: list[dict[str, Any]] = []
+        if not args.no_history:
+            try:
+                global_history_db = EvaluationHistoryDB(
+                    history_path,
+                    repo_root=repo_root,
+                )
+                global_history_retrieval = (
+                    global_history_db.retrieve_similar_global(
+                        args.request,
+                        allowed_task_names=ready_tasks,
+                        policy_name="ACT",
+                        checkpoint_setting="demo_clean",
+                        limit=args.history_limit,
+                        exclude_evaluation_id=args.evaluation_id,
+                    )
+                )
+                global_history_retrieval["status"] = "passed"
+                global_history_context = list(
+                    global_history_retrieval.get("candidates", [])
+                )
+            except Exception as exc:
+                global_history_retrieval = {
+                    "schema_version": 1,
+                    "status": "failed",
+                    "candidates": [],
+                    "error": f"{type(exc).__name__}: {exc}",
+                }
+        global_router = GlobalQueryRouter(
+            provider,
+            model=models["planner"],
+            catalog=global_catalog,
+        )
+        global_route_result = global_router.route(
+            args.request,
+            history_context=global_history_context,
+        )
+        selection = global_route_result["selection"]
+        if selection["decision"] == "unsupported":
+            unsupported = finish_unsupported_global_route(
+                repo_root,
+                evaluation_id=args.evaluation_id,
+                user_request=args.request,
+                catalog=global_catalog,
+                route_result=global_route_result,
+                router=global_router,
+                history_retrieval=global_history_retrieval,
+            )
+            print(json.dumps(unsupported, ensure_ascii=False, indent=2))
+            return
+        routed = route_to_planner_proposal(selection, global_catalog)
+        args.task_name = routed["task_name"]
+        routed_task_profile = routed["task_profile"]
+        args.task_profile = (
+            "adaptive_properties"
+            if args.task_name == "click_bell"
+            else "official"
+        )
+        validated_proposal = routed["proposal"]
+
     legacy_click_bell = args.task_profile == "position_lr"
     adaptive_click_bell = args.task_profile == "adaptive_properties"
     bounded_click_bell = legacy_click_bell or adaptive_click_bell
@@ -1394,25 +1633,16 @@ def main() -> None:
         if args.task_name == "beat_block_hammer" or bounded_click_bell
         else (args.execution_backend or "expert")
     )
-    repo_root = args.repo_root.expanduser().resolve()
-    models = resolve_model_profile(
-        args.model_profile,
-        {
-            "planner": args.planner_model,
-            "taskgen": args.taskgen_model,
-            "toolgen": args.toolgen_model,
-            "vision": args.vision_model,
-            "feedback": args.feedback_model,
-        },
-    )
     # The deterministic official planner can materialize --plan-only without
     # any provider credential. Full execution still creates the provider for
     # final Feedback (and for VQA when an ACT video exists).
-    provider = None
     if (
+        provider is None
+        and (
         args.task_name == "beat_block_hammer"
         or adaptive_click_bell
         or not args.plan_only
+        )
     ):
         provider = OpenAICompatibleProvider(
             base_url=args.base_url,
@@ -1493,21 +1723,47 @@ def main() -> None:
                 "candidates": [],
                 "error": f"{type(exc).__name__}: {exc}",
             }
-    manifest = planner.plan(
-        args.request,
-        evaluation_id=args.evaluation_id,
-        history_context=history_context,
-        history_metadata={
+    planner_kwargs: dict[str, Any] = {
+        "evaluation_id": args.evaluation_id,
+        "history_context": history_context,
+        "history_metadata": {
             key: value
             for key, value in history_retrieval.items()
             if key != "candidates"
         },
-    )
+    }
+    if validated_proposal is not None:
+        planner_kwargs["validated_proposal"] = validated_proposal
+    manifest = planner.plan(args.request, **planner_kwargs)
     evaluation_id = manifest["evaluation_id"]
     evaluation_dir = repo_root / "mea/evaluation_runs" / evaluation_id
     plan = manifest["plan"]
+    if (
+        global_catalog is not None
+        and global_route_result is not None
+        and global_router is not None
+    ):
+        write_global_route_trace(
+            evaluation_dir,
+            catalog=global_catalog,
+            route_result=global_route_result,
+            router=global_router,
+            history_retrieval=global_history_retrieval,
+        )
     update_manifest(
         evaluation_dir,
+        auto_route=args.auto_route,
+        global_query_route_path=(
+            "plan/global_query_route.json" if args.auto_route else None
+        ),
+        global_act_catalog_path=(
+            "plan/global_act_catalog.json" if args.auto_route else None
+        ),
+        global_route_selection=(
+            global_route_result["selection"]
+            if global_route_result is not None
+            else None
+        ),
         model_profile=args.model_profile,
         resolved_models=models,
         history_database=(
@@ -1518,10 +1774,18 @@ def main() -> None:
         history_retrieval_status=history_retrieval.get("status"),
         task_name=args.task_name,
         task_module=args.task_module,
-        task_profile=args.task_profile,
+        task_profile=routed_task_profile or args.task_profile,
         generated_rounds=(args.generated_rounds if bounded_click_bell else None),
         telemetry_profile=args.telemetry_profile,
         execution_backend=execution_backend,
+        reviewed_tool_registry=(
+            str(reviewed_tool_registry.relative_to(repo_root))
+            if reviewed_tool_registry is not None
+            and reviewed_tool_registry.is_relative_to(repo_root)
+            else str(reviewed_tool_registry)
+            if reviewed_tool_registry is not None
+            else None
+        ),
     )
 
     if args.plan_only:
@@ -1555,6 +1819,7 @@ def main() -> None:
                 provider=provider,
                 toolgen_model=models["toolgen"],
                 telemetry_profile=args.telemetry_profile,
+                reviewed_tool_registry=reviewed_tool_registry,
             )
             round_runs.append(
                 {

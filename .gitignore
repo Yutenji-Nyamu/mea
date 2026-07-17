@@ -38,12 +38,16 @@ envs/curobo/*
 
 # Plan Agent runtime plans and child-run links.
 /mea/evaluation_runs/eval_*/
+/mea/evaluation_runs/eval_*.launcher.log
 /mea/evaluation_runs/history.sqlite3*
+
+# Explicitly reviewed generated Tool runtime registry (hash-pinned artifacts).
+/mea/tool_registry/*/
 
 # Strict paired-evaluation runtime artifacts (run_id is user-selectable).
 /mea/paired_runs/*/
 
 # Agile Agent-protocol and cached validation runtime artifacts.
 /mea/protocol_runs/*/
-/mea/validation_runs/*/
+/mea/validation_runs/*
 /mea/benchmark_runs/*/

@@ -571,6 +571,7 @@ class PlanAgentPrototype:
         evaluation_id: str | None = None,
         history_context: list[dict[str, Any]] | None = None,
         history_metadata: dict[str, Any] | None = None,
+        validated_proposal: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         request = _require_string(user_request, "user_request")
         evaluation_id = evaluation_id or make_evaluation_id()
@@ -608,40 +609,51 @@ class PlanAgentPrototype:
             history_retrieval,
         )
 
-        prompt = _initial_plan_prompt(
-            self.repo_root,
-            request,
-            compact_history,
-        )
-        (evaluation_dir / "plan/round_1_prompt.md").write_text(
-            prompt, encoding="utf-8"
-        )
         errors: list[str] = []
-        plan = None
-        for attempt in range(2):
-            attempt_prompt = prompt
-            if errors:
-                attempt_prompt += (
-                    "\n\nPREVIOUS VALIDATION ERROR:\n"
-                    + errors[-1]
-                    + "\n请重新输出完整严格 JSON。\n"
+        provider_called = validated_proposal is None
+        plan = (
+            validate_evaluation_plan(deepcopy(validated_proposal))
+            if validated_proposal is not None
+            else None
+        )
+        if validated_proposal is not None:
+            _write_json(
+                evaluation_dir / "plan/global_route_proposal.json",
+                validated_proposal,
+            )
+        else:
+            prompt = _initial_plan_prompt(
+                self.repo_root,
+                request,
+                compact_history,
+            )
+            (evaluation_dir / "plan/round_1_prompt.md").write_text(
+                prompt, encoding="utf-8"
+            )
+            for attempt in range(2):
+                attempt_prompt = prompt
+                if errors:
+                    attempt_prompt += (
+                        "\n\nPREVIOUS VALIDATION ERROR:\n"
+                        + errors[-1]
+                        + "\n请重新输出完整严格 JSON。\n"
+                    )
+                response = self.provider.text(
+                    attempt_prompt,
+                    model=self.model,
+                    system="只输出满足 EvaluationProposal schema 的 JSON object。",
+                    max_tokens=1200,
+                    temperature=0.0,
                 )
-            response = self.provider.text(
-                attempt_prompt,
-                model=self.model,
-                system="只输出满足 EvaluationProposal schema 的 JSON object。",
-                max_tokens=1200,
-                temperature=0.0,
-            )
-            suffix = "" if attempt == 0 else f"_retry_{attempt}"
-            (evaluation_dir / f"plan/round_1_response{suffix}.txt").write_text(
-                response + "\n", encoding="utf-8"
-            )
-            try:
-                plan = validate_evaluation_plan(extract_json_response(response))
-                break
-            except PlanAgentError as exc:
-                errors.append(str(exc))
+                suffix = "" if attempt == 0 else f"_retry_{attempt}"
+                (evaluation_dir / f"plan/round_1_response{suffix}.txt").write_text(
+                    response + "\n", encoding="utf-8"
+                )
+                try:
+                    plan = validate_evaluation_plan(extract_json_response(response))
+                    break
+                except PlanAgentError as exc:
+                    errors.append(str(exc))
         if plan is None:
             raise PlanAgentError(f"EvaluationProposal 两次均未通过: {errors}")
         _write_json(evaluation_dir / "plan/evaluation_plan.json", plan)
@@ -655,9 +667,15 @@ class PlanAgentPrototype:
                 "plan": plan,
                 "planner": {
                     "model_requested": self.model,
+                    "provider_called": provider_called,
+                    "initial_proposal_source": (
+                        "global_query_route"
+                        if validated_proposal is not None
+                        else "task_specific_model"
+                    ),
                     "round_1_metadata": dict(
                         getattr(self.provider, "last_metadata", {})
-                    ),
+                    ) if provider_called else {},
                     "round_1_validation_errors": errors,
                 },
             }

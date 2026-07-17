@@ -5,9 +5,30 @@ Plan Agent. The model selects semantic template identifiers only. Trusted
 runtime code injects task instructions, seeds, gates, TaskGen routes, and Tool
 requests; the model must never invent these fields.
 
+## Global query boundary
+
+`scripts/manipeval_agent.py --auto-route` first builds a trusted ACT catalog.
+A task is model-visible only when its TaskSchema, `dataset_stats.pkl`, and
+`policy_last.ckpt` are present.  The global model may select only a catalog
+task/profile/aspect and may return explicit `unsupported`; it never outputs a
+path, module, checkpoint payload, seed, gate, Tool route, or variant body.
+
+The current global catalog has two task adapters:
+
+- `beat_block_hammer / generated`: the three BBH templates below;
+- `click_bell / adaptive_properties`: `object_position` and
+  `object_instance`, each backed by two trusted variants.
+
+The validated global selection is translated directly into the existing task
+planner proposal, so the task planner does not call a second initial model.
+After execution, all adaptive task planners obey the shared deterministic
+conditional-transition contract: pipeline failure stops; valid policy failure
+drills into the same aspect; valid success switches to an uncovered requested
+aspect; no target or exhausted budget stops.
+
 ## Policy and simulator
 
-- Policy: ACT; canonical task: `beat_block_hammer`.
+- Policy: ACT; this task-adapter appendix describes `beat_block_hammer`.
 - Checkpoint: `demo_clean`, trained with 50 expert demonstrations.
 - The policy is not language-conditioned in this evaluation.
 - Official block position samples `x` from `[-0.25, 0.25]` and `y` from

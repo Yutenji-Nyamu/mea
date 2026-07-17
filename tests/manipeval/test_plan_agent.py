@@ -141,7 +141,36 @@ class VerifyProvider:
         return json.dumps(proposal, ensure_ascii=False)
 
 
+class NeverCalledProvider:
+    last_metadata = {}
+
+    def text(self, *_args, **_kwargs):
+        raise AssertionError("task-specific model must not run after global routing")
+
+
 class PlanAgentPrototypeTests(unittest.TestCase):
+    def test_validated_global_proposal_skips_task_specific_model(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            repo_root = Path(temporary)
+            manifest = PlanAgentPrototype(
+                repo_root, NeverCalledProvider(), model="fake"
+            ).plan(
+                "evaluate object generalization",
+                evaluation_id="eval_global_route_bypass",
+                validated_proposal=PROPOSAL,
+            )
+            self.assertFalse(manifest["planner"]["provider_called"])
+            self.assertEqual(
+                manifest["planner"]["initial_proposal_source"],
+                "global_query_route",
+            )
+            self.assertTrue(
+                (
+                    repo_root
+                    / "mea/evaluation_runs/eval_global_route_bypass/plan/global_route_proposal.json"
+                ).is_file()
+            )
+
     def test_similar_history_is_compact_planning_context_only(self):
         source_root = Path(__file__).resolve().parents[2]
         with tempfile.TemporaryDirectory() as temporary:

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import math
 import re
 import subprocess
 from copy import deepcopy
@@ -19,7 +18,7 @@ from mea.toolgen import (
 from mea.toolkit import load_task_schema
 
 from .prototype import PlanAgentError, make_evaluation_id
-from .evidence_policy import assess_evidence
+from .evidence_policy import assess_conditional_transition
 
 
 CLICK_BELL_TEMPLATE_IDS = (
@@ -555,128 +554,11 @@ class ClickBellAdaptivePlanAgent:
         observation_history: list[dict[str, Any]],
     ) -> dict[str, Any]:
         history = self._validate_observations(current_plan, observation_history)
-        rounds = current_plan["rounds"]
-        latest_round = rounds[-1]
-        latest = history[-1]
-        executed = {round_plan["template_id"] for round_plan in rounds}
-        executed_aspects = {round_plan["aspect_id"] for round_plan in rounds}
-        remaining_by_aspect = {
-            aspect_id: [
-                template_id
-                for template_id in CLICK_BELL_ADAPTIVE_ASPECTS[aspect_id][
-                    "template_ids"
-                ]
-                if template_id not in executed
-            ]
-            for aspect_id in current_plan["requested_aspect_ids"]
-        }
-        budget_remaining = max(current_plan["max_rounds"] - len(rounds), 0)
-        observations = latest.get("observations") or {}
-        aggregate = observations.get("aggregate") or {}
-        execution_vqa = observations.get("execution_vqa") or {}
-        aggregate_status = str(aggregate.get("status") or "missing")
-        evidence_conflict = bool(execution_vqa.get("evidence_conflict"))
-        generic = assess_evidence(current_plan, history)
-        state = generic["state"]
-        reasons = list(generic.get("reasons") or [])
-        raw_policy_success = observations.get("policy_success")
-        policy_success = None
-        if (
-            not isinstance(raw_policy_success, bool)
-            and isinstance(raw_policy_success, (int, float))
-            and math.isfinite(float(raw_policy_success))
-            and 0.0 <= float(raw_policy_success) <= 1.0
-        ):
-            policy_success = float(raw_policy_success)
-        elif state == "sufficient":
-            state = "aggregate_uncertain"
-            reasons.append("policy_success_missing_or_invalid")
-
-        current_aspect = latest_round["aspect_id"]
-        transitions: dict[str, list[str]] = {
-            "drill_down": [],
-            "switch_aspect": [],
-        }
-        unseen_aspects = [
-            aspect_id
-            for aspect_id in current_plan["requested_aspect_ids"]
-            if aspect_id not in executed_aspects
-            and remaining_by_aspect.get(aspect_id)
-        ]
-        other_remaining_aspects = [
-            aspect_id
-            for aspect_id in current_plan["requested_aspect_ids"]
-            if aspect_id != current_aspect
-            and remaining_by_aspect.get(aspect_id)
-        ]
-        required_action = "stop"
-        required_transition = "stop"
-        required_next_aspect = None
-        unresolved = False
-
-        def require_continue(transition: str, aspect_id: str) -> None:
-            nonlocal required_action, required_transition, required_next_aspect
-            required_action = "continue"
-            required_transition = transition
-            required_next_aspect = aspect_id
-            transitions[transition] = [aspect_id]
-
-        if state == "pipeline_failure":
-            reasons.append("pipeline_failure_forces_stop")
-        elif budget_remaining <= 0:
-            unresolved = any(remaining_by_aspect.values())
-            if unresolved:
-                reasons.append("round_budget_exhausted_with_uncovered_variants")
-        elif state in {"evidence_conflict", "aggregate_uncertain"}:
-            if remaining_by_aspect.get(current_aspect):
-                require_continue("drill_down", current_aspect)
-                reasons.append("uncertain_evidence_requires_same_aspect_counterfactual")
-            else:
-                unresolved = True
-                reasons.append("uncertain_evidence_has_no_same_aspect_counterfactual")
-        elif policy_success is not None and policy_success < 1.0:
-            if remaining_by_aspect.get(current_aspect):
-                require_continue("drill_down", current_aspect)
-                reasons.append("policy_failure_requires_same_aspect_counterfactual")
-            elif unseen_aspects:
-                require_continue("switch_aspect", unseen_aspects[0])
-                reasons.append("failed_aspect_exhausted_switch_to_uncovered_aspect")
-            elif other_remaining_aspects:
-                require_continue("switch_aspect", other_remaining_aspects[0])
-                reasons.append("failed_aspect_exhausted_switch_to_remaining_aspect")
-        elif unseen_aspects:
-            require_continue("switch_aspect", unseen_aspects[0])
-            reasons.append("successful_sentinel_switches_to_uncovered_aspect")
-        elif remaining_by_aspect.get(current_aspect):
-            require_continue("drill_down", current_aspect)
-            reasons.append("all_aspects_seen_complete_current_counterfactual")
-        elif other_remaining_aspects:
-            require_continue("switch_aspect", other_remaining_aspects[0])
-            reasons.append("current_aspect_complete_switch_to_remaining_aspect")
-        else:
-            reasons.append("all_requested_variants_exhausted")
-
-        return {
-            "schema_version": 1,
-            "state": state,
-            "pipeline_passed": bool(latest["pipeline_passed"]),
-            "latest_round_id": latest_round["round_id"],
-            "latest_template_id": latest_round["template_id"],
-            "current_aspect_id": current_aspect,
-            "policy_success": policy_success,
-            "aggregate_status": aggregate_status,
-            "evidence_conflict": evidence_conflict,
-            "aggregate_checks": generic.get("checks", {}),
-            "reasons": reasons,
-            "unresolved": unresolved,
-            "round_budget_remaining": budget_remaining,
-            "remaining_template_ids_by_aspect": remaining_by_aspect,
-            "available_transitions": transitions,
-            "required_action": required_action,
-            "required_transition": required_transition,
-            "required_next_aspect_id": required_next_aspect,
-            "allowed_actions": [required_action],
-        }
+        return assess_conditional_transition(
+            current_plan,
+            history,
+            aspect_catalog=CLICK_BELL_ADAPTIVE_ASPECTS,
+        )
 
     def _validate_decision(
         self,
@@ -883,6 +765,7 @@ variant.  Return strict JSON with exactly this shape:
         evaluation_id: str | None = None,
         history_context: list[dict[str, Any]] | None = None,
         history_metadata: dict[str, Any] | None = None,
+        validated_proposal: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         request = self._require_text(user_request, "user_request")
         resolved_id = evaluation_id or make_evaluation_id()
@@ -922,42 +805,55 @@ variant.  Return strict JSON with exactly this shape:
         _write_json(evaluation_dir / "request.json", {"user_request": request})
         _write_json(evaluation_dir / "plan/history_retrieval.json", history)
         _write_json(evaluation_dir / "manifest.json", manifest)
-        prompt = self._initial_prompt(request, history_context)
-        (evaluation_dir / "plan/round_1_prompt.md").write_text(
-            prompt, encoding="utf-8"
-        )
         errors: list[str] = []
-        plan = None
-        for attempt in range(2):
-            attempt_prompt = prompt
-            if errors:
-                attempt_prompt += (
-                    "\n\nPREVIOUS VALIDATION ERROR:\n"
-                    + errors[-1]
-                    + "\nReturn a complete corrected JSON object.\n"
-                )
-            try:
-                response = self.provider.text(
-                    attempt_prompt,
-                    model=self.model,
-                    system="Return only strict ClickBellEvaluationProposal JSON.",
-                    max_tokens=700,
-                    temperature=0.0,
-                )
-            except Exception as exc:
-                errors.append(f"provider call failed: {exc}")
-                continue
-            suffix = "" if attempt == 0 else f"_retry_{attempt}"
-            (evaluation_dir / f"plan/round_1_response{suffix}.txt").write_text(
-                response + "\n", encoding="utf-8"
+        provider_called = validated_proposal is None
+        plan = (
+            self._validate_proposal(
+                deepcopy(validated_proposal), user_request=request
             )
-            try:
-                plan = self._validate_proposal(
-                    extract_json_response(response), user_request=request
+            if validated_proposal is not None
+            else None
+        )
+        if validated_proposal is not None:
+            _write_json(
+                evaluation_dir / "plan/global_route_proposal.json",
+                validated_proposal,
+            )
+        else:
+            prompt = self._initial_prompt(request, history_context)
+            (evaluation_dir / "plan/round_1_prompt.md").write_text(
+                prompt, encoding="utf-8"
+            )
+            for attempt in range(2):
+                attempt_prompt = prompt
+                if errors:
+                    attempt_prompt += (
+                        "\n\nPREVIOUS VALIDATION ERROR:\n"
+                        + errors[-1]
+                        + "\nReturn a complete corrected JSON object.\n"
+                    )
+                try:
+                    response = self.provider.text(
+                        attempt_prompt,
+                        model=self.model,
+                        system="Return only strict ClickBellEvaluationProposal JSON.",
+                        max_tokens=700,
+                        temperature=0.0,
+                    )
+                except Exception as exc:
+                    errors.append(f"provider call failed: {exc}")
+                    continue
+                suffix = "" if attempt == 0 else f"_retry_{attempt}"
+                (evaluation_dir / f"plan/round_1_response{suffix}.txt").write_text(
+                    response + "\n", encoding="utf-8"
                 )
-                break
-            except (PlanAgentError, TaskGenError) as exc:
-                errors.append(str(exc))
+                try:
+                    plan = self._validate_proposal(
+                        extract_json_response(response), user_request=request
+                    )
+                    break
+                except (PlanAgentError, TaskGenError) as exc:
+                    errors.append(str(exc))
         if plan is None:
             manifest["status"] = "planning_failed"
             manifest["planner"].update(
@@ -975,10 +871,15 @@ variant.  Return strict JSON with exactly this shape:
         manifest.update({"status": "planned_round_1", "plan": plan})
         manifest["planner"].update(
             {
-                "provider_called": True,
+                "provider_called": provider_called,
+                "initial_proposal_source": (
+                    "global_query_route"
+                    if validated_proposal is not None
+                    else "task_specific_model"
+                ),
                 "round_1_metadata": dict(
                     getattr(self.provider, "last_metadata", {})
-                ),
+                ) if provider_called else {},
                 "round_1_validation_errors": errors,
             }
         )

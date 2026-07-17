@@ -258,6 +258,47 @@ class EvaluationHistoryTests(unittest.TestCase):
             self.assertEqual(cross_policy["policy"]["name"], "DiffusionPolicy")
             self.assertFalse(cross_policy["compatibility"]["same_policy"])
 
+    def test_global_retrieval_uses_only_trusted_task_allowlist(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            bbh = make_evaluation(
+                root,
+                "eval_bbh",
+                request="evaluate object generalization",
+            )
+            bell = make_evaluation(
+                root,
+                "eval_bell",
+                request="evaluate object generalization for click bell",
+                task_name="click_bell",
+            )
+            excluded = make_evaluation(
+                root,
+                "eval_excluded",
+                request="evaluate object generalization",
+                task_name="untrusted_task",
+            )
+            database = EvaluationHistoryDB(
+                root / "mea/evaluation_runs/history.sqlite3",
+                repo_root=root,
+            )
+            for directory in (bbh, bell, excluded):
+                database.index_evaluation_dir(directory)
+
+            result = database.retrieve_similar_global(
+                "evaluate object generalization",
+                allowed_task_names=["click_bell", "beat_block_hammer"],
+                policy_name="ACT",
+                checkpoint_setting="demo_clean",
+                limit=3,
+            )
+            ids = {item["evaluation_id"] for item in result["candidates"]}
+            self.assertEqual(ids, {"eval_bbh", "eval_bell"})
+            self.assertEqual(
+                result["selection_policy"]["task_filter"],
+                "trusted_allowlist",
+            )
+
     def test_rebuild_skips_corrupt_and_incomplete_entries_without_aborting(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

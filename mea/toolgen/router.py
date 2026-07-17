@@ -105,6 +105,7 @@ def route_tool_request(
     value: Any,
     *,
     run_local_registration: dict[str, Any] | None = None,
+    reviewed_registration: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Resolve an exact Tool request to reuse, force-codegen, or unsupported."""
 
@@ -137,6 +138,17 @@ def route_tool_request(
         snapshot["run_local_match"] = deepcopy(run_local_registration)
         _with_snapshot_hash(snapshot)
 
+    if reviewed_registration is not None:
+        if (
+            reviewed_registration.get("scope") != "reviewed_persistent"
+            or reviewed_registration.get("status") != "approved"
+            or reviewed_registration.get("target_metric") != metric
+            or reviewed_registration.get("task_name") != task_name
+        ):
+            raise ToolRouterError("invalid reviewed persistent registration match")
+        snapshot["reviewed_match"] = deepcopy(reviewed_registration)
+        _with_snapshot_hash(snapshot)
+
     if trusted_task_supported:
         status = "resolved"
         route = "reuse"
@@ -155,6 +167,19 @@ def route_tool_request(
         reason = (
             "exact ToolSpec, code, and telemetry schema hashes matched a "
             "validated evaluation-local Tool"
+        )
+    elif (
+        composite_task_supported
+        and metric in COMPOSITE_TARGETS
+        and reviewed_registration is not None
+    ):
+        status = "resolved"
+        route = "reviewed_persistent_reuse"
+        registry = "reviewed_tool_registry"
+        reference_tool = reviewed_registration["tool_id"]
+        reason = (
+            "explicit approval plus exact ToolSpec, code, and telemetry schema "
+            "hashes matched a reviewed persistent Tool"
         )
     elif composite_task_supported and metric in COMPOSITE_TARGETS:
         status = "resolved"
@@ -192,6 +217,8 @@ def route_tool_request(
         decision["run_local_registration"] = deepcopy(
             run_local_registration
         )
+    if reviewed_registration is not None and route == "reviewed_persistent_reuse":
+        decision["reviewed_registration"] = deepcopy(reviewed_registration)
     return {
         "tool_request": request,
         "catalog_snapshot": deepcopy(snapshot),

@@ -10,6 +10,12 @@ that the current policy succeeded. Every retrieved item preserves its policy,
 checkpoint, source commit, completion status, and repository-relative artifact
 references.
 
+Task-specific retrieval always uses an exact task filter.  Global open-query
+retrieval may cross tasks only through the current trusted ACT catalog
+allowlist; the router receives query/plan provenance, not trajectory payloads
+or historical outcome values.  A `planned_only` evaluation consumes history
+but is never indexed as completed execution evidence.
+
 The SQLite file is a rebuildable runtime cache. The canonical source is each
 completed evaluation's `summary/history_record.json`. New evaluations require
 `lifecycle_status=completed`. Legacy records are accepted only when the old

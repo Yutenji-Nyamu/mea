@@ -13,6 +13,7 @@ from mea.taskgen import create_official_task_run
 from scripts.manipeval_agent import (
     build_evidence_bundle,
     build_taskgen_command,
+    finish_unsupported_global_route,
     run_round_execution_vqa,
     summarize_round,
 )
@@ -62,6 +63,47 @@ def official_round(execution_backend: str | None = None) -> dict:
 
 
 class CrossTaskEntrypointTests(unittest.TestCase):
+    def test_auto_route_rejects_task_module_override_before_provider_setup(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            environment = dict(os.environ)
+            environment.pop("UIUI_API_KEY", None)
+            process = subprocess.run(
+                [
+                    sys.executable,
+                    str(REPO_ROOT / "scripts/manipeval_agent.py"),
+                    "--repo-root",
+                    temporary,
+                    "--request",
+                    "evaluate a bell",
+                    "--auto-route",
+                    "--task-module",
+                    "envs.click_bell",
+                ],
+                cwd=REPO_ROOT,
+                env=environment,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+            self.assertNotEqual(process.returncode, 0)
+            self.assertIn("do not pass --task-module", process.stderr)
+
+    def test_unsupported_global_route_rejects_path_escape_evaluation_id(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with self.assertRaisesRegex(ValueError, "evaluation_id"):
+                finish_unsupported_global_route(
+                    root,
+                    evaluation_id="../escape",
+                    user_request="unsupported query",
+                    catalog={},
+                    route_result={},
+                    router=object(),
+                    history_retrieval={},
+                )
+            self.assertFalse((root / "mea/escape").exists())
+
     def test_official_plan_only_does_not_require_provider_key(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
