@@ -1,4 +1,4 @@
-"""Bounded click_bell position variant that preserves official task behavior."""
+"""Bounded click_bell property variants preserving official task behavior."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from envs.utils import create_actor, rand_pose
 
 
 class click_bell(OfficialClickBell):
-    """Expose only a fixed bell XY position through ``mea.bell`` config."""
+    """Expose one trusted position or instance axis through ``mea.bell``."""
 
     def setup_demo(self, **kwargs):
         self._mea_config = kwargs.get("mea") or {}
@@ -61,7 +61,24 @@ class click_bell(OfficialClickBell):
         else:
             bell_pose = official_pose
 
-        self.bell_id = np.random.choice([0, 1], 1)[0]
+        # Always consume the official instance RNG, even when a trusted
+        # instance overlay replaces its value.  This keeps all downstream RNG
+        # ordering identical to the upstream task.
+        official_bell_id = np.random.choice([0, 1], 1)[0]
+        instance_mode = bell_config.get("instance_mode", "official_random")
+        if instance_mode not in {"official_random", "fixed"}:
+            raise ValueError(f"Unsupported bell instance_mode: {instance_mode!r}")
+        if instance_mode == "fixed":
+            requested_bell_id = bell_config.get("bell_id")
+            if (
+                isinstance(requested_bell_id, bool)
+                or not isinstance(requested_bell_id, int)
+                or requested_bell_id not in {0, 1}
+            ):
+                raise ValueError("mea.bell.bell_id must be integer 0 or 1")
+            self.bell_id = requested_bell_id
+        else:
+            self.bell_id = official_bell_id
         self.bell = create_actor(
             scene=self,
             pose=bell_pose,

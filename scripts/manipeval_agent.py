@@ -18,6 +18,7 @@ from mea.execution_vqa import build_execution_vqa_query, run_execution_vqa
 from mea.feedback import FeedbackAgent, render_evaluation_report
 from mea.history import EvaluationHistoryDB
 from mea.planner import (
+    ClickBellAdaptivePlanAgent,
     ClickBellPositionPlanAgent,
     OfficialTaskPlanAgent,
     PlanAgentPrototype,
@@ -667,6 +668,16 @@ def summarize_round(
     act = child_manifest.get("act_evaluation", {})
     expert = scene.get("expert", {})
     positions = child_manifest.get("position_samples", {})
+    variant_samples = positions.get("samples", [])
+    observed_bell_ids = sorted(
+        {
+            int(item["bell_id"])
+            for item in variant_samples
+            if isinstance(item, dict)
+            and not isinstance(item.get("bell_id"), bool)
+            and isinstance(item.get("bell_id"), int)
+        }
+    )
     policy_success = read_policy_success(child_dir / "evaluation/_result.txt")
     trusted_tools = compact_trusted_tools(child_manifest)
     is_official = round_plan.get("route") == "official"
@@ -750,6 +761,13 @@ def summarize_round(
             "policy_success": policy_success if uses_act else None,
             "position_samples": positions.get("samples", []),
             "position_metrics": positions.get("metrics", {}),
+            "controlled_axis": positions.get("controlled_axis"),
+            "variant_samples": variant_samples,
+            "variant_metrics": positions.get("metrics", {}),
+            "observed_bell_ids": observed_bell_ids,
+            "bell_instance_id": (
+                observed_bell_ids[0] if len(observed_bell_ids) == 1 else None
+            ),
             "trusted_tools": trusted_tools,
             "planned_tool": compact_tool_evaluation(tool_evaluation),
             "aggregate": compact_aggregate_result(aggregate_result),
@@ -1275,19 +1293,20 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--task-profile",
-        choices=["official", "position_lr"],
+        choices=["official", "position_lr", "adaptive_properties"],
         default="official",
         help=(
             "official preserves the upstream task. position_lr enables the "
-            "bounded two-round click_bell generated-family profile."
+            "legacy bounded two-round click_bell profile. adaptive_properties "
+            "uses model-selected position/object-instance aspects."
         ),
     )
     parser.add_argument(
         "--generated-rounds",
         type=int,
-        choices=[1, 2],
+        choices=[1, 2, 3],
         default=2,
-        help="Round budget for the bounded click_bell position_lr profile.",
+        help="Round budget for a bounded click_bell generated profile.",
     )
     parser.add_argument(
         "--execution-backend",
@@ -1348,18 +1367,24 @@ def main() -> None:
     args = parse_args()
     if args.num_episodes <= 0:
         raise SystemExit("--num-episodes must be positive")
-    bounded_click_bell = args.task_profile == "position_lr"
+    legacy_click_bell = args.task_profile == "position_lr"
+    adaptive_click_bell = args.task_profile == "adaptive_properties"
+    bounded_click_bell = legacy_click_bell or adaptive_click_bell
     if bounded_click_bell and args.task_name != "click_bell":
-        raise SystemExit("--task-profile position_lr is only defined for click_bell")
+        raise SystemExit(
+            "click_bell generated task profiles require --task-name click_bell"
+        )
     if args.task_name == "beat_block_hammer" and args.task_profile != "official":
-        raise SystemExit("beat_block_hammer does not use --task-profile position_lr")
+        raise SystemExit("beat_block_hammer does not use click_bell task profiles")
     if args.task_name == "beat_block_hammer" and args.execution_backend:
         raise SystemExit(
             "--execution-backend currently applies to schema-backed official "
             "tasks; beat_block_hammer keeps its bounded generated-task flow"
         )
     if bounded_click_bell and args.execution_backend not in {None, "act"}:
-        raise SystemExit("click_bell position_lr is ACT-only in the first version")
+        raise SystemExit("click_bell generated profiles are ACT-only")
+    if legacy_click_bell and args.generated_rounds not in {1, 2}:
+        raise SystemExit("click_bell position_lr supports at most 2 rounds")
     execution_backend = (
         "act"
         if args.task_name == "beat_block_hammer" or bounded_click_bell
@@ -1380,7 +1405,11 @@ def main() -> None:
     # any provider credential. Full execution still creates the provider for
     # final Feedback (and for VQA when an ACT video exists).
     provider = None
-    if args.task_name == "beat_block_hammer" or not args.plan_only:
+    if (
+        args.task_name == "beat_block_hammer"
+        or adaptive_click_bell
+        or not args.plan_only
+    ):
         provider = OpenAICompatibleProvider(
             base_url=args.base_url,
             text_model=models["planner"],
@@ -1394,7 +1423,18 @@ def main() -> None:
             provider,
             model=models["planner"],
         )
-    elif bounded_click_bell:
+    elif adaptive_click_bell:
+        assert provider is not None
+        planner = ClickBellAdaptivePlanAgent(
+            repo_root,
+            provider,
+            model=models["planner"],
+            start_seed=args.start_seed,
+            num_episodes=args.num_episodes,
+            telemetry_profile=args.telemetry_profile,
+            max_rounds=args.generated_rounds,
+        )
+    elif legacy_click_bell:
         planner = ClickBellPositionPlanAgent(
             repo_root,
             start_seed=args.start_seed,

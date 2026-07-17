@@ -10,7 +10,7 @@
 | 层 | 主要位置 | 职责 |
 | --- | --- | --- |
 | 端到端编排 | `scripts/manipeval_agent.py` | 创建 evaluation、执行多轮 plan、汇总证据并生成反馈 |
-| 规划 | `mea/planner/` | BBH 使用受限 Plan Agent；其他已注册任务使用确定性的 official planner |
+| 规划 | `mea/planner/` | BBH 使用受限 Plan Agent；`click_bell` 可使用证据约束的属性 Planner；其他已注册任务使用确定性的 official planner |
 | 检索与历史 | `mea/retrieval/`、`mea/history/`、`mea/knowledge/` | 检索任务/源码知识，复用历史评估上下文 |
 | TaskGen | `scripts/manipeval_taskgen.py`、`mea/taskgen/` | 生成或复用受限 task overlay；也可创建不改官方源码的 passthrough run |
 | RoboTwin 执行 | `mea/taskgen/probe.py`、`policy/ACT/eval_mea.sh` | setup/render、official expert `play_once()`、ACT rollout |
@@ -30,14 +30,14 @@
 
 Route 决定任务定义从哪里来，execution backend 决定用什么执行：
 
-- `generated` route：使用受限生成/修复的 task overlay；当前仅完整覆盖 BBH；
+- `generated` route：使用受限生成/修复的 task overlay；当前覆盖 BBH，以及 declarative `click_bell` 属性变体；
 - `official` route：直接复用 RoboTwin 官方任务，不生成或改写任务源码；
 - `expert|act|both` backend：分别表示只运行 expert、以 ACT 为被评 policy，或同时保留
   expert 验证与 ACT 评估。official route 可使用这三种 backend，不再与 expert 绑定。
 
 ### 2.1 Generated + ACT 路线
 
-当前这条路线只完整覆盖 `beat_block_hammer`（BBH）：
+当前 BBH 走受限代码生成/修复，`click_bell` 走不生成 Python 的 declarative 属性 overlay：
 
 ```text
 自然语言请求
@@ -263,26 +263,36 @@ protocol config + seed schedule
 这一层是低成本论文协议骨架，不是论文的正式 10-repeat 实验。N=1 明确标为 smoke；重复
 实际 seed、缺 artifact 或 pipeline failure 会令结果不可比较。
 
-### 7.2 第二个真正 generated family：click_bell position_lr
+### 7.2 第二个 generated family：click_bell 属性自适应
 
-`ClickBellPositionPlanAgent` 生成 left-fixed 与 right-fixed 两个受信 template；
-`mea/taskgen/click_bell.py` 只编译 `bell.xy` declarative overlay；运行时薄 subclass 位于
-`mea/tasks/click_bell.py`。两轮共用同一组 seed，policy failure 是有效实验结果，不会阻止
-第二轮；scene/pipeline failure 才提前停止。
+兼容 profile `position_lr` 仍由 `ClickBellPositionPlanAgent` 固定运行 left/right 两轮。
+新增 `adaptive_properties` 由模型从开放查询选择 `object_position`、`object_instance` 及首个
+方面；精确 variant、seed、gate 和 Tool 都由受信目录注入，模型不能任意生成执行参数。
+位置轴使用 left/right fixed XY；实例轴使用官方 base0/base1，两者包含外观、大小和接触高度
+差异，因此不把它描述成纯颜色或纯纹理变化。
 
 ```text
-position_lr Plan (left, right; same seeds)
+open query → model selects requested aspects + first aspect
+→ trusted template catalog materializes one bounded round
 → bounded VariantSpec + overlay.yml (no text codegen)
-→ preserve official RNG consumption and bell semantics
-→ simulator XY + rule + visual plausibility + expert gate per seed
-→ ACT rollout
+→ preserve official pose/instance RNG consumption and bell semantics
+→ simulator XY or task_attribute bell_id + rule + visual plausibility + expert gate
+→ ACT rollout (same click_bell checkpoint)
 → Trusted Tool + Aggregate + Dynamic Execution VQA
-→ round evidence with declared and measured bell positions
+→ hard evidence policy derives exactly one drill_down / switch_aspect / stop direction
+→ model summarizes the real evidence under that constraint → next round or stop
 ```
 
-Scene VQA 不拥有精确坐标判定权；`tracked_actors[id=bell]` 的 simulator pose 才是数值权威。
-这证明系统已不再只有“BBH generated + 其他任务 passthrough”，但仍只是位置这一种受限变化，
-也仍使用确定性 template planner，不能冒充论文中的开放式任务生成。
+位置 variant 固定 XY、保留官方随机实例；实例 variant 固定 `bell_id`、保留官方随机 pose。
+两轴都先消费官方随机调用再覆盖受控值，因此同 seed 可形成正交对照。Scene VQA 不拥有精确
+坐标或实例 ID 判定权：前者来自 `tracked_actors[id=bell]`，后者来自 simulator task attribute。
+
+证据状态机把 policy failure 与 pipeline failure 分开：流水线失败只能停止；聚合不完整或 VQA
+冲突只能在同一方面补反事实（无目标时带 unresolved 停止）；有效 policy failure 优先深挖
+同方面；成功且还有未覆盖方面时切换。Provider 返回相反动作会被拒绝并重试。当前仍是两个
+人工定义属性、四个受信 template 的最小闭环，不等同于论文中的通用开放式 TaskGen。
+一次真实 N=1 smoke 见
+[2026-07-17 开发记录](development_log_20260717_adaptive_click_bell_zh.md)。
 
 ### 7.3 缓存式 Planner / VQA 验证层
 

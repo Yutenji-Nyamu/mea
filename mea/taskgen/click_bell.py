@@ -1,4 +1,4 @@
-"""Declarative, bounded TaskGen family for click_bell position probes."""
+"""Declarative, bounded TaskGen family for click_bell property probes."""
 
 from __future__ import annotations
 
@@ -72,26 +72,62 @@ def validate_click_bell_variant_hint(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict) or set(value) != {"bell"}:
         raise ClickBellTaskGenError("variant_hint must contain only bell")
     bell = value.get("bell")
-    if not isinstance(bell, dict) or set(bell) != {"position_mode", "xy"}:
-        raise ClickBellTaskGenError(
-            "variant_hint.bell must contain exactly position_mode and xy"
-        )
-    if bell.get("position_mode") != "fixed":
-        raise ClickBellTaskGenError("click_bell v1 supports only fixed position_mode")
-    xy = bell.get("xy")
-    if not isinstance(xy, list) or len(xy) != 2:
-        raise ClickBellTaskGenError("variant_hint.bell.xy must contain two numbers")
-    try:
-        x, y = (float(xy[0]), float(xy[1]))
-    except (TypeError, ValueError) as exc:
-        raise ClickBellTaskGenError("bell xy values must be numeric") from exc
-    if not all(math.isfinite(item) for item in (x, y)):
-        raise ClickBellTaskGenError("bell xy values must be finite")
-    if not (-0.25 <= x <= 0.25) or abs(x) < 0.05:
-        raise ClickBellTaskGenError("bell x must be in the official safe side ranges")
-    if not (-0.2 <= y <= 0.0):
-        raise ClickBellTaskGenError("bell y must be inside the official range")
-    return {"bell": {"position_mode": "fixed", "xy": [x, y]}}
+    if not isinstance(bell, dict):
+        raise ClickBellTaskGenError("variant_hint.bell must be an object")
+
+    fields = set(bell)
+    position_fields = {"position_mode", "xy"}
+    instance_fields = {"position_mode", "instance_mode", "bell_id"}
+    if fields == position_fields:
+        if bell.get("position_mode") != "fixed":
+            raise ClickBellTaskGenError(
+                "position variants require position_mode=fixed"
+            )
+        xy = bell.get("xy")
+        if not isinstance(xy, list) or len(xy) != 2:
+            raise ClickBellTaskGenError(
+                "variant_hint.bell.xy must contain two numbers"
+            )
+        try:
+            x, y = (float(xy[0]), float(xy[1]))
+        except (TypeError, ValueError) as exc:
+            raise ClickBellTaskGenError("bell xy values must be numeric") from exc
+        if not all(math.isfinite(item) for item in (x, y)):
+            raise ClickBellTaskGenError("bell xy values must be finite")
+        if not (-0.25 <= x <= 0.25) or abs(x) < 0.05:
+            raise ClickBellTaskGenError(
+                "bell x must be in the official safe side ranges"
+            )
+        if not (-0.2 <= y <= 0.0):
+            raise ClickBellTaskGenError("bell y must be inside the official range")
+        return {"bell": {"position_mode": "fixed", "xy": [x, y]}}
+
+    if fields == instance_fields:
+        if bell.get("position_mode") != "official_random":
+            raise ClickBellTaskGenError(
+                "instance variants must preserve official_random position"
+            )
+        if bell.get("instance_mode") != "fixed":
+            raise ClickBellTaskGenError(
+                "instance variants require instance_mode=fixed"
+            )
+        bell_id = bell.get("bell_id")
+        if isinstance(bell_id, bool) or not isinstance(bell_id, int):
+            raise ClickBellTaskGenError("bell_id must be integer 0 or 1")
+        if bell_id not in {0, 1}:
+            raise ClickBellTaskGenError("bell_id must be integer 0 or 1")
+        return {
+            "bell": {
+                "position_mode": "official_random",
+                "instance_mode": "fixed",
+                "bell_id": bell_id,
+            }
+        }
+
+    raise ClickBellTaskGenError(
+        "variant_hint.bell must be either a strict fixed-position or "
+        "fixed-instance contract"
+    )
 
 
 def compile_click_bell_overlay(variant_hint: Any) -> dict[str, Any]:
@@ -107,7 +143,7 @@ def create_click_bell_variant_run(
     run_id: str | None = None,
     telemetry_profile: str = "balanced_v1",
 ) -> dict[str, Any]:
-    """Package a safe fixed-position overlay without pretending it is codegen."""
+    """Package a safe single-axis overlay without pretending it is codegen."""
 
     root = Path(repo_root).expanduser().resolve()
     request = str(user_request).strip()
@@ -133,14 +169,22 @@ def create_click_bell_variant_run(
         yaml.safe_dump(overlay, sort_keys=False, allow_unicode=True),
         encoding="utf-8",
     )
+    bell_change = normalized["bell"]
+    controlled_axis = (
+        "object_instance"
+        if bell_change.get("instance_mode") == "fixed"
+        else "object_position"
+    )
     spec = {
         "schema_version": 1,
         "task_name": "click_bell",
-        "intent": "evaluate_bell_position_generalization",
+        "intent": f"evaluate_bell_{controlled_axis}_generalization",
+        "controlled_axis": controlled_axis,
         "generation_mode": "bounded_variant_overlay",
         "changes": normalized,
         "preserve": [
             "official_pose_rng_consumption",
+            "official_instance_rng_consumption",
             "official_bell_assets",
             "play_once",
             "check_success",
@@ -158,7 +202,8 @@ def create_click_bell_variant_run(
         "bounded_overlay": {
             "valid": True,
             "task_module": "mea.tasks.click_bell",
-            "position_contract": normalized["bell"],
+            "controlled_axis": controlled_axis,
+            "variant_contract": normalized["bell"],
         },
         "protected_diff": {
             "valid": protected_after == protected_before,
@@ -166,7 +211,7 @@ def create_click_bell_variant_run(
         },
         "code_generation": {
             "performed": False,
-            "reason": "v1 uses a validated declarative position overlay",
+            "reason": "validated declarative single-axis overlay",
         },
     }
     if not static_validation["protected_diff"]["valid"]:

@@ -78,6 +78,21 @@ def validate_task_schema(
     ):
         raise TaskSchemaError("action_dimension 必须是非负整数")
 
+    probe_attributes = value.get("probe_task_attributes", [])
+    if (
+        not isinstance(probe_attributes, list)
+        or any(
+            not isinstance(attribute, str)
+            or not attribute.isidentifier()
+            or attribute.startswith("_")
+            for attribute in probe_attributes
+        )
+        or len(probe_attributes) != len(set(probe_attributes))
+    ):
+        raise TaskSchemaError(
+            "probe_task_attributes 必须是唯一且公开的 Python attribute 名称 list"
+        )
+
     actors = value.get("tracked_actors")
     if not isinstance(actors, list) or not actors:
         raise TaskSchemaError("TaskSchema.tracked_actors 必须是非空 list")

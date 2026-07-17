@@ -270,11 +270,10 @@ python scripts/manipeval_protocol.py --repo-root "$PWD" \
 配置 hash；缺 episode、重复实际 seed、pipeline failure 或损坏 artifact 不会被算作有效完成。
 `1/3/5` 都是开发预算，不等同于论文的 10 次正式重复。
 
-## 8. click_bell 的受限 generated 位置族
+## 8. click_bell 的受限 generated 属性族
 
-下面的 profile 运行两个 round：bell 固定在安全左侧与安全右侧，两轮使用相同 ACT seed。
-它是经过验证的 declarative overlay，不是任意代码生成；官方 bell asset、随机数消费顺序、
-`play_once()` 和 `check_success()` 均保持不变。
+兼容 profile `position_lr` 固定运行两个 round：bell 位于安全左侧与安全右侧，两轮使用相同
+ACT seed。它适合确定性回归：
 
 ```bash
 python scripts/manipeval_agent.py \
@@ -295,6 +294,32 @@ python scripts/manipeval_agent.py \
 Trusted Tool、Aggregate 与 Execution VQA。Scene VQA 只判断 bell 可见性和物理合理性，
 精确坐标始终以 simulator 数值为准。显式改为 `--num-episodes 3` 或 `5` 会增加每轮 ACT 与
 expert gate 成本；日常开发默认保持 1。
+
+开放属性 smoke 使用 `adaptive_properties`。模型只选择查询涉及的方面和解释真实证据；受信
+运行时固定 variant、seed、gate 与 Tool，并强制证据允许的下一步方向：
+
+```bash
+export UIUI_API_KEY='只放在当前 shell 环境变量中'
+
+python scripts/manipeval_agent.py \
+  --repo-root "$PWD" \
+  --request 'How well does click_bell ACT generalize across properties of the operated bell?' \
+  --task-name click_bell \
+  --task-profile adaptive_properties \
+  --generated-rounds 3 \
+  --start-seed 100401 \
+  --num-episodes 1 \
+  --max-reflections 0 \
+  --model-profile economy \
+  --no-history
+```
+
+`object_position` 的受信 variant 是 left/right fixed XY；`object_instance` 是 RoboTwin 官方
+base0/base1 实例，位置保持官方随机。实例 ID 以 simulator `task_attributes.bell_id` 为权威，
+不是由 VQA 猜测。两种属性都复用同一个 `click_bell` ACT checkpoint，不需要为每个 variant
+另下权重。`--generated-rounds` 仅接受 1 / 2 / 3；每轮默认 1 个 rollout，真实开发应先跑 1，
+再按需要放大到每轮 3 或 5。该入口目前不是 `manipeval_protocol.py` 的论文式重复统计，N=1
+结果只能称为通路 smoke。
 
 ## 9. 缓存 Planner / VQA 小验证
 

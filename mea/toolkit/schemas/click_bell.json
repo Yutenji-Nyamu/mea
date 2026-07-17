@@ -5,6 +5,7 @@
   "trusted_tool_profile": "generic_success",
   "physics_timestep_seconds": 0.004,
   "action_dimension": 14,
+  "probe_task_attributes": ["bell_id"],
   "tracked_actors": [
     {
       "id": "bell",

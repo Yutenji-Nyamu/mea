@@ -19,8 +19,11 @@ from .official import (
     OfficialTaskPlanAgent,
 )
 from .click_bell import (
+    CLICK_BELL_ADAPTIVE_ASPECTS,
+    CLICK_BELL_ADAPTIVE_TEMPLATES,
     CLICK_BELL_POSITIONS,
     CLICK_BELL_TEMPLATE_IDS,
+    ClickBellAdaptivePlanAgent,
     ClickBellPositionPlanAgent,
 )
 
@@ -41,5 +44,8 @@ __all__ = [
     "OfficialTaskPlanAgent",
     "CLICK_BELL_POSITIONS",
     "CLICK_BELL_TEMPLATE_IDS",
+    "CLICK_BELL_ADAPTIVE_ASPECTS",
+    "CLICK_BELL_ADAPTIVE_TEMPLATES",
+    "ClickBellAdaptivePlanAgent",
     "ClickBellPositionPlanAgent",
 ]

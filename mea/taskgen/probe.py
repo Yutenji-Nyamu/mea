@@ -137,6 +137,27 @@ def tracked_actor_summary(
     return summaries
 
 
+def task_attribute_summary(task: Any, schema: dict[str, Any]) -> dict[str, Any]:
+    """Snapshot trusted scalar task attributes declared by TaskSchema."""
+
+    result: dict[str, Any] = {}
+    for attribute in schema.get("probe_task_attributes", []):
+        if not hasattr(task, attribute):
+            raise AttributeError(f"declared probe task attribute is missing: {attribute}")
+        value = getattr(task, attribute)
+        item = getattr(value, "item", None)
+        if callable(item):
+            value = item()
+        if value is not None and not isinstance(value, (bool, int, float, str)):
+            raise TypeError(
+                f"probe task attribute must be a JSON scalar: {attribute}"
+            )
+        if isinstance(value, float) and not math.isfinite(value):
+            raise ValueError(f"probe task attribute must be finite: {attribute}")
+        result[attribute] = value
+    return result
+
+
 def task_schema_rule_check(
     task: Any,
     schema: dict[str, Any],
@@ -224,6 +245,7 @@ def run_probe(arguments: argparse.Namespace) -> dict[str, Any]:
         result["setup_success"] = True
         result["actors"] = actor_summary(task)
         result["tracked_actors"] = tracked_actor_summary(task, schema)
+        result["task_attributes"] = task_attribute_summary(task, schema)
         tracked_by_id = {
             actor["id"]: actor for actor in result["tracked_actors"]
         }

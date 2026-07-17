@@ -19,6 +19,7 @@ if str(REPO_ROOT) not in sys.path:
 from mea.providers import OpenAICompatibleProvider
 from mea.toolkit import evaluate_telemetry_root
 from mea.taskgen import (
+    ClickBellTaskGenError,
     TaskGenPrototype,
     VisualReflectionError,
     execute_reflection_loop,
@@ -29,6 +30,7 @@ from mea.taskgen import (
     validate_vision_observation,
     create_click_bell_variant_run,
     create_official_task_run,
+    validate_click_bell_variant_hint,
 )
 
 
@@ -385,10 +387,20 @@ def collect_click_bell_position_samples(
     num_episodes: int,
     first_scene: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    """Verify the fixed bell XY and expert gate for every requested seed."""
+    """Verify the controlled click_bell axis and expert gate for each seed."""
 
     spec = json.loads((run_dir / "variant_spec.json").read_text(encoding="utf-8"))
-    expected_xy = [float(value) for value in spec["changes"]["bell"]["xy"]]
+    bell_change = spec["changes"]["bell"]
+    expected_xy = (
+        [float(value) for value in bell_change["xy"]]
+        if bell_change.get("position_mode") == "fixed"
+        else None
+    )
+    expected_bell_id = (
+        int(bell_change["bell_id"])
+        if bell_change.get("instance_mode") == "fixed"
+        else None
+    )
     sample_root = run_dir / "validation/position_samples"
     samples: list[dict[str, Any]] = []
     for episode_index in range(num_episodes):
@@ -406,7 +418,9 @@ def collect_click_bell_position_samples(
                 image=sample_root / f"seed_{seed}.png",
                 log_path=sample_root / f"seed_{seed}.log",
             )
-        position_check = validate_click_bell_scene_position(scene, spec)
+        variant_check = validate_click_bell_scene_contract(scene, spec)
+        position_check = variant_check["position"]
+        instance_check = variant_check["instance"]
         samples.append(
             {
                 "episode_index": episode_index,
@@ -415,6 +429,11 @@ def collect_click_bell_position_samples(
                 "bell_position": position_check.get("actual_xy"),
                 "position_matched": bool(position_check.get("passed")),
                 "position_authority": position_check.get("authority"),
+                "expected_bell_id": expected_bell_id,
+                "bell_id": instance_check.get("actual_bell_id"),
+                "instance_matched": bool(instance_check.get("passed")),
+                "instance_authority": instance_check.get("authority"),
+                "variant_matched": bool(variant_check.get("passed")),
                 "rule_passed": bool(scene.get("rule_check", {}).get("passed")),
                 "expert_passed": bool(scene.get("expert", {}).get("passed")),
                 "image": scene.get("image"),
@@ -435,19 +454,32 @@ def collect_click_bell_position_samples(
     result = {
         "start_seed": start_seed,
         "num_episodes": num_episodes,
-        "position_contract": "fixed_bell_xy",
+        "controlled_axis": spec.get("controlled_axis"),
+        "variant_contract": bell_change,
         "samples": samples,
         "metrics": {
             "expected_xy": expected_xy,
+            "expected_bell_id": expected_bell_id,
             "unique_xy_count": len(unique_xy),
             "all_positions_matched": all(
                 item["position_matched"] for item in samples
             ),
             "position_varied": len(unique_xy) > 1,
+            "observed_bell_ids": sorted(
+                {
+                    int(item["bell_id"])
+                    for item in samples
+                    if isinstance(item.get("bell_id"), int)
+                    and not isinstance(item.get("bell_id"), bool)
+                }
+            ),
+            "all_instances_matched": all(
+                item["instance_matched"] for item in samples
+            ),
         },
         "passed": len(samples) == num_episodes
         and all(
-            item["position_matched"]
+            item["variant_matched"]
             and item["rule_passed"]
             and item["expert_passed"]
             for item in samples
@@ -473,11 +505,28 @@ def run_vision_check(
     response_path = response_path or run_dir / "validation/vision_response.txt"
     result_path = result_path or run_dir / "validation/vision.json"
     if spec.get("task_name") == "click_bell":
-        expected_xy = spec["changes"]["bell"]["xy"]
-        prompt = f"""这是 RoboTwin click_bell 受限位置变式的初始场景首帧。
+        bell_change = spec["changes"]["bell"]
+        if bell_change.get("instance_mode") == "fixed":
+            bell_id = int(bell_change["bell_id"])
+            visual_description = (
+                "白色 dome、黑色底座、较大实例"
+                if bell_id == 0
+                else "蓝色 dome、棕色底座、较小实例"
+            )
+            contract_description = (
+                f"本轮固定官方 bell base{bell_id}（{visual_description}），位置保持官方随机。"
+                "精确 bell_id 已由 simulator task attribute 检查负责。"
+            )
+        else:
+            expected_xy = bell_change["xy"]
+            contract_description = (
+                f"本轮固定 workspace xy={expected_xy}，bell 实例保持官方随机。"
+                "精确 XY 已由 simulator tracked actor 检查负责。"
+            )
+        prompt = f"""这是 RoboTwin click_bell 受限单轴变式的初始场景首帧。
 请只检查目标 bell 是否清晰可见、场景是否物理合理、是否存在明显多余或缺失物体。
-精确位置 xy={expected_xy} 已由 simulator tracked actor 数值检查负责，不能仅凭 RGB
-宣称精确坐标是否正确。
+{contract_description}
+不能仅凭 RGB 宣称精确坐标或实例 ID 是否正确。
 
 只输出 JSON：
 {{
@@ -534,12 +583,27 @@ half_size 是 ({expected_half_size:.6f}, {expected_half_size:.6f}, {expected_hal
     return result
 
 
-def validate_click_bell_scene_position(
+def validate_click_bell_scene_contract(
     scene: dict[str, Any], spec: dict[str, Any]
 ) -> dict[str, Any]:
-    """Use simulator state, not VQA, as the exact fixed-position authority."""
+    """Validate the controlled axis from simulator state, never from RGB."""
 
-    expected = [float(value) for value in spec["changes"]["bell"]["xy"]]
+    if not isinstance(spec, dict) or spec.get("task_name") != "click_bell":
+        raise ClickBellTaskGenError(
+            "scene contract requires a click_bell variant spec"
+        )
+    normalized = validate_click_bell_variant_hint(spec.get("changes"))
+    bell_change = normalized["bell"]
+    expected_axis = (
+        "object_instance"
+        if bell_change.get("instance_mode") == "fixed"
+        else "object_position"
+    )
+    declared_axis = spec.get("controlled_axis")
+    if declared_axis is not None and declared_axis != expected_axis:
+        raise ClickBellTaskGenError(
+            "variant spec controlled_axis does not match its strict bell contract"
+        )
     bell = next(
         (
             actor
@@ -548,23 +612,77 @@ def validate_click_bell_scene_position(
         ),
         None,
     )
-    actual = (
+    actual_xy = (
         [float(value) for value in bell.get("position", [])[:2]]
         if isinstance(bell, dict)
         else []
     )
-    passed = len(actual) == 2 and all(
-        abs(left - right) <= 1e-6 for left, right in zip(actual, expected)
-    )
+    if bell_change.get("position_mode") == "fixed":
+        expected_xy = [float(value) for value in bell_change["xy"]]
+        position_passed = len(actual_xy) == 2 and all(
+            abs(left - right) <= 1e-6
+            for left, right in zip(actual_xy, expected_xy)
+        )
+        position = {
+            "status": "passed" if position_passed else "failed",
+            "passed": position_passed,
+            "expected_xy": expected_xy,
+            "actual_xy": actual_xy,
+            "tolerance": 1e-6,
+            "authority": "simulator_tracked_actor_xy",
+        }
+    else:
+        position = {
+            "status": "not_applicable",
+            "passed": True,
+            "expected_xy": None,
+            "actual_xy": actual_xy,
+            "tolerance": None,
+            "authority": "simulator_tracked_actor_xy",
+        }
+
+    if bell_change.get("instance_mode") == "fixed":
+        expected_bell_id = int(bell_change["bell_id"])
+        actual_bell_id = (scene.get("task_attributes") or {}).get("bell_id")
+        instance_passed = (
+            not isinstance(actual_bell_id, bool)
+            and isinstance(actual_bell_id, int)
+            and actual_bell_id == expected_bell_id
+        )
+        instance = {
+            "status": "passed" if instance_passed else "failed",
+            "passed": instance_passed,
+            "expected_bell_id": expected_bell_id,
+            "actual_bell_id": actual_bell_id,
+            "authority": "simulator_task_attribute:bell_id",
+        }
+    else:
+        instance = {
+            "status": "not_applicable",
+            "passed": True,
+            "expected_bell_id": None,
+            "actual_bell_id": (scene.get("task_attributes") or {}).get("bell_id"),
+            "authority": "simulator_task_attribute:bell_id",
+        }
+
+    passed = bool(position["passed"] and instance["passed"])
     return {
         "status": "passed" if passed else "failed",
         "passed": passed,
         "actor_id": "bell",
-        "expected_xy": expected,
-        "actual_xy": actual,
-        "tolerance": 1e-6,
-        "authority": "simulator_tracked_actor_xy",
+        "controlled_axis": expected_axis,
+        "position": position,
+        "instance": instance,
+        "authorities": [position["authority"], instance["authority"]],
     }
+
+
+def validate_click_bell_scene_position(
+    scene: dict[str, Any], spec: dict[str, Any]
+) -> dict[str, Any]:
+    """Backward-compatible view of the fixed-position contract."""
+
+    return validate_click_bell_scene_contract(scene, spec)["position"]
 
 
 def run_visual_self_reflection(
@@ -605,8 +723,8 @@ def run_visual_self_reflection(
             and scene.get("rule_check", {}).get("passed")
             and scene.get("returncode") == 0
         )
-        position_validation = (
-            validate_click_bell_scene_position(scene, spec)
+        variant_validation = (
+            validate_click_bell_scene_contract(scene, spec)
             if is_click_bell and structural_probe_passed
             else {
                 "status": "not_applicable",
@@ -614,9 +732,9 @@ def run_visual_self_reflection(
                 "authority": None,
             }
         )
-        write_json(attempt_dir / "position_validation.json", position_validation)
+        write_json(attempt_dir / "variant_validation.json", variant_validation)
         probe_passed = bool(
-            structural_probe_passed and position_validation.get("passed")
+            structural_probe_passed and variant_validation.get("passed")
         )
         if probe_passed:
             vision = run_vision_check(
@@ -635,25 +753,25 @@ def run_visual_self_reflection(
                 "aligned": False,
                 "target_actor": "bell" if is_click_bell else "block",
                 "unexpected_changes": [
-                    "scene_position_mismatch"
+                    "scene_variant_mismatch"
                     if structural_probe_passed and is_click_bell
                     else "scene_probe_failed"
                 ],
                 "diagnosis": (
-                    "Simulator bell XY did not match the validated variant."
+                    "Simulator bell state did not match the validated variant."
                     if structural_probe_passed and is_click_bell
                     else f"Scene setup/render/rule probe failed: "
                     f"{error.get('type', 'unknown')}: {error.get('message', '')}"
                 ),
                 "suggestions": [
-                    "Inspect the bounded position overlay."
+                    "Inspect the bounded click_bell overlay."
                     if is_click_bell
                     else "Repair load_actors() so setup, render, hammer/block actor checks pass."
                 ],
                 "confidence": 1.0,
                 "passed": False,
-                "position_authority": (
-                    "simulator_tracked_actor_xy" if is_click_bell else None
+                "variant_authorities": (
+                    variant_validation.get("authorities") if is_click_bell else None
                 ),
                 "provider_metadata": {},
             }
@@ -672,10 +790,10 @@ def run_visual_self_reflection(
             "scene_path": str(scene_path.relative_to(run_dir)),
             "image_path": str(image_path.relative_to(run_dir)),
             "vision_path": str((attempt_dir / "vision.json").relative_to(run_dir)),
-            "position_validation_path": str(
-                (attempt_dir / "position_validation.json").relative_to(run_dir)
+            "variant_validation_path": str(
+                (attempt_dir / "variant_validation.json").relative_to(run_dir)
             ),
-            "position_validation": position_validation,
+            "variant_validation": variant_validation,
             "vision": vision,
         }
 
@@ -713,7 +831,9 @@ def run_visual_self_reflection(
     if is_click_bell:
         summary["requested_max_repairs"] = max_repairs
         summary["repair_supported"] = False
-        summary["validation_mode"] = "simulator_xy_plus_visual_plausibility"
+        summary["validation_mode"] = (
+            "simulator_position_or_instance_plus_visual_plausibility"
+        )
     write_json(reflection_dir / "summary.json", summary)
     if not summary["passed"]:
         raise VisualReflectionError(
@@ -723,10 +843,10 @@ def run_visual_self_reflection(
     final_attempt = reflection_dir / f"attempt_{summary['final_attempt']:02d}"
     shutil.copy2(final_attempt / "render.png", run_dir / "evidence/initial_head.png")
     shutil.copy2(final_attempt / "vision.json", run_dir / "validation/vision.json")
-    if (final_attempt / "position_validation.json").is_file():
+    if (final_attempt / "variant_validation.json").is_file():
         shutil.copy2(
-            final_attempt / "position_validation.json",
-            run_dir / "validation/position.json",
+            final_attempt / "variant_validation.json",
+            run_dir / "validation/variant.json",
         )
     if (final_attempt / "vision_prompt.md").is_file():
         shutil.copy2(
