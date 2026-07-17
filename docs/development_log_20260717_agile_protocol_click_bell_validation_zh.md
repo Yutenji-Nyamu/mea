@@ -34,5 +34,12 @@
   provider。Planner precision/recall/F1/exact/first-template 均为 `1.0`；VQA accuracy/coverage/
   precision 均为 `1.0`。由于只有一个 simulator-proxy 正样本，AUROC 按协议返回 `single_class`，
   不伪造数值。
-- official protocol 1×1 smoke 在首个代码提交后运行，使 manifest 冻结到包含本轮实现的 Git HEAD；
-  结果随后追加到本节。
+- official protocol：`protocol_20260717_click_bell_official_smoke` 冻结 Git HEAD `c04ec2f`。
+  第一次 attempt 误用 `/root/miniconda3/bin/python`，因缺少 `sapien` 在 setup probe fail-fast；
+  该失败记录完整保留。随后用 `/root/autodl-tmp/conda/envs/RoboTwin/bin/python` 对同一
+  repetition append-only 重试。最终 `status=completed`、`valid_for_comparison=true`、coverage
+  `1.0`，实际 seed 为 `100402`；ACT 成功 `0/1`，400 policy steps、10206 physics steps，
+  rollout wall time 约 71.0 秒，完整 Agent wall time约 181.1 秒。Execution VQA 以 0.96 置信度
+  判断未观察到按铃，与 official success 一致。两次 attempt 总 wall time 约 195.4 秒；报告保留
+  第一次 `taskgen_or_execution` 环境失败计数。协议入口随后增加 `sapien` runtime fail-fast，
+  运行指引补充服务器正确 Python 路径，避免再次浪费仿真时间。

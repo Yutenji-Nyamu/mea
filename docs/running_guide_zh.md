@@ -34,6 +34,10 @@ python -c "import sapien, torch; print('runtime imports: ok')"
 `/root/autodl-tmp/RoboTwin` 的大体积资源。这个布局不是运行协议：独立机器只要在 MEA
 根目录安装资源，并始终传 `--repo-root "$PWD"` 即可。共享机器也可以让
 `policy/ACT/act_ckpt` 指向统一的 checkpoint 目录，但不要把本地软链接提交到 Git。
+当前开发服务器的 RoboTwin 解释器是
+`/root/autodl-tmp/conda/envs/RoboTwin/bin/python`；非交互 SSH 没有执行 `conda activate` 时，
+应显式使用该路径，并先运行 `.../bin/python -c "import sapien"`。不要误用不含仿真依赖的
+`/root/miniconda3/bin/python`。协议 runner 也会在创建或恢复运行前做这项 fail-fast 检查。
 
 ## 2. 按任务下载 ACT checkpoint
 

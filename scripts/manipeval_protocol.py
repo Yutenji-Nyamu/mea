@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import subprocess
@@ -36,6 +37,21 @@ from mea.protocol import (
 )
 from mea.providers import available_model_profiles
 from mea.toolkit import load_task_schema
+
+
+def _validate_robotwin_runtime() -> None:
+    try:
+        sapien_spec = importlib.util.find_spec("sapien")
+    except (ImportError, AttributeError, ValueError) as exc:
+        raise ProtocolError(
+            f"cannot inspect the RoboTwin runtime under {sys.executable}: {exc}"
+        ) from exc
+    if sapien_spec is None:
+        raise ProtocolError(
+            "RoboTwin dependency 'sapien' is unavailable under "
+            f"{sys.executable}; activate the RoboTwin environment before "
+            "starting or resuming a protocol run"
+        )
 
 
 def _git_head(repo_root: Path) -> str | None:
@@ -305,6 +321,7 @@ def _load_manifest(repo_root: Path, run_id: str) -> tuple[Path, dict[str, Any]]:
 
 
 def run_protocol(args: argparse.Namespace) -> dict[str, Any]:
+    _validate_robotwin_runtime()
     repo_root = args.repo_root.expanduser().resolve()
     if args.resume_run:
         if args.run_id:
