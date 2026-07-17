@@ -45,6 +45,11 @@ repo-local prereg config
 evaluation id/argv 不匹配、checkpoint 或 source 内容变化、candidate suite 漂移、child identity
 不一致都会 fail closed。
 
+服务器部署中的 `policy` 可以是指向相邻 RoboTwin checkout 的目录 symlink。预注册只对两条固定
+`click_bell/demo_clean-50` checkpoint 逻辑路径放行这种部署链接，并同时记录每级链接的路径与
+target、最终解析路径、文件大小和内容 hash；链接被重定向时，即使替换文件字节相同也会拒绝。
+普通 source artifact 仍不允许经过 symlink。
+
 但应保留两个边界：manifest 的 canonical self-hash 只能发现内容篡改或漂移，不等于第三方证明
 命令真的执行过；只有 Agent/child/post-hoc 的逐层绑定加上真实 artifact 才是执行证据。当前 pair
 是 `click_bell`、同一 seed、每 candidate 一次的 N=1 微协议，只验证 Table 1 的动态节省样本机制；

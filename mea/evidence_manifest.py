@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import subprocess
 from copy import deepcopy
@@ -160,6 +161,61 @@ def _file_identity(root: Path, value: Any, *, label: str) -> dict[str, Any]:
         "path": relative,
         "size_bytes": stat.st_size,
         "sha256": _file_sha256(path),
+    }
+
+
+def _checkpoint_file_identity(
+    root: Path, value: Any, *, label: str
+) -> dict[str, Any]:
+    """Bind a fixed logical checkpoint path, its indirection, and final bytes.
+
+    MEA commonly links ``policy`` to an adjacent RoboTwin checkout.  Source
+    artifacts remain symlink-free, while the two allowlisted checkpoint paths
+    may cross that deployment link.  Recording every link plus the resolved
+    absolute path makes a later retarget fail even when the replacement bytes
+    happen to be identical.
+    """
+
+    if not isinstance(value, str) or not value or value != value.strip():
+        raise EvidenceManifestError(f"{label} must be a non-empty canonical path")
+    if "\\" in value or ":" in value:
+        raise EvidenceManifestError(f"{label} must be a POSIX repo-relative path")
+    pure = PurePosixPath(value)
+    if pure.is_absolute() or any(part in {"", ".", ".."} for part in pure.parts):
+        raise EvidenceManifestError(f"{label} must use a canonical logical path")
+    if pure.as_posix() != value:
+        raise EvidenceManifestError(f"{label} is not canonical: {value!r}")
+
+    cursor = root
+    symlink_chain: list[dict[str, str]] = []
+    for part in pure.parts:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            try:
+                target = os.readlink(cursor)
+            except OSError as exc:
+                raise EvidenceManifestError(
+                    f"cannot read checkpoint symlink {cursor}: {exc}"
+                ) from exc
+            symlink_chain.append(
+                {
+                    "path": cursor.relative_to(root).as_posix(),
+                    "target": target,
+                }
+            )
+    try:
+        resolved = cursor.resolve(strict=True)
+    except OSError as exc:
+        raise EvidenceManifestError(f"{label} is missing: {value}: {exc}") from exc
+    if not resolved.is_file():
+        raise EvidenceManifestError(f"{label} does not resolve to a regular file")
+    stat = resolved.stat()
+    return {
+        "path": value,
+        "resolved_path": resolved.as_posix(),
+        "symlink_chain": symlink_chain,
+        "size_bytes": stat.st_size,
+        "sha256": _file_sha256(resolved),
     }
 
 
@@ -364,7 +420,7 @@ def prepare_evidence_manifest(
         raise EvidenceManifestError("checkpoint_files and source_artifacts must be disjoint")
 
     checkpoints = [
-        _file_identity(root, path, label=f"checkpoint_files[{index}]")
+        _checkpoint_file_identity(root, path, label=f"checkpoint_files[{index}]")
         for index, path in enumerate(checkpoint_paths)
     ]
     sources = [
@@ -437,7 +493,7 @@ def prepare_evidence_manifest(
 
 
 def _validate_recorded_files(
-    root: Path, entries: Any, *, label: str
+    root: Path, entries: Any, *, label: str, checkpoint: bool = False
 ) -> list[dict[str, Any]]:
     if not isinstance(entries, list) or not entries:
         raise EvidenceManifestError(f"{label}.files must be a non-empty list")
@@ -446,12 +502,21 @@ def _validate_recorded_files(
     for index, entry in enumerate(entries):
         if not isinstance(entry, dict):
             raise EvidenceManifestError(f"{label}.files[{index}] must be an object")
-        _exact_keys(entry, {"path", "size_bytes", "sha256"}, f"{label}.files[{index}]")
+        expected_keys = (
+            {"path", "resolved_path", "symlink_chain", "size_bytes", "sha256"}
+            if checkpoint
+            else {"path", "size_bytes", "sha256"}
+        )
+        _exact_keys(entry, expected_keys, f"{label}.files[{index}]")
         path = entry["path"]
         if path in seen:
             raise EvidenceManifestError(f"{label} contains duplicate path: {path}")
         seen.add(path)
-        identity = _file_identity(root, path, label=f"{label}.files[{index}]")
+        identity = (
+            _checkpoint_file_identity(root, path, label=f"{label}.files[{index}]")
+            if checkpoint
+            else _file_identity(root, path, label=f"{label}.files[{index}]")
+        )
         if entry != identity:
             raise EvidenceManifestError(f"{label} artifact changed: {path}")
         actual.append(identity)
@@ -553,7 +618,9 @@ def validate_evidence_manifest(
     _exact_keys(checkpoint, {"setting", "files", "file_set_sha256"}, "checkpoint")
     if checkpoint["setting"] != "demo_clean":
         raise EvidenceManifestError("registered checkpoint setting changed")
-    checkpoint_files = _validate_recorded_files(root, checkpoint["files"], label="checkpoint")
+    checkpoint_files = _validate_recorded_files(
+        root, checkpoint["files"], label="checkpoint", checkpoint=True
+    )
     if [item["path"] for item in checkpoint_files] != _CHECKPOINT_FILES:
         raise EvidenceManifestError("registered checkpoint paths changed")
     if checkpoint["file_set_sha256"] != canonical_sha256(checkpoint_files):

@@ -1,5 +1,6 @@
 import copy
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -215,6 +216,39 @@ class EvidenceManifestTests(unittest.TestCase):
             bad["source_artifacts"] = ["configs/source_link.json"]
             with self.assertRaisesRegex(EvidenceManifestError, "symlink"):
                 prepare_evidence_manifest(root, bad)
+
+    def test_allowlisted_checkpoint_symlink_is_bound_and_retarget_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "mea"
+            root.mkdir()
+            materialize(root)
+            first = root.parent / "RoboTwinA"
+            second = root.parent / "RoboTwinB"
+            shutil.copytree(root / "policy", first / "policy")
+            shutil.copytree(root / "policy", second / "policy")
+            shutil.rmtree(root / "policy")
+            try:
+                (root / "policy").symlink_to(first / "policy", target_is_directory=True)
+            except OSError:
+                self.skipTest("symlink creation is not available on this host")
+
+            manifest = prepare_evidence_manifest(root, config(root))
+            checkpoint = manifest["checkpoint"]["files"][0]
+            self.assertEqual(checkpoint["symlink_chain"][0]["path"], "policy")
+            self.assertEqual(
+                checkpoint["resolved_path"],
+                (
+                    first
+                    / "policy/ACT/act_ckpt/act-click_bell/demo_clean-50/policy_last.ckpt"
+                ).as_posix(),
+            )
+
+            (root / "policy").unlink()
+            (root / "policy").symlink_to(second / "policy", target_is_directory=True)
+            with self.assertRaisesRegex(
+                EvidenceManifestError, "checkpoint artifact changed"
+            ):
+                validate_evidence_manifest(root, manifest)
 
     def test_prepare_and_validate_cli_execute_zero_act(self):
         with tempfile.TemporaryDirectory() as temporary:
