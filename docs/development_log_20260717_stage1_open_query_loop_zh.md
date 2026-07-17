@@ -145,6 +145,13 @@ timeout 仍被远端断开；子 simulator/ACT artifact 已落盘，但外层均
 不计为完整闭环证据。v3 改为服务器端 `nohup + stdout/stderr 重定向`，再用短 SSH 只读轮询，
 完整完成。该策略已写入运行指引。
 
+两条真实 evaluation 也都发生在本批开发 worktree 尚未提交时，其 manifest 的
+`base_commit=f0219d0a766f93da185d5f75fca4dfbcf28d78a5`，不能单靠该字段重建当时的 dirty diff。
+核心实现随后提交为 `28a257fb2ce1bc4a8b7b8ad7ce54ab4ec76bf587`，并在实验后补入了路径约束、末轮
+`unresolved`、symlink 写入和 provenance 等安全回归；这些修复不改变上述成功/失败样本的
+解释，但意味着本批 live 结果只作为开发期功能 smoke，不是 clean-commit、paper-eligible
+实验。后续进入论文表实验前，必须从 clean final HEAD（或其后继）重新运行预注册的小协议。
+
 ## 当前诚实结论
 
 Stage 1 已满足受限功能门槛：开放 query 能真实选择 task/aspect/checkpoint，Task/Tool 能复用或
