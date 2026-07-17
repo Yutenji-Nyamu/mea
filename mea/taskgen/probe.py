@@ -54,7 +54,9 @@ def load_task_args(
     args["eval_mode"] = bool(eval_mode)
     args["eval_video_save_dir"] = None
 
-    with open(os.path.join(CONFIGS_PATH, "_embodiment_config.yml"), "r", encoding="utf-8") as handle:
+    with open(
+        os.path.join(CONFIGS_PATH, "_embodiment_config.yml"), "r", encoding="utf-8"
+    ) as handle:
         embodiment_types = yaml.safe_load(handle)
 
     embodiment = args["embodiment"]
@@ -143,15 +145,15 @@ def task_attribute_summary(task: Any, schema: dict[str, Any]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for attribute in schema.get("probe_task_attributes", []):
         if not hasattr(task, attribute):
-            raise AttributeError(f"declared probe task attribute is missing: {attribute}")
+            raise AttributeError(
+                f"declared probe task attribute is missing: {attribute}"
+            )
         value = getattr(task, attribute)
         item = getattr(value, "item", None)
         if callable(item):
             value = item()
         if value is not None and not isinstance(value, (bool, int, float, str)):
-            raise TypeError(
-                f"probe task attribute must be a JSON scalar: {attribute}"
-            )
+            raise TypeError(f"probe task attribute must be a JSON scalar: {attribute}")
         if isinstance(value, float) and not math.isfinite(value):
             raise ValueError(f"probe task attribute must be finite: {attribute}")
         result[attribute] = value
@@ -168,9 +170,7 @@ def task_schema_rule_check(
     """Setup-only structural checks shared by every schema-backed task."""
 
     scene_names = {actor["name"] for actor in scene_actors}
-    declared_scene_names = {
-        actor["scene_name"] for actor in schema["tracked_actors"]
-    }
+    declared_scene_names = {actor["scene_name"] for actor in schema["tracked_actors"]}
     numeric_values: list[float] = []
     for actor in tracked_actors:
         numeric_values.extend(actor["position"])
@@ -182,8 +182,7 @@ def task_schema_rule_check(
             numeric_values.extend(point["raw"])
     checks = {
         "all_tracked_actor_attributes_present": all(
-            hasattr(task, actor["task_attribute"])
-            for actor in schema["tracked_actors"]
+            hasattr(task, actor["task_attribute"]) for actor in schema["tracked_actors"]
         ),
         "declared_scene_names_present": declared_scene_names.issubset(scene_names),
         "finite_tracked_actor_state": bool(numeric_values)
@@ -243,22 +242,30 @@ def run_probe(arguments: argparse.Namespace) -> dict[str, Any]:
         task = task_class()
         task.setup_demo(now_ep_num=0, seed=arguments.seed, is_test=True, **args)
         result["setup_success"] = True
+        cluttered_objects = (getattr(task, "info", {}) or {}).get(
+            "cluttered_table_info", []
+        )
+        if not isinstance(cluttered_objects, list):
+            cluttered_objects = []
+        result["domain_randomization"] = {
+            "cluttered_table": bool(getattr(task, "cluttered_table", False)),
+            "clean_background_rate": float(getattr(task, "clean_background_rate", 1.0)),
+            "cluttered_object_count": len(cluttered_objects),
+            "cluttered_objects": cluttered_objects,
+            "authority": "simulator_task_info:cluttered_table_info",
+        }
         result["actors"] = actor_summary(task)
         result["tracked_actors"] = tracked_actor_summary(task, schema)
         result["task_attributes"] = task_attribute_summary(task, schema)
-        tracked_by_id = {
-            actor["id"]: actor for actor in result["tracked_actors"]
-        }
+        tracked_by_id = {actor["id"]: actor for actor in result["tracked_actors"]}
         # Preserve the original BBH probe contract for existing reports/tests.
         if "block" in tracked_by_id:
             result["block_pose"] = {
-                key: tracked_by_id["block"][key]
-                for key in ("position", "quaternion")
+                key: tracked_by_id["block"][key] for key in ("position", "quaternion")
             }
         if "hammer" in tracked_by_id:
             result["hammer_pose"] = {
-                key: tracked_by_id["hammer"][key]
-                for key in ("position", "quaternion")
+                key: tracked_by_id["hammer"][key] for key in ("position", "quaternion")
             }
         task.save_camera_rgb(str(image), camera_name="head_camera")
         result["render_success"] = image.is_file() and image.stat().st_size > 0
@@ -277,8 +284,7 @@ def run_probe(arguments: argparse.Namespace) -> dict[str, Any]:
                     "has_hammer": "020_hammer" in actor_names,
                     "has_block": "box" in actor_names,
                     "finite_block_pose": all(
-                        abs(value) < 100
-                        for value in result["block_pose"]["position"]
+                        abs(value) < 100 for value in result["block_pose"]["position"]
                     ),
                 }
             )
@@ -360,11 +366,7 @@ def run_probe(arguments: argparse.Namespace) -> dict[str, Any]:
             "message": str(exc),
             "traceback": traceback.format_exc(),
         }
-        if (
-            recorder is not None
-            and recorder_started
-            and not recorder.finished
-        ):
+        if recorder is not None and recorder_started and not recorder.finished:
             recorder.record_error(exc)
             if task is not None:
                 task._mea_recorder = None

@@ -449,3 +449,69 @@ retrieval provenance，以及 `wrong_color` 错误注入形成的
 全局开放 Query、通用 evidence transition、reviewed persistent Tool registry、TaskGen acceptance
 以及 click_bell/BBH 真实 Stage 1 证据见
 [2026-07-17 开放 Query 核心闭环 Stage 1 开发记录](development_log_20260717_stage1_open_query_loop_zh.md)。
+
+## 9. 论文协议补齐：proxy 标注、真实 clutter 与恢复
+
+### 9.1 Table 6-facing Planner 验证
+
+`configs/manipeval_validation/query_aspects_development_agent_proxy_v1.json` 保存 20 条经过
+开发代理复核的 query/aspect 标签，并按 object、scene、performance、safety、language/multi-task
+分类。它与被测 `GlobalQueryRouter` 分离；runner 会实时调用 Planner，而不是复用预写答案。
+unsupported 能力使用 `(task_name, aspect_id)`，避免“某 aspect 在任务 A 支持，就被错误当成在
+所有任务都支持”的全局 union 漏洞。
+
+```text
+20-query proxy labels + current trusted ACT catalog
+→ stale-label fail-fast
+→ live GlobalQueryRouter call (budget 1/3/5/20)
+→ strict schema/task/capability/aspect/first-aspect scoring
+→ dataset/catalog SHA-256 + JSON trace + Markdown report
+```
+
+这仍不是论文 Table 6：`human_reviewer_count=0`、`paper_table_eligible=false`，后续必须用独立
+多人 majority 标注替换 development-agent proxy。
+
+### 9.2 simulator-native clean / scene-clutter VQA
+
+`click_bell` 的 `robustness.scene_clutter` capability 编译为 RoboTwin 原生
+`domain_randomization.cluttered_table=true` 且 `clean_background_rate=0`。场景合同从
+`task.info.cluttered_table_info` 读取实际 clutter 对象与数量；这不是 RGB 后处理或 image proxy。
+同 seed 的 clean 与 clutter rollout 继续使用同一 ACT checkpoint，验证器还要求 bell pose、
+quaternion 与 instance 一致，确保比较只改变场景 clutter。
+
+```text
+open query → robustness.scene_clutter
+→ bounded overlay → RoboTwin native clutter generation
+→ simulator-state + render + rule + expert gates
+→ ACT N=1 → Trusted Tool/Aggregate
+→ reviewed VQAQuerySpec selects allowlisted questions
+→ Dynamic Execution VQA
+→ proxy labels audit clean vs clutter completed artifacts
+```
+
+VQAQuerySpec registry 只能选择代码中已有的可信视觉现象，不能注入自由 prompt；spec、review 与
+index 均由精确 hash 固定，路径越界、symlink、篡改或多重匹配一律 fail closed。当前 reviewer
+是 `development_agent_proxy`，因此 N=1 汇总的 AUROC 固定为 `null`，仍不具论文 Tables 7–8
+资格。
+
+### 9.3 fixed-suite 对照、微消融与有界恢复
+
+`ClickBellFixedSuitePlanAgent` 在第一条 rollout 前冻结与动态 Planner 相同的候选 template suite；
+后续 policy/VQA 证据被记录但不用于路由。`mea/strategy_comparison.py` 只接受同 task、ACT
+逻辑配置、telemetry profile、base commit、开放 query、global route、candidate-suite hash 与
+`(variant_id, seed)` 身份；fixed 还必须完整覆盖冻结 suite，缺失 success 或路径越界直接拒绝。
+它只验证 Table 1-facing 的效率机制，不是论文用标准 benchmark 对 MEA 的原始 Table 1 对照；
+N=1 也不计算 Table 2 一致性。checkpoint 文件内容 hash 尚未进入合同。
+
+`mea/micro_ablation.py` 只读既有真实 TaskGen/ToolGen artifact，并用确定性 fault counterfactual
+完成 4 个 functional gate check；第 5 行只证明 RAG provenance，不计入 functional summary，
+也没有 no-RAG effect estimate。它启动 0 次 ACT，不能产生论文 Table 3 的生成成功率。
+
+Agent 的 Tool orchestration 子阶段现在有最多一次保守恢复：仅未预期运行异常可重试；路由、
+语义、验证、policy 或 simulator failure 都不可重试。恢复前后对完整 telemetry 树做内容 hash，
+复用同一条已录制 trajectory，恢复额外启动 ACT 为 0；但 generated route 可能重复 provider 或
+registry 工作，因此不能称纯确定性分析重放，也不同于论文 App. A.3.4 的整轮 restart。每个
+attempt 的 started/result 文件均 append-only 保存。
+
+本批实现、真实同 seed Clean/Clutter `N=1`、开发代理标注结果和明确的论文边界见
+[2026-07-17 Planner/VQA 代理验证、真实 Clutter 与协议补齐](development_log_20260717_proxy_clutter_protocol_zh.md)。

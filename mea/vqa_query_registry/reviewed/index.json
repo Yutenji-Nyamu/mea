@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "scope": "reviewed_persistent_vqa_query_specs",
+  "entries": [
+    {
+      "spec_id": "vqa_click_bell_scene_clutter_v1",
+      "spec_artifact": "entries/vqa_click_bell_scene_clutter_v1/spec.json",
+      "spec_artifact_sha256": "bcfbc295ce03664dffb4956d57fb0f0f0259885e98104c50246cf86b0548198b",
+      "spec_sha256": "921044216807e5f09421b239ebf96c551a3ccb58accd88d578834d0cc69e082b",
+      "review_artifact": "entries/vqa_click_bell_scene_clutter_v1/review.json",
+      "review_artifact_sha256": "7654e333f93b2eda61019859076c983a2c5e45520ca028aa2eb625400ba0e931"
+    }
+  ]
+}

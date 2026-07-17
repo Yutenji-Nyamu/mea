@@ -51,6 +51,14 @@ CLICK_BELL_ADAPTIVE_ASPECTS = {
             "object_instance.base1",
         ],
     },
+    "robustness.scene_clutter": {
+        "description": (
+            "Robustness to RoboTwin's simulator-native tabletop clutter while "
+            "preserving the official bell pose, instance sampling, task logic, "
+            "and ACT checkpoint."
+        ),
+        "template_ids": ["robustness.scene_clutter.official_table"],
+    },
 }
 
 CLICK_BELL_ADAPTIVE_TEMPLATES = {
@@ -58,17 +66,13 @@ CLICK_BELL_ADAPTIVE_TEMPLATES = {
         "aspect_id": "object_position",
         "probe_role": "sentinel",
         "description": "Safe fixed left-workspace position.",
-        "variant_hint": {
-            "bell": {"position_mode": "fixed", "xy": [-0.20, -0.08]}
-        },
+        "variant_hint": {"bell": {"position_mode": "fixed", "xy": [-0.20, -0.08]}},
     },
     "object_position.right_fixed": {
         "aspect_id": "object_position",
         "probe_role": "counterfactual",
         "description": "Mirrored safe right-workspace position.",
-        "variant_hint": {
-            "bell": {"position_mode": "fixed", "xy": [0.20, -0.08]}
-        },
+        "variant_hint": {"bell": {"position_mode": "fixed", "xy": [0.20, -0.08]}},
     },
     "object_instance.base0": {
         "aspect_id": "object_instance",
@@ -91,6 +95,20 @@ CLICK_BELL_ADAPTIVE_TEMPLATES = {
                 "position_mode": "official_random",
                 "instance_mode": "fixed",
                 "bell_id": 1,
+            }
+        },
+    },
+    "robustness.scene_clutter.official_table": {
+        "aspect_id": "robustness.scene_clutter",
+        "probe_role": "sentinel",
+        "description": (
+            "Official click_bell scene plus simulator-generated physical "
+            "tabletop distractors."
+        ),
+        "variant_hint": {
+            "domain_randomization": {
+                "cluttered_table": True,
+                "clean_background_rate": 0.0,
             }
         },
     },
@@ -163,7 +181,9 @@ class ClickBellPositionPlanAgent:
             raise PlanAgentError("click_bell max_rounds must be 1 or 2")
         load_task_schema(self.repo_root, "click_bell")
 
-    def _round(self, template_id: str, round_number: int, request: str) -> dict[str, Any]:
+    def _round(
+        self, template_id: str, round_number: int, request: str
+    ) -> dict[str, Any]:
         xy = CLICK_BELL_POSITIONS[template_id]
         side = "left" if xy[0] < 0 else "right"
         seeds = [self.start_seed + index for index in range(self.num_episodes)]
@@ -184,9 +204,7 @@ class ClickBellPositionPlanAgent:
             "task_module": "mea.tasks.click_bell",
             "telemetry_profile": self.telemetry_profile,
             "route": "reuse",
-            "variant_hint": {
-                "bell": {"position_mode": "fixed", "xy": list(xy)}
-            },
+            "variant_hint": {"bell": {"position_mode": "fixed", "xy": list(xy)}},
             "execution": {
                 "backend": "act",
                 "seeds": seeds,
@@ -230,7 +248,9 @@ class ClickBellPositionPlanAgent:
             raise PlanAgentError("evaluation_id must begin with 'eval_'")
         evaluation_dir = self.repo_root / "mea/evaluation_runs" / resolved_id
         if evaluation_dir.exists():
-            raise PlanAgentError(f"evaluation directory already exists: {evaluation_dir}")
+            raise PlanAgentError(
+                f"evaluation directory already exists: {evaluation_dir}"
+            )
         for child in ("plan", "execution", "summary"):
             (evaluation_dir / child).mkdir(parents=True, exist_ok=False)
 
@@ -243,7 +263,12 @@ class ClickBellPositionPlanAgent:
             "matches": [
                 {
                     key: item.get(key)
-                    for key in ("evaluation_id", "user_request", "task_name", "similarity")
+                    for key in (
+                        "evaluation_id",
+                        "user_request",
+                        "task_name",
+                        "similarity",
+                    )
                 }
                 for item in (history_context or [])
                 if isinstance(item, dict)
@@ -302,7 +327,9 @@ class ClickBellPositionPlanAgent:
         if completed != len(rounds) or completed < 1:
             raise PlanAgentError("click_bell planner expects one observation per round")
         latest = observation_history[-1]
-        can_continue = bool(latest.get("pipeline_passed")) and completed < self.max_rounds
+        can_continue = (
+            bool(latest.get("pipeline_passed")) and completed < self.max_rounds
+        )
         remaining_templates = list(CLICK_BELL_TEMPLATE_IDS[completed : self.max_rounds])
         updated = deepcopy(current_plan)
         if can_continue:
@@ -311,7 +338,9 @@ class ClickBellPositionPlanAgent:
             updated["rounds"].append(next_round)
             updated["planning_state"] = f"awaiting_round_{completed + 1}_observation"
             action = "continue"
-            reason = "The first position pipeline passed; evaluate the mirrored position."
+            reason = (
+                "The first position pipeline passed; evaluate the mirrored position."
+            )
         else:
             next_template = None
             next_round = None
@@ -324,7 +353,9 @@ class ClickBellPositionPlanAgent:
             )
         assessment = {
             "schema_version": 1,
-            "state": "sufficient" if latest.get("pipeline_passed") else "pipeline_failure",
+            "state": "sufficient"
+            if latest.get("pipeline_passed")
+            else "pipeline_failure",
             "required_action": action,
             "pipeline_passed": bool(latest.get("pipeline_passed")),
             "reason": reason,
@@ -381,8 +412,10 @@ class ClickBellAdaptivePlanAgent:
         self.max_rounds = int(max_rounds)
         if self.num_episodes <= 0:
             raise PlanAgentError("num_episodes must be positive")
-        if self.max_rounds not in {1, 2, 3}:
-            raise PlanAgentError("adaptive click_bell max_rounds must be 1, 2, or 3")
+        if self.max_rounds not in {1, 2, 3, 4, 5}:
+            raise PlanAgentError(
+                "adaptive click_bell max_rounds must be between 1 and 5"
+            )
         load_task_schema(self.repo_root, "click_bell")
 
     @staticmethod
@@ -407,9 +440,7 @@ class ClickBellAdaptivePlanAgent:
         return [
             template_id
             for aspect_id in aspect_ids
-            for template_id in CLICK_BELL_ADAPTIVE_ASPECTS[aspect_id][
-                "template_ids"
-            ]
+            for template_id in CLICK_BELL_ADAPTIVE_ASPECTS[aspect_id]["template_ids"]
         ]
 
     def _materialize_round(
@@ -422,11 +453,11 @@ class ClickBellAdaptivePlanAgent:
             raise PlanAgentError(f"unknown click_bell template: {template_id}")
         template = CLICK_BELL_ADAPTIVE_TEMPLATES[template_id]
         seeds = [self.start_seed + index for index in range(self.num_episodes)]
-        capability_id = (
-            "object_position.fixed_xy"
-            if template["aspect_id"] == "object_position"
-            else "object_instance.official_id"
-        )
+        capability_id = {
+            "object_position": "object_position.fixed_xy",
+            "object_instance": "object_instance.official_id",
+            "robustness.scene_clutter": "robustness.scene_clutter",
+        }[template["aspect_id"]]
         return {
             "round_id": f"round_{round_number}",
             "template_id": template_id,
@@ -436,8 +467,7 @@ class ClickBellAdaptivePlanAgent:
             "probe_role": template["probe_role"],
             "rationale": template["description"],
             "task_instruction": (
-                f"{user_request} Trusted bounded variant: "
-                f"{template['description']}"
+                f"{user_request} Trusted bounded variant: " f"{template['description']}"
             ),
             "task_name": "click_bell",
             "task_module": "mea.tasks.click_bell",
@@ -464,6 +494,7 @@ class ClickBellAdaptivePlanAgent:
                 "scene_alignment",
                 "bell_position",
                 "bell_instance_id",
+                "scene_clutter",
                 "expert_solvable",
                 "policy_success",
                 "trusted_tools",
@@ -510,9 +541,7 @@ class ClickBellAdaptivePlanAgent:
         if first_aspect not in aspect_ids:
             raise PlanAgentError("first_aspect_id must be requested")
         requested_templates = self._templates_for_aspects(aspect_ids)
-        first_template = CLICK_BELL_ADAPTIVE_ASPECTS[first_aspect][
-            "template_ids"
-        ][0]
+        first_template = CLICK_BELL_ADAPTIVE_ASPECTS[first_aspect]["template_ids"][0]
         return {
             "schema_version": 6,
             "task_name": "click_bell",
@@ -616,9 +645,9 @@ class ClickBellAdaptivePlanAgent:
                     f"next_aspect_id is not available for {transition}: "
                     f"{allowed_aspects}"
                 )
-            next_template = assessment["remaining_template_ids_by_aspect"][
-                next_aspect
-            ][0]
+            next_template = assessment["remaining_template_ids_by_aspect"][next_aspect][
+                0
+            ]
             next_round = self._materialize_round(
                 next_template,
                 len(current_plan["rounds"]) + 1,
@@ -773,7 +802,9 @@ variant.  Return strict JSON with exactly this shape:
             raise PlanAgentError("evaluation_id must begin with 'eval_'")
         evaluation_dir = self.repo_root / "mea/evaluation_runs" / resolved_id
         if evaluation_dir.exists():
-            raise PlanAgentError(f"evaluation directory already exists: {evaluation_dir}")
+            raise PlanAgentError(
+                f"evaluation directory already exists: {evaluation_dir}"
+            )
         for child in ("plan", "execution", "summary"):
             (evaluation_dir / child).mkdir(parents=True, exist_ok=False)
 
@@ -808,9 +839,7 @@ variant.  Return strict JSON with exactly this shape:
         errors: list[str] = []
         provider_called = validated_proposal is None
         plan = (
-            self._validate_proposal(
-                deepcopy(validated_proposal), user_request=request
-            )
+            self._validate_proposal(deepcopy(validated_proposal), user_request=request)
             if validated_proposal is not None
             else None
         )
@@ -877,9 +906,9 @@ variant.  Return strict JSON with exactly this shape:
                     if validated_proposal is not None
                     else "task_specific_model"
                 ),
-                "round_1_metadata": dict(
-                    getattr(self.provider, "last_metadata", {})
-                ) if provider_called else {},
+                "round_1_metadata": dict(getattr(self.provider, "last_metadata", {}))
+                if provider_called
+                else {},
                 "round_1_validation_errors": errors,
             }
         )
@@ -901,7 +930,9 @@ variant.  Return strict JSON with exactly this shape:
         completed = len(history)
         evaluation_dir = self.repo_root / "mea/evaluation_runs" / evaluation_id
         if not evaluation_dir.is_dir():
-            raise PlanAgentError(f"evaluation directory does not exist: {evaluation_dir}")
+            raise PlanAgentError(
+                f"evaluation directory does not exist: {evaluation_dir}"
+            )
         assessment = self._assess_evidence(current_plan, history)
         _write_json(
             evaluation_dir / f"plan/evidence_after_round_{completed}.json",
@@ -909,9 +940,7 @@ variant.  Return strict JSON with exactly this shape:
         )
         prompt = self._decision_prompt(user_request, current_plan, history)
         stem = f"decision_after_round_{completed}"
-        (evaluation_dir / f"plan/{stem}_prompt.md").write_text(
-            prompt, encoding="utf-8"
-        )
+        (evaluation_dir / f"plan/{stem}_prompt.md").write_text(prompt, encoding="utf-8")
         errors: list[str] = []
         decision = None
         for attempt in range(2):
@@ -963,9 +992,9 @@ variant.  Return strict JSON with exactly this shape:
         updated.setdefault("round_decisions", []).append(decision)
         if decision["action"] == "continue":
             updated["rounds"].append(decision["next_round"])
-            updated["planning_state"] = (
-                f"awaiting_round_{len(updated['rounds'])}_observation"
-            )
+            updated[
+                "planning_state"
+            ] = f"awaiting_round_{len(updated['rounds'])}_observation"
         else:
             updated["planning_state"] = f"stopped_after_round_{completed}"
         _write_json(evaluation_dir / f"plan/{stem}.json", decision)
@@ -974,9 +1003,119 @@ variant.  Return strict JSON with exactly this shape:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         manifest.update({"status": updated["planning_state"], "plan": updated})
         planner = manifest.setdefault("planner", {})
-        planner[f"{stem}_metadata"] = dict(
-            getattr(self.provider, "last_metadata", {})
-        )
+        planner[f"{stem}_metadata"] = dict(getattr(self.provider, "last_metadata", {}))
         planner[f"{stem}_validation_errors"] = errors
+        _write_json(manifest_path, manifest)
+        return updated, decision
+
+
+class ClickBellFixedSuitePlanAgent(ClickBellAdaptivePlanAgent):
+    """Execute a frozen trusted template suite without evidence-driven routing.
+
+    The global model may still decompose the open query once.  After that, the
+    schedule is fixed before the first rollout: policy success and VQA evidence
+    are reported but never used to choose the next template.  Pipeline failure
+    still stops execution because continuing would not yield comparable data.
+    """
+
+    def plan(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        manifest = super().plan(*args, **kwargs)
+        plan = manifest["plan"]
+        plan["planning_policy"] = "fixed_predeclared_v1"
+        plan["frozen_before_first_rollout"] = True
+        manifest["plan"] = plan
+        manifest["planning_policy"] = "fixed_predeclared_v1"
+        manifest["planner"]["kind"] = "fixed_predeclared_click_bell_v1"
+        evaluation_dir = (
+            self.repo_root / "mea/evaluation_runs" / manifest["evaluation_id"]
+        )
+        _write_json(evaluation_dir / "plan/evaluation_plan.json", plan)
+        _write_json(evaluation_dir / "manifest.json", manifest)
+        return manifest
+
+    def decide_next_round(
+        self,
+        *,
+        evaluation_id: str,
+        user_request: str,
+        current_plan: dict[str, Any],
+        observation_history: list[dict[str, Any]],
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        history = self._validate_observations(current_plan, observation_history)
+        completed = len(history)
+        latest = history[-1]
+        executed = {
+            str(round_plan.get("template_id"))
+            for round_plan in current_plan.get("rounds", [])
+        }
+        remaining = [
+            template_id
+            for template_id in current_plan.get("requested_template_ids", [])
+            if template_id not in executed
+        ]
+        budget_remaining = max(int(current_plan.get("max_rounds") or 0) - completed, 0)
+        pipeline_passed = bool(latest.get("pipeline_passed"))
+        can_continue = pipeline_passed and bool(remaining) and budget_remaining > 0
+        next_template = remaining[0] if can_continue else None
+        next_round = (
+            self._materialize_round(next_template, completed + 1, user_request)
+            if next_template is not None
+            else None
+        )
+        updated = deepcopy(current_plan)
+        if next_round is not None:
+            updated["rounds"].append(next_round)
+            updated["planning_state"] = f"awaiting_round_{completed + 1}_observation"
+            action = "continue"
+            reason = "advance_to_next_predeclared_template"
+        else:
+            updated["planning_state"] = f"stopped_after_round_{completed}"
+            action = "stop"
+            reason = (
+                "pipeline_failure_forces_stop"
+                if not pipeline_passed
+                else "fixed_schedule_complete"
+                if not remaining
+                else "fixed_round_budget_exhausted"
+            )
+        assessment = {
+            "schema_version": 1,
+            "planning_policy": "fixed_predeclared_v1",
+            "pipeline_passed": pipeline_passed,
+            "policy_evidence_used_for_routing": False,
+            "vqa_evidence_used_for_routing": False,
+            "remaining_template_ids": remaining,
+            "round_budget_remaining": budget_remaining,
+            "required_action": action,
+            "reason": reason,
+        }
+        decision = {
+            "schema_version": 1,
+            "action": action,
+            "transition": "fixed_advance" if can_continue else "stop",
+            "observation_summary": (
+                "Evidence was recorded but did not alter the frozen schedule."
+            ),
+            "decision_reason": reason,
+            "next_aspect_id": (
+                CLICK_BELL_ADAPTIVE_TEMPLATES[next_template]["aspect_id"]
+                if next_template is not None
+                else None
+            ),
+            "next_template_id": next_template,
+            "evidence_assessment": assessment,
+            "next_round": next_round,
+        }
+        updated.setdefault("round_decisions", []).append(decision)
+        evaluation_dir = self.repo_root / "mea/evaluation_runs" / evaluation_id
+        stem = f"decision_after_round_{completed}"
+        _write_json(
+            evaluation_dir / f"plan/evidence_after_round_{completed}.json", assessment
+        )
+        _write_json(evaluation_dir / f"plan/{stem}.json", decision)
+        _write_json(evaluation_dir / "plan/evaluation_plan.json", updated)
+        manifest_path = evaluation_dir / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest.update({"status": updated["planning_state"], "plan": updated})
         _write_json(manifest_path, manifest)
         return updated, decision

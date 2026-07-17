@@ -9,6 +9,7 @@ profile so existing callers keep the previous behaviour.
 from __future__ import annotations
 
 from copy import deepcopy
+from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 
@@ -27,18 +28,14 @@ QUESTION_CATALOG: dict[str, dict[str, Any]] = {
     "hammer_visibly_lifted": {
         "question_type": "visible_state_change",
         "target_role": "manipulated_tool",
-        "question": (
-            "Is the hammer visibly lifted above its initial resting height?"
-        ),
+        "question": ("Is the hammer visibly lifted above its initial resting height?"),
         "visual_scope": "rollout_change",
         "numeric_authority": "simulator_pickup_threshold_is_authoritative",
     },
     "block_visibly_displaced": {
         "question_type": "visible_state_change",
         "target_role": "target_object",
-        "question": (
-            "Is the target block visibly displaced from its initial pose?"
-        ),
+        "question": ("Is the target block visibly displaced from its initial pose?"),
         "visual_scope": "rollout_change",
         "numeric_authority": "simulator_pose_is_authoritative_when_available",
     },
@@ -46,6 +43,16 @@ QUESTION_CATALOG: dict[str, dict[str, Any]] = {
         "question_type": "visible_state_change",
         "target_role": "task_target",
         "question": "Does the robot visibly press or actuate the target bell?",
+        "visual_scope": "rollout_change",
+        "numeric_authority": "official_check_success_is_authoritative",
+    },
+    "bell_target_selected_among_clutter": {
+        "question_type": "visible_target_selection",
+        "target_role": "task_target",
+        "question": (
+            "Among the tabletop clutter, does the robot visibly act on the "
+            "target bell rather than a distractor?"
+        ),
         "visual_scope": "rollout_change",
         "numeric_authority": "official_check_success_is_authoritative",
     },
@@ -83,21 +90,17 @@ TEMPLATE_QUESTION_RULES: dict[str, tuple[str, ...]] = {
     "object_appearance.color_blue": ("block_color_blue",),
 }
 TASK_TEMPLATE_QUESTION_RULES: dict[tuple[str, str], tuple[str, ...]] = {
-    ("click_bell", "task_execution.official_baseline"): (
+    ("click_bell", "task_execution.official_baseline"): ("bell_visibly_pressed",),
+    ("click_bell", "object_position.left_fixed"): ("bell_visibly_pressed",),
+    ("click_bell", "object_position.right_fixed"): ("bell_visibly_pressed",),
+    ("click_bell", "robustness.scene_clutter.official_table"): (
         "bell_visibly_pressed",
-    ),
-    ("click_bell", "object_position.left_fixed"): (
-        "bell_visibly_pressed",
-    ),
-    ("click_bell", "object_position.right_fixed"): (
-        "bell_visibly_pressed",
+        "bell_target_selected_among_clutter",
     ),
     ("adjust_bottle", "task_execution.official_baseline"): (
         "bottle_visibly_repositioned",
     ),
-    ("grab_roller", "task_execution.official_baseline"): (
-        "roller_visibly_lifted",
-    ),
+    ("grab_roller", "task_execution.official_baseline"): ("roller_visibly_lifted",),
 }
 SUB_ASPECT_QUESTION_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("object_appearance.color", ("block_color_blue",)),
@@ -124,12 +127,8 @@ METRIC_QUESTION_RULES: dict[str, tuple[str, ...]] = {
 }
 TASK_METRIC_QUESTION_RULES: dict[tuple[str, str], tuple[str, ...]] = {
     ("click_bell", "official_check_success"): ("bell_visibly_pressed",),
-    ("adjust_bottle", "official_check_success"): (
-        "bottle_visibly_repositioned",
-    ),
-    ("grab_roller", "official_check_success"): (
-        "roller_visibly_lifted",
-    ),
+    ("adjust_bottle", "official_check_success"): ("bottle_visibly_repositioned",),
+    ("grab_roller", "official_check_success"): ("roller_visibly_lifted",),
 }
 
 QUERY_KEYS = {
@@ -200,6 +199,7 @@ def build_execution_vqa_query(
     template_id: str | None = None,
     sub_aspect: str | None = None,
     tool_contract: Mapping[str, Any] | None = None,
+    reviewed_registry_dir: str | Path | None = None,
 ) -> dict[str, Any]:
     """Build a deterministic, allowlisted visual query contract.
 
@@ -236,6 +236,27 @@ def build_execution_vqa_query(
     elif metric in METRIC_QUESTION_RULES:
         _append_unique(selected, METRIC_QUESTION_RULES[metric])
         reasons.append(f"tool_metric:{metric}")
+
+    if reviewed_registry_dir is not None:
+        from .reviewed_registry import (
+            load_reviewed_vqa_query_specs,
+            match_reviewed_vqa_query_spec,
+        )
+
+        reviewed_entries = load_reviewed_vqa_query_specs(reviewed_registry_dir)
+        reviewed = match_reviewed_vqa_query_spec(
+            reviewed_entries,
+            task_name=task,
+            template_id=template,
+            sub_aspect=aspect,
+            tool_metric=metric,
+        )
+        if reviewed is not None:
+            selected = list(reviewed["spec"]["phenomenon_ids"])
+            reasons = [
+                "reviewed_vqa_query_spec:"
+                f"{reviewed['spec']['spec_id']}:{reviewed['spec_sha256']}"
+            ]
 
     if not selected:
         selected = list(LEGACY_PHENOMENON_IDS)

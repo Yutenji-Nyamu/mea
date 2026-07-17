@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 from mea.planner import (
     ClickBellAdaptivePlanAgent,
+    ClickBellFixedSuitePlanAgent,
     ClickBellPositionPlanAgent,
     PlanAgentError,
 )
@@ -111,9 +112,7 @@ def adaptive_observation(
         "observations": {
             "policy_success": policy_success,
             "planned_tool": {
-                "route_decision": {
-                    "metric": "bell_active_tcp_min_xy_error"
-                },
+                "route_decision": {"metric": "bell_active_tcp_min_xy_error"},
                 "episodes": [
                     {
                         "role": "policy_under_evaluation",
@@ -162,9 +161,7 @@ class ClickBellGeneratedTests(unittest.TestCase):
             }
         }
         self.assertEqual(validate_click_bell_variant_hint(hint), hint)
-        self.assertEqual(
-            compile_click_bell_overlay(hint)["mea"]["bell"]["bell_id"], 0
-        )
+        self.assertEqual(compile_click_bell_overlay(hint)["mea"]["bell"]["bell_id"], 0)
         for invalid in (True, -1, 2):
             with self.subTest(bell_id=invalid), self.assertRaises(
                 ClickBellTaskGenError
@@ -190,6 +187,44 @@ class ClickBellGeneratedTests(unittest.TestCase):
                 }
             )
 
+    def test_real_scene_clutter_variant_is_strict_and_compiles_overlay(self):
+        hint = {
+            "domain_randomization": {
+                "cluttered_table": True,
+                "clean_background_rate": 0.0,
+            }
+        }
+        self.assertEqual(validate_click_bell_variant_hint(hint), hint)
+        self.assertEqual(
+            compile_click_bell_overlay(hint),
+            {"domain_randomization": hint["domain_randomization"]},
+        )
+        for invalid in (
+            {
+                "domain_randomization": {
+                    "cluttered_table": False,
+                    "clean_background_rate": 0.0,
+                }
+            },
+            {
+                "domain_randomization": {
+                    "cluttered_table": True,
+                    "clean_background_rate": 1.0,
+                }
+            },
+            {
+                "domain_randomization": {
+                    "cluttered_table": True,
+                    "clean_background_rate": 0.0,
+                    "random_light": True,
+                }
+            },
+        ):
+            with self.subTest(invalid=invalid), self.assertRaises(
+                ClickBellTaskGenError
+            ):
+                validate_click_bell_variant_hint(invalid)
+
     def test_bounded_run_records_overlay_not_codegen(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -197,9 +232,7 @@ class ClickBellGeneratedTests(unittest.TestCase):
             manifest = create_click_bell_variant_run(
                 root,
                 "evaluate bell position",
-                variant_hint={
-                    "bell": {"position_mode": "fixed", "xy": [-0.2, -0.08]}
-                },
+                variant_hint={"bell": {"position_mode": "fixed", "xy": [-0.2, -0.08]}},
                 run_id="run_click_bell_position_test",
             )
             self.assertEqual(manifest["mode"], "reuse")
@@ -233,6 +266,35 @@ class ClickBellGeneratedTests(unittest.TestCase):
             )
             self.assertEqual(spec["controlled_axis"], "object_instance")
             self.assertEqual(spec["changes"]["bell"]["bell_id"], 1)
+
+    def test_clutter_run_records_simulator_capability(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            make_repo(root)
+            manifest = create_click_bell_variant_run(
+                root,
+                "evaluate bell robustness to real scene clutter",
+                variant_hint={
+                    "domain_randomization": {
+                        "cluttered_table": True,
+                        "clean_background_rate": 0.0,
+                    }
+                },
+                run_id="run_click_bell_clutter_test",
+            )
+            spec = json.loads(
+                (
+                    root
+                    / "mea/generated_tasks/run_click_bell_clutter_test/variant_spec.json"
+                ).read_text(encoding="utf-8")
+            )
+            self.assertEqual(spec["controlled_axis"], "robustness.scene_clutter")
+            self.assertEqual(manifest["capability_id"], "robustness.scene_clutter")
+            overlay = (
+                root / "mea/generated_tasks/run_click_bell_clutter_test/overlay.yml"
+            ).read_text(encoding="utf-8")
+            self.assertIn("cluttered_table: true", overlay)
+            self.assertNotIn("random_light", overlay)
 
     def test_planner_continues_left_to_right_with_same_seeds(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -290,7 +352,9 @@ class ClickBellGeneratedTests(unittest.TestCase):
             next_aspect,
             next_template,
         ) in enumerate(cases):
-            with self.subTest(policy_success=policy_success), tempfile.TemporaryDirectory() as temporary:
+            with self.subTest(
+                policy_success=policy_success
+            ), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
                 make_repo(root)
                 provider = AdaptiveProvider(
@@ -329,6 +393,71 @@ class ClickBellGeneratedTests(unittest.TestCase):
                 self.assertIn('"aggregate"', decision_prompt)
                 self.assertIn('"execution_vqa"', decision_prompt)
 
+    def test_fixed_suite_records_evidence_without_rerouting(self):
+        proposal = {
+            "schema_version": 1,
+            "task_name": "click_bell",
+            "evaluation_goal": "compare a frozen position and instance suite",
+            "requested_aspect_ids": ["object_position", "object_instance"],
+            "first_aspect_id": "object_position",
+        }
+        for policy_success in (0.0, 1.0):
+            with self.subTest(
+                policy_success=policy_success
+            ), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                make_repo(root)
+                provider = SequenceProvider([])
+                planner = ClickBellFixedSuitePlanAgent(
+                    root,
+                    provider,
+                    model="fake",
+                    start_seed=10,
+                    num_episodes=1,
+                    max_rounds=4,
+                )
+                evaluation_id = f"eval_bell_fixed_{int(policy_success)}"
+                manifest = planner.plan(
+                    "evaluate bell properties",
+                    evaluation_id=evaluation_id,
+                    validated_proposal=proposal,
+                )
+                plan = manifest["plan"]
+                self.assertTrue(plan["frozen_before_first_rollout"])
+                self.assertEqual(
+                    plan["requested_template_ids"],
+                    [
+                        "object_position.left_fixed",
+                        "object_position.right_fixed",
+                        "object_instance.base0",
+                        "object_instance.base1",
+                    ],
+                )
+                updated, decision = planner.decide_next_round(
+                    evaluation_id=evaluation_id,
+                    user_request="evaluate bell properties",
+                    current_plan=plan,
+                    observation_history=[
+                        adaptive_observation(policy_success=policy_success)
+                    ],
+                )
+                self.assertEqual(decision["transition"], "fixed_advance")
+                self.assertEqual(
+                    decision["next_template_id"],
+                    "object_position.right_fixed",
+                )
+                self.assertFalse(
+                    decision["evidence_assessment"]["policy_evidence_used_for_routing"]
+                )
+                self.assertFalse(
+                    decision["evidence_assessment"]["vqa_evidence_used_for_routing"]
+                )
+                self.assertEqual(
+                    updated["rounds"][1]["template_id"],
+                    "object_position.right_fixed",
+                )
+                self.assertEqual(provider.prompts, [])
+
     def test_adaptive_planner_rejects_decisions_against_required_evidence(self):
         cases = (
             (
@@ -345,9 +474,7 @@ class ClickBellGeneratedTests(unittest.TestCase):
             ),
             (
                 "conflict_cannot_switch",
-                adaptive_observation(
-                    policy_success=1.0, evidence_conflict=True
-                ),
+                adaptive_observation(policy_success=1.0, evidence_conflict=True),
                 "switch_aspect",
                 "object_instance",
             ),
@@ -374,12 +501,11 @@ class ClickBellGeneratedTests(unittest.TestCase):
                         observation_history=[observation],
                     )
                 failed = json.loads(
-                    (root / f"mea/evaluation_runs/{evaluation_id}/manifest.json")
-                    .read_text(encoding="utf-8")
+                    (
+                        root / f"mea/evaluation_runs/{evaluation_id}/manifest.json"
+                    ).read_text(encoding="utf-8")
                 )
-                self.assertEqual(
-                    failed["status"], "decision_failed_after_round_1"
-                )
+                self.assertEqual(failed["status"], "decision_failed_after_round_1")
 
     def test_adaptive_planner_retries_malformed_proposal_and_decision(self):
         proposal = json.dumps(
@@ -415,9 +541,7 @@ class ClickBellGeneratedTests(unittest.TestCase):
                 "evaluate bell properties", evaluation_id="eval_bell_retry_plan"
             )
             self.assertEqual(len(provider.prompts), 2)
-            self.assertEqual(
-                len(manifest["planner"]["round_1_validation_errors"]), 1
-            )
+            self.assertEqual(len(manifest["planner"]["round_1_validation_errors"]), 1)
 
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -438,15 +562,12 @@ class ClickBellGeneratedTests(unittest.TestCase):
             )
             self.assertEqual(resolved["transition"], "switch_aspect")
             saved = json.loads(
-                (root / "mea/evaluation_runs/eval_bell_retry_decision/manifest.json")
-                .read_text(encoding="utf-8")
+                (
+                    root / "mea/evaluation_runs/eval_bell_retry_decision/manifest.json"
+                ).read_text(encoding="utf-8")
             )
             self.assertEqual(
-                len(
-                    saved["planner"][
-                        "decision_after_round_1_validation_errors"
-                    ]
-                ),
+                len(saved["planner"]["decision_after_round_1_validation_errors"]),
                 1,
             )
 
@@ -466,9 +587,7 @@ class ClickBellGeneratedTests(unittest.TestCase):
                 user_request="evaluate bell properties",
                 current_plan=manifest["plan"],
                 observation_history=[
-                    adaptive_observation(
-                        policy_success=0.0, pipeline_passed=False
-                    )
+                    adaptive_observation(policy_success=0.0, pipeline_passed=False)
                 ],
             )
             self.assertEqual(decision["action"], "stop")
@@ -484,9 +603,7 @@ class ClickBellGeneratedTests(unittest.TestCase):
             "task_name": "click_bell",
             "task_module": "mea.tasks.click_bell",
             "route": "reuse",
-            "variant_hint": {
-                "bell": {"position_mode": "fixed", "xy": [-0.2, -0.08]}
-            },
+            "variant_hint": {"bell": {"position_mode": "fixed", "xy": [-0.2, -0.08]}},
             "execution": {"backend": "act", "seeds": [7], "num_episodes": 1},
         }
         command, _ = build_taskgen_command(
@@ -515,11 +632,7 @@ class ClickBellGeneratedTests(unittest.TestCase):
                 }
             },
         }
-        scene = {
-            "tracked_actors": [
-                {"id": "bell", "position": [-0.2, -0.08, 0.741]}
-            ]
-        }
+        scene = {"tracked_actors": [{"id": "bell", "position": [-0.2, -0.08, 0.741]}]}
         self.assertTrue(validate_click_bell_scene_position(scene, spec)["passed"])
         vision = validate_click_bell_vision_observation(
             {
@@ -536,11 +649,7 @@ class ClickBellGeneratedTests(unittest.TestCase):
         self.assertEqual(vision["position_authority"], "simulator_tracked_actor_xy")
 
     def test_scene_contract_rejects_malformed_or_mislabeled_spec(self):
-        scene = {
-            "tracked_actors": [
-                {"id": "bell", "position": [-0.2, -0.08, 0.741]}
-            ]
-        }
+        scene = {"tracked_actors": [{"id": "bell", "position": [-0.2, -0.08, 0.741]}]}
         invalid_specs = (
             {"task_name": "click_bell", "changes": {"bell": {}}},
             {
@@ -555,9 +664,7 @@ class ClickBellGeneratedTests(unittest.TestCase):
             },
         )
         for spec in invalid_specs:
-            with self.subTest(spec=spec), self.assertRaises(
-                ClickBellTaskGenError
-            ):
+            with self.subTest(spec=spec), self.assertRaises(ClickBellTaskGenError):
                 validate_click_bell_scene_contract(scene, spec)
 
     def test_scene_contract_infers_axis_for_legacy_strict_position_spec(self):
@@ -570,11 +677,7 @@ class ClickBellGeneratedTests(unittest.TestCase):
                 }
             },
         }
-        scene = {
-            "tracked_actors": [
-                {"id": "bell", "position": [-0.2, -0.08, 0.741]}
-            ]
-        }
+        scene = {"tracked_actors": [{"id": "bell", "position": [-0.2, -0.08, 0.741]}]}
         result = validate_click_bell_scene_contract(scene, spec)
         self.assertTrue(result["passed"])
         self.assertEqual(result["controlled_axis"], "object_position")
@@ -592,9 +695,7 @@ class ClickBellGeneratedTests(unittest.TestCase):
             },
         }
         scene = {
-            "tracked_actors": [
-                {"id": "bell", "position": [-0.2, -0.08, 0.741]}
-            ],
+            "tracked_actors": [{"id": "bell", "position": [-0.2, -0.08, 0.741]}],
             "task_attributes": {"bell_id": 1},
         }
         result = validate_click_bell_scene_contract(scene, spec)
@@ -607,6 +708,51 @@ class ClickBellGeneratedTests(unittest.TestCase):
             {**scene, "task_attributes": {"bell_id": 0}}, spec
         )
         self.assertFalse(mismatch["passed"])
+
+    def test_scene_clutter_uses_simulator_task_info_as_authority(self):
+        spec = {
+            "task_name": "click_bell",
+            "controlled_axis": "robustness.scene_clutter",
+            "changes": {
+                "domain_randomization": {
+                    "cluttered_table": True,
+                    "clean_background_rate": 0.0,
+                }
+            },
+        }
+        scene = {
+            "tracked_actors": [{"id": "bell", "position": [-0.2, -0.08, 0.741]}],
+            "task_attributes": {"bell_id": 1},
+            "domain_randomization": {
+                "cluttered_table": True,
+                "clean_background_rate": 0.0,
+                "cluttered_object_count": 2,
+                "cluttered_objects": [
+                    {"object_type": "cup", "object_index": 0},
+                    {"object_type": "can", "object_index": 1},
+                ],
+            },
+        }
+        result = validate_click_bell_scene_contract(scene, spec)
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["clutter"]["actual_count"], 2)
+        self.assertEqual(
+            result["clutter"]["authority"],
+            "simulator_task_info:cluttered_table_info",
+        )
+        without_clutter = validate_click_bell_scene_contract(
+            {
+                **scene,
+                "domain_randomization": {
+                    "cluttered_table": True,
+                    "clean_background_rate": 0.0,
+                    "cluttered_object_count": 0,
+                    "cluttered_objects": [],
+                },
+            },
+            spec,
+        )
+        self.assertFalse(without_clutter["passed"])
 
     def test_probe_task_attribute_summary_normalizes_scalar(self):
         class Scalar:

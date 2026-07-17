@@ -24,6 +24,13 @@ from .query import (
     build_execution_vqa_query,
     validate_execution_vqa_query,
 )
+from .reviewed_registry import (
+    ReviewedVQAQuerySpecError,
+    load_reviewed_vqa_query_specs,
+    match_reviewed_vqa_query_spec,
+    validate_vqa_query_review,
+    validate_vqa_query_spec,
+)
 
 __all__ = [
     "ExecutionVQAError",
@@ -41,4 +48,9 @@ __all__ = [
     "ExecutionVQAQueryError",
     "build_execution_vqa_query",
     "validate_execution_vqa_query",
+    "ReviewedVQAQuerySpecError",
+    "load_reviewed_vqa_query_specs",
+    "match_reviewed_vqa_query_spec",
+    "validate_vqa_query_review",
+    "validate_vqa_query_spec",
 ]

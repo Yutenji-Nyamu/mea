@@ -95,6 +95,49 @@ class ExecutionVQAQueryTests(unittest.TestCase):
         )
         self.assertEqual(parsed["phenomena"][0]["id"], "bell_visibly_pressed")
 
+    def test_scene_clutter_template_selects_target_specific_questions(self):
+        query = build_execution_vqa_query(
+            task_name="click_bell",
+            template_id="robustness.scene_clutter.official_table",
+            sub_aspect="robustness.scene_clutter",
+            tool_contract={"metric": "official_check_success"},
+        )
+        self.assertEqual(
+            query["phenomenon_ids"],
+            [
+                "bell_visibly_pressed",
+                "bell_target_selected_among_clutter",
+            ],
+        )
+        self.assertEqual(
+            query["selection_reasons"][0],
+            "task_template:click_bell:robustness.scene_clutter.official_table",
+        )
+        self.assertNotIn("block_color_blue", query["phenomenon_ids"])
+
+    def test_reviewed_clutter_spec_is_hash_pinned_and_reused(self):
+        repo_root = Path(__file__).resolve().parents[2]
+        registry = repo_root / "mea/vqa_query_registry/reviewed"
+        query = build_execution_vqa_query(
+            task_name="click_bell",
+            template_id="robustness.scene_clutter.official_table",
+            sub_aspect="robustness.scene_clutter",
+            tool_contract={"metric": "official_check_success"},
+            reviewed_registry_dir=registry,
+        )
+        self.assertEqual(
+            query["phenomenon_ids"],
+            [
+                "bell_visibly_pressed",
+                "bell_target_selected_among_clutter",
+            ],
+        )
+        self.assertTrue(
+            query["selection_reasons"][0].startswith(
+                "reviewed_vqa_query_spec:vqa_click_bell_scene_clutter_v1:"
+            )
+        )
+
     def test_new_official_tasks_select_their_own_visual_contracts(self):
         expected = {
             "adjust_bottle": "bottle_visibly_repositioned",
@@ -179,9 +222,7 @@ class ExecutionVQAQueryTests(unittest.TestCase):
             allowed_frame_ids=["initial", "final"],
             expected_phenomenon_ids=expected,
         )
-        self.assertEqual(
-            [item["id"] for item in parsed["phenomena"]], expected
-        )
+        self.assertEqual([item["id"] for item in parsed["phenomena"]], expected)
         unexpected = response_for(expected + ["block_color_blue"])
         with self.assertRaisesRegex(ExecutionVQAError, "not allowlisted"):
             validate_execution_vqa_response(

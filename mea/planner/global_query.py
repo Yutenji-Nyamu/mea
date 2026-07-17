@@ -24,7 +24,7 @@ _ROUTE_KEYS = {
     "evaluation_goal",
     "requested_aspect_ids",
     "first_aspect_id",
-    "unsupported_aspect_ids",
+    "unsupported_capabilities",
 }
 
 
@@ -48,6 +48,29 @@ def _unique_text_list(value: Any, field: str, *, allow_empty: bool) -> list[str]
     return normalized
 
 
+def _capability_gaps(
+    value: Any, field: str, *, allow_empty: bool
+) -> list[dict[str, str]]:
+    if not isinstance(value, list) or (not allow_empty and not value):
+        qualifier = "possibly empty" if allow_empty else "non-empty"
+        raise GlobalRouteError(f"{field} must be a {qualifier} list")
+    normalized: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for index, item in enumerate(value):
+        if not isinstance(item, Mapping) or set(item) != {"task_name", "aspect_id"}:
+            raise GlobalRouteError(
+                f"{field}[{index}] must contain exactly task_name and aspect_id"
+            )
+        task_name = _require_text(item.get("task_name"), f"{field}[{index}].task_name")
+        aspect_id = _require_text(item.get("aspect_id"), f"{field}[{index}].aspect_id")
+        identity = (task_name, aspect_id)
+        if identity in seen:
+            raise GlobalRouteError(f"{field} must not contain duplicates")
+        seen.add(identity)
+        normalized.append({"task_name": task_name, "aspect_id": aspect_id})
+    return normalized
+
+
 def validate_route_selection(
     value: Mapping[str, Any], catalog: Mapping[str, Any]
 ) -> dict[str, Any]:
@@ -59,8 +82,8 @@ def validate_route_selection(
             f"GlobalRouteSelection fields must be exactly {sorted(_ROUTE_KEYS)}"
         )
     proposal = deepcopy(dict(value))
-    if proposal.get("schema_version") != 1:
-        raise GlobalRouteError("GlobalRouteSelection schema_version must be 1")
+    if proposal.get("schema_version") != 2:
+        raise GlobalRouteError("GlobalRouteSelection schema_version must be 2")
     decision = proposal.get("decision")
     if decision not in {"route", "unsupported"}:
         raise GlobalRouteError("decision must be route or unsupported")
@@ -72,16 +95,16 @@ def validate_route_selection(
         "requested_aspect_ids",
         allow_empty=decision == "unsupported",
     )
-    unsupported = _unique_text_list(
-        proposal.get("unsupported_aspect_ids"),
-        "unsupported_aspect_ids",
+    unsupported = _capability_gaps(
+        proposal.get("unsupported_capabilities"),
+        "unsupported_capabilities",
         allow_empty=decision == "route",
     )
     proposal["requested_aspect_ids"] = requested
-    proposal["unsupported_aspect_ids"] = unsupported
+    proposal["unsupported_capabilities"] = unsupported
 
-    supported_aspects = {
-        aspect["aspect_id"]
+    supported_capabilities = {
+        (task["task_name"], aspect["aspect_id"])
         for task in trusted_catalog["tasks"]
         for aspect in task["aspects"]
     }
@@ -97,10 +120,15 @@ def validate_route_selection(
             raise GlobalRouteError(
                 "unsupported decision requires no requested aspects and at least one gap"
             )
-        false_gaps = sorted(set(unsupported) & supported_aspects)
+        false_gaps = sorted(
+            (item["task_name"], item["aspect_id"])
+            for item in unsupported
+            if (item["task_name"], item["aspect_id"]) in supported_capabilities
+        )
         if false_gaps:
             raise GlobalRouteError(
-                f"supported aspects cannot be declared unsupported: {false_gaps}"
+                "supported task-qualified capabilities cannot be declared "
+                f"unsupported: {false_gaps}"
             )
         return proposal
 
@@ -153,12 +181,16 @@ def _extract_json_response(response: str) -> dict[str, Any]:
     return value
 
 
-def _compact_history(history_context: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+def _compact_history(
+    history_context: list[dict[str, Any]] | None
+) -> list[dict[str, Any]]:
     compact: list[dict[str, Any]] = []
     for item in (history_context or [])[:3]:
         if not isinstance(item, dict):
             continue
-        planning = item.get("planning") if isinstance(item.get("planning"), dict) else {}
+        planning = (
+            item.get("planning") if isinstance(item.get("planning"), dict) else {}
+        )
         compatibility = (
             item.get("compatibility")
             if isinstance(item.get("compatibility"), dict)
@@ -193,25 +225,30 @@ def build_global_route_prompt(
         example_task = trusted_catalog["tasks"][0]
         example_aspect = example_task["aspects"][0]["aspect_id"]
         example = {
-            "schema_version": 1,
+            "schema_version": 2,
             "decision": "route",
             "task_name": example_task["task_name"],
             "task_profile": example_task["task_profile"],
             "evaluation_goal": "evaluate the requested supported capability",
             "requested_aspect_ids": [example_aspect],
             "first_aspect_id": example_aspect,
-            "unsupported_aspect_ids": [],
+            "unsupported_capabilities": [],
         }
     else:
         example = {
-            "schema_version": 1,
+            "schema_version": 2,
             "decision": "unsupported",
             "task_name": None,
             "task_profile": None,
             "evaluation_goal": "report that no ACT-ready route is available",
             "requested_aspect_ids": [],
             "first_aspect_id": None,
-            "unsupported_aspect_ids": ["capability.no_act_ready_task"],
+            "unsupported_capabilities": [
+                {
+                    "task_name": "unresolved_task",
+                    "aspect_id": "capability.no_act_ready_task",
+                }
+            ],
         }
     return f"""You are the bounded global Plan Agent for an ACT-only MEA reproduction.
 Select one ACT-ready task, its single trusted profile, the query-relevant
@@ -219,7 +256,9 @@ aspects, and the first aspect.  Use only the catalog below.  Never output paths,
 Python, modules, checkpoints, seeds, gates, tools, variants, or execution fields.
 If the query requires any capability outside the catalog, return
 decision=\"unsupported\", null task/profile/first_aspect, no requested aspects,
-and list the unsupported semantic aspect ids.  Historical plans are planning
+and list task-qualified unsupported capability objects.  A capability can be
+supported for one task and unsupported for another, so never omit task_name
+from a gap.  Historical plans are planning
 priors only and never current-run execution evidence.
 
 USER QUERY:
@@ -292,9 +331,7 @@ class GlobalQueryRouter:
                 "provider_called": True,
                 "attempt_count": attempt_count,
                 "validation_errors": errors,
-                "provider_metadata": dict(
-                    getattr(self.provider, "last_metadata", {})
-                ),
+                "provider_metadata": dict(getattr(self.provider, "last_metadata", {})),
             }
             raise GlobalRouteError(f"global route failed twice: {errors}")
         resolved = None
@@ -363,8 +400,7 @@ def route_to_bbh_proposal(
 
     route, task = _validated_routed_task(selection, catalog, "beat_block_hammer")
     aspect_map = {
-        aspect["aspect_id"]: list(aspect["template_ids"])
-        for aspect in task["aspects"]
+        aspect["aspect_id"]: list(aspect["template_ids"]) for aspect in task["aspects"]
     }
     requested_templates = [
         template_id
@@ -372,7 +408,9 @@ def route_to_bbh_proposal(
         for template_id in aspect_map[aspect_id]
     ]
     first_template = aspect_map[route["first_aspect_id"]][0]
-    if any(template_id not in SUB_ASPECT_CATALOG for template_id in requested_templates):
+    if any(
+        template_id not in SUB_ASPECT_CATALOG for template_id in requested_templates
+    ):
         raise GlobalRouteError("BBH catalog route no longer matches SUB_ASPECT_CATALOG")
     return {
         "schema_version": 5,
@@ -392,7 +430,9 @@ def route_to_planner_proposal(
 
     route = validate_route_selection(selection, catalog)
     if route["decision"] != "route":
-        raise GlobalRouteError("unsupported selection has no executable planner proposal")
+        raise GlobalRouteError(
+            "unsupported selection has no executable planner proposal"
+        )
     task = catalog_task(catalog, route["task_name"])
     proposal = (
         route_to_click_proposal(route, catalog)

@@ -70,8 +70,37 @@ def _make_run_id() -> str:
 
 
 def validate_click_bell_variant_hint(value: Any) -> dict[str, Any]:
-    if not isinstance(value, dict) or set(value) != {"bell"}:
-        raise ClickBellTaskGenError("variant_hint must contain only bell")
+    if not isinstance(value, dict):
+        raise ClickBellTaskGenError("variant_hint must be an object")
+    if set(value) == {"domain_randomization"}:
+        randomization = value.get("domain_randomization")
+        if not isinstance(randomization, dict) or set(randomization) != {
+            "cluttered_table",
+            "clean_background_rate",
+        }:
+            raise ClickBellTaskGenError(
+                "clutter variant requires exactly cluttered_table and "
+                "clean_background_rate"
+            )
+        rate = randomization.get("clean_background_rate")
+        if randomization.get("cluttered_table") is not True:
+            raise ClickBellTaskGenError("cluttered_table must be true")
+        if isinstance(rate, bool) or not isinstance(rate, (int, float)):
+            raise ClickBellTaskGenError("clean_background_rate must be numeric")
+        if float(rate) != 0.0:
+            raise ClickBellTaskGenError(
+                "scene clutter probes require clean_background_rate=0"
+            )
+        return {
+            "domain_randomization": {
+                "cluttered_table": True,
+                "clean_background_rate": 0.0,
+            }
+        }
+    if set(value) != {"bell"}:
+        raise ClickBellTaskGenError(
+            "variant_hint must contain only bell or domain_randomization"
+        )
     bell = value.get("bell")
     if not isinstance(bell, dict):
         raise ClickBellTaskGenError("variant_hint.bell must be an object")
@@ -81,14 +110,10 @@ def validate_click_bell_variant_hint(value: Any) -> dict[str, Any]:
     instance_fields = {"position_mode", "instance_mode", "bell_id"}
     if fields == position_fields:
         if bell.get("position_mode") != "fixed":
-            raise ClickBellTaskGenError(
-                "position variants require position_mode=fixed"
-            )
+            raise ClickBellTaskGenError("position variants require position_mode=fixed")
         xy = bell.get("xy")
         if not isinstance(xy, list) or len(xy) != 2:
-            raise ClickBellTaskGenError(
-                "variant_hint.bell.xy must contain two numbers"
-            )
+            raise ClickBellTaskGenError("variant_hint.bell.xy must contain two numbers")
         try:
             x, y = (float(xy[0]), float(xy[1]))
         except (TypeError, ValueError) as exc:
@@ -109,9 +134,7 @@ def validate_click_bell_variant_hint(value: Any) -> dict[str, Any]:
                 "instance variants must preserve official_random position"
             )
         if bell.get("instance_mode") != "fixed":
-            raise ClickBellTaskGenError(
-                "instance variants require instance_mode=fixed"
-            )
+            raise ClickBellTaskGenError("instance variants require instance_mode=fixed")
         bell_id = bell.get("bell_id")
         if isinstance(bell_id, bool) or not isinstance(bell_id, int):
             raise ClickBellTaskGenError("bell_id must be integer 0 or 1")
@@ -133,7 +156,9 @@ def validate_click_bell_variant_hint(value: Any) -> dict[str, Any]:
 
 def compile_click_bell_overlay(variant_hint: Any) -> dict[str, Any]:
     normalized = validate_click_bell_variant_hint(variant_hint)
-    return {"mea": {"enabled": True, "bell": normalized["bell"]}}
+    if "bell" in normalized:
+        return {"mea": {"enabled": True, "bell": normalized["bell"]}}
+    return {"domain_randomization": normalized["domain_randomization"]}
 
 
 def create_click_bell_variant_run(
@@ -171,19 +196,22 @@ def create_click_bell_variant_run(
         yaml.safe_dump(overlay, sort_keys=False, allow_unicode=True),
         encoding="utf-8",
     )
-    bell_change = normalized["bell"]
-    controlled_axis = (
-        "object_instance"
-        if bell_change.get("instance_mode") == "fixed"
-        else "object_position"
-    )
-    capability_id = {
-        "object_position": "object_position.fixed_xy",
-        "object_instance": "object_instance.official_id",
-    }[controlled_axis]
-    resolved_variant_id = str(
-        variant_id
-        or (
+    bell_change = normalized.get("bell")
+    if bell_change is None:
+        controlled_axis = "robustness.scene_clutter"
+        capability_id = "robustness.scene_clutter"
+        default_variant_id = "robustness.scene_clutter.official10"
+    else:
+        controlled_axis = (
+            "object_instance"
+            if bell_change.get("instance_mode") == "fixed"
+            else "object_position"
+        )
+        capability_id = {
+            "object_position": "object_position.fixed_xy",
+            "object_instance": "object_instance.official_id",
+        }[controlled_axis]
+        default_variant_id = (
             f"object_instance.base{bell_change['bell_id']}"
             if controlled_axis == "object_instance"
             else (
@@ -192,7 +220,7 @@ def create_click_bell_variant_run(
                 else "object_position.right_fixed"
             )
         )
-    )
+    resolved_variant_id = str(variant_id or default_variant_id)
     try:
         spec = build_variant_spec(
             task_name="click_bell",
@@ -215,7 +243,7 @@ def create_click_bell_variant_run(
             "valid": True,
             "task_module": "mea.tasks.click_bell",
             "controlled_axis": controlled_axis,
-            "variant_contract": normalized["bell"],
+            "variant_contract": normalized,
         },
         "protected_diff": {
             "valid": protected_after == protected_before,
@@ -243,9 +271,7 @@ def create_click_bell_variant_run(
         "generation_kind": "bounded_variant_overlay",
         "base_commit": _git_head(root),
         "protected_hashes_before": protected_before,
-        "overlay": str((run_dir / "overlay.yml").relative_to(root)).replace(
-            "\\", "/"
-        ),
+        "overlay": str((run_dir / "overlay.yml").relative_to(root)).replace("\\", "/"),
         "telemetry_profile": telemetry_profile,
         "static_validation": static_validation,
         "task_retrieval": None,

@@ -37,10 +37,12 @@ _PLANNER_KIND = {
 _CLICK_CAPABILITY = {
     "object_position": "object_position.fixed_xy",
     "object_instance": "object_instance.official_id",
+    "robustness.scene_clutter": "robustness.scene_clutter",
 }
 _CLICK_METRIC = {
     "object_position": "bell_active_tcp_min_xy_error",
     "object_instance": "official_check_success",
+    "robustness.scene_clutter": "official_check_success",
 }
 
 
@@ -55,7 +57,9 @@ def _canonical_json(value: Any) -> str:
 
 
 def _catalog_sha256(value: Mapping[str, Any]) -> str:
-    payload = {key: deepcopy(item) for key, item in value.items() if key != "catalog_sha256"}
+    payload = {
+        key: deepcopy(item) for key, item in value.items() if key != "catalog_sha256"
+    }
     return hashlib.sha256(_canonical_json(payload).encode("utf-8")).hexdigest()
 
 
@@ -121,7 +125,9 @@ def _trusted_task_entry(task_name: str, task_family: str) -> dict[str, Any]:
     }
 
 
-def _read_task_family(schema_path: Path, task_name: str) -> tuple[str | None, str | None]:
+def _read_task_family(
+    schema_path: Path, task_name: str
+) -> tuple[str | None, str | None]:
     if not schema_path.is_file():
         return None, "task_schema_missing"
     try:
@@ -157,10 +163,7 @@ def build_act_catalog(repo_root: str | Path) -> dict[str, Any]:
         if schema_issue:
             missing.append(schema_issue)
         checkpoint_dir = (
-            root
-            / "policy/ACT/act_ckpt"
-            / f"act-{task_name}"
-            / "demo_clean-50"
+            root / "policy/ACT/act_ckpt" / f"act-{task_name}" / "demo_clean-50"
         )
         if not _nonempty_file(checkpoint_dir / "dataset_stats.pkl"):
             missing.append("dataset_stats_missing")
@@ -253,7 +256,9 @@ def validate_act_catalog(value: Mapping[str, Any]) -> dict[str, Any]:
             raise ACTCatalogError(f"invalid excluded task entry: {item!r}")
         excluded_seen.add(str(task_name))
     if seen | excluded_seen != set(ACT_ROUTE_TASKS):
-        raise ACTCatalogError("every allowlisted task must be ready or explicitly excluded")
+        raise ACTCatalogError(
+            "every allowlisted task must be ready or explicitly excluded"
+        )
     return catalog
 
 

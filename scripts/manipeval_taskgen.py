@@ -116,9 +116,7 @@ def run_probe(
     if telemetry_dir is not None:
         command.extend(["--telemetry-dir", str(telemetry_dir)])
     if visual_capture_profile_id is not None:
-        command.extend(
-            ["--visual-capture-profile", visual_capture_profile_id]
-        )
+        command.extend(["--visual-capture-profile", visual_capture_profile_id])
 
     attempts: list[dict[str, Any]] = []
     attempt_logs: list[Path] = []
@@ -370,9 +368,7 @@ def collect_position_samples(
             "position_varied": len(unique_xy) > 1,
         },
         "passed": len(samples) == num_episodes
-        and all(
-            item["rule_passed"] and item["expert_passed"] for item in samples
-        ),
+        and all(item["rule_passed"] and item["expert_passed"] for item in samples),
     }
     write_json(run_dir / "validation/position_samples.json", result)
     return result
@@ -390,15 +386,17 @@ def collect_click_bell_position_samples(
     """Verify the controlled click_bell axis and expert gate for each seed."""
 
     spec = json.loads((run_dir / "variant_spec.json").read_text(encoding="utf-8"))
-    bell_change = spec["changes"]["bell"]
+    changes = spec["changes"]
+    bell_change = changes.get("bell")
+    clutter_change = changes.get("domain_randomization")
     expected_xy = (
         [float(value) for value in bell_change["xy"]]
-        if bell_change.get("position_mode") == "fixed"
+        if bell_change and bell_change.get("position_mode") == "fixed"
         else None
     )
     expected_bell_id = (
         int(bell_change["bell_id"])
-        if bell_change.get("instance_mode") == "fixed"
+        if bell_change and bell_change.get("instance_mode") == "fixed"
         else None
     )
     sample_root = run_dir / "validation/position_samples"
@@ -421,6 +419,7 @@ def collect_click_bell_position_samples(
         variant_check = validate_click_bell_scene_contract(scene, spec)
         position_check = variant_check["position"]
         instance_check = variant_check["instance"]
+        clutter_check = variant_check["clutter"]
         samples.append(
             {
                 "episode_index": episode_index,
@@ -433,6 +432,11 @@ def collect_click_bell_position_samples(
                 "bell_id": instance_check.get("actual_bell_id"),
                 "instance_matched": bool(instance_check.get("passed")),
                 "instance_authority": instance_check.get("authority"),
+                "clutter_expected": bool(clutter_change),
+                "clutter_count": int(clutter_check.get("actual_count") or 0),
+                "clutter_objects": clutter_check.get("actual_objects", []),
+                "clutter_matched": bool(clutter_check.get("passed")),
+                "clutter_authority": clutter_check.get("authority"),
                 "variant_matched": bool(variant_check.get("passed")),
                 "rule_passed": bool(scene.get("rule_check", {}).get("passed")),
                 "expert_passed": bool(scene.get("expert", {}).get("passed")),
@@ -455,15 +459,13 @@ def collect_click_bell_position_samples(
         "start_seed": start_seed,
         "num_episodes": num_episodes,
         "controlled_axis": spec.get("controlled_axis"),
-        "variant_contract": bell_change,
+        "variant_contract": changes,
         "samples": samples,
         "metrics": {
             "expected_xy": expected_xy,
             "expected_bell_id": expected_bell_id,
             "unique_xy_count": len(unique_xy),
-            "all_positions_matched": all(
-                item["position_matched"] for item in samples
-            ),
+            "all_positions_matched": all(item["position_matched"] for item in samples),
             "position_varied": len(unique_xy) > 1,
             "observed_bell_ids": sorted(
                 {
@@ -473,15 +475,15 @@ def collect_click_bell_position_samples(
                     and not isinstance(item.get("bell_id"), bool)
                 }
             ),
-            "all_instances_matched": all(
-                item["instance_matched"] for item in samples
-            ),
+            "all_instances_matched": all(item["instance_matched"] for item in samples),
+            "expected_clutter": bool(clutter_change),
+            "minimum_clutter_count": 1 if clutter_change else 0,
+            "all_clutter_matched": all(item["clutter_matched"] for item in samples),
+            "clutter_counts": [item["clutter_count"] for item in samples],
         },
         "passed": len(samples) == num_episodes
         and all(
-            item["variant_matched"]
-            and item["rule_passed"]
-            and item["expert_passed"]
+            item["variant_matched"] and item["rule_passed"] and item["expert_passed"]
             for item in samples
         ),
     }
@@ -505,19 +507,27 @@ def run_vision_check(
     response_path = response_path or run_dir / "validation/vision_response.txt"
     result_path = result_path or run_dir / "validation/vision.json"
     if spec.get("task_name") == "click_bell":
-        bell_change = spec["changes"]["bell"]
-        if bell_change.get("instance_mode") == "fixed":
+        bell_change = spec["changes"].get("bell")
+        clutter_change = spec["changes"].get("domain_randomization")
+        if clutter_change is not None:
+            contract_description = (
+                "This round intentionally enables RoboTwin's simulator-native "
+                "cluttered_table with clean_background_rate=0. The extra tabletop "
+                "objects are expected and must not be reported as an unexpected "
+                "change. Check that the target bell remains visible and the "
+                "physical scene is plausible; exact clutter count is checked from "
+                "simulator task state."
+            )
+        elif bell_change and bell_change.get("instance_mode") == "fixed":
             bell_id = int(bell_change["bell_id"])
             visual_description = (
-                "白色 dome、黑色底座、较大实例"
-                if bell_id == 0
-                else "蓝色 dome、棕色底座、较小实例"
+                "白色 dome、黑色底座、较大实例" if bell_id == 0 else "蓝色 dome、棕色底座、较小实例"
             )
             contract_description = (
                 f"本轮固定官方 bell base{bell_id}（{visual_description}），位置保持官方随机。"
                 "精确 bell_id 已由 simulator task attribute 检查负责。"
             )
-        else:
+        elif bell_change:
             expected_xy = bell_change["xy"]
             contract_description = (
                 f"本轮固定 workspace xy={expected_xy}，bell 实例保持官方随机。"
@@ -589,14 +599,15 @@ def validate_click_bell_scene_contract(
     """Validate the controlled axis from simulator state, never from RGB."""
 
     if not isinstance(spec, dict) or spec.get("task_name") != "click_bell":
-        raise ClickBellTaskGenError(
-            "scene contract requires a click_bell variant spec"
-        )
+        raise ClickBellTaskGenError("scene contract requires a click_bell variant spec")
     normalized = validate_click_bell_variant_hint(spec.get("changes"))
-    bell_change = normalized["bell"]
+    bell_change = normalized.get("bell")
+    clutter_change = normalized.get("domain_randomization")
     expected_axis = (
-        "object_instance"
-        if bell_change.get("instance_mode") == "fixed"
+        "robustness.scene_clutter"
+        if clutter_change is not None
+        else "object_instance"
+        if bell_change and bell_change.get("instance_mode") == "fixed"
         else "object_position"
     )
     declared_axis = spec.get("controlled_axis")
@@ -617,11 +628,10 @@ def validate_click_bell_scene_contract(
         if isinstance(bell, dict)
         else []
     )
-    if bell_change.get("position_mode") == "fixed":
+    if bell_change and bell_change.get("position_mode") == "fixed":
         expected_xy = [float(value) for value in bell_change["xy"]]
         position_passed = len(actual_xy) == 2 and all(
-            abs(left - right) <= 1e-6
-            for left, right in zip(actual_xy, expected_xy)
+            abs(left - right) <= 1e-6 for left, right in zip(actual_xy, expected_xy)
         )
         position = {
             "status": "passed" if position_passed else "failed",
@@ -641,7 +651,7 @@ def validate_click_bell_scene_contract(
             "authority": "simulator_tracked_actor_xy",
         }
 
-    if bell_change.get("instance_mode") == "fixed":
+    if bell_change and bell_change.get("instance_mode") == "fixed":
         expected_bell_id = int(bell_change["bell_id"])
         actual_bell_id = (scene.get("task_attributes") or {}).get("bell_id")
         instance_passed = (
@@ -665,7 +675,47 @@ def validate_click_bell_scene_contract(
             "authority": "simulator_task_attribute:bell_id",
         }
 
-    passed = bool(position["passed"] and instance["passed"])
+    randomization = scene.get("domain_randomization") or {}
+    actual_clutter_enabled = randomization.get("cluttered_table")
+    actual_objects = randomization.get("cluttered_objects")
+    if not isinstance(actual_objects, list):
+        actual_objects = []
+    actual_count = randomization.get("cluttered_object_count")
+    if isinstance(actual_count, bool) or not isinstance(actual_count, int):
+        actual_count = len(actual_objects)
+    if clutter_change is not None:
+        clutter_passed = bool(
+            actual_clutter_enabled is True
+            and randomization.get("clean_background_rate") == 0.0
+            and actual_count >= 1
+        )
+        clutter = {
+            "status": "passed" if clutter_passed else "failed",
+            "passed": clutter_passed,
+            "expected_enabled": True,
+            "expected_clean_background_rate": 0.0,
+            "minimum_object_count": 1,
+            "actual_enabled": actual_clutter_enabled,
+            "actual_clean_background_rate": randomization.get("clean_background_rate"),
+            "actual_count": actual_count,
+            "actual_objects": actual_objects,
+            "authority": "simulator_task_info:cluttered_table_info",
+        }
+    else:
+        clutter = {
+            "status": "not_applicable",
+            "passed": True,
+            "expected_enabled": None,
+            "expected_clean_background_rate": None,
+            "minimum_object_count": 0,
+            "actual_enabled": actual_clutter_enabled,
+            "actual_clean_background_rate": randomization.get("clean_background_rate"),
+            "actual_count": actual_count,
+            "actual_objects": actual_objects,
+            "authority": "simulator_task_info:cluttered_table_info",
+        }
+
+    passed = bool(position["passed"] and instance["passed"] and clutter["passed"])
     return {
         "status": "passed" if passed else "failed",
         "passed": passed,
@@ -673,7 +723,12 @@ def validate_click_bell_scene_contract(
         "controlled_axis": expected_axis,
         "position": position,
         "instance": instance,
-        "authorities": [position["authority"], instance["authority"]],
+        "clutter": clutter,
+        "authorities": [
+            position["authority"],
+            instance["authority"],
+            clutter["authority"],
+        ],
     }
 
 
@@ -831,9 +886,9 @@ def run_visual_self_reflection(
     if is_click_bell:
         summary["requested_max_repairs"] = max_repairs
         summary["repair_supported"] = False
-        summary["validation_mode"] = (
-            "simulator_position_or_instance_plus_visual_plausibility"
-        )
+        summary[
+            "validation_mode"
+        ] = "simulator_position_or_instance_plus_visual_plausibility"
     write_json(reflection_dir / "summary.json", summary)
     if not summary["passed"]:
         raise VisualReflectionError(
@@ -859,7 +914,9 @@ def run_visual_self_reflection(
             run_dir / "validation/vision_response.txt",
         )
     final_scene = json.loads((final_attempt / "scene.json").read_text(encoding="utf-8"))
-    final_vision = json.loads((final_attempt / "vision.json").read_text(encoding="utf-8"))
+    final_vision = json.loads(
+        (final_attempt / "vision.json").read_text(encoding="utf-8")
+    )
     return summary, final_scene, final_vision
 
 
@@ -872,12 +929,7 @@ def newest_eval_dir(
     checkpoint_setting: str = "demo_clean",
 ) -> Path | None:
     eval_root = (
-        repo_root
-        / "eval_result"
-        / task_name
-        / "ACT"
-        / task_config
-        / checkpoint_setting
+        repo_root / "eval_result" / task_name / "ACT" / task_config / checkpoint_setting
     )
     after = (
         {path for path in eval_root.glob("*") if path.is_dir()}
@@ -922,9 +974,7 @@ def run_act(
 
     task_name = str(manifest["task_name"])
     task_config = str(manifest.get("task_config") or "demo_clean")
-    checkpoint_setting = str(
-        manifest.get("checkpoint_setting") or "demo_clean"
-    )
+    checkpoint_setting = str(manifest.get("checkpoint_setting") or "demo_clean")
     expert_data_num = int(manifest.get("expert_data_num") or 50)
     policy_seed = int(manifest.get("policy_seed") or 0)
     checkpoint_dir = (
@@ -954,14 +1004,13 @@ def run_act(
     previous_attempt = archive_previous_act_attempt(run_dir)
     telemetry_root = run_dir / "evaluation/telemetry/act"
     eval_root = (
-        repo_root
-        / "eval_result"
-        / task_name
-        / "ACT"
-        / task_config
-        / checkpoint_setting
+        repo_root / "eval_result" / task_name / "ACT" / task_config / checkpoint_setting
     )
-    before = {path for path in eval_root.glob("*") if path.is_dir()} if eval_root.exists() else set()
+    before = (
+        {path for path in eval_root.glob("*") if path.is_dir()}
+        if eval_root.exists()
+        else set()
+    )
     command = [
         "env",
         f"PYTHON_BIN={sys.executable}",
@@ -1010,8 +1059,7 @@ def run_act(
 
     copied_video_paths = list((run_dir / "evaluation").glob("episode*.mp4"))
     telemetry_episode_paths = list(
-        metadata.parent
-        for metadata in telemetry_root.glob("episode_*/episode.json")
+        metadata.parent for metadata in telemetry_root.glob("episode_*/episode.json")
     )
     index_issues: list[str] = []
     video_by_index: dict[int, Path] = {}
@@ -1037,9 +1085,7 @@ def run_act(
             continue
         episode_index = int(match.group(1))
         if episode_index in telemetry_by_index:
-            index_issues.append(
-                f"duplicate ACT telemetry index: {episode_index}"
-            )
+            index_issues.append(f"duplicate ACT telemetry index: {episode_index}")
             continue
         telemetry_by_index[episode_index] = episode_dir
     video_indices = set(video_by_index)
@@ -1095,8 +1141,7 @@ def run_act(
         "checkpoint": {
             "directory": str(checkpoint_dir.relative_to(repo_root)),
             "required_files": [
-                str(path.relative_to(repo_root))
-                for path in required_checkpoint_files
+                str(path.relative_to(repo_root)) for path in required_checkpoint_files
             ],
             "preflight_passed": True,
         },
@@ -1145,9 +1190,7 @@ def evaluate_run_telemetry(
         task_name=manifest["task_name"],
     )
     return {
-        "artifact": str(
-            (telemetry_root / "tool_results.json").relative_to(repo_root)
-        ),
+        "artifact": str((telemetry_root / "tool_results.json").relative_to(repo_root)),
         "episode_count": summary["episode_count"],
         "tool_retrieval": summary["tool_retrieval"],
         "episodes": [
@@ -1239,9 +1282,8 @@ def main() -> None:
         )
     provider = None
     if (
-        (not args.resume_run and args.mode != "official" and not bounded_click_bell)
-        or args.vision_check
-    ):
+        not args.resume_run and args.mode != "official" and not bounded_click_bell
+    ) or args.vision_check:
         provider = OpenAICompatibleProvider(
             base_url=args.base_url,
             text_model=args.text_model,
@@ -1294,9 +1336,12 @@ def main() -> None:
 
     requested_execution_backend = (
         (
-            "both" if args.expert and args.run_act
-            else "act" if args.run_act
-            else "expert" if args.expert
+            "both"
+            if args.expert and args.run_act
+            else "act"
+            if args.run_act
+            else "expert"
+            if args.expert
             else "setup_probe"
         )
         if manifest.get("mode") == "official"
@@ -1324,7 +1369,9 @@ def main() -> None:
                 raise RuntimeError("reflection fixture 只允许用于新的 TaskGen run")
             if not args.vision_check:
                 raise RuntimeError("reflection fixture 必须与 --vision-check 一起使用")
-            spec = json.loads((run_dir / "variant_spec.json").read_text(encoding="utf-8"))
+            spec = json.loads(
+                (run_dir / "variant_spec.json").read_text(encoding="utf-8")
+            )
             fixture_function = {
                 "wrong_color": inject_wrong_color_fixture,
                 "oversized_block": inject_oversized_block_fixture,
@@ -1418,9 +1465,10 @@ def main() -> None:
                     num_episodes=args.num_episodes,
                     first_scene=scene,
                 )
-            elif manifest.get("generation_kind") == "bounded_variant_overlay" and manifest[
-                "task_name"
-            ] == "click_bell":
+            elif (
+                manifest.get("generation_kind") == "bounded_variant_overlay"
+                and manifest["task_name"] == "click_bell"
+            ):
                 position_samples = collect_click_bell_position_samples(
                     repo_root,
                     run_dir,
@@ -1432,9 +1480,7 @@ def main() -> None:
             else:
                 position_samples = {
                     "status": "not_applicable",
-                    "reason": (
-                        "non-BBH tasks have no BBH block-position contract"
-                    ),
+                    "reason": ("non-BBH tasks have no BBH block-position contract"),
                     "passed": True,
                     "samples": [],
                     "metrics": {},
@@ -1463,9 +1509,9 @@ def main() -> None:
             if manifest.get("mode") == "official" and args.expert:
                 expert_seeds = [
                     int(item["seed"])
-                    for item in (scene or {}).get("expert_batch", {}).get(
-                        "episodes", []
-                    )
+                    for item in (scene or {})
+                    .get("expert_batch", {})
+                    .get("episodes", [])
                 ]
                 act_seeds = [int(value) for value in act.get("actual_seeds", [])]
                 aligned = expert_seeds == act_seeds
@@ -1505,9 +1551,7 @@ def main() -> None:
                 status="completed",
                 failure=None,
                 act_evaluation=act,
-                execution_backends=(
-                    ["expert", "ACT"] if args.expert else ["ACT"]
-                ),
+                execution_backends=(["expert", "ACT"] if args.expert else ["ACT"]),
                 backend_seed_alignment=alignment,
                 trusted_tool_evaluation=trusted_tools,
             )
@@ -1532,7 +1576,13 @@ def main() -> None:
         )
         raise
 
-    print(json.dumps(json.loads((run_dir / "manifest.json").read_text(encoding="utf-8")), ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            json.loads((run_dir / "manifest.json").read_text(encoding="utf-8")),
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":

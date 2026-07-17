@@ -346,6 +346,15 @@ class CrossTaskEntrypointTests(unittest.TestCase):
             self.assertIsNone(summary["observations"]["act_pipeline_status"])
             self.assertIsNone(summary["observations"]["policy_success"])
             self.assertEqual(
+                summary["observations"]["scene_clutter"],
+                {
+                    "expected": False,
+                    "counts": [],
+                    "all_matched": None,
+                    "authority": None,
+                },
+            )
+            self.assertEqual(
                 evidence["observations"]["execution_backends"], ["expert"]
             )
             self.assertIsNone(evidence["observations"]["act_pipeline_status"])

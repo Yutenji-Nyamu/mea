@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "decision": "approved",
+  "review_scope": "persistent_vqa_query_spec_reuse",
+  "reviewer": {
+    "id": "codex_development_agent",
+    "kind": "development_agent_proxy"
+  },
+  "reviewed_at": "2026-07-17T17:46:07+08:00",
+  "spec_sha256": "921044216807e5f09421b239ebf96c551a3ccb58accd88d578834d0cc69e082b",
+  "checks": {
+    "answer_contract_reviewed": true,
+    "numeric_authority_reviewed": true,
+    "phenomena_reviewed": true,
+    "task_scope_reviewed": true,
+    "tests_reviewed": true
+  },
+  "notes": "Development-only proxy review. Replace with an independent human review before a paper claim."
+}

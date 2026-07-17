@@ -24,17 +24,10 @@ def make_ready_repo(root: Path, *task_names: str) -> None:
         schema = root / f"mea/toolkit/schemas/{task_name}.json"
         schema.parent.mkdir(parents=True, exist_ok=True)
         schema.write_text(
-            json.dumps(
-                {"task_name": task_name, "task_family": families[task_name]}
-            ),
+            json.dumps({"task_name": task_name, "task_family": families[task_name]}),
             encoding="utf-8",
         )
-        checkpoint = (
-            root
-            / "policy/ACT/act_ckpt"
-            / f"act-{task_name}"
-            / "demo_clean-50"
-        )
+        checkpoint = root / "policy/ACT/act_ckpt" / f"act-{task_name}" / "demo_clean-50"
         checkpoint.mkdir(parents=True, exist_ok=True)
         (checkpoint / "dataset_stats.pkl").write_bytes(b"stats")
         (checkpoint / "policy_last.ckpt").write_bytes(b"weights")
@@ -42,20 +35,20 @@ def make_ready_repo(root: Path, *task_names: str) -> None:
 
 def click_route() -> dict:
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "decision": "route",
         "task_name": "click_bell",
         "task_profile": "adaptive_properties",
         "evaluation_goal": "evaluate bell position and instance generalization",
         "requested_aspect_ids": ["object_position", "object_instance"],
         "first_aspect_id": "object_position",
-        "unsupported_aspect_ids": [],
+        "unsupported_capabilities": [],
     }
 
 
 def bbh_route() -> dict:
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "decision": "route",
         "task_name": "beat_block_hammer",
         "task_profile": "generated",
@@ -65,7 +58,7 @@ def bbh_route() -> dict:
             "performance.pickup_to_contact_timing",
         ],
         "first_aspect_id": "object_appearance.color",
-        "unsupported_aspect_ids": [],
+        "unsupported_capabilities": [],
     }
 
 
@@ -124,10 +117,13 @@ class GlobalQueryRouterTests(unittest.TestCase):
                     "first_aspect_id",
                 },
             )
-            self.assertEqual(click["requested_aspect_ids"], [
-                "object_position",
-                "object_instance",
-            ])
+            self.assertEqual(
+                click["requested_aspect_ids"],
+                [
+                    "object_position",
+                    "object_instance",
+                ],
+            )
 
             bbh = route_to_bbh_proposal(bbh_route(), catalog)
             self.assertEqual(bbh["schema_version"], 5)
@@ -167,14 +163,16 @@ class GlobalQueryRouterTests(unittest.TestCase):
             make_ready_repo(root, "beat_block_hammer", "click_bell")
             catalog = build_act_catalog(root)
             unsupported = {
-                "schema_version": 1,
+                "schema_version": 2,
                 "decision": "unsupported",
                 "task_name": None,
                 "task_profile": None,
                 "evaluation_goal": "evaluate lighting robustness",
                 "requested_aspect_ids": [],
                 "first_aspect_id": None,
-                "unsupported_aspect_ids": ["scene_lighting"],
+                "unsupported_capabilities": [
+                    {"task_name": "click_bell", "aspect_id": "scene_lighting"}
+                ],
             }
             self.assertEqual(
                 validate_route_selection(unsupported, catalog)["decision"],
@@ -182,9 +180,29 @@ class GlobalQueryRouterTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(GlobalRouteError, "no executable"):
                 route_to_planner_proposal(unsupported, catalog)
-            false_gap = {**unsupported, "unsupported_aspect_ids": ["object_position"]}
+            false_gap = {
+                **unsupported,
+                "unsupported_capabilities": [
+                    {"task_name": "click_bell", "aspect_id": "object_position"}
+                ],
+            }
             with self.assertRaisesRegex(GlobalRouteError, "cannot be declared"):
                 validate_route_selection(false_gap, catalog)
+            task_qualified_gap = {
+                **unsupported,
+                "unsupported_capabilities": [
+                    {
+                        "task_name": "beat_block_hammer",
+                        "aspect_id": "object_instance",
+                    }
+                ],
+            }
+            self.assertEqual(
+                validate_route_selection(task_qualified_gap, catalog)[
+                    "unsupported_capabilities"
+                ],
+                task_qualified_gap["unsupported_capabilities"],
+            )
 
     def test_router_retries_and_history_prompt_is_compact(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -219,7 +237,10 @@ class GlobalQueryRouterTests(unittest.TestCase):
                 "act-click_bell/demo_clean-50",
             )
             self.assertEqual(
-                [item["taskgen_capability_id"] for item in result["resolved"]["aspects"]],
+                [
+                    item["taskgen_capability_id"]
+                    for item in result["resolved"]["aspects"]
+                ],
                 ["object_position.fixed_xy", "object_instance.official_id"],
             )
             self.assertEqual(result["attempt_count"], 2)

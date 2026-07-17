@@ -71,7 +71,14 @@ class TaskCapabilityTests(unittest.TestCase):
         self.assertEqual(upgraded["capability_id"], "object_instance.official_id")
         card = capability_card("click_bell")
         self.assertEqual(card["schema_version"], 1)
-        self.assertEqual(len(card["capabilities"]), 2)
+        self.assertEqual(
+            {item["capability_id"] for item in card["capabilities"]},
+            {
+                "object_position.fixed_xy",
+                "object_instance.official_id",
+                "robustness.scene_clutter",
+            },
+        )
 
 
 if __name__ == "__main__":

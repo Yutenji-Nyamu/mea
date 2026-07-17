@@ -27,7 +27,9 @@ class QueryDatasetTests(unittest.TestCase):
             "schema_version": 1,
             "dataset_id": "draft",
             "annotation_status": "model_draft_unreviewed",
-            "cases": [case(i, "supported" if i <= 5 else "unsupported") for i in range(1, 21)],
+            "cases": [
+                case(i, "supported" if i <= 5 else "unsupported") for i in range(1, 21)
+            ],
         }
         summary = summarize_query_dataset(value)
         self.assertEqual(summary["case_count"], 20)

@@ -180,9 +180,11 @@ MEA 是 RoboTwin 的评估层扩展。以下事实必须始终保持清楚：
 | paper-eligible | 预算、人工标注、扰动层级、policy/benchmark 和统计合同与论文一致 | 超出该预注册范围的泛化主张 |
 
 当前 generated protocol v2、`click_bell` ToolGen 和三任务聚合分别属于协议骨架、live/cached
-smoke 与 N=1 instrumentation pilot。20-query 数据集是 `model_draft_unreviewed`，缓存 montage
-变化是 image proxy；前者不能填 Table 6，后者不能填 Tables 7–8。只有完成多人标注、真实
-simulator 扰动和足量 repetition 后，才升级对应结论的命名。
+smoke 与 N=1 instrumentation pilot。20-query 同时保留 `model_draft_unreviewed` 原始集和
+`development_agent_proxy` 复核集；后者可跑 live Planner scorer，但仍不能填 Table 6。VQA
+同时保留缓存 montage image proxy 与真实 simulator-native clean/clutter `N=1`；后者证明了真实
+扰动数据流，却因代理标签、单 seed 和全负样本仍不能填 Tables 7–8。只有完成独立多人标注、
+正负/困难扰动覆盖和足量 repetition 后，才升级对应结论的命名。
 
 ## 10. 新对话最短启动清单
 
@@ -195,3 +197,19 @@ simulator 扰动和足量 repetition 后，才升级对应结论的命名。
 ```
 
 如果 handoff 与服务器冲突，以服务器 Git、真实 artifact 和测试结果为准，并立即刷新 handoff。
+
+## 11. 临时人工代理与恢复的长期约定
+
+- 开发阶段可以由 Codex 充当 `development_agent_proxy` 做二元视觉标签、query/aspect review 与
+  registry review，以最小成本验证数据通路；artifact 必须显式保存该身份、
+  `human_reviewer_count=0` 与 `paper_table_eligible=false`。
+- development-agent proxy 不能改名为 human gold、人工 majority 或论文指标。进入论文表格前，
+  必须由独立人工重新标注或复核，且保留替换关系与 provenance。
+- 真实 simulator 扰动和缓存图像扰动必须分开命名。前者需由 simulator state 证明变化实际发生；
+  后者只能称 image proxy，即使其输入来自真实 rollout。
+- 恢复只能针对不会改变被评估样本身份的后执行子阶段。当前只允许 Tool orchestration 对未预期
+  runtime exception 最多重试一次，并强制复用同一 telemetry hash；不得自动重跑 ACT、
+  simulator、policy failure 或语义/验证失败。generated route 的 provider/registry 工作可能
+  重复，因此该机制应称 conservative orchestration retry，不得冒充论文 App. A.3.4 的整轮恢复。
+- fault injection、cached counterfactual 与 N=1 都是功能证据，不产生成功率、方差、AUROC 或
+  论文消融结论。报告必须同时写出不可用指标及原因。

@@ -24,6 +24,7 @@ from .click_bell import (
     CLICK_BELL_POSITIONS,
     CLICK_BELL_TEMPLATE_IDS,
     ClickBellAdaptivePlanAgent,
+    ClickBellFixedSuitePlanAgent,
     ClickBellPositionPlanAgent,
 )
 from .catalog import (
@@ -64,6 +65,7 @@ __all__ = [
     "CLICK_BELL_ADAPTIVE_ASPECTS",
     "CLICK_BELL_ADAPTIVE_TEMPLATES",
     "ClickBellAdaptivePlanAgent",
+    "ClickBellFixedSuitePlanAgent",
     "ClickBellPositionPlanAgent",
     "ACTCatalogError",
     "ACT_ROUTE_TASKS",

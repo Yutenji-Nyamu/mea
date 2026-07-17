@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import subprocess
@@ -20,6 +21,7 @@ from mea.feedback import FeedbackAgent, render_evaluation_report
 from mea.history import EvaluationHistoryDB
 from mea.planner import (
     ClickBellAdaptivePlanAgent,
+    ClickBellFixedSuitePlanAgent,
     ClickBellPositionPlanAgent,
     GlobalQueryRouter,
     OfficialTaskPlanAgent,
@@ -33,7 +35,11 @@ from mea.providers import (
     available_model_profiles,
     resolve_model_profile,
 )
-from mea.toolgen import execute_tool_request
+from mea.recovery import (
+    UnexpectedToolExecutionError,
+    run_bounded_tool_recovery,
+)
+from mea.toolgen import ToolOrchestrationError, execute_tool_request
 from mea.toolkit import aggregate_tool_executions
 
 
@@ -43,6 +49,41 @@ def write_json(path: Path, value: Any) -> None:
         json.dumps(value, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+
+
+def canonical_sha256(value: Any) -> str:
+    payload = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def directory_tree_sha256(root: Path) -> str:
+    """Hash immutable Tool inputs without depending on filesystem mtimes."""
+
+    resolved = root.expanduser().resolve()
+    if not resolved.is_dir():
+        raise RuntimeError(f"telemetry directory does not exist: {resolved}")
+    digest = hashlib.sha256()
+    files = sorted(
+        (path for path in resolved.rglob("*") if path.is_file()),
+        key=lambda path: path.relative_to(resolved).as_posix(),
+    )
+    if not files:
+        raise RuntimeError(f"telemetry directory is empty: {resolved}")
+    for path in files:
+        relative = path.relative_to(resolved).as_posix().encode("utf-8")
+        digest.update(len(relative).to_bytes(8, "big"))
+        digest.update(relative)
+        digest.update(path.stat().st_size.to_bytes(8, "big"))
+        with path.open("rb") as handle:
+            for block in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(block)
+    return digest.hexdigest()
 
 
 def update_manifest(evaluation_dir: Path, **updates: Any) -> dict[str, Any]:
@@ -121,9 +162,7 @@ def finish_unsupported_global_route(
         "global_query_route_path": "plan/global_query_route.json",
         "global_act_catalog_path": "plan/global_act_catalog.json",
         "route": route_result["selection"],
-        "limitations": [
-            "query requires an aspect outside the trusted ACT catalog"
-        ],
+        "limitations": ["query requires an aspect outside the trusted ACT catalog"],
     }
     write_json(evaluation_dir / "manifest.json", manifest)
     return manifest
@@ -302,9 +341,7 @@ def compact_tool_evaluation(
                 "role": item.get("role"),
                 "value": item.get("result", {}).get("value"),
                 "passed": item.get("result", {}).get("passed"),
-                "evidence_steps": item.get("result", {}).get(
-                    "evidence_steps", []
-                ),
+                "evidence_steps": item.get("result", {}).get("evidence_steps", []),
                 "details": item.get("result", {}).get("details", {}),
             }
             for item in tool_evaluation.get("episodes", [])
@@ -355,9 +392,9 @@ def _aggregate_sources(
                     "tool_execution": tool_evaluation,
                     "context": {
                         **context,
-                        "source_artifact": tool_evaluation.get(
-                            "artifacts", {}
-                        ).get("tool_execution"),
+                        "source_artifact": tool_evaluation.get("artifacts", {}).get(
+                            "tool_execution"
+                        ),
                     },
                 }
             )
@@ -418,18 +455,14 @@ def compact_aggregate_result(
                                         group.get("summary", {})
                                     ),
                                     "passed_summary": (
-                                        compact_summary(
-                                            group["passed_summary"]
-                                        )
+                                        compact_summary(group["passed_summary"])
                                         if group.get("passed_summary")
                                         else None
                                     ),
                                 }
                                 for group in groups
                             ]
-                            for dimension, groups in cohort.get(
-                                "groups", {}
-                            ).items()
+                            for dimension, groups in cohort.get("groups", {}).items()
                         },
                     }
                     for cohort in metric.get("cohorts", [])
@@ -580,6 +613,7 @@ def run_round_execution_vqa(
     provider: Any,
     model: str,
     round_plan: dict[str, Any] | None = None,
+    reviewed_vqa_registry: Path | None = None,
 ) -> dict[str, Any]:
     """Run VQA on official-expert or ACT evidence without mixing their roles."""
 
@@ -592,15 +626,12 @@ def run_round_execution_vqa(
         template_id=(round_plan or {}).get("template_id"),
         sub_aspect=(round_plan or {}).get("sub_aspect"),
         tool_contract=(round_plan or {}).get("tool_request"),
+        reviewed_registry_dir=reviewed_vqa_registry,
     )
     write_json(execution_dir / "execution_vqa_query.json", query)
     route = (round_plan or {}).get("route")
-    execution_backend = round_execution_backend(
-        round_plan or {"route": route}
-    )
-    evidence_backend = (
-        "expert" if execution_backend == "expert" else "act"
-    )
+    execution_backend = round_execution_backend(round_plan or {"route": route})
+    evidence_backend = "expert" if execution_backend == "expert" else "act"
     selected = _policy_episode_for_execution_vqa(
         child_manifest,
         child_dir,
@@ -728,9 +759,7 @@ def compact_execution_vqa(
         "representative_episode": result.get("representative_episode"),
         "evidence_conflict": bool(result.get("evidence_conflict")),
         "observation": result.get("observation"),
-        "selected_frames": result.get("selection", {}).get(
-            "selected_frames", []
-        ),
+        "selected_frames": result.get("selection", {}).get("selected_frames", []),
         "artifacts": result.get("artifacts", {}),
         "reason": result.get("reason"),
         "query": result.get("query"),
@@ -751,6 +780,7 @@ def summarize_round(
     act = child_manifest.get("act_evaluation", {})
     expert = scene.get("expert", {})
     positions = child_manifest.get("position_samples", {})
+    position_metrics = positions.get("metrics", {})
     variant_samples = positions.get("samples", [])
     observed_bell_ids = sorted(
         {
@@ -761,6 +791,13 @@ def summarize_round(
             and isinstance(item.get("bell_id"), int)
         }
     )
+    clutter_counts = [
+        int(item["clutter_count"])
+        for item in variant_samples
+        if isinstance(item, dict)
+        and not isinstance(item.get("clutter_count"), bool)
+        and isinstance(item.get("clutter_count"), int)
+    ]
     policy_success = read_policy_success(child_dir / "evaluation/_result.txt")
     trusted_tools = compact_trusted_tools(child_manifest)
     is_official = round_plan.get("route") == "official"
@@ -785,9 +822,7 @@ def summarize_round(
             and scene.get("rule_check", {}).get("passed")
             and (not uses_expert or expert_batch.get("passed"))
             and (not uses_act or act.get("passed"))
-            and child_manifest.get("trusted_tool_evaluation", {}).get(
-                "episode_count"
-            )
+            and child_manifest.get("trusted_tool_evaluation", {}).get("episode_count")
             and tool_evaluation
             and tool_evaluation.get("status") == "passed"
             and aggregate_result
@@ -844,14 +879,24 @@ def summarize_round(
             "act_pipeline_status": bool(act.get("passed")) if uses_act else None,
             "policy_success": policy_success if uses_act else None,
             "position_samples": positions.get("samples", []),
-            "position_metrics": positions.get("metrics", {}),
+            "position_metrics": position_metrics,
             "controlled_axis": positions.get("controlled_axis"),
             "variant_samples": variant_samples,
-            "variant_metrics": positions.get("metrics", {}),
+            "variant_metrics": position_metrics,
             "observed_bell_ids": observed_bell_ids,
             "bell_instance_id": (
                 observed_bell_ids[0] if len(observed_bell_ids) == 1 else None
             ),
+            "scene_clutter": {
+                "expected": bool(position_metrics.get("expected_clutter")),
+                "counts": clutter_counts,
+                "all_matched": position_metrics.get("all_clutter_matched"),
+                "authority": (
+                    "simulator_task_info:cluttered_table_info"
+                    if clutter_counts
+                    else None
+                ),
+            },
             "trusted_tools": trusted_tools,
             "planned_tool": compact_tool_evaluation(tool_evaluation),
             "aggregate": compact_aggregate_result(aggregate_result),
@@ -859,8 +904,7 @@ def summarize_round(
         },
         "pipeline_passed": pipeline_passed,
         "interpretation": (
-            "任务路由与执行后端分别记录；ACT 策略结果和流水线状态分开报告，"
-            "策略失败不会被误记为 pipeline failure。"
+            "任务路由与执行后端分别记录；ACT 策略结果和流水线状态分开报告，" "策略失败不会被误记为 pipeline failure。"
         ),
     }
 
@@ -880,13 +924,10 @@ def execute_round(
     toolgen_model: str,
     telemetry_profile: str = "balanced_v1",
     reviewed_tool_registry: Path | None = None,
-) -> tuple[
-    dict[str, Any],
-    Path,
-    dict[str, Any],
-    dict[str, Any],
-    int,
-]:
+    reviewed_vqa_registry: Path | None = None,
+    tool_recovery_max_restarts: int = 1,
+    inject_tool_exception_once: bool = False,
+) -> tuple[dict[str, Any], Path, dict[str, Any], dict[str, Any], int,]:
     round_id = round_plan["round_id"]
     command, run_id = build_taskgen_command(
         repo_root,
@@ -928,23 +969,85 @@ def execute_round(
             "status": child_manifest.get("status"),
         },
     )
-    if child_manifest.get("status") in {
-        "completed",
-        "completed_without_act",
-    } and returncode == 0:
+    recovery_summary: dict[str, Any] | None = None
+    if (
+        child_manifest.get("status")
+        in {
+            "completed",
+            "completed_without_act",
+        }
+        and returncode == 0
+    ):
         tool_kwargs: dict[str, Any] = {
             "provider": provider,
             "model": toolgen_model,
         }
         if reviewed_tool_registry is not None:
             tool_kwargs["reviewed_registry_dir"] = reviewed_tool_registry
-        tool_evaluation = execute_tool_request(
-            repo_root,
-            child_dir,
-            execution_dir / "planned_tool",
-            round_plan["tool_request"],
-            **tool_kwargs,
+        telemetry_dir = child_dir / "evaluation/telemetry"
+        injected = False
+
+        def execute_tool_attempt(
+            attempt_dir: Path, attempt_index: int
+        ) -> dict[str, Any]:
+            nonlocal injected
+            output_dir = (
+                execution_dir / "planned_tool"
+                if attempt_index == 1
+                else execution_dir / f"planned_tool_retry_{attempt_index - 1:02d}"
+            )
+            write_json(
+                attempt_dir / "tool_output.json",
+                {"output_dir": str(output_dir.relative_to(repo_root))},
+            )
+            if inject_tool_exception_once and not injected:
+                injected = True
+                raise UnexpectedToolExecutionError(
+                    "development fault injection before Tool analysis"
+                )
+            try:
+                return execute_tool_request(
+                    repo_root,
+                    child_dir,
+                    output_dir,
+                    round_plan["tool_request"],
+                    **tool_kwargs,
+                )
+            except ToolOrchestrationError:
+                # Contract, routing, validation, and semantic input failures are
+                # terminal. Retrying them would hide a real evaluation error.
+                raise
+            except Exception as exc:
+                # Only exceptions outside the expected Tool contract are
+                # classified as restartable runtime failures.
+                raise UnexpectedToolExecutionError(
+                    f"{type(exc).__name__}: {exc}"
+                ) from exc
+
+        recovery = run_bounded_tool_recovery(
+            execution_dir / "tool_recovery",
+            logical_round_id=round_id,
+            execute=execute_tool_attempt,
+            telemetry_sha256=lambda: directory_tree_sha256(telemetry_dir),
+            max_restarts=tool_recovery_max_restarts,
         )
+        recovery_summary = {
+            key: recovery.get(key)
+            for key in (
+                "status",
+                "attempt_count",
+                "restarts_used",
+                "same_telemetry_reused",
+                "telemetry_sha256",
+                "failure_class",
+                "action",
+                "recovery_scope",
+                "additional_act_rollouts_started_by_recovery",
+                "policy_or_simulator_restarted",
+                "provider_or_registry_work_may_repeat",
+            )
+        }
+        tool_evaluation = recovery["result"]
     else:
         skip_reason = (
             f"child TaskGen exited with code {returncode}"
@@ -971,9 +1074,7 @@ def execute_round(
             "validation": {"reason": skip_reason},
             "artifacts": {},
         }
-        write_json(
-            execution_dir / "planned_tool_skipped.json", tool_evaluation
-        )
+        write_json(execution_dir / "planned_tool_skipped.json", tool_evaluation)
     aggregate_result = aggregate_round_results(
         round_plan,
         child_manifest,
@@ -989,6 +1090,7 @@ def execute_round(
         provider=provider,
         model=vision_model,
         round_plan=round_plan,
+        reviewed_vqa_registry=reviewed_vqa_registry,
     )
     round_summary = summarize_round(
         round_plan,
@@ -999,6 +1101,7 @@ def execute_round(
         execution_vqa,
         returncode,
     )
+    round_summary.setdefault("observations", {})["tool_recovery"] = recovery_summary
     write_json(evaluation_dir / "summary" / f"{round_id}.json", round_summary)
     return child_manifest, child_dir, round_summary, tool_evaluation, returncode
 
@@ -1067,23 +1170,16 @@ def _round_evidence(
         / "execution"
         / round_plan["round_id"]
     )
-    execution_vqa_observation = round_summary["observations"].get(
-        "execution_vqa"
-    ) or {}
+    execution_vqa_observation = round_summary["observations"].get("execution_vqa") or {}
     execution_vqa_artifacts = execution_vqa_observation.get("artifacts") or {}
-    execution_vqa_artifact = (
-        execution_vqa_artifacts.get("result")
-        or execution_vqa_artifacts.get("execution_vqa")
-    )
+    execution_vqa_artifact = execution_vqa_artifacts.get(
+        "result"
+    ) or execution_vqa_artifacts.get("execution_vqa")
     if not execution_vqa_artifact:
         if execution_vqa_observation.get("status") == "skipped":
-            execution_vqa_artifact = str(
-                round_execution / "execution_vqa_skipped.json"
-            )
+            execution_vqa_artifact = str(round_execution / "execution_vqa_skipped.json")
         elif execution_vqa_observation.get("status") == "failed":
-            execution_vqa_artifact = str(
-                round_execution / "execution_vqa_error.json"
-            )
+            execution_vqa_artifact = str(round_execution / "execution_vqa_error.json")
     return {
         "round_id": round_plan["round_id"],
         "child_run_id": child_manifest.get("run_id"),
@@ -1104,21 +1200,15 @@ def _round_evidence(
         },
         "knowledge_retrieval": {
             "selected_ids": knowledge.get("selected_ids", []),
-            "context_character_count": knowledge.get(
-                "context_character_count"
-            ),
-            "committed_index_current": knowledge.get(
-                "committed_index_current"
-            ),
+            "context_character_count": knowledge.get("context_character_count"),
+            "committed_index_current": knowledge.get("committed_index_current"),
         },
         "generation": {
             "variant_spec": variant_spec,
             "complete_method_generated": static.get("load_actors_ast", {}).get(
                 "complete_method_generated"
             ),
-            "generated_color": static.get("load_actors_ast", {}).get(
-                "generated_color"
-            ),
+            "generated_color": static.get("load_actors_ast", {}).get("generated_color"),
         },
         "visual_observation": {
             "render_success": scene.get("render_success"),
@@ -1161,22 +1251,12 @@ def _round_evidence(
             "rollout_videos": rollout_videos,
             "act_result": str(child_relative / "evaluation/_result.txt"),
             "trusted_tools": trusted_tool_evaluation.get("artifact"),
-            "planned_tool": tool_evaluation.get("artifacts", {}).get(
-                "tool_execution"
-            ),
-            "aggregate": str(
-                round_execution / "aggregate_result.json"
-            ),
+            "planned_tool": tool_evaluation.get("artifacts", {}).get("tool_execution"),
+            "aggregate": str(round_execution / "aggregate_result.json"),
             "execution_vqa": execution_vqa_artifact,
-            "execution_vqa_query": str(
-                round_execution / "execution_vqa_query.json"
-            ),
-            "execution_vqa_montage": execution_vqa_artifacts.get(
-                "montage"
-            ),
-            "execution_vqa_selection": execution_vqa_artifacts.get(
-                "selection"
-            ),
+            "execution_vqa_query": str(round_execution / "execution_vqa_query.json"),
+            "execution_vqa_montage": execution_vqa_artifacts.get("montage"),
+            "execution_vqa_selection": execution_vqa_artifacts.get("selection"),
             "child_manifest": str(child_relative / "manifest.json"),
         },
     }
@@ -1210,9 +1290,7 @@ def build_evidence_bundle(
         if rate is not None:
             weighted_success += float(rate) * item["num_episodes"]
             measured_episodes += item["num_episodes"]
-    policy_success = (
-        weighted_success / measured_episodes if measured_episodes else None
-    )
+    policy_success = weighted_success / measured_episodes if measured_episodes else None
     position_rounds = [
         item for item in rounds if str(item["sub_aspect"]).startswith("object_position")
     ]
@@ -1253,17 +1331,11 @@ def build_evidence_bundle(
         if item not in completed_template_ids
     ]
     decision_artifacts = [
-        str(
-            evaluation_relative
-            / f"plan/decision_after_round_{round_number}.json"
-        )
+        str(evaluation_relative / f"plan/decision_after_round_{round_number}.json")
         for round_number in range(1, len(plan.get("round_decisions", [])) + 1)
     ]
     evidence_assessment_artifacts = [
-        str(
-            evaluation_relative
-            / f"plan/evidence_after_round_{round_number}.json"
-        )
+        str(evaluation_relative / f"plan/evidence_after_round_{round_number}.json")
         for round_number in range(1, len(plan.get("round_decisions", [])) + 1)
     ]
     history_path = repo_root / evaluation_relative / "plan/history_retrieval.json"
@@ -1272,29 +1344,18 @@ def build_evidence_bundle(
         if history_path.is_file()
         else {"status": "missing", "matches": []}
     )
-    global_route_path = (
-        repo_root / evaluation_relative / "plan/global_query_route.json"
-    )
+    global_route_path = repo_root / evaluation_relative / "plan/global_query_route.json"
     global_route = (
         json.loads(global_route_path.read_text(encoding="utf-8"))
         if global_route_path.is_file()
         else None
     )
     execution_backends = sorted(
-        {
-            str(item["observations"].get("execution_backend") or "ACT")
-            for item in rounds
-        }
+        {str(item["observations"].get("execution_backend") or "ACT") for item in rounds}
     )
-    act_statuses = [
-        item["observations"].get("act_pipeline_status") for item in rounds
-    ]
-    measured_act_statuses = [
-        bool(value) for value in act_statuses if value is not None
-    ]
-    expert_statuses = [
-        item["observations"].get("expert_solvable") for item in rounds
-    ]
+    act_statuses = [item["observations"].get("act_pipeline_status") for item in rounds]
+    measured_act_statuses = [bool(value) for value in act_statuses if value is not None]
+    expert_statuses = [item["observations"].get("expert_solvable") for item in rounds]
     measured_expert_statuses = [
         bool(value) for value in expert_statuses if value is not None
     ]
@@ -1310,9 +1371,7 @@ def build_evidence_bundle(
             "requested_template_ids": plan.get("requested_template_ids", []),
             "completed_template_ids": completed_template_ids,
             "remaining_template_ids": remaining_template_ids,
-            "round_budget_remaining": max(
-                int(plan["max_rounds"]) - len(rounds), 0
-            ),
+            "round_budget_remaining": max(int(plan["max_rounds"]) - len(rounds), 0),
         },
         "rounds": rounds,
         "observations": {
@@ -1324,9 +1383,7 @@ def build_evidence_bundle(
                 item["observations"]["observed_color"] for item in rounds
             ],
             "expert_solvable": (
-                all(measured_expert_statuses)
-                if measured_expert_statuses
-                else None
+                all(measured_expert_statuses) if measured_expert_statuses else None
             ),
             "act_pipeline_status": (
                 all(measured_act_statuses) if measured_act_statuses else None
@@ -1366,9 +1423,7 @@ def build_evidence_bundle(
             "policy_result_is_not_pipeline_status": True,
         },
         "artifacts": {
-            "evaluation_plan": str(
-                evaluation_relative / "plan/evaluation_plan.json"
-            ),
+            "evaluation_plan": str(evaluation_relative / "plan/evaluation_plan.json"),
             "plan_decisions": decision_artifacts,
             "evidence_assessments": evidence_assessment_artifacts,
             "history_retrieval": str(
@@ -1380,9 +1435,7 @@ def build_evidence_bundle(
                 else None
             ),
             "summary": str(evaluation_relative / "summary/summary.json"),
-            "aggregate": str(
-                evaluation_relative / "summary/aggregate_result.json"
-            ),
+            "aggregate": str(evaluation_relative / "summary/aggregate_result.json"),
             "round_artifacts": [item["artifacts"] for item in rounds],
         },
     }
@@ -1417,18 +1470,28 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--task-profile",
-        choices=["official", "position_lr", "adaptive_properties"],
+        choices=["official", "position_lr", "adaptive_properties", "fixed_suite"],
         default="official",
         help=(
             "official preserves the upstream task. position_lr enables the "
             "legacy bounded two-round click_bell profile. adaptive_properties "
-            "uses model-selected position/object-instance aspects."
+            "uses model-selected position/object-instance aspects. fixed_suite "
+            "executes the selected trusted templates in a frozen order."
+        ),
+    )
+    parser.add_argument(
+        "--planning-policy",
+        choices=["dynamic_evidence_v1", "fixed_predeclared_v1"],
+        default="dynamic_evidence_v1",
+        help=(
+            "For auto-routed click_bell, choose adaptive evidence routing or "
+            "a frozen predeclared schedule over the same selected candidates."
         ),
     )
     parser.add_argument(
         "--generated-rounds",
         type=int,
-        choices=[1, 2, 3],
+        choices=[1, 2, 3, 4, 5],
         default=2,
         help="Round budget for a bounded click_bell generated profile.",
     )
@@ -1489,6 +1552,33 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--reviewed-vqa-registry",
+        type=Path,
+        help=(
+            "Optional hash-pinned reviewed VQAQuerySpec registry. Matching "
+            "entries may only select existing trusted visual phenomena."
+        ),
+    )
+    parser.add_argument(
+        "--tool-recovery-max-restarts",
+        type=int,
+        choices=[0, 1],
+        default=1,
+        help=(
+            "Restart only an unexpected Tool analysis exception, reusing the "
+            "same recorded telemetry. Policy/simulator/contract failures are "
+            "never retried."
+        ),
+    )
+    parser.add_argument(
+        "--inject-tool-exception-once",
+        action="store_true",
+        help=(
+            "Development-only fault injection proving one same-telemetry Tool "
+            "analysis restart; never reruns ACT."
+        ),
+    )
+    parser.add_argument(
         "--no-history",
         action="store_true",
         help="Disable cross-evaluation planning retrieval and indexing.",
@@ -1500,6 +1590,10 @@ def main() -> None:
     args = parse_args()
     if args.num_episodes <= 0:
         raise SystemExit("--num-episodes must be positive")
+    if args.inject_tool_exception_once and args.tool_recovery_max_restarts != 1:
+        raise SystemExit(
+            "--inject-tool-exception-once requires --tool-recovery-max-restarts 1"
+        )
     if args.auto_route and args.task_module is not None:
         raise SystemExit(
             "--auto-route resolves a trusted task module; do not pass --task-module"
@@ -1525,6 +1619,11 @@ def main() -> None:
         if args.reviewed_tool_registry is not None
         else None
     )
+    reviewed_vqa_registry = (
+        args.reviewed_vqa_registry.expanduser().resolve()
+        if args.reviewed_vqa_registry is not None
+        else None
+    )
     provider = None
     global_catalog: dict[str, Any] | None = None
     global_route_result: dict[str, Any] | None = None
@@ -1545,9 +1644,7 @@ def main() -> None:
             timeout=180.0,
         )
         global_catalog = build_act_catalog(repo_root)
-        ready_tasks = [
-            task["task_name"] for task in global_catalog.get("tasks", [])
-        ]
+        ready_tasks = [task["task_name"] for task in global_catalog.get("tasks", [])]
         if not ready_tasks:
             raise SystemExit("trusted ACT catalog has no checkpoint-ready tasks")
         global_history_context: list[dict[str, Any]] = []
@@ -1557,15 +1654,13 @@ def main() -> None:
                     history_path,
                     repo_root=repo_root,
                 )
-                global_history_retrieval = (
-                    global_history_db.retrieve_similar_global(
-                        args.request,
-                        allowed_task_names=ready_tasks,
-                        policy_name="ACT",
-                        checkpoint_setting="demo_clean",
-                        limit=args.history_limit,
-                        exclude_evaluation_id=args.evaluation_id,
-                    )
+                global_history_retrieval = global_history_db.retrieve_similar_global(
+                    args.request,
+                    allowed_task_names=ready_tasks,
+                    policy_name="ACT",
+                    checkpoint_setting="demo_clean",
+                    limit=args.history_limit,
+                    exclude_evaluation_id=args.evaluation_id,
                 )
                 global_history_retrieval["status"] = "passed"
                 global_history_context = list(
@@ -1604,7 +1699,11 @@ def main() -> None:
         args.task_name = routed["task_name"]
         routed_task_profile = routed["task_profile"]
         args.task_profile = (
-            "adaptive_properties"
+            (
+                "fixed_suite"
+                if args.planning_policy == "fixed_predeclared_v1"
+                else "adaptive_properties"
+            )
             if args.task_name == "click_bell"
             else "official"
         )
@@ -1612,7 +1711,8 @@ def main() -> None:
 
     legacy_click_bell = args.task_profile == "position_lr"
     adaptive_click_bell = args.task_profile == "adaptive_properties"
-    bounded_click_bell = legacy_click_bell or adaptive_click_bell
+    fixed_click_bell = args.task_profile == "fixed_suite"
+    bounded_click_bell = legacy_click_bell or adaptive_click_bell or fixed_click_bell
     if bounded_click_bell and args.task_name != "click_bell":
         raise SystemExit(
             "click_bell generated task profiles require --task-name click_bell"
@@ -1636,13 +1736,11 @@ def main() -> None:
     # The deterministic official planner can materialize --plan-only without
     # any provider credential. Full execution still creates the provider for
     # final Feedback (and for VQA when an ACT video exists).
-    if (
-        provider is None
-        and (
+    if provider is None and (
         args.task_name == "beat_block_hammer"
         or adaptive_click_bell
+        or fixed_click_bell
         or not args.plan_only
-        )
     ):
         provider = OpenAICompatibleProvider(
             base_url=args.base_url,
@@ -1660,6 +1758,17 @@ def main() -> None:
     elif adaptive_click_bell:
         assert provider is not None
         planner = ClickBellAdaptivePlanAgent(
+            repo_root,
+            provider,
+            model=models["planner"],
+            start_seed=args.start_seed,
+            num_episodes=args.num_episodes,
+            telemetry_profile=args.telemetry_profile,
+            max_rounds=args.generated_rounds,
+        )
+    elif fixed_click_bell:
+        assert provider is not None
+        planner = ClickBellFixedSuitePlanAgent(
             repo_root,
             provider,
             model=models["planner"],
@@ -1738,6 +1847,14 @@ def main() -> None:
     evaluation_id = manifest["evaluation_id"]
     evaluation_dir = repo_root / "mea/evaluation_runs" / evaluation_id
     plan = manifest["plan"]
+    candidate_suite = list(plan.get("requested_template_ids") or [])
+    planning_policy = (
+        "fixed_predeclared_v1"
+        if fixed_click_bell
+        else "dynamic_evidence_v1"
+        if adaptive_click_bell
+        else None
+    )
     if (
         global_catalog is not None
         and global_route_result is not None
@@ -1778,6 +1895,10 @@ def main() -> None:
         generated_rounds=(args.generated_rounds if bounded_click_bell else None),
         telemetry_profile=args.telemetry_profile,
         execution_backend=execution_backend,
+        planning_policy=planning_policy,
+        candidate_suite_sha256=(
+            canonical_sha256(candidate_suite) if candidate_suite else None
+        ),
         reviewed_tool_registry=(
             str(reviewed_tool_registry.relative_to(repo_root))
             if reviewed_tool_registry is not None
@@ -1786,6 +1907,22 @@ def main() -> None:
             if reviewed_tool_registry is not None
             else None
         ),
+        reviewed_vqa_registry=(
+            str(reviewed_vqa_registry.relative_to(repo_root))
+            if reviewed_vqa_registry is not None
+            and reviewed_vqa_registry.is_relative_to(repo_root)
+            else str(reviewed_vqa_registry)
+            if reviewed_vqa_registry is not None
+            else None
+        ),
+        tool_recovery={
+            "schema_version": 1,
+            "max_restarts": args.tool_recovery_max_restarts,
+            "eligible_failure": "unexpected_tool_execution_exception",
+            "reuses_recorded_telemetry": True,
+            "restarts_policy_or_simulator": False,
+            "development_fault_injection": bool(args.inject_tool_exception_once),
+        },
     )
 
     if args.plan_only:
@@ -1820,6 +1957,9 @@ def main() -> None:
                 toolgen_model=models["toolgen"],
                 telemetry_profile=args.telemetry_profile,
                 reviewed_tool_registry=reviewed_tool_registry,
+                reviewed_vqa_registry=reviewed_vqa_registry,
+                tool_recovery_max_restarts=args.tool_recovery_max_restarts,
+                inject_tool_exception_once=args.inject_tool_exception_once,
             )
             round_runs.append(
                 {
@@ -1837,9 +1977,7 @@ def main() -> None:
                 evaluation_id=evaluation_id,
                 user_request=args.request,
                 current_plan=plan,
-                observation_history=[
-                    item["round_summary"] for item in round_runs
-                ],
+                observation_history=[item["round_summary"] for item in round_runs],
             )
             if decision["action"] == "stop":
                 break
@@ -1901,15 +2039,11 @@ def main() -> None:
             evidence_path="summary/evidence_bundle.json",
             feedback_path="feedback/feedback.json",
             report_path="evaluation_report.md",
-            child_run_ids=[
-                item["child_manifest"].get("run_id") for item in round_runs
-            ],
+            child_run_ids=[item["child_manifest"].get("run_id") for item in round_runs],
             summary=summary,
             feedback=feedback,
         )
-        history_index = {
-            "status": "disabled" if args.no_history else "not_available"
-        }
+        history_index = {"status": "disabled" if args.no_history else "not_available"}
         if history_database is not None:
             try:
                 history_index = {

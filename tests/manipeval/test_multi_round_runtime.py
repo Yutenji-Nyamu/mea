@@ -151,6 +151,12 @@ class MultiRoundRuntimeTests(unittest.TestCase):
             (child_dir / "manifest.json").write_text(
                 json.dumps(child_manifest), encoding="utf-8"
             )
+            telemetry_dir = child_dir / "evaluation/telemetry"
+            telemetry_dir.mkdir(parents=True)
+            (telemetry_dir / "fixture.json").write_text(
+                json.dumps({"seed": 1001, "source": "unit_test"}),
+                encoding="utf-8",
+            )
             provider = object()
             with (
                 patch("scripts.manipeval_agent.run_logged", return_value=0),

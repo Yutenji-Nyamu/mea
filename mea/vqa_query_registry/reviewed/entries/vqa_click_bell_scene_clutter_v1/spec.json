@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "spec_id": "vqa_click_bell_scene_clutter_v1",
+  "task_name": "click_bell",
+  "template_ids": [
+    "robustness.scene_clutter.official_table"
+  ],
+  "sub_aspect_prefixes": [
+    "robustness.scene_clutter"
+  ],
+  "tool_metrics": [
+    "official_check_success"
+  ],
+  "phenomenon_ids": [
+    "bell_visibly_pressed",
+    "bell_target_selected_among_clutter"
+  ],
+  "answer_contract_id": "execution_vqa_binary_v1"
+}

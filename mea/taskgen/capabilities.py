@@ -59,6 +59,21 @@ TASK_CAPABILITIES: dict[str, dict[str, dict[str, Any]]] = {
                 "checkpoint",
             ],
         },
+        "robustness.scene_clutter": {
+            "controlled_axis": "robustness.scene_clutter",
+            "generation_mode": "bounded_variant_overlay",
+            "allowed_generation_modes": ["bounded_variant_overlay"],
+            "default_metric": "official_check_success",
+            "preserve": [
+                "official_pose_sampling",
+                "official_instance_sampling",
+                "official_bell_assets",
+                "official_clutter_generator",
+                "play_once",
+                "check_success",
+                "checkpoint",
+            ],
+        },
     },
 }
 
@@ -173,6 +188,7 @@ def load_legacy_variant_spec(spec: Mapping[str, Any]) -> dict[str, Any]:
         capability_id = {
             "object_position": "object_position.fixed_xy",
             "object_instance": "object_instance.official_id",
+            "robustness.scene_clutter": "robustness.scene_clutter",
         }.get(controlled_axis, "")
         variant_id = str(spec.get("variant_id") or f"{controlled_axis}.legacy")
     else:
