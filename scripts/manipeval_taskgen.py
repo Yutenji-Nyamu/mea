@@ -22,6 +22,7 @@ from mea.capability_adapter import (
     CapabilityAdapterError,
     taskgen_route,
     validate_capability_contract,
+    validate_contract_changes,
 )
 from mea.providers import OpenAICompatibleProvider
 from mea.proposals import ProposalError, validate_task_proposal
@@ -155,6 +156,7 @@ def prepare_planner_capability_binding(
     task_name: str,
     mode: str,
     variant_id: str | None,
+    task_proposal: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any] | None]:
     """Fail closed before provider, simulator, or filesystem work begins."""
 
@@ -171,10 +173,34 @@ def prepare_planner_capability_binding(
         )
     taskgen = contract["taskgen"]
     expected_variant = taskgen["task_variant_id"]
+    proposal = None
+    if task_proposal is not None:
+        try:
+            proposal = validate_task_proposal(
+                task_proposal, expected_task_name=task_name
+            )
+            proposal["changes"] = validate_contract_changes(
+                contract, proposal["changes"]
+            )
+        except (ProposalError, CapabilityAdapterError) as exc:
+            raise RuntimeError(f"TaskProposal exceeds capability contract: {exc}") from exc
+        if proposal["capability_id"] != taskgen["capability_id"]:
+            raise RuntimeError("TaskProposal capability does not match planner contract")
+        if proposal["aspect_id"] != contract["aspect"]["aspect_id"]:
+            raise RuntimeError("TaskProposal aspect does not match planner contract")
+        if task_name == "click_bell" and proposal["changes"]:
+            try:
+                proposal["changes"] = validate_click_bell_variant_hint(
+                    proposal["changes"]
+                )
+            except RuntimeError as exc:
+                raise RuntimeError(f"invalid bounded click_bell proposal: {exc}") from exc
     if expected_variant is None:
         if mode != "official" or variant_id is not None:
             raise RuntimeError("official capability requires no task variant")
         return contract, None
+    if proposal is not None:
+        expected_variant = proposal["proposal_id"]
     if variant_id != expected_variant:
         raise RuntimeError("TaskGen variant id does not match planner task_variant_id")
     try:
@@ -182,8 +208,12 @@ def prepare_planner_capability_binding(
             task_name=task_name,
             variant_id=expected_variant,
             capability_id=taskgen["capability_id"],
-            intent=f"planner_capability:{contract['template_id']}",
-            changes=taskgen["changes"],
+            intent=(
+                proposal["intent"]
+                if proposal is not None
+                else f"planner_capability:{contract['template_id']}"
+            ),
+            changes=(proposal["changes"] if proposal is not None else taskgen["changes"]),
             generation_mode=taskgen["generation_mode"],
         )
     except ValueError as exc:
@@ -198,6 +228,7 @@ def validate_planner_capability_binding(
     mode: str,
     variant_id: str | None,
     run_dir: Path,
+    task_proposal: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Bind a planner adapter contract to the materialized TaskGen artifact."""
 
@@ -206,10 +237,15 @@ def validate_planner_capability_binding(
         task_name=task_name,
         mode=mode,
         variant_id=variant_id,
+        task_proposal=task_proposal,
     )
     taskgen = contract["taskgen"]
     declared_route = taskgen_route(contract)
-    expected_variant = taskgen["task_variant_id"]
+    expected_variant = (
+        trusted_spec["variant_id"]
+        if trusted_spec is not None
+        else taskgen["task_variant_id"]
+    )
     if expected_variant is None:
         manifest_path = run_dir / "manifest.json"
         spec_path = run_dir / "variant_spec.json"
@@ -259,10 +295,10 @@ def validate_planner_capability_binding(
         expected = {
             "task_name": task_name,
             "variant_id": expected_variant,
-            "capability_id": taskgen["capability_id"],
-            "controlled_axis": taskgen["controlled_axis"],
-            "generation_mode": taskgen["generation_mode"],
-            "changes": taskgen["changes"],
+            "capability_id": trusted_spec["capability_id"],
+            "controlled_axis": trusted_spec["controlled_axis"],
+            "generation_mode": trusted_spec["generation_mode"],
+            "changes": trusted_spec["changes"],
         }
         observed = {field: spec.get(field) for field in expected}
         if observed != expected:
@@ -317,10 +353,19 @@ def validate_planner_capability_binding(
         "variant_spec_authority": (
             "official_passthrough"
             if trusted_spec is None
-            else "planner_capability_contract"
+            else (
+                "planner_task_proposal"
+                if task_proposal is not None
+                else "planner_capability_contract"
+            )
         ),
         "capability_contract_sha256": _canonical_sha256(contract),
         "variant_spec_sha256": _canonical_sha256(spec) if spec is not None else None,
+        "task_proposal_sha256": (
+            _canonical_sha256(task_proposal)
+            if task_proposal is not None
+            else None
+        ),
     }
     update_manifest(
         run_dir,
@@ -1799,6 +1844,18 @@ def main() -> None:
             )
         except (json.JSONDecodeError, ValueError) as exc:
             raise SystemExit(f"invalid --registration-identity-json: {exc}") from exc
+    task_proposal: dict[str, Any] | None = None
+    if args.task_proposal_json is not None:
+        if args.resume_run:
+            raise SystemExit("--task-proposal-json cannot be used with --resume-run")
+        try:
+            raw_task_proposal = json.loads(args.task_proposal_json)
+            task_proposal = validate_task_proposal(
+                raw_task_proposal, expected_task_name=args.task_name
+            )
+        except (json.JSONDecodeError, ProposalError) as exc:
+            raise SystemExit(f"invalid --task-proposal-json: {exc}") from exc
+
     capability_contract: dict[str, Any] | None = None
     trusted_variant_spec: dict[str, Any] | None = None
     if args.capability_contract_json is not None:
@@ -1809,12 +1866,19 @@ def main() -> None:
                 f"--capability-contract-json is invalid JSON: {exc}"
             ) from exc
         try:
+            if (
+                task_proposal is not None
+                and args.mode != "official"
+                and args.variant_id is None
+            ):
+                args.variant_id = task_proposal["proposal_id"]
             capability_contract, trusted_variant_spec = (
                 prepare_planner_capability_binding(
                     raw_contract,
                     task_name=args.task_name,
                     mode=args.mode,
                     variant_id=args.variant_id,
+                    task_proposal=task_proposal,
                 )
             )
         except RuntimeError as exc:
@@ -1827,19 +1891,15 @@ def main() -> None:
             raise SystemExit(
                 "capability-bound official execution cannot override --task-module"
             )
-    task_proposal: dict[str, Any] | None = None
-    if args.task_proposal_json is not None:
-        if args.resume_run:
-            raise SystemExit("--task-proposal-json cannot be used with --resume-run")
-        try:
-            raw_task_proposal = json.loads(args.task_proposal_json)
-            task_proposal = validate_task_proposal(
-                raw_task_proposal, expected_task_name=args.task_name
-            )
-        except (json.JSONDecodeError, ProposalError) as exc:
-            raise SystemExit(f"invalid --task-proposal-json: {exc}") from exc
-        if args.variant_id is None:
-            args.variant_id = task_proposal["proposal_id"]
+    if (
+        task_proposal is not None
+        and capability_contract is None
+        and args.mode != "official"
+        and args.variant_id is None
+    ):
+        # Preserve the standalone Proposal CLI: without a planner capability
+        # envelope, the proposal id remains the only bounded variant identity.
+        args.variant_id = task_proposal["proposal_id"]
     parsed_variant_hint: dict[str, Any] | None = None
     if args.variant_hint_json is not None:
         try:
@@ -1851,6 +1911,7 @@ def main() -> None:
         parsed_variant_hint = loaded_hint
         if (
             capability_contract is not None
+            and task_proposal is None
             and parsed_variant_hint != capability_contract["taskgen"]["changes"]
         ):
             raise SystemExit(
@@ -1947,6 +2008,7 @@ def main() -> None:
                 mode=args.mode,
                 variant_id=args.variant_id,
                 run_dir=run_dir,
+                task_proposal=task_proposal,
             )
         except RuntimeError as exc:
             update_manifest(

@@ -17,6 +17,7 @@ from .query import (
     LEGACY_PHENOMENON_IDS,
     QUESTION_CATALOG,
     build_execution_vqa_query,
+    is_run_local_phenomenon_id,
     validate_execution_vqa_query,
 )
 
@@ -546,7 +547,14 @@ def validate_execution_vqa_response(
         raise ExecutionVQAError(
             "expected_phenomenon_ids must be non-empty and unique"
         )
-    if any(item not in PHENOMENON_IDS for item in expected_ids):
+    # ``analyze_execution_montage`` obtains these ids from a fully validated,
+    # self-contained query.  Direct callers retain the same catalog-only
+    # default, while a syntactically bounded run-local id can be replayed from
+    # that saved query artifact.
+    if any(
+        item not in PHENOMENON_IDS and not is_run_local_phenomenon_id(item)
+        for item in expected_ids
+    ):
         raise ExecutionVQAError("expected_phenomenon_ids contains unknown ids")
     phenomena_value = value.get("phenomena")
     if not isinstance(phenomena_value, list) or not phenomena_value:

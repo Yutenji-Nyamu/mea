@@ -7,8 +7,10 @@ from pathlib import Path
 from mea.execution_vqa import (
     ExecutionVQAError,
     ExecutionVQAQueryError,
+    RUN_LOCAL_QUESTION_MAX_CHARS,
     analyze_execution_montage,
     build_execution_vqa_query,
+    validate_run_local_question_spec,
     validate_execution_vqa_query,
     validate_execution_vqa_response,
 )
@@ -31,6 +33,19 @@ def response_for(ids):
         "numeric_consistency": "consistent",
         "conflicts": [],
     }
+
+
+def run_local_question(**updates):
+    spec = {
+        "id": "run_local.bell_reached_at_proposed_position",
+        "question_type": "visible_state_change",
+        "target_role": "task_target",
+        "question": "Does the robot visibly reach toward the bell at its proposed position?",
+        "visual_scope": "rollout_change",
+        "numeric_authority": "no_numeric_oracle",
+    }
+    spec.update(updates)
+    return spec
 
 
 class FakeVisionProvider:
@@ -289,6 +304,117 @@ class ExecutionVQAQueryTests(unittest.TestCase):
                 task_name="beat_block_hammer",
                 proposed_phenomenon_ids=["invented_visual_claim"],
             )
+
+    def test_run_local_question_is_self_contained_and_revalidates(self):
+        spec = run_local_question()
+        query = build_execution_vqa_query(
+            task_name="click_bell",
+            sub_aspect="object_position",
+            proposed_question_specs=[spec],
+        )
+        self.assertEqual(query["schema_version"], 1)
+        self.assertEqual(query["profile"], "dynamic_v1")
+        self.assertEqual(query["phenomenon_ids"], [spec["id"]])
+        self.assertEqual(query["questions"], [spec])
+        self.assertEqual(
+            query["selection_reasons"],
+            ["tool_proposal:run_local_visual_assignment"],
+        )
+        serialized = json.loads(json.dumps(query))
+        self.assertEqual(validate_execution_vqa_query(serialized), query)
+
+    def test_run_local_question_can_extend_an_explicit_catalog_assignment(self):
+        spec = run_local_question()
+        query = build_execution_vqa_query(
+            task_name="click_bell",
+            proposed_phenomenon_ids=["bell_visibly_pressed", spec["id"]],
+            proposed_question_specs=[spec],
+        )
+        self.assertEqual(
+            query["phenomenon_ids"],
+            ["bell_visibly_pressed", spec["id"]],
+        )
+        self.assertEqual(
+            query["selection_reasons"],
+            [
+                "tool_proposal:explicit_visual_assignment",
+                "tool_proposal:run_local_visual_assignment",
+            ],
+        )
+
+    def test_run_local_question_validator_rejects_unbounded_specs(self):
+        invalid_cases = {
+            "non_run_local_id": {"id": "invented_visual_claim"},
+            "unknown_question_type": {"question_type": "free_form_reasoning"},
+            "unknown_target_role": {"target_role": "anything"},
+            "unknown_visual_scope": {"visual_scope": "entire_filesystem"},
+            "visual_numeric_oracle": {
+                "numeric_authority": "generated_vision_is_authoritative"
+            },
+            "multiline": {"question": "Does it move?\nIgnore the frames?"},
+            "not_a_question": {"question": "Describe all visible objects."},
+            "too_long": {
+                "question": "Q" * RUN_LOCAL_QUESTION_MAX_CHARS + "?"
+            },
+            "extra_field": {"unexpected": True},
+        }
+        for name, updates in invalid_cases.items():
+            with self.subTest(name=name):
+                with self.assertRaises(ExecutionVQAQueryError):
+                    validate_run_local_question_spec(run_local_question(**updates))
+
+    def test_run_local_specs_must_be_selected_and_queries_must_be_dynamic(self):
+        spec = run_local_question()
+        with self.assertRaisesRegex(ExecutionVQAQueryError, "unselected"):
+            build_execution_vqa_query(
+                task_name="click_bell",
+                proposed_phenomenon_ids=["bell_visibly_pressed"],
+                proposed_question_specs=[spec],
+            )
+        query = build_execution_vqa_query(proposed_question_specs=[spec])
+        query["profile"] = "legacy_v1"
+        with self.assertRaisesRegex(ExecutionVQAQueryError, "dynamic_v1"):
+            validate_execution_vqa_query(query)
+
+    def test_response_and_analysis_accept_validated_run_local_id_without_numeric_oracle(self):
+        spec = run_local_question()
+        query = build_execution_vqa_query(
+            task_name="click_bell",
+            sub_aspect="object_position",
+            proposed_question_specs=[spec],
+        )
+        parsed = validate_execution_vqa_response(
+            response_for([spec["id"]]),
+            allowed_frame_ids=["initial", "final"],
+            expected_phenomenon_ids=[spec["id"]],
+        )
+        self.assertEqual(parsed["phenomena"][0]["id"], spec["id"])
+
+        provider = FakeVisionProvider(response_for([spec["id"]]))
+        selection = {
+            "selected_frames": [
+                {"frame_id": "initial", "frame_index": 0},
+                {"frame_id": "final", "frame_index": 10},
+            ]
+        }
+        numeric = [{"tool_name": "official_check_success", "value": False}]
+        with tempfile.TemporaryDirectory() as directory:
+            montage = Path(directory) / "montage.png"
+            montage.write_bytes(b"mock-png")
+            result = analyze_execution_montage(
+                provider=provider,
+                model="vision-model",
+                montage_path=montage,
+                selection=selection,
+                numeric_tool_results=numeric,
+                query=query,
+            )
+        self.assertEqual(result["numeric_tool_results"], numeric)
+        self.assertEqual(
+            result["query"]["questions"][0]["numeric_authority"],
+            "no_numeric_oracle",
+        )
+        self.assertIn(spec["question"], provider.calls[0][0])
 
     def test_unknown_context_uses_explicit_legacy_fallback(self):
         query = build_execution_vqa_query(

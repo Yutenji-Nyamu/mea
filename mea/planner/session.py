@@ -40,6 +40,59 @@ _TARGET_KEYS = {
 }
 
 
+def build_adaptive_directive(
+    assessment: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Turn a conditional evidence assessment into one canonical directive.
+
+    The evidence policy owns navigation.  Task adapters may materialize the
+    selected template, but they cannot choose a different action, aspect, or
+    template.  Keeping this projection pure makes replay and adapter
+    adjudication use exactly the same control decision.
+    """
+
+    if not isinstance(assessment, Mapping):
+        raise PlanSessionError("conditional assessment must be an object")
+    action = assessment.get("required_action")
+    transition = assessment.get("required_transition")
+    next_aspect = assessment.get("required_next_aspect_id")
+    remaining = assessment.get("remaining_template_ids_by_aspect")
+    if action not in {"continue", "stop"}:
+        raise PlanSessionError(f"unsupported adaptive action: {action!r}")
+    if not isinstance(remaining, Mapping):
+        raise PlanSessionError("conditional assessment is missing remaining templates")
+
+    next_template = None
+    if action == "stop":
+        if transition != "stop" or next_aspect is not None:
+            raise PlanSessionError(
+                "stop assessment must use transition=stop and no next aspect"
+            )
+    else:
+        if transition not in {"drill_down", "switch_aspect"}:
+            raise PlanSessionError(
+                "continue assessment must select an adaptive transition"
+            )
+        if not isinstance(next_aspect, str) or not next_aspect:
+            raise PlanSessionError("continue assessment must select a next aspect")
+        candidates = remaining.get(next_aspect)
+        if not isinstance(candidates, list) or not candidates:
+            raise PlanSessionError(
+                "continue assessment has no remaining template for its aspect"
+            )
+        next_template = str(candidates[0])
+
+    return {
+        "schema_version": 1,
+        "action": action,
+        "transition": transition,
+        "next_aspect_id": next_aspect,
+        "next_template_id": next_template,
+        "round_budget_remaining": assessment.get("round_budget_remaining"),
+        "evidence_assessment": deepcopy(dict(assessment)),
+    }
+
+
 def build_evaluation_target(
     catalog: Mapping[str, Any],
     task_name: str,
@@ -100,8 +153,7 @@ class BoundTaskPlanSession:
         self.catalog = validate_act_catalog(catalog)
         self.target = validate_evaluation_target(target, self.catalog)
         self.aspect_catalog = {
-            str(item["aspect_id"]): deepcopy(item)
-            for item in self.target["aspects"]
+            str(item["aspect_id"]): deepcopy(item) for item in self.target["aspects"]
         }
         self.template_to_aspect = {
             str(template_id): aspect_id
@@ -119,9 +171,7 @@ class BoundTaskPlanSession:
     ) -> "BoundTaskPlanSession":
         return cls(
             catalog,
-            build_evaluation_target(
-                catalog, task_name, max_rounds=max_rounds
-            ),
+            build_evaluation_target(catalog, task_name, max_rounds=max_rounds),
         )
 
     def _selected_aspects(self, plan: Mapping[str, Any]) -> list[str]:
@@ -161,6 +211,13 @@ class BoundTaskPlanSession:
         policy = normalized.get("policy")
         if policy is not None and policy != self.target["policy"]:
             raise PlanSessionError("plan cannot change the bound ACT policy contract")
+        checkpoint = normalized.get("checkpoint")
+        if checkpoint is not None and checkpoint != self.target["checkpoint"]:
+            raise PlanSessionError("plan cannot change the bound ACT checkpoint")
+        checkpoint_id = normalized.get("checkpoint_id")
+        expected_checkpoint_id = self.target["checkpoint"].get("checkpoint_id")
+        if checkpoint_id is not None and checkpoint_id != expected_checkpoint_id:
+            raise PlanSessionError("plan cannot change the bound ACT checkpoint")
         raw_max_rounds = (
             normalized["max_rounds"]
             if "max_rounds" in normalized
@@ -262,10 +319,195 @@ class BoundTaskPlanSession:
             aspect_catalog=self.aspect_catalog,
         )
 
+    def directive(
+        self,
+        plan: Mapping[str, Any],
+        observation_history: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Return the one adaptive action/aspect/template allowed by evidence."""
+
+        assessment = self.assess(plan, observation_history)
+        return build_adaptive_directive(assessment)
+
+    def _validate_optional_binding(
+        self,
+        value: Mapping[str, Any],
+        *,
+        location: str,
+    ) -> None:
+        """Reject optional adapter metadata that leaves the frozen target."""
+
+        expected = {
+            "task_name": self.target["task_name"],
+            "policy": self.target["policy"],
+            "checkpoint": self.target["checkpoint"],
+            "checkpoint_id": self.target["checkpoint"].get("checkpoint_id"),
+            "max_rounds": self.target["max_rounds"],
+        }
+        for field, trusted in expected.items():
+            if field in value and value[field] != trusted:
+                raise PlanSessionError(f"{location} cannot change bound {field}")
+
+    def _validate_materialized_round(
+        self,
+        round_plan: Mapping[str, Any],
+        *,
+        expected_aspect_id: str,
+        expected_template_id: str,
+        location: str,
+    ) -> None:
+        self._validate_optional_binding(round_plan, location=location)
+        execution = round_plan.get("execution")
+        if isinstance(execution, Mapping):
+            self._validate_optional_binding(execution, location=f"{location}.execution")
+        actual_template = str(round_plan.get("template_id") or "")
+        if actual_template != expected_template_id:
+            raise PlanSessionError(
+                f"{location} template {actual_template!r} conflicts with "
+                f"directive template {expected_template_id!r}"
+            )
+        trusted_aspect = self.template_to_aspect.get(actual_template)
+        if trusted_aspect != expected_aspect_id:
+            raise PlanSessionError(
+                f"{location} template is not registered for directive aspect "
+                f"{expected_aspect_id!r}"
+            )
+        proposal = round_plan.get("task_proposal")
+        proposal_aspect = (
+            proposal.get("aspect_id")
+            if isinstance(proposal, Mapping)
+            else round_plan.get("aspect_id") or round_plan.get("sub_aspect")
+        )
+        if proposal_aspect != expected_aspect_id:
+            raise PlanSessionError(
+                f"{location} aspect {proposal_aspect!r} conflicts with "
+                f"directive aspect {expected_aspect_id!r}"
+            )
+
+    def adjudicate(
+        self,
+        plan: Mapping[str, Any],
+        observation_history: list[dict[str, Any]],
+        *,
+        candidate_plan: Mapping[str, Any],
+        candidate_decision: Mapping[str, Any],
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Validate an adapter-materialized transition and make it canonical.
+
+        Existing task adapters still own task-specific round materialization.
+        This final boundary owns adaptive navigation: it rejects any candidate
+        that changes the frozen target, request, budget, prior rounds, or the
+        evidence-selected aspect/template.  Legacy decisions may omit the new
+        ``transition`` and ``next_aspect_id`` fields; they are injected after
+        all supplied control fields have been checked.
+        """
+
+        if not isinstance(candidate_plan, Mapping):
+            raise PlanSessionError("candidate_plan must be an object")
+        if not isinstance(candidate_decision, Mapping):
+            raise PlanSessionError("candidate_decision must be an object")
+        current = self._normalize_plan(plan)
+        candidate = self._normalize_plan(candidate_plan)
+        directive = self.directive(current, observation_history)
+
+        self._validate_optional_binding(
+            candidate_decision, location="candidate_decision"
+        )
+        for field in ("requested_aspect_ids", "requested_template_ids"):
+            if candidate.get(field) != current.get(field):
+                raise PlanSessionError(f"candidate_plan cannot change {field}")
+        if candidate["max_rounds"] != current["max_rounds"]:
+            raise PlanSessionError("candidate_plan cannot change the round budget")
+
+        current_rounds = current["rounds"]
+        candidate_rounds = candidate["rounds"]
+        if candidate_rounds[: len(current_rounds)] != current_rounds:
+            raise PlanSessionError("candidate_plan cannot rewrite prior rounds")
+        expected_round_count = len(current_rounds) + (
+            1 if directive["action"] == "continue" else 0
+        )
+        if len(candidate_rounds) != expected_round_count:
+            raise PlanSessionError(
+                "candidate_plan round count conflicts with adaptive directive"
+            )
+
+        supplied = dict(candidate_decision)
+        required_controls = {
+            "action": directive["action"],
+            "transition": directive["transition"],
+            "next_aspect_id": directive["next_aspect_id"],
+            "next_template_id": directive["next_template_id"],
+        }
+        if "action" not in supplied or "next_template_id" not in supplied:
+            raise PlanSessionError(
+                "candidate_decision must contain action and next_template_id"
+            )
+        for field, trusted in required_controls.items():
+            if field in supplied and supplied[field] != trusted:
+                raise PlanSessionError(
+                    f"candidate_decision {field} conflicts with adaptive directive"
+                )
+
+        next_round = None
+        if directive["action"] == "continue":
+            next_round = candidate_rounds[-1]
+            self._validate_materialized_round(
+                next_round,
+                expected_aspect_id=str(directive["next_aspect_id"]),
+                expected_template_id=str(directive["next_template_id"]),
+                location="candidate_plan.next_round",
+            )
+            supplied_next_round = supplied.get("next_round")
+            if isinstance(supplied_next_round, Mapping):
+                self._validate_materialized_round(
+                    supplied_next_round,
+                    expected_aspect_id=str(directive["next_aspect_id"]),
+                    expected_template_id=str(directive["next_template_id"]),
+                    location="candidate_decision.next_round",
+                )
+        elif supplied.get("next_round") is not None:
+            raise PlanSessionError("stop decision cannot contain a next round")
+
+        expected_state = (
+            f"awaiting_round_{expected_round_count}_observation"
+            if directive["action"] == "continue"
+            else f"stopped_after_round_{len(current_rounds)}"
+        )
+        if candidate.get("planning_state") != expected_state:
+            raise PlanSessionError(
+                "candidate_plan planning_state conflicts with adaptive directive"
+            )
+
+        current_decisions = list(current.get("round_decisions") or [])
+        candidate_decisions = list(candidate.get("round_decisions") or [])
+        if candidate_decisions[: len(current_decisions)] != current_decisions:
+            raise PlanSessionError("candidate_plan cannot rewrite prior decisions")
+        if len(candidate_decisions) != len(current_decisions) + 1:
+            raise PlanSessionError(
+                "candidate_plan must append exactly one adapter decision"
+            )
+        if candidate_decisions[-1] != supplied:
+            raise PlanSessionError(
+                "candidate_plan decision does not match candidate_decision"
+            )
+
+        canonical_decision = deepcopy(supplied)
+        canonical_decision.update(required_controls)
+        canonical_decision["round_budget_before_decision"] = current[
+            "max_rounds"
+        ] - len(current_rounds)
+        canonical_decision["evidence_assessment"] = deepcopy(
+            directive["evidence_assessment"]
+        )
+        canonical_decision["next_round"] = deepcopy(next_round)
+        candidate["round_decisions"][-1] = canonical_decision
+        return candidate, canonical_decision
+
 
 __all__ = [
     "BoundTaskPlanSession",
     "PlanSessionError",
+    "build_adaptive_directive",
     "build_evaluation_target",
     "validate_evaluation_target",
 ]

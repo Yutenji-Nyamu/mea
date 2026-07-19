@@ -1,13 +1,15 @@
 """Bounded query contracts for execution-time visual observations.
 
 The Plan Agent and ToolGen outputs are not allowed to inject arbitrary Vision
-prompts.  This module maps their audited identifiers to a small catalog of
-visual questions.  Unknown identifiers fall back to the legacy three-question
-profile so existing callers keep the previous behaviour.
+prompts.  This module maps audited identifiers to a small committed catalog and
+admits only tightly bounded, self-contained ``run_local.*`` question specs.
+Unknown context still falls back to the legacy three-question profile so
+existing callers keep the previous behaviour.
 """
 
 from __future__ import annotations
 
+import re
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -188,6 +190,26 @@ QUESTION_KEYS = {
     "visual_scope",
     "numeric_authority",
 }
+RUN_LOCAL_QUESTION_MAX_CHARS = 240
+_RUN_LOCAL_PHENOMENON_ID = re.compile(
+    r"^run_local\.[a-z0-9](?:[a-z0-9_.-]{0,94}[a-z0-9])?$"
+)
+RUN_LOCAL_QUESTION_TYPES = frozenset(
+    item["question_type"] for item in QUESTION_CATALOG.values()
+)
+RUN_LOCAL_TARGET_ROLES = frozenset(
+    item["target_role"] for item in QUESTION_CATALOG.values()
+)
+RUN_LOCAL_VISUAL_SCOPES = frozenset(
+    item["visual_scope"] for item in QUESTION_CATALOG.values()
+)
+# Every admitted value either denies a numeric oracle or explicitly leaves
+# authority with an existing simulator/official signal.  A run-local visual
+# question can therefore cross-check evidence but cannot define a new numeric
+# success criterion.
+RUN_LOCAL_NUMERIC_AUTHORITIES = frozenset(
+    item["numeric_authority"] for item in QUESTION_CATALOG.values()
+)
 ANSWER_CONTRACT = {
     "required_response_keys": [
         "phenomena",
@@ -206,6 +228,63 @@ ANSWER_CONTRACT = {
     "observed_type": "boolean_or_null",
     "numeric_consistency_values": ["consistent", "conflict", "uncertain"],
 }
+
+
+def is_run_local_phenomenon_id(value: Any) -> bool:
+    """Return whether ``value`` is a bounded evaluation-local identifier."""
+
+    return (
+        isinstance(value, str)
+        and _RUN_LOCAL_PHENOMENON_ID.fullmatch(value) is not None
+    )
+
+
+def validate_run_local_question_spec(value: Any) -> dict[str, Any]:
+    """Validate one self-contained visual question generated for this run.
+
+    Run-local questions reuse the same prompt fields and controlled vocabulary
+    as the committed catalog.  Only the natural-language binary question is
+    new; its declared numeric authority must still point to a pre-existing
+    simulator/official signal (or explicitly declare no numeric oracle).
+    """
+
+    if not isinstance(value, Mapping) or set(value) != QUESTION_KEYS:
+        raise ExecutionVQAQueryError(
+            f"run-local question fields must be exactly {sorted(QUESTION_KEYS)}"
+        )
+    spec = deepcopy(dict(value))
+    phenomenon_id = spec.get("id")
+    if not is_run_local_phenomenon_id(phenomenon_id):
+        raise ExecutionVQAQueryError(
+            "run-local question id must match run_local.<lowercase-safe-id>"
+        )
+    controlled_fields = {
+        "question_type": RUN_LOCAL_QUESTION_TYPES,
+        "target_role": RUN_LOCAL_TARGET_ROLES,
+        "visual_scope": RUN_LOCAL_VISUAL_SCOPES,
+        "numeric_authority": RUN_LOCAL_NUMERIC_AUTHORITIES,
+    }
+    for field, allowed in controlled_fields.items():
+        if spec.get(field) not in allowed:
+            raise ExecutionVQAQueryError(
+                f"run-local question {field} is outside the trusted vocabulary"
+            )
+    question = spec.get("question")
+    if not isinstance(question, str) or question != question.strip():
+        raise ExecutionVQAQueryError(
+            "run-local question text must be a trimmed string"
+        )
+    if "\n" in question or "\r" in question:
+        raise ExecutionVQAQueryError("run-local question text must be one line")
+    if not question.endswith("?"):
+        raise ExecutionVQAQueryError("run-local question text must end with ?")
+    if not 8 <= len(question) <= RUN_LOCAL_QUESTION_MAX_CHARS:
+        raise ExecutionVQAQueryError(
+            "run-local question text length must be between 8 and "
+            f"{RUN_LOCAL_QUESTION_MAX_CHARS} characters"
+        )
+    spec["question"] = question
+    return spec
 
 
 def _optional_identifier(value: Any, *, field: str) -> str | None:
@@ -237,12 +316,15 @@ def build_execution_vqa_query(
     sub_aspect: str | None = None,
     tool_contract: Mapping[str, Any] | None = None,
     proposed_phenomenon_ids: list[str] | None = None,
+    proposed_question_specs: list[Mapping[str, Any]] | None = None,
     reviewed_registry_dir: str | Path | None = None,
 ) -> dict[str, Any]:
-    """Build a deterministic, allowlisted visual query contract.
+    """Build a deterministic, bounded visual query contract.
 
-    Context fields only select catalog entries.  Free-form Plan/Tool text is
-    intentionally ignored.  Calling this function without context returns the
+    Context fields select committed catalog entries.  A ToolProposal may also
+    supply strictly validated ``run_local.*`` question specs; those specs are
+    embedded in the query so the saved artifact can be validated without an
+    external registry.  Calling this function without context returns the
     original three phenomena in their original order.
     """
 
@@ -250,12 +332,41 @@ def build_execution_vqa_query(
     template = _optional_identifier(template_id, field="template_id")
     aspect = _optional_identifier(sub_aspect, field="sub_aspect")
     metric = _tool_metric(tool_contract)
-    context_supplied = any((task, template, aspect, metric))
+    context_supplied = any((task, template, aspect, metric)) or any(
+        value is not None
+        for value in (proposed_phenomenon_ids, proposed_question_specs)
+    )
     selected: list[str] = []
     reasons: list[str] = []
 
-    explicit_proposal = proposed_phenomenon_ids is not None
-    if explicit_proposal:
+    local_questions: dict[str, dict[str, Any]] = {}
+    if proposed_question_specs is not None:
+        if not isinstance(proposed_question_specs, list) or not proposed_question_specs:
+            raise ExecutionVQAQueryError(
+                "proposed_question_specs must be a non-empty list"
+            )
+        for index, raw_spec in enumerate(proposed_question_specs):
+            try:
+                spec = validate_run_local_question_spec(raw_spec)
+            except ExecutionVQAQueryError as exc:
+                raise ExecutionVQAQueryError(
+                    f"proposed_question_specs[{index}] is invalid: {exc}"
+                ) from exc
+            phenomenon_id = spec["id"]
+            if phenomenon_id in QUESTION_CATALOG:
+                raise ExecutionVQAQueryError(
+                    "run-local question id collides with the trusted catalog"
+                )
+            if phenomenon_id in local_questions:
+                raise ExecutionVQAQueryError(
+                    "proposed_question_specs contains duplicate ids"
+                )
+            local_questions[phenomenon_id] = spec
+
+    explicit_proposal = (
+        proposed_phenomenon_ids is not None or proposed_question_specs is not None
+    )
+    if proposed_phenomenon_ids is not None:
         if (
             not isinstance(proposed_phenomenon_ids, list)
             or not proposed_phenomenon_ids
@@ -270,7 +381,9 @@ def build_execution_vqa_query(
                 "proposed_phenomenon_ids must be a non-empty unique string list"
             )
         unknown_proposed = sorted(
-            set(proposed_phenomenon_ids) - set(QUESTION_CATALOG)
+            set(proposed_phenomenon_ids)
+            - set(QUESTION_CATALOG)
+            - set(local_questions)
         )
         if unknown_proposed:
             raise ExecutionVQAQueryError(
@@ -278,6 +391,16 @@ def build_execution_vqa_query(
             )
         _append_unique(selected, proposed_phenomenon_ids)
         reasons.append("tool_proposal:explicit_visual_assignment")
+        unused_local = sorted(set(local_questions) - set(proposed_phenomenon_ids))
+        if unused_local:
+            raise ExecutionVQAQueryError(
+                "proposed_question_specs contains unselected run-local ids: "
+                f"{unused_local}"
+            )
+    elif local_questions:
+        _append_unique(selected, list(local_questions))
+    if local_questions:
+        reasons.append("tool_proposal:run_local_visual_assignment")
 
     task_template_key = (task, template)
     adapter_matched = False
@@ -316,7 +439,7 @@ def build_execution_vqa_query(
         _append_unique(selected, METRIC_QUESTION_RULES[metric])
         reasons.append(f"tool_metric:{metric}")
 
-    if reviewed_registry_dir is not None and proposed_phenomenon_ids is None:
+    if reviewed_registry_dir is not None and not explicit_proposal:
         from .reviewed_registry import (
             load_reviewed_vqa_query_specs,
             match_reviewed_vqa_query_spec,
@@ -355,6 +478,9 @@ def build_execution_vqa_query(
                 **deepcopy(QUESTION_CATALOG[phenomenon_id]),
             }
         )
+    for phenomenon_id in selected:
+        if phenomenon_id in local_questions:
+            questions.append(deepcopy(local_questions[phenomenon_id]))
 
     query = {
         "schema_version": 1,
@@ -390,8 +516,19 @@ def validate_execution_vqa_query(value: Any) -> dict[str, Any]:
         raise ExecutionVQAQueryError("query.phenomenon_ids must be non-empty")
     if len(ids) != len(set(ids)):
         raise ExecutionVQAQueryError("query.phenomenon_ids must be unique")
-    if any(item not in QUESTION_CATALOG for item in ids):
-        raise ExecutionVQAQueryError("query contains a non-allowlisted phenomenon")
+    if any(
+        item not in QUESTION_CATALOG and not is_run_local_phenomenon_id(item)
+        for item in ids
+    ):
+        raise ExecutionVQAQueryError(
+            "query contains neither a catalog nor run-local phenomenon"
+        )
+    if any(is_run_local_phenomenon_id(item) for item in ids) and value.get(
+        "profile"
+    ) != "dynamic_v1":
+        raise ExecutionVQAQueryError(
+            "run-local questions require query.profile=dynamic_v1"
+        )
 
     questions = value.get("questions")
     if not isinstance(questions, list) or len(questions) != len(ids):
@@ -403,11 +540,19 @@ def validate_execution_vqa_query(value: Any) -> dict[str, Any]:
         phenomenon_id = question.get("id")
         if phenomenon_id != ids[index]:
             raise ExecutionVQAQueryError("question order must match phenomenon_ids")
-        expected = {"id": phenomenon_id, **QUESTION_CATALOG[phenomenon_id]}
-        if question != expected:
-            raise ExecutionVQAQueryError(
-                f"query.questions[{index}] must equal the trusted catalog entry"
-            )
+        if phenomenon_id in QUESTION_CATALOG:
+            expected = {"id": phenomenon_id, **QUESTION_CATALOG[phenomenon_id]}
+            if question != expected:
+                raise ExecutionVQAQueryError(
+                    f"query.questions[{index}] must equal the trusted catalog entry"
+                )
+        else:
+            try:
+                expected = validate_run_local_question_spec(question)
+            except ExecutionVQAQueryError as exc:
+                raise ExecutionVQAQueryError(
+                    f"query.questions[{index}] has invalid run-local spec: {exc}"
+                ) from exc
         normalized_questions.append(deepcopy(expected))
 
     reasons = value.get("selection_reasons")

@@ -17,12 +17,17 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from mea.execution_vqa import build_execution_vqa_query, run_execution_vqa
+from mea.execution_vqa import (
+    build_execution_vqa_query,
+    is_run_local_phenomenon_id,
+    run_execution_vqa,
+)
 from mea.capability_adapter import (
     CapabilityAdapterError,
     build_contract_tool_request,
     taskgen_route,
     validate_capability_contract,
+    validate_contract_changes,
 )
 from mea.feedback import FeedbackAgent, render_evaluation_report, write_evidence_report
 from mea.history import EvaluationHistoryDB
@@ -40,10 +45,12 @@ from mea.planner import (
 )
 from mea.proposals import (
     ProposalError,
+    materialize_round_proposals,
     tool_request_from_proposal,
     validate_task_proposal,
     validate_tool_proposal,
 )
+from mea.proposal_agent import BoundedProposalAgent, ProposalAgentError
 from mea.providers import (
     OpenAICompatibleProvider,
     available_model_profiles,
@@ -275,20 +282,65 @@ def validate_round_capability_contract(
         return None
     try:
         contract = validate_capability_contract(raw)
-        expected_tool = build_contract_tool_request(contract)
+        registered_tool = build_contract_tool_request(contract)
     except (CapabilityAdapterError, ValueError) as exc:
         raise ValueError(f"invalid round capability contract: {exc}") from exc
     taskgen = contract["taskgen"]
+    task_proposal = round_plan.get("task_proposal")
+    tool_proposal = round_plan.get("tool_proposal")
+    if task_proposal is not None or tool_proposal is not None:
+        if task_proposal is None or tool_proposal is None:
+            raise ValueError("round must provide TaskProposal and ToolProposal together")
+        try:
+            task_proposal = validate_task_proposal(
+                task_proposal, expected_task_name=contract["task_name"]
+            )
+            tool_proposal = validate_tool_proposal(
+                tool_proposal,
+                expected_task_name=contract["task_name"],
+                expected_aspect_id=contract["aspect"]["aspect_id"],
+            )
+            proposal_changes = validate_contract_changes(
+                contract, task_proposal["changes"]
+            )
+        except (ProposalError, CapabilityAdapterError) as exc:
+            raise ValueError(f"invalid round proposal: {exc}") from exc
+        if task_proposal["capability_id"] != taskgen["capability_id"]:
+            raise ValueError("TaskProposal capability differs from capability envelope")
+        if tool_proposal["metric"] != contract["tool"]["metric"]:
+            raise ValueError("ToolProposal metric differs from capability envelope")
+        catalog_phenomena = {
+            item
+            for item in tool_proposal["vqa_phenomenon_ids"]
+            if not is_run_local_phenomenon_id(item)
+        }
+        if not catalog_phenomena <= set(
+            contract["vqa"]["phenomenon_ids"]
+        ):
+            raise ValueError("ToolProposal VQA assignment exceeds capability envelope")
+        expected_variant = (
+            task_proposal["proposal_id"]
+            if taskgen["task_variant_id"] is not None
+            else None
+        )
+        expected_changes = proposal_changes
+        expected_tool = tool_request_from_proposal(tool_proposal)
+        expected_vqa = tool_proposal["vqa_phenomenon_ids"]
+    else:
+        expected_variant = taskgen["task_variant_id"]
+        expected_changes = taskgen["changes"]
+        expected_tool = registered_tool
+        expected_vqa = contract["vqa"]["phenomenon_ids"]
     expected = {
         "task_name": contract["task_name"],
         "template_id": contract["template_id"],
         "capability_id": taskgen["capability_id"],
-        "task_variant_id": taskgen["task_variant_id"],
+        "task_variant_id": expected_variant,
         "sub_aspect": contract["aspect"]["aspect_id"],
         "route": taskgen_route(contract),
-        "variant_hint": taskgen["changes"],
+        "variant_hint": expected_changes,
         "tool_request": expected_tool,
-        "vqa_phenomenon_ids": contract["vqa"]["phenomenon_ids"],
+        "vqa_phenomenon_ids": expected_vqa,
         "required_gates": contract["required_gates"],
     }
     observed = {
@@ -308,48 +360,6 @@ def validate_round_capability_contract(
         raise ValueError(
             "round fields differ from capability contract: " + ", ".join(mismatches)
         )
-    task_proposal = round_plan.get("task_proposal")
-    tool_proposal = round_plan.get("tool_proposal")
-    if task_proposal is not None or tool_proposal is not None:
-        if task_proposal is None or tool_proposal is None:
-            raise ValueError("round must provide TaskProposal and ToolProposal together")
-        try:
-            task_proposal = validate_task_proposal(
-                task_proposal, expected_task_name=contract["task_name"]
-            )
-            tool_proposal = validate_tool_proposal(
-                tool_proposal,
-                expected_task_name=contract["task_name"],
-                expected_aspect_id=contract["aspect"]["aspect_id"],
-            )
-        except ProposalError as exc:
-            raise ValueError(f"invalid round proposal: {exc}") from exc
-        proposal_expected = {
-            "task_capability_id": taskgen["capability_id"],
-            "task_changes": taskgen["changes"],
-            "task_aspect": contract["aspect"]["aspect_id"],
-            "tool_metric": contract["tool"]["metric"],
-            "tool_request": expected_tool,
-            "vqa_phenomenon_ids": contract["vqa"]["phenomenon_ids"],
-        }
-        proposal_observed = {
-            "task_capability_id": task_proposal["capability_id"],
-            "task_changes": task_proposal["changes"],
-            "task_aspect": task_proposal["aspect_id"],
-            "tool_metric": tool_proposal["metric"],
-            "tool_request": tool_request_from_proposal(tool_proposal),
-            "vqa_phenomenon_ids": tool_proposal["vqa_phenomenon_ids"],
-        }
-        proposal_mismatches = sorted(
-            key
-            for key in proposal_expected
-            if proposal_observed[key] != proposal_expected[key]
-        )
-        if proposal_mismatches:
-            raise ValueError(
-                "round proposals differ from materialized capability: "
-                + ", ".join(proposal_mismatches)
-            )
     return contract
 
 
@@ -454,6 +464,18 @@ def build_taskgen_command(
                 "--capability-contract-json",
                 json.dumps(
                     round_plan["capability_contract"],
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+            ]
+        )
+    if task_proposal is not None:
+        command.extend(
+            [
+                "--task-proposal-json",
+                json.dumps(
+                    normalized_task_proposal,
                     ensure_ascii=False,
                     sort_keys=True,
                     separators=(",", ":"),
@@ -853,6 +875,11 @@ def run_round_execution_vqa(
         proposed_phenomenon_ids=(
             ((round_plan or {}).get("tool_proposal") or {}).get(
                 "vqa_phenomenon_ids"
+            )
+        ),
+        proposed_question_specs=(
+            ((round_plan or {}).get("tool_proposal") or {}).get(
+                "vqa_question_specs"
             )
         ),
         reviewed_registry_dir=reviewed_vqa_registry,
@@ -2060,6 +2087,17 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--proposal-mode",
+        choices=["catalog", "novel_first_round"],
+        default="catalog",
+        help=(
+            "catalog uses the selected registered template unchanged. "
+            "novel_first_round asks the bounded Proposal Agent for one unseen "
+            "variation, then materializes it through the selected capability "
+            "envelope before any rollout. Requires --auto-route."
+        ),
+    )
+    parser.add_argument(
         "--task-name",
         default="beat_block_hammer",
         help=(
@@ -2243,6 +2281,8 @@ def main() -> None:
         )
     if args.bound_task_name is not None and not args.auto_route:
         raise SystemExit("--bound-task-name requires --auto-route")
+    if args.proposal_mode != "catalog" and not args.auto_route:
+        raise SystemExit("--proposal-mode novel_first_round requires --auto-route")
     registered_values = (
         args.evidence_manifest,
         args.command_plan,
@@ -2616,14 +2656,65 @@ def main() -> None:
                 max_rounds=effective_round_budget,
             )
             plan = bound_plan_session.normalize_plan(plan)
+            if args.proposal_mode == "novel_first_round":
+                first_round = plan["rounds"][0]
+                first_aspect = str(first_round["task_proposal"]["aspect_id"])
+                if args.task_name != "click_bell" or first_aspect != "object_position":
+                    raise ValueError(
+                        "novel_first_round currently supports the bounded "
+                        "click_bell object_position capability only"
+                    )
+                assert provider is not None
+                proposal_agent = BoundedProposalAgent(
+                    provider, model=models["planner"]
+                )
+                proposal_bundle = proposal_agent.propose(
+                    args.request,
+                    target=bound_plan_session.target,
+                    aspect_id=first_aspect,
+                    require_novel_changes=True,
+                )
+                plan["rounds"][0] = materialize_round_proposals(
+                    first_round,
+                    proposal_bundle["task_proposal"],
+                    proposal_bundle["tool_proposal"],
+                )
+                plan = bound_plan_session.normalize_plan(plan)
+                proposal_dir = evaluation_dir / "plan/bounded_proposal"
+                proposal_dir.mkdir(parents=True, exist_ok=True)
+                (proposal_dir / "prompt.md").write_text(
+                    proposal_agent.last_prompt or "", encoding="utf-8"
+                )
+                for index, response in enumerate(
+                    proposal_agent.last_responses, start=1
+                ):
+                    (proposal_dir / f"response_{index}.txt").write_text(
+                        response + "\n", encoding="utf-8"
+                    )
+                write_json(proposal_dir / "proposal_bundle.json", proposal_bundle)
+                manifest.setdefault("planner", {}).update(
+                    {
+                        "round_1_task_tool_proposal_source": "bounded_model",
+                        "round_1_proposal_mode": args.proposal_mode,
+                        "round_1_proposal_path": (
+                            "plan/bounded_proposal/proposal_bundle.json"
+                        ),
+                    }
+                )
             manifest["plan"] = plan
             session_snapshot = bound_plan_session.snapshot(args.request, plan)
-        except (ValueError, ProposalError) as exc:
+        except (ValueError, ProposalError, ProposalAgentError) as exc:
             raise RuntimeError(f"bound PlanSession validation failed: {exc}") from exc
         bound_plan_session_path = "plan/bound_task_session.json"
         evaluation_target = session_snapshot["target"]
         write_json(evaluation_dir / "plan/evaluation_plan.json", plan)
         write_json(evaluation_dir / bound_plan_session_path, session_snapshot)
+        update_manifest(
+            evaluation_dir,
+            plan=plan,
+            planner=manifest.get("planner"),
+            proposal_mode=args.proposal_mode,
+        )
     candidate_suite = list(plan.get("requested_template_ids") or [])
     planning_policy = (
         "fixed_predeclared_v1"
@@ -2919,13 +3010,36 @@ def main() -> None:
                 / f"decision_after_{round_plan['round_id']}"
                 / "call_starts.jsonl"
             )
+            plan_before_decision = plan
             with runtime_ledger_context(decision_ledger, decision_context):
-                plan, decision = planner.decide_next_round(
+                candidate_plan, candidate_decision = planner.decide_next_round(
                     evaluation_id=evaluation_id,
                     user_request=args.request,
-                    current_plan=plan,
+                    current_plan=plan_before_decision,
                     observation_history=[item["round_summary"] for item in round_runs],
                 )
+            if bound_plan_session is not None and adaptive_click_bell:
+                plan, decision = bound_plan_session.adjudicate(
+                    plan_before_decision,
+                    [item["round_summary"] for item in round_runs],
+                    candidate_plan=candidate_plan,
+                    candidate_decision=candidate_decision,
+                )
+                write_json(
+                    evaluation_dir
+                    / f"plan/runtime_directive_after_{round_plan['round_id']}.json",
+                    {
+                        "schema_version": 1,
+                        "owner": "BoundTaskPlanSession",
+                        "adapter_role": "materialize_and_explain",
+                        **bound_plan_session.directive(
+                            plan_before_decision,
+                            [item["round_summary"] for item in round_runs],
+                        ),
+                    },
+                )
+            else:
+                plan, decision = candidate_plan, candidate_decision
             if bound_plan_session is not None:
                 # Persist and execute the exact normalized proposal-bearing plan;
                 # snapshot() alone normalizes only a deep copy for reporting.

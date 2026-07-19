@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from copy import deepcopy
 from pathlib import Path
 
 from mea.capability_adapter import (
@@ -11,6 +12,7 @@ from mea.capability_adapter import (
 from mea.planner import (
     BoundTaskPlanSession,
     GlobalRouteError,
+    PlanSessionError,
     build_act_catalog,
     validate_route_selection,
 )
@@ -120,6 +122,49 @@ class PlanSessionTests(unittest.TestCase):
             "planning_state": "awaiting_round_1_observation",
         }
 
+    def _candidate(
+        self,
+        observation: dict,
+        *,
+        include_adaptive_fields: bool = True,
+        next_template_id: str | None = None,
+    ) -> tuple[dict, dict, dict]:
+        directive = self.session.directive(self.plan, [observation])
+        selected_template = (
+            directive["next_template_id"]
+            if next_template_id is None
+            else next_template_id
+        )
+        next_round = (
+            _round(selected_template, "round_2")
+            if directive["action"] == "continue"
+            else None
+        )
+        decision = {
+            "schema_version": 1,
+            "action": directive["action"],
+            "observation_summary": "adapter summary",
+            "decision_reason": "adapter materialized trusted template",
+            "next_template_id": selected_template,
+            "evidence_assessment": {"source": "legacy_adapter"},
+            "next_round": next_round,
+        }
+        if include_adaptive_fields:
+            decision.update(
+                {
+                    "transition": directive["transition"],
+                    "next_aspect_id": directive["next_aspect_id"],
+                }
+            )
+        updated = deepcopy(self.plan)
+        updated["round_decisions"] = [deepcopy(decision)]
+        if next_round is not None:
+            updated["rounds"].append(deepcopy(next_round))
+            updated["planning_state"] = "awaiting_round_2_observation"
+        else:
+            updated["planning_state"] = "stopped_after_round_1"
+        return updated, decision, directive
+
     def tearDown(self):
         self.temp.cleanup()
 
@@ -157,6 +202,106 @@ class PlanSessionTests(unittest.TestCase):
         succeeded = self.session.assess(self.plan, [_observation(success=1.0)])
         self.assertEqual(succeeded["required_transition"], "switch_aspect")
         self.assertEqual(succeeded["required_next_aspect_id"], "object_instance")
+
+    def test_adjudicate_failure_drills_down_and_enriches_legacy_decision(self):
+        observation = _observation(success=0.0)
+        candidate, decision, directive = self._candidate(
+            observation, include_adaptive_fields=False
+        )
+        updated, canonical = self.session.adjudicate(
+            self.plan,
+            [observation],
+            candidate_plan=candidate,
+            candidate_decision=decision,
+        )
+        self.assertEqual(directive["action"], "continue")
+        self.assertEqual(canonical["transition"], "drill_down")
+        self.assertEqual(canonical["next_aspect_id"], "object_position")
+        self.assertEqual(canonical["next_template_id"], "object_position.right_fixed")
+        self.assertEqual(updated["rounds"][-1], canonical["next_round"])
+        self.assertEqual(updated["round_decisions"][-1], canonical)
+
+    def test_adjudicate_success_switches_aspect(self):
+        observation = _observation(success=1.0)
+        candidate, decision, directive = self._candidate(observation)
+        updated, canonical = self.session.adjudicate(
+            self.plan,
+            [observation],
+            candidate_plan=candidate,
+            candidate_decision=decision,
+        )
+        self.assertEqual(directive["transition"], "switch_aspect")
+        self.assertEqual(canonical["next_aspect_id"], "object_instance")
+        self.assertEqual(canonical["next_template_id"], "object_instance.base0")
+        self.assertEqual(updated["planning_state"], "awaiting_round_2_observation")
+
+    def test_adjudicate_stops_at_bound_budget(self):
+        session = BoundTaskPlanSession.from_catalog(
+            self.catalog, "click_bell", max_rounds=1
+        )
+        plan = deepcopy(self.plan)
+        plan["max_rounds"] = 1
+        observation = _observation(success=0.0)
+        directive = session.directive(plan, [observation])
+        decision = {
+            "schema_version": 1,
+            "action": "stop",
+            "transition": "stop",
+            "observation_summary": "budget exhausted",
+            "decision_reason": "bound budget forces stop",
+            "next_aspect_id": None,
+            "next_template_id": None,
+            "next_round": None,
+        }
+        candidate = deepcopy(plan)
+        candidate["round_decisions"] = [deepcopy(decision)]
+        candidate["planning_state"] = "stopped_after_round_1"
+        updated, canonical = session.adjudicate(
+            plan,
+            [observation],
+            candidate_plan=candidate,
+            candidate_decision=decision,
+        )
+        self.assertEqual(directive["action"], "stop")
+        self.assertEqual(canonical["transition"], "stop")
+        self.assertIsNone(canonical["next_template_id"])
+        self.assertEqual(len(updated["rounds"]), 1)
+
+    def test_adjudicate_rejects_candidate_scope_changes(self):
+        observation = _observation(success=0.0)
+        candidate, decision, _ = self._candidate(observation)
+
+        cases = []
+        changed_task = deepcopy(candidate)
+        changed_task["task_name"] = "beat_block_hammer"
+        cases.append(("task", changed_task, decision))
+
+        changed_checkpoint = deepcopy(candidate)
+        changed_checkpoint["checkpoint_id"] = "act-click_bell/other"
+        cases.append(("checkpoint", changed_checkpoint, decision))
+
+        changed_aspects = deepcopy(candidate)
+        changed_aspects["requested_aspect_ids"] = ["object_position"]
+        cases.append(("aspect", changed_aspects, decision))
+
+        changed_budget = deepcopy(candidate)
+        changed_budget["max_rounds"] = 1
+        cases.append(("budget", changed_budget, decision))
+
+        changed_template, template_decision, _ = self._candidate(
+            observation, next_template_id="object_instance.base0"
+        )
+        cases.append(("template", changed_template, template_decision))
+
+        for name, changed_plan, changed_decision in cases:
+            with self.subTest(name=name):
+                with self.assertRaises(PlanSessionError):
+                    self.session.adjudicate(
+                        self.plan,
+                        [observation],
+                        candidate_plan=changed_plan,
+                        candidate_decision=changed_decision,
+                    )
 
     def test_plan_and_proposal_cannot_switch_task(self):
         changed = dict(self.plan)

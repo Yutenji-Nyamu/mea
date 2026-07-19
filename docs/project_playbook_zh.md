@@ -82,9 +82,9 @@ MEA 是 RoboTwin 的评估层扩展。以下事实必须始终保持清楚：
 
 | 论文部分 | 论文要点 | 当前项目承载位置 | 复现判断标准 |
 | --- | --- | --- | --- |
-| Fig. 2、Sec. 3.2 | 开放问题驱动、多轮动态 Proposal | `mea/planner/session.py`、task adapters、`mea/history/`、`mea/portfolio.py` | evaluation 先固定 task/checkpoint；前轮证据真实改变同 task 的后轮方向；跨任务父层绑定独立 child，而不把 pipeline pass 当 policy success |
-| Sec. 3.3.1、Fig. 3 | reuse-first TaskGen、任务/资产/文档 RAG、视觉自反思 | `TaskProposal`、shared capability catalog、`VariantSpec` v2、`mea/taskgen/`、scene validation | proposal 不含可执行字段且不能越过 capability；多任务共享 envelope；场景通过结构、渲染和语义 gate |
-| Sec. 3.3.2、Fig. 4 | reuse-first ToolGen、规则工具与 VQA | `ToolProposal`、`mea/toolgen/`、`mea/toolkit/`、`mea/execution_vqa/` | sub-aspect 映射到可 resolve metric 和 allowlisted VQA；新工具须 generate→validate→register，跨 evaluation 复用还须显式审核和精确 hash 匹配 |
+| Fig. 2、Sec. 3.2 | 开放问题驱动、多轮动态 Proposal | `mea/planner/session.py`、task adapters、`mea/history/`、`mea/portfolio.py` | evaluation 先固定 task/checkpoint；公共 PlanSession 根据前轮证据决定 action/aspect/template，并最终裁决 adapter 候选；跨任务父层绑定独立 child，而不把 pipeline pass 当 policy success |
+| Sec. 3.3.1、Fig. 3 | reuse-first TaskGen、任务/资产/文档 RAG、视觉自反思 | `TaskProposal`、shared capability catalog、`VariantSpec` v2、`mea/taskgen/`、scene validation | proposal 不含可执行字段且不能越过 capability；非模板变化以 proposal 为本轮权威、registry contract 为 materializer envelope；场景通过结构、渲染和语义 gate |
+| Sec. 3.3.2、Fig. 4 | reuse-first ToolGen、规则工具与 VQA | `ToolProposal` v1/v2、`mea/toolgen/`、`mea/toolkit/`、`mea/execution_vqa/` | sub-aspect 映射到可 resolve metric；v2 可携带严格受限的 `run_local.*` 视觉问题，但 VQA 不能覆盖 simulator numeric authority；新工具须 generate→validate→register |
 | Eq. 3–4 | rollout、逐样本测量和确定性聚合 | ACT/expert backend、Recorder、Aggregate、`mea/runtime_ledger.py` | 保存真实分母、seed、成功、样本数、调用开始数和 wall-clock，模型不自行做统计；started 与 completed 分开报告 |
 | Fig. 5、App. A.3.5 | observation 回流并驱动继续深入 | Agent orchestration、round decision、Feedback | policy failure 是证据而非流水线失败；下一轮由聚合证据决定 |
 | App. A.1、Tables 1–5 | 少样本成本与标准 benchmark 结论一致性 | generated protocol v2、ACT 三任务 N=1 pilot | smoke 用 1 / 3 / 5；N=1 只验计量，正式结果再按论文预算统一计算时间/样本与方差 |
@@ -263,6 +263,11 @@ ACT 都失败这一 policy 结果必须与成功的 expert controls 和完整 pi
 - 每个 evaluation 在首轮前固定一个 task、一个 ACT checkpoint 与最大轮预算。模型可在受信
   sub-aspect/variant 内提 proposal，但不得切 task/policy/checkpoint，也不得直接提供可执行路径、
   seed 或 gate；跨任务评估必须拆成独立 child evaluation。
+- 注册 capability contract 表示可执行 materializer 的权限 envelope，不等于模型只能逐字重复一个
+  template。`TaskProposal` 可在受控 roots 内提供本轮新 changes；TaskGen 必须同时保存 proposal 与
+  envelope，并明确记录哪一个是 round variation authority。
+- `ToolProposal` v2 的 run-local VQA question 必须使用 `run_local.*` ID、受控字段枚举、单行问句和
+  固定长度上限；保存后的 query 必须可独立重验。run-local VQA 始终是补充视觉证据，不是数值 oracle。
 - checkpoint、数据集、模型权重和 rollout 大包仍只在服务器侧下载、生成与保存；Windows/Codex
   工作区只接收代码、配置、小型报告和必要的压缩源码。
 - preregistration 必须绑定真实执行：至少把 manifest、registered route、command plan 与观测到

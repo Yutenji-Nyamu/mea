@@ -13,7 +13,7 @@ from copy import deepcopy
 from typing import Any, Mapping
 
 from mea.capability_adapter import registered_capability_contracts
-from mea.execution_vqa import QUESTION_CATALOG
+from mea.execution_vqa import QUESTION_CATALOG, validate_run_local_question_spec
 from mea.proposals import (
     ProposalError,
     validate_task_proposal,
@@ -75,6 +75,20 @@ def _proposal_card(target: Mapping[str, Any], aspect_id: str) -> dict[str, Any]:
         for phenomenon_id in contract["vqa"]["phenomenon_ids"]:
             if phenomenon_id not in vqa_candidates:
                 vqa_candidates.append(phenomenon_id)
+    reference_question = deepcopy(QUESTION_CATALOG[vqa_candidates[0]])
+    reference_question.update(
+        {
+            "id": (
+                f"run_local.{task_name}.{aspect_id.replace('.', '_')}."
+                "query_observation"
+            ),
+            "question": (
+                "Does the rollout visibly show the robot making task-relevant "
+                "progress under the query-generated variation?"
+            ),
+        }
+    )
+    reference_question = validate_run_local_question_spec(reference_question)
     return {
         "task_name": task_name,
         "aspect": aspect,
@@ -108,14 +122,18 @@ def _proposal_card(target: Mapping[str, Any], aspect_id: str) -> dict[str, Any]:
                 "preserve_success_semantics": True,
             },
             "tool_proposal": {
-                "schema_version": 1,
+                "schema_version": 2,
                 "proposal_id": f"{aspect_id}.query_generated_1.tool",
                 "task_name": task_name,
                 "aspect_id": aspect_id,
                 "evaluation_goal": "measure task outcome and visible behavior",
                 "metric": first["tool"]["metric"],
                 "question": "What simulator measurement best diagnoses this aspect?",
-                "vqa_phenomenon_ids": vqa_candidates,
+                "vqa_phenomenon_ids": [
+                    *vqa_candidates,
+                    reference_question["id"],
+                ],
+                "vqa_question_specs": [reference_question],
                 "reuse_first": True,
             },
         },
@@ -183,13 +201,16 @@ def validate_proposal_bundle(
         raise ProposalError("TaskProposal changed the selected capability")
     if tool["metric"] not in card["toolgen"]["metric_candidates"]:
         raise ProposalError("ToolProposal selected a metric outside the capability card")
+    run_local_ids = {
+        item["id"] for item in tool.get("vqa_question_specs", [])
+    }
+    selected_catalog_ids = set(tool["vqa_phenomenon_ids"]) - run_local_ids
     unknown_vqa = sorted(
-        set(tool["vqa_phenomenon_ids"])
-        - set(card["toolgen"]["vqa_phenomenon_candidates"])
+        selected_catalog_ids - set(card["toolgen"]["vqa_phenomenon_candidates"])
     )
     if unknown_vqa:
         raise ProposalError(f"ToolProposal selected unavailable VQA phenomena: {unknown_vqa}")
-    if any(item not in QUESTION_CATALOG for item in tool["vqa_phenomenon_ids"]):
+    if any(item not in QUESTION_CATALOG for item in selected_catalog_ids):
         raise ProposalError("ToolProposal selected an unregistered VQA phenomenon")
     registered_changes = card["taskgen"]["registered_changes_to_avoid"]
     if require_novel_changes and task["changes"] in registered_changes:

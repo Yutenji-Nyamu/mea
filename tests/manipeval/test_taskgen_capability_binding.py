@@ -9,7 +9,11 @@ from mea.capability_adapter import (
     taskgen_route,
 )
 from mea.taskgen import build_variant_spec
-from scripts.manipeval_agent import build_taskgen_command
+from mea.proposals import materialize_round_proposals
+from scripts.manipeval_agent import (
+    build_taskgen_command,
+    validate_round_capability_contract,
+)
 from scripts.manipeval_taskgen import (
     prepare_planner_capability_binding,
     validate_planner_capability_binding,
@@ -183,6 +187,90 @@ class TaskGenCapabilityBindingTests(unittest.TestCase):
                     gpu=0,
                     max_reflections=1,
                 )
+
+    def test_novel_task_proposal_uses_contract_as_envelope(self):
+        contract = resolve_capability_contract(
+            "click_bell", "object_position.left_fixed"
+        )
+        base_round = {
+            "round_id": "round_1",
+            "task_name": "click_bell",
+            "task_instruction": "test a query-generated target position",
+            "template_id": contract["template_id"],
+            "capability_id": contract["taskgen"]["capability_id"],
+            "task_variant_id": contract["taskgen"]["task_variant_id"],
+            "capability_contract": contract,
+            "sub_aspect": contract["aspect"]["aspect_id"],
+            "aspect_id": contract["aspect"]["aspect_id"],
+            "task_module": "mea.tasks.click_bell",
+            "route": taskgen_route(contract),
+            "variant_hint": contract["taskgen"]["changes"],
+            "execution": {
+                "backend": "act",
+                "seeds": [7],
+                "num_episodes": 1,
+                "gates": contract["required_gates"],
+            },
+            "tool_request": build_contract_tool_request(contract),
+            "vqa_phenomenon_ids": contract["vqa"]["phenomenon_ids"],
+        }
+        task_proposal = {
+            "schema_version": 1,
+            "proposal_id": "object_position.run_local_midleft",
+            "task_name": "click_bell",
+            "aspect_id": "object_position",
+            "intent": "test an unseen safe mid-left target position",
+            "capability_id": "object_position.fixed_xy",
+            "reuse_first": True,
+            "changes": {
+                "bell": {"position_mode": "fixed", "xy": [-0.14, -0.12]}
+            },
+            "preserve_success_semantics": True,
+        }
+        tool_proposal = {
+            "schema_version": 1,
+            "proposal_id": "object_position.run_local_midleft.tool",
+            "task_name": "click_bell",
+            "aspect_id": "object_position",
+            "evaluation_goal": "measure reachability",
+            "metric": "bell_active_tcp_min_xy_error",
+            "question": "How close did the active TCP get to the bell?",
+            "vqa_phenomenon_ids": ["bell_visibly_pressed"],
+            "reuse_first": True,
+        }
+        round_plan = materialize_round_proposals(
+            base_round, task_proposal, tool_proposal
+        )
+        validate_round_capability_contract(round_plan)
+        self.assertEqual(
+            round_plan["capability_contract"]["taskgen"]["changes"],
+            contract["taskgen"]["changes"],
+        )
+        self.assertEqual(round_plan["variant_hint"], task_proposal["changes"])
+        command, _ = build_taskgen_command(
+            Path("/repo"),
+            "eval_novel",
+            round_plan,
+            text_model="text",
+            vision_model="vision",
+            base_url=None,
+            gpu=0,
+            max_reflections=1,
+        )
+        self.assertEqual(
+            command[command.index("--variant-id") + 1], task_proposal["proposal_id"]
+        )
+        encoded = command[command.index("--task-proposal-json") + 1]
+        self.assertEqual(json.loads(encoded), task_proposal)
+        _, trusted_spec = prepare_planner_capability_binding(
+            contract,
+            task_name="click_bell",
+            mode="reuse",
+            variant_id=task_proposal["proposal_id"],
+            task_proposal=task_proposal,
+        )
+        self.assertEqual(trusted_spec["changes"], task_proposal["changes"])
+        self.assertEqual(trusted_spec["variant_id"], task_proposal["proposal_id"])
 
     def test_official_contract_binds_passthrough_identity(self):
         contract = resolve_capability_contract(

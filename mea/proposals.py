@@ -14,6 +14,13 @@ from copy import deepcopy
 from typing import Any, Mapping
 
 from mea.aspects import AspectError, canonicalize_aspect_id
+from mea.capability_adapter import (
+    CapabilityAdapterError,
+    registered_capability_contracts,
+    taskgen_route,
+    validate_capability_contract,
+    validate_contract_changes,
+)
 from mea.taskgen.capabilities import CapabilityError, get_capability
 
 
@@ -32,7 +39,7 @@ _TASK_PROPOSAL_KEYS = {
     "changes",
     "preserve_success_semantics",
 }
-_TOOL_PROPOSAL_KEYS = {
+_TOOL_PROPOSAL_V1_KEYS = {
     "schema_version",
     "proposal_id",
     "task_name",
@@ -43,6 +50,7 @@ _TOOL_PROPOSAL_KEYS = {
     "vqa_phenomenon_ids",
     "reuse_first",
 }
+_TOOL_PROPOSAL_V2_KEYS = _TOOL_PROPOSAL_V1_KEYS | {"vqa_question_specs"}
 _IDENTIFIER = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 
@@ -136,13 +144,26 @@ def validate_tool_proposal(
 ) -> dict[str, Any]:
     """Validate the semantic Rule/VQA assignment for one TaskProposal."""
 
-    if not isinstance(value, Mapping) or set(value) != _TOOL_PROPOSAL_KEYS:
+    if not isinstance(value, Mapping):
         raise ProposalError(
-            f"ToolProposal fields must be exactly {sorted(_TOOL_PROPOSAL_KEYS)}"
+            "ToolProposal must be an object"
         )
     proposal = deepcopy(dict(value))
-    if proposal.get("schema_version") != 1:
-        raise ProposalError("ToolProposal.schema_version must be 1")
+    schema_version = proposal.get("schema_version")
+    expected_keys = (
+        _TOOL_PROPOSAL_V1_KEYS
+        if schema_version == 1
+        else _TOOL_PROPOSAL_V2_KEYS
+        if schema_version == 2
+        else None
+    )
+    if expected_keys is None:
+        raise ProposalError("ToolProposal.schema_version must be 1 or 2")
+    if set(proposal) != expected_keys:
+        raise ProposalError(
+            f"ToolProposal v{schema_version} fields must be exactly "
+            f"{sorted(expected_keys)}"
+        )
     proposal["proposal_id"] = _proposal_id(
         proposal.get("proposal_id"), "ToolProposal.proposal_id"
     )
@@ -178,6 +199,33 @@ def validate_tool_proposal(
         )
     if proposal.get("reuse_first") is not True:
         raise ProposalError("ToolProposal.reuse_first must be true")
+    if schema_version == 2:
+        raw_specs = proposal.get("vqa_question_specs")
+        if not isinstance(raw_specs, list) or not raw_specs:
+            raise ProposalError(
+                "ToolProposal.vqa_question_specs must be a non-empty list"
+            )
+        try:
+            from mea.execution_vqa import (
+                is_run_local_phenomenon_id,
+                validate_run_local_question_spec,
+            )
+
+            specs = [validate_run_local_question_spec(item) for item in raw_specs]
+        except ValueError as exc:
+            raise ProposalError(f"invalid run-local VQA question: {exc}") from exc
+        ids = [item["id"] for item in specs]
+        if len(ids) != len(set(ids)):
+            raise ProposalError("ToolProposal.vqa_question_specs ids must be unique")
+        selected_local_ids = [
+            item for item in phenomena if is_run_local_phenomenon_id(item)
+        ]
+        if set(selected_local_ids) != set(ids):
+            raise ProposalError(
+                "ToolProposal run-local phenomenon ids must match "
+                "vqa_question_specs exactly"
+            )
+        proposal["vqa_question_specs"] = specs
     proposal.update(
         {
             "task_name": task_name,
@@ -197,7 +245,14 @@ def validate_tool_proposal(
     try:
         from mea.toolgen import validate_tool_request
 
-        validate_tool_request(tool_request_from_proposal(proposal))
+        validate_tool_request(
+            {
+                "schema_version": 1,
+                "task_name": str(proposal["task_name"]),
+                "metric": str(proposal["metric"]),
+                "question": str(proposal["question"]),
+            }
+        )
     except RuntimeError as exc:
         raise ProposalError(f"ToolProposal cannot form a Tool request: {exc}") from exc
     return proposal
@@ -271,8 +326,7 @@ def tool_request_from_proposal(value: Mapping[str, Any]) -> dict[str, Any]:
     """Return the existing route-free Tool request consumed by ToolGen."""
 
     proposal = deepcopy(dict(value))
-    if set(proposal) != _TOOL_PROPOSAL_KEYS:
-        proposal = validate_tool_proposal(proposal)
+    proposal = validate_tool_proposal(proposal)
     return {
         "schema_version": 1,
         "task_name": str(proposal["task_name"]),
@@ -305,9 +359,112 @@ def attach_round_proposals(round_plan: Mapping[str, Any]) -> dict[str, Any]:
     return result
 
 
+def materialize_round_proposals(
+    round_plan: Mapping[str, Any],
+    task_proposal: Mapping[str, Any],
+    tool_proposal: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Project one bounded model proposal onto a trusted materializer.
+
+    The registered capability contract remains the authority for executable
+    code paths, change roots, gates, and metric families.  The proposals own
+    only this round's semantic variation and visual assignment.  This lets a
+    query request an unseen-but-bounded variation without pretending that the
+    new variation was already a registry template.
+    """
+
+    result = deepcopy(dict(round_plan))
+    task_name = _text(result.get("task_name"), "round.task_name")
+    task = validate_task_proposal(task_proposal, expected_task_name=task_name)
+    tool = validate_tool_proposal(
+        tool_proposal,
+        expected_task_name=task_name,
+        expected_aspect_id=task["aspect_id"],
+    )
+    try:
+        from mea.execution_vqa import is_run_local_phenomenon_id
+
+        catalog_phenomena = [
+            item
+            for item in tool["vqa_phenomenon_ids"]
+            if not is_run_local_phenomenon_id(item)
+        ]
+    except ImportError:  # pragma: no cover - package is present in normal runs.
+        catalog_phenomena = list(tool["vqa_phenomenon_ids"])
+    candidates = []
+    for raw_contract in registered_capability_contracts(task_name):
+        contract = validate_capability_contract(raw_contract)
+        if (
+            contract["aspect"]["aspect_id"] == task["aspect_id"]
+            and contract["taskgen"]["capability_id"] == task["capability_id"]
+            and contract["tool"]["metric"] == tool["metric"]
+            and set(catalog_phenomena)
+            <= set(contract["vqa"]["phenomenon_ids"])
+        ):
+            candidates.append(contract)
+    if not candidates:
+        raise ProposalError(
+            "no trusted TaskGen/ToolGen materializer can satisfy this proposal"
+        )
+    current_template = str(result.get("template_id") or "")
+    contract = next(
+        (
+            item
+            for item in candidates
+            if item["template_id"] == current_template
+        ),
+        candidates[0],
+    )
+    try:
+        task["changes"] = validate_contract_changes(contract, task["changes"])
+    except CapabilityAdapterError as exc:
+        raise ProposalError(f"TaskProposal exceeds its capability envelope: {exc}") from exc
+    if task_name == "click_bell" and task["capability_id"] == "object_position.fixed_xy":
+        try:
+            from mea.taskgen.click_bell import validate_click_bell_variant_hint
+
+            task["changes"] = validate_click_bell_variant_hint(task["changes"])
+        except RuntimeError as exc:
+            raise ProposalError(f"invalid click_bell position proposal: {exc}") from exc
+
+    result.update(
+        {
+            "template_id": contract["template_id"],
+            "capability_id": contract["taskgen"]["capability_id"],
+            "task_variant_id": task["proposal_id"],
+            "capability_contract": contract,
+            "sub_aspect": task["aspect_id"],
+            "aspect_id": task["aspect_id"],
+            "route": taskgen_route(contract),
+            "variant_hint": deepcopy(task["changes"]),
+            "task_proposal": task,
+            "tool_proposal": tool,
+            "tool_request": tool_request_from_proposal(tool),
+            "vqa_phenomenon_ids": list(tool["vqa_phenomenon_ids"]),
+            "proposal_materialization": {
+                "schema_version": 1,
+                "mode": "query_generated_bounded_variation",
+                "base_template_id": contract["template_id"],
+                "capability_contract_is_authority_envelope": True,
+                "task_proposal_is_round_variation_authority": True,
+            },
+        }
+    )
+    execution = result.get("execution")
+    if isinstance(execution, Mapping):
+        result["execution"] = deepcopy(dict(execution))
+        result["execution"]["gates"] = list(contract["required_gates"])
+    instruction = str(result.get("task_instruction") or "").strip()
+    result["task_instruction"] = (
+        f"{instruction} Query-generated bounded variation: {task['intent']}"
+    ).strip()
+    return result
+
+
 __all__ = [
     "ProposalError",
     "attach_round_proposals",
+    "materialize_round_proposals",
     "task_proposal_from_contract",
     "tool_proposal_from_contract",
     "tool_request_from_proposal",

@@ -11,8 +11,8 @@
 | --- | --- | --- |
 | 端到端编排 | `scripts/manipeval_agent.py` | 创建 evaluation、执行多轮 plan、汇总证据并生成反馈 |
 | 规划 | `mea/planner/` | 全局可信 ACT catalog 把开放 Query 路由到 BBH/click_bell；任务 Planner 再物化受信轮次，通用证据合同决定继续方向 |
-| Bound PlanSession | `mea/planner/session.py` | 一次 evaluation 冻结一个 RoboTwin task、一个 ACT checkpoint 和轮数上限；把不同任务 adapter 的计划统一成同一 session/proposal 合同 |
-| 语义 Proposal | `mea/proposals.py`、`mea/proposal_agent.py`、`scripts/manipeval_proposal.py` | 用受限 `TaskProposal`/`ToolProposal` 描述“测什么”，可生成并物化 catalog-bounded 新变式；可执行路径、seed、checkpoint 和 gate 仍由 runtime 注入 |
+| Bound PlanSession | `mea/planner/session.py` | 一次 evaluation 冻结一个 RoboTwin task、一个 ACT checkpoint 和轮数上限；公共 evidence policy 决定 action/aspect/template，并对 task adapter 物化的候选轮次做最终裁决 |
+| 语义 Proposal | `mea/proposals.py`、`mea/proposal_agent.py`、`scripts/manipeval_proposal.py` | 用受限 `TaskProposal`/`ToolProposal` 描述“测什么”；主 Agent 可用 `novel_first_round` 生成未精确登记的新变式，再投影到可信 capability envelope；路径、seed、checkpoint 和 gate 仍由 runtime 注入 |
 | 检索与历史 | `mea/retrieval/`、`mea/history/`、`mea/knowledge/` | 检索任务/源码知识，复用历史评估上下文 |
 | TaskGen | `scripts/manipeval_taskgen.py`、`mea/taskgen/` | 生成或复用受限 task overlay；也可创建不改官方源码的 passthrough run |
 | TaskGen capability | `mea/taskgen/capabilities.py` | 用共享 capability catalog 和 `VariantSpec` v2 固定受控轴、生成模式与必须保留的官方语义 |
@@ -24,7 +24,7 @@
 | 任务语义与记录 | `mea/toolkit/schema.py`、`mea/toolkit/recorder.py`、`mea/toolkit/schemas/` | 用 TaskSchema 跟踪 actor/语义，写 telemetry、事件和视觉证据 |
 | 可信测量 | `mea/toolkit/tools.py`、`mea/toolgen/` | 复用 Trusted Tool，或生成并验证 Tool；run-local 直接复用，显式审核后可跨 evaluation 精确复用 |
 | 聚合 | `mea/toolkit/aggregate.py` | 跨 episode 做确定性统计，不让语言模型自行算成功率/均值 |
-| Execution VQA | `mea/execution_vqa/` | 从受限问题目录选择问题，读取事件关键帧并检查可见现象 |
+| Execution VQA | `mea/execution_vqa/` | 从受限问题目录选择问题，也接受经严格 schema 校验的 run-local ToolProposal 问题；读取事件关键帧并检查可见现象，不能覆盖 simulator 数值权威 |
 | 反馈 | `mea/feedback/` | 把结构化 observation 和证据索引整理为最终报告 |
 | 可读证据报告 | `mea/feedback/evidence_report.py`、`scripts/manipeval_evidence_report.py` | 从真实 evaluation 生成含 proposal、代码/overlay、render、ACT 视频、Tool/VQA/Aggregate/decision 的紧凑报告，并可发布小型 GitHub bundle |
 | 模型适配 | `mea/providers/` | 各阶段模型 profile 与 OpenAI-compatible provider |
@@ -50,15 +50,19 @@ open query
 → strict validator：task/profile/aspect 必须来自 catalog
 → route_to_planner_proposal()：只在 evaluation 开始时选一次 task/checkpoint
 → EvaluationTarget + BoundTaskPlanSession
-→ BBH / click_bell adapter 物化轮次并统一成 TaskProposal + ToolProposal
+→ catalog round，或 novel_first_round 生成 TaskProposal + ToolProposal v2
+→ capability envelope 校验 changes/metric/gates，task adapter 只物化轮次
 → TaskGen → ACT → Tool/VQA/Aggregate
-→ assess_conditional_transition()
+→ BoundTaskPlanSession.directive() + adjudicate()
 → drill_down / switch_aspect / stop
 → Feedback 回答原始 query
 ```
 
-全局 Router 已调用模型后，任务 Planner 不再为首轮重复调用模型；后续 Planner 只能解释并复制
-通用证据合同确定的动作、转移与目标，不能覆盖硬决定。不支持的 query 会生成
+默认 catalog 模式下，全局 Router 已调用模型后，任务 Planner 不再为首轮重复调用模型；显式
+`--proposal-mode novel_first_round` 会增加一次受限 Proposal 调用，为首轮产生 catalog 中没有精确登记、
+但仍处于 capability 范围内的 Task/Tool/VQA 请求。后续 Planner 只能解释公共 PlanSession 确定的
+动作、转移与目标；candidate plan 还必须通过 `adjudicate()`，不能覆盖 task/checkpoint、预算、
+历史轮次或 evidence-selected template。不支持的 query 会生成
 `status=unsupported` 的无执行 evaluation，而不是偷偷降级到无关任务。
 
 一次 evaluation 只绑定一个 task 和它的 ACT checkpoint。Planner 可以在该 task 的受信
@@ -68,8 +72,10 @@ BBH/click_bell adapter 在其后提供 materialization 细节。
 
 关键 artifact 位于 `plan/global_act_catalog.json`、`plan/global_query_route.json`、
 `plan/global_query_prompt.md`、`plan/global_route_proposal.json` 和
-`plan/evidence_after_round_*.json`。历史只消费已完成 evaluation；plan-only 不会反向写成执行
-证据。
+`plan/evidence_after_round_*.json`。novel 模式还会保存
+`plan/bounded_proposal/{prompt,response_*,proposal_bundle,execution_vqa_query_smoke}`；真实执行时公共
+裁决另写 `plan/runtime_directive_after_*.json`。历史只消费已完成 evaluation；plan-only 不会反向
+写成执行证据。
 
 ## 2. Route 与 execution backend
 

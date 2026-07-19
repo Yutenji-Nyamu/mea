@@ -1085,3 +1085,46 @@ checkpoint 或完整 evaluation 目录提交 Git：
 du -sh "docs/evidence_runs/${EVAL}"
 find "docs/evidence_runs/${EVAL}" -maxdepth 3 -type f -print
 ```
+
+## 27. 在完整 Agent 主链生成首轮新 Proposal（先 0 ACT）
+
+`scripts/manipeval_proposal.py` 适合单独调试 Proposal；要验证它已经真正进入 Fig. 2 主调用链，
+使用 `--proposal-mode novel_first_round`。第一版只开放已经有严格数值范围校验的
+`click_bell/object_position`：
+
+```bash
+PYTHON=/root/autodl-tmp/conda/envs/RoboTwin/bin/python
+export UIUI_API_KEY='当前 shell 临时 key'
+
+"$PYTHON" scripts/manipeval_agent.py \
+  --repo-root "$PWD" \
+  --request 'Evaluate click_bell ACT across unseen target positions and official bell instances.' \
+  --auto-route \
+  --bound-task-name click_bell \
+  --proposal-mode novel_first_round \
+  --plan-only \
+  --generated-rounds 2 \
+  --max-agent-rounds 2 \
+  --num-episodes 1 \
+  --evaluation-id eval_novel_click_plan_smoke \
+  --model-profile economy \
+  --no-history
+```
+
+这是 0-ACT smoke。依次检查：
+
+- `plan/bounded_proposal/proposal_bundle.json`：新 XY 不得精确重复注册的左右 template；
+- `plan/evaluation_plan.json`：registry `capability_contract` 保持不变，`TaskProposal.changes` 和
+  `task_variant_id` 表示本轮新变化；
+- `ToolProposal.schema_version=2`：`vqa_phenomenon_ids` 同时列出 catalog 与 `run_local.*` ID，
+  `vqa_question_specs` 保存完整受限问句；
+- `plan/bound_task_session.json`：task/checkpoint/round budget 未被 Proposal 改写。
+
+移除 `--plan-only` 前，先用 `scripts/manipeval_taskgen.py` 对同一 proposal 做 setup/render probe，
+确认 manifest 的 `variant_spec_authority=planner_task_proposal`、`setup_success=true`、
+`render_success=true`，且 `act_rollouts_started=0`。真实 Agent 执行后，公共
+`BoundTaskPlanSession` 会把证据变成唯一 directive，并在接受 task adapter 物化的下一轮前进行
+`adjudicate()`；对应 artifact 为 `plan/runtime_directive_after_*.json`。
+
+run-local VQA 只进入执行视频关键帧问题。它必须通过严格 schema，不能改写 rule Tool、官方
+`check_success()` 或 simulator 数值；发生冲突时仍以数值证据为权威并保留冲突记录。

@@ -46,6 +46,7 @@ from .global_query import (
 from .session import (
     BoundTaskPlanSession,
     PlanSessionError,
+    build_adaptive_directive,
     build_evaluation_target,
     validate_evaluation_target,
 )
@@ -87,6 +88,7 @@ __all__ = [
     "validate_route_selection",
     "BoundTaskPlanSession",
     "PlanSessionError",
+    "build_adaptive_directive",
     "build_evaluation_target",
     "validate_evaluation_target",
 ]
