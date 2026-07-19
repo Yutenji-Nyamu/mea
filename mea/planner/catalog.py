@@ -13,6 +13,8 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping
 
+from mea.capability_adapter import resolve_capability_contract, taskgen_route
+
 from .click_bell import (
     CLICK_BELL_ADAPTIVE_ASPECTS,
     CLICK_BELL_ADAPTIVE_TEMPLATES,
@@ -34,24 +36,6 @@ _PLANNER_KIND = {
     "beat_block_hammer": "bounded_bbh_v1",
     "click_bell": "model_click_bell_adaptive_v1",
 }
-_CLICK_CAPABILITY = {
-    "object_position": "object_position.fixed_xy",
-    "object_instance": "object_instance.official_id",
-    "robustness.scene_clutter": "robustness.scene_clutter",
-    "scene_background_texture": "scene_background_texture",
-    "scene_lighting": "scene_lighting",
-    "performance.completion_time_stability": "task_execution.official_passthrough",
-}
-_CLICK_METRIC = {
-    "object_position": "bell_active_tcp_min_xy_error",
-    "object_instance": "official_check_success",
-    "robustness.scene_clutter": "official_check_success",
-    "scene_background_texture": "official_check_success",
-    "scene_lighting": "official_check_success",
-    "performance.completion_time_stability": "time_to_success",
-}
-
-
 def _canonical_json(value: Any) -> str:
     return json.dumps(
         value,
@@ -72,6 +56,14 @@ def _catalog_sha256(value: Mapping[str, Any]) -> str:
 def _bbh_aspects() -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
     for template_id, template in SUB_ASPECT_CATALOG.items():
+        contract = resolve_capability_contract("beat_block_hammer", template_id)
+        if (
+            contract["aspect"]["aspect_id"] != template["sub_aspect"]
+            or taskgen_route(contract) != template["route"]
+        ):
+            raise ACTCatalogError(
+                f"BBH capability adapter conflicts with template {template_id!r}"
+            )
         result.append(
             {
                 "aspect_id": str(template["sub_aspect"]),
@@ -80,9 +72,9 @@ def _bbh_aspects() -> list[dict[str, Any]]:
                 # Every committed BBH round preserves the validated blue-block
                 # variant; later aspects reuse it rather than inventing a new
                 # generation capability.
-                "taskgen_capability_id": "object_appearance.color",
-                "taskgen_route": str(template["route"]),
-                "default_metric": str(template["tool_metric"]),
+                "taskgen_capability_id": contract["taskgen"]["capability_id"],
+                "taskgen_route": taskgen_route(contract),
+                "default_metric": contract["tool"]["metric"],
             }
         )
     return result
@@ -99,18 +91,30 @@ def _click_aspects() -> list[dict[str, Any]]:
             raise ACTCatalogError(
                 f"click_bell template catalog does not preserve aspect {aspect_id!r}"
             )
+        contracts = [
+            resolve_capability_contract("click_bell", template_id)
+            for template_id in template_ids
+        ]
+        if any(
+            contract["aspect"]["aspect_id"] != aspect_id
+            or contract["taskgen"]["capability_id"]
+            != contracts[0]["taskgen"]["capability_id"]
+            or contract["tool"]["metric"] != contracts[0]["tool"]["metric"]
+            or taskgen_route(contract) != taskgen_route(contracts[0])
+            for contract in contracts
+        ):
+            raise ACTCatalogError(
+                f"click_bell capability adapters disagree for {aspect_id!r}"
+            )
+        contract = contracts[0]
         result.append(
             {
                 "aspect_id": aspect_id,
                 "description": str(aspect["description"]),
                 "template_ids": template_ids,
-                "taskgen_capability_id": _CLICK_CAPABILITY[aspect_id],
-                "taskgen_route": str(
-                    CLICK_BELL_ADAPTIVE_TEMPLATES[template_ids[0]].get(
-                        "route", "reuse"
-                    )
-                ),
-                "default_metric": _CLICK_METRIC[aspect_id],
+                "taskgen_capability_id": contract["taskgen"]["capability_id"],
+                "taskgen_route": taskgen_route(contract),
+                "default_metric": contract["tool"]["metric"],
             }
         )
     return result

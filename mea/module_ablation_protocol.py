@@ -27,25 +27,65 @@ class ModuleAblationError(RuntimeError):
 CONDITION_SPECS: dict[str, dict[str, dict[str, Any]]] = {
     "taskgen": {
         "complete": {
-            "description": "RAG and the visual acceptance gate are enabled.",
-            "module_switches": {"rag": True, "visual_gate": True},
+            "description": "RAG, visual self-check, and README.Agent are enabled.",
+            "module_switches": {
+                "rag": True,
+                "visual_self_check": True,
+                "readme_agent": True,
+            },
         },
         "no_rag": {
             "description": "Disable only TaskGen retrieval/RAG.",
-            "module_switches": {"rag": False, "visual_gate": True},
+            "module_switches": {
+                "rag": False,
+                "visual_self_check": True,
+                "readme_agent": True,
+            },
+        },
+        "no_visual_self_check": {
+            "description": "Disable only TaskGen visual self-check and repair.",
+            "module_switches": {
+                "rag": True,
+                "visual_self_check": False,
+                "readme_agent": True,
+            },
+        },
+        "no_readme_agent": {
+            "description": "Disable only TaskGen README.Agent guidance.",
+            "module_switches": {
+                "rag": True,
+                "visual_self_check": True,
+                "readme_agent": False,
+            },
+        },
+        "base": {
+            "description": "Disable RAG, visual self-check, and README.Agent.",
+            "module_switches": {
+                "rag": False,
+                "visual_self_check": False,
+                "readme_agent": False,
+            },
         },
         "no_visual_gate": {
-            "description": "Disable only TaskGen visual acceptance.",
+            "description": (
+                "Legacy engineering compatibility: disable the old visual gate."
+            ),
             "module_switches": {"rag": True, "visual_gate": False},
         },
     },
     "toolgen": {
         "complete": {
-            "description": "Generated-tool validation is enabled.",
-            "module_switches": {"tool_validation": True},
+            "description": "Tool retrieval/RAG is enabled.",
+            "module_switches": {"rag": True},
+        },
+        "no_rag": {
+            "description": "Disable only ToolGen retrieval/RAG.",
+            "module_switches": {"rag": False},
         },
         "no_tool_validation": {
-            "description": "Disable only generated-tool validation.",
+            "description": (
+                "Legacy engineering compatibility: disable generated-tool validation."
+            ),
             "module_switches": {"tool_validation": False},
         },
     },
@@ -60,7 +100,7 @@ EXECUTION_IDENTITY_FIELDS = (
     "seed",
 )
 
-_SCHEDULE_PROTOCOL = "table3_module_ablation_schedule_v1"
+_SCHEDULE_PROTOCOL = "table3_module_ablation_schedule_v2"
 _ARTIFACT_PROTOCOL = "table3_module_ablation_completed_artifact_v1"
 _AUDIT_PROTOCOL = "table3_module_ablation_completed_artifact_audit_v1"
 _IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")

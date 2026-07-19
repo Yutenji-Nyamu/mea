@@ -68,7 +68,7 @@ class ExecutionVQAQueryTests(unittest.TestCase):
         self.assertEqual(query["phenomenon_ids"], ["bell_visibly_pressed"])
         self.assertEqual(
             query["selection_reasons"],
-            ["task_template:click_bell:task_execution.official_baseline"],
+            ["capability_adapter:click_bell:task_execution.official_baseline"],
         )
 
     def test_click_bell_official_success_metric_is_task_scoped(self):
@@ -111,7 +111,7 @@ class ExecutionVQAQueryTests(unittest.TestCase):
         )
         self.assertEqual(
             query["selection_reasons"][0],
-            "task_template:click_bell:robustness.scene_clutter.official_table",
+            "capability_adapter:click_bell:robustness.scene_clutter.official_table",
         )
         self.assertNotIn("block_color_blue", query["phenomenon_ids"])
 

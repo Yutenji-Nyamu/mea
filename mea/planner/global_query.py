@@ -7,6 +7,13 @@ import re
 from copy import deepcopy
 from typing import Any, Mapping
 
+from mea.aspects import (
+    AspectError,
+    canonicalize_aspect_id,
+    canonicalize_aspect_ids,
+    public_aspect_ontology,
+)
+
 from .catalog import catalog_task, validate_act_catalog
 from .click_bell import CLICK_BELL_ADAPTIVE_ASPECTS
 from .prototype import EXPECTED_POLICY, MAX_ROUNDS, SUB_ASPECT_CATALOG
@@ -90,7 +97,7 @@ def validate_route_selection(
     proposal["evaluation_goal"] = _require_text(
         proposal.get("evaluation_goal"), "evaluation_goal"
     )
-    requested = _unique_text_list(
+    raw_requested = _unique_text_list(
         proposal.get("requested_aspect_ids"),
         "requested_aspect_ids",
         allow_empty=decision == "unsupported",
@@ -100,6 +107,32 @@ def validate_route_selection(
         "unsupported_capabilities",
         allow_empty=decision == "route",
     )
+    try:
+        requested = canonicalize_aspect_ids(
+            raw_requested,
+            # Preserve unknown identifiers long enough to report them against
+            # the selected task's trusted catalog below.  Canonical aliases
+            # are still normalized and duplicate aliases still fail closed.
+            allow_unknown=True,
+        )
+        unsupported = [
+            {
+                **item,
+                "aspect_id": canonicalize_aspect_id(
+                    item["aspect_id"], allow_unknown=True
+                ),
+            }
+            for item in unsupported
+        ]
+        unsupported_identities = [
+            (item["task_name"], item["aspect_id"]) for item in unsupported
+        ]
+        if len(unsupported_identities) != len(set(unsupported_identities)):
+            raise AspectError(
+                "unsupported_capabilities contain duplicates after canonicalization"
+            )
+    except AspectError as exc:
+        raise GlobalRouteError(str(exc)) from exc
     proposal["requested_aspect_ids"] = requested
     proposal["unsupported_capabilities"] = unsupported
 
@@ -150,7 +183,13 @@ def validate_route_selection(
         raise GlobalRouteError(f"unsupported routed aspects for {task_name}: {unknown}")
     if len(requested) > int(task["max_rounds"]):
         raise GlobalRouteError("requested aspects exceed the trusted round budget")
-    first_aspect = _require_text(proposal.get("first_aspect_id"), "first_aspect_id")
+    try:
+        first_aspect = canonicalize_aspect_id(
+            _require_text(proposal.get("first_aspect_id"), "first_aspect_id"),
+            allow_unknown=True,
+        )
+    except AspectError as exc:
+        raise GlobalRouteError(str(exc)) from exc
     if first_aspect not in requested:
         raise GlobalRouteError("first_aspect_id must be one of requested_aspect_ids")
     proposal.update(
@@ -258,7 +297,10 @@ If the query requires any capability outside the catalog, return
 decision=\"unsupported\", null task/profile/first_aspect, no requested aspects,
 and list task-qualified unsupported capability objects.  A capability can be
 supported for one task and unsupported for another, so never omit task_name
-from a gap.  Historical plans are planning
+from a gap.  Use the canonical aspect ids or their explicit aliases from the
+ontology below.  Object appearance/position/instance and simulator scene
+texture/lighting/clutter are different semantic scopes; never map an object
+texture request to scene_background_texture.  Historical plans are planning
 priors only and never current-run execution evidence.
 
 USER QUERY:
@@ -266,6 +308,9 @@ USER QUERY:
 
 TRUSTED ACT EVALUATION CATALOG:
 {json.dumps(trusted_catalog, ensure_ascii=False, indent=2)}
+
+CANONICAL ASPECT ONTOLOGY:
+{json.dumps(public_aspect_ontology(), ensure_ascii=False, indent=2)}
 
 SIMILAR COMPLETED PLAN HISTORY:
 {json.dumps(_compact_history(history_context), ensure_ascii=False, indent=2)}

@@ -626,20 +626,20 @@ python scripts/manipeval_micro_ablation.py \
 
 它只证明 gate 的功能作用，不输出论文 Table 3 成功率。
 
-## 16. Tool 分析有界恢复
+## 16. 旧 same-telemetry Tool 恢复（显式兼容）
 
-Agent 默认允许一次未预期 Tool orchestration runtime exception 的保守恢复，并校验前后 telemetry
-内容 hash 不变。Tool contract、路由、语义和验证失败不会重试，ACT 与 simulator 也不会重跑；
-generated route 中 provider/registry 工作可能重复，所以它不是纯分析重放，也不是论文的整轮
-restart。开发时可用一次显式故障注入证明接线：
+2026-07-17 的兼容路径允许一次未预期 Tool orchestration runtime exception 的保守恢复，并校验
+前后 telemetry 内容 hash 不变；它不重跑 ACT，也不是论文整轮 restart。2026-07-19 起默认关闭；
+只有明确测试旧行为时才同时禁用整轮恢复并开启该路径：
 
 ```bash
 python scripts/manipeval_agent.py ... \
   --tool-recovery-max-restarts 1 \
+  --round-recovery-max-restarts 0 \
   --inject-tool-exception-once
 ```
 
-该 flag 只用于开发 smoke。证据位于
+该组合只用于兼容性开发 smoke。论文对齐的默认整轮恢复见第 20 节。旧证据位于
 `execution/<round_id>/tool_recovery/attempt_*/attempt_started.json`、
 `attempt_result.json` 与
 `recovery_summary.json`；正常实验不要启用故障注入。
@@ -692,13 +692,17 @@ python scripts/manipeval_plan_strategy_pair.py \
 ACT=`0`。先人工核对 `commands.md` 中的预算和 identity；只有决定支付最多
 `2 × candidate_count` 条 ACT rollout 后，才依次执行其中的 validate、fixed、dynamic、validate
 与 registered compare 命令。不要给 registered Agent 命令另加 `--auto-route` 或改 argv；任何
-漂移都应被 preflight/post-hoc 拒绝。N=1 的 Table 2 consistency 必须保持不可用。
+漂移都应被 preflight/post-hoc 拒绝。registered argv 会把 Tool 子阶段与整轮 recovery budget
+都冻结为 0，使 `pair_max_act_rollouts` 仍是硬上限；异常直接记录失败，不在预注册之外增加 ACT。
+N=1 的 Table 2 consistency 必须保持不可用。
 
-## 18. TaskGen / ToolGen module-off prepare 与 audit
+## 18. TaskGen / ToolGen module-off prepare、execute 与 audit
 
 在 ignored 输入目录创建 `module_ablation_config.json`，冻结 `study_id`、repo-relative
-`artifact_root` 以及 TaskGen/ToolGen matched cases。TaskGen condition 只能选
-`complete / no_rag / no_visual_gate`，ToolGen 只能选 `complete / no_tool_validation`；每个 case
+`artifact_root` 以及 TaskGen/ToolGen matched cases。论文 Table 3 对应的 TaskGen condition 是
+`complete / no_rag / no_visual_self_check / no_readme_agent / base`，ToolGen condition 是
+`complete / no_rag`；`no_visual_gate / no_tool_validation` 仅保留为旧工程兼容条件，不得写成
+论文消融。每个 case
 同时提供相同的 `input_identity` 和 `execution_identity`（Git、runner+hash、provider model、
 config hash、seed）。先只生成 schedule：
 
@@ -709,7 +713,22 @@ python scripts/manipeval_module_ablation.py \
   --output-dir mea/validation_runs/<study>_schedule
 ```
 
-外部 runner 完成 schedule 指向的 typed artifact 后，再用一个全新输出目录审核：
+零成本开发 smoke 可真正执行冻结的开关，并为每个 item 写入 append-only candidate、typed
+outcome、execution trace 和 manifest：
+
+```bash
+python scripts/manipeval_module_ablation.py \
+  --repo-root "$PWD" execute \
+  --schedule mea/validation_runs/<study>_schedule/schedule.json \
+  --output-dir mea/validation_runs/<study>_execution
+```
+
+development item artifact 写到 `<output-dir>/artifacts`，execution summary 与 report 也保存在
+`--output-dir`；schedule 内冻结的 formal `artifact_root` 保持未占用。该 deterministic driver 只证明
+开关分支和证据合同生效，固定为 provider/simulator/ACT=`0`、`paper_table_eligible=false`，不能当作
+论文生成成功率。同一冻结 schedule 后续可交给真正的 provider/human-review runner 写入 formal
+`artifact_root`；development manifest 绝不能交给 formal artifact audit。真实 runner 完成 schedule
+指向的 typed artifact 后，再用一个全新输出目录审核：
 
 ```bash
 python scripts/manipeval_module_ablation.py \
@@ -718,9 +737,11 @@ python scripts/manipeval_module_ablation.py \
   --output-dir mea/validation_runs/<study>_audit
 ```
 
-这两个命令都不调用 provider、simulator 或 ACT。缺 artifact、缺 matched pair、只有 provenance
+`prepare`、内置 `execute` 和 `audit` 本身都不调用 provider、simulator 或 ACT。缺 artifact、
+缺 matched pair、只有 provenance
 或 runtime/identity 不可核验时，effect 必须为 `null`。completed manifest 中的历史 runtime 是
-self-attested；只有接入真正按 switch 执行的 runner 后，才可称 live functional ablation。
+self-attested；只有接入真实生成、独立审核并形成完整 matched outcome 后，才可称论文 Table 3-facing
+functional ablation。
 
 ## 19. 原生背景/光照 scene gate 与 completion-time
 
@@ -773,3 +794,29 @@ python scripts/manipeval_agent.py \
 核对 proposal 选择 `performance.completion_time_stability.official`，TaskGen child 为 official
 passthrough，Tool 为 Trusted `time_to_success`。N=1 只能证明 route/Tool/Aggregate/VQA/feedback
 接线，不能称 completion-time stability 结论。
+
+## 20. Scene-shift 证据收集与整轮恢复 smoke
+
+只读扫描所有 completed evaluation，生成来源 hash 清单和缺失诊断：
+
+```bash
+python scripts/manipeval_scene_shift_collect.py \
+  --repo-root "$PWD" \
+  --output-dir mea/validation_runs/scene_shift_collection_<id>
+```
+
+也可重复传 `--evaluation-id eval_...` 限定父 run。若由 development agent 临时代替人工标注，
+把 `candidate_id -> phenomenon_id -> bool` JSON 通过 `--labels` 传入，并显式传
+`--reviewer-id`；输出仍是 `suite_draft`、`suite_validated=false`，不能命名为 human gold。
+
+Agent 的论文对齐默认值是：
+
+```text
+--tool-recovery-max-restarts 0
+--round-recovery-max-restarts 1
+```
+
+正常运行无需显式传参。开发时可加 `--inject-tool-exception-once`，证明第一次 Tool 执行异常后
+创建 `round_attempt_02` 与新 child run；这会真的重跑该轮 ACT，先只用一条 episode。若同时把
+两个 restart budget 设为 0，fault injection 会 fail-fast。不要对 policy/simulator failure 开启
+自动重试。

@@ -17,6 +17,12 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from mea.execution_vqa import build_execution_vqa_query, run_execution_vqa
+from mea.capability_adapter import (
+    CapabilityAdapterError,
+    build_contract_tool_request,
+    taskgen_route,
+    validate_capability_contract,
+)
 from mea.feedback import FeedbackAgent, render_evaluation_report
 from mea.history import EvaluationHistoryDB
 from mea.planner import (
@@ -36,8 +42,14 @@ from mea.providers import (
     resolve_model_profile,
 )
 from mea.recovery import (
+    BoundedRecoveryError,
     UnexpectedToolExecutionError,
     run_bounded_tool_recovery,
+)
+from mea.round_recovery import (
+    StageFailure,
+    WholeRoundRecoveryError,
+    run_stage_aware_round_recovery,
 )
 from mea.toolgen import ToolOrchestrationError, execute_tool_request
 from mea.toolkit import aggregate_tool_executions
@@ -188,6 +200,52 @@ def round_execution_backend(round_plan: dict[str, Any]) -> str:
     return backend
 
 
+def validate_round_capability_contract(
+    round_plan: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Bind every duplicated runtime field to one trusted adapter contract."""
+
+    raw = round_plan.get("capability_contract")
+    if raw is None:
+        return None
+    try:
+        contract = validate_capability_contract(raw)
+        expected_tool = build_contract_tool_request(contract)
+    except (CapabilityAdapterError, ValueError) as exc:
+        raise ValueError(f"invalid round capability contract: {exc}") from exc
+    taskgen = contract["taskgen"]
+    expected = {
+        "task_name": contract["task_name"],
+        "template_id": contract["template_id"],
+        "capability_id": taskgen["capability_id"],
+        "task_variant_id": taskgen["task_variant_id"],
+        "sub_aspect": contract["aspect"]["aspect_id"],
+        "route": taskgen_route(contract),
+        "variant_hint": taskgen["changes"],
+        "tool_request": expected_tool,
+        "vqa_phenomenon_ids": contract["vqa"]["phenomenon_ids"],
+        "required_gates": contract["required_gates"],
+    }
+    observed = {
+        "task_name": str(round_plan.get("task_name") or "beat_block_hammer"),
+        "template_id": round_plan.get("template_id"),
+        "capability_id": round_plan.get("capability_id"),
+        "task_variant_id": round_plan.get("task_variant_id"),
+        "sub_aspect": round_plan.get("sub_aspect"),
+        "route": round_plan.get("route"),
+        "variant_hint": round_plan.get("variant_hint") or {},
+        "tool_request": round_plan.get("tool_request"),
+        "vqa_phenomenon_ids": round_plan.get("vqa_phenomenon_ids"),
+        "required_gates": (round_plan.get("execution") or {}).get("gates"),
+    }
+    mismatches = sorted(key for key in expected if observed[key] != expected[key])
+    if mismatches:
+        raise ValueError(
+            "round fields differ from capability contract: " + ", ".join(mismatches)
+        )
+    return contract
+
+
 def build_taskgen_command(
     repo_root: Path,
     evaluation_id: str,
@@ -200,13 +258,25 @@ def build_taskgen_command(
     max_reflections: int,
     telemetry_profile: str = "balanced_v1",
     registration_identity: dict[str, Any] | None = None,
+    run_id_suffix: str = "",
 ) -> tuple[list[str], str]:
-    run_id = child_run_id(evaluation_id, round_plan["round_id"])
+    capability_contract = validate_round_capability_contract(round_plan)
+    if run_id_suffix and re.fullmatch(r"_[A-Za-z0-9_]+", run_id_suffix) is None:
+        raise ValueError("run_id_suffix must be empty or a safe underscore suffix")
+    run_id = child_run_id(evaluation_id, round_plan["round_id"]) + run_id_suffix
     execution = round_plan["execution"]
     seed = execution["seeds"][0]
-    task_name = str(round_plan.get("task_name") or "beat_block_hammer")
+    task_name = (
+        capability_contract["task_name"]
+        if capability_contract is not None
+        else str(round_plan.get("task_name") or "beat_block_hammer")
+    )
     task_module = round_plan.get("task_module")
-    route = str(round_plan["route"])
+    route = (
+        taskgen_route(capability_contract)
+        if capability_contract is not None
+        else str(round_plan["route"])
+    )
     execution_backend = round_execution_backend(round_plan)
     command = [
         sys.executable,
@@ -251,8 +321,28 @@ def build_taskgen_command(
                 ),
             ]
         )
-    if round_plan.get("template_id"):
+    task_variant_id = round_plan.get("task_variant_id")
+    if task_variant_id:
+        command.extend(["--variant-id", str(task_variant_id)])
+    elif (
+        round_plan.get("template_id")
+        and round_plan.get("capability_contract") is None
+    ):
+        # Compatibility for hand-authored legacy plans that predate the
+        # capability adapter's template/task-variant identity split.
         command.extend(["--variant-id", str(round_plan["template_id"])])
+    if round_plan.get("capability_contract") is not None:
+        command.extend(
+            [
+                "--capability-contract-json",
+                json.dumps(
+                    round_plan["capability_contract"],
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+            ]
+        )
     if route == "official":
         if execution_backend in {"expert", "both"}:
             command.append("--expert")
@@ -792,6 +882,7 @@ def summarize_round(
     execution_vqa: dict[str, Any] | None = None,
     taskgen_returncode: int = 0,
 ) -> dict[str, Any]:
+    capability_contract = validate_round_capability_contract(round_plan)
     scene = child_manifest.get("scene_validation", {})
     vision = child_manifest.get("vision_validation", {})
     act = child_manifest.get("act_evaluation", {})
@@ -829,6 +920,56 @@ def summarize_round(
             for item in scene.get("expert_batch", {}).get("episodes", [])
             if item.get("seed") is not None
         ]
+    static = child_manifest.get("static_validation") or {}
+    gate_status = {
+        "variant_spec": (
+            (child_manifest.get("capability_contract_validation") or {}).get(
+                "status"
+            )
+            == "passed"
+        ),
+        "ast": bool((static.get("load_actors_ast") or {}).get("valid")),
+        "render": bool(scene.get("render_success")),
+        "rule": bool((scene.get("rule_check") or {}).get("passed")),
+        "scene_variant": bool(positions.get("passed")),
+        "vision": bool(vision.get("passed")),
+        "expert": bool((scene.get("expert_batch") or expert).get("passed")),
+        "act": bool((not uses_act and is_official) or act.get("passed")),
+        "toolkit": bool(
+            (child_manifest.get("trusted_tool_evaluation") or {}).get(
+                "episode_count"
+            )
+        ),
+        "planned_tool": bool(
+            tool_evaluation and tool_evaluation.get("status") == "passed"
+        ),
+        "aggregate": bool(
+            aggregate_result
+            and str(aggregate_result.get("status", "")).startswith("passed")
+        ),
+        "execution_vqa": bool(
+            execution_vqa
+            and (
+                execution_vqa.get("status") == "passed"
+                or (
+                    not uses_act
+                    and execution_vqa.get("status") == "skipped"
+                )
+            )
+        ),
+    }
+    required_gates = (
+        list(capability_contract["required_gates"])
+        if capability_contract is not None
+        else []
+    )
+    required_gate_status = {
+        "required": required_gates,
+        "by_gate": {gate: bool(gate_status.get(gate, False)) for gate in required_gates},
+    }
+    required_gate_status["passed"] = all(
+        required_gate_status["by_gate"].values()
+    )
     if is_official:
         expert_batch = scene.get("expert_batch") or expert
         pipeline_passed = bool(
@@ -865,9 +1006,17 @@ def summarize_round(
             and execution_vqa
             and execution_vqa.get("status") in {"passed", "skipped"}
         )
+    if capability_contract is not None:
+        pipeline_passed = bool(pipeline_passed and required_gate_status["passed"])
     return {
         "round_id": round_plan["round_id"],
-        "variant_id": round_plan.get("template_id"),
+        "variant_id": (
+            round_plan.get("task_variant_id") or round_plan.get("template_id")
+        ),
+        "template_id": round_plan.get("template_id"),
+        "capability_id": round_plan.get("capability_id"),
+        "capability_contract": round_plan.get("capability_contract"),
+        "required_gate_status": required_gate_status,
         "sub_aspect": round_plan["sub_aspect"],
         "task_instruction": round_plan["task_instruction"],
         "route": round_plan["route"],
@@ -918,6 +1067,7 @@ def summarize_round(
             "planned_tool": compact_tool_evaluation(tool_evaluation),
             "aggregate": compact_aggregate_result(aggregate_result),
             "execution_vqa": compact_execution_vqa(execution_vqa),
+            "required_gate_status": required_gate_status,
         },
         "pipeline_passed": pipeline_passed,
         "interpretation": (
@@ -945,8 +1095,14 @@ def execute_round(
     tool_recovery_max_restarts: int = 1,
     inject_tool_exception_once: bool = False,
     registration_identity: dict[str, Any] | None = None,
+    round_attempt_index: int = 1,
 ) -> tuple[dict[str, Any], Path, dict[str, Any], dict[str, Any], int,]:
+    if round_attempt_index < 1:
+        raise ValueError("round_attempt_index must be positive")
     round_id = round_plan["round_id"]
+    run_id_suffix = (
+        "" if round_attempt_index == 1 else f"_attempt_{round_attempt_index:02d}"
+    )
     command, run_id = build_taskgen_command(
         repo_root,
         evaluation_id,
@@ -958,8 +1114,11 @@ def execute_round(
         max_reflections=max_reflections,
         telemetry_profile=telemetry_profile,
         registration_identity=registration_identity,
+        run_id_suffix=run_id_suffix,
     )
     execution_dir = evaluation_dir / "execution" / round_id
+    if round_attempt_index > 1:
+        execution_dir = execution_dir / f"round_attempt_{round_attempt_index:02d}"
     write_json(
         execution_dir / "taskgen_command.json",
         {"command": command, "child_run_id": run_id},
@@ -1126,9 +1285,216 @@ def execute_round(
         execution_vqa,
         returncode,
     )
+    round_summary["round_attempt_index"] = round_attempt_index
+    round_summary["execution_artifact_dir"] = str(
+        execution_dir.relative_to(repo_root)
+    ).replace("\\", "/")
     round_summary.setdefault("observations", {})["tool_recovery"] = recovery_summary
     write_json(evaluation_dir / "summary" / f"{round_id}.json", round_summary)
     return child_manifest, child_dir, round_summary, tool_evaluation, returncode
+
+
+def execute_round_stage_aware(
+    repo_root: Path,
+    evaluation_dir: Path,
+    evaluation_id: str,
+    round_plan: dict[str, Any],
+    *,
+    text_model: str,
+    vision_model: str,
+    base_url: str | None,
+    gpu: int,
+    max_reflections: int,
+    provider: Any,
+    toolgen_model: str,
+    telemetry_profile: str = "balanced_v1",
+    reviewed_tool_registry: Path | None = None,
+    reviewed_vqa_registry: Path | None = None,
+    tool_recovery_max_restarts: int = 0,
+    round_recovery_max_restarts: int = 1,
+    inject_tool_exception_once: bool = False,
+    registration_identity: dict[str, Any] | None = None,
+) -> tuple[dict[str, Any], Path, dict[str, Any], dict[str, Any], int]:
+    """Run one logical Agent round under the paper's whole-round controller.
+
+    Existing local TaskGen and ToolGen repair loops stay inside their stages.
+    Only an exhausted, explicitly typed unexpected Tool-execution exception is
+    promoted to a whole-round restart.  Each retry gets a new child run id and
+    append-only execution directory, so failed ACT evidence is never silently
+    overwritten or reused as if it belonged to the replacement round.
+    """
+
+    round_id = str(round_plan["round_id"])
+    attempt_results: dict[
+        int, tuple[dict[str, Any], Path, dict[str, Any], dict[str, Any], int]
+    ] = {}
+
+    def taskgen_provider_called(child: dict[str, Any]) -> bool:
+        """Return whether the materialized TaskGen stage used a provider.
+
+        Generated BBH manifests record a non-empty ``provider.calls`` map;
+        bounded click_bell manifests record ``called=false`` but their later
+        visual self-check still invokes the vision provider.  Counting both
+        avoids attributing a restarted round only to ToolGen.
+        """
+
+        provider_record = child.get("provider")
+        if isinstance(provider_record, dict):
+            explicit = provider_record.get("called")
+            if isinstance(explicit, bool) and explicit:
+                return True
+            calls = provider_record.get("calls")
+            if isinstance(calls, dict) and bool(calls):
+                return True
+        return bool(
+            child.get("visual_self_reflection")
+            or child.get("vision_validation")
+        )
+
+    def runtime_for_child(attempt_index: int) -> dict[str, Any]:
+        suffix = "" if attempt_index == 1 else f"_attempt_{attempt_index:02d}"
+        run_id = child_run_id(evaluation_id, round_id) + suffix
+        manifest_path = repo_root / "mea/generated_tasks" / run_id / "manifest.json"
+        child: dict[str, Any] = {}
+        if manifest_path.is_file():
+            try:
+                loaded = json.loads(manifest_path.read_text(encoding="utf-8"))
+                child = loaded if isinstance(loaded, dict) else {}
+            except (OSError, json.JSONDecodeError):
+                child = {}
+        act = child.get("act_evaluation")
+        actual = act.get("actual_seeds") if isinstance(act, dict) else []
+        act_count = len(actual) if isinstance(actual, list) else 0
+        return {
+            "provider_called": taskgen_provider_called(child),
+            "simulator_called": bool(
+                child.get("scene_validation")
+                or child.get("act_evaluation")
+                or child.get("expert_evaluation")
+            ),
+            "act_rollouts_started": act_count,
+        }
+
+    def execute_attempt(attempt_dir: Path, attempt_index: int) -> dict[str, Any]:
+        del attempt_dir  # The controller owns its trace; Agent paths are canonical.
+        try:
+            result = execute_round(
+                repo_root,
+                evaluation_dir,
+                evaluation_id,
+                round_plan,
+                text_model=text_model,
+                vision_model=vision_model,
+                base_url=base_url,
+                gpu=gpu,
+                max_reflections=max_reflections,
+                provider=provider,
+                toolgen_model=toolgen_model,
+                telemetry_profile=telemetry_profile,
+                reviewed_tool_registry=reviewed_tool_registry,
+                reviewed_vqa_registry=reviewed_vqa_registry,
+                tool_recovery_max_restarts=tool_recovery_max_restarts,
+                inject_tool_exception_once=(
+                    inject_tool_exception_once and attempt_index == 1
+                ),
+                registration_identity=registration_identity,
+                round_attempt_index=attempt_index,
+            )
+        except BoundedRecoveryError as exc:
+            execution_dir = evaluation_dir / "execution" / round_id
+            if attempt_index > 1:
+                execution_dir = execution_dir / f"round_attempt_{attempt_index:02d}"
+            recovery_path = execution_dir / "tool_recovery/recovery_summary.json"
+            recovery: dict[str, Any] = {}
+            if recovery_path.is_file():
+                loaded = json.loads(recovery_path.read_text(encoding="utf-8"))
+                recovery = loaded if isinstance(loaded, dict) else {}
+            if recovery.get("failure_class") != "unexpected_tool_execution_exception":
+                raise
+            raise StageFailure(
+                "tool_execution",
+                "unexpected_exception",
+                str(exc),
+                runtime=runtime_for_child(attempt_index),
+                details={
+                    "tool_recovery_summary": str(
+                        recovery_path.relative_to(repo_root)
+                    ).replace("\\", "/"),
+                    "failed_child_run_id": child_run_id(evaluation_id, round_id)
+                    + (
+                        ""
+                        if attempt_index == 1
+                        else f"_attempt_{attempt_index:02d}"
+                    ),
+                },
+            ) from exc
+        attempt_results[attempt_index] = result
+        child_manifest, _child_dir, _summary, tool_evaluation, _returncode = result
+        route = tool_evaluation.get("route_decision") or {}
+        runtime = runtime_for_child(attempt_index)
+        execution_vqa = (
+            (_summary.get("observations") or {}).get("execution_vqa") or {}
+        )
+        runtime["provider_called"] = bool(
+            runtime["provider_called"]
+            or route.get("provider_called")
+            or execution_vqa.get("model_requested")
+        )
+        return {
+            "status": "completed",
+            "attempt_index": attempt_index,
+            "child_run_id": child_manifest.get("run_id"),
+            "execution_artifact_dir": _summary.get("execution_artifact_dir"),
+            "pipeline_passed": bool(_summary.get("pipeline_passed")),
+            "runtime": runtime,
+        }
+
+    round_identity = {
+        "evaluation_id": evaluation_id,
+        "round_plan": round_plan,
+        "text_model": text_model,
+        "vision_model": vision_model,
+        "toolgen_model": toolgen_model,
+        "telemetry_profile": telemetry_profile,
+        "reviewed_tool_registry": (
+            str(reviewed_tool_registry) if reviewed_tool_registry is not None else None
+        ),
+        "reviewed_vqa_registry": (
+            str(reviewed_vqa_registry) if reviewed_vqa_registry is not None else None
+        ),
+        "registration_identity": registration_identity,
+    }
+    recovery = run_stage_aware_round_recovery(
+        evaluation_dir / "execution" / round_id / "whole_round_recovery",
+        logical_round_id=round_id,
+        round_identity=round_identity,
+        execute_round=execute_attempt,
+        max_restarts=round_recovery_max_restarts,
+    )
+    final_attempt = int(recovery["attempts"][-1]["attempt_index"])
+    if final_attempt not in attempt_results:
+        raise WholeRoundRecoveryError(
+            "round recovery completed without a materialized Agent result",
+            summary=recovery,
+        )
+    result = attempt_results[final_attempt]
+    result[2].setdefault("observations", {})["whole_round_recovery"] = {
+        key: recovery.get(key)
+        for key in (
+            "status",
+            "recovery_scope",
+            "attempt_count",
+            "restarts_used",
+            "whole_round_restarted",
+            "policy_or_simulator_restarted",
+            "additional_round_attempts_started_by_recovery",
+            "additional_act_rollouts_started_by_recovery",
+            "runtime",
+            "attempts",
+        )
+    }
+    write_json(evaluation_dir / "summary" / f"{round_id}.json", result[2])
+    return result
 
 
 def _round_evidence(
@@ -1189,8 +1555,11 @@ def _round_evidence(
         }
     }
 
+    round_execution_value = round_summary.get("execution_artifact_dir")
     round_execution = (
-        Path("mea/evaluation_runs")
+        Path(str(round_execution_value))
+        if round_execution_value
+        else Path("mea/evaluation_runs")
         / evaluation_id
         / "execution"
         / round_plan["round_id"]
@@ -1208,7 +1577,12 @@ def _round_evidence(
     return {
         "round_id": round_plan["round_id"],
         "child_run_id": child_manifest.get("run_id"),
-        "variant_id": round_plan.get("template_id"),
+        "variant_id": (
+            round_plan.get("task_variant_id") or round_plan.get("template_id")
+        ),
+        "template_id": round_plan.get("template_id"),
+        "capability_id": round_plan.get("capability_id"),
+        "capability_contract": round_plan.get("capability_contract"),
         "sub_aspect": round_plan["sub_aspect"],
         "task_instruction": round_plan["task_instruction"],
         "route": round_plan["route"],
@@ -1588,19 +1962,28 @@ def parse_args() -> argparse.Namespace:
         "--tool-recovery-max-restarts",
         type=int,
         choices=[0, 1],
+        default=0,
+        help=(
+            "Legacy local Tool-substage retry budget. The paper-aligned default "
+            "is 0 so unexpected Tool execution is handled by whole-round recovery."
+        ),
+    )
+    parser.add_argument(
+        "--round-recovery-max-restarts",
+        type=int,
+        choices=[0, 1],
         default=1,
         help=(
-            "Restart only an unexpected Tool analysis exception, reusing the "
-            "same recorded telemetry. Policy/simulator/contract failures are "
-            "never retried."
+            "Restart the whole evaluation round once only after an explicitly "
+            "typed unexpected Tool-execution exception."
         ),
     )
     parser.add_argument(
         "--inject-tool-exception-once",
         action="store_true",
         help=(
-            "Development-only fault injection proving one same-telemetry Tool "
-            "analysis restart; never reruns ACT."
+            "Development-only unexpected Tool-execution fault. With the "
+            "paper-aligned defaults it restarts the whole round and ACT once."
         ),
     )
     parser.add_argument(
@@ -1632,9 +2015,12 @@ def main() -> None:
     args = parse_args()
     if args.num_episodes <= 0:
         raise SystemExit("--num-episodes must be positive")
-    if args.inject_tool_exception_once and args.tool_recovery_max_restarts != 1:
+    if args.inject_tool_exception_once and not (
+        args.tool_recovery_max_restarts == 1
+        or args.round_recovery_max_restarts == 1
+    ):
         raise SystemExit(
-            "--inject-tool-exception-once requires --tool-recovery-max-restarts 1"
+            "--inject-tool-exception-once requires a Tool-substage or whole-round restart"
         )
     if args.auto_route and args.task_module is not None:
         raise SystemExit(
@@ -1655,6 +2041,13 @@ def main() -> None:
         )
     if args.registered_strategy is not None and args.auto_route:
         raise SystemExit("registered execution forbids live --auto-route")
+    if args.registered_strategy is not None and (
+        args.tool_recovery_max_restarts != 0
+        or args.round_recovery_max_restarts != 0
+    ):
+        raise SystemExit(
+            "registered execution requires both recovery restart budgets to be 0"
+        )
     if args.registered_strategy is not None and args.evaluation_id is None:
         raise SystemExit("registered execution requires an explicit --evaluation-id")
     repo_root = args.repo_root.expanduser().resolve()
@@ -2025,6 +2418,15 @@ def main() -> None:
             "restarts_policy_or_simulator": False,
             "development_fault_injection": bool(args.inject_tool_exception_once),
         },
+        whole_round_recovery={
+            "schema_version": 1,
+            "max_restarts": args.round_recovery_max_restarts,
+            "eligible_failure": "tool_execution/unexpected_exception",
+            "reuses_recorded_telemetry": False,
+            "restarts_policy_or_simulator": True,
+            "policy_or_simulator_failures_are_not_retried": True,
+            "development_fault_injection": bool(args.inject_tool_exception_once),
+        },
         registration_identity=registration_identity,
         evidence_manifest=(
             str(args.evidence_manifest) if registration_identity is not None else None
@@ -2055,7 +2457,7 @@ def main() -> None:
                 round_summary,
                 tool_evaluation,
                 returncode,
-            ) = execute_round(
+            ) = execute_round_stage_aware(
                 repo_root,
                 evaluation_dir,
                 evaluation_id,
@@ -2071,6 +2473,7 @@ def main() -> None:
                 reviewed_tool_registry=reviewed_tool_registry,
                 reviewed_vqa_registry=reviewed_vqa_registry,
                 tool_recovery_max_restarts=args.tool_recovery_max_restarts,
+                round_recovery_max_restarts=args.round_recovery_max_restarts,
                 inject_tool_exception_once=args.inject_tool_exception_once,
                 registration_identity=registration_identity,
             )

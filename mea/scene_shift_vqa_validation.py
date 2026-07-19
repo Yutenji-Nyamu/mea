@@ -614,11 +614,26 @@ def _validate_parent_evaluation(
         )
     manifest = _read_json(path, field=f"{case_id} evaluation manifest")
     base_commit = manifest.get("base_commit")
+    child_run_ids = manifest.get("child_run_ids")
+    if child_run_ids is None:
+        # Compatibility with older one-round evaluations that predate the
+        # append-only child list. In that schema the active child was the only
+        # child, so exact equality remains the binding authority.
+        child_bound = manifest.get("active_child_run_id") == taskgen["run_id"]
+    else:
+        child_bound = bool(
+            isinstance(child_run_ids, list)
+            and child_run_ids
+            and all(isinstance(item, str) and item for item in child_run_ids)
+            and len(child_run_ids) == len(set(child_run_ids))
+            and taskgen["run_id"] in child_run_ids
+            and manifest.get("active_child_run_id") == child_run_ids[-1]
+        )
     if (
         manifest.get("evaluation_id") != case["source_evaluation_id"]
         or manifest.get("status") != "completed"
         or manifest.get("lifecycle_status") != "completed"
-        or manifest.get("active_child_run_id") != taskgen["run_id"]
+        or not child_bound
         or manifest.get("task_name") != "click_bell"
         or manifest.get("telemetry_profile") != "balanced_v1"
         or not isinstance(base_commit, str)
@@ -628,7 +643,14 @@ def _validate_parent_evaluation(
         raise SceneShiftVQAValidationError(
             f"{case_id} parent evaluation does not bind the TaskGen child/protocol"
         )
-    return {"base_commit": base_commit}
+    return {
+        "base_commit": base_commit,
+        "child_binding": (
+            "child_run_ids_membership"
+            if child_run_ids is not None
+            else "legacy_active_child"
+        ),
+    }
 
 
 def _validate_execution_vqa_case(
@@ -677,6 +699,9 @@ def _validate_execution_vqa_case(
             f"{case_id} embedded and hashed query artifacts differ"
         )
     artifacts = _mapping(artifact.get("artifacts"), field=f"{case_id}.artifacts")
+    artifact_result = _resolve_embedded_artifact(
+        root, artifacts.get("result"), field=f"{case_id}.artifacts.result"
+    )
     artifact_query = _resolve_embedded_artifact(
         root, artifacts.get("query"), field=f"{case_id}.artifacts.query"
     )
@@ -684,11 +709,12 @@ def _validate_execution_vqa_case(
         root, artifacts.get("montage"), field=f"{case_id}.artifacts.montage"
     )
     if (
-        artifact_query != resolved["query"][0]
+        artifact_result != resolved["execution_vqa"][0]
+        or artifact_query != resolved["query"][0]
         or artifact_montage != resolved["montage"][0]
     ):
         raise SceneShiftVQAValidationError(
-            f"{case_id} VQA artifact does not bind hashed query/montage paths"
+            f"{case_id} VQA artifact does not bind hashed result/query/montage paths"
         )
     selection = _mapping(artifact.get("selection"), field=f"{case_id}.selection")
     selection_video = _resolve_embedded_artifact(

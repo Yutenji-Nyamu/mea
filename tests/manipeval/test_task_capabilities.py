@@ -52,6 +52,27 @@ class TaskCapabilityTests(unittest.TestCase):
         with self.assertRaises(CapabilityError):
             validate_variant_spec_envelope(spec)
 
+    def test_object_and_scene_capabilities_reject_cross_scope_changes(self):
+        with self.assertRaisesRegex(CapabilityError, "must stay within roots"):
+            build_variant_spec(
+                task_name="click_bell",
+                variant_id="object_position.left_fixed",
+                capability_id="object_position.fixed_xy",
+                intent="invalid scene mutation through object capability",
+                changes={
+                    "bell": {"position_mode": "fixed", "xy": [-0.2, -0.08]},
+                    "domain_randomization": {"random_light": True},
+                },
+            )
+        with self.assertRaisesRegex(CapabilityError, "must stay within roots"):
+            build_variant_spec(
+                task_name="click_bell",
+                variant_id="scene_lighting.static_random",
+                capability_id="scene_lighting",
+                intent="invalid object mutation through scene capability",
+                changes={"bell": {"bell_id": 0}},
+            )
+
     def test_legacy_click_spec_upgrades_and_card_is_separate(self):
         upgraded = load_legacy_variant_spec(
             {

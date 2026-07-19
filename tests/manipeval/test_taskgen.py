@@ -3,7 +3,12 @@ import shutil
 import unittest
 from pathlib import Path
 
-from mea.taskgen import TaskGenError, TaskGenPrototype, validate_load_actors
+from mea.taskgen import (
+    TaskGenError,
+    TaskGenPrototype,
+    build_variant_spec,
+    validate_load_actors,
+)
 
 
 BLUE_METHOD = '''
@@ -91,6 +96,14 @@ class FakeProvider:
         return self.responses.pop(0)
 
 
+class RedProposalProvider(FakeProvider):
+    def __init__(self):
+        super().__init__()
+        red = json.loads(json.dumps(SPEC))
+        red["changes"]["block"]["color"] = [1.0, 0.0, 0.0]
+        self.responses[0] = json.dumps(red, ensure_ascii=False)
+
+
 class TaskGenPrototypeTests(unittest.TestCase):
     def test_complete_load_actors_generation(self):
         repo_root = Path(__file__).resolve().parents[2]
@@ -126,6 +139,47 @@ class TaskGenPrototypeTests(unittest.TestCase):
             self.assertEqual(
                 retrieval["selected_tasks"],
                 ["beat_block_hammer", "blocks_ranking_rgb"],
+            )
+        finally:
+            if run_dir.exists():
+                shutil.rmtree(run_dir)
+
+    def test_planner_variant_spec_is_authoritative_over_model_proposal(self):
+        repo_root = Path(__file__).resolve().parents[2]
+        run_id = "run_unittest_planner_authority"
+        run_dir = repo_root / "mea/generated_tasks" / run_id
+        if run_dir.exists():
+            shutil.rmtree(run_dir)
+        trusted = build_variant_spec(
+            task_name="beat_block_hammer",
+            variant_id="object_appearance.color_blue",
+            capability_id="object_appearance.color",
+            intent="planner_capability:object_appearance.color_blue",
+            changes=SPEC["changes"],
+            generation_mode="force_codegen",
+        )
+        try:
+            manifest = TaskGenPrototype(
+                repo_root,
+                RedProposalProvider(),
+                model="fake",
+            ).generate(
+                "evaluate the trusted blue variant",
+                run_id=run_id,
+                variant_id=trusted["variant_id"],
+                trusted_variant_spec=trusted,
+            )
+            materialized = json.loads(
+                (run_dir / "variant_spec.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(materialized, trusted)
+            self.assertEqual(
+                manifest["variant_spec_authority"],
+                "planner_capability_contract",
+            )
+            self.assertEqual(
+                materialized["changes"]["block"]["color"],
+                [0.0, 0.2, 1.0],
             )
         finally:
             if run_dir.exists():

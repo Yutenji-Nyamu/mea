@@ -11,13 +11,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from mea.capability_adapter import (
+    build_contract_tool_request,
+    resolve_capability_contract,
+    taskgen_route,
+)
 from mea.planner.evidence_policy import assess_evidence
 from mea.taskgen import extract_json_response
-from mea.toolgen import (
-    contact_tool_request,
-    pickup_to_contact_tool_request,
-    validate_tool_request,
-)
 
 
 class PlanAgentError(RuntimeError):
@@ -74,7 +74,6 @@ SUB_ASPECT_CATALOG: dict[str, dict[str, Any]] = {
         "variant_hint": _blue_variant(),
         "seeds": [100000],
         "tool_metric": "hammer_block_contact_ever",
-        "tool_request_factory": contact_tool_request,
     },
     "object_position.official_random": {
         "sub_aspect": "object_position",
@@ -84,7 +83,6 @@ SUB_ASPECT_CATALOG: dict[str, dict[str, Any]] = {
         "variant_hint": _blue_variant(),
         "seeds": [100002, 100003],
         "tool_metric": "hammer_block_contact_ever",
-        "tool_request_factory": contact_tool_request,
     },
     "performance.pickup_to_contact_timing": {
         "sub_aspect": "performance.pickup_to_contact_timing",
@@ -96,7 +94,6 @@ SUB_ASPECT_CATALOG: dict[str, dict[str, Any]] = {
         # ACT/expert contrast for the bounded timing prototype.
         "seeds": [100000],
         "tool_metric": "pickup_to_first_contact_time",
-        "tool_request_factory": pickup_to_contact_tool_request,
     },
 }
 
@@ -179,29 +176,37 @@ def _materialize_round(template_id: str, round_number: int) -> dict[str, Any]:
         raise PlanAgentError(f"round_number 必须在 [1, {MAX_ROUNDS}]")
     template = SUB_ASPECT_CATALOG[template_id]
     try:
-        tool_request = validate_tool_request(
-            template["tool_request_factory"](),
-            expected_metric=template["tool_metric"],
-        )
-    except RuntimeError as exc:
-        raise PlanAgentError(f"catalog tool_request 无效: {exc}") from exc
+        contract = resolve_capability_contract("beat_block_hammer", template_id)
+        tool_request = build_contract_tool_request(contract)
+    except ValueError as exc:
+        raise PlanAgentError(f"capability adapter 无效: {exc}") from exc
+    if (
+        contract["aspect"]["aspect_id"] != template["sub_aspect"]
+        or contract["taskgen"]["changes"] != template["variant_hint"]
+        or contract["tool"]["metric"] != template["tool_metric"]
+        or taskgen_route(contract) != template["route"]
+    ):
+        raise PlanAgentError("BBH planner template 与 capability adapter 不一致")
     seeds = list(template["seeds"])
     return {
         "round_id": f"round_{round_number}",
         "template_id": template_id,
-        "capability_id": "object_appearance.color",
+        "capability_id": contract["taskgen"]["capability_id"],
+        "task_variant_id": contract["taskgen"]["task_variant_id"],
+        "capability_contract": contract,
         "sub_aspect": template["sub_aspect"],
         "rationale": template["rationale"],
         "task_instruction": template["task_instruction"],
-        "route": template["route"],
+        "route": taskgen_route(contract),
         "variant_hint": deepcopy(template["variant_hint"]),
         "execution": {
             "seeds": seeds,
             "num_episodes": len(seeds),
-            "gates": list(REQUIRED_GATES),
+            "gates": list(contract["required_gates"]),
         },
         "observations": list(REQUIRED_OBSERVATIONS),
         "tool_request": tool_request,
+        "vqa_phenomenon_ids": list(contract["vqa"]["phenomenon_ids"]),
     }
 
 

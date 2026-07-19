@@ -12,6 +12,11 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from mea.capability_adapter import (
+    CapabilityAdapterError,
+    resolve_capability_contract,
+)
+
 
 class ExecutionVQAQueryError(ValueError):
     """Raised when a dynamic Execution VQA query violates its contract."""
@@ -249,10 +254,26 @@ def build_execution_vqa_query(
     reasons: list[str] = []
 
     task_template_key = (task, template)
-    if task_template_key in TASK_TEMPLATE_QUESTION_RULES:
+    adapter_matched = False
+    if task is not None and template is not None:
+        try:
+            contract = resolve_capability_contract(task, template)
+        except CapabilityAdapterError:
+            contract = None
+        if contract is not None:
+            adapter_ids = list(contract["vqa"]["phenomenon_ids"])
+            unknown = sorted(set(adapter_ids) - set(QUESTION_CATALOG))
+            if unknown:
+                raise ExecutionVQAQueryError(
+                    f"capability adapter references unknown phenomena: {unknown}"
+                )
+            _append_unique(selected, adapter_ids)
+            reasons.append(f"capability_adapter:{task}:{template}")
+            adapter_matched = True
+    if not adapter_matched and task_template_key in TASK_TEMPLATE_QUESTION_RULES:
         _append_unique(selected, TASK_TEMPLATE_QUESTION_RULES[task_template_key])
         reasons.append(f"task_template:{task}:{template}")
-    if template in TEMPLATE_QUESTION_RULES:
+    if not adapter_matched and template in TEMPLATE_QUESTION_RULES:
         _append_unique(selected, TEMPLATE_QUESTION_RULES[template])
         reasons.append(f"template:{template}")
     if aspect:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare or audit the bounded zero-ACT module-ablation protocol."""
+"""Prepare, development-execute, or audit the module-ablation protocol."""
 
 from __future__ import annotations
 
@@ -16,6 +16,10 @@ from mea.module_ablation_protocol import (
     ModuleAblationError,
     audit_module_ablation_artifacts,
     prepare_module_ablation_schedule,
+)
+from mea.module_ablation_execution import (
+    FunctionalSwitchExecutionError,
+    execute_module_ablation_schedule,
 )
 
 
@@ -81,6 +85,37 @@ def _report(summary: dict) -> str:
     return "\n".join(lines)
 
 
+def _execution_report(summary: dict) -> str:
+    lines = [
+        "# TaskGen/ToolGen Module Switch Execution",
+        "",
+        f"- execution mode: `{summary['execution_mode']}`",
+        f"- status: `{summary['status']}`",
+        f"- executed schedule items: `{summary['selected_item_count']}`",
+        "- calls made: provider=`false`, simulator=`false`, ACT=`0`",
+        "- paper-table eligible: `false`",
+        f"- claim boundary: {summary['claim_scope']}",
+        "",
+        "| Component | Condition | Success | Paper Table 3 switch |",
+        "|---|---|---:|---:|",
+    ]
+    for row in summary["items"]:
+        lines.append(
+            f"| {row['component']} | {row['condition']} | "
+            f"{str(row['success']).lower()} | "
+            f"{str(row['paper_table3_condition']).lower()} |"
+        )
+    lines.extend(
+        [
+            "",
+            "These are deterministic functional outcomes, not human-reviewed "
+            "TaskGen/ToolGen success rates from paper Table 3.",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def _destination(root: Path, output_dir: Path) -> Path:
     expanded = output_dir.expanduser()
     candidate = expanded if expanded.is_absolute() else root / expanded
@@ -129,6 +164,15 @@ def main() -> None:
     audit = subparsers.add_parser("audit")
     audit.add_argument("--schedule", type=Path, required=True)
     audit.add_argument("--output-dir", type=Path, required=True)
+    execute = subparsers.add_parser("execute")
+    execute.add_argument("--schedule", type=Path, required=True)
+    execute.add_argument("--output-dir", type=Path, required=True)
+    execute.add_argument(
+        "--item-id",
+        action="append",
+        dest="item_ids",
+        help="Optional schedule item id; repeat to run a strict subset.",
+    )
     args = parser.parse_args()
     root = args.repo_root.expanduser().resolve()
     try:
@@ -138,19 +182,35 @@ def main() -> None:
                 root, _read(_input(root, args.config, field="--config"))
             )
             json_name = "schedule.json"
-        else:
+            report = _report(summary)
+        elif args.command == "audit":
             summary = audit_module_ablation_artifacts(
                 root, _read(_input(root, args.schedule, field="--schedule"))
             )
             json_name = "summary.json"
-        destination.mkdir(parents=True)
+            report = _report(summary)
+        else:
+            summary = execute_module_ablation_schedule(
+                root,
+                _read(_input(root, args.schedule, field="--schedule")),
+                schedule_item_ids=args.item_ids,
+                development_artifact_root=destination / "artifacts",
+            )
+            json_name = "execution_summary.json"
+            report = _execution_report(summary)
+        destination.mkdir(parents=True, exist_ok=args.command == "execute")
         (destination / json_name).write_text(
             json.dumps(summary, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
-        (destination / "report.md").write_text(_report(summary), encoding="utf-8")
+        (destination / "report.md").write_text(report, encoding="utf-8")
         print(json.dumps(summary, ensure_ascii=False, indent=2))
-    except (OSError, json.JSONDecodeError, ModuleAblationError) as exc:
+    except (
+        OSError,
+        json.JSONDecodeError,
+        ModuleAblationError,
+        FunctionalSwitchExecutionError,
+    ) as exc:
         raise SystemExit(f"error: {exc}") from None
 
 

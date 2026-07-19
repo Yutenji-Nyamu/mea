@@ -162,6 +162,39 @@ def update_outcome_hash(manifest_path: Path, evidence_path: Path) -> None:
 
 
 class ModuleAblationProtocolTests(unittest.TestCase):
+    def test_prepare_supports_the_exact_paper_table3_condition_matrix(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            payload = config(
+                taskgen_conditions=[
+                    "complete",
+                    "no_rag",
+                    "no_visual_self_check",
+                    "no_readme_agent",
+                    "base",
+                ],
+                toolgen=True,
+            )
+            payload["components"]["toolgen"]["conditions"] = [
+                "complete",
+                "no_rag",
+            ]
+            schedule = prepare_module_ablation_schedule(root, payload)
+            self.assertEqual(len(schedule["items"]), 7)
+            switches = {
+                (item["component"], item["condition"]): item["module_switches"]
+                for item in schedule["items"]
+            }
+            self.assertEqual(
+                switches[("taskgen", "no_readme_agent")],
+                {
+                    "rag": True,
+                    "visual_self_check": True,
+                    "readme_agent": False,
+                },
+            )
+            self.assertEqual(switches[("toolgen", "no_rag")], {"rag": False})
+
     def test_prepare_is_bounded_rectangular_and_zero_runtime(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

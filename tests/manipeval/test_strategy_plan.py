@@ -231,6 +231,15 @@ class StrategyPlanTests(unittest.TestCase):
             )
             fixed = plan["strategies"]["fixed_predeclared_v1"]["argv"]
             dynamic = plan["strategies"]["dynamic_evidence_v1"]["argv"]
+            for argv in (fixed, dynamic):
+                self.assertIn("--tool-recovery-max-restarts", argv)
+                self.assertEqual(
+                    argv[argv.index("--tool-recovery-max-restarts") + 1], "0"
+                )
+                self.assertIn("--round-recovery-max-restarts", argv)
+                self.assertEqual(
+                    argv[argv.index("--round-recovery-max-restarts") + 1], "0"
+                )
             self.assertIn("fixed_predeclared_v1", fixed)
             self.assertIn("dynamic_evidence_v1", dynamic)
             self.assertEqual(fixed[fixed.index("--start-seed") + 1], "100402")
@@ -319,6 +328,39 @@ class StrategyPlanTests(unittest.TestCase):
                     evaluation_id="eval_pair_demo_n1_fixed",
                     observed_argv=drifted_argv,
                 )
+
+    def test_agent_rejects_registered_execution_with_recovery_budget(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            process = subprocess.run(
+                [
+                    sys.executable,
+                    str(REPO_ROOT / "scripts/manipeval_agent.py"),
+                    "--repo-root",
+                    temporary,
+                    "--request",
+                    "registered smoke",
+                    "--evaluation-id",
+                    "eval_registered_recovery_reject",
+                    "--evidence-manifest",
+                    "configs/missing.json",
+                    "--command-plan",
+                    "plans/missing.json",
+                    "--registered-route",
+                    "plans/route.json",
+                    "--registered-strategy",
+                    "fixed_predeclared_v1",
+                    "--round-recovery-max-restarts",
+                    "1",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertNotEqual(process.returncode, 0)
+            self.assertIn(
+                "registered execution requires both recovery restart budgets to be 0",
+                process.stderr,
+            )
 
     def test_registered_posthoc_wrapper_reuses_strict_comparator(self):
         with tempfile.TemporaryDirectory() as temporary:

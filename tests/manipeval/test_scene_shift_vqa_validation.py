@@ -315,6 +315,32 @@ class SceneShiftVQAValidationTests(unittest.TestCase):
         self.assertFalse(summary["act_called"])
         self.assertFalse(summary["image_proxy_used"])
 
+    def test_earlier_round_child_is_bound_by_parent_child_list(self):
+        case = self.cases[0]
+        parent_path = self.root / case["sources"]["evaluation_manifest"]["path"]
+        parent = json.loads(parent_path.read_text(encoding="utf-8"))
+        first_child = parent["active_child_run_id"]
+        parent["child_run_ids"] = [first_child, "run_later_scene_round"]
+        parent["active_child_run_id"] = "run_later_scene_round"
+        self._write_json(case["sources"]["evaluation_manifest"]["path"], parent)
+        suite = deepcopy(self.suite)
+        suite["cases"][0]["sources"]["evaluation_manifest"]["sha256"] = (
+            self._digest(parent_path)
+        )
+
+        summary = summarize_scene_shift_vqa_suite(self.root, suite)
+        self.assertEqual(len(summary["cases"]), 4)
+
+        parent["child_run_ids"] = ["run_later_scene_round"]
+        self._write_json(case["sources"]["evaluation_manifest"]["path"], parent)
+        suite["cases"][0]["sources"]["evaluation_manifest"]["sha256"] = (
+            self._digest(parent_path)
+        )
+        with self.assertRaisesRegex(
+            SceneShiftVQAValidationError, "does not bind the TaskGen child"
+        ):
+            summarize_scene_shift_vqa_suite(self.root, suite)
+
     def test_each_condition_requires_two_cases_and_true_false_primary_labels(self):
         missing = deepcopy(self.suite)
         missing["cases"] = [
@@ -349,6 +375,21 @@ class SceneShiftVQAValidationTests(unittest.TestCase):
         tampered.write_bytes(b"tampered-video")
         with self.assertRaisesRegex(SceneShiftVQAValidationError, "does not match"):
             summarize_scene_shift_vqa_suite(self.root, self.suite)
+
+    def test_vqa_result_must_self_bind_to_the_hashed_result(self):
+        case = self.cases[0]
+        result_path = self.root / case["sources"]["execution_vqa"]["path"]
+        artifact = json.loads(result_path.read_text(encoding="utf-8"))
+        artifact["artifacts"]["result"] = case["sources"]["query"]["path"]
+        self._write_json(case["sources"]["execution_vqa"]["path"], artifact)
+        suite = deepcopy(self.suite)
+        suite["cases"][0]["sources"]["execution_vqa"]["sha256"] = self._digest(
+            result_path
+        )
+        with self.assertRaisesRegex(
+            SceneShiftVQAValidationError, "hashed result/query/montage"
+        ):
+            summarize_scene_shift_vqa_suite(self.root, suite)
 
     def test_escape_and_symlink_sources_are_rejected(self):
         escaped = deepcopy(self.suite)

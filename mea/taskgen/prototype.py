@@ -16,7 +16,7 @@ import textwrap
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from mea.retrieval import KnowledgeRetriever, TaskRetriever
 from mea.taskgen.capabilities import CapabilityError, build_variant_spec
@@ -528,9 +528,22 @@ class TaskGenPrototype:
         mode: str = "force_codegen",
         run_id: str | None = None,
         variant_id: str | None = None,
+        trusted_variant_spec: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         if mode not in {"force_codegen", "reuse"}:
             raise TaskGenError(f"不支持的 generation mode: {mode}")
+
+        trusted_spec: dict[str, Any] | None = None
+        if trusted_variant_spec is not None:
+            trusted_spec = validate_variant_spec(dict(trusted_variant_spec), task_name)
+            if trusted_spec["generation_mode"] != mode:
+                raise TaskGenError(
+                    "trusted VariantSpec generation_mode differs from TaskGen mode"
+                )
+            if variant_id is not None and trusted_spec["variant_id"] != str(variant_id):
+                raise TaskGenError(
+                    "trusted VariantSpec variant_id differs from planner identity"
+                )
 
         run_id = run_id or make_run_id()
         if not re.fullmatch(r"run_[A-Za-z0-9_]+", run_id):
@@ -563,21 +576,40 @@ class TaskGenPrototype:
         _write_json(run_dir / "manifest.json", manifest)
 
         proposal_prompt = _proposal_prompt(user_request, task_name)
+        if trusted_spec is not None:
+            proposal_prompt += (
+                "\n\nThe planner capability contract is authoritative. "
+                "The following VariantSpec is immutable; use it for retrieval "
+                "and code generation:\n"
+                + json.dumps(trusted_spec, ensure_ascii=False, sort_keys=True)
+            )
         (generation_dir / "proposal_prompt.md").write_text(proposal_prompt, encoding="utf-8")
-        proposal_response = self.provider.text(
+        proposal_response = (
+            json.dumps(trusted_spec, ensure_ascii=False, sort_keys=True)
+            if trusted_spec is not None and mode == "reuse"
+            else self.provider.text(
             proposal_prompt,
             model=self.model,
             system="只输出满足 schema 的 JSON object。",
             max_tokens=1200,
             temperature=0.0,
+            )
         )
         (generation_dir / "proposal_response.txt").write_text(
             proposal_response + "\n", encoding="utf-8"
         )
-        provider_calls = {
-            "proposal": dict(getattr(self.provider, "last_metadata", {}))
-        }
-        spec = validate_variant_spec(extract_json_response(proposal_response), task_name)
+        provider_calls = (
+            {}
+            if trusted_spec is not None and mode == "reuse"
+            else {"proposal": dict(getattr(self.provider, "last_metadata", {}))}
+        )
+        # The model proposal remains an auditable TaskGen call, but a trusted
+        # planner contract is the sole authority for the materialized spec.
+        spec = (
+            trusted_spec
+            if trusted_spec is not None
+            else validate_variant_spec(extract_json_response(proposal_response), task_name)
+        )
         if variant_id and spec["variant_id"] != str(variant_id):
             spec = build_variant_spec(
                 task_name=task_name,
@@ -710,9 +742,15 @@ class TaskGenPrototype:
                 ),
                 "provider": {
                     "model_requested": self.model,
+                    "called": bool(provider_calls),
                     "calls": provider_calls,
                     "last_metadata": dict(getattr(self.provider, "last_metadata", {})),
                 },
+                "variant_spec_authority": (
+                    "planner_capability_contract"
+                    if trusted_spec is not None
+                    else "taskgen_proposal"
+                ),
             }
         )
         _write_json(run_dir / "manifest.json", manifest)

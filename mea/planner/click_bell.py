@@ -10,12 +10,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from mea.taskgen import TaskGenError, extract_json_response
-from mea.toolgen import (
-    bell_active_tcp_min_xy_error_tool_request,
-    official_success_tool_request,
-    time_to_success_tool_request,
+from mea.aspects import AspectError, canonicalize_aspect_id, canonicalize_aspect_ids
+from mea.capability_adapter import (
+    build_contract_tool_request,
+    resolve_capability_contract,
+    taskgen_route,
 )
+from mea.taskgen import TaskGenError, extract_json_response
 from mea.toolkit import load_task_schema
 
 from .prototype import PlanAgentError, make_evaluation_id
@@ -250,11 +251,19 @@ class ClickBellPositionPlanAgent:
         xy = CLICK_BELL_POSITIONS[template_id]
         side = "left" if xy[0] < 0 else "right"
         seeds = [self.start_seed + index for index in range(self.num_episodes)]
+        try:
+            contract = resolve_capability_contract("click_bell", template_id)
+            tool_request = build_contract_tool_request(contract)
+        except ValueError as exc:
+            raise PlanAgentError(f"capability adapter invalid: {exc}") from exc
         return {
             "round_id": f"round_{round_number}",
             "template_id": template_id,
-            "capability_id": "object_position.fixed_xy",
-            "sub_aspect": template_id,
+            "capability_id": contract["taskgen"]["capability_id"],
+            "task_variant_id": contract["taskgen"]["task_variant_id"],
+            "capability_contract": contract,
+            "sub_aspect": contract["aspect"]["aspect_id"],
+            "aspect_id": contract["aspect"]["aspect_id"],
             "rationale": (
                 f"Hold the bell at a safe fixed {side}-workspace position and "
                 "evaluate ACT while preserving official task semantics."
@@ -266,23 +275,13 @@ class ClickBellPositionPlanAgent:
             "task_name": "click_bell",
             "task_module": "mea.tasks.click_bell",
             "telemetry_profile": self.telemetry_profile,
-            "route": "reuse",
-            "variant_hint": {"bell": {"position_mode": "fixed", "xy": list(xy)}},
+            "route": taskgen_route(contract),
+            "variant_hint": deepcopy(contract["taskgen"]["changes"]),
             "execution": {
                 "backend": "act",
                 "seeds": seeds,
                 "num_episodes": len(seeds),
-                "gates": [
-                    "variant_spec",
-                    "render",
-                    "rule",
-                    "scene_position",
-                    "vision",
-                    "expert",
-                    "act",
-                    "toolkit",
-                    "aggregate",
-                ],
+                "gates": list(contract["required_gates"]),
             },
             "observations": [
                 "scene_alignment",
@@ -292,7 +291,8 @@ class ClickBellPositionPlanAgent:
                 "trusted_tools",
                 "execution_vqa",
             ],
-            "tool_request": bell_active_tcp_min_xy_error_tool_request(),
+            "tool_request": tool_request,
+            "vqa_phenomenon_ids": list(contract["vqa"]["phenomenon_ids"]),
         }
 
     def plan(
@@ -516,45 +516,28 @@ class ClickBellAdaptivePlanAgent:
             raise PlanAgentError(f"unknown click_bell template: {template_id}")
         template = CLICK_BELL_ADAPTIVE_TEMPLATES[template_id]
         seeds = [self.start_seed + index for index in range(self.num_episodes)]
-        capability_id = {
-            "object_position": "object_position.fixed_xy",
-            "object_instance": "object_instance.official_id",
-            "robustness.scene_clutter": "robustness.scene_clutter",
-            "scene_background_texture": "scene_background_texture",
-            "scene_lighting": "scene_lighting",
-            "performance.completion_time_stability": (
-                "task_execution.official_passthrough"
-            ),
-        }[template["aspect_id"]]
-        route = str(template.get("route") or "reuse")
+        try:
+            contract = resolve_capability_contract("click_bell", template_id)
+            tool_request = build_contract_tool_request(contract)
+        except ValueError as exc:
+            raise PlanAgentError(f"capability adapter invalid: {exc}") from exc
+        route = taskgen_route(contract)
+        declared_route = str(template.get("route") or "reuse")
+        if (
+            contract["aspect"]["aspect_id"] != template["aspect_id"]
+            or contract["taskgen"]["changes"] != template["variant_hint"]
+            or route != declared_route
+        ):
+            raise PlanAgentError(
+                "click_bell planner template conflicts with capability adapter"
+            )
         official_performance = route == "official"
-        gates = (
-            [
-                "render",
-                "rule",
-                "act",
-                "toolkit",
-                "planned_tool",
-                "aggregate",
-                "execution_vqa",
-            ]
-            if official_performance
-            else [
-                "variant_spec",
-                "render",
-                "rule",
-                "scene_variant",
-                "vision",
-                "expert",
-                "act",
-                "toolkit",
-                "aggregate",
-            ]
-        )
         return {
             "round_id": f"round_{round_number}",
             "template_id": template_id,
-            "capability_id": capability_id,
+            "capability_id": contract["taskgen"]["capability_id"],
+            "task_variant_id": contract["taskgen"]["task_variant_id"],
+            "capability_contract": contract,
             "sub_aspect": template["aspect_id"],
             "aspect_id": template["aspect_id"],
             "probe_role": template["probe_role"],
@@ -575,7 +558,7 @@ class ClickBellAdaptivePlanAgent:
                 "backend": "act",
                 "seeds": seeds,
                 "num_episodes": len(seeds),
-                "gates": gates,
+                "gates": list(contract["required_gates"]),
             },
             "observations": [
                 "scene_alignment",
@@ -590,14 +573,8 @@ class ClickBellAdaptivePlanAgent:
                 "completion_time_statistics",
                 "execution_vqa",
             ],
-            "tool_request": (
-                bell_active_tcp_min_xy_error_tool_request()
-                if template["aspect_id"] == "object_position"
-                else time_to_success_tool_request("click_bell")
-                if template["aspect_id"]
-                == "performance.completion_time_stability"
-                else official_success_tool_request("click_bell")
-            ),
+            "tool_request": tool_request,
+            "vqa_phenomenon_ids": list(contract["vqa"]["phenomenon_ids"]),
         }
 
     def _validate_proposal(
@@ -615,22 +592,21 @@ class ClickBellAdaptivePlanAgent:
             raise PlanAgentError("proposal.schema_version must be 1")
         if value.get("task_name") != "click_bell":
             raise PlanAgentError("proposal.task_name must be click_bell")
-        aspect_ids = value.get("requested_aspect_ids")
-        if (
-            not isinstance(aspect_ids, list)
-            or not aspect_ids
-            or any(not isinstance(item, str) for item in aspect_ids)
-            or len(aspect_ids) != len(set(aspect_ids))
-        ):
+        raw_aspect_ids = value.get("requested_aspect_ids")
+        if not isinstance(raw_aspect_ids, list) or not raw_aspect_ids:
             raise PlanAgentError(
                 "requested_aspect_ids must be a non-empty unique string list"
             )
+        try:
+            aspect_ids = canonicalize_aspect_ids(raw_aspect_ids)
+            first_aspect = canonicalize_aspect_id(value.get("first_aspect_id"))
+        except AspectError as exc:
+            raise PlanAgentError(str(exc)) from exc
         unknown = [
             item for item in aspect_ids if item not in CLICK_BELL_ADAPTIVE_ASPECTS
         ]
         if unknown:
             raise PlanAgentError(f"unknown click_bell aspects: {unknown}")
-        first_aspect = value.get("first_aspect_id")
         if first_aspect not in aspect_ids:
             raise PlanAgentError("first_aspect_id must be requested")
         requested_templates = self._templates_for_aspects(aspect_ids)

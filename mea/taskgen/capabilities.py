@@ -18,6 +18,7 @@ TASK_CAPABILITIES: dict[str, dict[str, dict[str, Any]]] = {
     "beat_block_hammer": {
         "object_appearance.color": {
             "controlled_axis": "object_appearance",
+            "allowed_change_roots": ["block"],
             "generation_mode": "force_codegen",
             "allowed_generation_modes": ["force_codegen", "reuse"],
             "default_metric": "hammer_block_contact_ever",
@@ -33,6 +34,7 @@ TASK_CAPABILITIES: dict[str, dict[str, dict[str, Any]]] = {
     "click_bell": {
         "object_position.fixed_xy": {
             "controlled_axis": "object_position",
+            "allowed_change_roots": ["bell"],
             "generation_mode": "bounded_variant_overlay",
             "allowed_generation_modes": ["bounded_variant_overlay"],
             "default_metric": "bell_active_tcp_min_xy_error",
@@ -47,6 +49,7 @@ TASK_CAPABILITIES: dict[str, dict[str, dict[str, Any]]] = {
         },
         "object_instance.official_id": {
             "controlled_axis": "object_instance",
+            "allowed_change_roots": ["bell"],
             "generation_mode": "bounded_variant_overlay",
             "allowed_generation_modes": ["bounded_variant_overlay"],
             "default_metric": "official_check_success",
@@ -61,6 +64,7 @@ TASK_CAPABILITIES: dict[str, dict[str, dict[str, Any]]] = {
         },
         "robustness.scene_clutter": {
             "controlled_axis": "robustness.scene_clutter",
+            "allowed_change_roots": ["domain_randomization"],
             "generation_mode": "bounded_variant_overlay",
             "allowed_generation_modes": ["bounded_variant_overlay"],
             "default_metric": "official_check_success",
@@ -76,6 +80,7 @@ TASK_CAPABILITIES: dict[str, dict[str, dict[str, Any]]] = {
         },
         "scene_background_texture": {
             "controlled_axis": "scene_background_texture",
+            "allowed_change_roots": ["domain_randomization"],
             "generation_mode": "bounded_variant_overlay",
             "allowed_generation_modes": ["bounded_variant_overlay"],
             "default_metric": "official_check_success",
@@ -92,6 +97,7 @@ TASK_CAPABILITIES: dict[str, dict[str, dict[str, Any]]] = {
         },
         "scene_lighting": {
             "controlled_axis": "scene_lighting",
+            "allowed_change_roots": ["domain_randomization"],
             "generation_mode": "bounded_variant_overlay",
             "allowed_generation_modes": ["bounded_variant_overlay"],
             "default_metric": "official_check_success",
@@ -152,6 +158,13 @@ def build_variant_spec(
     if not isinstance(changes, Mapping) or not changes:
         raise CapabilityError("changes must be a non-empty object")
     capability = get_capability(task_name, capability_id)
+    change_roots = set(changes)
+    allowed_change_roots = set(capability["allowed_change_roots"])
+    if not change_roots <= allowed_change_roots:
+        raise CapabilityError(
+            f"changes for {capability_id!r} must stay within roots "
+            f"{sorted(allowed_change_roots)}; got {sorted(change_roots)}"
+        )
     resolved_mode = str(generation_mode or capability["generation_mode"])
     if resolved_mode not in capability["allowed_generation_modes"]:
         raise CapabilityError(

@@ -207,10 +207,12 @@ smoke 与 N=1 instrumentation pilot。20-query 同时保留 `model_draft_unrevie
   必须由独立人工重新标注或复核，且保留替换关系与 provenance。
 - 真实 simulator 扰动和缓存图像扰动必须分开命名。前者需由 simulator state 证明变化实际发生；
   后者只能称 image proxy，即使其输入来自真实 rollout。
-- 恢复只能针对不会改变被评估样本身份的后执行子阶段。当前只允许 Tool orchestration 对未预期
-  runtime exception 最多重试一次，并强制复用同一 telemetry hash；不得自动重跑 ACT、
-  simulator、policy failure 或语义/验证失败。generated route 的 provider/registry 工作可能
-  重复，因此该机制应称 conservative orchestration retry，不得冒充论文 App. A.3.4 的整轮恢复。
+- 恢复遵循论文 App. A.3.4 的 stage/action 表：planning disagreement 重做 planning，TaskGen
+  visual failure 由 TaskGen 内部 regenerate/repair，ToolGen unit-test failure 由 ToolGen 内部
+  regenerate；只有 planned Tool 的未预期执行异常可最多重启一次完整 evaluation round。
+  整轮重启必须使用新 child run id、新 execution 目录和新的 ACT rollout，并显式统计额外样本；
+  policy/simulator failure 是被评结果，禁止重试。旧的 same-telemetry Tool 子阶段 retry 仅作显式
+  兼容选项，默认关闭。
 - fault injection、cached counterfactual 与 N=1 都是功能证据，不产生成功率、方差、AUROC 或
   论文消融结论。报告必须同时写出不可用指标及原因。
 
@@ -229,7 +231,8 @@ smoke 与 N=1 instrumentation pilot。20-query 同时保留 `model_draft_unrevie
 - canonical self-hash 只能发现内容漂移，不能证明执行发生、代码可信或结果独立。报告必须同时
   指向 parent/child completed artifact、checkpoint/source hash 和比较器检查；计划产物固定写
   `act_rollouts_started=0`。
-- module-off 的 prepare 与 audit 都是 artifact-only。completed manifest 中的
+- module-off 的 prepare 与 audit 都是 artifact-only。内置 development execute 必须写入与 formal
+  `artifact_root` 双向不重叠的独立目录，且其 manifest 不可交给 formal audit。completed manifest 中的
   `provider_called / simulator_called / act_rollouts_started` 是历史 runner 的 self-attested 声明，
   audit 没有旁观运行；只有真正按冻结 switch 执行、完整 matched、typed outcome 可核验时才可
   报 functional effect，否则 effect 保持 `null`。

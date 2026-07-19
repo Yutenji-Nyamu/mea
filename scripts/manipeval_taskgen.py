@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import re
@@ -17,6 +18,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from mea.capability_adapter import (
+    CapabilityAdapterError,
+    taskgen_route,
+    validate_capability_contract,
+)
 from mea.providers import OpenAICompatibleProvider
 from mea.toolkit import evaluate_telemetry_root
 from mea.taskgen import (
@@ -32,6 +38,8 @@ from mea.taskgen import (
     create_click_bell_variant_run,
     create_official_task_run,
     validate_click_bell_variant_hint,
+    build_variant_spec,
+    validate_variant_spec_envelope,
 )
 
 
@@ -126,6 +134,199 @@ def update_manifest(run_dir: Path, **updates: Any) -> dict[str, Any]:
     manifest.update(updates)
     write_json(path, manifest)
     return manifest
+
+
+def _canonical_sha256(value: Any) -> str:
+    payload = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def prepare_planner_capability_binding(
+    raw_contract: Any,
+    *,
+    task_name: str,
+    mode: str,
+    variant_id: str | None,
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """Fail closed before provider, simulator, or filesystem work begins."""
+
+    try:
+        contract = validate_capability_contract(raw_contract)
+    except (CapabilityAdapterError, ValueError) as exc:
+        raise RuntimeError(f"invalid planner capability contract: {exc}") from exc
+    if contract["task_name"] != task_name:
+        raise RuntimeError("planner capability task does not match --task-name")
+    declared_route = taskgen_route(contract)
+    if mode != declared_route:
+        raise RuntimeError(
+            f"TaskGen mode {mode!r} conflicts with capability route {declared_route!r}"
+        )
+    taskgen = contract["taskgen"]
+    expected_variant = taskgen["task_variant_id"]
+    if expected_variant is None:
+        if mode != "official" or variant_id is not None:
+            raise RuntimeError("official capability requires no task variant")
+        return contract, None
+    if variant_id != expected_variant:
+        raise RuntimeError("TaskGen variant id does not match planner task_variant_id")
+    try:
+        trusted_spec = build_variant_spec(
+            task_name=task_name,
+            variant_id=expected_variant,
+            capability_id=taskgen["capability_id"],
+            intent=f"planner_capability:{contract['template_id']}",
+            changes=taskgen["changes"],
+            generation_mode=taskgen["generation_mode"],
+        )
+    except ValueError as exc:
+        raise RuntimeError(f"planner capability cannot build VariantSpec: {exc}") from exc
+    return contract, trusted_spec
+
+
+def validate_planner_capability_binding(
+    raw_contract: Any,
+    *,
+    task_name: str,
+    mode: str,
+    variant_id: str | None,
+    run_dir: Path,
+) -> dict[str, Any]:
+    """Bind a planner adapter contract to the materialized TaskGen artifact."""
+
+    contract, trusted_spec = prepare_planner_capability_binding(
+        raw_contract,
+        task_name=task_name,
+        mode=mode,
+        variant_id=variant_id,
+    )
+    taskgen = contract["taskgen"]
+    declared_route = taskgen_route(contract)
+    expected_variant = taskgen["task_variant_id"]
+    if expected_variant is None:
+        manifest_path = run_dir / "manifest.json"
+        spec_path = run_dir / "variant_spec.json"
+        overlay_path = run_dir / "overlay.yml"
+        try:
+            materialized_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            spec = json.loads(spec_path.read_text(encoding="utf-8"))
+            overlay_text = overlay_path.read_text(encoding="utf-8").strip()
+        except (OSError, json.JSONDecodeError) as exc:
+            raise RuntimeError(f"invalid official TaskGen artifact: {exc}") from exc
+        expected_spec = {
+            "schema_version": 1,
+            "task_name": task_name,
+            "intent": "evaluate_official_task_unchanged",
+            "generation_mode": "official",
+            "changes": {},
+            "preserve": ["official_task_source", "official_task_identity"],
+        }
+        official_static = (materialized_manifest.get("static_validation") or {}).get(
+            "official_passthrough"
+        ) or {}
+        if (
+            materialized_manifest.get("task_name") != task_name
+            or materialized_manifest.get("task_module") != f"envs.{task_name}"
+            or materialized_manifest.get("mode") != "official"
+            or materialized_manifest.get("generation_kind") != "official_passthrough"
+            or official_static.get("valid") is not True
+            or official_static.get("task_module") != f"envs.{task_name}"
+            or spec != expected_spec
+            or overlay_text != "{}"
+        ):
+            raise RuntimeError(
+                "official TaskGen artifact differs from capability passthrough"
+            )
+    else:
+        spec_path = run_dir / "variant_spec.json"
+        if not spec_path.is_file():
+            raise RuntimeError("generated capability requires variant_spec.json")
+        try:
+            materialized_manifest = json.loads(
+                (run_dir / "manifest.json").read_text(encoding="utf-8")
+            )
+            loaded = json.loads(spec_path.read_text(encoding="utf-8"))
+            spec = validate_variant_spec_envelope(loaded)
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
+            raise RuntimeError(f"invalid materialized VariantSpec: {exc}") from exc
+        expected = {
+            "task_name": task_name,
+            "variant_id": expected_variant,
+            "capability_id": taskgen["capability_id"],
+            "controlled_axis": taskgen["controlled_axis"],
+            "generation_mode": taskgen["generation_mode"],
+            "changes": taskgen["changes"],
+        }
+        observed = {field: spec.get(field) for field in expected}
+        if observed != expected:
+            raise RuntimeError(
+                "materialized VariantSpec differs from planner capability contract"
+            )
+        if (
+            materialized_manifest.get("task_name") != task_name
+            or materialized_manifest.get("mode") != mode
+        ):
+            raise RuntimeError(
+                "materialized TaskGen manifest differs from capability invocation"
+            )
+        if taskgen["operation"] == "bounded_variant_overlay":
+            if (
+                materialized_manifest.get("generation_kind")
+                != "bounded_variant_overlay"
+                or materialized_manifest.get("task_module")
+                != f"mea.tasks.{task_name}"
+            ):
+                raise RuntimeError(
+                    "bounded TaskGen artifact differs from capability adapter"
+                )
+        elif taskgen["operation"] == "force_codegen":
+            if (
+                materialized_manifest.get("variant_spec_authority")
+                != "planner_capability_contract"
+                or not str(materialized_manifest.get("task_module") or "").startswith(
+                    "mea.generated_tasks."
+                )
+            ):
+                raise RuntimeError(
+                    "code-generated TaskGen artifact lacks planner authority"
+                )
+        elif taskgen["operation"] == "reuse_variant":
+            if (
+                materialized_manifest.get("variant_spec_authority")
+                != "planner_capability_contract"
+                or materialized_manifest.get("task_module")
+                != f"mea.tasks.{task_name}"
+            ):
+                raise RuntimeError(
+                    "reused TaskGen variant lacks trusted task/contract authority"
+                )
+    result = {
+        "schema_version": 1,
+        "status": "passed",
+        "template_id": contract["template_id"],
+        "task_variant_id": expected_variant,
+        "declared_route": declared_route,
+        "executed_route": mode,
+        "variant_spec_authority": (
+            "official_passthrough"
+            if trusted_spec is None
+            else "planner_capability_contract"
+        ),
+        "capability_contract_sha256": _canonical_sha256(contract),
+        "variant_spec_sha256": _canonical_sha256(spec) if spec is not None else None,
+    }
+    update_manifest(
+        run_dir,
+        capability_id=taskgen["capability_id"],
+        capability_contract=contract,
+        capability_contract_validation=result,
+    )
+    return result
 
 
 def run_command(command: list[str], *, cwd: Path, log_path: Path) -> int:
@@ -1524,6 +1725,13 @@ def parse_args() -> argparse.Namespace:
         help="Trusted planner template id recorded in VariantSpec v2.",
     )
     parser.add_argument(
+        "--capability-contract-json",
+        help=(
+            "Trusted planner adapter contract; exact TaskGen identity and changes "
+            "are revalidated before simulator or policy execution."
+        ),
+    )
+    parser.add_argument(
         "--mode",
         choices=["reuse", "force_codegen", "official"],
         default="force_codegen",
@@ -1576,6 +1784,50 @@ def main() -> None:
             )
         except (json.JSONDecodeError, ValueError) as exc:
             raise SystemExit(f"invalid --registration-identity-json: {exc}") from exc
+    capability_contract: dict[str, Any] | None = None
+    trusted_variant_spec: dict[str, Any] | None = None
+    if args.capability_contract_json is not None:
+        try:
+            raw_contract = json.loads(args.capability_contract_json)
+        except json.JSONDecodeError as exc:
+            raise SystemExit(
+                f"--capability-contract-json is invalid JSON: {exc}"
+            ) from exc
+        try:
+            capability_contract, trusted_variant_spec = (
+                prepare_planner_capability_binding(
+                    raw_contract,
+                    task_name=args.task_name,
+                    mode=args.mode,
+                    variant_id=args.variant_id,
+                )
+            )
+        except RuntimeError as exc:
+            raise SystemExit(f"capability contract preflight failed: {exc}") from exc
+        if (
+            args.task_module is not None
+            and args.mode == "official"
+            and args.task_module != f"envs.{args.task_name}"
+        ):
+            raise SystemExit(
+                "capability-bound official execution cannot override --task-module"
+            )
+    parsed_variant_hint: dict[str, Any] | None = None
+    if args.variant_hint_json is not None:
+        try:
+            loaded_hint = json.loads(args.variant_hint_json)
+        except json.JSONDecodeError as exc:
+            raise SystemExit(f"--variant-hint-json is invalid JSON: {exc}") from exc
+        if not isinstance(loaded_hint, dict):
+            raise SystemExit("--variant-hint-json must encode an object")
+        parsed_variant_hint = loaded_hint
+        if (
+            capability_contract is not None
+            and parsed_variant_hint != capability_contract["taskgen"]["changes"]
+        ):
+            raise SystemExit(
+                "variant hint differs from planner capability contract"
+            )
     bounded_click_bell = bool(
         not args.resume_run
         and args.task_name == "click_bell"
@@ -1594,7 +1846,10 @@ def main() -> None:
         )
     provider = None
     if (
-        not args.resume_run and args.mode != "official" and not bounded_click_bell
+        not args.resume_run
+        and args.mode != "official"
+        and not bounded_click_bell
+        and not (trusted_variant_spec is not None and args.mode == "reuse")
     ) or args.vision_check:
         provider = OpenAICompatibleProvider(
             base_url=args.base_url,
@@ -1623,14 +1878,10 @@ def main() -> None:
                 telemetry_profile=args.telemetry_profile,
             )
         elif bounded_click_bell:
-            try:
-                variant_hint = json.loads(args.variant_hint_json)
-            except json.JSONDecodeError as exc:
-                raise SystemExit(f"--variant-hint-json is invalid JSON: {exc}") from exc
             manifest = create_click_bell_variant_run(
                 repo_root,
                 args.request,
-                variant_hint=variant_hint,
+                variant_hint=parsed_variant_hint,
                 variant_id=args.variant_id,
                 run_id=args.run_id,
                 telemetry_profile=args.telemetry_profile,
@@ -1643,8 +1894,28 @@ def main() -> None:
                 mode=args.mode,
                 run_id=args.run_id,
                 variant_id=args.variant_id,
+                trusted_variant_spec=trusted_variant_spec,
             )
         run_dir = repo_root / "mea/generated_tasks" / manifest["run_id"]
+
+    if capability_contract is not None:
+        try:
+            validate_planner_capability_binding(
+                capability_contract,
+                task_name=args.task_name,
+                mode=args.mode,
+                variant_id=args.variant_id,
+                run_dir=run_dir,
+            )
+        except RuntimeError as exc:
+            update_manifest(
+                run_dir,
+                status="failed",
+                failure_stage="capability_contract_validation",
+                failure={"type": type(exc).__name__, "message": str(exc)},
+            )
+            raise SystemExit(f"capability contract validation failed: {exc}") from exc
+        manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
 
     if registration_identity is not None:
         try:
