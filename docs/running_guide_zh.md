@@ -826,3 +826,137 @@ Agent 的论文对齐默认值是：
 创建 `round_attempt_02` 与新 child run；这会真的重跑该轮 ACT，先只用一条 episode。若同时把
 两个 restart budget 设为 0，fault injection 会 fail-fast。不要对 policy/simulator failure 开启
 自动重试。
+
+## 21. 检查 call-start ledger 与 round provenance
+
+新 Agent 会在每个 provider transport 和 ACT subprocess 开始前写 append-only ledger，并在每轮
+完成后写 provenance sidecar。运行结束先看 manifest 的总量，再下钻单轮：
+
+```bash
+# 当前开发服务器的非交互 shell；其他机器在 conda activate RoboTwin 后可设 PYTHON=python。
+PYTHON=${PYTHON:-/root/autodl-tmp/conda/envs/RoboTwin/bin/python}
+EVAL=eval_example
+"$PYTHON" -c 'import json,sys; p=json.load(open(sys.argv[1],encoding="utf-8")); print(json.dumps({k:p.get(k) for k in ("status","runtime_totals","runtime_ledgers")},ensure_ascii=False,indent=2))' \
+  "mea/evaluation_runs/${EVAL}/manifest.json"
+
+find "mea/evaluation_runs/${EVAL}/runtime" -name call_starts.jsonl -print
+find "mea/evaluation_runs/${EVAL}/summary" -name '*.provenance.json' -print
+```
+
+`provider_calls_started` 是唯一 logical call 数；`provider_transport_attempts_started` 包含重试；
+`act_rollouts_started` 来自 ACT batch 在 subprocess 前声明的 rollout 数。它们都不是 completed
+计数。若进程中断，应同时报告 started 与 completed episode，不要用旧的完成后计数覆盖账本。
+账本不含 prompt、图像或密钥；如果账本不可写，runner 会在外部调用前失败。
+
+每个 `summary/round_*.json` 的 `provenance` 指针应指向对应 sidecar。portfolio verifier 会对新格式
+child 自动重算 sidecar 与可达 artifact hash；手工检查时至少确认 child manifest、ACT、Tool、
+Execution VQA 和 runtime ledger 都在 sidecar 的 `binding.artifacts` 中。provenance 只证明引用
+完整性，不证明 policy 成功。
+
+若只复核一次真实 scene error→diagnosis→repair 源 run，不要求其他历史缓存：
+
+```bash
+"$PYTHON" scripts/manipeval_taskgen_acceptance.py \
+  --repo-root "$PWD" \
+  --only-reflection \
+  --reflection-run-id <completed_scene_repair_run_id> \
+  --output mea/validation_runs/<id>/acceptance.json
+```
+
+这是只读 post-hoc 验收；命令本身不调用 provider、simulator 或 ACT。源 run 是否真实执行必须
+由其 reflection、render、expert 和 call-start artifact 证明。
+
+需要给单任务 Agent 加一个不受 task-specific Planner 预算影响的外层硬上限时，使用
+`--max-agent-rounds 1`（可选 1–5）。达到上限后 Agent 写出 auditable stop decision，不会把预算
+停止推断成 policy 成败。
+
+## 22. live-provider Table 3 micro（0 ACT）
+
+先按第 18 节生成 hash-bound schedule。下面只选择 TaskGen/ToolGen 的 `complete` 与 `no_rag`
+matched items；item id 以实际 `schedule.json` 为准：
+
+```bash
+PYTHON=${PYTHON:-/root/autodl-tmp/conda/envs/RoboTwin/bin/python}
+"$PYTHON" -c 'import json; p=json.load(open("mea/validation_runs/<study>_schedule/schedule.json")); print("\n".join(x["schedule_item_id"] for x in p["items"]))'
+
+export UIUI_API_KEY='当前 shell 临时 key'
+"$PYTHON" scripts/manipeval_module_ablation_live.py \
+  --repo-root "$PWD" generate \
+  --schedule mea/validation_runs/<study>_schedule/schedule.json \
+  --output-dir mea/validation_runs/<study>_live \
+  --item-id <taskgen.complete.item> \
+  --item-id <taskgen.no_rag.item> \
+  --item-id <toolgen.complete.item> \
+  --item-id <toolgen.no_rag.item> \
+  --model <schedule_frozen_model>
+```
+
+generation 结束时 `success_rates=null`，每个 item 仍是
+`awaiting_development_agent_proxy`。先逐个查看 `items/*/prompt.txt`、`candidate.txt` 和
+`manifest.json`，再在仓库内被忽略的目录写标签：
+
+```json
+{
+  "schema_version": 1,
+  "reviewer": "development_agent_proxy",
+  "labels": {
+    "<schedule_item_id>": {
+      "success": true,
+      "rationale": "说明 candidate 是否满足冻结输出合同"
+    }
+  }
+}
+```
+
+`labels` 必须精确覆盖 generation 中的全部 item，随后单独 review：
+
+```bash
+"$PYTHON" scripts/manipeval_module_ablation_live.py \
+  --repo-root "$PWD" review \
+  --run-dir mea/validation_runs/<study>_live \
+  --labels mea/validation_runs/<study>_proxy_labels.json
+```
+
+结果见 `review_summary.json`。当前这类运行固定为 0 simulator、0 ACT；即使调用了真实 provider，
+development-agent proxy 也不是独立人工审核，不能填论文 Table 3。输出目录是 append-only；重跑
+必须换新目录，不能覆盖 candidate 或 review。
+
+## 23. 一个 Query 的 click_bell + BBH portfolio
+
+先生成 inert command plan；这一步只检查两个 checkpoint-ready 任务并固定总 ACT 上限 2，不会
+执行 child：
+
+```bash
+PYTHON=${PYTHON:-/root/autodl-tmp/conda/envs/RoboTwin/bin/python}
+QUERY='Across click_bell position and BBH appearance generalization, what are ACT strengths, weaknesses, and next tests?'
+PORT=portfolio_cross_task_smoke
+
+"$PYTHON" scripts/manipeval_portfolio.py \
+  --repo-root "$PWD" plan \
+  --portfolio-id "$PORT" \
+  --query "$QUERY" \
+  --output-dir "mea/portfolio_runs/${PORT}_plan" \
+  --start-seed 100404 \
+  --model-profile economy
+```
+
+先查看 `command_plan.json`：应恰有 `click_bell`、`beat_block_hammer` 两个 child，每个
+`act_rollouts_started=1`、`--max-agent-rounds 1`、recovery budgets 均为 0。决定支付 2 ACT 后，
+严格按 JSON 中的 `children[*].argv` 顺序各执行一次，不要手改 argv。两个 ordinary Agent child
+完成后，用其显式 evaluation id 做 0-runtime 汇总：
+
+```bash
+"$PYTHON" scripts/manipeval_portfolio.py \
+  --repo-root "$PWD" reuse \
+  --portfolio-id "$PORT" \
+  --query "$QUERY" \
+  --output-dir "mea/portfolio_runs/${PORT}_result" \
+  --click-bell-evaluation-id <completed_click_bell_eval> \
+  --bbh-evaluation-id <completed_bbh_eval>
+```
+
+检查 `summary.json` 与 `report.md`：`historical_child_runtime` 应分别报告 started/completed，
+每个 child 应有权威 ACT `policy_success`，最终 synthesis 应同时包含 strengths、weaknesses、
+recommendations、limitations。`reuse` 本身启动 0 provider/0 simulator/0 ACT，也不能单独证明
+这些 child 由当前 plan 因果启动；当前必须用本次保存的 command plan 和严格执行记录说明这一点。
+两任务 N=1 仍固定 `paper_table_eligible=false`。

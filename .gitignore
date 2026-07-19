@@ -51,3 +51,6 @@ envs/curobo/*
 /mea/protocol_runs/*/
 /mea/validation_runs/*
 /mea/benchmark_runs/*/
+
+# Cross-task portfolio command plans and synthesized runtime reports.
+/mea/portfolio_runs/*/

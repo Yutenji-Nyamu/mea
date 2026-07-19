@@ -25,6 +25,8 @@
 | Execution VQA | `mea/execution_vqa/` | 从受限问题目录选择问题，读取事件关键帧并检查可见现象 |
 | 反馈 | `mea/feedback/` | 把结构化 observation 和证据索引整理为最终报告 |
 | 模型适配 | `mea/providers/` | 各阶段模型 profile 与 OpenAI-compatible provider |
+| 运行时审计 | `mea/runtime_ledger.py`、`mea/round_provenance.py` | 在 provider/ACT 调用前持久化开始记录，并把每轮计划、summary 与实际 child/Tool/VQA/ledger artifact 做 hash 绑定 |
+| 跨任务父层 | `mea/portfolio.py`、`scripts/manipeval_portfolio.py` | 为同一开放 Query 生成两个受硬预算约束的 child 计划，或审核并汇总显式指定的 completed child |
 
 `scripts/manipeval_taskgen.py` 是内层入口；它也适合做 setup/expert/ACT 的单次调试。
 `scripts/manipeval_agent.py` 是正常端到端入口，负责把多个内层 run 组织成一次 evaluation。
@@ -640,3 +642,109 @@ capability 分开判定：unseen texture 必须来自 `eval_mode=true` 的 unsee
 
 本批代码、真实 N=1 fixed/dynamic pair、诚实结果和剩余论文 gap 见
 [2026-07-19 capability / module switches / recovery / scene pair 开发记录](development_log_20260719_capability_recovery_scene_pair_zh.md)。
+
+## 12. 2026-07-19：调用开始账本、轮级 provenance 与跨任务父层
+
+### 12.1 crash-safe call-start ledger
+
+`mea/runtime_ledger.py` 为每个外部调用保存 append-only JSONL。OpenAI-compatible provider 在
+每次 `session.post` 前记录 `provider_transport_started`；同一逻辑调用的重试共享
+`logical_call_id`，因此逻辑调用数与 transport attempt 数不会混在一起。TaskGen 在 ACT
+subprocess 启动前记录 `act_batch_started`、seed 和声明的 rollout 数。每条记录都先写入并
+`fsync`；账本不可写时外部调用不会开始，避免静默少计。
+
+```text
+(evaluation_id, logical_round_id, round_attempt_index, child_run_id)
+→ provider logical call / transport attempt start
+→ ACT batch start / declared rollout count
+→ per-stage call_starts.jsonl
+→ strict reader + runtime_totals
+```
+
+账本只保存身份、模型名、modality 和计数所需字段，不接收 prompt、图像、凭据、header、URL
+或 checkpoint 内容。它证明“runner 已在外部调用前持久化开始记录”，不是 provider 已返回、
+episode 已完成或 policy 成功；因此 manifest 同时保留 started 与 completed 统计。规划、全局路由、
+每轮、轮间决策和最终反馈均使用同一合同。
+
+### 12.2 round provenance sidecar
+
+`mea/round_provenance.py` 在每轮完成后以 exclusive create 写
+`summary/<round_id>.provenance.json`。sidecar 绑定 round plan、去除 provenance 指针后的
+round summary、最终 attempt/child identity，以及实际存在的 child manifest、VariantSpec、
+reflection、ACT、TaskGen command、Tool、Aggregate、Execution VQA、recovery 和 runtime ledger
+文件的 SHA-256 与字节数。round summary 只保存 sidecar 指针和 binding hash，避免自哈希循环。
+
+独立 verifier 会重算 plan、summary、sidecar 指针和所有可达文件；缺文件、路径越界、symlink、
+hash 或 size 漂移都会 fail closed。这个 sidecar 解决的是“本轮结论究竟引用了哪组运行产物”，
+不证明代码科学正确，也不把 provenance 变成 policy outcome 或论文指标。
+
+### 12.3 真实 TaskGen scene repair 与单项验收
+
+BBH 的 `wrong_color` fixture 在正常 static gate 通过后注入结构合法但语义错误的红色目标块；
+真实 RoboTwin render 和 Scene VQA 先拒绝场景并给出 typed diagnosis，repair 随后改写受限方法，
+再次通过 AST/protected-diff、真实 render、Scene VQA 和 official expert gate。该运行使用 0 ACT，
+最终通过；`scripts/manipeval_taskgen_acceptance.py --only-reflection` 可只读核验这一个源 run，
+无需依赖其他历史缓存。
+
+这条证据对应 Fig. 3 与 App. A.3.4 的 TaskGen 内部 visual failure→repair，而不是整轮 ACT
+recovery。验收命令本身是 post-hoc、0-provider/0-simulator/0-ACT；它验证的是源 run 留下的
+真实 artifact，不能把验收时间写成新的 simulator 实验。
+
+### 12.4 live-provider Table 3 micro 与独立 proxy review
+
+`mea/module_ablation_live.py` 从 hash-bound schedule 选择 matched item，按真实开关调用 provider，
+但 generation 阶段只写 candidate、call-start ledger 和 `success=null`。之后另一条 `review`
+命令才能 append `development_agent_proxy` 标签；provider 输出不能给自己打分，标签也不能覆盖
+原 candidate。
+
+当前最小运行比较 TaskGen `complete/no_rag` 与 ToolGen `complete/no_rag`：4 次 provider、
+0 simulator、0 ACT，代理审核通过 3/4。TaskGen 两项和 ToolGen complete 通过；ToolGen no-RAG
+因输出没有遵守所需顶层 schema 被代理拒绝。这只证明 live matched generation→独立 review 的
+数据通路和一次开发观察；`reviewer=development_agent_proxy`、没有独立人工 reviewer，且
+`paper_table_eligible=false`，不能称为论文 Table 3 成功率、因果消融或 RAG 效果结论。
+
+### 12.5 同一 Query 的两任务 portfolio
+
+`scripts/manipeval_portfolio.py plan` 从 checkpoint-ready 可信 catalog 固定
+`click_bell` 与 BBH，为同一 Query 生成两个精确 child argv；每个 child 强制一轮、一条 ACT、
+`--max-agent-rounds 1` 且两种 recovery budget 均为 0，所以父计划的 ACT 上限是 2。plan 是 inert
+artifact，本身启动 0 provider/0 simulator/0 ACT。
+
+两个 child 完成后，`reuse` 模式只接受显式 evaluation id，重算每轮 ACT seed、episode 分母、
+pipeline 与 policy outcome，并在新格式 child 上验证 call-start ledger 和 round provenance。最终
+报告分列 strengths、weaknesses、recommendations 和 limitations，且绝不以 pipeline pass 代替
+`policy_success`。
+
+```text
+one open Query
+→ portfolio command plan (click_bell 1 ACT + BBH 1 ACT hard ceiling)
+→ two ordinary Agent child evaluations
+→ per-child ledger + round provenance + authoritative policy outcome
+→ portfolio reuse verifier
+→ strengths / weaknesses / recommendations / limitations
+```
+
+当前父层是两个受信任务的最小 adapter，不是任意任务图。`reuse` 汇总本身不启动新 runtime，
+也不会反向证明这些 child 是由当前 Query 因果启动；在 command plan 与 completed child 增加
+双向 execution binding 前，必须把“严格按计划执行”作为外部操作事实单独说明。
+
+真实 `portfolio_batch10_cross_task_ecbf7b1` 严格按 plan 启动两个 child，provider call-start 合计
+`14`，ACT started/completed 为 `2/2`。`click_bell/object_position.left_fixed` 与
+`beat_block_hammer/object_appearance.color_blue` 的 pipeline 都通过，ACT policy 都是 `0/1`。父层
+因此没有宣称 policy 强项，只把证据链完整列为 provenance strength，并把两个 policy outcome 列为
+weakness；这证明最终 synthesis 尊重 Rule Tool outcome，不把 pipeline completion 伪装成成功。
+
+### 12.6 当前真实证据边界
+
+simulator-native unseen texture 与 static randomized lighting 现在各有 seed `100402`、`100403` 两条
+独立 completed artifact。离线 collector 得到 candidate `4/4` ready、diagnostics `0`、每个 condition
+`2` 个 unique seed；ACT 在 texture 为 `0/2`，在 lighting 为 `2/2`。四张 montage 由开发代理实际查看
+后写入 proxy 标签，未从被测 VQA 输出推导标签。
+
+该 suite 仍是 `emitted_unvalidated`：两个 condition 的 primary visibility 标签全为 `true`，严格
+validator 因缺少正/负可见性平衡而拒绝。它证明两-seed 真实数据通路与 coverage，不证明跨 seed
+稳健性、VQA accuracy/AUROC 或 Tables 7–8；上述新增能力仍处于 small-scale、ACT-only、部分
+development-agent proxy 的功能复现层级。
+
+本批实现、真实运行、失败补救和自顶向下剩余 gap 见
+[2026-07-19 runtime provenance / repair / portfolio 开发记录](development_log_20260719_runtime_provenance_portfolio_zh.md)。
