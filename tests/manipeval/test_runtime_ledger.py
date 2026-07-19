@@ -188,6 +188,30 @@ class RuntimeLedgerTests(unittest.TestCase):
             self.assertEqual(summary["act_batches_started"], 1)
             self.assertEqual(summary["act_rollouts_started"], 3)
 
+    def test_provider_call_can_follow_act_start_in_same_round_ledger(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            ledger = Path(temporary) / "mixed_runtime_starts.jsonl"
+            session = Mock()
+            session.post.return_value = successful_response("visible")
+
+            with runtime_ledger_context(ledger, context()):
+                record_act_batch_start(
+                    task_name="click_bell",
+                    policy_name="ACT",
+                    start_seed=100403,
+                    num_rollouts=1,
+                )
+                self.assertEqual(provider_with(session).text("inspect"), "visible")
+
+            events = read_runtime_ledger(ledger, expected_context=context())
+            self.assertEqual(
+                [event["event_type"] for event in events],
+                ["act_batch_started", "provider_transport_started"],
+            )
+            summary = summarize_runtime_ledger(ledger, expected_context=context())
+            self.assertEqual(summary["act_rollouts_started"], 1)
+            self.assertEqual(summary["provider_calls_started"], 1)
+
     def test_http_status_retry_is_logged_before_both_posts(self):
         unavailable = Mock(status_code=502, text="temporary")
         with tempfile.TemporaryDirectory() as temporary:

@@ -430,8 +430,14 @@ def record_provider_transport_start(
     safe_model = _non_empty_text(model, "model")
 
     existing = read_runtime_ledger(path, expected_context=context)
+    # A round ledger deliberately interleaves ACT and provider call-start
+    # events.  ACT events have no logical_call_id, so filter by event type
+    # before grouping provider transport retries.
     same_call = [
-        event for event in existing if event["logical_call_id"] == logical_call_id
+        event
+        for event in existing
+        if event["event_type"] == _PROVIDER_EVENT_TYPE
+        and event["logical_call_id"] == logical_call_id
     ]
     expected_attempt = len(same_call) + 1
     if transport_attempt != expected_attempt:
