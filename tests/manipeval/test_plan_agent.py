@@ -358,6 +358,17 @@ class PlanAgentPrototypeTests(unittest.TestCase):
                 decision("continue", REQUESTED[0]), plan, history
             )
 
+    def test_outer_session_can_cap_adaptive_plan_to_two_rounds(self):
+        plan = validate_evaluation_plan(PROPOSAL)
+        plan["max_rounds"] = 2
+        plan["rounds"][0]["task_name"] = "beat_block_hammer"
+        history = [observation("round_1")]
+        accepted = validate_next_round_decision(
+            decision("continue", REQUESTED[1]), plan, history
+        )
+        self.assertEqual(accepted["action"], "continue")
+        self.assertEqual(accepted["round_budget_before_decision"], 1)
+
     def test_requested_remaining_template_cannot_be_skipped(self):
         plan = validate_evaluation_plan(PROPOSAL)
         history = [observation("round_1")]

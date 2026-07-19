@@ -960,3 +960,128 @@ PORT=portfolio_cross_task_smoke
 recommendations、limitations。`reuse` 本身启动 0 provider/0 simulator/0 ACT，也不能单独证明
 这些 child 由当前 plan 因果启动；当前必须用本次保存的 command plan 和严格执行记录说明这一点。
 两任务 N=1 仍固定 `paper_table_eligible=false`。
+
+## 24. Bound PlanSession 的 plan-only 检查
+
+一次 evaluation 绑定一个 task 与对应 ACT checkpoint；跨 sub-aspect 可以动态规划，不能在中途
+切 task。先用 plan-only 看 `EvaluationTarget`、`TaskProposal` 和 `ToolProposal`，不启动 ACT：
+
+```bash
+cd /root/autodl-tmp/mea
+PYTHON=/root/autodl-tmp/conda/envs/RoboTwin/bin/python
+export UIUI_API_KEY='当前 shell 临时 key'
+
+"$PYTHON" scripts/manipeval_agent.py \
+  --repo-root "$PWD" \
+  --request 'Evaluate BBH ACT across object appearance and completion timing.' \
+  --auto-route \
+  --bound-task-name beat_block_hammer \
+  --plan-only \
+  --max-agent-rounds 2 \
+  --evaluation-id eval_bound_bbh_plan_smoke \
+  --model-profile economy \
+  --no-history
+```
+
+检查 `mea/evaluation_runs/eval_bound_bbh_plan_smoke/plan/bound_task_session.json` 和
+`evaluation_plan.json`。target 应固定 `beat_block_hammer` 与其 checkpoint；每轮必须同时有
+`task_proposal`、`tool_proposal`。同理可把 `--bound-task-name` 改为 `click_bell`，Query 写 position
+与 instance，并加 `--generated-rounds 2`。
+
+检查 unsupported 能力不会诱发 task switch：
+
+```bash
+"$PYTHON" scripts/manipeval_agent.py \
+  --repo-root "$PWD" \
+  --request 'Evaluate click_bell friction-coefficient generalization.' \
+  --auto-route \
+  --bound-task-name click_bell \
+  --plan-only \
+  --evaluation-id eval_bound_click_friction_unsupported \
+  --model-profile economy \
+  --no-history
+```
+
+这条命令应生成显式 unsupported、0-ACT evaluation，而不是改选 BBH。output 目录是 append-only；
+重跑请换 evaluation id。
+
+需要支付两条真实 ACT 验证完整链时，移除 `--plan-only`，保留 `--max-agent-rounds 2` 和
+`--num-episodes 1`。例如 BBH：
+
+```bash
+"$PYTHON" scripts/manipeval_agent.py \
+  --repo-root "$PWD" \
+  --request 'Evaluate BBH ACT across appearance changes, then diagnose completion timing from evidence.' \
+  --auto-route \
+  --bound-task-name beat_block_hammer \
+  --max-agent-rounds 2 \
+  --num-episodes 1 \
+  --evaluation-id eval_bound_bbh_live_n1 \
+  --model-profile economy \
+  --no-history
+```
+
+expert 只作 solvability/control；ACT 的 `policy_success` 才是被评结果。失败的集成 run 也会消耗
+ACT started，不能从批次预算中删除。
+
+## 25. 生成 bounded Task/Tool proposal，并只物化 Task（0 ACT）
+
+下面让模型在已经绑定的 `click_bell/object_position` capability 内提出一个不同于注册 template 的
+XY 位置，同时生成 ToolProposal；`--materialize` 只运行 TaskGen setup/render probe：
+
+```bash
+PYTHON=/root/autodl-tmp/conda/envs/RoboTwin/bin/python
+export UIUI_API_KEY='当前 shell 临时 key'
+
+"$PYTHON" scripts/manipeval_proposal.py \
+  --repo-root "$PWD" \
+  --request 'Create one safe unseen left-side bell position and propose evidence for reachability.' \
+  --task-name click_bell \
+  --aspect-id object_position \
+  --output-dir mea/validation_runs/proposal_click_xy_smoke \
+  --run-id run_proposal_click_xy_smoke \
+  --seed 100405 \
+  --model-profile economy \
+  --materialize
+```
+
+先看 `proposal_bundle.json`：TaskProposal 不能改 task/checkpoint/success semantics，只能改 capability
+允许的根；ToolProposal 的 metric 必须可由 ToolGen resolve，VQA ids 必须来自可信问题目录。
+`tool_resolution.json` 在此 CLI 中只记录 `validated_and_routed_not_executed`；实际 ToolGen/reuse 在完整
+Agent rollout 中消费，不能把 route preview 写成已执行 Tool。再看 `taskgen_result.json`、
+`taskgen.log` 和 `mea/generated_tasks/run_proposal_click_xy_smoke/` 的
+VariantSpec、overlay/code 与真实 render。该命令固定 `act_rollouts_started=0`，不产生 policy 结论。
+
+## 26. 生成或发布 illustrated evidence report
+
+completed Agent 会自动在 evaluation 内写 `evidence_report.md`。也可重新生成：
+
+```bash
+PYTHON=/root/autodl-tmp/conda/envs/RoboTwin/bin/python
+EVAL=eval_20260719_batch11_bbh_adaptive_n1_v3
+
+"$PYTHON" scripts/manipeval_evidence_report.py \
+  --repo-root "$PWD" \
+  --evaluation-id "$EVAL"
+```
+
+要发布一个便于 GitHub/手机阅读的小 bundle：
+
+```bash
+"$PYTHON" scripts/manipeval_evidence_report.py \
+  --repo-root "$PWD" \
+  --evaluation-id "$EVAL" \
+  --publish-dir "docs/evidence_runs/${EVAL}" \
+  --max-video-mb 2
+```
+
+输出 `README.md`、`evidence_bundle_manifest.json` 以及只被报告引用的 `assets/`、`code/`、`data/`。
+报告依次展示固定 task/checkpoint、TaskProposal、生成/复用代码、真实 render、ACT 视频与结果、
+ToolProposal/Tool 结果、VQA montage、Aggregate/下一轮 decision 和最终回答。视频超过上限时不会
+复制，缺失 artifact 显示 `N/A`。发布前用下面命令核对体积和文件清单；不要把原始大视频、
+checkpoint 或完整 evaluation 目录提交 Git：
+
+```bash
+du -sh "docs/evidence_runs/${EVAL}"
+find "docs/evidence_runs/${EVAL}" -maxdepth 3 -type f -print
+```

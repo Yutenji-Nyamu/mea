@@ -1,0 +1,196 @@
+#!/usr/bin/env python3
+"""Generate one Task/Tool proposal and optionally materialize its Task side."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from mea.planner import BoundTaskPlanSession, build_act_catalog
+from mea.proposal_agent import BoundedProposalAgent
+from mea.proposals import tool_request_from_proposal
+from mea.providers import OpenAICompatibleProvider, resolve_model_profile
+from mea.taskgen.capabilities import get_capability
+
+
+def _write_json(path: Path, value: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--repo-root", type=Path, default=Path.cwd())
+    parser.add_argument("--request", required=True)
+    parser.add_argument("--task-name", required=True)
+    parser.add_argument("--aspect-id", required=True)
+    parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--run-id")
+    parser.add_argument("--seed", type=int, default=100405)
+    parser.add_argument("--model-profile", default="economy")
+    parser.add_argument("--planner-model")
+    parser.add_argument("--taskgen-model")
+    parser.add_argument("--vision-model")
+    parser.add_argument("--base-url")
+    parser.add_argument(
+        "--materialize",
+        action="store_true",
+        help="Run TaskGen setup/render probe only; never starts ACT.",
+    )
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    root = args.repo_root.expanduser().resolve()
+    output = (
+        args.output_dir.expanduser().resolve()
+        if args.output_dir.is_absolute()
+        else (root / args.output_dir).resolve()
+    )
+    try:
+        output.relative_to(root)
+    except ValueError as exc:
+        raise SystemExit("--output-dir must remain inside --repo-root") from exc
+    if output.exists():
+        raise SystemExit(f"output directory already exists: {output}")
+    output.mkdir(parents=True)
+
+    models = resolve_model_profile(
+        args.model_profile,
+        {
+            "planner": args.planner_model,
+            "taskgen": args.taskgen_model,
+            "toolgen": None,
+            "vision": args.vision_model,
+            "feedback": None,
+        },
+    )
+    catalog = build_act_catalog(root)
+    session = BoundTaskPlanSession.from_catalog(
+        catalog, args.task_name, max_rounds=1
+    )
+    provider = OpenAICompatibleProvider(
+        base_url=args.base_url,
+        text_model=models["planner"],
+        vision_model=models["vision"],
+        timeout=180.0,
+    )
+    agent = BoundedProposalAgent(provider, model=models["planner"])
+    bundle = agent.propose(
+        args.request,
+        target=session.target,
+        aspect_id=args.aspect_id,
+        require_novel_changes=True,
+    )
+    (output / "proposal_prompt.md").write_text(
+        agent.last_prompt or "", encoding="utf-8"
+    )
+    for index, response in enumerate(agent.last_responses, start=1):
+        (output / f"proposal_response_{index}.txt").write_text(
+            response + "\n", encoding="utf-8"
+        )
+    _write_json(output / "proposal_bundle.json", bundle)
+    tool_resolution = {
+        "schema_version": 1,
+        "status": "validated_and_routed_not_executed",
+        "tool_request": tool_request_from_proposal(bundle["tool_proposal"]),
+        "route_preview": bundle["tool_route_preview"],
+        "materialized": False,
+        "act_rollouts_started": 0,
+    }
+    _write_json(output / "tool_resolution.json", tool_resolution)
+
+    taskgen_result = None
+    if args.materialize:
+        task = bundle["task_proposal"]
+        capability = get_capability(task["task_name"], task["capability_id"])
+        generation_mode = capability["generation_mode"]
+        route = {
+            "bounded_variant_overlay": "reuse",
+            "reuse": "reuse",
+            "force_codegen": "force_codegen",
+        }[generation_mode]
+        run_id = args.run_id or (
+            "run_proposal_"
+            + task["proposal_id"].replace(".", "_").replace("-", "_")
+        )
+        command = [
+            sys.executable,
+            str(root / "scripts/manipeval_taskgen.py"),
+            "--repo-root",
+            str(root),
+            "--request",
+            args.request,
+            "--run-id",
+            run_id,
+            "--task-name",
+            args.task_name,
+            "--mode",
+            route,
+            "--task-proposal-json",
+            json.dumps(task, ensure_ascii=False, separators=(",", ":")),
+            "--text-model",
+            models["taskgen"],
+            "--vision-model",
+            models["vision"],
+            "--seed",
+            str(args.seed),
+            "--num-episodes",
+            "1",
+            "--probe",
+        ]
+        if args.base_url:
+            command.extend(["--base-url", args.base_url])
+        process = subprocess.run(
+            command,
+            cwd=root,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+        (output / "taskgen.log").write_text(process.stdout, encoding="utf-8")
+        taskgen_result = {
+            "returncode": process.returncode,
+            "run_id": run_id,
+            "route": route,
+            "act_rollouts_started": 0,
+            "log": str((output / "taskgen.log").relative_to(root)).replace("\\", "/"),
+        }
+        _write_json(output / "taskgen_result.json", taskgen_result)
+        if process.returncode != 0:
+            raise SystemExit(process.returncode)
+
+    result = {
+        "schema_version": 1,
+        "status": (
+            "task_materialized_tool_routed"
+            if taskgen_result
+            else "task_and_tool_proposed"
+        ),
+        "evaluation_target": session.target,
+        "proposal_bundle": bundle,
+        "taskgen": taskgen_result,
+        "tool": tool_resolution,
+        "limitations": {
+            "act_rollouts_started": 0,
+            "development_validation_only": True,
+            "tool_execution_deferred_to_agent_rollout": True,
+        },
+    }
+    _write_json(output / "result.json", result)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+if __name__ == "__main__":
+    main()

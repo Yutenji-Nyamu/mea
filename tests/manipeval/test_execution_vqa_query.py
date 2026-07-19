@@ -271,6 +271,25 @@ class ExecutionVQAQueryTests(unittest.TestCase):
         )
         self.assertEqual(len(query["questions"]), 3)
 
+    def test_tool_proposal_explicitly_assigns_allowlisted_visual_questions(self):
+        query = build_execution_vqa_query(
+            task_name="beat_block_hammer",
+            template_id="object_appearance.color_blue",
+            sub_aspect="object_appearance.color",
+            tool_contract={"metric": "hammer_block_contact_ever"},
+            proposed_phenomenon_ids=["hammer_visibly_lifted"],
+        )
+        self.assertEqual(query["phenomenon_ids"], ["hammer_visibly_lifted"])
+        self.assertEqual(
+            query["selection_reasons"],
+            ["tool_proposal:explicit_visual_assignment"],
+        )
+        with self.assertRaisesRegex(ExecutionVQAQueryError, "unknown visual"):
+            build_execution_vqa_query(
+                task_name="beat_block_hammer",
+                proposed_phenomenon_ids=["invented_visual_claim"],
+            )
+
     def test_unknown_context_uses_explicit_legacy_fallback(self):
         query = build_execution_vqa_query(
             task_name="future_task",

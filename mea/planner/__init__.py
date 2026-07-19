@@ -43,6 +43,12 @@ from .global_query import (
     route_to_planner_proposal,
     validate_route_selection,
 )
+from .session import (
+    BoundTaskPlanSession,
+    PlanSessionError,
+    build_evaluation_target,
+    validate_evaluation_target,
+)
 
 __all__ = [
     "BLUE_TASK_INSTRUCTION",
@@ -79,4 +85,8 @@ __all__ = [
     "route_to_click_proposal",
     "route_to_planner_proposal",
     "validate_route_selection",
+    "BoundTaskPlanSession",
+    "PlanSessionError",
+    "build_evaluation_target",
+    "validate_evaluation_target",
 ]

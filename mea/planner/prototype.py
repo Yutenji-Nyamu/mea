@@ -17,6 +17,7 @@ from mea.capability_adapter import (
     taskgen_route,
 )
 from mea.planner.evidence_policy import assess_evidence
+from mea.proposals import attach_round_proposals
 from mea.taskgen import extract_json_response
 
 
@@ -188,7 +189,7 @@ def _materialize_round(template_id: str, round_number: int) -> dict[str, Any]:
     ):
         raise PlanAgentError("BBH planner template 与 capability adapter 不一致")
     seeds = list(template["seeds"])
-    return {
+    return attach_round_proposals({
         "round_id": f"round_{round_number}",
         "template_id": template_id,
         "capability_id": contract["taskgen"]["capability_id"],
@@ -207,7 +208,7 @@ def _materialize_round(template_id: str, round_number: int) -> dict[str, Any]:
         "observations": list(REQUIRED_OBSERVATIONS),
         "tool_request": tool_request,
         "vqa_phenomenon_ids": list(contract["vqa"]["phenomenon_ids"]),
-    }
+    })
 
 
 def _base_template_id(round_plan: dict[str, Any]) -> str:
@@ -249,12 +250,18 @@ def _validate_current_plan(plan: Any) -> dict[str, Any]:
         raise PlanAgentError("当前原型只支持 task_name=beat_block_hammer")
     if plan.get("policy") != EXPECTED_POLICY:
         raise PlanAgentError(f"policy metadata 必须为 {EXPECTED_POLICY}")
-    if plan.get("max_rounds") != MAX_ROUNDS:
-        raise PlanAgentError(f"max_rounds 必须是 {MAX_ROUNDS}")
+    max_rounds = plan.get("max_rounds")
+    if (
+        isinstance(max_rounds, bool)
+        or not isinstance(max_rounds, int)
+        or max_rounds < 1
+        or max_rounds > MAX_ROUNDS
+    ):
+        raise PlanAgentError(f"max_rounds 必须在 [1, {MAX_ROUNDS}]")
     requested = _validate_template_ids(plan.get("requested_template_ids"))
     rounds = plan.get("rounds")
-    if not isinstance(rounds, list) or not rounds or len(rounds) > MAX_ROUNDS:
-        raise PlanAgentError("current_plan.rounds 数量必须在 [1, 3]")
+    if not isinstance(rounds, list) or not rounds or len(rounds) > max_rounds:
+        raise PlanAgentError("current_plan.rounds 数量不能超过 max_rounds")
     executed: list[str] = []
     verification_counts: dict[str, int] = {}
     validated_rounds: list[dict[str, Any]] = []
@@ -288,7 +295,9 @@ def _validate_current_plan(plan: Any) -> dict[str, Any]:
             verification_counts[verification_of] = (
                 verification_counts.get(verification_of, 0) + 1
             )
-        if round_plan != expected:
+        expected_bound = deepcopy(expected)
+        expected_bound["task_name"] = "beat_block_hammer"
+        if round_plan not in (expected, expected_bound):
             raise PlanAgentError(f"round_{number} 与 trusted catalog 不一致")
         validated_rounds.append(round_plan)
     return plan

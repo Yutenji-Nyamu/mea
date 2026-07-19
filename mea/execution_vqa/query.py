@@ -236,6 +236,7 @@ def build_execution_vqa_query(
     template_id: str | None = None,
     sub_aspect: str | None = None,
     tool_contract: Mapping[str, Any] | None = None,
+    proposed_phenomenon_ids: list[str] | None = None,
     reviewed_registry_dir: str | Path | None = None,
 ) -> dict[str, Any]:
     """Build a deterministic, allowlisted visual query contract.
@@ -253,9 +254,34 @@ def build_execution_vqa_query(
     selected: list[str] = []
     reasons: list[str] = []
 
+    explicit_proposal = proposed_phenomenon_ids is not None
+    if explicit_proposal:
+        if (
+            not isinstance(proposed_phenomenon_ids, list)
+            or not proposed_phenomenon_ids
+            or any(
+                not isinstance(item, str) or not item.strip()
+                for item in proposed_phenomenon_ids
+            )
+            or len(proposed_phenomenon_ids)
+            != len(set(proposed_phenomenon_ids))
+        ):
+            raise ExecutionVQAQueryError(
+                "proposed_phenomenon_ids must be a non-empty unique string list"
+            )
+        unknown_proposed = sorted(
+            set(proposed_phenomenon_ids) - set(QUESTION_CATALOG)
+        )
+        if unknown_proposed:
+            raise ExecutionVQAQueryError(
+                f"ToolProposal references unknown visual phenomena: {unknown_proposed}"
+            )
+        _append_unique(selected, proposed_phenomenon_ids)
+        reasons.append("tool_proposal:explicit_visual_assignment")
+
     task_template_key = (task, template)
     adapter_matched = False
-    if task is not None and template is not None:
+    if not explicit_proposal and task is not None and template is not None:
         try:
             contract = resolve_capability_contract(task, template)
         except CapabilityAdapterError:
@@ -270,27 +296,27 @@ def build_execution_vqa_query(
             _append_unique(selected, adapter_ids)
             reasons.append(f"capability_adapter:{task}:{template}")
             adapter_matched = True
-    if not adapter_matched and task_template_key in TASK_TEMPLATE_QUESTION_RULES:
+    if not explicit_proposal and not adapter_matched and task_template_key in TASK_TEMPLATE_QUESTION_RULES:
         _append_unique(selected, TASK_TEMPLATE_QUESTION_RULES[task_template_key])
         reasons.append(f"task_template:{task}:{template}")
-    if not adapter_matched and template in TEMPLATE_QUESTION_RULES:
+    if not explicit_proposal and not adapter_matched and template in TEMPLATE_QUESTION_RULES:
         _append_unique(selected, TEMPLATE_QUESTION_RULES[template])
         reasons.append(f"template:{template}")
-    if aspect:
+    if not explicit_proposal and aspect:
         for prefix, question_ids in SUB_ASPECT_QUESTION_RULES:
             if aspect == prefix or aspect.startswith(prefix + "."):
                 _append_unique(selected, question_ids)
                 reasons.append(f"sub_aspect:{prefix}")
                 break
     task_metric_key = (task, metric)
-    if task_metric_key in TASK_METRIC_QUESTION_RULES:
+    if not explicit_proposal and task_metric_key in TASK_METRIC_QUESTION_RULES:
         _append_unique(selected, TASK_METRIC_QUESTION_RULES[task_metric_key])
         reasons.append(f"task_metric:{task}:{metric}")
-    elif metric in METRIC_QUESTION_RULES:
+    elif not explicit_proposal and metric in METRIC_QUESTION_RULES:
         _append_unique(selected, METRIC_QUESTION_RULES[metric])
         reasons.append(f"tool_metric:{metric}")
 
-    if reviewed_registry_dir is not None:
+    if reviewed_registry_dir is not None and proposed_phenomenon_ids is None:
         from .reviewed_registry import (
             load_reviewed_vqa_query_specs,
             match_reviewed_vqa_query_spec,

@@ -563,6 +563,8 @@ class ClickBellGeneratedTests(unittest.TestCase):
                     plan["rounds"][0]["template_id"],
                     "object_position.left_fixed",
                 )
+                self.assertIn("task_proposal", plan["rounds"][0])
+                self.assertIn("tool_proposal", plan["rounds"][0])
                 updated, decision = planner.decide_next_round(
                     evaluation_id=evaluation_id,
                     user_request="evaluate bell properties",
@@ -574,6 +576,8 @@ class ClickBellGeneratedTests(unittest.TestCase):
                 self.assertEqual(decision["transition"], transition)
                 self.assertEqual(decision["next_template_id"], next_template)
                 self.assertEqual(updated["rounds"][1]["template_id"], next_template)
+                self.assertIn("task_proposal", updated["rounds"][1])
+                self.assertIn("tool_proposal", updated["rounds"][1])
                 decision_prompt = provider.prompts[-1]
                 self.assertIn(f'"policy_success": {policy_success}', decision_prompt)
                 self.assertIn('"aggregate"', decision_prompt)

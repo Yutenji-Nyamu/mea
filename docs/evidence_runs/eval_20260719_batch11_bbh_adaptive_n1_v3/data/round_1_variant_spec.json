@@ -1,0 +1,28 @@
+{
+  "schema_version": 2,
+  "task_name": "beat_block_hammer",
+  "variant_id": "object_appearance.color_blue",
+  "capability_id": "object_appearance.color",
+  "intent": "planner_capability:object_appearance.color_blue",
+  "controlled_axis": "object_appearance",
+  "generation_mode": "force_codegen",
+  "changes": {
+    "block": {
+      "position_mode": "official_random",
+      "yaw_mode": "official_random",
+      "scale": 1.0,
+      "color": [
+        0.0,
+        0.2,
+        1.0
+      ]
+    }
+  },
+  "preserve": [
+    "official_position_sampling",
+    "official_yaw_sampling",
+    "play_once",
+    "check_success",
+    "checkpoint"
+  ]
+}

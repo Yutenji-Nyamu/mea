@@ -11,6 +11,8 @@
 | --- | --- | --- |
 | 端到端编排 | `scripts/manipeval_agent.py` | 创建 evaluation、执行多轮 plan、汇总证据并生成反馈 |
 | 规划 | `mea/planner/` | 全局可信 ACT catalog 把开放 Query 路由到 BBH/click_bell；任务 Planner 再物化受信轮次，通用证据合同决定继续方向 |
+| Bound PlanSession | `mea/planner/session.py` | 一次 evaluation 冻结一个 RoboTwin task、一个 ACT checkpoint 和轮数上限；把不同任务 adapter 的计划统一成同一 session/proposal 合同 |
+| 语义 Proposal | `mea/proposals.py`、`mea/proposal_agent.py`、`scripts/manipeval_proposal.py` | 用受限 `TaskProposal`/`ToolProposal` 描述“测什么”，可生成并物化 catalog-bounded 新变式；可执行路径、seed、checkpoint 和 gate 仍由 runtime 注入 |
 | 检索与历史 | `mea/retrieval/`、`mea/history/`、`mea/knowledge/` | 检索任务/源码知识，复用历史评估上下文 |
 | TaskGen | `scripts/manipeval_taskgen.py`、`mea/taskgen/` | 生成或复用受限 task overlay；也可创建不改官方源码的 passthrough run |
 | TaskGen capability | `mea/taskgen/capabilities.py` | 用共享 capability catalog 和 `VariantSpec` v2 固定受控轴、生成模式与必须保留的官方语义 |
@@ -24,6 +26,7 @@
 | 聚合 | `mea/toolkit/aggregate.py` | 跨 episode 做确定性统计，不让语言模型自行算成功率/均值 |
 | Execution VQA | `mea/execution_vqa/` | 从受限问题目录选择问题，读取事件关键帧并检查可见现象 |
 | 反馈 | `mea/feedback/` | 把结构化 observation 和证据索引整理为最终报告 |
+| 可读证据报告 | `mea/feedback/evidence_report.py`、`scripts/manipeval_evidence_report.py` | 从真实 evaluation 生成含 proposal、代码/overlay、render、ACT 视频、Tool/VQA/Aggregate/decision 的紧凑报告，并可发布小型 GitHub bundle |
 | 模型适配 | `mea/providers/` | 各阶段模型 profile 与 OpenAI-compatible provider |
 | 运行时审计 | `mea/runtime_ledger.py`、`mea/round_provenance.py` | 在 provider/ACT 调用前持久化开始记录，并把每轮计划、summary 与实际 child/Tool/VQA/ledger artifact 做 hash 绑定 |
 | 跨任务父层 | `mea/portfolio.py`、`scripts/manipeval_portfolio.py` | 为同一开放 Query 生成两个受硬预算约束的 child 计划，或审核并汇总显式指定的 completed child |
@@ -45,8 +48,9 @@ open query
 → build_act_catalog() + catalog SHA-256
 → GlobalQueryRouter：route 或显式 unsupported
 → strict validator：task/profile/aspect 必须来自 catalog
-→ route_to_planner_proposal()
-→ BBH / click_bell Planner 直接物化已验证 proposal
+→ route_to_planner_proposal()：只在 evaluation 开始时选一次 task/checkpoint
+→ EvaluationTarget + BoundTaskPlanSession
+→ BBH / click_bell adapter 物化轮次并统一成 TaskProposal + ToolProposal
 → TaskGen → ACT → Tool/VQA/Aggregate
 → assess_conditional_transition()
 → drill_down / switch_aspect / stop
@@ -56,6 +60,11 @@ open query
 全局 Router 已调用模型后，任务 Planner 不再为首轮重复调用模型；后续 Planner 只能解释并复制
 通用证据合同确定的动作、转移与目标，不能覆盖硬决定。不支持的 query 会生成
 `status=unsupported` 的无执行 evaluation，而不是偷偷降级到无关任务。
+
+一次 evaluation 只绑定一个 task 和它的 ACT checkpoint。Planner 可以在该 task 的受信
+sub-aspect/variant 间继续、切换或停止，但不能切换 task/checkpoint；跨任务回答由 portfolio
+创建多个独立 child evaluation。`BoundTaskPlanSession` 的实现本身对 task 无关，当前则仍由
+BBH/click_bell adapter 在其后提供 materialization 细节。
 
 关键 artifact 位于 `plan/global_act_catalog.json`、`plan/global_query_route.json`、
 `plan/global_query_prompt.md`、`plan/global_route_proposal.json` 和
@@ -748,3 +757,92 @@ development-agent proxy 的功能复现层级。
 
 本批实现、真实运行、失败补救和自顶向下剩余 gap 见
 [2026-07-19 runtime provenance / repair / portfolio 开发记录](development_log_20260719_runtime_provenance_portfolio_zh.md)。
+
+## 13. 2026-07-19：Bound PlanSession、语义 Proposal 与可读证据
+
+### 13.1 一次 evaluation 的固定边界
+
+`mea/planner/session.py` 新增 `BoundTaskPlanSession`。全局 Router 只在 evaluation 开始时选择一次
+checkpoint-ready task；session 随即冻结：
+
+```text
+EvaluationTarget
+= task_name + task_family + task_profile + planner_kind
++ ACT policy/checkpoint + allowed aspects + max_rounds
+```
+
+session 会拒绝 task、policy/checkpoint 合同、未知 aspect 和超预算 round 漂移，并把不同 task
+adapter 的旧计划补齐成统一 round schema。`plan/bound_task_session.json` 保存 Query、固定 target、
+已选 aspect、轮预算、每轮 proposal 和 decision。核心状态机因此可以跨 evaluation 复用；但一次
+evaluation 内不会从 BBH 跳到 `click_bell`。跨任务 portfolio 仍由多个这种单任务 child 组成。
+
+三个 0-ACT plan-only smoke 覆盖了边界：BBH 可把开放 Query 分成 appearance + timing，
+`click_bell` 可分成 position + instance；把 `click_bell` 绑定后询问 unsupported friction 时，
+系统显式记录 unsupported，而没有改路由到另一个 ready task。
+
+### 13.2 `TaskProposal` 与 `ToolProposal`
+
+`mea/proposals.py` 在 Plan 与 TaskGen/ToolGen 之间增加两个严格语义合同：
+
+- `TaskProposal` 固定 task/aspect/capability、`reuse_first=true`、受 capability 根字段约束的
+  `changes`，并强制保留官方 success semantics；它不接受 module path、seed、checkpoint 或 gate。
+- `ToolProposal` 固定同一 task/aspect 的 evaluation goal、Rule metric、自然语言问题和受信 VQA
+  phenomenon ids；随后投影为既有 route-free Tool request。
+
+主 Agent 先把 task adapter 物化的轮次提升为这两个 proposal，再逐项核对 proposal 与实际
+capability、TaskGen、Tool route 和 VQA assignment；proposal 不再只是报告字段。当前 runtime
+仍由 BBH/`click_bell` adapter 产生首轮 materialization，这是尚未完全消除的 task-specific 层。
+
+`BoundedProposalAgent` 与 `scripts/manipeval_proposal.py` 进一步演示模型面对固定
+EvaluationTarget，只在 capability card 内提出一个不等于现有 template 的新变化，并同时分配
+Tool/VQA。真实 smoke 为 `click_bell` 提出 `xy=[-0.14,-0.12]`，TaskGen 将其物化并完成真实
+setup/render probe，ACT 为 0。该 CLI 证明“Query→新语义 proposal→真实 TaskGen materialization”，
+不代表任意 3D task generation；proposal 仍受 catalog capability 限制，VQA 仍只能选 allowlist。
+
+### 13.3 两轮 BBH live N=1
+
+`eval_20260719_batch11_bbh_adaptive_n1_v3` 用一个开放 Query 完成两轮真实执行：
+
+```text
+Query
+→ bound BBH / ACT demo_clean-50 session
+→ round 1 appearance TaskProposal
+→ true Python codegen + render/expert gates + ACT N=1
+→ Rule/VQA/Aggregate evidence → continue timing
+→ round 2 timing TaskProposal
+→ reuse task + generated timing Tool + ACT N=1
+→ VQA/Aggregate → final feedback
+```
+
+两轮 pipeline 均完成，两个 ACT `policy_success` 都为 `0`；相应 expert controls 成功，只证明场景
+可解和计量链可用，不是 ACT 成功。总 wall-clock 为 `587.7 s`。这证明论文 Fig. 2–4 的 proposal、
+reuse/codegen、Tool/VQA、evidence-driven next round 与 final answer 在一个 bound session 内真实贯通，
+但每轮只有 N=1，不能推断均值、方差或泛化。
+
+本批另有两次集成运行各启动 1 条 ACT 后失败，分别暴露并修复 round budget 被硬编码，以及可选
+bound `task_name` 缺省值被错误当作不相等。失败 run 保留，不从预算中删除；本批 ACT started
+总数是 `1 + 1 + 2 = 4`，最终 v3 结论只使用其中 2 条 completed evidence round。
+
+### 13.4 illustrated evidence report 与 publish bundle
+
+完整 Agent 成功结束后会自动写 `evidence_report.md`。独立 CLI 还能把同一真实 evaluation 发布到
+`docs/evidence_runs/<evaluation_id>/`：
+
+```text
+Query + fixed task/checkpoint scope + paper data-flow diagram
+→ initial aspect decomposition
+→ each TaskProposal → task code/overlay + VariantSpec + real render
+→ ACT result + small video
+→ ToolProposal → Tool route/source/result
+→ dynamic VQA montage + Aggregate + next decision
+→ final answer + raw artifact index
+```
+
+publisher 只复制报告实际展示的小型真实文件；视频超过上限就保留 server-source 说明，缺失 artifact
+显示 `N/A`，不造 proxy。v3 已发布到
+`docs/evidence_runs/eval_20260719_batch11_bbh_adaptive_n1_v3/README.md`，整个 bundle 约 `1.1 MB`，
+包含代码、render、视频、proposal 和结构化结果。它改善可读性和人工核验，不替代完整
+evaluation 目录、provenance verifier 或论文统计。
+
+本批实现和真实证据见
+[2026-07-19 Bound PlanSession / Proposal / illustrated evidence 开发记录](development_log_20260719_bound_plan_proposals_evidence_zh.md)。

@@ -24,6 +24,7 @@ from mea.capability_adapter import (
     validate_capability_contract,
 )
 from mea.providers import OpenAICompatibleProvider
+from mea.proposals import ProposalError, validate_task_proposal
 from mea.runtime_ledger import record_act_batch_start
 from mea.toolkit import evaluate_telemetry_root
 from mea.taskgen import (
@@ -1739,6 +1740,13 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--task-proposal-json",
+        help=(
+            "Paper-level semantic TaskProposal. TaskGen validates the fixed "
+            "task/capability and consumes its changes before materialization."
+        ),
+    )
+    parser.add_argument(
         "--mode",
         choices=["reuse", "force_codegen", "official"],
         default="force_codegen",
@@ -1819,6 +1827,19 @@ def main() -> None:
             raise SystemExit(
                 "capability-bound official execution cannot override --task-module"
             )
+    task_proposal: dict[str, Any] | None = None
+    if args.task_proposal_json is not None:
+        if args.resume_run:
+            raise SystemExit("--task-proposal-json cannot be used with --resume-run")
+        try:
+            raw_task_proposal = json.loads(args.task_proposal_json)
+            task_proposal = validate_task_proposal(
+                raw_task_proposal, expected_task_name=args.task_name
+            )
+        except (json.JSONDecodeError, ProposalError) as exc:
+            raise SystemExit(f"invalid --task-proposal-json: {exc}") from exc
+        if args.variant_id is None:
+            args.variant_id = task_proposal["proposal_id"]
     parsed_variant_hint: dict[str, Any] | None = None
     if args.variant_hint_json is not None:
         try:
@@ -1835,17 +1856,21 @@ def main() -> None:
             raise SystemExit(
                 "variant hint differs from planner capability contract"
             )
+    if task_proposal is not None:
+        if parsed_variant_hint is not None and parsed_variant_hint != task_proposal["changes"]:
+            raise SystemExit("variant hint differs from TaskProposal changes")
+        parsed_variant_hint = task_proposal["changes"]
     bounded_click_bell = bool(
         not args.resume_run
         and args.task_name == "click_bell"
         and args.mode == "reuse"
-        and args.variant_hint_json
+        and parsed_variant_hint is not None
     )
     if (
         not args.resume_run
         and args.task_name == "click_bell"
         and args.mode == "reuse"
-        and not args.variant_hint_json
+        and parsed_variant_hint is None
     ):
         raise SystemExit(
             "click_bell reuse requires trusted --variant-hint-json; "
@@ -1904,6 +1929,15 @@ def main() -> None:
                 trusted_variant_spec=trusted_variant_spec,
             )
         run_dir = repo_root / "mea/generated_tasks" / manifest["run_id"]
+
+    if task_proposal is not None:
+        write_json(run_dir / "generation/task_proposal.json", task_proposal)
+        update_manifest(
+            run_dir,
+            task_proposal=task_proposal,
+            task_proposal_path="generation/task_proposal.json",
+        )
+        manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
 
     if capability_contract is not None:
         try:

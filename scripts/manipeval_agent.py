@@ -24,9 +24,10 @@ from mea.capability_adapter import (
     taskgen_route,
     validate_capability_contract,
 )
-from mea.feedback import FeedbackAgent, render_evaluation_report
+from mea.feedback import FeedbackAgent, render_evaluation_report, write_evidence_report
 from mea.history import EvaluationHistoryDB
 from mea.planner import (
+    BoundTaskPlanSession,
     ClickBellAdaptivePlanAgent,
     ClickBellFixedSuitePlanAgent,
     ClickBellPositionPlanAgent,
@@ -36,6 +37,12 @@ from mea.planner import (
     build_act_catalog,
     make_evaluation_id,
     route_to_planner_proposal,
+)
+from mea.proposals import (
+    ProposalError,
+    tool_request_from_proposal,
+    validate_task_proposal,
+    validate_tool_proposal,
 )
 from mea.providers import (
     OpenAICompatibleProvider,
@@ -301,6 +308,48 @@ def validate_round_capability_contract(
         raise ValueError(
             "round fields differ from capability contract: " + ", ".join(mismatches)
         )
+    task_proposal = round_plan.get("task_proposal")
+    tool_proposal = round_plan.get("tool_proposal")
+    if task_proposal is not None or tool_proposal is not None:
+        if task_proposal is None or tool_proposal is None:
+            raise ValueError("round must provide TaskProposal and ToolProposal together")
+        try:
+            task_proposal = validate_task_proposal(
+                task_proposal, expected_task_name=contract["task_name"]
+            )
+            tool_proposal = validate_tool_proposal(
+                tool_proposal,
+                expected_task_name=contract["task_name"],
+                expected_aspect_id=contract["aspect"]["aspect_id"],
+            )
+        except ProposalError as exc:
+            raise ValueError(f"invalid round proposal: {exc}") from exc
+        proposal_expected = {
+            "task_capability_id": taskgen["capability_id"],
+            "task_changes": taskgen["changes"],
+            "task_aspect": contract["aspect"]["aspect_id"],
+            "tool_metric": contract["tool"]["metric"],
+            "tool_request": expected_tool,
+            "vqa_phenomenon_ids": contract["vqa"]["phenomenon_ids"],
+        }
+        proposal_observed = {
+            "task_capability_id": task_proposal["capability_id"],
+            "task_changes": task_proposal["changes"],
+            "task_aspect": task_proposal["aspect_id"],
+            "tool_metric": tool_proposal["metric"],
+            "tool_request": tool_request_from_proposal(tool_proposal),
+            "vqa_phenomenon_ids": tool_proposal["vqa_phenomenon_ids"],
+        }
+        proposal_mismatches = sorted(
+            key
+            for key in proposal_expected
+            if proposal_observed[key] != proposal_expected[key]
+        )
+        if proposal_mismatches:
+            raise ValueError(
+                "round proposals differ from materialized capability: "
+                + ", ".join(proposal_mismatches)
+            )
     return contract
 
 
@@ -329,6 +378,16 @@ def build_taskgen_command(
         if capability_contract is not None
         else str(round_plan.get("task_name") or "beat_block_hammer")
     )
+    task_proposal = round_plan.get("task_proposal")
+    variant_hint = round_plan.get("variant_hint") or {}
+    if task_proposal is not None:
+        try:
+            normalized_task_proposal = validate_task_proposal(
+                task_proposal, expected_task_name=task_name
+            )
+        except ProposalError as exc:
+            raise ValueError(f"invalid TaskProposal before TaskGen: {exc}") from exc
+        variant_hint = normalized_task_proposal["changes"]
     task_module = round_plan.get("task_module")
     route = (
         taskgen_route(capability_contract)
@@ -367,12 +426,12 @@ def build_taskgen_command(
     ]
     if task_module:
         command.extend(["--task-module", str(task_module)])
-    if round_plan.get("variant_hint"):
+    if variant_hint:
         command.extend(
             [
                 "--variant-hint-json",
                 json.dumps(
-                    round_plan["variant_hint"],
+                    variant_hint,
                     ensure_ascii=False,
                     sort_keys=True,
                     separators=(",", ":"),
@@ -791,6 +850,11 @@ def run_round_execution_vqa(
         template_id=(round_plan or {}).get("template_id"),
         sub_aspect=(round_plan or {}).get("sub_aspect"),
         tool_contract=(round_plan or {}).get("tool_request"),
+        proposed_phenomenon_ids=(
+            ((round_plan or {}).get("tool_proposal") or {}).get(
+                "vqa_phenomenon_ids"
+            )
+        ),
         reviewed_registry_dir=reviewed_vqa_registry,
     )
     write_json(execution_dir / "execution_vqa_query.json", query)
@@ -1248,11 +1312,16 @@ def execute_round(
                     "development fault injection before Tool analysis"
                 )
             try:
+                proposed_request = (
+                    tool_request_from_proposal(round_plan["tool_proposal"])
+                    if round_plan.get("tool_proposal") is not None
+                    else round_plan["tool_request"]
+                )
                 return execute_tool_request(
                     repo_root,
                     child_dir,
                     output_dir,
-                    round_plan["tool_request"],
+                    proposed_request,
                     **tool_kwargs,
                 )
             except ToolOrchestrationError:
@@ -1302,7 +1371,11 @@ def execute_round(
             "requested_route": "auto",
             "route": None,
             "reference_tool": None,
-            "tool_request": round_plan["tool_request"],
+            "tool_request": (
+                tool_request_from_proposal(round_plan["tool_proposal"])
+                if round_plan.get("tool_proposal") is not None
+                else round_plan["tool_request"]
+            ),
             "route_decision": {
                 "status": "skipped",
                 "requested_route": "auto",
@@ -1979,6 +2052,14 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--bound-task-name",
+        help=(
+            "Bind one auto-routed evaluation to an already selected RoboTwin "
+            "task/checkpoint. The Plan Agent may change sub-aspects but cannot "
+            "route to another task."
+        ),
+    )
+    parser.add_argument(
         "--task-name",
         default="beat_block_hammer",
         help=(
@@ -2160,6 +2241,8 @@ def main() -> None:
         raise SystemExit(
             "--auto-route resolves a trusted task module; do not pass --task-module"
         )
+    if args.bound_task_name is not None and not args.auto_route:
+        raise SystemExit("--bound-task-name requires --auto-route")
     registered_values = (
         args.evidence_manifest,
         args.command_plan,
@@ -2258,6 +2341,10 @@ def main() -> None:
         ready_tasks = [task["task_name"] for task in global_catalog.get("tasks", [])]
         if not ready_tasks:
             raise SystemExit("trusted ACT catalog has no checkpoint-ready tasks")
+        if args.bound_task_name is not None and args.bound_task_name not in ready_tasks:
+            raise SystemExit(
+                f"bound task is not ACT-ready: {args.bound_task_name!r}"
+            )
         global_history_context: list[dict[str, Any]] = []
         if not args.no_history:
             try:
@@ -2288,6 +2375,7 @@ def main() -> None:
             provider,
             model=models["planner"],
             catalog=global_catalog,
+            bound_task_name=args.bound_task_name,
         )
         global_ledger_context = {
             "schema_version": 1,
@@ -2504,6 +2592,38 @@ def main() -> None:
         repo_root, evaluation_dir, pre_round_ledgers
     )
     plan = manifest["plan"]
+    bound_plan_session: BoundTaskPlanSession | None = None
+    bound_plan_session_path: str | None = None
+    evaluation_target: dict[str, Any] | None = None
+    if global_catalog is not None:
+        try:
+            raw_round_budget = plan.get("max_rounds")
+            if (
+                isinstance(raw_round_budget, bool)
+                or not isinstance(raw_round_budget, int)
+                or raw_round_budget < 1
+            ):
+                raise ValueError("planner max_rounds must be a positive integer")
+            effective_round_budget = raw_round_budget
+            if args.max_agent_rounds is not None:
+                effective_round_budget = min(
+                    effective_round_budget, int(args.max_agent_rounds)
+                )
+                plan["max_rounds"] = effective_round_budget
+            bound_plan_session = BoundTaskPlanSession.from_catalog(
+                global_catalog,
+                args.task_name,
+                max_rounds=effective_round_budget,
+            )
+            plan = bound_plan_session.normalize_plan(plan)
+            manifest["plan"] = plan
+            session_snapshot = bound_plan_session.snapshot(args.request, plan)
+        except (ValueError, ProposalError) as exc:
+            raise RuntimeError(f"bound PlanSession validation failed: {exc}") from exc
+        bound_plan_session_path = "plan/bound_task_session.json"
+        evaluation_target = session_snapshot["target"]
+        write_json(evaluation_dir / "plan/evaluation_plan.json", plan)
+        write_json(evaluation_dir / bound_plan_session_path, session_snapshot)
     candidate_suite = list(plan.get("requested_template_ids") or [])
     planning_policy = (
         "fixed_predeclared_v1"
@@ -2625,6 +2745,11 @@ def main() -> None:
         runtime_ledgers=pre_round_runtime,
         runtime_totals=aggregate_runtime_ledger_summaries(pre_round_runtime),
         max_agent_rounds=args.max_agent_rounds,
+        bound_task_name=(
+            evaluation_target["task_name"] if evaluation_target is not None else None
+        ),
+        evaluation_target=evaluation_target,
+        plan_session_path=bound_plan_session_path,
     )
     runtime_ledgers = list(pre_round_runtime)
 
@@ -2762,6 +2887,11 @@ def main() -> None:
                     decision,
                 )
                 write_json(evaluation_dir / "plan/evaluation_plan.json", plan)
+                if bound_plan_session is not None:
+                    write_json(
+                        evaluation_dir / "plan/bound_task_session.json",
+                        bound_plan_session.snapshot(args.request, plan),
+                    )
                 update_manifest(
                     evaluation_dir,
                     status=plan["planning_state"],
@@ -2796,6 +2926,23 @@ def main() -> None:
                     current_plan=plan,
                     observation_history=[item["round_summary"] for item in round_runs],
                 )
+            if bound_plan_session is not None:
+                # Persist and execute the exact normalized proposal-bearing plan;
+                # snapshot() alone normalizes only a deep copy for reporting.
+                plan = bound_plan_session.normalize_plan(plan)
+                if decision.get("next_round") is not None:
+                    decision["next_round"] = plan["rounds"][-1]
+                write_json(evaluation_dir / "plan/evaluation_plan.json", plan)
+                write_json(
+                    evaluation_dir
+                    / f"plan/decision_after_{round_plan['round_id']}.json",
+                    decision,
+                )
+                update_manifest(
+                    evaluation_dir,
+                    status=plan.get("planning_state"),
+                    plan=plan,
+                )
             decision_runtime = summarize_runtime_ledger(
                 decision_ledger, expected_context=decision_context
             )
@@ -2812,7 +2959,17 @@ def main() -> None:
                 runtime_totals=aggregate_runtime_ledger_summaries(runtime_ledgers),
             )
             if decision["action"] == "stop":
+                if bound_plan_session is not None:
+                    write_json(
+                        evaluation_dir / "plan/bound_task_session.json",
+                        bound_plan_session.snapshot(args.request, plan),
+                    )
                 break
+            if bound_plan_session is not None:
+                write_json(
+                    evaluation_dir / "plan/bound_task_session.json",
+                    bound_plan_session.snapshot(args.request, plan),
+                )
 
         evaluation_aggregate = aggregate_evaluation_results(
             round_runs,
@@ -2896,6 +3053,16 @@ def main() -> None:
             runtime_ledgers=runtime_ledgers,
             runtime_totals=aggregate_runtime_ledger_summaries(runtime_ledgers),
         )
+        compact_evidence_report = write_evidence_report(
+            repo_root,
+            evaluation_dir,
+            destination=evaluation_dir / "evidence_report.md",
+        )
+        update_manifest(
+            evaluation_dir,
+            evidence_report_path="evidence_report.md",
+            evidence_report_bundle=compact_evidence_report,
+        )
         history_index = {"status": "disabled" if args.no_history else "not_available"}
         if history_database is not None:
             try:
@@ -2924,6 +3091,9 @@ def main() -> None:
                     },
                     "history_index": history_index,
                     "report_path": str(report_path.relative_to(repo_root)),
+                    "evidence_report_path": str(
+                        (evaluation_dir / "evidence_report.md").relative_to(repo_root)
+                    ),
                 },
                 ensure_ascii=False,
                 indent=2,

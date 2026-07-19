@@ -79,7 +79,10 @@ def _capability_gaps(
 
 
 def validate_route_selection(
-    value: Mapping[str, Any], catalog: Mapping[str, Any]
+    value: Mapping[str, Any],
+    catalog: Mapping[str, Any],
+    *,
+    expected_task_name: str | None = None,
 ) -> dict[str, Any]:
     """Validate a model proposal without accepting executable parameters."""
 
@@ -88,6 +91,12 @@ def validate_route_selection(
         raise GlobalRouteError(
             f"GlobalRouteSelection fields must be exactly {sorted(_ROUTE_KEYS)}"
         )
+    bound_task = None
+    if expected_task_name is not None:
+        try:
+            bound_task = catalog_task(trusted_catalog, str(expected_task_name))
+        except ValueError as exc:
+            raise GlobalRouteError(str(exc)) from exc
     proposal = deepcopy(dict(value))
     if proposal.get("schema_version") != 2:
         raise GlobalRouteError("GlobalRouteSelection schema_version must be 2")
@@ -163,11 +172,23 @@ def validate_route_selection(
                 "supported task-qualified capabilities cannot be declared "
                 f"unsupported: {false_gaps}"
             )
+        if bound_task is not None and any(
+            item["task_name"] != bound_task["task_name"] for item in unsupported
+        ):
+            raise GlobalRouteError(
+                "a bound-task evaluation must report unsupported capabilities "
+                "against its fixed task"
+            )
         return proposal
 
     if unsupported:
         raise GlobalRouteError("routed selection cannot contain unsupported aspects")
     task_name = _require_text(proposal.get("task_name"), "task_name")
+    if bound_task is not None and task_name != bound_task["task_name"]:
+        raise GlobalRouteError(
+            f"evaluation is bound to task {bound_task['task_name']!r}; "
+            f"the model selected {task_name!r}"
+        )
     try:
         task = catalog_task(trusted_catalog, task_name)
     except ValueError as exc:
@@ -255,13 +276,21 @@ def build_global_route_prompt(
     user_request: str,
     catalog: Mapping[str, Any],
     history_context: list[dict[str, Any]] | None = None,
+    *,
+    bound_task_name: str | None = None,
 ) -> str:
     """Build a catalog-only prompt with compact completed-plan provenance."""
 
     request = _require_text(user_request, "user_request")
     trusted_catalog = validate_act_catalog(catalog)
-    if trusted_catalog["tasks"]:
-        example_task = trusted_catalog["tasks"][0]
+    bound_task = (
+        catalog_task(trusted_catalog, bound_task_name)
+        if bound_task_name is not None
+        else None
+    )
+    visible_tasks = [bound_task] if bound_task is not None else trusted_catalog["tasks"]
+    if visible_tasks:
+        example_task = visible_tasks[0]
         example_aspect = example_task["aspects"][0]["aspect_id"]
         example = {
             "schema_version": 2,
@@ -289,9 +318,24 @@ def build_global_route_prompt(
                 }
             ],
         }
+    binding_instruction = (
+        f"The evaluation target is already fixed to task "
+        f"{bound_task['task_name']!r} and checkpoint "
+        f"{bound_task['checkpoint']['checkpoint_id']!r}.  Never select another "
+        "task or checkpoint.  Decompose the query only into supported aspects "
+        "of this task.  If the query needs an unavailable capability, return "
+        "unsupported and qualify every gap with this fixed task."
+        if bound_task is not None
+        else "Select exactly one ACT-ready task before decomposing its aspects."
+    )
+    visible_catalog = {
+        "policy": trusted_catalog["policy"],
+        "tasks": visible_tasks,
+    }
     return f"""You are the bounded global Plan Agent for an ACT-only MEA reproduction.
-Select one ACT-ready task, its single trusted profile, the query-relevant
-aspects, and the first aspect.  Use only the catalog below.  Never output paths,
+{binding_instruction}
+Select the query-relevant aspects and the first aspect.  Use only the catalog
+below.  Never output paths,
 Python, modules, checkpoints, seeds, gates, tools, variants, or execution fields.
 If the query requires any capability outside the catalog, return
 decision=\"unsupported\", null task/profile/first_aspect, no requested aspects,
@@ -307,7 +351,7 @@ USER QUERY:
 {request}
 
 TRUSTED ACT EVALUATION CATALOG:
-{json.dumps(trusted_catalog, ensure_ascii=False, indent=2)}
+{json.dumps(visible_catalog, ensure_ascii=False, indent=2)}
 
 CANONICAL ASPECT ONTOLOGY:
 {json.dumps(public_aspect_ontology(), ensure_ascii=False, indent=2)}
@@ -323,10 +367,22 @@ Return strict JSON with exactly this shape:
 class GlobalQueryRouter:
     """Ask a model for one semantic route and enforce the trusted catalog."""
 
-    def __init__(self, provider: Any, *, model: str, catalog: Mapping[str, Any]):
+    def __init__(
+        self,
+        provider: Any,
+        *,
+        model: str,
+        catalog: Mapping[str, Any],
+        bound_task_name: str | None = None,
+    ):
         self.provider = provider
         self.model = _require_text(model, "model")
         self.catalog = validate_act_catalog(catalog)
+        self.bound_task_name = (
+            catalog_task(self.catalog, str(bound_task_name))["task_name"]
+            if bound_task_name is not None
+            else None
+        )
         self.last_prompt: str | None = None
         self.last_responses: list[str] = []
         self.last_trace: dict[str, Any] | None = None
@@ -338,7 +394,10 @@ class GlobalQueryRouter:
         history_context: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         prompt = build_global_route_prompt(
-            user_request, self.catalog, history_context=history_context
+            user_request,
+            self.catalog,
+            history_context=history_context,
+            bound_task_name=self.bound_task_name,
         )
         self.last_prompt = prompt
         self.last_responses = []
@@ -364,7 +423,9 @@ class GlobalQueryRouter:
                 )
                 self.last_responses.append(str(response))
                 selection = validate_route_selection(
-                    _extract_json_response(str(response)), self.catalog
+                    _extract_json_response(str(response)),
+                    self.catalog,
+                    expected_task_name=self.bound_task_name,
                 )
                 break
             except Exception as exc:

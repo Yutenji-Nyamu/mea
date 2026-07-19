@@ -1,0 +1,275 @@
+"""Bounded model-facing Proposal Agent above TaskGen and ToolGen.
+
+This is deliberately small: it demonstrates that an open query can produce a
+new semantic TaskProposal and an aspect-specific ToolProposal without adding a
+new hard-coded template.  The evaluation target is supplied by PlanSession and
+therefore cannot be changed by the model.
+"""
+
+from __future__ import annotations
+
+import json
+from copy import deepcopy
+from typing import Any, Mapping
+
+from mea.capability_adapter import registered_capability_contracts
+from mea.execution_vqa import QUESTION_CATALOG
+from mea.proposals import (
+    ProposalError,
+    validate_task_proposal,
+    validate_tool_proposal,
+)
+from mea.taskgen import extract_json_response
+from mea.taskgen.click_bell import validate_click_bell_variant_hint
+from mea.toolgen import route_tool_request
+
+
+class ProposalAgentError(RuntimeError):
+    """Raised when a provider cannot produce a valid bounded proposal."""
+
+
+_BUNDLE_KEYS = {"schema_version", "task_proposal", "tool_proposal"}
+
+
+def _target_aspect(target: Mapping[str, Any], aspect_id: str) -> dict[str, Any]:
+    for aspect in target.get("aspects") or []:
+        if isinstance(aspect, Mapping) and aspect.get("aspect_id") == aspect_id:
+            return deepcopy(dict(aspect))
+    raise ProposalAgentError(
+        f"aspect {aspect_id!r} is unavailable for bound task {target.get('task_name')!r}"
+    )
+
+
+def _proposal_card(target: Mapping[str, Any], aspect_id: str) -> dict[str, Any]:
+    task_name = str(target.get("task_name") or "")
+    aspect = _target_aspect(target, aspect_id)
+    contracts = [
+        item
+        for item in registered_capability_contracts(task_name)
+        if item["aspect"]["aspect_id"] == aspect_id
+    ]
+    if not contracts:
+        raise ProposalAgentError("bound aspect has no materializable TaskGen contract")
+    first = contracts[0]
+    if task_name == "click_bell" and aspect_id == "object_position":
+        change_contract = {
+            "bell": {
+                "position_mode": "fixed",
+                "xy": (
+                    "two finite numbers; x in [-0.25,-0.05] or [0.05,0.25], "
+                    "y in [-0.20,0.0]"
+                ),
+            }
+        }
+        example_changes = {
+            "bell": {"position_mode": "fixed", "xy": [-0.14, -0.12]}
+        }
+    else:
+        change_contract = {
+            "allowed_change_roots": first["taskgen"]["allowed_change_roots"],
+            "example_registered_changes": first["taskgen"]["changes"],
+        }
+        example_changes = deepcopy(first["taskgen"]["changes"])
+    vqa_candidates: list[str] = []
+    for contract in contracts:
+        for phenomenon_id in contract["vqa"]["phenomenon_ids"]:
+            if phenomenon_id not in vqa_candidates:
+                vqa_candidates.append(phenomenon_id)
+    return {
+        "task_name": task_name,
+        "aspect": aspect,
+        "taskgen": {
+            "capability_id": first["taskgen"]["capability_id"],
+            "reuse_first": True,
+            "preserve_success_semantics": True,
+            "change_contract": change_contract,
+            "registered_changes_to_avoid": [
+                contract["taskgen"]["changes"] for contract in contracts
+            ],
+        },
+        "toolgen": {
+            "metric_candidates": sorted(
+                {contract["tool"]["metric"] for contract in contracts}
+            ),
+            "vqa_phenomenon_candidates": vqa_candidates,
+            "reuse_first": True,
+        },
+        "example": {
+            "schema_version": 1,
+            "task_proposal": {
+                "schema_version": 1,
+                "proposal_id": f"{aspect_id}.query_generated_1",
+                "task_name": task_name,
+                "aspect_id": aspect_id,
+                "intent": "evaluate a query-relevant bounded variation",
+                "capability_id": first["taskgen"]["capability_id"],
+                "reuse_first": True,
+                "changes": example_changes,
+                "preserve_success_semantics": True,
+            },
+            "tool_proposal": {
+                "schema_version": 1,
+                "proposal_id": f"{aspect_id}.query_generated_1.tool",
+                "task_name": task_name,
+                "aspect_id": aspect_id,
+                "evaluation_goal": "measure task outcome and visible behavior",
+                "metric": first["tool"]["metric"],
+                "question": "What simulator measurement best diagnoses this aspect?",
+                "vqa_phenomenon_ids": vqa_candidates,
+                "reuse_first": True,
+            },
+        },
+    }
+
+
+def build_proposal_prompt(
+    user_query: str,
+    target: Mapping[str, Any],
+    aspect_id: str,
+) -> str:
+    query = str(user_query).strip()
+    if not query:
+        raise ProposalAgentError("user_query must be non-empty")
+    card = _proposal_card(target, aspect_id)
+    return f"""You are the bounded TaskGen/ToolGen Proposal Agent for MEA.
+The policy evaluation is already bound to one task and checkpoint.  Do not
+change task, policy, checkpoint, aspect, success semantics, or executable
+fields.  Propose one new bounded task variation that is not exactly equal to a
+registered change, then assign one Rule metric and the smallest useful subset
+of the listed VQA phenomena.  TaskGen and ToolGen will independently retrieve
+or generate implementations after validating this semantic proposal.
+
+USER QUERY:
+{query}
+
+BOUND EVALUATION TARGET:
+{json.dumps(target, ensure_ascii=False, indent=2)}
+
+PROPOSAL CAPABILITY CARD:
+{json.dumps(card, ensure_ascii=False, indent=2)}
+
+Return strict JSON with exactly this shape:
+{json.dumps(card['example'], ensure_ascii=False, indent=2)}
+"""
+
+
+def validate_proposal_bundle(
+    value: Mapping[str, Any],
+    *,
+    target: Mapping[str, Any],
+    aspect_id: str,
+    require_novel_changes: bool = True,
+) -> dict[str, Any]:
+    if not isinstance(value, Mapping) or set(value) != _BUNDLE_KEYS:
+        raise ProposalError(
+            f"ProposalBundle fields must be exactly {sorted(_BUNDLE_KEYS)}"
+        )
+    if value.get("schema_version") != 1:
+        raise ProposalError("ProposalBundle.schema_version must be 1")
+    task_name = str(target.get("task_name") or "")
+    _target_aspect(target, aspect_id)
+    task = validate_task_proposal(
+        value.get("task_proposal"), expected_task_name=task_name
+    )
+    if task["aspect_id"] != aspect_id:
+        raise ProposalError("TaskProposal changed the selected aspect")
+    tool = validate_tool_proposal(
+        value.get("tool_proposal"),
+        expected_task_name=task_name,
+        expected_aspect_id=aspect_id,
+    )
+    card = _proposal_card(target, aspect_id)
+    if task["capability_id"] != card["taskgen"]["capability_id"]:
+        raise ProposalError("TaskProposal changed the selected capability")
+    if tool["metric"] not in card["toolgen"]["metric_candidates"]:
+        raise ProposalError("ToolProposal selected a metric outside the capability card")
+    unknown_vqa = sorted(
+        set(tool["vqa_phenomenon_ids"])
+        - set(card["toolgen"]["vqa_phenomenon_candidates"])
+    )
+    if unknown_vqa:
+        raise ProposalError(f"ToolProposal selected unavailable VQA phenomena: {unknown_vqa}")
+    if any(item not in QUESTION_CATALOG for item in tool["vqa_phenomenon_ids"]):
+        raise ProposalError("ToolProposal selected an unregistered VQA phenomenon")
+    registered_changes = card["taskgen"]["registered_changes_to_avoid"]
+    if require_novel_changes and task["changes"] in registered_changes:
+        raise ProposalError("TaskProposal repeated an exact registered template")
+    if task_name == "click_bell" and aspect_id == "object_position":
+        try:
+            task["changes"] = validate_click_bell_variant_hint(task["changes"])
+        except RuntimeError as exc:
+            raise ProposalError(f"invalid click_bell position proposal: {exc}") from exc
+    routed = route_tool_request(
+        {
+            "schema_version": 1,
+            "task_name": tool["task_name"],
+            "metric": tool["metric"],
+            "question": tool["question"],
+        }
+    )
+    if routed["route_decision"]["status"] != "resolved":
+        raise ProposalError("ToolProposal cannot be resolved by ToolGen")
+    return {
+        "schema_version": 1,
+        "task_proposal": task,
+        "tool_proposal": tool,
+        "tool_route_preview": routed["route_decision"],
+    }
+
+
+class BoundedProposalAgent:
+    """Ask one model for a proposal while runtime owns all executable details."""
+
+    def __init__(self, provider: Any, *, model: str):
+        self.provider = provider
+        self.model = str(model)
+        self.last_prompt: str | None = None
+        self.last_responses: list[str] = []
+        self.last_errors: list[str] = []
+
+    def propose(
+        self,
+        user_query: str,
+        *,
+        target: Mapping[str, Any],
+        aspect_id: str,
+        require_novel_changes: bool = True,
+    ) -> dict[str, Any]:
+        prompt = build_proposal_prompt(user_query, target, aspect_id)
+        self.last_prompt = prompt
+        self.last_responses = []
+        self.last_errors = []
+        for _attempt in range(2):
+            attempt_prompt = prompt
+            if self.last_errors:
+                attempt_prompt += (
+                    "\nPREVIOUS VALIDATION ERROR:\n"
+                    + self.last_errors[-1]
+                    + "\nReturn one complete corrected JSON object.\n"
+                )
+            try:
+                response = self.provider.text(
+                    attempt_prompt,
+                    model=self.model,
+                    system="Return only strict ProposalBundle JSON.",
+                    max_tokens=1000,
+                    temperature=0.0,
+                )
+                self.last_responses.append(str(response))
+                return validate_proposal_bundle(
+                    extract_json_response(str(response)),
+                    target=target,
+                    aspect_id=aspect_id,
+                    require_novel_changes=require_novel_changes,
+                )
+            except Exception as exc:
+                self.last_errors.append(f"{type(exc).__name__}: {exc}")
+        raise ProposalAgentError(f"proposal failed twice: {self.last_errors}")
+
+
+__all__ = [
+    "BoundedProposalAgent",
+    "ProposalAgentError",
+    "build_proposal_prompt",
+    "validate_proposal_bundle",
+]

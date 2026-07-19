@@ -16,6 +16,7 @@ from mea.capability_adapter import (
     resolve_capability_contract,
     taskgen_route,
 )
+from mea.proposals import attach_round_proposals
 from mea.taskgen import TaskGenError, extract_json_response
 from mea.toolkit import load_task_schema
 
@@ -256,7 +257,7 @@ class ClickBellPositionPlanAgent:
             tool_request = build_contract_tool_request(contract)
         except ValueError as exc:
             raise PlanAgentError(f"capability adapter invalid: {exc}") from exc
-        return {
+        return attach_round_proposals({
             "round_id": f"round_{round_number}",
             "template_id": template_id,
             "capability_id": contract["taskgen"]["capability_id"],
@@ -293,7 +294,7 @@ class ClickBellPositionPlanAgent:
             ],
             "tool_request": tool_request,
             "vqa_phenomenon_ids": list(contract["vqa"]["phenomenon_ids"]),
-        }
+        })
 
     def plan(
         self,
@@ -532,7 +533,7 @@ class ClickBellAdaptivePlanAgent:
                 "click_bell planner template conflicts with capability adapter"
             )
         official_performance = route == "official"
-        return {
+        return attach_round_proposals({
             "round_id": f"round_{round_number}",
             "template_id": template_id,
             "capability_id": contract["taskgen"]["capability_id"],
@@ -575,7 +576,7 @@ class ClickBellAdaptivePlanAgent:
             ],
             "tool_request": tool_request,
             "vqa_phenomenon_ids": list(contract["vqa"]["phenomenon_ids"]),
-        }
+        })
 
     def _validate_proposal(
         self,

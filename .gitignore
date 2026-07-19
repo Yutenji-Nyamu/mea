@@ -54,3 +54,6 @@ envs/curobo/*
 
 # Cross-task portfolio command plans and synthesized runtime reports.
 /mea/portfolio_runs/*/
+
+# Proposal-only and counterfactual replay development artifacts.
+/mea/proposal_runs/*/
