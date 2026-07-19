@@ -90,7 +90,7 @@ class SceneShiftCollectorTests(unittest.TestCase):
                 "base_commit": "same-commit",
                 "scene_validation": {
                     "seed": seed,
-                    "eval_mode": True,
+                    "eval_mode": condition == "scene_background_texture.unseen",
                     "setup_success": True,
                     "render_success": True,
                     "rule_check": {"passed": True},
@@ -160,6 +160,7 @@ class SceneShiftCollectorTests(unittest.TestCase):
                     "frame_ids": ["initial", "final"],
                     "numeric_consistency": "consistent",
                     "conflicts": [],
+                    "evidence_conflict": False,
                 },
                 "provider_metadata": {"model": "completed-model"},
                 "artifacts": {
@@ -304,6 +305,53 @@ class SceneShiftCollectorTests(unittest.TestCase):
         self.assertIn("execution_vqa_missing", first["diagnostic_codes"])
         self.assertNotIn("episode_missing", first["diagnostic_codes"])
         self.assertNotIn("video_missing", first["diagnostic_codes"])
+
+    def test_unknown_vqa_observation_extension_fails_closed(self):
+        rounds = self._make_evaluation()
+        result_path = self.root / rounds[0]["artifacts"]["execution_vqa"]
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+        result["observation"]["untrusted_extension"] = True
+        self._write_json(rounds[0]["artifacts"]["execution_vqa"], result)
+
+        collected = collect_scene_shift_candidates(self.root)
+
+        self.assertEqual(collected["ready_candidate_count"], 1)
+        self.assertIn(
+            "execution_vqa_response_invalid",
+            collected["candidates"][0]["diagnostic_codes"],
+        )
+
+    def test_derived_vqa_conflict_must_match_recomputed_response(self):
+        rounds = self._make_evaluation()
+        result_path = self.root / rounds[0]["artifacts"]["execution_vqa"]
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+        result["observation"]["evidence_conflict"] = True
+        self._write_json(rounds[0]["artifacts"]["execution_vqa"], result)
+
+        collected = collect_scene_shift_candidates(self.root)
+
+        self.assertEqual(collected["ready_candidate_count"], 1)
+        self.assertIn(
+            "execution_vqa_response_invalid",
+            collected["candidates"][0]["diagnostic_codes"],
+        )
+
+    def test_boolean_zero_scene_rates_fail_closed(self):
+        rounds = self._make_evaluation()
+        rate_fields = ("clean_background_rate", "crazy_random_light_rate")
+        for row, rate_field in zip(rounds, rate_fields):
+            child_path = self.root / row["artifacts"]["child_manifest"]
+            child = json.loads(child_path.read_text(encoding="utf-8"))
+            child["scene_validation"]["domain_randomization"][rate_field] = False
+            self._write_json(row["artifacts"]["child_manifest"], child)
+
+        collected = collect_scene_shift_candidates(self.root)
+
+        self.assertEqual(collected["ready_candidate_count"], 0)
+        self.assertEqual(
+            {item["code"] for item in collected["diagnostics"]},
+            {"scene_contract_invalid"},
+        )
 
     def test_completed_plan_without_evidence_reports_each_missing_condition(self):
         evaluation_id = "eval_scene_shift_missing_evidence"

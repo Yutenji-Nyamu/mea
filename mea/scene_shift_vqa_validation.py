@@ -108,6 +108,15 @@ def _mapping(value: Any, *, field: str) -> dict[str, Any]:
     return dict(value)
 
 
+def _is_finite_zero(value: Any) -> bool:
+    return bool(
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(float(value))
+        and float(value) == 0.0
+    )
+
+
 def _sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -464,7 +473,6 @@ def _validate_taskgen_case(
     )
     if (
         scene.get("seed") != case["seed"]
-        or scene.get("eval_mode") is not True
         or scene.get("setup_success") is not True
         or scene.get("render_success") is not True
         or _mapping(scene.get("rule_check"), field=f"{case_id}.rule_check").get(
@@ -481,8 +489,9 @@ def _validate_taskgen_case(
     )
     if condition == "scene_background_texture.unseen":
         scene_condition_passed = bool(
-            randomization.get("random_background") is True
-            and randomization.get("clean_background_rate") == 0.0
+            scene.get("eval_mode") is True
+            and randomization.get("random_background") is True
+            and _is_finite_zero(randomization.get("clean_background_rate"))
             and randomization.get("texture_split") == "unseen"
             and isinstance(randomization.get("wall_texture"), str)
             and randomization["wall_texture"].startswith("unseen/")
@@ -505,7 +514,7 @@ def _validate_taskgen_case(
         )
         scene_condition_passed = bool(
             randomization.get("random_light") is True
-            and randomization.get("crazy_random_light_rate") == 0.0
+            and _is_finite_zero(randomization.get("crazy_random_light_rate"))
             and randomization.get("crazy_random_light") is False
             and _valid_colors(
                 randomization.get("direction_light_colors"),
@@ -752,18 +761,23 @@ def _validate_execution_vqa_case(
     observation = _mapping(
         artifact.get("observation"), field=f"{case_id}.observation"
     )
+    response_keys = {
+        "phenomena",
+        "confidence",
+        "frame_ids",
+        "numeric_consistency",
+        "conflicts",
+    }
+    if set(observation) not in (
+        response_keys,
+        response_keys | {"evidence_conflict"},
+    ):
+        raise SceneShiftVQAValidationError(
+            f"{case_id} Execution VQA observation has invalid fields"
+        )
     try:
         normalized = validate_execution_vqa_response(
-            {
-                key: observation.get(key)
-                for key in (
-                    "phenomena",
-                    "confidence",
-                    "frame_ids",
-                    "numeric_consistency",
-                    "conflicts",
-                )
-            },
+            {key: observation.get(key) for key in response_keys},
             allowed_frame_ids=frame_ids,
             expected_phenomenon_ids=query["phenomenon_ids"],
         )
@@ -771,6 +785,13 @@ def _validate_execution_vqa_case(
         raise SceneShiftVQAValidationError(
             f"{case_id} Execution VQA response is invalid: {exc}"
         ) from exc
+    if "evidence_conflict" in observation and (
+        not isinstance(observation["evidence_conflict"], bool)
+        or observation["evidence_conflict"] != normalized["evidence_conflict"]
+    ):
+        raise SceneShiftVQAValidationError(
+            f"{case_id} Execution VQA evidence_conflict does not match response"
+        )
     predictions = {item["id"]: item for item in normalized["phenomena"]}
     rows = []
     for label in case["labels"]:

@@ -156,7 +156,7 @@ class SceneShiftVQAValidationTests(unittest.TestCase):
             "base_commit": "same-test-base-commit",
             "scene_validation": {
                 "seed": seed,
-                "eval_mode": True,
+                "eval_mode": condition == "scene_background_texture.unseen",
                 "setup_success": True,
                 "render_success": True,
                 "rule_check": {"passed": True},
@@ -391,6 +391,32 @@ class SceneShiftVQAValidationTests(unittest.TestCase):
         ):
             summarize_scene_shift_vqa_suite(self.root, suite)
 
+    def test_vqa_observation_extensions_and_conflict_fail_closed(self):
+        case = self.cases[0]
+        result_path = self.root / case["sources"]["execution_vqa"]["path"]
+        artifact = json.loads(result_path.read_text(encoding="utf-8"))
+        artifact["observation"]["untrusted_extension"] = True
+        self._write_json(case["sources"]["execution_vqa"]["path"], artifact)
+        suite = deepcopy(self.suite)
+        suite["cases"][0]["sources"]["execution_vqa"]["sha256"] = self._digest(
+            result_path
+        )
+        with self.assertRaisesRegex(
+            SceneShiftVQAValidationError, "observation has invalid fields"
+        ):
+            summarize_scene_shift_vqa_suite(self.root, suite)
+
+        del artifact["observation"]["untrusted_extension"]
+        artifact["observation"]["evidence_conflict"] = True
+        self._write_json(case["sources"]["execution_vqa"]["path"], artifact)
+        suite["cases"][0]["sources"]["execution_vqa"]["sha256"] = self._digest(
+            result_path
+        )
+        with self.assertRaisesRegex(
+            SceneShiftVQAValidationError, "evidence_conflict does not match"
+        ):
+            summarize_scene_shift_vqa_suite(self.root, suite)
+
     def test_escape_and_symlink_sources_are_rejected(self):
         escaped = deepcopy(self.suite)
         escaped["cases"][0]["sources"]["video"]["path"] = "../video.mp4"
@@ -446,6 +472,27 @@ class SceneShiftVQAValidationTests(unittest.TestCase):
             SceneShiftVQAValidationError, "simulator-authoritative"
         ):
             summarize_scene_shift_vqa_suite(self.root, changed)
+
+    def test_boolean_zero_scene_rates_are_rejected(self):
+        for case_index, rate_field in (
+            (0, "clean_background_rate"),
+            (2, "crazy_random_light_rate"),
+        ):
+            case = self.cases[case_index]
+            manifest_path = self.root / case["sources"]["taskgen_manifest"]["path"]
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            original = deepcopy(manifest)
+            manifest["scene_validation"]["domain_randomization"][rate_field] = False
+            self._write_json(case["sources"]["taskgen_manifest"]["path"], manifest)
+            suite = deepcopy(self.suite)
+            suite["cases"][case_index]["sources"]["taskgen_manifest"]["sha256"] = (
+                self._digest(manifest_path)
+            )
+            with self.assertRaisesRegex(
+                SceneShiftVQAValidationError, "simulator-authoritative"
+            ):
+                summarize_scene_shift_vqa_suite(self.root, suite)
+            self._write_json(case["sources"]["taskgen_manifest"]["path"], original)
 
     def test_act_video_and_vqa_video_must_be_the_hashed_source(self):
         bad_association = deepcopy(self.suite)

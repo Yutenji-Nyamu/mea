@@ -158,6 +158,15 @@ def _valid_colors(colors: Any, count: Any) -> bool:
     )
 
 
+def _is_finite_zero(value: Any) -> bool:
+    return bool(
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(float(value))
+        and float(value) == 0.0
+    )
+
+
 def _scene_contract_passed(child: Mapping[str, Any], condition: str, seed: int) -> bool:
     contract = CONDITION_CONTRACTS[condition]
     scene = child.get("scene_validation")
@@ -167,7 +176,6 @@ def _scene_contract_passed(child: Mapping[str, Any], condition: str, seed: int) 
     rule = scene.get("rule_check")
     if (
         scene.get("seed") != seed
-        or scene.get("eval_mode") is not True
         or scene.get("setup_success") is not True
         or scene.get("render_success") is not True
         or not isinstance(rule, Mapping)
@@ -182,8 +190,9 @@ def _scene_contract_passed(child: Mapping[str, Any], condition: str, seed: int) 
         return False
     if condition == "scene_background_texture.unseen":
         return bool(
-            randomization.get("random_background") is True
-            and randomization.get("clean_background_rate") == 0.0
+            scene.get("eval_mode") is True
+            and randomization.get("random_background") is True
+            and _is_finite_zero(randomization.get("clean_background_rate"))
             and randomization.get("texture_split") == "unseen"
             and isinstance(randomization.get("wall_texture"), str)
             and randomization["wall_texture"].startswith("unseen/")
@@ -198,7 +207,7 @@ def _scene_contract_passed(child: Mapping[str, Any], condition: str, seed: int) 
     )
     return bool(
         randomization.get("random_light") is True
-        and randomization.get("crazy_random_light_rate") == 0.0
+        and _is_finite_zero(randomization.get("crazy_random_light_rate"))
         and randomization.get("crazy_random_light") is False
         and _valid_colors(
             randomization.get("direction_light_colors"),
@@ -496,12 +505,39 @@ def _collect_round(
             )
         else:
             observation = execution.get("observation")
+            # ExecutionVQA appends derived, evidence-level fields such as
+            # ``evidence_conflict`` after validating the provider response.
+            # Permit only that known extension, then revalidate the provider
+            # contract.  The complete result remains hash-bound in the source
+            # inventory, so unknown fields still fail closed.
+            response_keys = {
+                "phenomena",
+                "confidence",
+                "frame_ids",
+                "numeric_consistency",
+                "conflicts",
+            }
             try:
-                validate_execution_vqa_response(
-                    dict(observation) if isinstance(observation, Mapping) else {},
+                if not isinstance(observation, Mapping) or set(observation) not in (
+                    response_keys,
+                    response_keys | {"evidence_conflict"},
+                ):
+                    raise ExecutionVQAError(
+                        "Execution VQA observation has invalid fields"
+                    )
+                normalized = validate_execution_vqa_response(
+                    {key: observation.get(key) for key in response_keys},
                     allowed_frame_ids=frame_ids,
                     expected_phenomenon_ids=contract["phenomenon_ids"],
                 )
+                if "evidence_conflict" in observation and (
+                    not isinstance(observation["evidence_conflict"], bool)
+                    or observation["evidence_conflict"]
+                    != normalized["evidence_conflict"]
+                ):
+                    raise ExecutionVQAError(
+                        "Execution VQA evidence_conflict does not match response"
+                    )
             except ExecutionVQAError as exc:
                 add(
                     "execution_vqa_response_invalid",

@@ -809,6 +809,12 @@ python scripts/manipeval_scene_shift_collect.py \
 把 `candidate_id -> phenomenon_id -> bool` JSON 通过 `--labels` 传入，并显式传
 `--reviewer-id`；输出仍是 `suite_draft`、`suite_validated=false`，不能命名为 human gold。
 
+收集器只读取已有 artifact，不调用 provider、simulator 或 ACT。输出目录必须是新目录；修复或
+升级 validator 后，应写到 `scene_collection_v2` 一类的新目录，保留旧诊断以便审计。背景条件
+要求 unseen texture 的 `eval_mode=true`；静态随机光照不要求 eval mode，而读取 simulator
+记录的 light configuration。Execution VQA artifact 可含 Agent 派生的 `evidence_conflict`，收集器
+只用原始五字段重验 provider 响应，同时仍对完整结果文件做 hash。
+
 Agent 的论文对齐默认值是：
 
 ```text

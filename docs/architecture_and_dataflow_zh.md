@@ -631,3 +631,12 @@ gold label；只有调用方提供完整 development-agent proxy 标签时才输
 因此 collector 能证明证据是否齐全，不能单独填论文 Tables 7–8。
 当前 evidence bundle 仅作为 discovery index；正式 suite 由七类逐文件 hash、parent child membership
 与 VQA/episode 自绑定负责验真，尚未把 `round_id + evidence_bundle hash` 纳入 suite schema。
+
+collector 重验的是 VQA provider 的五字段响应合同；Agent 在响应通过后追加的
+`evidence_conflict` 属于派生证据字段，不应再次送入严格 provider schema。scene state 同样按
+capability 分开判定：unseen texture 必须来自 `eval_mode=true` 的 unseen split；static lighting
+则以 `random_light=true`、`crazy_random_light_rate=0` 和 simulator light component 颜色为权威，
+不要求 `eval_mode=true`。这两个边界由真实 completed-run 收集与回归测试共同覆盖。
+
+本批代码、真实 N=1 fixed/dynamic pair、诚实结果和剩余论文 gap 见
+[2026-07-19 capability / module switches / recovery / scene pair 开发记录](development_log_20260719_capability_recovery_scene_pair_zh.md)。
