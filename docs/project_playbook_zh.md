@@ -266,8 +266,10 @@ ACT 都失败这一 policy 结果必须与成功的 expert controls 和完整 pi
 - 注册 capability contract 表示可执行 materializer 的权限 envelope，不等于模型只能逐字重复一个
   template。`TaskProposal` 可在受控 roots 内提供本轮新 changes；TaskGen 必须同时保存 proposal 与
   envelope，并明确记录哪一个是 round variation authority。
-- `ToolProposal` v2 的 run-local VQA question 必须使用 `run_local.*` ID、受控字段枚举、单行问句和
-  固定长度上限；保存后的 query 必须可独立重验。run-local VQA 始终是补充视觉证据，不是数值 oracle。
+- `ToolProposal` v2/v3 的 run-local VQA question 必须使用 `run_local.*` ID、受控字段枚举、单行问句和
+  固定长度上限；保存后的 query 必须可独立重验。v3 可额外携带严格 `MetricSpec`；当前只允许已审核
+  typed operator，不能用自然语言绕过 AST、差分 oracle 或 registry collision gate。run-local VQA
+  始终是补充视觉证据，不是数值 oracle。
 - checkpoint、数据集、模型权重和 rollout 大包仍只在服务器侧下载、生成与保存；Windows/Codex
   工作区只接收代码、配置、小型报告和必要的压缩源码。
 - preregistration 必须绑定真实执行：至少把 manifest、registered route、command plan 与观测到
@@ -283,3 +285,19 @@ ACT 都失败这一 policy 结果必须与成功的 expert controls 和完整 pi
   报 functional effect，否则 effect 保持 `null`。
 - provenance 不是 outcome。RAG source 存在、视觉 gate 接线或 Tool validation 配置存在，只能
   证明对应模块可追踪，不能直接作为 Table 3 生成成功率或消融效果。
+
+## 13. 论文方法覆盖审计的长期规则
+
+- 每次自顶向下批次结束，用 `scripts/manipeval_method_coverage.py` 重算 16 项主体方法覆盖；不要手工
+  修改状态。`partial` 表示源码合同缺失，`evidence_pending` 表示代码已就绪但严格运行证据缺失，
+  `implemented` 也只表示该项的最小检查通过。
+- coverage audit 是 0-runtime bookkeeping，不是实验。源码 AST、文件 hash、N=1、缓存 replay 和
+  development-agent proxy 各自只能支持其声明的证据层级；不能因“16/16”而宣称论文有效性复现。
+- `PlanningContext` 必须来自受信 Policy/Simulator/Adapter metadata；`EvidencePacket` 必须保留 scalar、
+  VQA、pipeline 和 policy 字段及冲突，禁止让模型自行给这些证据发明概率。
+- `bounded_each_round` 只有在上一轮真实 observation 或显式缓存 replay 后才算验证了逐轮 proposal；
+  `plan-only` 只能证明首轮 proposal/context。一次 evaluation 仍冻结 task 与 ACT checkpoint。
+- TaskGen 交付物必须同时说明 scene method 和 success method 的来源。复用官方 `check_success()` 是诚实的
+  bounded implementation，不应被描述为“模型生成了完整成功函数”。
+- executable Tool 的语义复用只能忽略表述性字段；task、metric、typed spec、signals、output、源码与
+  validation contract 必须保持精确。发现 registry collision 时 fail closed。

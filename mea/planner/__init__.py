@@ -1,6 +1,17 @@
 """Outer planning agent for query-driven manipulation evaluation."""
 
-from .evidence_policy import assess_conditional_transition, assess_evidence
+from .context import (
+    PlanningContextError,
+    build_planning_context,
+    validate_planning_context,
+)
+from .evidence_policy import (
+    EvidencePacketError,
+    assess_conditional_transition,
+    assess_evidence,
+    build_evidence_packet,
+    validate_evidence_packet,
+)
 from .prototype import (
     BLUE_TASK_INSTRUCTION,
     MAX_ROUNDS,
@@ -48,6 +59,7 @@ from .session import (
     PlanSessionError,
     build_adaptive_directive,
     build_evaluation_target,
+    validate_adaptive_choice,
     validate_evaluation_target,
 )
 
@@ -59,6 +71,12 @@ __all__ = [
     "TIMING_TASK_INSTRUCTION",
     "assess_evidence",
     "assess_conditional_transition",
+    "EvidencePacketError",
+    "build_evidence_packet",
+    "validate_evidence_packet",
+    "PlanningContextError",
+    "build_planning_context",
+    "validate_planning_context",
     "PlanAgentError",
     "PlanAgentPrototype",
     "make_evaluation_id",
@@ -90,5 +108,6 @@ __all__ = [
     "PlanSessionError",
     "build_adaptive_directive",
     "build_evaluation_target",
+    "validate_adaptive_choice",
     "validate_evaluation_target",
 ]

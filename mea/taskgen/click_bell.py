@@ -15,6 +15,7 @@ from typing import Any
 import yaml
 
 from mea.toolkit import load_task_schema
+from mea.taskgen.artifacts import write_task_artifact_bundle
 from mea.taskgen.capabilities import CapabilityError, build_variant_spec
 
 
@@ -337,5 +338,13 @@ def create_click_bell_variant_run(
             "code_generation_performed": False,
         },
     )
+    bundle = write_task_artifact_bundle(root, run_dir, manifest)
+    manifest["task_artifact_bundle"] = "generation/task_artifact_bundle.json"
+    manifest["scene_check_spec"] = "generation/scene_check_spec.json"
+    manifest["task_artifact_summary"] = {
+        "scene_origin": bundle["scene_method"]["origin"],
+        "success_origin": bundle["success_method"]["origin"],
+        "success_semantics_preserved": True,
+    }
     _write_json(run_dir / "manifest.json", manifest)
     return manifest

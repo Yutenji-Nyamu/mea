@@ -165,6 +165,13 @@ class CrossTaskEntrypointTests(unittest.TestCase):
             self.assertTrue(
                 (run_dir / "generation/official_source.json").is_file()
             )
+            bundle = json.loads(
+                (run_dir / "generation/task_artifact_bundle.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(bundle["scene_method"]["origin"], "official_reuse")
+            self.assertEqual(bundle["success_method"]["origin"], "official_reuse")
 
     def test_official_planner_materializes_one_expert_round(self):
         with tempfile.TemporaryDirectory() as temporary:

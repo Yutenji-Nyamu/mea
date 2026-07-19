@@ -278,6 +278,7 @@ def build_global_route_prompt(
     history_context: list[dict[str, Any]] | None = None,
     *,
     bound_task_name: str | None = None,
+    planning_contexts: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> str:
     """Build a catalog-only prompt with compact completed-plan provenance."""
 
@@ -332,6 +333,12 @@ def build_global_route_prompt(
         "policy": trusted_catalog["policy"],
         "tasks": visible_tasks,
     }
+    visible_task_names = {str(task["task_name"]) for task in visible_tasks}
+    visible_contexts = {
+        str(task_name): deepcopy(dict(context))
+        for task_name, context in (planning_contexts or {}).items()
+        if str(task_name) in visible_task_names
+    }
     return f"""You are the bounded global Plan Agent for an ACT-only MEA reproduction.
 {binding_instruction}
 Select the query-relevant aspects and the first aspect.  Use only the catalog
@@ -352,6 +359,9 @@ USER QUERY:
 
 TRUSTED ACT EVALUATION CATALOG:
 {json.dumps(visible_catalog, ensure_ascii=False, indent=2)}
+
+TRUSTED POLICY / SIMULATOR / ADAPTER CONTEXT:
+{json.dumps(visible_contexts, ensure_ascii=False, indent=2)}
 
 CANONICAL ASPECT ONTOLOGY:
 {json.dumps(public_aspect_ontology(), ensure_ascii=False, indent=2)}
@@ -374,6 +384,7 @@ class GlobalQueryRouter:
         model: str,
         catalog: Mapping[str, Any],
         bound_task_name: str | None = None,
+        planning_contexts: Mapping[str, Mapping[str, Any]] | None = None,
     ):
         self.provider = provider
         self.model = _require_text(model, "model")
@@ -383,6 +394,10 @@ class GlobalQueryRouter:
             if bound_task_name is not None
             else None
         )
+        self.planning_contexts = {
+            str(task_name): deepcopy(dict(context))
+            for task_name, context in (planning_contexts or {}).items()
+        }
         self.last_prompt: str | None = None
         self.last_responses: list[str] = []
         self.last_trace: dict[str, Any] | None = None
@@ -398,6 +413,7 @@ class GlobalQueryRouter:
             self.catalog,
             history_context=history_context,
             bound_task_name=self.bound_task_name,
+            planning_contexts=self.planning_contexts,
         )
         self.last_prompt = prompt
         self.last_responses = []

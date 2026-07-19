@@ -15,6 +15,7 @@ from typing import Any
 from mea.toolkit.tools import TOOL_CATALOG, public_tool_catalog
 
 from .targets import COMPOSITE_TARGETS
+from .metric_spec import MetricSpecError, validate_metric_spec
 
 
 class ToolRouterError(RuntimeError):
@@ -27,6 +28,7 @@ TOOL_REQUEST_KEYS = {
     "metric",
     "question",
 }
+TOOL_REQUEST_V2_KEYS = TOOL_REQUEST_KEYS | {"metric_spec"}
 
 
 def validate_tool_request(
@@ -38,15 +40,23 @@ def validate_tool_request(
 
     if not isinstance(value, dict):
         raise ToolRouterError("tool_request must be a JSON object")
+    schema_version = value.get("schema_version")
+    expected_keys = (
+        TOOL_REQUEST_KEYS
+        if schema_version == 1
+        else TOOL_REQUEST_V2_KEYS
+        if schema_version == 2
+        else None
+    )
+    if expected_keys is None:
+        raise ToolRouterError("tool_request.schema_version must be 1 or 2")
     keys = set(value)
-    if keys != TOOL_REQUEST_KEYS:
-        missing = sorted(TOOL_REQUEST_KEYS - keys)
-        extra = sorted(keys - TOOL_REQUEST_KEYS)
+    if keys != expected_keys:
+        missing = sorted(expected_keys - keys)
+        extra = sorted(keys - expected_keys)
         raise ToolRouterError(
             f"tool_request fields do not match: missing={missing}, extra={extra}"
         )
-    if value.get("schema_version") != 1:
-        raise ToolRouterError("tool_request.schema_version must be 1")
     task_name = value.get("task_name")
     if not isinstance(task_name, str) or not task_name.strip():
         raise ToolRouterError("tool_request.task_name must be a non-empty string")
@@ -60,12 +70,18 @@ def validate_tool_request(
     question = value.get("question")
     if not isinstance(question, str) or not question.strip():
         raise ToolRouterError("tool_request.question must be a non-empty string")
-    return {
-        "schema_version": 1,
+    result = {
+        "schema_version": schema_version,
         "task_name": task_name.strip(),
         "metric": metric.strip(),
         "question": question.strip(),
     }
+    if schema_version == 2:
+        try:
+            result["metric_spec"] = validate_metric_spec(value.get("metric_spec"))
+        except MetricSpecError as exc:
+            raise ToolRouterError(str(exc)) from exc
+    return result
 
 
 def _with_snapshot_hash(snapshot: dict[str, Any]) -> dict[str, Any]:
@@ -97,6 +113,11 @@ def catalog_snapshot() -> dict[str, Any]:
             public_tool_catalog(), key=lambda item: item["name"]
         ),
         "composite_targets": composite_targets,
+        "typed_metric_spec": {
+            "schema_version": 1,
+            "operations": ["minimum_distance"],
+            "execution": "compile_validate_register",
+        },
     }
     return _with_snapshot_hash(snapshot)
 
@@ -127,6 +148,13 @@ def route_tool_request(
         composite_entry
         and task_name in set(composite_entry.get("supported_task_names", []))
     )
+    metric_spec = request.get("metric_spec")
+    if metric_spec is not None and (
+        metric in TOOL_CATALOG or metric in COMPOSITE_TARGETS
+    ):
+        raise ToolRouterError(
+            "typed MetricSpec metric ids cannot override a registered metric"
+        )
 
     if run_local_registration is not None:
         if (
@@ -149,7 +177,13 @@ def route_tool_request(
         snapshot["reviewed_match"] = deepcopy(reviewed_registration)
         _with_snapshot_hash(snapshot)
 
-    if trusted_task_supported:
+    if metric_spec is not None:
+        status = "resolved"
+        route = "typed_metric_spec_compile"
+        registry = "typed_metric_spec_v1"
+        reference_tool = None
+        reason = "validated typed MetricSpec can be compiled and differentially gated"
+    elif trusted_task_supported:
         status = "resolved"
         route = "reuse"
         registry = "trusted_tool_catalog"

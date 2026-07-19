@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 import sys
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -50,7 +51,11 @@ from mea.proposals import (
     validate_task_proposal,
     validate_tool_proposal,
 )
-from mea.proposal_agent import BoundedProposalAgent, ProposalAgentError
+from mea.proposal_agent import (
+    BoundedProposalAgent,
+    ProposalAgentError,
+    proposal_capability_mode,
+)
 from mea.providers import (
     OpenAICompatibleProvider,
     available_model_profiles,
@@ -93,6 +98,69 @@ def canonical_sha256(value: Any) -> str:
         allow_nan=False,
     ).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
+
+
+def apply_bounded_round_proposal(
+    *,
+    proposal_agent: BoundedProposalAgent,
+    user_query: str,
+    target: dict[str, Any],
+    planning_context: dict[str, Any],
+    round_plan: dict[str, Any],
+    evaluation_dir: Path,
+    round_number: int,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Author and persist one bounded Task/Tool Proposal for a materialized round."""
+
+    aspect_id = str(
+        (round_plan.get("task_proposal") or {}).get("aspect_id")
+        or round_plan.get("aspect_id")
+        or round_plan.get("sub_aspect")
+        or ""
+    )
+    template_id = str(round_plan.get("template_id") or "")
+    task_name = str(target.get("task_name") or "")
+    mode = proposal_capability_mode(task_name, aspect_id)
+    bundle = proposal_agent.propose(
+        user_query,
+        target=target,
+        aspect_id=aspect_id,
+        base_template_id=template_id,
+        capability_mode=mode,
+        planning_context=planning_context,
+        require_novel_changes=(mode == "novel_bounded"),
+    )
+    materialized = materialize_round_proposals(
+        round_plan,
+        bundle["task_proposal"],
+        bundle["tool_proposal"],
+    )
+    proposal_dir = (
+        evaluation_dir / "plan/bounded_proposal" / f"round_{round_number:02d}"
+    )
+    proposal_dir.mkdir(parents=True, exist_ok=True)
+    (proposal_dir / "prompt.md").write_text(
+        proposal_agent.last_prompt or "", encoding="utf-8"
+    )
+    for index, response in enumerate(proposal_agent.last_responses, start=1):
+        (proposal_dir / f"response_{index}.txt").write_text(
+            response + "\n", encoding="utf-8"
+        )
+    artifact = {
+        **bundle,
+        "proposal_capability_mode": mode,
+        "base_template_id": template_id,
+        "round_number": round_number,
+    }
+    write_json(proposal_dir / "proposal_bundle.json", artifact)
+    # Preserve the batch-12 first-round artifact path for existing readers.
+    if round_number == 1:
+        compatibility_dir = evaluation_dir / "plan/bounded_proposal"
+        (compatibility_dir / "prompt.md").write_text(
+            proposal_agent.last_prompt or "", encoding="utf-8"
+        )
+        write_json(compatibility_dir / "proposal_bundle.json", artifact)
+    return materialized, artifact
 
 
 def directory_tree_sha256(root: Path) -> str:
@@ -2088,13 +2156,16 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--proposal-mode",
-        choices=["catalog", "novel_first_round"],
+        choices=["catalog", "novel_first_round", "bounded_each_round"],
         default="catalog",
         help=(
             "catalog uses the selected registered template unchanged. "
             "novel_first_round asks the bounded Proposal Agent for one unseen "
             "variation, then materializes it through the selected capability "
-            "envelope before any rollout. Requires --auto-route."
+            "envelope before any rollout. bounded_each_round repeats the "
+            "bounded Proposal step after every evidence-driven continue; axes "
+            "without a safe novel generator use registered_reuse. Requires "
+            "--auto-route."
         ),
     )
     parser.add_argument(
@@ -2385,6 +2456,12 @@ def main() -> None:
             raise SystemExit(
                 f"bound task is not ACT-ready: {args.bound_task_name!r}"
             )
+        global_planning_contexts = {
+            task_name: BoundTaskPlanSession.from_catalog(
+                global_catalog, task_name
+            ).planning_context(repo_root)
+            for task_name in ready_tasks
+        }
         global_history_context: list[dict[str, Any]] = []
         if not args.no_history:
             try:
@@ -2416,6 +2493,7 @@ def main() -> None:
             model=models["planner"],
             catalog=global_catalog,
             bound_task_name=args.bound_task_name,
+            planning_contexts=global_planning_contexts,
         )
         global_ledger_context = {
             "schema_version": 1,
@@ -2586,6 +2664,11 @@ def main() -> None:
                     "ACT" if execution_backend in {"act", "both"} else "expert"
                 ),
                 checkpoint_setting="demo_clean",
+                requested_aspect_ids=(
+                    validated_proposal.get("requested_aspect_ids")
+                    if validated_proposal is not None
+                    else None
+                ),
                 limit=args.history_limit,
                 exclude_evaluation_id=args.evaluation_id,
             )
@@ -2635,6 +2718,8 @@ def main() -> None:
     bound_plan_session: BoundTaskPlanSession | None = None
     bound_plan_session_path: str | None = None
     evaluation_target: dict[str, Any] | None = None
+    planning_context: dict[str, Any] | None = None
+    proposal_agent: BoundedProposalAgent | None = None
     if global_catalog is not None:
         try:
             raw_round_budget = plan.get("max_rounds")
@@ -2656,10 +2741,15 @@ def main() -> None:
                 max_rounds=effective_round_budget,
             )
             plan = bound_plan_session.normalize_plan(plan)
-            if args.proposal_mode == "novel_first_round":
+            planning_context = bound_plan_session.planning_context(repo_root)
+            write_json(evaluation_dir / "plan/planning_context.json", planning_context)
+            if args.proposal_mode != "catalog":
                 first_round = plan["rounds"][0]
                 first_aspect = str(first_round["task_proposal"]["aspect_id"])
-                if args.task_name != "click_bell" or first_aspect != "object_position":
+                if args.proposal_mode == "novel_first_round" and (
+                    args.task_name != "click_bell"
+                    or first_aspect != "object_position"
+                ):
                     raise ValueError(
                         "novel_first_round currently supports the bounded "
                         "click_bell object_position capability only"
@@ -2668,30 +2758,16 @@ def main() -> None:
                 proposal_agent = BoundedProposalAgent(
                     provider, model=models["planner"]
                 )
-                proposal_bundle = proposal_agent.propose(
-                    args.request,
+                plan["rounds"][0], proposal_bundle = apply_bounded_round_proposal(
+                    proposal_agent=proposal_agent,
+                    user_query=args.request,
                     target=bound_plan_session.target,
-                    aspect_id=first_aspect,
-                    require_novel_changes=True,
-                )
-                plan["rounds"][0] = materialize_round_proposals(
-                    first_round,
-                    proposal_bundle["task_proposal"],
-                    proposal_bundle["tool_proposal"],
+                    planning_context=planning_context,
+                    round_plan=first_round,
+                    evaluation_dir=evaluation_dir,
+                    round_number=1,
                 )
                 plan = bound_plan_session.normalize_plan(plan)
-                proposal_dir = evaluation_dir / "plan/bounded_proposal"
-                proposal_dir.mkdir(parents=True, exist_ok=True)
-                (proposal_dir / "prompt.md").write_text(
-                    proposal_agent.last_prompt or "", encoding="utf-8"
-                )
-                for index, response in enumerate(
-                    proposal_agent.last_responses, start=1
-                ):
-                    (proposal_dir / f"response_{index}.txt").write_text(
-                        response + "\n", encoding="utf-8"
-                    )
-                write_json(proposal_dir / "proposal_bundle.json", proposal_bundle)
                 manifest.setdefault("planner", {}).update(
                     {
                         "round_1_task_tool_proposal_source": "bounded_model",
@@ -2699,6 +2775,9 @@ def main() -> None:
                         "round_1_proposal_path": (
                             "plan/bounded_proposal/proposal_bundle.json"
                         ),
+                        "round_1_proposal_capability_mode": proposal_bundle[
+                            "proposal_capability_mode"
+                        ],
                     }
                 )
             manifest["plan"] = plan
@@ -2714,6 +2793,7 @@ def main() -> None:
             plan=plan,
             planner=manifest.get("planner"),
             proposal_mode=args.proposal_mode,
+            planning_context_path="plan/planning_context.json",
         )
     candidate_suite = list(plan.get("requested_template_ids") or [])
     planning_policy = (
@@ -3018,6 +3098,31 @@ def main() -> None:
                     current_plan=plan_before_decision,
                     observation_history=[item["round_summary"] for item in round_runs],
                 )
+            if (
+                args.proposal_mode == "bounded_each_round"
+                and bound_plan_session is not None
+                and adaptive_click_bell
+                and candidate_decision.get("action") == "continue"
+            ):
+                if proposal_agent is None or planning_context is None:
+                    raise RuntimeError(
+                        "bounded_each_round proposal state was not initialized"
+                    )
+                candidate_plan = deepcopy(candidate_plan)
+                candidate_decision = deepcopy(candidate_decision)
+                next_round_number = len(plan_before_decision["rounds"]) + 1
+                proposed_round, _proposal_artifact = apply_bounded_round_proposal(
+                    proposal_agent=proposal_agent,
+                    user_query=args.request,
+                    target=bound_plan_session.target,
+                    planning_context=planning_context,
+                    round_plan=candidate_plan["rounds"][-1],
+                    evaluation_dir=evaluation_dir,
+                    round_number=next_round_number,
+                )
+                candidate_plan["rounds"][-1] = proposed_round
+                candidate_decision["next_round"] = proposed_round
+                candidate_plan["round_decisions"][-1] = candidate_decision
             if bound_plan_session is not None and adaptive_click_bell:
                 plan, decision = bound_plan_session.adjudicate(
                     plan_before_decision,
@@ -3035,6 +3140,7 @@ def main() -> None:
                         **bound_plan_session.directive(
                             plan_before_decision,
                             [item["round_summary"] for item in round_runs],
+                            candidate_decision=candidate_decision,
                         ),
                     },
                 )

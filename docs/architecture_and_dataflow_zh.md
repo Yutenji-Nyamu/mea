@@ -852,3 +852,70 @@ evaluation 目录、provenance verifier 或论文统计。
 
 本批实现和真实证据见
 [2026-07-19 Bound PlanSession / Proposal / illustrated evidence 开发记录](development_log_20260719_bound_plan_proposals_evidence_zh.md)。
+
+## 14. 2026-07-19：论文主体方法的公共上下文、typed evidence 与覆盖审计
+
+### 14.1 当前主链
+
+本批把此前分散在 task adapter 中的输入与输出提升为公共合同：
+
+```text
+open Query
+→ 各 checkpoint-ready task 的 PlanningContext
+   ├── PolicyCard：ACT checkpoint、输入/输出与预算边界
+   ├── SimulatorCard：RoboTwin task/schema、可观测量与执行约束
+   └── AdapterView：允许的 aspect/template/change roots/Tool/VQA/gates
+→ GlobalQueryRouter：读取上述 context，固定一个 task，列出 unsupported aspects
+→ BoundTaskPlanSession：冻结所选 task/checkpoint/预算
+→ TaskProposal + ToolProposal
+→ TaskGen：retrieve/reuse/generate
+   → TaskArtifactBundle(scene method + official success method)
+   → SceneCheckSpec → static/render/visual/expert gates → bounded repair
+→ ACT rollout
+→ trusted Rule Tool 或 typed MetricSpec + run-local Dynamic Execution VQA
+→ Aggregate → EvidencePacket
+→ evidence-driven transition → 下一轮 bounded Proposal 或 final feedback
+```
+
+`PlanningContext` 在初始 Query route 前由受信项目元数据构建，不由模型猜测；`EvidencePacket` 使用
+`sufficient / uncertain / conflicting / pipeline_invalid` 等离散强度，并保留 pipeline、policy、
+rule 与 VQA 原始字段，不伪造概率。请求了 VQA 而结果缺失、失败或跳过时不会被当成 sufficient。
+一次 evaluation 仍固定一个 task 和一个 ACT checkpoint；跨任务
+Query 由多个 child evaluation 与 portfolio 表达。
+
+### 14.2 每轮 Proposal 与 TaskGen 产物
+
+`--proposal-mode bounded_each_round` 在首轮生成受限 Proposal，并在真实 evidence policy 返回
+`continue` 后为下一轮再次调用 Proposal Agent。候选只能在当前 `EvaluationTarget` 与 capability
+envelope 内选择；公共 session 会拒绝 task、policy/checkpoint、预算和不受支持 aspect 漂移。
+`plan-only` 没有前一轮 observation，因此只能验证首轮 Proposal 与上下文，不能作为逐轮行为证据。
+
+所有 TaskGen 路由现在应保存同形的 `generation/task_artifact_bundle.json` 与 SceneCheckSpec。bundle
+明确区分 `generated_code`、`bounded_overlay_wrapper` 和 `official_reuse` 的 scene 来源，并把 success
+语义绑定到官方 `check_success()`。因此“完整 task artifact”表示 scene 与 success method 都可执行且
+可追踪，不表示模型已经能任意生成正确的 success function。
+
+### 14.3 typed MetricSpec 与语义复用
+
+`ToolProposal v3` 可携带 `MetricSpec v1`。当前 DSL 只允许 `minimum_distance`，显式声明左右 trace
+signal、二维/三维投影、米制单位和空值语义。编译结果必须通过 AST gate、至少两个 episode 的
+determinism/oracle differential gate，并证明核心 telemetry 未被修改，随后才可进入 run-local
+registry。复用 key 忽略自然语言 `question`，但仍精确绑定 task、metric、typed spec、signals、output
+和验证合同；这允许问句改写复用同一 executable Tool，而不会宽松匹配不同指标。
+
+历史 plan retrieval 同样增加 canonical aspect overlap；文本相似只作为排序的一部分。扩展 ontology
+中的 aspect 不会自动进入 ACT capability catalog，无法 materialize 的轴必须显式保持 unsupported。
+
+### 14.4 16 项可执行覆盖审计
+
+`mea/method_coverage.py` 与 `scripts/manipeval_method_coverage.py` 对论文主体 16 项做只读审计。
+每项状态由 AST/source check 和声明的 artifact validator 推导：
+
+- `implemented`：所需源码合同存在，且需要运行证据的项目也找到严格通过的 artifact；
+- `evidence_pending`：源码就绪，但真实运行 artifact 缺失或未通过 validator；
+- `partial`：源码合同仍缺。
+
+审计启动 0 provider、0 simulator、0 ACT。静态通过不证明语义正确；N=1 artifact 只证明机制；缓存
+VQA replay 必须保留 source evaluation、真实视频/montage、live model identity 和
+`act_rollouts_started=0`，不能冒充新 rollout。完整映射和剩余 gap 见
+[论文主体方法 16 项覆盖审计](development_log_20260719_paper_method_coverage_zh.md)。

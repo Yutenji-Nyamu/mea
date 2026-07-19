@@ -1,4 +1,4 @@
-"""Small deterministic Documentation RAG for the BBH TaskGen slice."""
+"""Small deterministic Task/Asset/Documentation RAG for MEA TaskGen."""
 
 from __future__ import annotations
 
@@ -30,9 +30,16 @@ def select_document_ids(
 ) -> list[str]:
     """Select only knowledge that changes the quality of this generation."""
 
-    if task_name != "beat_block_hammer":
-        raise KnowledgeRetrievalError("第一版 Documentation RAG 只支持 beat_block_hammer")
-    selected = ["task.beat_block_hammer", "api.scene_creation"]
+    if task_name not in {"beat_block_hammer", "click_bell"}:
+        raise KnowledgeRetrievalError(
+            f"Documentation RAG has no supported task card for {task_name!r}"
+        )
+    selected = [f"task.{task_name}", "api.scene_creation"]
+    if task_name == "click_bell":
+        # Both position and instance proposals depend on the same existing
+        # functional-point/instance asset contract.
+        selected.append("asset.050_bell")
+        return selected
     request = user_request.lower()
     block = variant_spec.get("changes", {}).get("block", {})
     hammer_terms = ("hammer", "锤", "replace hammer", "functional point")
@@ -65,9 +72,20 @@ class KnowledgeRetriever:
             else None
         )
         documents = _document_map(index)
+        snapshots = {
+            item.get("task_name"): item for item in index.get("agent_readmes", [])
+        }
+        agent_readme = snapshots.get(task_name)
+        if not isinstance(agent_readme, dict):
+            raise KnowledgeRetrievalError(
+                f"knowledge index lacks README.Agent snapshot for {task_name!r}"
+            )
         selected_ids = select_document_ids(user_request, task_name, variant_spec)
         selected: list[dict[str, Any]] = []
-        context_sections: list[str] = []
+        context_sections: list[str] = [
+            "## README.Agent freshness snapshot\n\n"
+            + json.dumps(agent_readme, ensure_ascii=False, indent=2)
+        ]
         for document_id in selected_ids:
             if document_id not in documents:
                 raise KnowledgeRetrievalError(
@@ -87,7 +105,11 @@ class KnowledgeRetriever:
                     "character_count": len(content),
                     "source_symbols": metadata.get("source_symbols", []),
                     "source_files": metadata.get("source_files", []),
-                    "reason": "task contract" if metadata["kind"] == "task_contract" else "required scene API",
+                    "reason": {
+                        "task_contract": "task contract",
+                        "asset_contract": "required existing asset contract",
+                        "api": "required scene API",
+                    }.get(metadata["kind"], "retrieved generation context"),
                 }
             )
             context_sections.append(
@@ -131,6 +153,8 @@ class KnowledgeRetriever:
             "context_character_count": len(context),
             "max_characters": max_characters,
             "committed_index_current": committed == index,
+            "agent_readme_snapshot": agent_readme,
+            "agent_readme_current": committed == index,
         }
         output_dir.mkdir(parents=True, exist_ok=True)
         (output_dir / "knowledge_catalog.json").write_text(
@@ -139,6 +163,10 @@ class KnowledgeRetriever:
         )
         (output_dir / "knowledge_retrieval.json").write_text(
             json.dumps(result, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        (output_dir / "agent_readme_snapshot.json").write_text(
+            json.dumps(agent_readme, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
         (output_dir / "knowledge_context.md").write_text(

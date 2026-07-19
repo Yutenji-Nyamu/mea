@@ -51,6 +51,7 @@ _TOOL_PROPOSAL_V1_KEYS = {
     "reuse_first",
 }
 _TOOL_PROPOSAL_V2_KEYS = _TOOL_PROPOSAL_V1_KEYS | {"vqa_question_specs"}
+_TOOL_PROPOSAL_V3_KEYS = _TOOL_PROPOSAL_V2_KEYS | {"metric_spec"}
 _IDENTIFIER = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 
@@ -155,10 +156,12 @@ def validate_tool_proposal(
         if schema_version == 1
         else _TOOL_PROPOSAL_V2_KEYS
         if schema_version == 2
+        else _TOOL_PROPOSAL_V3_KEYS
+        if schema_version == 3
         else None
     )
     if expected_keys is None:
-        raise ProposalError("ToolProposal.schema_version must be 1 or 2")
+        raise ProposalError("ToolProposal.schema_version must be 1, 2, or 3")
     if set(proposal) != expected_keys:
         raise ProposalError(
             f"ToolProposal v{schema_version} fields must be exactly "
@@ -199,7 +202,7 @@ def validate_tool_proposal(
         )
     if proposal.get("reuse_first") is not True:
         raise ProposalError("ToolProposal.reuse_first must be true")
-    if schema_version == 2:
+    if schema_version in {2, 3}:
         raw_specs = proposal.get("vqa_question_specs")
         if not isinstance(raw_specs, list) or not raw_specs:
             raise ProposalError(
@@ -226,6 +229,15 @@ def validate_tool_proposal(
                 "vqa_question_specs exactly"
             )
         proposal["vqa_question_specs"] = specs
+    if schema_version == 3:
+        try:
+            from mea.toolgen.metric_spec import validate_metric_spec
+
+            proposal["metric_spec"] = validate_metric_spec(
+                proposal.get("metric_spec")
+            )
+        except RuntimeError as exc:
+            raise ProposalError(f"invalid ToolProposal MetricSpec: {exc}") from exc
     proposal.update(
         {
             "task_name": task_name,
@@ -245,14 +257,16 @@ def validate_tool_proposal(
     try:
         from mea.toolgen import validate_tool_request
 
-        validate_tool_request(
-            {
-                "schema_version": 1,
-                "task_name": str(proposal["task_name"]),
-                "metric": str(proposal["metric"]),
-                "question": str(proposal["question"]),
-            }
-        )
+        request = {
+            "schema_version": 1,
+            "task_name": str(proposal["task_name"]),
+            "metric": str(proposal["metric"]),
+            "question": str(proposal["question"]),
+        }
+        if schema_version == 3:
+            request["schema_version"] = 2
+            request["metric_spec"] = proposal["metric_spec"]
+        validate_tool_request(request)
     except RuntimeError as exc:
         raise ProposalError(f"ToolProposal cannot form a Tool request: {exc}") from exc
     return proposal
@@ -327,12 +341,16 @@ def tool_request_from_proposal(value: Mapping[str, Any]) -> dict[str, Any]:
 
     proposal = deepcopy(dict(value))
     proposal = validate_tool_proposal(proposal)
-    return {
+    request = {
         "schema_version": 1,
         "task_name": str(proposal["task_name"]),
         "metric": str(proposal["metric"]),
         "question": str(proposal["question"]),
     }
+    if proposal["schema_version"] == 3:
+        request["schema_version"] = 2
+        request["metric_spec"] = deepcopy(proposal["metric_spec"])
+    return request
 
 
 def attach_round_proposals(round_plan: Mapping[str, Any]) -> dict[str, Any]:
@@ -397,7 +415,10 @@ def materialize_round_proposals(
         if (
             contract["aspect"]["aspect_id"] == task["aspect_id"]
             and contract["taskgen"]["capability_id"] == task["capability_id"]
-            and contract["tool"]["metric"] == tool["metric"]
+            and (
+                contract["tool"]["metric"] == tool["metric"]
+                or tool.get("metric_spec") is not None
+            )
             and set(catalog_phenomena)
             <= set(contract["vqa"]["phenomenon_ids"])
         ):

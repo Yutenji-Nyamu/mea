@@ -125,6 +125,14 @@ class TaskGenPrototypeTests(unittest.TestCase):
             generated = (run_dir / "task.py").read_text(encoding="utf-8")
             self.assertIn("def load_actors(self):", generated)
             self.assertIn("color=(0.0, 0.2, 1.0)", generated)
+            bundle = json.loads(
+                (run_dir / "generation/task_artifact_bundle.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(bundle["scene_method"]["origin"], "generated_code")
+            self.assertEqual(bundle["success_method"]["origin"], "official_reuse")
+            self.assertTrue(bundle["success_semantics"]["preserved"])
             static = json.loads(
                 (run_dir / "validation/static.json").read_text(encoding="utf-8")
             )

@@ -1128,3 +1128,88 @@ export UIUI_API_KEY='当前 shell 临时 key'
 
 run-local VQA 只进入执行视频关键帧问题。它必须通过严格 schema，不能改写 rule Tool、官方
 `check_success()` 或 simulator 数值；发生冲突时仍以数值证据为权威并保留冲突记录。
+
+## 28. 审计论文主体方法 16 项（0 provider / 0 simulator / 0 ACT）
+
+```bash
+cd /root/autodl-tmp/mea
+PYTHON=/root/autodl-tmp/conda/envs/RoboTwin/bin/python
+OUT=mea/validation_runs/batch13_method_coverage
+
+"$PYTHON" scripts/manipeval_method_coverage.py \
+  --repo-root "$PWD" \
+  --output "$OUT/report.json" \
+  --markdown "$OUT/report.md"
+```
+
+脚本只读源码与既有 JSON artifact。`partial` 表示源码检查缺失；`evidence_pending` 表示代码已就绪，
+但需要的真实 VQA/matched protocol artifact 未通过 validator；`implemented` 表示该项声明的最小检查
+已通过。只有希望 CI 在任何 pending/partial 时失败，才加 `--require-all-implemented`。输出目录是
+append-only；重跑请换目录。该命令即使得到 16 项 implemented，也不等于论文统计结论复现。
+
+## 29. `bounded_each_round`：先验首轮，再用 N=1 触发第二轮
+
+先做 0-ACT 首轮 Proposal/PlanningContext 检查：
+
+```bash
+export UIUI_API_KEY='只放在当前 shell 环境变量中'
+
+"$PYTHON" scripts/manipeval_agent.py \
+  --repo-root "$PWD" \
+  --request 'Evaluate click_bell ACT across target positions and official bell instances.' \
+  --auto-route \
+  --bound-task-name click_bell \
+  --proposal-mode bounded_each_round \
+  --plan-only \
+  --generated-rounds 2 \
+  --max-agent-rounds 2 \
+  --num-episodes 1 \
+  --evaluation-id eval_bounded_each_round_plan_smoke \
+  --model-profile economy \
+  --no-history
+```
+
+检查 `plan/planning_context.json`、`plan/bounded_proposal/round_01/`、
+`plan/evaluation_plan.json` 和 `plan/bound_task_session.json`。`plan-only` 没有 observation，所以不会
+凭空生成“证据驱动第二轮”。决定支付最小真实预算后，移除 `--plan-only` 并更换 evaluation id；
+首轮 N=1 的 Aggregate/EvidencePacket 若裁决为 `continue`，才应出现
+`plan/bounded_proposal/round_02/` 与 `plan/runtime_directive_after_round_1.json`。失败的 ACT started
+也计入预算；稳定后才把每轮 episode 扩到 3 或 5。
+
+## 30. 检查 typed `MetricSpec v1`（0 provider / 0 ACT）
+
+先运行严格 DSL、编译、差分 oracle、注册与问句改写复用测试：
+
+```bash
+"$PYTHON" -m unittest -v tests.manipeval.test_metric_spec
+```
+
+真实缓存 telemetry 验收使用公开 API `mea.toolgen.execute_metric_spec(...)`：传入同一 task/schema 的
+两个不同 episode、一个新 metric id、`MetricSpec`、append-only output 和 registry 目录。第一遍应为
+`route=typed_metric_spec_compile`，第二遍仅改自然语言 question 应为 `route=run_local_reuse`；两遍都应
+`provider_called=false`。当前唯一 operator 是 `minimum_distance`，signals 必须真实存在，两个 episode
+的 oracle 值必须不同。不要把 unit-test 合成 telemetry 写成真实 RoboTwin 证据，也不要用 typed metric
+覆盖 `official_check_success` 等已注册指标。
+
+## 31. 在既有真实 rollout 上 replay run-local Dynamic VQA（0 新 ACT）
+
+下面的示例复用一个已完成 `click_bell` evaluation 的 ACT 视频、事件、telemetry 和 Rule Tool；它会
+支付一次视觉 provider 调用，但不会重新运行 TaskGen、simulator 或 ACT：
+
+```bash
+export UIUI_API_KEY='只放在当前 shell 环境变量中'
+
+"$PYTHON" scripts/manipeval_execution_vqa_replay.py \
+  --repo-root "$PWD" \
+  --evaluation-id eval_20260717_stage1_global_click_flagship_v3 \
+  --round-id round_1 \
+  --output-dir mea/validation_runs/batch13_run_local_vqa_replay \
+  --vision-model gpt-5.6-luna
+```
+
+输出目录必须事先不存在。核对 `replay_manifest.json` 的
+`evidence_kind=cached_rollout_dynamic_vqa_replay`、`development_evidence_only=true`、
+`act_rollouts_started=0`，以及 Execution VQA 的 live model identity、`run_local.*` question、montage 和
+boolean-or-null observation。source evaluation/round/child 必须可追溯。这个结果证明 Dynamic VQA
+能够消费真实 rollout keyframes，不是新的 ACT 样本，也不提供 VQA accuracy/AUROC；若源 evaluation
+不存在，应换成另一条真实 completed `click_bell` run，不能用空壳或图片 proxy 冒充。

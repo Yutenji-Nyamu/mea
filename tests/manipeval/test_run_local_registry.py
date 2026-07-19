@@ -125,11 +125,11 @@ class RunLocalRegistryTests(unittest.TestCase):
             },
         )
 
-    def test_changed_tool_contract_falls_back_to_codegen(self):
+    def test_paraphrased_question_reuses_same_executable_contract(self):
         self._generate_first()
         request = pickup_to_contact_tool_request()
-        request["question"] = "Measure the same metric under a changed contract."
-        provider = FakeProvider(f"```python\n{self.source}```")
+        request["question"] = "Measure the same executable metric in other words."
+        provider = NeverCalledProvider()
         result = execute_tool_request(
             self.repo_root,
             self.child_run,
@@ -138,11 +138,11 @@ class RunLocalRegistryTests(unittest.TestCase):
             provider=provider,
             model="fake-toolgen",
         )
-        self.assertEqual(provider.calls, 1)
-        self.assertEqual(result["route"], "force_codegen")
+        self.assertEqual(provider.calls, 0)
+        self.assertEqual(result["route"], "run_local_reuse")
         self.assertEqual(
             result["route_decision"]["matched_registry"],
-            "composite_target_registry",
+            "evaluation_local_tool_registry",
         )
 
     def test_changed_telemetry_schema_falls_back_to_codegen(self):

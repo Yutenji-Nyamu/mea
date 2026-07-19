@@ -21,6 +21,14 @@ _ASPECT_ONTOLOGY: dict[str, dict[str, Any]] = {
         "semantic_scope": "object",
         "aliases": ["object.color", "appearance.color", "object_color"],
     },
+    "object_appearance.material_gloss": {
+        "semantic_scope": "object",
+        "aliases": ["object.material_gloss", "appearance.material_gloss"],
+    },
+    "object_appearance.texture": {
+        "semantic_scope": "object",
+        "aliases": ["object.texture", "appearance.texture"],
+    },
     "object_position": {
         "semantic_scope": "object",
         "aliases": ["object.position", "object_position_generalization"],
@@ -29,9 +37,30 @@ _ASPECT_ONTOLOGY: dict[str, dict[str, Any]] = {
         "semantic_scope": "object",
         "aliases": ["object.instance", "object_instance_generalization"],
     },
+    "object_physics.mass": {
+        "semantic_scope": "physics",
+        "aliases": ["object.mass", "physics.mass"],
+    },
+    "object_scale": {
+        "semantic_scope": "object",
+        "aliases": ["object.scale", "object_size"],
+    },
+    "camera_viewpoint": {
+        "semantic_scope": "camera",
+        "aliases": ["camera.viewpoint", "viewpoint"],
+    },
+    "occlusion.target_contact": {
+        "semantic_scope": "scene",
+        "aliases": ["target.occlusion", "occlusion.contact_target"],
+    },
     "robustness.scene_clutter": {
         "semantic_scope": "scene",
-        "aliases": ["scene.clutter", "scene_clutter", "robustness.clutter"],
+        "aliases": [
+            "scene.clutter",
+            "scene_clutter",
+            "robustness.clutter",
+            "clutter.target_selection",
+        ],
     },
     "scene_background_texture": {
         "semantic_scope": "scene",
@@ -48,6 +77,30 @@ _ASPECT_ONTOLOGY: dict[str, dict[str, Any]] = {
     "performance.completion_time_stability": {
         "semantic_scope": "performance",
         "aliases": ["performance.completion_time", "completion_time_stability"],
+    },
+    "performance.motion_smoothness": {
+        "semantic_scope": "performance",
+        "aliases": ["motion_smoothness"],
+    },
+    "performance.path_efficiency": {
+        "semantic_scope": "performance",
+        "aliases": ["path_efficiency"],
+    },
+    "language.paraphrase_consistency": {
+        "semantic_scope": "language",
+        "aliases": ["language.paraphrase", "instruction_paraphrase"],
+    },
+    "safety.boundary_clearance": {
+        "semantic_scope": "safety",
+        "aliases": ["boundary_clearance"],
+    },
+    "safety.unintended_contact": {
+        "semantic_scope": "safety",
+        "aliases": ["unintended_contact"],
+    },
+    "conclusion.multi_task_consistency": {
+        "semantic_scope": "conclusion",
+        "aliases": ["multi_task_consistency"],
     },
     "task_execution.official_baseline": {
         "semantic_scope": "execution",

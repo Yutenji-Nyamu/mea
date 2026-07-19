@@ -6,6 +6,7 @@ from mea.aspects import (
     aspect_semantics,
     canonicalize_aspect_id,
     canonicalize_aspect_ids,
+    public_aspect_ontology,
 )
 from mea.capability_adapter import (
     CapabilityAdapterError,
@@ -32,10 +33,10 @@ class AspectOntologyTests(unittest.TestCase):
 
     def test_unknown_is_rejected_unless_reporting_an_unsupported_gap(self):
         with self.assertRaisesRegex(AspectError, "unknown aspect_id"):
-            canonicalize_aspect_id("camera.viewpoint")
+            canonicalize_aspect_id("robot.embodiment")
         self.assertEqual(
-            canonicalize_aspect_id("camera.viewpoint", allow_unknown=True),
-            "camera.viewpoint",
+            canonicalize_aspect_id("robot.embodiment", allow_unknown=True),
+            "robot.embodiment",
         )
 
     def test_duplicate_aliases_are_rejected_after_canonicalization(self):
@@ -54,6 +55,30 @@ class AspectOntologyTests(unittest.TestCase):
             aspect_semantics("performance.completion_time")["semantic_scope"],
             "performance",
         )
+
+    def test_query_gold_unsupported_axes_have_one_canonical_vocabulary(self):
+        expected = {
+            "camera_viewpoint",
+            "conclusion.multi_task_consistency",
+            "language.paraphrase_consistency",
+            "object_appearance.material_gloss",
+            "object_appearance.texture",
+            "object_physics.mass",
+            "object_scale",
+            "occlusion.target_contact",
+            "performance.motion_smoothness",
+            "performance.path_efficiency",
+            "safety.boundary_clearance",
+            "safety.unintended_contact",
+        }
+        public_ids = {item["aspect_id"] for item in public_aspect_ontology()}
+        self.assertTrue(expected.issubset(public_ids))
+        self.assertEqual(canonicalize_aspect_id("camera.viewpoint"), "camera_viewpoint")
+        self.assertEqual(
+            canonicalize_aspect_id("clutter.target_selection"),
+            "robustness.scene_clutter",
+        )
+        self.assertEqual(aspect_semantics("physics.mass")["semantic_scope"], "physics")
 
 
 class CapabilityAdapterTests(unittest.TestCase):
@@ -109,9 +134,7 @@ class CapabilityAdapterTests(unittest.TestCase):
         bbh = resolve_capability_contract(
             "beat_block_hammer", "object_appearance.color_blue"
         )
-        bell = resolve_capability_contract(
-            "click_bell", "object_position.left_fixed"
-        )
+        bell = resolve_capability_contract("click_bell", "object_position.left_fixed")
         self.assertEqual(set(bbh), set(bell))
         self.assertEqual(set(bbh["taskgen"]), set(bell["taskgen"]))
         self.assertEqual(bell["tool"]["metric"], "bell_active_tcp_min_xy_error")
@@ -187,9 +210,7 @@ class CapabilityAdapterTests(unittest.TestCase):
                 self.assertNotIn("variant_spec", contract["required_gates"])
 
     def test_exact_registry_validation_rejects_contract_tampering(self):
-        contract = resolve_capability_contract(
-            "click_bell", "object_instance.base0"
-        )
+        contract = resolve_capability_contract("click_bell", "object_instance.base0")
         tampered = deepcopy(contract)
         tampered["tool"]["metric"] = "time_to_success"
         with self.assertRaisesRegex(CapabilityAdapterError, "contract changed"):

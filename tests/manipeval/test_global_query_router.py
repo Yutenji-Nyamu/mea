@@ -178,13 +178,13 @@ class GlobalQueryRouterTests(unittest.TestCase):
             wrong_profile = {**click_route(), "task_profile": "official"}
             with self.assertRaisesRegex(GlobalRouteError, "not trusted"):
                 validate_route_selection(wrong_profile, catalog)
-            unknown_aspect = {
+            canonical_but_unavailable_aspect = {
                 **click_route(),
                 "requested_aspect_ids": ["camera_viewpoint"],
                 "first_aspect_id": "camera_viewpoint",
             }
             with self.assertRaisesRegex(GlobalRouteError, "unsupported routed aspects"):
-                validate_route_selection(unknown_aspect, catalog)
+                validate_route_selection(canonical_but_unavailable_aspect, catalog)
 
     def test_unsupported_is_explicit_and_has_no_planner_proposal(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -206,6 +206,21 @@ class GlobalQueryRouterTests(unittest.TestCase):
             self.assertEqual(
                 validate_route_selection(unsupported, catalog)["decision"],
                 "unsupported",
+            )
+            alias_gap = {
+                **unsupported,
+                "unsupported_capabilities": [
+                    {
+                        "task_name": "click_bell",
+                        "aspect_id": "camera.viewpoint",
+                    }
+                ],
+            }
+            self.assertEqual(
+                validate_route_selection(alias_gap, catalog)[
+                    "unsupported_capabilities"
+                ][0]["aspect_id"],
+                "camera_viewpoint",
             )
             with self.assertRaisesRegex(GlobalRouteError, "no executable"):
                 route_to_planner_proposal(unsupported, catalog)
@@ -239,7 +254,23 @@ class GlobalQueryRouterTests(unittest.TestCase):
             make_ready_repo(root, "beat_block_hammer", "click_bell")
             catalog = build_act_catalog(root)
             provider = FakeProvider(["{}", json.dumps(click_route())])
-            router = GlobalQueryRouter(provider, model="fake-model", catalog=catalog)
+            planning_contexts = {
+                "click_bell": {
+                    "schema_version": 1,
+                    "policy_card": {"task_name": "click_bell"},
+                    "simulator_card": {
+                        "task_name": "click_bell",
+                        "simulator_name": "RoboTwin",
+                    },
+                    "adapter_view": {"task_name": "click_bell"},
+                }
+            }
+            router = GlobalQueryRouter(
+                provider,
+                model="fake-model",
+                catalog=catalog,
+                planning_contexts=planning_contexts,
+            )
             history = [
                 {
                     "evaluation_id": "eval_prior",
@@ -277,6 +308,11 @@ class GlobalQueryRouterTests(unittest.TestCase):
             self.assertNotIn("must_not_enter_prompt", router.last_prompt or "")
             self.assertNotIn("pipeline_passed", router.last_prompt or "")
             self.assertIn("eval_prior", router.last_prompt or "")
+            self.assertIn(
+                "TRUSTED POLICY / SIMULATOR / ADAPTER CONTEXT",
+                router.last_prompt or "",
+            )
+            self.assertIn('"simulator_name": "RoboTwin"', router.last_prompt or "")
             prompt = build_global_route_prompt("same query", catalog, history)
             self.assertNotIn("trajectory", prompt)
 

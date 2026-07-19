@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
@@ -59,12 +60,26 @@ def infer_registry_dir(output_dir: str | Path) -> Path | None:
 
 
 def tool_contract(tool_spec: dict[str, Any]) -> dict[str, Any]:
-    """Build the exact routeful ToolSpec contract used for local matching."""
+    """Build the executable ToolSpec contract used for local matching.
+
+    Natural-language wording is explanatory rather than executable authority.
+    Excluding only ``question`` lets a validated Tool be reused for a paraphrase
+    while task, metric, typed MetricSpec, signals, output, and validation gates
+    remain exact.
+    """
 
     return {
-        "tool_spec": tool_spec,
+        "tool_spec": semantic_tool_spec(tool_spec),
         "required_signals": list(tool_spec.get("required_signals", [])),
     }
+
+
+def semantic_tool_spec(tool_spec: dict[str, Any]) -> dict[str, Any]:
+    """Return the executable ToolSpec fields, excluding display-only wording."""
+
+    result = deepcopy(tool_spec)
+    result.pop("question", None)
+    return result
 
 
 def tool_contract_sha256(tool_spec: dict[str, Any]) -> str:

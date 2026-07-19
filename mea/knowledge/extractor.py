@@ -1,4 +1,4 @@
-"""Deterministic Offline Extractor for the first BeatBlockHammer slice."""
+"""Deterministic Offline Extractor for supported MEA TaskGen families."""
 
 from __future__ import annotations
 
@@ -35,6 +35,30 @@ DOCUMENT_DEFINITIONS = (
             {
                 "path": "envs/beat_block_hammer.py",
                 "symbol": "beat_block_hammer.check_success",
+            },
+        ],
+    },
+    {
+        "id": "task.click_bell",
+        "kind": "task_contract",
+        "title": "ClickBell scene contract",
+        "path": "mea/knowledge/tasks/click_bell.md",
+        "tags": [
+            "click_bell",
+            "load_actors",
+            "position",
+            "instance",
+            "scene",
+            "success",
+        ],
+        "source_symbols": [
+            {
+                "path": "envs/click_bell.py",
+                "symbol": "click_bell.load_actors",
+            },
+            {
+                "path": "envs/click_bell.py",
+                "symbol": "click_bell.check_success",
             },
         ],
     },
@@ -86,7 +110,41 @@ DOCUMENT_DEFINITIONS = (
             "description/objects_description/020_hammer/base0.json",
         ],
     },
+    {
+        "id": "asset.050_bell",
+        "kind": "asset_contract",
+        "title": "050_bell asset contract",
+        "path": "mea/knowledge/assets/050_bell.md",
+        "tags": [
+            "050_bell",
+            "bell",
+            "asset",
+            "functional_point",
+            "instance",
+            "contact_point",
+        ],
+        "source_files": [
+            "assets/objects/050_bell/model_data0.json",
+            "assets/objects/050_bell/model_data1.json",
+            "description/objects_description/050_bell/base0.json",
+            "description/objects_description/050_bell/base1.json",
+        ],
+    },
 )
+
+
+TASK_AGENT_README_DOCUMENTS = {
+    "beat_block_hammer": [
+        "task.beat_block_hammer",
+        "api.scene_creation",
+        "asset.020_hammer",
+    ],
+    "click_bell": [
+        "task.click_bell",
+        "api.scene_creation",
+        "asset.050_bell",
+    ],
+}
 
 
 def _sha256_bytes(value: bytes) -> str:
@@ -99,6 +157,17 @@ def _sha256_file(path: Path) -> str:
         for block in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def _canonical_sha256(value: Any) -> str:
+    payload = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    return _sha256_bytes(payload)
 
 
 def _node_source(source: str, node: ast.AST) -> str:
@@ -181,10 +250,44 @@ def build_knowledge_index_data(repo_root: str | Path) -> dict[str, Any]:
         if files:
             item["source_files"] = files
         documents.append(item)
+    document_map = {item["id"]: item for item in documents}
+    global_rules_path = root / "mea/taskgen/README.Agent.md"
+    if not global_rules_path.is_file():
+        raise KnowledgeIndexError(
+            "TaskGen README.Agent contract does not exist: mea/taskgen/README.Agent.md"
+        )
+    global_rules_sha256 = _sha256_file(global_rules_path)
+    agent_readmes = []
+    for task_name, document_ids in TASK_AGENT_README_DOCUMENTS.items():
+        missing = [item for item in document_ids if item not in document_map]
+        if missing:
+            raise KnowledgeIndexError(
+                f"README.Agent snapshot has unknown documents: {missing}"
+            )
+        source_fingerprint = [
+            {
+                "id": document_id,
+                "document_sha256": document_map[document_id]["document_sha256"],
+                "source_symbols": document_map[document_id].get("source_symbols", []),
+                "source_files": document_map[document_id].get("source_files", []),
+            }
+            for document_id in document_ids
+        ]
+        snapshot = {
+            "schema_version": 1,
+            "task_name": task_name,
+            "global_rules_path": "mea/taskgen/README.Agent.md",
+            "global_rules_sha256": global_rules_sha256,
+            "document_ids": list(document_ids),
+            "source_fingerprint_sha256": _canonical_sha256(source_fingerprint),
+        }
+        snapshot["snapshot_sha256"] = _canonical_sha256(snapshot)
+        agent_readmes.append(snapshot)
     return {
         "schema_version": 1,
-        "scope": "beat_block_hammer_vertical_slice",
+        "scope": "mea_supported_taskgen_families",
         "documents": documents,
+        "agent_readmes": agent_readmes,
     }
 
 

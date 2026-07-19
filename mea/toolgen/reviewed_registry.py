@@ -23,6 +23,7 @@ from .registry import (
     file_sha256,
     load_registry,
     telemetry_schema_compatibility,
+    semantic_tool_spec,
     tool_contract_sha256,
 )
 
@@ -595,7 +596,6 @@ def find_reviewed_registration(
     root = Path(registry_dir).expanduser().resolve()
     index = load_reviewed_registry(root)
     contract_hash = tool_contract_sha256(tool_spec)
-    tool_spec_hash = canonical_sha256(tool_spec)
     schema = telemetry_schema_compatibility(
         episode_dirs, required_signals=tool_spec.get("required_signals", [])
     )
@@ -608,7 +608,6 @@ def find_reviewed_registration(
             and item.get("status") == "approved"
             and item.get("task_name") == tool_spec.get("task_name")
             and item.get("target_metric") == tool_spec.get("metric")
-            and item.get("tool_spec_sha256") == tool_spec_hash
             and item.get("tool_contract_sha256") == contract_hash
             and item.get("telemetry_schema_sha256") == schema_hash
         ),
@@ -617,7 +616,7 @@ def find_reviewed_registration(
     )
     for entry in candidates:
         match = _load_reviewed_entry(root, entry)
-        if match["tool_spec"] == tool_spec:
+        if semantic_tool_spec(match["tool_spec"]) == semantic_tool_spec(tool_spec):
             return match
     return None
 

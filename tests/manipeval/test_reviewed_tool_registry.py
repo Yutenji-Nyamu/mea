@@ -241,11 +241,11 @@ print(json.dumps({
             "invalid_registry",
         )
 
-    def test_changed_contract_does_not_reuse_reviewed_entry(self):
+    def test_paraphrased_question_reuses_reviewed_executable_contract(self):
         self._install()
         request = pickup_to_contact_tool_request()
-        request["question"] = "A deliberately changed execution contract."
-        provider = FakeProvider(f"```python\n{self.source}```")
+        request["question"] = "The same executable metric, phrased differently."
+        provider = NeverCalledProvider()
         output = self.root / "eval_changed/execution/round_1/planned_tool"
         result = execute_tool_request(
             self.repo_root,
@@ -256,10 +256,11 @@ print(json.dumps({
             model="fake-toolgen",
             reviewed_registry_dir=self.reviewed_registry,
         )
-        self.assertEqual(provider.calls, 1)
-        self.assertEqual(result["route"], "force_codegen")
+        self.assertEqual(provider.calls, 0)
+        self.assertEqual(result["route"], "reviewed_persistent_reuse")
         self.assertEqual(
-            result["route_decision"]["reviewed_lookup"]["status"], "miss"
+            result["route_decision"]["matched_registry"],
+            "reviewed_tool_registry",
         )
 
 

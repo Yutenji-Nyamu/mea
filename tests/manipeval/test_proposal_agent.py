@@ -5,6 +5,7 @@ from pathlib import Path
 
 from mea.planner import BoundTaskPlanSession, build_act_catalog
 from mea.proposal_agent import BoundedProposalAgent
+from mea.capability_adapter import resolve_capability_contract
 
 
 class FakeProvider:
@@ -148,6 +149,54 @@ class ProposalAgentTests(unittest.TestCase):
                 result["tool_proposal"]["vqa_question_specs"][0]["id"],
                 "run_local.click_bell.midright_progress",
             )
+
+    def test_non_novel_axis_uses_registered_changes_and_receives_context(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = BoundTaskPlanSession.from_catalog(
+                _catalog(root), "beat_block_hammer", max_rounds=1
+            ).target
+            contract = resolve_capability_contract(
+                "beat_block_hammer", "object_appearance.color_blue"
+            )
+            value = {
+                "schema_version": 1,
+                "task_proposal": {
+                    "schema_version": 1,
+                    "proposal_id": "object_appearance.color_blue.reuse",
+                    "task_name": "beat_block_hammer",
+                    "aspect_id": "object_appearance.color",
+                    "intent": "reuse the registered blue appearance variant",
+                    "capability_id": contract["taskgen"]["capability_id"],
+                    "reuse_first": True,
+                    "changes": contract["taskgen"]["changes"],
+                    "preserve_success_semantics": True,
+                },
+                "tool_proposal": {
+                    "schema_version": 1,
+                    "proposal_id": "object_appearance.color_blue.reuse.tool",
+                    "task_name": "beat_block_hammer",
+                    "aspect_id": "object_appearance.color",
+                    "evaluation_goal": "check task outcome under the blue variant",
+                    "metric": contract["tool"]["metric"],
+                    "question": "Did strict hammer-block contact occur?",
+                    "vqa_phenomenon_ids": contract["vqa"]["phenomenon_ids"],
+                    "reuse_first": True,
+                },
+            }
+            provider = FakeProvider(value)
+            result = BoundedProposalAgent(provider, model="fake-model").propose(
+                "Does appearance affect this ACT checkpoint?",
+                target=target,
+                aspect_id="object_appearance.color",
+                base_template_id="object_appearance.color_blue",
+                capability_mode="registered_reuse",
+                planning_context={"schema_version": 1, "source": "unit_test"},
+            )
+            self.assertEqual(
+                result["task_proposal"]["changes"], contract["taskgen"]["changes"]
+            )
+            self.assertIn("TRUSTED POLICY/SIMULATOR/ADAPTER CONTEXT", provider.calls[0][0])
 
 
 if __name__ == "__main__":

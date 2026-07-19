@@ -1,8 +1,12 @@
 import unittest
+from copy import deepcopy
 
 from mea.planner.evidence_policy import (
+    EvidencePacketError,
     assess_conditional_transition,
     assess_evidence,
+    build_evidence_packet,
+    validate_evidence_packet,
 )
 
 
@@ -91,6 +95,113 @@ def current_plan(rounds, requested=None, max_rounds=3):
 
 
 class AdaptiveEvidencePolicyTests(unittest.TestCase):
+    def test_typed_evidence_packet_distinguishes_four_strengths(self):
+        planned = round_plan()
+        plan = current_plan([planned])
+        cases = (
+            (observation(planned), "sufficient"),
+            (observation(planned, valid=1, missing=2), "uncertain"),
+            (observation(planned, conflict=True), "conflicting"),
+            (
+                observation(planned, pipeline_passed=False),
+                "pipeline_invalid",
+            ),
+        )
+        for observed, expected in cases:
+            with self.subTest(expected=expected):
+                packet = build_evidence_packet(plan, [observed])
+                self.assertEqual(packet["evidence_strength"], expected)
+                self.assertEqual(packet["round_id"], "round_1")
+                self.assertIn("rule", packet)
+                self.assertIn("vqa", packet)
+
+    def test_typed_evidence_packet_rejects_tampering(self):
+        planned = round_plan()
+        packet = build_evidence_packet(
+            current_plan([planned]), [observation(planned)]
+        )
+        changed = deepcopy(packet)
+        changed["evidence_strength"] = "conflicting"
+        with self.assertRaises(EvidencePacketError):
+            validate_evidence_packet(changed)
+
+    def test_requested_execution_vqa_must_pass_before_evidence_is_sufficient(self):
+        planned = round_plan()
+        planned["observations"] = ["aggregate", "execution_vqa"]
+        plan = current_plan([planned])
+        for status, expected_reason in (
+            (None, "execution_vqa_missing"),
+            ("failed", "execution_vqa_failed"),
+            ("skipped", "execution_vqa_skipped"),
+        ):
+            observed = observation(planned)
+            vqa = observed["observations"]["execution_vqa"]
+            if status is not None:
+                vqa["status"] = status
+            with self.subTest(status=status):
+                packet = build_evidence_packet(plan, [observed])
+                self.assertEqual(packet["evidence_strength"], "uncertain")
+                self.assertTrue(packet["vqa"]["required"])
+                self.assertEqual(packet["reason_codes"], [expected_reason])
+
+        passed = observation(planned)
+        passed["observations"]["execution_vqa"]["status"] = "passed"
+        self.assertEqual(
+            build_evidence_packet(plan, [passed])["evidence_strength"],
+            "sufficient",
+        )
+
+        pipeline_failed = observation(planned, pipeline_passed=False)
+        self.assertEqual(
+            build_evidence_packet(plan, [pipeline_failed])["evidence_strength"],
+            "pipeline_invalid",
+        )
+        conflicting = observation(planned, conflict=True)
+        self.assertEqual(
+            build_evidence_packet(plan, [conflicting])["evidence_strength"],
+            "conflicting",
+        )
+
+    def test_unrequested_legacy_round_does_not_require_execution_vqa(self):
+        planned = round_plan()
+        packet = build_evidence_packet(
+            current_plan([planned]), [observation(planned)]
+        )
+        self.assertFalse(packet["vqa"]["required"])
+        self.assertEqual(packet["vqa"]["status"], "missing")
+        self.assertEqual(packet["evidence_strength"], "sufficient")
+
+    def test_pipeline_and_vqa_raw_booleans_reject_string_false(self):
+        planned = round_plan()
+        plan = current_plan([planned])
+        bad_pipeline = observation(planned)
+        bad_pipeline["pipeline_passed"] = "false"
+        with self.assertRaisesRegex(EvidencePacketError, "pipeline_passed"):
+            build_evidence_packet(plan, [bad_pipeline])
+
+        bad_vqa = observation(planned)
+        bad_vqa["observations"]["execution_vqa"]["evidence_conflict"] = "false"
+        with self.assertRaisesRegex(EvidencePacketError, "evidence_conflict"):
+            build_evidence_packet(plan, [bad_vqa])
+
+    def test_rule_counts_reject_boolean_values_before_packet_projection(self):
+        planned = round_plan()
+        plan = current_plan([planned])
+        bad_count = observation(planned)
+        quality = bad_count["observations"]["aggregate"]["metrics"][0][
+            "cohorts"
+        ][0]["summary"]["quality"]
+        quality["valid"] = True
+        with self.assertRaisesRegex(EvidencePacketError, "Rule count"):
+            build_evidence_packet(plan, [bad_count])
+
+        bad_expected = deepcopy(planned)
+        bad_expected["execution"]["num_episodes"] = True
+        with self.assertRaisesRegex(EvidencePacketError, "num_episodes"):
+            build_evidence_packet(
+                current_plan([bad_expected]), [observation(bad_expected)]
+            )
+
     def test_clear_negative_boolean_evidence_is_sufficient(self):
         planned = round_plan()
         result = assess_evidence(
@@ -224,6 +335,7 @@ class ConditionalTransitionTests(unittest.TestCase):
     CATALOG = {
         "position": {"template_ids": ["position.left", "position.right"]},
         "instance": {"template_ids": ["instance.base0", "instance.base1"]},
+        "appearance": {"template_ids": ["appearance.blue", "appearance.red"]},
     }
 
     @staticmethod
@@ -275,6 +387,10 @@ class ConditionalTransitionTests(unittest.TestCase):
         )
         self.assertEqual(result["required_transition"], "switch_aspect")
         self.assertEqual(result["required_next_aspect_id"], "instance")
+        self.assertEqual(
+            result["available_transitions"]["switch_aspect"],
+            ["instance", "appearance"],
+        )
 
     def test_pipeline_failure_stops_before_navigation(self):
         first = self.adaptive_round("position.left", "position")

@@ -200,6 +200,7 @@ _ADAPTIVE_DECISION_KEYS = {
     "observation_summary",
     "decision_reason",
     "next_aspect_id",
+    "next_template_id",
 }
 
 
@@ -667,6 +668,10 @@ class ClickBellAdaptivePlanAgent:
         observation_history: list[dict[str, Any]],
         user_request: str,
     ) -> dict[str, Any]:
+        # Import lazily: session -> catalog -> click_bell is an intentional
+        # adapter dependency, so a module-level import would form a cycle.
+        from .session import PlanSessionError, validate_adaptive_choice
+
         if not isinstance(value, dict):
             raise PlanAgentError("ClickBellNextRoundDecision must be an object")
         self._require_exact_keys(
@@ -675,49 +680,36 @@ class ClickBellAdaptivePlanAgent:
         if value.get("schema_version") != 1:
             raise PlanAgentError("decision.schema_version must be 1")
         assessment = self._assess_evidence(current_plan, observation_history)
-        action = value.get("action")
-        if action != assessment["required_action"]:
-            raise PlanAgentError(
-                f"action {action!r} conflicts with required evidence action "
-                f"{assessment['required_action']!r}"
-            )
         summary = self._require_text(
             value.get("observation_summary"), "observation_summary"
         )
         reason = self._require_text(value.get("decision_reason"), "decision_reason")
-        transition = value.get("transition")
-        next_aspect = value.get("next_aspect_id")
-        if transition != assessment["required_transition"]:
+        action = value.get("action")
+        supplied_template = value.get("next_template_id")
+        if action == "continue" and (
+            not isinstance(supplied_template, str) or not supplied_template.strip()
+        ):
             raise PlanAgentError(
-                f"transition {transition!r} conflicts with required evidence "
-                f"transition {assessment['required_transition']!r}"
+                "continue requires an explicit non-empty next_template_id"
             )
-        if next_aspect != assessment["required_next_aspect_id"]:
-            raise PlanAgentError(
-                f"next_aspect_id {next_aspect!r} conflicts with required evidence "
-                f"aspect {assessment['required_next_aspect_id']!r}"
+        try:
+            adaptive_choice = validate_adaptive_choice(
+                assessment,
+                {
+                    "action": action,
+                    "transition": value.get("transition"),
+                    "next_aspect_id": value.get("next_aspect_id"),
+                    "next_template_id": supplied_template,
+                },
             )
+        except PlanSessionError as exc:
+            raise PlanAgentError(f"invalid adaptive choice: {exc}") from exc
+        transition = adaptive_choice["transition"]
+        next_aspect = adaptive_choice["next_aspect_id"]
+        next_template = adaptive_choice["next_template_id"]
         if action == "stop":
-            if transition != "stop" or next_aspect is not None:
-                raise PlanAgentError(
-                    "stop requires transition=stop and next_aspect_id=null"
-                )
-            next_template = None
             next_round = None
         else:
-            if transition not in {"drill_down", "switch_aspect"}:
-                raise PlanAgentError(
-                    "continue transition must be drill_down or switch_aspect"
-                )
-            allowed_aspects = assessment["available_transitions"][transition]
-            if next_aspect not in allowed_aspects:
-                raise PlanAgentError(
-                    f"next_aspect_id is not available for {transition}: "
-                    f"{allowed_aspects}"
-                )
-            next_template = assessment["remaining_template_ids_by_aspect"][next_aspect][
-                0
-            ]
             next_round = self._materialize_round(
                 next_template,
                 len(current_plan["rounds"]) + 1,
@@ -805,30 +797,21 @@ JSON with exactly this shape:
         current_plan: dict[str, Any],
         observation_history: list[dict[str, Any]],
     ) -> str:
+        from .session import validate_adaptive_choice
+
         assessment = self._assess_evidence(current_plan, observation_history)
-        can_continue = "continue" in assessment["allowed_actions"]
-        if can_continue and assessment["available_transitions"]["drill_down"]:
-            transition = "drill_down"
-            next_aspect = assessment["available_transitions"][transition][0]
-            action = "continue"
-        elif can_continue:
-            transition = "switch_aspect"
-            next_aspect = assessment["available_transitions"][transition][0]
-            action = "continue"
-        else:
-            transition = "stop"
-            next_aspect = None
-            action = "stop"
+        fallback = validate_adaptive_choice(assessment)
         example = {
             "schema_version": 1,
-            "action": action,
-            "transition": transition,
+            "action": fallback["action"],
+            "transition": fallback["transition"],
             "observation_summary": (
                 "Summarize policy, aggregate, and VQA evidence without "
                 "confusing policy failure with pipeline failure."
             ),
             "decision_reason": "Explain why evidence supports this direction.",
-            "next_aspect_id": next_aspect,
+            "next_aspect_id": fallback["next_aspect_id"],
+            "next_template_id": fallback["next_template_id"],
         }
         return f"""You are the bounded adaptive MEA Plan Agent for click_bell.
 Read the complete evidence from all completed rounds and explain the trusted
@@ -836,9 +819,14 @@ evidence policy's required drill-down, aspect switch, or stop transition.
 Policy failure is valid evaluation evidence; pipeline failure is not policy
 failure.  Use drill_down when a same-aspect counterfactual would clarify a
 boundary, switch_aspect when the current aspect is sufficiently characterized,
-and stop only when continuation is unsafe or no trusted target remains.  You
-must copy required_action, required_transition, and required_next_aspect_id
-from the trusted assessment into the corresponding output fields.
+and stop only when continuation is unsafe or no trusted target remains.
+Copy required_action because evidence owns whether execution may continue.
+For a continue action, choose a transition with a non-empty list in
+available_transitions, then choose any listed next_aspect_id and any of that
+aspect's remaining_template_ids_by_aspect as next_template_id.  The
+required_transition and required_next_aspect_id fields are deterministic
+fallbacks, not mandatory first-item choices.  For stop, transition must be
+stop and both next_aspect_id and next_template_id must be null.
 
 USER QUERY:
 {user_request}
@@ -852,8 +840,9 @@ REAL OBSERVATION HISTORY:
 TRUSTED EVIDENCE ASSESSMENT AND AVAILABLE TRANSITIONS:
 {json.dumps(assessment, ensure_ascii=False, indent=2)}
 
-The runtime validates the action/transition/aspect and injects the exact next
-variant.  Return strict JSON with exactly this shape:
+The runtime validates the entire action/transition/aspect/template selection
+and materializes exactly the selected trusted template.  Return strict JSON
+with exactly this shape:
 {json.dumps(example, ensure_ascii=False, indent=2)}
 """
 

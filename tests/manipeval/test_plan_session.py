@@ -92,7 +92,10 @@ def _observation(*, success: float) -> dict:
                 ],
             },
             "planned_tool": {"episodes": []},
-            "execution_vqa": {"evidence_conflict": False},
+            "execution_vqa": {
+                "status": "passed",
+                "evidence_conflict": False,
+            },
         },
     }
 
@@ -234,6 +237,78 @@ class PlanSessionTests(unittest.TestCase):
         self.assertEqual(canonical["next_aspect_id"], "object_instance")
         self.assertEqual(canonical["next_template_id"], "object_instance.base0")
         self.assertEqual(updated["planning_state"], "awaiting_round_2_observation")
+
+    def test_adjudicate_accepts_a_non_first_allowed_template(self):
+        observation = _observation(success=1.0)
+        next_round = _round("object_instance.base1", "round_2")
+        decision = {
+            "schema_version": 1,
+            "action": "continue",
+            "transition": "switch_aspect",
+            "observation_summary": "choose another bounded instance",
+            "decision_reason": "model selected a legal candidate",
+            "next_aspect_id": "object_instance",
+            "next_template_id": "object_instance.base1",
+            "next_round": next_round,
+        }
+        candidate = deepcopy(self.plan)
+        candidate["rounds"].append(deepcopy(next_round))
+        candidate["round_decisions"] = [deepcopy(decision)]
+        candidate["planning_state"] = "awaiting_round_2_observation"
+
+        updated, canonical = self.session.adjudicate(
+            self.plan,
+            [observation],
+            candidate_plan=candidate,
+            candidate_decision=decision,
+        )
+        self.assertEqual(canonical["next_template_id"], "object_instance.base1")
+        self.assertEqual(updated["rounds"][-1]["template_id"], "object_instance.base1")
+
+    def test_adjudicate_accepts_any_allowed_unseen_aspect(self):
+        plan = deepcopy(self.plan)
+        plan["requested_aspect_ids"].append("robustness.scene_clutter")
+        plan["requested_template_ids"].append(
+            "robustness.scene_clutter.official_table"
+        )
+        observation = _observation(success=1.0)
+        assessment = self.session.assess(plan, [observation])
+        self.assertEqual(
+            assessment["available_transitions"]["switch_aspect"],
+            ["object_instance", "robustness.scene_clutter"],
+        )
+        next_round = _round("robustness.scene_clutter.official_table", "round_2")
+        decision = {
+            "schema_version": 1,
+            "action": "continue",
+            "transition": "switch_aspect",
+            "observation_summary": "select an alternative uncovered aspect",
+            "decision_reason": "both aspects are evidence-compatible",
+            "next_aspect_id": "robustness.scene_clutter",
+            "next_template_id": "robustness.scene_clutter.official_table",
+            "next_round": next_round,
+        }
+        candidate = deepcopy(plan)
+        candidate["rounds"].append(deepcopy(next_round))
+        candidate["round_decisions"] = [deepcopy(decision)]
+        candidate["planning_state"] = "awaiting_round_2_observation"
+        _, canonical = self.session.adjudicate(
+            plan,
+            [observation],
+            candidate_plan=candidate,
+            candidate_decision=decision,
+        )
+        self.assertEqual(canonical["next_aspect_id"], "robustness.scene_clutter")
+
+        rejected = deepcopy(decision)
+        rejected["next_aspect_id"] = "scene_lighting"
+        rejected["next_template_id"] = "scene_lighting.static_random"
+        with self.assertRaisesRegex(PlanSessionError, "outside allowed"):
+            self.session.directive(
+                plan,
+                [observation],
+                candidate_decision=rejected,
+            )
 
     def test_adjudicate_stops_at_bound_budget(self):
         session = BoundTaskPlanSession.from_catalog(

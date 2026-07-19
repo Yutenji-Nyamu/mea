@@ -18,6 +18,16 @@ from .reflection import (
     validate_click_bell_vision_observation,
     validate_vision_observation,
 )
+from .scene_checks import (
+    SceneCheckSpecError,
+    build_scene_check_spec,
+    validate_scene_check_spec,
+)
+from .artifacts import (
+    TaskArtifactBundleError,
+    validate_task_artifact_bundle,
+    write_task_artifact_bundle,
+)
 from .official import (
     OfficialTaskRunError,
     create_official_task_run,
@@ -58,6 +68,12 @@ __all__ = [
     "repair_generated_method",
     "validate_click_bell_vision_observation",
     "validate_vision_observation",
+    "SceneCheckSpecError",
+    "build_scene_check_spec",
+    "validate_scene_check_spec",
+    "TaskArtifactBundleError",
+    "validate_task_artifact_bundle",
+    "write_task_artifact_bundle",
     "OfficialTaskRunError",
     "create_official_task_run",
     "ClickBellTaskGenError",

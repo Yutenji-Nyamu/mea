@@ -40,7 +40,21 @@ def _target_aspect(target: Mapping[str, Any], aspect_id: str) -> dict[str, Any]:
     )
 
 
-def _proposal_card(target: Mapping[str, Any], aspect_id: str) -> dict[str, Any]:
+def proposal_capability_mode(task_name: str, aspect_id: str) -> str:
+    """Return the honest proposal mode for one currently supported axis."""
+
+    if task_name == "click_bell" and aspect_id == "object_position":
+        return "novel_bounded"
+    return "registered_reuse"
+
+
+def _proposal_card(
+    target: Mapping[str, Any],
+    aspect_id: str,
+    *,
+    base_template_id: str | None = None,
+    capability_mode: str | None = None,
+) -> dict[str, Any]:
     task_name = str(target.get("task_name") or "")
     aspect = _target_aspect(target, aspect_id)
     contracts = [
@@ -50,8 +64,25 @@ def _proposal_card(target: Mapping[str, Any], aspect_id: str) -> dict[str, Any]:
     ]
     if not contracts:
         raise ProposalAgentError("bound aspect has no materializable TaskGen contract")
-    first = contracts[0]
-    if task_name == "click_bell" and aspect_id == "object_position":
+    first = next(
+        (
+            item
+            for item in contracts
+            if base_template_id is not None
+            and item["template_id"] == base_template_id
+        ),
+        contracts[0],
+    )
+    mode = capability_mode or proposal_capability_mode(task_name, aspect_id)
+    if mode not in {"novel_bounded", "registered_reuse"}:
+        raise ProposalAgentError(f"unsupported proposal capability mode: {mode!r}")
+    if mode == "novel_bounded" and not (
+        task_name == "click_bell" and aspect_id == "object_position"
+    ):
+        raise ProposalAgentError(
+            "novel bounded changes are not implemented for this task/aspect"
+        )
+    if mode == "novel_bounded":
         change_contract = {
             "bell": {
                 "position_mode": "fixed",
@@ -66,8 +97,9 @@ def _proposal_card(target: Mapping[str, Any], aspect_id: str) -> dict[str, Any]:
         }
     else:
         change_contract = {
+            "mode": "registered_reuse_only",
             "allowed_change_roots": first["taskgen"]["allowed_change_roots"],
-            "example_registered_changes": first["taskgen"]["changes"],
+            "required_changes": first["taskgen"]["changes"],
         }
         example_changes = deepcopy(first["taskgen"]["changes"])
     vqa_candidates: list[str] = []
@@ -92,6 +124,8 @@ def _proposal_card(target: Mapping[str, Any], aspect_id: str) -> dict[str, Any]:
     return {
         "task_name": task_name,
         "aspect": aspect,
+        "proposal_capability_mode": mode,
+        "base_template_id": first["template_id"],
         "taskgen": {
             "capability_id": first["taskgen"]["capability_id"],
             "reuse_first": True,
@@ -144,24 +178,47 @@ def build_proposal_prompt(
     user_query: str,
     target: Mapping[str, Any],
     aspect_id: str,
+    *,
+    base_template_id: str | None = None,
+    capability_mode: str | None = None,
+    planning_context: Mapping[str, Any] | None = None,
 ) -> str:
     query = str(user_query).strip()
     if not query:
         raise ProposalAgentError("user_query must be non-empty")
-    card = _proposal_card(target, aspect_id)
+    card = _proposal_card(
+        target,
+        aspect_id,
+        base_template_id=base_template_id,
+        capability_mode=capability_mode,
+    )
+    context_text = (
+        json.dumps(planning_context, ensure_ascii=False, indent=2)
+        if planning_context is not None
+        else "not supplied; use only the bound target and capability card"
+    )
+    variation_instruction = (
+        "Propose one new bounded task variation that is not exactly equal to a "
+        "registered change."
+        if card["proposal_capability_mode"] == "novel_bounded"
+        else "Reuse exactly the registered task changes; only author the intent and "
+        "smallest useful Tool/VQA assignment."
+    )
     return f"""You are the bounded TaskGen/ToolGen Proposal Agent for MEA.
 The policy evaluation is already bound to one task and checkpoint.  Do not
 change task, policy, checkpoint, aspect, success semantics, or executable
-fields.  Propose one new bounded task variation that is not exactly equal to a
-registered change, then assign one Rule metric and the smallest useful subset
-of the listed VQA phenomena.  TaskGen and ToolGen will independently retrieve
-or generate implementations after validating this semantic proposal.
+fields.  {variation_instruction} Then assign one Rule metric and the smallest
+useful subset of the listed VQA phenomena.  TaskGen and ToolGen independently
+retrieve or generate implementations after validating this semantic proposal.
 
 USER QUERY:
 {query}
 
 BOUND EVALUATION TARGET:
 {json.dumps(target, ensure_ascii=False, indent=2)}
+
+TRUSTED POLICY/SIMULATOR/ADAPTER CONTEXT:
+{context_text}
 
 PROPOSAL CAPABILITY CARD:
 {json.dumps(card, ensure_ascii=False, indent=2)}
@@ -177,6 +234,8 @@ def validate_proposal_bundle(
     target: Mapping[str, Any],
     aspect_id: str,
     require_novel_changes: bool = True,
+    base_template_id: str | None = None,
+    capability_mode: str | None = None,
 ) -> dict[str, Any]:
     if not isinstance(value, Mapping) or set(value) != _BUNDLE_KEYS:
         raise ProposalError(
@@ -196,7 +255,12 @@ def validate_proposal_bundle(
         expected_task_name=task_name,
         expected_aspect_id=aspect_id,
     )
-    card = _proposal_card(target, aspect_id)
+    card = _proposal_card(
+        target,
+        aspect_id,
+        base_template_id=base_template_id,
+        capability_mode=capability_mode,
+    )
     if task["capability_id"] != card["taskgen"]["capability_id"]:
         raise ProposalError("TaskProposal changed the selected capability")
     if tool["metric"] not in card["toolgen"]["metric_candidates"]:
@@ -215,6 +279,13 @@ def validate_proposal_bundle(
     registered_changes = card["taskgen"]["registered_changes_to_avoid"]
     if require_novel_changes and task["changes"] in registered_changes:
         raise ProposalError("TaskProposal repeated an exact registered template")
+    if (
+        card["proposal_capability_mode"] == "registered_reuse"
+        and task["changes"] != card["taskgen"]["change_contract"]["required_changes"]
+    ):
+        raise ProposalError(
+            "this task/aspect currently supports registered changes only"
+        )
     if task_name == "click_bell" and aspect_id == "object_position":
         try:
             task["changes"] = validate_click_bell_variant_hint(task["changes"])
@@ -255,8 +326,23 @@ class BoundedProposalAgent:
         target: Mapping[str, Any],
         aspect_id: str,
         require_novel_changes: bool = True,
+        base_template_id: str | None = None,
+        capability_mode: str | None = None,
+        planning_context: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
-        prompt = build_proposal_prompt(user_query, target, aspect_id)
+        mode = capability_mode or proposal_capability_mode(
+            str(target.get("task_name") or ""), aspect_id
+        )
+        if mode == "registered_reuse":
+            require_novel_changes = False
+        prompt = build_proposal_prompt(
+            user_query,
+            target,
+            aspect_id,
+            base_template_id=base_template_id,
+            capability_mode=mode,
+            planning_context=planning_context,
+        )
         self.last_prompt = prompt
         self.last_responses = []
         self.last_errors = []
@@ -282,6 +368,8 @@ class BoundedProposalAgent:
                     target=target,
                     aspect_id=aspect_id,
                     require_novel_changes=require_novel_changes,
+                    base_template_id=base_template_id,
+                    capability_mode=mode,
                 )
             except Exception as exc:
                 self.last_errors.append(f"{type(exc).__name__}: {exc}")
@@ -293,4 +381,5 @@ __all__ = [
     "ProposalAgentError",
     "build_proposal_prompt",
     "validate_proposal_bundle",
+    "proposal_capability_mode",
 ]

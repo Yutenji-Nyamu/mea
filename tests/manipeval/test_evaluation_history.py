@@ -29,6 +29,7 @@ def make_evaluation(
     task_name: str = "beat_block_hammer",
     policy_name: str = "ACT",
     templates=None,
+    requested_aspects=None,
     lifecycle_status: str = "completed",
 ) -> Path:
     templates = templates or ["object_appearance.color_blue"]
@@ -69,6 +70,8 @@ def make_evaluation(
         "round_decisions": [],
         "planning_state": f"stopped_after_round_{len(templates)}",
     }
+    if requested_aspects is not None:
+        plan["requested_aspect_ids"] = requested_aspects
     evidence = {
         "schema_version": 2,
         "evaluation_id": evaluation_id,
@@ -77,7 +80,9 @@ def make_evaluation(
             "executed_rounds": len(templates),
             "completed_template_ids": templates,
         },
-        "rounds": [{"round_id": f"round_{index}"} for index in range(1, len(templates) + 1)],
+        "rounds": [
+            {"round_id": f"round_{index}"} for index in range(1, len(templates) + 1)
+        ],
         "observations": {
             "pipeline_passed": True,
             "execution_vqa_conflict": False,
@@ -124,9 +129,7 @@ class EvaluationHistoryTests(unittest.TestCase):
     def test_only_completed_lifecycle_is_indexed_and_upsert_is_idempotent(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            complete = make_evaluation(
-                root, "eval_complete", request="蓝色方块评估"
-            )
+            complete = make_evaluation(root, "eval_complete", request="蓝色方块评估")
             incomplete = make_evaluation(
                 root,
                 "eval_running",
@@ -168,16 +171,10 @@ class EvaluationHistoryTests(unittest.TestCase):
             indexed = database.index_evaluation_dir(legacy)
             self.assertEqual(indexed["action"], "inserted")
             record = json.loads(
-                (legacy / "summary/history_record.json").read_text(
-                    encoding="utf-8"
-                )
+                (legacy / "summary/history_record.json").read_text(encoding="utf-8")
             )
-            self.assertTrue(
-                record["compatibility"]["legacy_completion_inferred"]
-            )
-            self.assertTrue(
-                record["compatibility"]["legacy_template_ids_inferred"]
-            )
+            self.assertTrue(record["compatibility"]["legacy_completion_inferred"])
+            self.assertTrue(record["compatibility"]["legacy_template_ids_inferred"])
             self.assertEqual(
                 record["planning"]["requested_template_ids"],
                 ["object_appearance.color_blue"],
@@ -257,6 +254,62 @@ class EvaluationHistoryTests(unittest.TestCase):
             )
             self.assertEqual(cross_policy["policy"]["name"], "DiffusionPolicy")
             self.assertFalse(cross_policy["compatibility"]["same_policy"])
+
+    def test_canonical_aspect_overlap_can_outweigh_a_lexical_near_miss(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            lexical_only = make_evaluation(
+                root,
+                "eval_exact_words_wrong_axis",
+                request="evaluate object generalization",
+                templates=["object_instance.base0"],
+                requested_aspects=["object.instance"],
+            )
+            semantic_match = make_evaluation(
+                root,
+                "eval_position_axis",
+                request="evaluate position generalization",
+                templates=["object_position.left_fixed"],
+                requested_aspects=["object.position"],
+            )
+            database = EvaluationHistoryDB(
+                root / "mea/evaluation_runs/history.sqlite3",
+                repo_root=root,
+            )
+            database.index_evaluation_dir(lexical_only)
+            database.index_evaluation_dir(semantic_match)
+
+            lexical = database.retrieve_similar(
+                "evaluate object generalization",
+                task_name="beat_block_hammer",
+                limit=2,
+            )
+            self.assertEqual(
+                lexical["candidates"][0]["evaluation_id"],
+                "eval_exact_words_wrong_axis",
+            )
+            semantic = database.retrieve_similar(
+                "evaluate object generalization",
+                task_name="beat_block_hammer",
+                requested_aspect_ids=["object.position"],
+                limit=2,
+            )
+            self.assertEqual(
+                semantic["candidates"][0]["evaluation_id"],
+                "eval_position_axis",
+            )
+            self.assertEqual(semantic["candidates"][0]["aspect_similarity"], 1.0)
+            self.assertEqual(semantic["candidates"][1]["aspect_similarity"], 0.0)
+            self.assertEqual(semantic["requested_aspect_ids"], ["object_position"])
+            record = json.loads(
+                (semantic_match / "summary/history_record.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(
+                record["planning"]["requested_aspect_ids"],
+                ["object_position"],
+            )
 
     def test_global_retrieval_uses_only_trusted_task_allowlist(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -347,9 +400,7 @@ class EvaluationHistoryTests(unittest.TestCase):
             # The compact record is the durable rebuild source. Raw planning
             # artifacts may be archived or removed after completion.
             (evaluation / "plan/evaluation_plan.json").unlink()
-            rebuilt = database.rebuild(
-                root / "mea/evaluation_runs", reset=True
-            )
+            rebuilt = database.rebuild(root / "mea/evaluation_runs", reset=True)
 
             self.assertEqual(rebuilt["counts"]["inserted"], 1)
             self.assertEqual(rebuilt["database_record_count"], 1)
@@ -357,9 +408,7 @@ class EvaluationHistoryTests(unittest.TestCase):
                 rebuilt["indexed"][0]["source"],
                 "canonical_history_record",
             )
-            retrieved = database.retrieve_similar(
-                "蓝色方块", task_name="beat_block_hammer"
-            )
+            retrieved = database.retrieve_similar("蓝色方块", task_name="beat_block_hammer")
             self.assertEqual(
                 retrieved["candidates"][0]["evaluation_id"],
                 "eval_canonical",
@@ -378,17 +427,13 @@ class EvaluationHistoryTests(unittest.TestCase):
 
             evidence["evaluation_id"] = "eval_other"
             write_json(evidence_path, evidence)
-            with self.assertRaisesRegex(
-                HistoryRecordError, "evidence.evaluation_id"
-            ):
+            with self.assertRaisesRegex(HistoryRecordError, "evidence.evaluation_id"):
                 build_history_record(root, evaluation)
 
             evidence["evaluation_id"] = "eval_consistent"
             evidence["plan"]["executed_rounds"] = 0
             write_json(evidence_path, evidence)
-            with self.assertRaisesRegex(
-                HistoryRecordError, "executed_rounds"
-            ):
+            with self.assertRaisesRegex(HistoryRecordError, "executed_rounds"):
                 build_history_record(root, evaluation)
 
             evidence["plan"]["executed_rounds"] = 1
@@ -409,9 +454,7 @@ class EvaluationHistoryTests(unittest.TestCase):
                     "UPDATE evaluations SET record_json = ? WHERE evaluation_id = ?",
                     ("{bad json", "eval_valid"),
                 )
-            result = database.retrieve_similar(
-                "蓝色方块", task_name="beat_block_hammer"
-            )
+            result = database.retrieve_similar("蓝色方块", task_name="beat_block_hammer")
             self.assertEqual(result["selected_count"], 0)
             self.assertEqual(result["issues"][0]["evaluation_id"], "eval_valid")
 

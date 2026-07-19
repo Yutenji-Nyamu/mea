@@ -49,9 +49,27 @@ def make_repo(root: Path) -> None:
 class AdaptiveProvider:
     last_metadata = {"model": "fake-click-bell-planner"}
 
-    def __init__(self, *, transition: str, next_aspect_id: str | None):
+    def __init__(
+        self,
+        *,
+        transition: str,
+        next_aspect_id: str | None,
+        next_template_id: str | None = None,
+    ):
         self.transition = transition
         self.next_aspect_id = next_aspect_id
+        default_templates = {
+            "object_position": "object_position.right_fixed",
+            "object_instance": "object_instance.base0",
+            "robustness.scene_clutter": (
+                "robustness.scene_clutter.official_table"
+            ),
+        }
+        self.next_template_id = (
+            default_templates.get(next_aspect_id)
+            if next_template_id is None and transition != "stop"
+            else next_template_id
+        )
         self.prompts = []
 
     def text(self, prompt, **kwargs):
@@ -78,6 +96,7 @@ class AdaptiveProvider:
                 "observation_summary": "read real policy, aggregate, and VQA evidence",
                 "decision_reason": "bounded evidence-conditioned choice",
                 "next_aspect_id": self.next_aspect_id,
+                "next_template_id": self.next_template_id,
             }
         )
 
@@ -136,7 +155,10 @@ def adaptive_observation(
                     }
                 ],
             },
-            "execution_vqa": {"evidence_conflict": evidence_conflict},
+            "execution_vqa": {
+                "status": "passed",
+                "evidence_conflict": evidence_conflict,
+            },
         },
     }
 
@@ -293,6 +315,17 @@ class ClickBellGeneratedTests(unittest.TestCase):
             self.assertFalse(
                 manifest["static_validation"]["code_generation"]["performed"]
             )
+            bundle = json.loads(
+                (
+                    root
+                    / "mea/generated_tasks/run_click_bell_position_test/generation/task_artifact_bundle.json"
+                ).read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                bundle["scene_method"]["origin"], "bounded_overlay_wrapper"
+            )
+            self.assertEqual(bundle["success_method"]["origin"], "official_reuse")
+            self.assertEqual(bundle["scene_check_spec"]["repair_mode"], "validate_only")
 
     def test_instance_run_records_controlled_axis(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -583,6 +616,148 @@ class ClickBellGeneratedTests(unittest.TestCase):
                 self.assertIn('"aggregate"', decision_prompt)
                 self.assertIn('"execution_vqa"', decision_prompt)
 
+    def test_live_adaptive_decision_accepts_any_bounded_aspect_and_template(self):
+        planner = object.__new__(ClickBellAdaptivePlanAgent)
+        planner._materialize_round = lambda template_id, round_number, request: {
+            "round_id": f"round_{round_number}",
+            "template_id": template_id,
+            "task_name": "click_bell",
+        }
+        plan = {
+            "schema_version": 6,
+            "task_name": "click_bell",
+            "requested_aspect_ids": [
+                "object_position",
+                "object_instance",
+                "robustness.scene_clutter",
+            ],
+            "rounds": [
+                {
+                    "round_id": "round_1",
+                    "template_id": "object_position.left_fixed",
+                    "aspect_id": "object_position",
+                    "execution": {"num_episodes": 1},
+                    "tool_request": {
+                        "metric": "bell_active_tcp_min_xy_error"
+                    },
+                }
+            ],
+            "max_rounds": 3,
+        }
+        observation = adaptive_observation(policy_success=1.0)
+        choices = (
+            ("object_instance", "object_instance.base1"),
+            (
+                "robustness.scene_clutter",
+                "robustness.scene_clutter.official_table",
+            ),
+        )
+        for next_aspect, next_template in choices:
+            with self.subTest(next_aspect=next_aspect, next_template=next_template):
+                decision = planner._validate_decision(
+                    {
+                        "schema_version": 1,
+                        "action": "continue",
+                        "transition": "switch_aspect",
+                        "observation_summary": "position evidence is sufficient",
+                        "decision_reason": "select another legal bounded target",
+                        "next_aspect_id": next_aspect,
+                        "next_template_id": next_template,
+                    },
+                    current_plan=plan,
+                    observation_history=[observation],
+                    user_request="evaluate bell generalization",
+                )
+                self.assertEqual(decision["next_aspect_id"], next_aspect)
+                self.assertEqual(decision["next_template_id"], next_template)
+                self.assertEqual(decision["next_round"]["template_id"], next_template)
+
+        prompt = planner._decision_prompt(
+            "evaluate bell generalization", plan, [observation]
+        )
+        self.assertIn("choose any listed next_aspect_id", prompt)
+        self.assertIn("next_template_id", prompt)
+        self.assertIn("not mandatory first-item choices", prompt)
+
+    def test_live_adaptive_decision_requires_explicit_legal_template(self):
+        planner = object.__new__(ClickBellAdaptivePlanAgent)
+        plan = {
+            "schema_version": 6,
+            "task_name": "click_bell",
+            "requested_aspect_ids": ["object_position", "object_instance"],
+            "rounds": [
+                {
+                    "round_id": "round_1",
+                    "template_id": "object_position.left_fixed",
+                    "aspect_id": "object_position",
+                    "execution": {"num_episodes": 1},
+                    "tool_request": {
+                        "metric": "bell_active_tcp_min_xy_error"
+                    },
+                }
+            ],
+            "max_rounds": 3,
+        }
+        base = {
+            "schema_version": 1,
+            "action": "continue",
+            "transition": "switch_aspect",
+            "observation_summary": "position evidence is sufficient",
+            "decision_reason": "move to the bounded instance axis",
+            "next_aspect_id": "object_instance",
+            "next_template_id": None,
+        }
+        with self.assertRaisesRegex(PlanAgentError, "explicit.*next_template_id"):
+            planner._validate_decision(
+                base,
+                current_plan=plan,
+                observation_history=[adaptive_observation(policy_success=1.0)],
+                user_request="evaluate bell generalization",
+            )
+        invalid = dict(base, next_template_id="object_position.right_fixed")
+        with self.assertRaisesRegex(PlanAgentError, "outside the allowed"):
+            planner._validate_decision(
+                invalid,
+                current_plan=plan,
+                observation_history=[adaptive_observation(policy_success=1.0)],
+                user_request="evaluate bell generalization",
+            )
+
+        invalid_stop = dict(
+            base,
+            action="stop",
+            transition="stop",
+            next_aspect_id=None,
+            next_template_id="object_instance.base0",
+        )
+        with self.assertRaisesRegex(PlanAgentError, "stop choice.*no next target"):
+            planner._validate_decision(
+                invalid_stop,
+                current_plan=plan,
+                observation_history=[
+                    adaptive_observation(
+                        policy_success=0.0,
+                        pipeline_passed=False,
+                    )
+                ],
+                user_request="evaluate bell generalization",
+            )
+        valid_stop = dict(invalid_stop, next_template_id=None)
+        stopped = planner._validate_decision(
+            valid_stop,
+            current_plan=plan,
+            observation_history=[
+                adaptive_observation(
+                    policy_success=0.0,
+                    pipeline_passed=False,
+                )
+            ],
+            user_request="evaluate bell generalization",
+        )
+        self.assertIsNone(stopped["next_aspect_id"])
+        self.assertIsNone(stopped["next_template_id"])
+        self.assertIsNone(stopped["next_round"])
+
     def test_fixed_suite_records_evidence_without_rerouting(self):
         proposal = {
             "schema_version": 1,
@@ -718,6 +893,7 @@ class ClickBellGeneratedTests(unittest.TestCase):
                 "observation_summary": "position sentinel passed",
                 "decision_reason": "cover the requested instance axis",
                 "next_aspect_id": "object_instance",
+                "next_template_id": "object_instance.base0",
             }
         )
         with tempfile.TemporaryDirectory() as temporary:

@@ -1,4 +1,32 @@
 {
+  "agent_readmes": [
+    {
+      "document_ids": [
+        "task.beat_block_hammer",
+        "api.scene_creation",
+        "asset.020_hammer"
+      ],
+      "global_rules_path": "mea/taskgen/README.Agent.md",
+      "global_rules_sha256": "1855126cc66f5ad2db4c2abf914c3c293168a60898bcae5325e963b8289e8c78",
+      "schema_version": 1,
+      "snapshot_sha256": "6196f592838159d8f4ce35facc3700ce6fb7ca29745a3d4444f7d249449a0192",
+      "source_fingerprint_sha256": "20aa22ba8ad06ecc4274393ad870b3930c69c1839bd521c80daf0085549b34e0",
+      "task_name": "beat_block_hammer"
+    },
+    {
+      "document_ids": [
+        "task.click_bell",
+        "api.scene_creation",
+        "asset.050_bell"
+      ],
+      "global_rules_path": "mea/taskgen/README.Agent.md",
+      "global_rules_sha256": "1855126cc66f5ad2db4c2abf914c3c293168a60898bcae5325e963b8289e8c78",
+      "schema_version": 1,
+      "snapshot_sha256": "0c25d9a711dfc85c4bcee3d1ac842cde4158ec4f869eea277f3bd2869dbc3310",
+      "source_fingerprint_sha256": "6ea5fd351a4fbd67d90d307378220af173e81f0f56b0f04d1966cdc9bcc0a72f",
+      "task_name": "click_bell"
+    }
+  ],
   "documents": [
     {
       "character_count": 910,
@@ -29,6 +57,36 @@
         "scale"
       ],
       "title": "BeatBlockHammer scene contract"
+    },
+    {
+      "character_count": 652,
+      "document_sha256": "93b81659cd36670aa614153760e4cb5da69de8a22b7c7f3929b70e43cda6e938",
+      "id": "task.click_bell",
+      "kind": "task_contract",
+      "path": "mea/knowledge/tasks/click_bell.md",
+      "source_symbols": [
+        {
+          "character_count": 826,
+          "path": "envs/click_bell.py",
+          "sha256": "9b67edac57c2928ae5df8aaca4b3b08cc49b0329a45240936113dd6aa22aec75",
+          "symbol": "click_bell.load_actors"
+        },
+        {
+          "character_count": 553,
+          "path": "envs/click_bell.py",
+          "sha256": "c671e4ec6c219c18f9e44c6fb725d1256832d74cc5741d37e66387b6b1f86dac",
+          "symbol": "click_bell.check_success"
+        }
+      ],
+      "tags": [
+        "click_bell",
+        "load_actors",
+        "position",
+        "instance",
+        "scene",
+        "success"
+      ],
+      "title": "ClickBell scene contract"
     },
     {
       "character_count": 987,
@@ -96,8 +154,47 @@
         "replacement"
       ],
       "title": "020_hammer asset contract"
+    },
+    {
+      "character_count": 485,
+      "document_sha256": "d143cb9a71cd7d16d8b5ad83cf24ee7a8294862b7bd006e567f19d154049881e",
+      "id": "asset.050_bell",
+      "kind": "asset_contract",
+      "path": "mea/knowledge/assets/050_bell.md",
+      "source_files": [
+        {
+          "path": "assets/objects/050_bell/model_data0.json",
+          "sha256": "cee44b84c415189c45f415e92f8708cbfadd5e350b311e06fbf9087f25eaadcb",
+          "size": 1511
+        },
+        {
+          "path": "assets/objects/050_bell/model_data1.json",
+          "sha256": "7f41b440b9f49708b691994dc0e85d6c7ac70f51c16a4d88f3bae2a8d20bea93",
+          "size": 1506
+        },
+        {
+          "path": "description/objects_description/050_bell/base0.json",
+          "sha256": "543240a1b5b88f5a2ec5975dcbfd865c2eb9b8eda7546775ef3069359225b09f",
+          "size": 639
+        },
+        {
+          "path": "description/objects_description/050_bell/base1.json",
+          "sha256": "6c4efb216f006a833724dfe4a760c914f305921c850aae457ac48575754f8ea2",
+          "size": 565
+        }
+      ],
+      "source_symbols": [],
+      "tags": [
+        "050_bell",
+        "bell",
+        "asset",
+        "functional_point",
+        "instance",
+        "contact_point"
+      ],
+      "title": "050_bell asset contract"
     }
   ],
   "schema_version": 1,
-  "scope": "beat_block_hammer_vertical_slice"
+  "scope": "mea_supported_taskgen_families"
 }

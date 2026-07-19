@@ -9,6 +9,7 @@ adapters behind this common state boundary.
 from __future__ import annotations
 
 from copy import deepcopy
+from pathlib import Path
 from typing import Any, Mapping
 
 from mea.proposals import (
@@ -19,6 +20,7 @@ from mea.proposals import (
 )
 
 from .catalog import catalog_task, validate_act_catalog
+from .context import build_planning_context
 from .evidence_policy import assess_conditional_transition
 
 
@@ -40,47 +42,98 @@ _TARGET_KEYS = {
 }
 
 
-def build_adaptive_directive(
+def validate_adaptive_choice(
     assessment: Mapping[str, Any],
+    choice: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Turn a conditional evidence assessment into one canonical directive.
+    """Validate a model-selected transition inside the evidence boundary.
 
-    The evidence policy owns navigation.  Task adapters may materialize the
-    selected template, but they cannot choose a different action, aspect, or
-    template.  Keeping this projection pure makes replay and adapter
-    adjudication use exactly the same control decision.
+    Evidence still owns whether execution may continue and which transition
+    classes/aspects/templates are safe.  The optional choice may select any
+    member of those sets.  Missing fields use the deterministic first-item
+    fallback, preserving legacy replay and task-adapter behavior.
     """
 
     if not isinstance(assessment, Mapping):
         raise PlanSessionError("conditional assessment must be an object")
-    action = assessment.get("required_action")
-    transition = assessment.get("required_transition")
-    next_aspect = assessment.get("required_next_aspect_id")
+    if choice is None:
+        supplied: dict[str, Any] = {}
+    elif isinstance(choice, Mapping):
+        supplied = dict(choice)
+    else:
+        raise PlanSessionError("adaptive choice must be an object")
+    required_action = assessment.get("required_action")
+    action = supplied.get("action", required_action)
+    fallback_transition = assessment.get("required_transition")
+    transition = supplied.get("transition", fallback_transition)
     remaining = assessment.get("remaining_template_ids_by_aspect")
-    if action not in {"continue", "stop"}:
-        raise PlanSessionError(f"unsupported adaptive action: {action!r}")
+    available = assessment.get("available_transitions")
+    if required_action not in {"continue", "stop"}:
+        raise PlanSessionError(
+            f"unsupported required adaptive action: {required_action!r}"
+        )
+    if action != required_action:
+        raise PlanSessionError(
+            f"adaptive action {action!r} conflicts with evidence action "
+            f"{required_action!r}"
+        )
     if not isinstance(remaining, Mapping):
         raise PlanSessionError("conditional assessment is missing remaining templates")
+    if not isinstance(available, Mapping):
+        raise PlanSessionError("conditional assessment is missing available transitions")
 
+    next_aspect = supplied.get("next_aspect_id")
+    supplied_template = supplied.get("next_template_id")
     next_template = None
     if action == "stop":
-        if transition != "stop" or next_aspect is not None:
+        if (
+            transition != "stop"
+            or next_aspect is not None
+            or supplied_template is not None
+        ):
             raise PlanSessionError(
-                "stop assessment must use transition=stop and no next aspect"
+                "stop choice must use transition=stop and no next target"
             )
     else:
         if transition not in {"drill_down", "switch_aspect"}:
             raise PlanSessionError(
                 "continue assessment must select an adaptive transition"
             )
-        if not isinstance(next_aspect, str) or not next_aspect:
-            raise PlanSessionError("continue assessment must select a next aspect")
+        allowed_aspects = available.get(transition)
+        if not isinstance(allowed_aspects, list) or not allowed_aspects:
+            raise PlanSessionError(
+                f"evidence does not allow transition {transition!r}"
+            )
+        if next_aspect is None and supplied_template is not None:
+            matching_aspects = [
+                str(aspect_id)
+                for aspect_id in allowed_aspects
+                if supplied_template in (remaining.get(aspect_id) or [])
+            ]
+            if len(matching_aspects) == 1:
+                next_aspect = matching_aspects[0]
+        if next_aspect is None:
+            next_aspect = str(allowed_aspects[0])
+        if next_aspect not in allowed_aspects:
+            raise PlanSessionError(
+                f"adaptive aspect {next_aspect!r} is outside allowed "
+                f"{transition} candidates"
+            )
         candidates = remaining.get(next_aspect)
         if not isinstance(candidates, list) or not candidates:
             raise PlanSessionError(
                 "continue assessment has no remaining template for its aspect"
             )
-        next_template = str(candidates[0])
+        next_template = (
+            str(candidates[0])
+            if supplied_template is None
+            else str(supplied_template)
+        )
+        if next_template not in candidates:
+            raise PlanSessionError(
+                f"adaptive template {next_template!r} is outside the allowed "
+                f"candidates for {next_aspect!r}"
+            )
 
     return {
         "schema_version": 1,
@@ -91,6 +144,14 @@ def build_adaptive_directive(
         "round_budget_remaining": assessment.get("round_budget_remaining"),
         "evidence_assessment": deepcopy(dict(assessment)),
     }
+
+
+def build_adaptive_directive(
+    assessment: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Return the deterministic fallback directive used by legacy callers."""
+
+    return validate_adaptive_choice(assessment)
 
 
 def build_evaluation_target(
@@ -305,6 +366,11 @@ class BoundTaskPlanSession:
 
         return self._normalize_plan(plan)
 
+    def planning_context(self, repo_root: str | Path) -> dict[str, Any]:
+        """Project this frozen target into model-facing policy/simulator cards."""
+
+        return build_planning_context(repo_root, self.target)
+
     def assess(
         self,
         plan: Mapping[str, Any],
@@ -323,11 +389,13 @@ class BoundTaskPlanSession:
         self,
         plan: Mapping[str, Any],
         observation_history: list[dict[str, Any]],
+        *,
+        candidate_decision: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Return the one adaptive action/aspect/template allowed by evidence."""
+        """Return a validated candidate or the deterministic legacy fallback."""
 
         assessment = self.assess(plan, observation_history)
-        return build_adaptive_directive(assessment)
+        return validate_adaptive_choice(assessment, candidate_decision)
 
     def _validate_optional_binding(
         self,
@@ -408,7 +476,12 @@ class BoundTaskPlanSession:
             raise PlanSessionError("candidate_decision must be an object")
         current = self._normalize_plan(plan)
         candidate = self._normalize_plan(candidate_plan)
-        directive = self.directive(current, observation_history)
+        supplied = dict(candidate_decision)
+        directive = self.directive(
+            current,
+            observation_history,
+            candidate_decision=supplied,
+        )
 
         self._validate_optional_binding(
             candidate_decision, location="candidate_decision"
@@ -431,7 +504,6 @@ class BoundTaskPlanSession:
                 "candidate_plan round count conflicts with adaptive directive"
             )
 
-        supplied = dict(candidate_decision)
         required_controls = {
             "action": directive["action"],
             "transition": directive["transition"],
@@ -509,5 +581,6 @@ __all__ = [
     "PlanSessionError",
     "build_adaptive_directive",
     "build_evaluation_target",
+    "validate_adaptive_choice",
     "validate_evaluation_target",
 ]

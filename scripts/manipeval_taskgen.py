@@ -43,6 +43,9 @@ from mea.taskgen import (
     validate_click_bell_variant_hint,
     build_variant_spec,
     validate_variant_spec_envelope,
+    build_scene_check_spec,
+    validate_scene_check_spec,
+    write_task_artifact_bundle,
 )
 
 
@@ -873,6 +876,15 @@ def run_vision_check(
     prompt_path = prompt_path or run_dir / "validation/vision_prompt.md"
     response_path = response_path or run_dir / "validation/vision_response.txt"
     result_path = result_path or run_dir / "validation/vision.json"
+    scene_check_path = run_dir / "generation/scene_check_spec.json"
+    if scene_check_path.is_file():
+        scene_check = validate_scene_check_spec(
+            json.loads(scene_check_path.read_text(encoding="utf-8"))
+        )
+    else:
+        scene_check = build_scene_check_spec(spec)
+        write_json(scene_check_path, scene_check)
+    scene_check_text = json.dumps(scene_check, ensure_ascii=False, indent=2)
     if spec.get("task_name") == "click_bell":
         bell_change = spec["changes"].get("bell")
         randomization_change = spec["changes"].get("domain_randomization") or {}
@@ -934,6 +946,9 @@ def run_vision_check(
 {contract_description}
 不能仅凭 RGB 宣称精确坐标或实例 ID 是否正确。
 
+PROPOSAL-DERIVED SCENE CHECK SPEC:
+{scene_check_text}
+
 只输出 JSON：
 {{
   "aligned": true,
@@ -950,6 +965,9 @@ def run_vision_check(
         prompt = f"""这是 RoboTwin beat_block_hammer 的初始场景首帧。
 请检查被锤子敲击的方块是否符合下面的 VariantSpec，并检查场景是否有明显异常：
 {json.dumps(spec, ensure_ascii=False, indent=2)}
+
+PROPOSAL-DERIVED SCENE CHECK SPEC:
+{scene_check_text}
 
 官方 scale=1.0 的方块 half_size 是 (0.025, 0.025, 0.025) 米；本次预期
 half_size 是 ({expected_half_size:.6f}, {expected_half_size:.6f}, {expected_half_size:.6f}) 米。
@@ -1298,6 +1316,14 @@ def run_visual_self_reflection(
     max_repairs: int,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     spec = json.loads((run_dir / "variant_spec.json").read_text(encoding="utf-8"))
+    scene_check_path = run_dir / "generation/scene_check_spec.json"
+    scene_check = (
+        validate_scene_check_spec(
+            json.loads(scene_check_path.read_text(encoding="utf-8"))
+        )
+        if scene_check_path.is_file()
+        else build_scene_check_spec(spec)
+    )
     is_click_bell = spec.get("task_name") == "click_bell"
     reflection_dir = run_dir / "reflection"
     reflection_dir.mkdir(parents=True, exist_ok=True)
@@ -1423,7 +1449,10 @@ def run_visual_self_reflection(
         )
         return result
 
-    effective_max_repairs = 0 if is_click_bell else max_repairs
+    effective_max_repairs = min(
+        max_repairs,
+        int(scene_check["repair_policy"]["max_repairs_supported"]),
+    )
     summary = execute_reflection_loop(
         max_repairs=effective_max_repairs,
         observe=observe,
@@ -1435,6 +1464,38 @@ def run_visual_self_reflection(
         summary[
             "validation_mode"
         ] = "simulator_position_or_instance_plus_visual_plausibility"
+    summary["scene_check_spec"] = "generation/scene_check_spec.json"
+    summary["scene_check_source"] = scene_check["source"]
+    summary["repair_mode"] = scene_check["repair_policy"]["mode"]
+    current_manifest = json.loads(
+        (run_dir / "manifest.json").read_text(encoding="utf-8")
+    )
+    task_proposal_path = run_dir / "generation/task_proposal.json"
+    current_task_proposal = (
+        json.loads(task_proposal_path.read_text(encoding="utf-8"))
+        if task_proposal_path.is_file()
+        else None
+    )
+    refreshed_bundle = write_task_artifact_bundle(
+        repo_root,
+        run_dir,
+        current_manifest,
+        task_proposal=current_task_proposal,
+    )
+    summary["task_artifact_bundle_refreshed"] = True
+    summary["final_scene_source_sha256"] = refreshed_bundle["scene_method"][
+        "source_sha256"
+    ]
+    update_manifest(
+        run_dir,
+        task_artifact_bundle="generation/task_artifact_bundle.json",
+        scene_check_spec="generation/scene_check_spec.json",
+        task_artifact_summary={
+            "scene_origin": refreshed_bundle["scene_method"]["origin"],
+            "success_origin": refreshed_bundle["success_method"]["origin"],
+            "success_semantics_preserved": True,
+        },
+    )
     write_json(reflection_dir / "summary.json", summary)
     if not summary["passed"]:
         raise VisualReflectionError(
@@ -1993,10 +2054,23 @@ def main() -> None:
 
     if task_proposal is not None:
         write_json(run_dir / "generation/task_proposal.json", task_proposal)
+        bundle = write_task_artifact_bundle(
+            repo_root,
+            run_dir,
+            manifest,
+            task_proposal=task_proposal,
+        )
         update_manifest(
             run_dir,
             task_proposal=task_proposal,
             task_proposal_path="generation/task_proposal.json",
+            task_artifact_bundle="generation/task_artifact_bundle.json",
+            scene_check_spec="generation/scene_check_spec.json",
+            task_artifact_summary={
+                "scene_origin": bundle["scene_method"]["origin"],
+                "success_origin": bundle["success_method"]["origin"],
+                "success_semantics_preserved": True,
+            },
         )
         manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
 

@@ -47,6 +47,15 @@ from .targets import (
     PICKUP_TO_CONTACT_METRIC,
     evaluate_target_oracle,
 )
+from .metric_spec import (
+    MetricSpecError,
+    build_task_code_context,
+    compile_metric_spec_source,
+    evaluate_metric_spec,
+    execute_metric_spec,
+    metric_spec_tool_spec,
+    validate_metric_spec,
+)
 
 __all__ = [
     "ToolGenError",
@@ -84,4 +93,11 @@ __all__ = [
     "PICKUP_TO_CONTACT_METRIC",
     "BELL_ACTIVE_TCP_MIN_XY_ERROR_METRIC",
     "evaluate_target_oracle",
+    "MetricSpecError",
+    "build_task_code_context",
+    "compile_metric_spec_source",
+    "evaluate_metric_spec",
+    "execute_metric_spec",
+    "metric_spec_tool_spec",
+    "validate_metric_spec",
 ]

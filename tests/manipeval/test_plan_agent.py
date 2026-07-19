@@ -79,7 +79,10 @@ def observation(round_id, *, pipeline_passed=True, policy_success=0.0):
                 "route_decision": {"metric": metric},
                 "episodes": [],
             },
-            "execution_vqa": {"evidence_conflict": False},
+            "execution_vqa": {
+                "status": "passed",
+                "evidence_conflict": False,
+            },
         },
     }
 

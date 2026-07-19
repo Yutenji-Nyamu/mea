@@ -18,6 +18,8 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
+from mea.aspects import AspectError, canonicalize_aspect_id, canonicalize_aspect_ids
+
 
 class HistoryDatabaseError(RuntimeError):
     """Raised when the persistent history index cannot be used."""
@@ -36,9 +38,7 @@ HISTORY_DATABASE_SCHEMA_VERSION = 1
 LEGACY_SUB_ASPECT_TEMPLATES = {
     "object_appearance.color": "object_appearance.color_blue",
     "object_position": "object_position.official_random",
-    "performance.pickup_to_contact_timing": (
-        "performance.pickup_to_contact_timing"
-    ),
+    "performance.pickup_to_contact_timing": ("performance.pickup_to_contact_timing"),
 }
 
 
@@ -88,6 +88,43 @@ def _string_list(value: Any, field: str) -> list[str]:
     ):
         raise HistoryRecordError(f"{field} must be a list of non-empty strings")
     return [item.strip() for item in value]
+
+
+def _canonical_aspect_list(value: Any, field: str) -> list[str]:
+    """Normalize an optional aspect list without breaking legacy records.
+
+    Historical task families may contain identifiers that predate the public
+    ontology.  Known aliases are canonicalized while unknown, non-empty ids
+    remain comparable to an identical future id.
+    """
+
+    raw = _string_list(value, field)
+    try:
+        return canonicalize_aspect_ids(raw, allow_unknown=True)
+    except AspectError as exc:
+        raise HistoryRecordError(f"{field} is invalid: {exc}") from exc
+
+
+def _requested_aspect_ids(
+    plan: Mapping[str, Any], executed: Iterable[Mapping[str, Any]]
+) -> list[str]:
+    declared = plan.get("requested_aspect_ids")
+    if declared is not None:
+        return _canonical_aspect_list(declared, "plan.requested_aspect_ids")
+    inferred: list[str] = []
+    for item in executed:
+        value = item.get("sub_aspect")
+        if not isinstance(value, str) or not value.strip():
+            continue
+        try:
+            canonical = canonicalize_aspect_id(value, allow_unknown=True)
+        except AspectError as exc:
+            raise HistoryRecordError(
+                f"executed round sub_aspect is invalid: {exc}"
+            ) from exc
+        if canonical not in inferred:
+            inferred.append(canonical)
+    return inferred
 
 
 def _relative_path(repo_root: Path, path: Path, field: str) -> str:
@@ -155,9 +192,7 @@ def _executed_rounds(
     executed_count = evidence_plan.get("executed_rounds")
     if not isinstance(executed_count, int) or executed_count < 0:
         executed_count = (
-            len(evidence_rounds)
-            if isinstance(evidence_rounds, list)
-            else len(planned)
+            len(evidence_rounds) if isinstance(evidence_rounds, list) else len(planned)
         )
     if executed_count > len(planned):
         raise HistoryRecordError(
@@ -185,8 +220,7 @@ def _executed_rounds(
                 and str(evidence_round_id) != planned_round_id
             ):
                 raise HistoryRecordError(
-                    "evidence and plan round_id mismatch at "
-                    f"round index {index - 1}"
+                    "evidence and plan round_id mismatch at " f"round index {index - 1}"
                 )
         sub_aspect = value.get("sub_aspect")
         template_id = value.get("template_id") or LEGACY_SUB_ASPECT_TEMPLATES.get(
@@ -212,9 +246,7 @@ def _compact_round_decisions(plan: Mapping[str, Any]) -> list[dict[str, Any]]:
     compact: list[dict[str, Any]] = []
     for index, value in enumerate(decisions):
         if not isinstance(value, Mapping):
-            raise HistoryRecordError(
-                f"plan.round_decisions[{index}] must be an object"
-            )
+            raise HistoryRecordError(f"plan.round_decisions[{index}] must be an object")
         assessment = value.get("evidence_assessment")
         if not isinstance(assessment, Mapping):
             assessment = {}
@@ -256,7 +288,18 @@ def validate_history_record(record: Mapping[str, Any]) -> dict[str, Any]:
     planning = normalized.get("planning")
     if not isinstance(planning, Mapping):
         raise HistoryRecordError("planning must be an object")
-    _string_list(planning.get("requested_template_ids"), "planning.requested_template_ids")
+    _string_list(
+        planning.get("requested_template_ids"), "planning.requested_template_ids"
+    )
+    if planning.get("requested_aspect_ids") is not None:
+        requested_aspects = _canonical_aspect_list(
+            planning.get("requested_aspect_ids"),
+            "planning.requested_aspect_ids",
+        )
+        if requested_aspects != planning.get("requested_aspect_ids"):
+            raise HistoryRecordError(
+                "planning.requested_aspect_ids must use canonical identifiers"
+            )
     if not isinstance(planning.get("executed_rounds"), list):
         raise HistoryRecordError("planning.executed_rounds must be a list")
     artifacts = normalized.get("artifacts")
@@ -338,9 +381,7 @@ def build_history_record(
     ):
         if (
             artifact_evaluation_id is not None
-            and _required_text(
-                artifact_evaluation_id, f"{label}.evaluation_id"
-            )
+            and _required_text(artifact_evaluation_id, f"{label}.evaluation_id")
             != evaluation_id
         ):
             raise HistoryRecordError(
@@ -355,13 +396,12 @@ def build_history_record(
         plan.get("requested_template_ids"), "plan.requested_template_ids"
     )
     executed = _executed_rounds(plan, evidence)
+    requested_aspects = _requested_aspect_ids(plan, executed)
     legacy_template_ids_inferred = False
     if not requested:
         requested = list(
             dict.fromkeys(
-                value["template_id"]
-                for value in executed
-                if value.get("template_id")
+                value["template_id"] for value in executed if value.get("template_id")
             )
         )
         legacy_template_ids_inferred = bool(requested)
@@ -382,15 +422,12 @@ def build_history_record(
             "expert_data_num": policy.get("expert_data_num"),
             "language_conditioned": policy.get("language_conditioned"),
         },
-        "user_request": _request_from_artifacts(
-            manifest, evidence, directory
-        ),
+        "user_request": _request_from_artifacts(manifest, evidence, directory),
         "planning": {
             "evaluation_goal": plan.get("evaluation_goal"),
             "requested_template_ids": requested,
-            "first_template_id": (
-                executed[0].get("template_id") if executed else None
-            ),
+            "requested_aspect_ids": requested_aspects,
+            "first_template_id": (executed[0].get("template_id") if executed else None),
             "executed_rounds": executed,
             "round_decisions": _compact_round_decisions(plan),
             "planning_state": plan.get("planning_state"),
@@ -419,9 +456,7 @@ def build_history_record(
     return validate_history_record(record)
 
 
-def write_history_record(
-    evaluation_dir: str | Path, record: Mapping[str, Any]
-) -> Path:
+def write_history_record(evaluation_dir: str | Path, record: Mapping[str, Any]) -> Path:
     """Write the canonical rebuild source for one completed evaluation."""
 
     normalized = validate_history_record(record)
@@ -471,6 +506,54 @@ def _query_similarity(left: str, right: str) -> float:
     union = left_grams | right_grams
     jaccard = len(left_grams & right_grams) / len(union) if union else 1.0
     return round(0.8 * sequence + 0.2 * jaccard, 8)
+
+
+def _record_aspect_ids(record: Mapping[str, Any]) -> list[str]:
+    planning = record.get("planning")
+    if not isinstance(planning, Mapping):
+        return []
+    declared = planning.get("requested_aspect_ids")
+    if declared is not None:
+        try:
+            return _canonical_aspect_list(declared, "planning.requested_aspect_ids")
+        except HistoryRecordError:
+            return []
+    inferred: list[str] = []
+    rounds = planning.get("executed_rounds")
+    if not isinstance(rounds, list):
+        return []
+    for item in rounds:
+        if not isinstance(item, Mapping):
+            continue
+        value = item.get("sub_aspect")
+        if not isinstance(value, str) or not value.strip():
+            continue
+        try:
+            canonical = canonicalize_aspect_id(value, allow_unknown=True)
+        except AspectError:
+            continue
+        if canonical not in inferred:
+            inferred.append(canonical)
+    return inferred
+
+
+def _aspect_similarity(
+    requested_aspect_ids: Iterable[str], record_aspect_ids: Iterable[str]
+) -> float:
+    requested = set(requested_aspect_ids)
+    recorded = set(record_aspect_ids)
+    union = requested | recorded
+    if not union:
+        return 1.0
+    return round(len(requested & recorded) / len(union), 8)
+
+
+def _retrieval_score(query_similarity: float, aspect_similarity: float | None) -> float:
+    if aspect_similarity is None:
+        return query_similarity
+    # Query text remains the primary signal.  Canonical aspects provide a
+    # substantial tie-break without changing callers that omit the new input.
+    return round(0.6 * query_similarity + 0.4 * aspect_similarity, 8)
 
 
 class EvaluationHistoryDB:
@@ -610,7 +693,9 @@ class EvaluationHistoryDB:
     def count(self) -> int:
         try:
             with closing(self._connect()) as connection, connection:
-                row = connection.execute("SELECT COUNT(*) AS count FROM evaluations").fetchone()
+                row = connection.execute(
+                    "SELECT COUNT(*) AS count FROM evaluations"
+                ).fetchone()
         except sqlite3.Error as exc:
             raise HistoryDatabaseError(f"cannot count history records: {exc}") from exc
         return int(row["count"])
@@ -620,6 +705,7 @@ class EvaluationHistoryDB:
         user_query: str,
         *,
         task_name: str,
+        requested_aspect_ids: Iterable[str] | None = None,
         policy_name: str | None = None,
         checkpoint_setting: str | None = None,
         limit: int = 3,
@@ -635,6 +721,11 @@ class EvaluationHistoryDB:
 
         query = _required_text(user_query, "user_query")
         task = _required_text(task_name, "task_name")
+        query_aspects = (
+            _canonical_aspect_list(list(requested_aspect_ids), "requested_aspect_ids")
+            if requested_aspect_ids is not None
+            else None
+        )
         if not isinstance(limit, int) or limit <= 0:
             raise ValueError("limit must be a positive integer")
         if not isinstance(min_similarity, (int, float)) or not 0 <= min_similarity <= 1:
@@ -648,7 +739,9 @@ class EvaluationHistoryDB:
             with closing(self._connect()) as connection, connection:
                 rows = connection.execute(sql, parameters).fetchall()
         except sqlite3.Error as exc:
-            raise HistoryDatabaseError(f"cannot query evaluation history: {exc}") from exc
+            raise HistoryDatabaseError(
+                f"cannot query evaluation history: {exc}"
+            ) from exc
 
         candidates: list[dict[str, Any]] = []
         issues: list[dict[str, Any]] = []
@@ -663,14 +756,23 @@ class EvaluationHistoryDB:
                     }
                 )
                 continue
-            score = _query_similarity(query, record["user_request"])
-            if score < float(min_similarity):
+            query_score = _query_similarity(query, record["user_request"])
+            if query_score < float(min_similarity):
                 continue
+            aspect_score = (
+                _aspect_similarity(query_aspects, _record_aspect_ids(record))
+                if query_aspects is not None
+                else None
+            )
+            score = _retrieval_score(query_score, aspect_score)
             policy = record["policy"]
             candidates.append(
                 {
                     "evaluation_id": record["evaluation_id"],
-                    "similarity": score,
+                    # Keep the historical field's lexical meaning stable.
+                    "similarity": query_score,
+                    "aspect_similarity": aspect_score,
+                    "retrieval_score": score,
                     "user_request": record["user_request"],
                     "task_name": record["task_name"],
                     "policy": policy,
@@ -691,6 +793,7 @@ class EvaluationHistoryDB:
             )
         candidates.sort(
             key=lambda item: (
+                -item["retrieval_score"],
                 -item["similarity"],
                 not item["compatibility"]["same_policy"],
                 not item["compatibility"]["same_checkpoint"],
@@ -702,13 +805,27 @@ class EvaluationHistoryDB:
             "schema_version": 1,
             "query": query,
             "task_name": task,
+            "requested_aspect_ids": query_aspects,
             "policy_name": policy_name,
             "checkpoint_setting": checkpoint_setting,
             "selection_policy": {
                 "task_filter": "exact",
                 "policy_filter": False,
                 "similarity": "0.8_sequence_matcher_plus_0.2_character_bigram_jaccard",
-                "tie_break": "same_policy_then_same_checkpoint_then_evaluation_id",
+                "aspect_similarity": (
+                    "canonical_requested_aspect_jaccard"
+                    if query_aspects is not None
+                    else None
+                ),
+                "retrieval_score": (
+                    "0.6_query_similarity_plus_0.4_aspect_similarity"
+                    if query_aspects is not None
+                    else "query_similarity"
+                ),
+                "tie_break": (
+                    "query_similarity_then_same_policy_then_same_checkpoint_"
+                    "then_evaluation_id"
+                ),
             },
             "candidate_count": len(candidates),
             "selected_count": len(selected),
@@ -721,6 +838,7 @@ class EvaluationHistoryDB:
         user_query: str,
         *,
         allowed_task_names: Iterable[str],
+        requested_aspect_ids: Iterable[str] | None = None,
         policy_name: str | None = None,
         checkpoint_setting: str | None = None,
         limit: int = 3,
@@ -736,6 +854,11 @@ class EvaluationHistoryDB:
         """
 
         query = _required_text(user_query, "user_query")
+        global_query_aspects = (
+            _canonical_aspect_list(list(requested_aspect_ids), "requested_aspect_ids")
+            if requested_aspect_ids is not None
+            else None
+        )
         tasks = sorted(
             {
                 _required_text(task_name, "allowed_task_name")
@@ -751,6 +874,7 @@ class EvaluationHistoryDB:
             self.retrieve_similar(
                 query,
                 task_name=task_name,
+                requested_aspect_ids=global_query_aspects,
                 policy_name=policy_name,
                 checkpoint_setting=checkpoint_setting,
                 limit=limit,
@@ -766,6 +890,7 @@ class EvaluationHistoryDB:
         ]
         candidates.sort(
             key=lambda item: (
+                -item["retrieval_score"],
                 -item["similarity"],
                 not item["compatibility"]["same_policy"],
                 not item["compatibility"]["same_checkpoint"],
@@ -773,28 +898,37 @@ class EvaluationHistoryDB:
             )
         )
         issues = sorted(
-            (
-                issue
-                for result in task_results
-                for issue in result.get("issues", [])
-            ),
+            (issue for result in task_results for issue in result.get("issues", [])),
             key=lambda item: item["evaluation_id"],
         )
         return {
             "schema_version": 1,
             "query": query,
             "allowed_task_names": tasks,
+            "requested_aspect_ids": global_query_aspects,
             "policy_name": policy_name,
             "checkpoint_setting": checkpoint_setting,
             "selection_policy": {
                 "task_filter": "trusted_allowlist",
                 "policy_filter": False,
                 "similarity": "0.8_sequence_matcher_plus_0.2_character_bigram_jaccard",
-                "tie_break": "same_policy_then_same_checkpoint_then_evaluation_id",
+                "aspect_similarity": (
+                    "canonical_requested_aspect_jaccard"
+                    if global_query_aspects is not None
+                    else None
+                ),
+                "retrieval_score": (
+                    "0.6_query_similarity_plus_0.4_aspect_similarity"
+                    if global_query_aspects is not None
+                    else "query_similarity"
+                ),
+                "tie_break": (
+                    "query_similarity_then_same_policy_then_same_checkpoint_"
+                    "then_evaluation_id"
+                ),
             },
             "candidate_count": sum(
-                int(result.get("candidate_count", 0))
-                for result in task_results
+                int(result.get("candidate_count", 0)) for result in task_results
             ),
             "selected_count": min(len(candidates), limit),
             "candidates": candidates[:limit],
@@ -860,12 +994,8 @@ class EvaluationHistoryDB:
             indexed.append(result)
         return {
             "schema_version": 1,
-            "database": _relative_path(
-                self.repo_root, self.database_path, "database"
-            ),
-            "evaluation_root": _relative_path(
-                self.repo_root, root, "evaluation_root"
-            ),
+            "database": _relative_path(self.repo_root, self.database_path, "database"),
+            "evaluation_root": _relative_path(self.repo_root, root, "evaluation_root"),
             "reset": reset,
             "counts": counts,
             "database_record_count": self.count(),
