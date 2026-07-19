@@ -24,6 +24,7 @@ from mea.capability_adapter import (
     validate_capability_contract,
 )
 from mea.providers import OpenAICompatibleProvider
+from mea.runtime_ledger import record_act_batch_start
 from mea.toolkit import evaluate_telemetry_root
 from mea.taskgen import (
     ClickBellTaskGenError,
@@ -1529,6 +1530,12 @@ def run_act(
         telemetry_profile,
     ]
     started = datetime.now().astimezone().isoformat()
+    record_act_batch_start(
+        task_name=task_name,
+        policy_name="ACT",
+        start_seed=seed,
+        num_rollouts=num_episodes,
+    )
     returncode = run_command(
         command,
         cwd=repo_root,

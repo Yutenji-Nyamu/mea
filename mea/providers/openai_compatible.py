@@ -9,6 +9,11 @@ from typing import Any
 
 import requests
 
+from mea.runtime_ledger import (
+    new_logical_call_id,
+    record_provider_transport_start,
+)
+
 from .base import MultimodalProvider
 
 
@@ -47,10 +52,20 @@ class OpenAICompatibleProvider(MultimodalProvider):
         self.session = session or requests.Session()
         self.last_metadata: dict[str, Any] = {}
 
-    def _complete(self, payload: dict[str, Any]) -> str:
+    def _complete(self, payload: dict[str, Any], *, modality: str) -> str:
         response = None
         retry_count = 0
+        logical_call_id = new_logical_call_id()
         for attempt in range(self.max_retries + 1):
+            # This append is intentionally outside the request exception
+            # handler. If durable accounting fails, the external request must
+            # not start and the ledger error must remain visible to the caller.
+            record_provider_transport_start(
+                logical_call_id=logical_call_id,
+                transport_attempt=attempt + 1,
+                modality=modality,
+                model=str(payload["model"]),
+            )
             try:
                 response = self.session.post(
                     f"{self.base_url}/chat/completions",
@@ -126,7 +141,8 @@ class OpenAICompatibleProvider(MultimodalProvider):
                 "messages": messages,
                 "max_tokens": max_tokens,
                 "temperature": temperature,
-            }
+            },
+            modality="text",
         )
 
     def vision(
@@ -163,5 +179,6 @@ class OpenAICompatibleProvider(MultimodalProvider):
                 ],
                 "max_tokens": max_tokens,
                 "temperature": temperature,
-            }
+            },
+            modality="vision",
         )

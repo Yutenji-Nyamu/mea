@@ -385,3 +385,39 @@ def build_cached_taskgen_acceptance(
         "historical_sources_may_contain_runtime_evidence": True,
         "checks": checks,
     }
+
+
+def build_scene_error_repair_acceptance(
+    repo_root: str | Path,
+    *,
+    reflection_run_id: str,
+) -> dict[str, Any]:
+    """Validate one real render/diagnose/repair run without unrelated caches."""
+
+    root = Path(repo_root).expanduser().resolve()
+    check = _scene_error_repair_check(
+        root, _run_dir(root, reflection_run_id)
+    )
+    return {
+        "schema_version": 1,
+        "kind": "taskgen_scene_error_repair_acceptance_v1",
+        "passed": bool(check["passed"]),
+        "reflection_run_id": reflection_run_id,
+        "cached_artifact": True,
+        "no_provider": True,
+        "no_simulator": True,
+        "no_ACT": True,
+        "paper_table_eligible": False,
+        "claim_scope": (
+            "read-only acceptance of one historical real simulator and provider repair run"
+        ),
+        "runtime": {
+            "mode": "read_only_single_run",
+            "provider_called": False,
+            "simulator_called": False,
+            "act_called": False,
+            "network_called": False,
+        },
+        "historical_source_contains_runtime_evidence": True,
+        "check": check,
+    }

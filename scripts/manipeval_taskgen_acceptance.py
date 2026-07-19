@@ -16,6 +16,7 @@ from mea.taskgen.acceptance import (
     DEFAULT_ACCEPTANCE_RUNS,
     TaskGenAcceptanceError,
     build_cached_taskgen_acceptance,
+    build_scene_error_repair_acceptance,
 )
 
 
@@ -36,18 +37,30 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_ACCEPTANCE_RUNS["scene_error_repair"],
     )
     parser.add_argument("--output", type=Path)
+    parser.add_argument(
+        "--only-reflection",
+        action="store_true",
+        help="Validate only --reflection-run-id; do not require unrelated cached runs.",
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
     try:
-        report = build_cached_taskgen_acceptance(
-            args.repo_root,
-            official_run_id=args.official_run_id,
-            overlay_run_id=args.overlay_run_id,
-            codegen_run_id=args.codegen_run_id,
-            reflection_run_id=args.reflection_run_id,
+        report = (
+            build_scene_error_repair_acceptance(
+                args.repo_root,
+                reflection_run_id=args.reflection_run_id,
+            )
+            if args.only_reflection
+            else build_cached_taskgen_acceptance(
+                args.repo_root,
+                official_run_id=args.official_run_id,
+                overlay_run_id=args.overlay_run_id,
+                codegen_run_id=args.codegen_run_id,
+                reflection_run_id=args.reflection_run_id,
+            )
         )
     except TaskGenAcceptanceError as exc:
         raise SystemExit(str(exc)) from exc

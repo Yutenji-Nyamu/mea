@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import re
+import shutil
 import subprocess
 import sys
 from datetime import datetime
@@ -51,6 +52,8 @@ from mea.round_recovery import (
     WholeRoundRecoveryError,
     run_stage_aware_round_recovery,
 )
+from mea.round_provenance import bind_round_provenance
+from mea.runtime_ledger import runtime_ledger_context, summarize_runtime_ledger
 from mea.toolgen import ToolOrchestrationError, execute_tool_request
 from mea.toolkit import aggregate_tool_executions
 from mea.strategy_plan import (
@@ -108,6 +111,61 @@ def update_manifest(evaluation_dir: Path, **updates: Any) -> dict[str, Any]:
     manifest.update(updates)
     write_json(path, manifest)
     return manifest
+
+
+def adopt_pre_round_ledgers(
+    repo_root: Path,
+    evaluation_dir: Path,
+    ledgers: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Move crash-survivable pre-evaluation ledgers into the final evaluation."""
+
+    adopted: list[dict[str, Any]] = []
+    for item in ledgers:
+        source = Path(item["path"])
+        destination = evaluation_dir / "runtime/pre_round" / f"{item['name']}.jsonl"
+        if source.is_file():
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            if destination.exists():
+                raise RuntimeError(f"pre-round runtime ledger already exists: {destination}")
+            shutil.move(str(source), destination)
+        summary = summarize_runtime_ledger(
+            destination if destination.is_file() else source,
+            expected_context=item["context"],
+        )
+        summary["stage"] = item["name"]
+        summary["artifact"] = (
+            str(destination.relative_to(repo_root)).replace("\\", "/")
+            if destination.is_file()
+            else None
+        )
+        adopted.append(summary)
+    return adopted
+
+
+def aggregate_runtime_ledger_summaries(
+    ledgers: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Aggregate exact call starts without treating retries as new calls."""
+
+    return {
+        "schema_version": 1,
+        "provider_calls_started": sum(
+            int(item.get("provider_calls_started") or 0) for item in ledgers
+        ),
+        "provider_transport_attempts_started": sum(
+            int(item.get("provider_transport_attempts_started") or 0)
+            for item in ledgers
+        ),
+        "act_batches_started": sum(
+            int(item.get("act_batches_started") or 0) for item in ledgers
+        ),
+        "act_rollouts_started": sum(
+            int(item.get("act_rollouts_started") or 0) for item in ledgers
+        ),
+        "ledger_count": sum(bool(item.get("artifact")) for item in ledgers),
+        "call_start_accounting": "pre-external-call append-and-fsync",
+    }
 
 
 def write_global_route_trace(
@@ -1377,29 +1435,46 @@ def execute_round_stage_aware(
 
     def execute_attempt(attempt_dir: Path, attempt_index: int) -> dict[str, Any]:
         del attempt_dir  # The controller owns its trace; Agent paths are canonical.
+        suffix = "" if attempt_index == 1 else f"_attempt_{attempt_index:02d}"
+        attempt_child_run_id = child_run_id(evaluation_id, round_id) + suffix
+        ledger_path = (
+            evaluation_dir
+            / "runtime"
+            / round_id
+            / f"attempt_{attempt_index:02d}"
+            / "call_starts.jsonl"
+        )
+        ledger_context = {
+            "schema_version": 1,
+            "evaluation_id": evaluation_id,
+            "logical_round_id": round_id,
+            "round_attempt_index": attempt_index,
+            "child_run_id": attempt_child_run_id,
+        }
         try:
-            result = execute_round(
-                repo_root,
-                evaluation_dir,
-                evaluation_id,
-                round_plan,
-                text_model=text_model,
-                vision_model=vision_model,
-                base_url=base_url,
-                gpu=gpu,
-                max_reflections=max_reflections,
-                provider=provider,
-                toolgen_model=toolgen_model,
-                telemetry_profile=telemetry_profile,
-                reviewed_tool_registry=reviewed_tool_registry,
-                reviewed_vqa_registry=reviewed_vqa_registry,
-                tool_recovery_max_restarts=tool_recovery_max_restarts,
-                inject_tool_exception_once=(
-                    inject_tool_exception_once and attempt_index == 1
-                ),
-                registration_identity=registration_identity,
-                round_attempt_index=attempt_index,
-            )
+            with runtime_ledger_context(ledger_path, ledger_context):
+                result = execute_round(
+                    repo_root,
+                    evaluation_dir,
+                    evaluation_id,
+                    round_plan,
+                    text_model=text_model,
+                    vision_model=vision_model,
+                    base_url=base_url,
+                    gpu=gpu,
+                    max_reflections=max_reflections,
+                    provider=provider,
+                    toolgen_model=toolgen_model,
+                    telemetry_profile=telemetry_profile,
+                    reviewed_tool_registry=reviewed_tool_registry,
+                    reviewed_vqa_registry=reviewed_vqa_registry,
+                    tool_recovery_max_restarts=tool_recovery_max_restarts,
+                    inject_tool_exception_once=(
+                        inject_tool_exception_once and attempt_index == 1
+                    ),
+                    registration_identity=registration_identity,
+                    round_attempt_index=attempt_index,
+                )
         except BoundedRecoveryError as exc:
             execution_dir = evaluation_dir / "execution" / round_id
             if attempt_index > 1:
@@ -1411,11 +1486,30 @@ def execute_round_stage_aware(
                 recovery = loaded if isinstance(loaded, dict) else {}
             if recovery.get("failure_class") != "unexpected_tool_execution_exception":
                 raise
+            runtime = runtime_for_child(attempt_index)
+            ledger_summary = summarize_runtime_ledger(
+                ledger_path, expected_context=ledger_context
+            )
+            runtime.update(
+                {
+                    "provider_calls_started": ledger_summary[
+                        "provider_calls_started"
+                    ],
+                    "provider_transport_attempts_started": ledger_summary[
+                        "provider_transport_attempts_started"
+                    ],
+                    "act_batches_started": ledger_summary["act_batches_started"],
+                    "act_rollouts_started": ledger_summary["act_rollouts_started"],
+                    "call_start_ledger": str(ledger_path.relative_to(repo_root)).replace(
+                        "\\", "/"
+                    ),
+                }
+            )
             raise StageFailure(
                 "tool_execution",
                 "unexpected_exception",
                 str(exc),
-                runtime=runtime_for_child(attempt_index),
+                runtime=runtime,
                 details={
                     "tool_recovery_summary": str(
                         recovery_path.relative_to(repo_root)
@@ -1430,15 +1524,44 @@ def execute_round_stage_aware(
             ) from exc
         attempt_results[attempt_index] = result
         child_manifest, _child_dir, _summary, tool_evaluation, _returncode = result
+        ledger_summary = summarize_runtime_ledger(
+            ledger_path, expected_context=ledger_context
+        )
+        ledger_summary["artifact"] = (
+            str(ledger_path.relative_to(repo_root)).replace("\\", "/")
+            if ledger_path.is_file()
+            else None
+        )
+        _summary.setdefault("observations", {})["runtime_call_ledger"] = ledger_summary
         route = tool_evaluation.get("route_decision") or {}
         runtime = runtime_for_child(attempt_index)
         execution_vqa = (
             (_summary.get("observations") or {}).get("execution_vqa") or {}
         )
-        runtime["provider_called"] = bool(
-            runtime["provider_called"]
-            or route.get("provider_called")
-            or execution_vqa.get("model_requested")
+        ledger_recorded = ledger_path.is_file()
+        runtime.update(
+            {
+                "provider_called": (
+                    ledger_summary["provider_called"]
+                    if ledger_recorded
+                    else bool(
+                        runtime["provider_called"]
+                        or route.get("provider_called")
+                        or execution_vqa.get("model_requested")
+                    )
+                ),
+                "provider_calls_started": ledger_summary["provider_calls_started"],
+                "provider_transport_attempts_started": ledger_summary[
+                    "provider_transport_attempts_started"
+                ],
+                "act_batches_started": ledger_summary["act_batches_started"],
+                "act_rollouts_started": (
+                    ledger_summary["act_rollouts_started"]
+                    if ledger_recorded
+                    else runtime["act_rollouts_started"]
+                ),
+                "call_start_ledger": ledger_summary["artifact"],
+            }
         )
         return {
             "status": "completed",
@@ -1657,6 +1780,7 @@ def _round_evidence(
             "execution_vqa_montage": execution_vqa_artifacts.get("montage"),
             "execution_vqa_selection": execution_vqa_artifacts.get("selection"),
             "child_manifest": str(child_relative / "manifest.json"),
+            "round_provenance": round_summary.get("provenance", {}).get("path"),
         },
     }
 
@@ -1895,6 +2019,16 @@ def parse_args() -> argparse.Namespace:
         help="Round budget for a bounded click_bell generated profile.",
     )
     parser.add_argument(
+        "--max-agent-rounds",
+        type=int,
+        choices=[1, 2, 3, 4, 5],
+        help=(
+            "Optional task-agnostic hard execution cap. After this many completed "
+            "rounds the Agent writes an auditable budget stop without asking the "
+            "planner to add another round."
+        ),
+    )
+    parser.add_argument(
         "--execution-backend",
         choices=["expert", "act", "both"],
         help=(
@@ -2051,6 +2185,11 @@ def main() -> None:
     if args.registered_strategy is not None and args.evaluation_id is None:
         raise SystemExit("registered execution requires an explicit --evaluation-id")
     repo_root = args.repo_root.expanduser().resolve()
+    args.evaluation_id = args.evaluation_id or make_evaluation_id()
+    pre_round_ledger_root = (
+        repo_root / "mea/evaluation_runs/.runtime_ledgers" / args.evaluation_id
+    )
+    pre_round_ledgers: list[dict[str, Any]] = []
     registered_execution: dict[str, Any] | None = None
     if args.registered_strategy is not None:
         try:
@@ -2150,9 +2289,25 @@ def main() -> None:
             model=models["planner"],
             catalog=global_catalog,
         )
-        global_route_result = global_router.route(
-            args.request,
-            history_context=global_history_context,
+        global_ledger_context = {
+            "schema_version": 1,
+            "evaluation_id": args.evaluation_id,
+            "logical_round_id": "global_query_route",
+            "round_attempt_index": 1,
+            "child_run_id": "global_query_router",
+        }
+        global_ledger_path = pre_round_ledger_root / "global_query_route.jsonl"
+        with runtime_ledger_context(global_ledger_path, global_ledger_context):
+            global_route_result = global_router.route(
+                args.request,
+                history_context=global_history_context,
+            )
+        pre_round_ledgers.append(
+            {
+                "name": "global_query_route",
+                "path": global_ledger_path,
+                "context": global_ledger_context,
+            }
         )
         selection = global_route_result["selection"]
         if selection["decision"] == "unsupported":
@@ -2164,6 +2319,17 @@ def main() -> None:
                 route_result=global_route_result,
                 router=global_router,
                 history_retrieval=global_history_retrieval,
+            )
+            unsupported_dir = repo_root / "mea/evaluation_runs" / args.evaluation_id
+            pre_round_runtime = adopt_pre_round_ledgers(
+                repo_root, unsupported_dir, pre_round_ledgers
+            )
+            unsupported = update_manifest(
+                unsupported_dir,
+                runtime_ledgers=pre_round_runtime,
+                runtime_totals=aggregate_runtime_ledger_summaries(
+                    pre_round_runtime
+                ),
             )
             print(json.dumps(unsupported, ensure_ascii=False, indent=2))
             return
@@ -2315,9 +2481,28 @@ def main() -> None:
     }
     if validated_proposal is not None:
         planner_kwargs["validated_proposal"] = validated_proposal
-    manifest = planner.plan(args.request, **planner_kwargs)
+    planning_ledger_context = {
+        "schema_version": 1,
+        "evaluation_id": args.evaluation_id,
+        "logical_round_id": "initial_plan",
+        "round_attempt_index": 1,
+        "child_run_id": "task_planner",
+    }
+    planning_ledger_path = pre_round_ledger_root / "initial_plan.jsonl"
+    with runtime_ledger_context(planning_ledger_path, planning_ledger_context):
+        manifest = planner.plan(args.request, **planner_kwargs)
+    pre_round_ledgers.append(
+        {
+            "name": "initial_plan",
+            "path": planning_ledger_path,
+            "context": planning_ledger_context,
+        }
+    )
     evaluation_id = manifest["evaluation_id"]
     evaluation_dir = repo_root / "mea/evaluation_runs" / evaluation_id
+    pre_round_runtime = adopt_pre_round_ledgers(
+        repo_root, evaluation_dir, pre_round_ledgers
+    )
     plan = manifest["plan"]
     candidate_suite = list(plan.get("requested_template_ids") or [])
     planning_policy = (
@@ -2437,7 +2622,11 @@ def main() -> None:
         registered_route=(
             str(args.registered_route) if registration_identity is not None else None
         ),
+        runtime_ledgers=pre_round_runtime,
+        runtime_totals=aggregate_runtime_ledger_summaries(pre_round_runtime),
+        max_agent_rounds=args.max_agent_rounds,
     )
+    runtime_ledgers = list(pre_round_runtime)
 
     if args.plan_only:
         update_manifest(evaluation_dir, status="planned_only")
@@ -2477,6 +2666,39 @@ def main() -> None:
                 inject_tool_exception_once=args.inject_tool_exception_once,
                 registration_identity=registration_identity,
             )
+            runtime_ledger_artifact = (
+                (round_summary.get("observations") or {})
+                .get("runtime_call_ledger", {})
+                .get("artifact")
+            )
+            round_summary, round_provenance = bind_round_provenance(
+                repo_root,
+                evaluation_dir,
+                round_plan=round_plan,
+                child_dir=child_dir,
+                round_summary=round_summary,
+                ledger_paths=(
+                    [repo_root / runtime_ledger_artifact]
+                    if runtime_ledger_artifact
+                    else []
+                ),
+            )
+            write_json(
+                evaluation_dir / "summary" / f"{round_plan['round_id']}.json",
+                round_summary,
+            )
+            round_runtime = dict(
+                (round_summary.get("observations") or {}).get(
+                    "runtime_call_ledger", {}
+                )
+            )
+            round_runtime["stage"] = round_plan["round_id"]
+            runtime_ledgers.append(round_runtime)
+            update_manifest(
+                evaluation_dir,
+                runtime_ledgers=runtime_ledgers,
+                runtime_totals=aggregate_runtime_ledger_summaries(runtime_ledgers),
+            )
             round_runs.append(
                 {
                     "round_plan": round_plan,
@@ -2484,16 +2706,110 @@ def main() -> None:
                     "child_dir": child_dir,
                     "round_summary": round_summary,
                     "tool_evaluation": tool_evaluation,
+                    "round_provenance": round_provenance,
                     "returncode": returncode,
                 }
             )
             executed_rounds += 1
 
-            plan, decision = planner.decide_next_round(
-                evaluation_id=evaluation_id,
-                user_request=args.request,
-                current_plan=plan,
-                observation_history=[item["round_summary"] for item in round_runs],
+            if (
+                args.max_agent_rounds is not None
+                and executed_rounds >= args.max_agent_rounds
+            ):
+                completed = [
+                    item["round_plan"].get("template_id") for item in round_runs
+                ]
+                remaining = [
+                    template
+                    for template in plan.get("requested_template_ids", [])
+                    if template not in completed
+                ]
+                assessment = {
+                    "schema_version": 1,
+                    "state": "external_hard_round_cap_reached",
+                    "required_action": "stop",
+                    "completed_rounds": executed_rounds,
+                    "max_agent_rounds": args.max_agent_rounds,
+                    "remaining_template_ids": remaining,
+                    "policy_outcome_not_inferred": True,
+                }
+                decision = {
+                    "schema_version": 2,
+                    "action": "stop",
+                    "observation_summary": (
+                        f"Completed {executed_rounds} round(s); the task-agnostic "
+                        "hard execution cap is now exhausted."
+                    ),
+                    "decision_reason": "external_max_agent_rounds_budget",
+                    "next_template_id": None,
+                    "remaining_template_ids_before_decision": remaining,
+                    "round_budget_before_decision": 0,
+                    "evidence_assessment": assessment,
+                    "next_round": None,
+                }
+                plan.setdefault("round_decisions", []).append(decision)
+                plan["planning_state"] = (
+                    f"stopped_after_round_{executed_rounds}_by_hard_cap"
+                )
+                write_json(
+                    evaluation_dir
+                    / f"plan/evidence_after_round_{executed_rounds}.json",
+                    assessment,
+                )
+                write_json(
+                    evaluation_dir
+                    / f"plan/decision_after_round_{executed_rounds}.json",
+                    decision,
+                )
+                write_json(evaluation_dir / "plan/evaluation_plan.json", plan)
+                update_manifest(
+                    evaluation_dir,
+                    status=plan["planning_state"],
+                    plan=plan,
+                    hard_round_cap_stop={
+                        "max_agent_rounds": args.max_agent_rounds,
+                        "executed_rounds": executed_rounds,
+                        "decision_path": (
+                            f"plan/decision_after_round_{executed_rounds}.json"
+                        ),
+                    },
+                )
+                break
+
+            decision_context = {
+                "schema_version": 1,
+                "evaluation_id": evaluation_id,
+                "logical_round_id": f"decision_after_{round_plan['round_id']}",
+                "round_attempt_index": 1,
+                "child_run_id": "task_planner",
+            }
+            decision_ledger = (
+                evaluation_dir
+                / "runtime"
+                / f"decision_after_{round_plan['round_id']}"
+                / "call_starts.jsonl"
+            )
+            with runtime_ledger_context(decision_ledger, decision_context):
+                plan, decision = planner.decide_next_round(
+                    evaluation_id=evaluation_id,
+                    user_request=args.request,
+                    current_plan=plan,
+                    observation_history=[item["round_summary"] for item in round_runs],
+                )
+            decision_runtime = summarize_runtime_ledger(
+                decision_ledger, expected_context=decision_context
+            )
+            decision_runtime["stage"] = f"decision_after_{round_plan['round_id']}"
+            decision_runtime["artifact"] = (
+                str(decision_ledger.relative_to(repo_root)).replace("\\", "/")
+                if decision_ledger.is_file()
+                else None
+            )
+            runtime_ledgers.append(decision_runtime)
+            update_manifest(
+                evaluation_dir,
+                runtime_ledgers=runtime_ledgers,
+                runtime_totals=aggregate_runtime_ledger_summaries(runtime_ledgers),
             )
             if decision["action"] == "stop":
                 break
@@ -2532,14 +2848,33 @@ def main() -> None:
             evidence_path="summary/evidence_bundle.json",
             summary=summary,
         )
-        feedback = FeedbackAgent(
-            repo_root,
-            provider,
-            model=models["feedback"],
-        ).generate(
-            evidence,
-            output_dir=evaluation_dir / "feedback",
+        feedback_context = {
+            "schema_version": 1,
+            "evaluation_id": evaluation_id,
+            "logical_round_id": "final_feedback",
+            "round_attempt_index": 1,
+            "child_run_id": "feedback_agent",
+        }
+        feedback_ledger = evaluation_dir / "runtime/final_feedback/call_starts.jsonl"
+        with runtime_ledger_context(feedback_ledger, feedback_context):
+            feedback = FeedbackAgent(
+                repo_root,
+                provider,
+                model=models["feedback"],
+            ).generate(
+                evidence,
+                output_dir=evaluation_dir / "feedback",
+            )
+        feedback_runtime = summarize_runtime_ledger(
+            feedback_ledger, expected_context=feedback_context
         )
+        feedback_runtime["stage"] = "final_feedback"
+        feedback_runtime["artifact"] = (
+            str(feedback_ledger.relative_to(repo_root)).replace("\\", "/")
+            if feedback_ledger.is_file()
+            else None
+        )
+        runtime_ledgers.append(feedback_runtime)
         report_path = evaluation_dir / "evaluation_report.md"
         report_path.write_text(
             render_evaluation_report(evidence, feedback),
@@ -2558,6 +2893,8 @@ def main() -> None:
             child_run_ids=[item["child_manifest"].get("run_id") for item in round_runs],
             summary=summary,
             feedback=feedback,
+            runtime_ledgers=runtime_ledgers,
+            runtime_totals=aggregate_runtime_ledger_summaries(runtime_ledgers),
         )
         history_index = {"status": "disabled" if args.no_history else "not_available"}
         if history_database is not None:

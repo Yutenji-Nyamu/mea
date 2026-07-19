@@ -3,7 +3,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from mea.taskgen.acceptance import build_cached_taskgen_acceptance
+from mea.taskgen.acceptance import (
+    build_cached_taskgen_acceptance,
+    build_scene_error_repair_acceptance,
+)
 
 
 def write_json(path, value):
@@ -246,6 +249,16 @@ class TaskGenAcceptanceTests(unittest.TestCase):
         self.assertTrue(
             report["checks"]["bbh_true_codegen_and_retrieval_provenance"]["passed"]
         )
+
+    def test_single_repair_acceptance_does_not_depend_on_other_cached_runs(self):
+        report = build_scene_error_repair_acceptance(
+            self.root,
+            reflection_run_id=self.run_ids["reflection"],
+        )
+        self.assertTrue(report["passed"])
+        self.assertEqual(report["kind"], "taskgen_scene_error_repair_acceptance_v1")
+        self.assertTrue(report["historical_source_contains_runtime_evidence"])
+        self.assertFalse(report["paper_table_eligible"])
 
     def test_repair_artifact_with_act_or_missing_diagnosis_is_rejected(self):
         root = self.run_dir("reflection")
