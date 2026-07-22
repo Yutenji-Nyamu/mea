@@ -4,7 +4,7 @@
   "purpose": "Compact index of the MEA functional-reproduction evidence boundary; not a paper-results table.",
   "source_evidence": {
     "repository": "https://github.com/Yutenji-Nyamu/mea",
-    "validated_worktree_base_commit": "51f3054ef0ce7680bb8f6233a953f01e3fc767a4",
+    "validated_worktree_base_commit": "412fe6ed6fb6dd2ed20149a1b49e87549bbf1ce7",
     "snapshot_commit_resolution": "Run git rev-parse HEAD after checkout; this file does not self-assert its containing commit.",
     "policy_scope": [
       "ACT"
@@ -14,9 +14,9 @@
       "click_bell"
     ],
     "full_test_suite": {
-      "passed": 497,
+      "passed": 516,
       "failed": 0,
-      "elapsed_seconds": 51.364,
+      "elapsed_seconds": 49.857,
       "environment": "/root/autodl-tmp/conda/envs/RoboTwin/bin/python"
     },
     "paper_method_contract_audit": {
@@ -54,13 +54,38 @@
       "minimum_real_episode_count": 1,
       "new_act_rollouts_started": 0
     },
+    "taskgen_resolution": {
+      "route_authority": "upstream trusted capability contract",
+      "identity": "exact executable semantic key excluding Query wording and proposal_id",
+      "runtime_artifact": "generation/task_resolution.json",
+      "artifact_write_timing": "computed before provider; saved only after successful run materialization",
+      "normal_runtime_reviewed_lookup_configured": false,
+      "unconfigured_lookup_recorded_as_attempted": false,
+      "limitation": "Official and built-in routes execute the upstream trusted capability choice. The force-codegen branch has an exact reviewed lookup interface, but normal runtime has no persistent registry callback/materializer and is not yet a global retrieve-first selector."
+    },
     "taskgen_success_method": {
-      "schema": "SuccessSpec v1",
+      "schemas": [
+        "SuccessSpec v1",
+        "SuccessSpec v2"
+      ],
       "task_scope": "beat_block_hammer",
       "origin": "compiled_success_spec",
-      "semantic_scope": "official-equivalent actor, threshold, contact and boolean logic",
+      "act_eligible_envelope": "bbh.official_capability; official-equivalent all logic, actor bindings, 0.02 m thresholds and contact",
+      "development_only_envelope": "bbh.development_fixture; bounded thresholds and all/any, act_eligible=false",
       "bounded_recovery_artifact": "mea/validation_runs/batch15_safety_success_recovery_v1/success_spec_repair.json",
-      "limitation": "Invalid candidate recovery replaces it with one trusted official-equivalent default; it is not proposal-derived semantic repair or arbitrary Python."
+      "limitation": "v2 proves a bounded DSL/compiler with fixtures. Non-official semantics are prohibited from ACT and do not yet prove live Proposal-derived success generation."
+    },
+    "task_generation_attempt": {
+      "stages": [
+        "success_spec",
+        "scene_codegen_or_static",
+        "render_or_vision",
+        "expert_gate"
+      ],
+      "max_local_repairs": 1,
+      "act_before_acceptance": 0,
+      "fixture_path": "tests/manipeval/test_taskgen_attempts.py",
+      "limitation": "The controller executes typed fixture diagnosis and repair callbacks, but all production TaskGen branches are not yet routed through it."
     },
     "evaluation_graph": {
       "scope": "optional cross-checkpoint portfolio with at most two ACT child nodes, one active aspect and N=1 round per node",
@@ -73,7 +98,7 @@
   "server_only_evidence": {
     "canonical_repo_path": "/root/autodl-tmp/mea",
     "verification_date": "2026-07-22",
-    "validated_worktree_base_head": "51f3054ef0ce7680bb8f6233a953f01e3fc767a4",
+    "validated_worktree_base_head": "412fe6ed6fb6dd2ed20149a1b49e87549bbf1ce7",
     "head_equal_origin_main_before_commit": true,
     "runtime": {
       "gpu": "NVIDIA RTX 4090",
@@ -86,6 +111,74 @@
       ]
     },
     "artifacts": [
+      {
+        "kind": "strict_registered_fixed_dynamic_n1_pair",
+        "registration_id": "batch16_instance_pair_n1_412fe6e",
+        "comparison": "mea/validation_runs/batch16_instance_pair_n1_412fe6e/comparison/summary.json",
+        "fixed_evaluation": "eval_batch16_instance_pair_n1_412fe6e_fixed",
+        "dynamic_evaluation": "eval_batch16_instance_pair_n1_412fe6e_dynamic",
+        "task": "click_bell",
+        "seed": 100401,
+        "candidate_suite": [
+          "object_instance.base0",
+          "object_instance.base1"
+        ],
+        "fixed_act_rollouts": 2,
+        "dynamic_act_rollouts": 2,
+        "fixed_successes": 1,
+        "dynamic_successes": 1,
+        "overlap_exact_success_agreement_rate": 1.0,
+        "rollout_savings": 0,
+        "paper_table_eligible": false,
+        "dynamic_planner_path": "legacy_task_specific_decision_v1",
+        "current_adaptive_plan_step_live_evidence": false,
+        "dynamic_decisions": [
+          "round_1 sufficient evidence -> continue/drill_down to required counterfactual",
+          "round_2 sufficient evidence and exhausted suite -> stop"
+        ],
+        "limitation": "This N=1 pair proves the registered ACT/Tool/VQA execution path and exact same-seed conclusion agreement, but it exposed that the registered dynamic command still skipped the common AdaptivePlanStepAgent. Source and server regressions now initialize its trusted catalog and provider as a pair; a new clean-head live N=1 remains required. The frozen two-candidate scope also provides no efficiency gain and cannot support Tables 1-2."
+      },
+      {
+        "kind": "cross_commit_historical_scene_shift_inventory",
+        "path": "mea/validation_runs/batch16_cross_commit_scene_inventory_412fe6e",
+        "conditions": [
+          "scene_background_texture.unseen",
+          "scene_lighting.static_random"
+        ],
+        "ready_candidates": 4,
+        "seeds": [
+          100402,
+          100403
+        ],
+        "act_rollouts_started": 0,
+        "paper_table_eligible": false,
+        "limitation": "This is a zero-ACT inventory of completed real-simulator artifacts from multiple commits. It validates artifact availability, not a strict same-commit Tables 7-8 suite or independent human labels."
+      },
+      {
+        "kind": "live_provider_plan_only_counterfactual_on_cached_real_evidence",
+        "task": "click_bell",
+        "source_evaluation": "eval_batch16_instance_pair_n1_412fe6e_dynamic",
+        "source_round": "round_1",
+        "frozen_non_policy_evidence": true,
+        "counterfactual_results": [
+          {
+            "policy_success": 0.0,
+            "stop_allowed": false,
+            "provider_action": "refine",
+            "template_id": "object_instance.base1"
+          },
+          {
+            "policy_success": 1.0,
+            "stop_allowed": true,
+            "provider_action": "stop",
+            "template_id": null
+          }
+        ],
+        "provider_validation_errors": 0,
+        "act_rollouts_started": 0,
+        "paper_table_eligible": false,
+        "limitation": "This validates Query-conditioned PlanStep control flow using a live provider and cached real evidence. It is not a new integrated TaskGen/ACT/Tool/VQA runtime execution or a policy result."
+      },
       {
         "kind": "completed_evidence_conditioned_click_bell_flagship",
         "id": "eval_20260722_batch14_click_flagship_n1_v2",
@@ -164,16 +257,21 @@
       "scale_expert_gate_episodes": 1,
       "cached_act_episodes_reused": 1
     },
+    "batch16_execution_budget": {
+      "fixed_act_rollouts_started": 2,
+      "dynamic_act_rollouts_started": 2,
+      "total_act_rollouts_started": 4
+    },
     "availability_note": "validation_runs and raw evaluation artifacts are not Git-tracked; re-run their validators on the canonical server before citing them as current after environment changes."
   },
   "reproduction_status": {
-    "functional": "The single-task open-query loop now has a common evidence-conditioned dynamic sub-aspect step in the normal adaptive runtime, plus bounded Task/Tool proposals, TaskGen, ACT, Rule Tool, Dynamic VQA and final feedback. The newest dynamic step still needs a clean-head live N=1 flagship. EvaluationGraph remains an optional cross-checkpoint portfolio.",
-    "experimental": "Not reproduced at paper scale: ACT only, mostly N=1, proxy rather than independent human gold, limited task/aspect coverage, and no complete matched ablation, multi-policy or repeated benchmark tables.",
+    "functional": "The single-task open-query loop has a common evidence-conditioned dynamic step in normal runtime, plus bounded Task/Tool proposals, capability-bound Task resolution, TaskGen, ACT, Rule Tool, Dynamic VQA and final feedback. Reviewed generated-task retrieval remains an interface rather than a configured production registry. Registered adaptive source now initializes the trusted catalog and provider as a pair, but its completed strict N=1 pair predates that final wiring and used the legacy task-specific decision path; a clean-head public-step live acceptance remains open. EvaluationGraph remains an optional cross-checkpoint portfolio.",
+    "experimental": "Not reproduced at paper scale: ACT only, mostly N=1, proxy rather than independent human gold, limited task/aspect coverage, no efficiency gain in the newest strict pair, and no complete multi-policy or repeated benchmark tables.",
     "highest_priority_gaps": [
-      "make TaskProposal resolution genuinely reuse-first before selecting official reuse, overlay or codegen",
-      "add proposal-derived bounded SuccessSpec v2 semantics instead of only trusted-default recovery",
-      "run the current dynamic runtime and matched fixed path on the same Query, seed and two-round N=1 budget",
-      "unify code, SuccessSpec, render, vision and expert failures into one bounded TaskGenerationAttempt recovery contract",
+      "add a persistent reviewed generated-task registry/materializer so an exact hit truly reuses task.py, VariantSpec, SuccessSpec and validation without a provider",
+      "route production TaskGen branches through the bounded TaskGenerationAttempt controller instead of limiting it to fixtures",
+      "run one clean-head registered AdaptivePlanStep N=1 acceptance, then design a fair optional-counterfactual Query/suite where real evidence can legitimately stop or change direction before discussing efficiency",
+      "add an explicitly authorized success-semantics-variation capability and oracle before any live non-official SuccessSpec claim",
       "replace assistant-proxy labels with independent human gold before paper-style Planner/VQA claims"
     ]
   }

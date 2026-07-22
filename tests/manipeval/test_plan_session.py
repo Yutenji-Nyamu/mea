@@ -248,7 +248,9 @@ class PlanSessionTests(unittest.TestCase):
             ["object_position.right_fixed"],
         )
         self.assertEqual(failed["available_steps"]["propose"], [])
+        self.assertFalse(failed["available_steps"]["stop"])
         self.assertTrue(succeeded["available_steps"]["propose"])
+        self.assertTrue(succeeded["available_steps"]["stop"])
 
     def test_registered_navigation_stays_inside_candidate_universe(self):
         plan = deepcopy(self.plan)
@@ -371,6 +373,7 @@ class PlanSessionTests(unittest.TestCase):
         self.assertIn("Can it tolerate", provider.prompts[0])
         self.assertIn('"rule"', provider.prompts[0])
         self.assertIn('"vqa"', provider.prompts[0])
+        self.assertIn("aggregate_status only says", provider.prompts[0])
 
     def test_bbh_uses_the_same_dynamic_discovery_api(self):
         session = BoundTaskPlanSession.from_catalog(

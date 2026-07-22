@@ -501,13 +501,20 @@ class BoundTaskPlanSession:
         ):
             propose = []
 
+        measured_failure_with_counterfactual = bool(
+            refine
+            and policy_success is not None
+            and float(policy_success) < 1.0
+        )
         forced_stop = (
             assessment["state"] == "pipeline_failure"
             or int(assessment["round_budget_remaining"]) <= 0
             or (not refine and not propose)
         )
         stop_allowed = forced_stop or (
-            not unresolved and not initial_uncovered
+            not unresolved
+            and not initial_uncovered
+            and not measured_failure_with_counterfactual
         )
         if forced_stop:
             fallback = {

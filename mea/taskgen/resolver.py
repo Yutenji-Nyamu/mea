@@ -219,9 +219,13 @@ def resolve_task_proposal(
         **base,
         "resolved_route": "force_codegen",
         "materialization": "generate",
-        "reason": "no exact approved reusable task artifact matched",
+        "reason": (
+            "no exact approved reusable task artifact matched"
+            if find_reviewed is not None
+            else "reviewed task lookup is not configured; generate under the trusted contract"
+        ),
         "provider_required": True,
-        "reviewed_lookup_attempted": True,
+        "reviewed_lookup_attempted": find_reviewed is not None,
         "reviewed_registration": None,
     }
 

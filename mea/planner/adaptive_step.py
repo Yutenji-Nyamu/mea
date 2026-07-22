@@ -123,7 +123,11 @@ checkpoint, the executable capability catalog, and the remaining round budget.
 Do not invent a task, checkpoint, aspect, template, metric, seed, or path.
 
 Use all typed evidence, including the Rule metric, policy success, VQA answer,
-and evidence-conflict flag.  A pipeline failure is not policy failure.  Choose:
+and evidence-conflict flag.  Treat evidence_packet.policy.success_rate as the
+evaluated policy outcome.  evidence_packet.rule.aggregate_status only says
+whether Rule aggregation produced valid evidence; "passed" there does not mean
+the manipulation policy succeeded.  A pipeline failure is not policy failure.
+Choose:
 - propose: a new aspect from available_steps.propose;
 - refine: a same-aspect counterfactual from available_steps.refine;
 - stop: only when available_steps.stop is true.  If stop is voluntary, set

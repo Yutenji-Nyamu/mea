@@ -85,6 +85,9 @@ class TaskGenResolverTests(unittest.TestCase):
             first_decision["semantic_key_sha256"],
             second_decision["semantic_key_sha256"],
         )
+        self.assertFalse(first_decision["reviewed_lookup_attempted"])
+        self.assertFalse(second_decision["reviewed_lookup_attempted"])
+        self.assertIn("not configured", first_decision["reason"])
 
     def test_missing_reviewed_match_falls_back_to_generation(self):
         contract, proposal = self.proposal(

@@ -15,7 +15,7 @@
 | 语义 Proposal | `mea/proposals.py`、`mea/proposal_agent.py`、`scripts/manipeval_proposal.py` | 用受限 `TaskProposal`/`ToolProposal` 描述“测什么”；主 Agent 可用 `novel_first_round` 生成未精确登记的新变式，再投影到可信 capability envelope；路径、seed、checkpoint 和 gate 仍由 runtime 注入 |
 | 检索与历史 | `mea/retrieval/`、`mea/history/`、`mea/knowledge/` | 检索任务/源码知识，复用历史评估上下文 |
 | TaskGen | `scripts/manipeval_taskgen.py`、`mea/taskgen/` | 生成或复用受限 task overlay；也可创建不改官方源码的 passthrough run |
-| TaskGen reuse-first resolver | `mea/taskgen/resolver.py` | 在 provider 创建前，以 exact executable semantic key 依次判断 official、内置 overlay、审核生成物或 codegen，并保存 requested/resolved route |
+| TaskGen resolution | `mea/taskgen/resolver.py` | 在上游可信 capability 已选 route 后、provider 创建前计算 exact executable semantic key；记录 official/内置 materializer，force-codegen 分支可注入审核生成物 lookup，否则诚实转入 codegen |
 | TaskGen capability | `mea/taskgen/capabilities.py` | 用共享 capability catalog 和 `VariantSpec` v2 固定受控轴、生成模式与必须保留的官方语义 |
 | TaskGen 局部恢复 | `mea/taskgen/attempts.py` | 在 policy 启动前对 SuccessSpec、code/static、render/vision、expert failure 做最多一次 typed repair/regenerate；policy failure 不重试 |
 | RoboTwin 执行 | `mea/taskgen/probe.py`、`policy/ACT/eval_mea.sh` | setup/render、official expert `play_once()`、ACT rollout |
@@ -54,7 +54,7 @@ open query
 → EvaluationTarget + BoundTaskPlanSession
 → catalog round，或 novel_first_round 生成 TaskProposal + ToolProposal v2
 → capability envelope 校验 changes/metric/gates，task adapter 只物化轮次
-→ reuse-first resolution → TaskGen → ACT → Tool/VQA/Aggregate
+→ capability-bound task resolution → TaskGen → ACT → Tool/VQA/Aggregate
 → BoundTaskPlanSession.directive() + adjudicate()
 → drill_down / switch_aspect / stop
 → Feedback 回答原始 query
@@ -79,11 +79,13 @@ BBH/click_bell adapter 在其后提供 materialization 细节。
 裁决另写 `plan/runtime_directive_after_*.json`。历史只消费已完成 evaluation；plan-only 不会反向
 写成执行证据。
 
-TaskProposal 与 capability 同时存在时，TaskGen 现在先写
-`generation/task_resolution.json`，再决定是否需要 provider。v1 resolver 只允许 exact semantic
-match；Query/intent 改写不改变 executable key，而 changes、capability、SuccessSpec 或 contract
-改变都会产生新 key。official 与内置 overlay 已在正常 runtime 真正复用；审核生成物已有严格 lookup
-接口，但其跨 evaluation 持久注册与物化仍未接入生产主链，因此不能宣称 generated-task registry 已完成。
+TaskProposal 与 capability 同时存在时，TaskGen 在 provider 创建前计算 resolution；run 成功物化后才把它
+保存为 `generation/task_resolution.json`，所以当前生成早期失败不会留下该文件。v1 resolver 只允许 exact
+semantic match；Query/intent 改写不改变 executable key，而 changes、capability、SuccessSpec 或 contract
+改变都会产生新 key。official 与内置 overlay 继续执行上游可信 capability 已选择的 materializer；
+force-codegen 分支已有严格 reviewed lookup 注入接口，但正常 runtime 尚未配置 registry callback，因此会
+诚实记录 `reviewed_lookup_attempted=false` 并进入 codegen。它还不是论文 Fig. 3 完整的全局 retrieve-first
+selector，也不能宣称 generated-task registry 已完成。
 
 ## 2. Route 与 execution backend
 

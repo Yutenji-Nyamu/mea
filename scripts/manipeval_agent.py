@@ -113,6 +113,30 @@ def should_enable_adaptive_plan_step(
     )
 
 
+def initialize_registered_dynamic_runtime(
+    repo_root: Path,
+    existing_catalog: dict[str, Any] | None,
+    existing_provider: OpenAICompatibleProvider | None,
+    *,
+    registered_strategy: str | None,
+    base_url: str | None,
+    text_model: str,
+    vision_model: str,
+) -> tuple[dict[str, Any] | None, OpenAICompatibleProvider | None]:
+    """Initialize the catalog/provider pair skipped by a registered route."""
+
+    if registered_strategy != "dynamic_evidence_v1":
+        return existing_catalog, existing_provider
+    catalog = existing_catalog or build_act_catalog(repo_root)
+    provider = existing_provider or OpenAICompatibleProvider(
+        base_url=base_url,
+        text_model=text_model,
+        vision_model=vision_model,
+        timeout=180.0,
+    )
+    return catalog, provider
+
+
 def canonical_sha256(value: Any) -> str:
     payload = json.dumps(
         value,
@@ -2585,6 +2609,20 @@ def main() -> None:
     )
     provider = None
     global_catalog: dict[str, Any] | None = None
+    # A registered dynamic run already carries a validated route, so it skips
+    # --auto-route.  It still needs the trusted catalog to construct the bound
+    # PlanSession that owns evidence-conditioned PlanStep proposals.  Keep the
+    # registered fixed baseline on its existing planner path.
+    if registered_execution is not None:
+        global_catalog, provider = initialize_registered_dynamic_runtime(
+            repo_root,
+            global_catalog,
+            provider,
+            registered_strategy=args.registered_strategy,
+            base_url=args.base_url,
+            text_model=models["planner"],
+            vision_model=models["vision"],
+        )
     global_route_result: dict[str, Any] | None = None
     global_history_retrieval: dict[str, Any] = {
         "schema_version": 1,
