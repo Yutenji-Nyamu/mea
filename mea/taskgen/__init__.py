@@ -55,8 +55,10 @@ from .acceptance import (
 from .success_spec import (
     DEFAULT_BBH_SUCCESS_SPEC,
     SuccessSpecError,
+    SuccessSpecRepairError,
     compile_success_spec,
     default_bbh_success_spec,
+    repair_success_spec,
     validate_compiled_success_method,
     validate_success_spec,
 )
@@ -100,8 +102,10 @@ __all__ = [
     "build_cached_taskgen_acceptance",
     "DEFAULT_BBH_SUCCESS_SPEC",
     "SuccessSpecError",
+    "SuccessSpecRepairError",
     "compile_success_spec",
     "default_bbh_success_spec",
+    "repair_success_spec",
     "validate_compiled_success_method",
     "validate_success_spec",
 ]

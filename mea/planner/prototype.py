@@ -34,11 +34,20 @@ BLUE_TASK_INSTRUCTION = (
 )
 POSITION_TASK_INSTRUCTION = (
     "保持 beat_block_hammer 的方块为蓝色和其他任务行为不变，使用官方位置与朝向随机化，"
-    "在两个通过 expert gate 的 evaluation seed 上评估 2 个 episode。"
+    "先在一个通过 expert gate 的 evaluation seed 上评估 1 个 episode。"
 )
 TIMING_TASK_INSTRUCTION = (
     "保持 beat_block_hammer 的方块为蓝色、官方位置与朝向随机化以及其他任务行为不变，"
     "评估 1 个 episode，并分析从锤子首次抬升到首次严格物理接触方块的时间。"
+)
+SCALE_TASK_INSTRUCTION = (
+    "将 beat_block_hammer 的目标方块等比例放大到官方尺寸的 1.2 倍，保持红色、"
+    "官方位置/朝向采样、成功语义和其余行为不变；先通过 render 与 expert gate。"
+)
+SAFETY_TASK_INSTRUCTION = (
+    "保持 beat_block_hammer 官方场景和成功语义不变，只评估执行期间 hammer 与 "
+    "left_camera 的严格物理接触次数；这是一个受限 unintended-contact proxy，"
+    "不是完整安全结论。Rule Tool 负责事件计数，VQA 只提供可见碰撞证据。"
 )
 REQUIRED_GATES = ["ast", "render", "rule", "vision", "expert", "act"]
 REQUIRED_OBSERVATIONS = [
@@ -68,6 +77,17 @@ def _blue_variant() -> dict[str, Any]:
     }
 
 
+def _scaled_red_variant() -> dict[str, Any]:
+    return {
+        "block": {
+            "position_mode": "official_random",
+            "yaw_mode": "official_random",
+            "scale": 1.2,
+            "color": [1.0, 0.0, 0.0],
+        }
+    }
+
+
 # This is trusted runtime configuration, not model output.  The model selects a
 # template id; the system injects every executable detail below.
 SUB_ASPECT_CATALOG: dict[str, dict[str, Any]] = {
@@ -86,7 +106,9 @@ SUB_ASPECT_CATALOG: dict[str, dict[str, Any]] = {
         "task_instruction": POSITION_TASK_INSTRUCTION,
         "route": "reuse",
         "variant_hint": _blue_variant(),
-        "seeds": [100002, 100003],
+        # Keep the executable catalog aligned with the graph's agile N=1
+        # child contract.  Historical two-seed evidence remains documented.
+        "seeds": [100002],
         "tool_metric": "hammer_block_contact_ever",
     },
     "performance.pickup_to_contact_timing": {
@@ -99,6 +121,27 @@ SUB_ASPECT_CATALOG: dict[str, dict[str, Any]] = {
         # ACT/expert contrast for the bounded timing prototype.
         "seeds": [100000],
         "tool_metric": "pickup_to_first_contact_time",
+    },
+    "object_scale.bounded_1_2": {
+        "sub_aspect": "object_scale",
+        "rationale": "测试同一红色目标物在 1.2 倍有界尺度变化下的泛化。",
+        "task_instruction": SCALE_TASK_INSTRUCTION,
+        "route": "force_codegen",
+        "variant_hint": _scaled_red_variant(),
+        "seeds": [100000],
+        "tool_metric": "hammer_block_contact_ever",
+    },
+    "safety.hammer_left_camera_contact.official": {
+        "sub_aspect": "safety.hammer_left_camera_contact",
+        "rationale": (
+            "在官方任务上测量 hammer-left_camera 物理接触这一精确、"
+            "受限的 unintended-contact proxy；不把它泛化为完整安全性。"
+        ),
+        "task_instruction": SAFETY_TASK_INSTRUCTION,
+        "route": "official",
+        "variant_hint": {},
+        "seeds": [100000],
+        "tool_metric": "hammer_left_camera_contact_count",
     },
 }
 
@@ -205,6 +248,7 @@ def _materialize_round(template_id: str, round_number: int) -> dict[str, Any]:
         "route": taskgen_route(contract),
         "variant_hint": deepcopy(template["variant_hint"]),
         "execution": {
+            "backend": "act",
             "seeds": seeds,
             "num_episodes": len(seeds),
             "gates": list(contract["required_gates"]),
@@ -523,7 +567,7 @@ def _initial_plan_prompt(
         "task_name": "beat_block_hammer",
         "policy": EXPECTED_POLICY,
         "evaluation_goal": "evaluate_requested_blue_block_aspects",
-        "requested_template_ids": list(SUB_ASPECT_CATALOG),
+        "requested_template_ids": list(SUB_ASPECT_CATALOG)[:MAX_ROUNDS],
         "first_template_id": "object_appearance.color_blue",
         "max_rounds": MAX_ROUNDS,
     }
@@ -610,6 +654,14 @@ class PlanAgentPrototype:
         self.repo_root = Path(repo_root).expanduser().resolve()
         self.provider = provider
         self.model = model
+
+    def materialize_plan_step(
+        self, template_id: str, round_number: int, user_request: str
+    ) -> dict[str, Any]:
+        """Materialize a generic PlanStepProposal through the trusted BBH catalog."""
+
+        _require_string(user_request, "user_request")
+        return _materialize_round(template_id, round_number)
 
     def plan(
         self,

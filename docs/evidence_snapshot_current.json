@@ -4,7 +4,7 @@
   "purpose": "Compact index of the MEA functional-reproduction evidence boundary; not a paper-results table.",
   "source_evidence": {
     "repository": "https://github.com/Yutenji-Nyamu/mea",
-    "validated_worktree_base_commit": "ca234bddf955b515abe998039d24da559766b2c4",
+    "validated_worktree_base_commit": "51f3054ef0ce7680bb8f6233a953f01e3fc767a4",
     "snapshot_commit_resolution": "Run git rev-parse HEAD after checkout; this file does not self-assert its containing commit.",
     "policy_scope": [
       "ACT"
@@ -14,13 +14,13 @@
       "click_bell"
     ],
     "full_test_suite": {
-      "passed": 480,
+      "passed": 497,
       "failed": 0,
-      "elapsed_seconds": 48.848,
+      "elapsed_seconds": 51.364,
       "environment": "/root/autodl-tmp/conda/envs/RoboTwin/bin/python"
     },
     "paper_method_contract_audit": {
-      "artifact": "mea/validation_runs/batch14_method_coverage_v4/report.json",
+      "artifact": "mea/validation_runs/batch15_method_coverage_v1/report.json",
       "implemented": 16,
       "partial": 0,
       "evidence_pending": 0,
@@ -50,6 +50,8 @@
         "time_between_events"
       ],
       "new_operator_evidence": "cached_real_RoboTwin_telemetry_compile_oracle_register_reuse",
+      "normal_runtime_route": "ToolProposal_v3_to_MetricSpec_v1_to_compile_or_reuse",
+      "minimum_real_episode_count": 1,
       "new_act_rollouts_started": 0
     },
     "taskgen_success_method": {
@@ -57,19 +59,21 @@
       "task_scope": "beat_block_hammer",
       "origin": "compiled_success_spec",
       "semantic_scope": "official-equivalent actor, threshold, contact and boolean logic",
-      "limitation": "Not arbitrary model-authored Python or open-ended success semantics."
+      "bounded_recovery_artifact": "mea/validation_runs/batch15_safety_success_recovery_v1/success_spec_repair.json",
+      "limitation": "Invalid candidate recovery replaces it with one trusted official-equivalent default; it is not proposal-derived semantic repair or arbitrary Python."
     },
     "evaluation_graph": {
-      "scope": "one query, at most two checkpoint-bound ACT child nodes, one aspect and N=1 round per node",
+      "scope": "optional cross-checkpoint portfolio with at most two ACT child nodes, one active aspect and N=1 round per node",
       "evidence": "live_provider_plan_plus_synthetic_success_failure_branch_replay",
       "strict_cli_roundtrip": "mea/validation_runs/batch14_graph_cli_strict_v1",
-      "limitation": "The CLI emits and adjudicates inert child commands but does not yet launch live children automatically."
+      "coverage_semantics": "required and uncovered include only activated nodes; skipped conditional nodes remain conditional_not_activated",
+      "limitation": "The CLI emits and adjudicates inert child commands but does not yet launch live children automatically; this is not the paper core single-task loop."
     }
   },
   "server_only_evidence": {
     "canonical_repo_path": "/root/autodl-tmp/mea",
     "verification_date": "2026-07-22",
-    "validated_worktree_base_head": "ca234bddf955b515abe998039d24da559766b2c4",
+    "validated_worktree_base_head": "51f3054ef0ce7680bb8f6233a953f01e3fc767a4",
     "head_equal_origin_main_before_commit": true,
     "runtime": {
       "gpu": "NVIDIA RTX 4090",
@@ -110,6 +114,23 @@
           0.03
         ],
         "success_spec_sha256": "ea70132ae08c8427cf0d8192a68ca60b593a5f47087a1f7d1b006eb9429f58b0",
+        "status": "completed_without_act",
+        "vision_passed": true,
+        "vision_confidence": 0.93,
+        "scene_repairs_used": 0,
+        "expert_gate_passed": true,
+        "act_rollouts_started": 0
+      },
+      {
+        "kind": "bounded_camera_contact_and_success_recovery",
+        "path": "mea/validation_runs/batch15_safety_success_recovery_v1/summary.json",
+        "cached_act_episode_reused": true,
+        "camera_contact_count": 1,
+        "typed_metric_routes": [
+          "typed_metric_spec_compile",
+          "run_local_reuse"
+        ],
+        "success_spec_repair_final_source": "trusted_default",
         "act_rollouts_started": 0
       },
       {
@@ -138,17 +159,21 @@
       "successful_flagship_started": 2,
       "total_started": 3
     },
+    "batch15_execution_budget": {
+      "new_act_rollouts_started": 0,
+      "scale_expert_gate_episodes": 1,
+      "cached_act_episodes_reused": 1
+    },
     "availability_note": "validation_runs and raw evaluation artifacts are not Git-tracked; re-run their validators on the canonical server before citing them as current after environment changes."
   },
   "reproduction_status": {
-    "functional": "The single-task open-query loop is live on the current worktree: bounded planning, Task/Tool proposals, TaskGen, ACT, Rule Tool, Dynamic VQA, evidence-conditioned next-round choice and final feedback. A bounded cross-task EvaluationGraph exists at plan/outcome/replay level but does not yet auto-launch real children.",
+    "functional": "The single-task open-query loop now has a common evidence-conditioned dynamic sub-aspect step in the normal adaptive runtime, plus bounded Task/Tool proposals, TaskGen, ACT, Rule Tool, Dynamic VQA and final feedback. The newest dynamic step still needs a clean-head live N=1 flagship. EvaluationGraph remains an optional cross-checkpoint portfolio.",
     "experimental": "Not reproduced at paper scale: ACT only, mostly N=1, proxy rather than independent human gold, limited task/aspect coverage, and no complete matched ablation, multi-policy or repeated benchmark tables.",
     "highest_priority_gaps": [
-      "execute one query-driven EvaluationGraph with verified real child outcomes and coverage-aware parent synthesis",
-      "route the bounded BBH scale capability from an open query through render and expert gates",
-      "demonstrate SuccessSpec diagnosis and bounded repair, not only compile-time rejection",
-      "materialize one performance and one safety concern from query to Tool/VQA evidence",
-      "run matched adaptive versus fixed ACT N=1, expanding to N=3 only if stable",
+      "make TaskProposal resolution genuinely reuse-first before selecting official reuse, overlay or codegen",
+      "add proposal-derived bounded SuccessSpec v2 semantics instead of only trusted-default recovery",
+      "run the current dynamic runtime and matched fixed path on the same Query, seed and two-round N=1 budget",
+      "unify code, SuccessSpec, render, vision and expert failures into one bounded TaskGenerationAttempt recovery contract",
       "replace assistant-proxy labels with independent human gold before paper-style Planner/VQA claims"
     ]
   }

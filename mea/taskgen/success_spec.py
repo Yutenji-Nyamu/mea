@@ -21,6 +21,14 @@ class SuccessSpecError(ValueError):
     """Raised when a SuccessSpec or its compiled method is outside the DSL."""
 
 
+class SuccessSpecRepairError(SuccessSpecError):
+    """Raised when a candidate cannot be accepted within the repair budget."""
+
+    def __init__(self, message: str, *, report: Mapping[str, Any]) -> None:
+        super().__init__(message)
+        self.report = deepcopy(dict(report))
+
+
 DEFAULT_BBH_SUCCESS_SPEC: dict[str, Any] = {
     "schema_version": 1,
     "task_name": "beat_block_hammer",
@@ -196,6 +204,99 @@ def validate_success_spec(spec: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def repair_success_spec(
+    candidate: Any, *, max_repairs: int = 1
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Validate a candidate and optionally recover with the trusted BBH default.
+
+    This is a deliberately bounded recovery path: the candidate is always
+    checked by the closed SuccessSpec validator first, and the only permitted
+    repair is one replacement with :data:`DEFAULT_BBH_SUCCESS_SPEC`.  No fields
+    from an invalid candidate are merged into the trusted contract.
+
+    When the budget is exhausted the function fails closed with
+    :class:`SuccessSpecRepairError`; its ``report`` attribute preserves the
+    structured attempt history for diagnosis.
+    """
+
+    if isinstance(max_repairs, bool) or not isinstance(max_repairs, int):
+        raise SuccessSpecError("max_repairs must be an integer")
+    if max_repairs not in (0, 1):
+        raise SuccessSpecError("max_repairs must be 0 or 1")
+
+    attempts: list[dict[str, Any]] = []
+    report: dict[str, Any] = {
+        "schema_version": 1,
+        "strategy": "validate_then_trusted_default",
+        "max_repairs": max_repairs,
+        "attempts": attempts,
+        "repaired": False,
+        "final_source": None,
+    }
+
+    try:
+        normalized = validate_success_spec(candidate)
+    except SuccessSpecError as exc:
+        attempts.append(
+            {
+                "attempt_index": 0,
+                "source": "candidate",
+                "valid": False,
+                "diagnosis": {
+                    "error_type": type(exc).__name__,
+                    "message": str(exc),
+                },
+            }
+        )
+        if max_repairs == 0:
+            raise SuccessSpecRepairError(
+                "candidate SuccessSpec rejected and repair is disabled",
+                report=report,
+            ) from exc
+    else:
+        attempts.append(
+            {
+                "attempt_index": 0,
+                "source": "candidate",
+                "valid": True,
+                "diagnosis": None,
+            }
+        )
+        report["final_source"] = "candidate"
+        return normalized, report
+
+    try:
+        repaired = validate_success_spec(default_bbh_success_spec())
+    except SuccessSpecError as exc:  # pragma: no cover - trusted invariant guard
+        attempts.append(
+            {
+                "attempt_index": 1,
+                "source": "trusted_default",
+                "valid": False,
+                "diagnosis": {
+                    "error_type": type(exc).__name__,
+                    "message": str(exc),
+                },
+            }
+        )
+        raise SuccessSpecRepairError(
+            "trusted default SuccessSpec failed validation",
+            report=report,
+        ) from exc
+
+    attempts.append(
+        {
+            "attempt_index": 1,
+            "source": "trusted_default",
+            "valid": True,
+            "diagnosis": None,
+        }
+    )
+    report["repaired"] = True
+    report["final_source"] = "trusted_default"
+    return repaired, report
+
+
 def _render_bbh_success_method(spec: Mapping[str, Any]) -> str:
     thresholds = spec["predicates"][0]["thresholds_m"]
     return textwrap.dedent(
@@ -259,8 +360,10 @@ def compile_success_spec(spec: Mapping[str, Any]) -> tuple[str, dict[str, Any]]:
 __all__ = [
     "DEFAULT_BBH_SUCCESS_SPEC",
     "SuccessSpecError",
+    "SuccessSpecRepairError",
     "compile_success_spec",
     "default_bbh_success_spec",
+    "repair_success_spec",
     "validate_compiled_success_method",
     "validate_success_spec",
 ]

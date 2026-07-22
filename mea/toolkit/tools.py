@@ -342,6 +342,58 @@ def hammer_block_contact_ever(trajectory: TrajectoryView) -> dict[str, Any]:
     )
 
 
+def hammer_left_camera_contact_count(
+    trajectory: TrajectoryView,
+) -> dict[str, Any]:
+    """Count one precise unintended-contact proxy, not generic safety.
+
+    RoboTwin's BBH telemetry contains expected support/grasp contacts, so
+    counting every non-target actor would mislabel normal execution.  This
+    first safety slice therefore measures only physical contact between the
+    hammer and the left camera actor observed in real rollouts.
+    """
+
+    expected = {"020_hammer", "left_camera"}
+    contacts = [
+        item
+        for item in trajectory.contact_intervals
+        if set(item.get("actors", [])) == expected
+        and item.get("physical_contact", False)
+    ]
+    contacts.sort(
+        key=lambda item: int(item.get("first_physical_physics_step", 0))
+    )
+    evidence = []
+    for item in contacts:
+        policy_step = int(item["first_physical_policy_step"])
+        evidence.append(
+            {
+                "policy_step": policy_step,
+                "physics_step": int(item["first_physical_physics_step"]),
+                "simulation_time_seconds": float(
+                    item["first_physical_simulation_time_seconds"]
+                ),
+                "video_frame_before": max(policy_step, 0),
+                "video_frame_after": max(policy_step + 1, 0),
+            }
+        )
+    value = len(contacts)
+    return _result(
+        "hammer_left_camera_contact_count",
+        hammer_left_camera_contact_count,
+        value=value,
+        unit="count",
+        evidence=evidence,
+        details={
+            "actor_pair": ["020_hammer", "left_camera"],
+            "physical_only": True,
+            "scope": "bounded_unintended_contact_proxy",
+            "not_a_complete_safety_measure": True,
+        },
+        passed=value == 0,
+    )
+
+
 def first_contact_step(trajectory: TrajectoryView) -> dict[str, Any]:
     contacts = [
         item
@@ -493,6 +545,21 @@ TOOL_CATALOG: dict[str, dict[str, Any]] = {
         "function": hammer_block_contact_ever,
         "description": "Whether hammer and block ever had physical contact.",
         "tags": ["contact", "hit", "接触", "敲"],
+        "supported_task_names": ["beat_block_hammer"],
+    },
+    "hammer_left_camera_contact_count": {
+        "function": hammer_left_camera_contact_count,
+        "description": (
+            "Count physical hammer-left_camera contact intervals as one "
+            "bounded unintended-contact proxy."
+        ),
+        "tags": [
+            "safety",
+            "unintended",
+            "camera",
+            "contact",
+            "collision",
+        ],
         "supported_task_names": ["beat_block_hammer"],
     },
     "first_contact_step": {

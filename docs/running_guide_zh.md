@@ -1185,13 +1185,14 @@ export UIUI_API_KEY='只放在当前 shell 环境变量中'
 ```
 
 真实缓存 telemetry 验收使用公开 API `mea.toolgen.execute_metric_spec(...)`：传入同一 task/schema 的
-两个不同 episode、一个新 metric id、`MetricSpec`、append-only output 和 registry 目录。第一遍应为
+一条或更多不同 episode、一个新 metric id、`MetricSpec`、append-only output 和 registry 目录。第一遍应为
 `route=typed_metric_spec_compile`，第二遍仅改自然语言 question 应为 `route=run_local_reuse`；两遍都应
 `provider_called=false`。当前 operator 为 `minimum_distance`、`event_count` 和
 `time_between_events`。距离算子的 signals 必须真实存在；事件算子只读取 `events.jsonl` 中的
-`contact_interval` / `success_transition`，并使用受限 actor/physical selector。差分 gate 要求两个
-episode 的 oracle 值不同。不要把 unit-test 合成 telemetry 写成真实 RoboTwin 证据，也不要用 typed
-metric 覆盖 `official_check_success` 等已注册指标。
+`contact_interval` / `success_transition`，并使用受限 actor/physical selector。差分 gate 会对每条
+episode 复跑 compiled Tool 并与 trusted interpreter 对照，但不要求不同 episode 的观测值彼此不同；
+合法的 `0/0` 结果不能因此被拒绝。不要把 unit-test 合成 telemetry 写成真实 RoboTwin 证据，也不要
+用 typed metric 覆盖 `official_check_success` 等已注册指标。
 
 ## 31. 在既有真实 rollout 上 replay run-local Dynamic VQA（0 新 ACT）
 
@@ -1282,3 +1283,59 @@ du -sh "$PUB"
 发布前需人工核对 source evaluation 已 completed，并使用全新目录；publisher 不清旧目录。它只复制
 overlay/task code、render、短视频、Tool、VQA montage 和 compact round JSON，不能替代原始 evaluation
 或论文规模统计。
+
+## 33. 动态 PlanStep、SuccessSpec repair 与 safety proxy 快速检查
+
+先在服务器跑 0 provider / 0 simulator / 0 ACT 的定向测试：
+
+```bash
+cd /root/autodl-tmp/mea
+PYTHON=/root/autodl-tmp/conda/envs/RoboTwin/bin/python
+
+"$PYTHON" -m unittest -v \
+  tests.manipeval.test_plan_session \
+  tests.manipeval.test_proposal_agent \
+  tests.manipeval.test_metric_spec \
+  tests.manipeval.test_success_spec \
+  tests.manipeval.test_taskgen \
+  tests.manipeval.test_toolkit \
+  tests.manipeval.test_method_coverage
+```
+
+要检查 `object_scale` 的开放 Query 路由和首轮物化，先做 `--plan-only`；它不启动 ACT，也不证明
+render/expert gate：
+
+```bash
+export UIUI_API_KEY='只放在当前 shell 环境变量中'
+
+"$PYTHON" scripts/manipeval_agent.py \
+  --repo-root "$PWD" \
+  --request 'Evaluate whether the beat_block_hammer ACT policy is robust to a bounded object scale change.' \
+  --auto-route \
+  --bound-task-name beat_block_hammer \
+  --bound-requested-aspect-id object_scale \
+  --proposal-mode bounded_each_round \
+  --plan-only \
+  --generated-rounds 1 \
+  --max-agent-rounds 1 \
+  --num-episodes 1 \
+  --evaluation-id eval_scale_plan_smoke \
+  --model-profile economy \
+  --no-history
+```
+
+TaskGen 的错误 SuccessSpec recovery 可用 CLI 的开发 fixture 走 fresh BBH `force_codegen`：
+`--success-spec-fixture invalid_threshold` 必须与 `--mode force_codegen` 一起使用。该 fixture 只证明
+invalid candidate → structured diagnosis → 最多一次 trusted official-equivalent fallback → compile；
+它不是模型语义修复，也不能复用到正式论文结果。
+
+`hammer_left_camera_contact_count` 只统计 actor pair `020_hammer` 与 `left_camera` 的 physical contact；
+canonical aspect 是 `safety.hammer_left_camera_contact`，通用 `safety.unintended_contact` 仍是
+unsupported。推荐在既有真实 BBH telemetry 上调用 trusted Tool 或 typed `event_count` 做 cached smoke；
+结果为 0 也可通过 deterministic/oracle gate。不要把 robot grasp/support 接触一概算成失败，也不要
+把此单项 proxy 命名为完整 unintended-contact、clearance 或 safety 指标。缓存 replay 的
+`act_rollouts_started` 必须保持 0。
+
+动态 PlanStep 的 `plan-only` 只能检查首轮范围。要证明 Sec. 3.2/Fig. 5 的 `Query + Y1:t` 数据流，
+必须让当前 adaptive runtime 至少完成一轮真实 ACT N=1，并检查下一步 artifact 同时包含 Rule/VQA/
+Evidence、coverage/navigation options、模型响应与最终裁决；之后才按 `1 → 3 → 5` 放大。

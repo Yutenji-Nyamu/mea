@@ -98,6 +98,10 @@ _ASPECT_ONTOLOGY: dict[str, dict[str, Any]] = {
         "semantic_scope": "safety",
         "aliases": ["unintended_contact"],
     },
+    "safety.hammer_left_camera_contact": {
+        "semantic_scope": "safety",
+        "aliases": ["hammer_left_camera_contact"],
+    },
     "conclusion.multi_task_consistency": {
         "semantic_scope": "conclusion",
         "aliases": ["multi_task_consistency"],

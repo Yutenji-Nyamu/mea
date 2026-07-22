@@ -10,8 +10,10 @@ from mea.capability_adapter import (
     taskgen_route,
 )
 from mea.planner import (
+    AdaptivePlanStepAgent,
     BoundTaskPlanSession,
     GlobalRouteError,
+    PlanAgentPrototype,
     PlanSessionError,
     build_act_catalog,
     validate_route_selection,
@@ -100,6 +102,18 @@ def _observation(*, success: float) -> dict:
     }
 
 
+class _StepProvider:
+    last_metadata = {"model": "fake-step"}
+
+    def __init__(self, proposal: dict):
+        self.proposal = proposal
+        self.prompts = []
+
+    def text(self, prompt, **_kwargs):
+        self.prompts.append(prompt)
+        return json.dumps(self.proposal)
+
+
 class PlanSessionTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -183,6 +197,184 @@ class PlanSessionTests(unittest.TestCase):
         )
         self.assertIn("task_proposal", snapshot["rounds"][0])
         self.assertIn("tool_proposal", snapshot["rounds"][0])
+
+    def test_dynamic_navigation_discovers_an_aspect_not_frozen_before_round_one(self):
+        plan = deepcopy(self.plan)
+        plan["requested_aspect_ids"] = ["object_position"]
+        plan["requested_template_ids"] = [
+            "object_position.left_fixed",
+            "object_position.right_fixed",
+        ]
+        success = _observation(success=1.0)
+        options = self.session.navigation_options(plan, [success])
+        proposed = {
+            item["aspect_id"]: item["template_ids"]
+            for item in options["available_steps"]["propose"]
+        }
+        self.assertIn("object_instance", proposed)
+        self.assertNotIn("object_instance", plan["requested_aspect_ids"])
+
+        step = {
+            "schema_version": 1,
+            "action": "propose",
+            "aspect_id": "object_instance",
+            "template_id": "object_instance.base0",
+            "rationale": "Position succeeds, so test a new instance boundary.",
+            "answered_query": False,
+        }
+        updated, decision, _ = self.session.apply_plan_step(
+            plan,
+            [success],
+            step,
+            materialized_round=_round("object_instance.base0", "round_2"),
+        )
+        self.assertIn("object_instance", updated["requested_aspect_ids"])
+        self.assertEqual(decision["transition"], "switch_aspect")
+        coverage = self.session.coverage(updated, [success])
+        self.assertEqual(coverage["covered_aspect_ids"], ["object_position"])
+        self.assertEqual(coverage["discovered_aspect_ids"], ["object_instance"])
+
+    def test_failure_options_refine_while_success_can_propose_new_aspect(self):
+        plan = deepcopy(self.plan)
+        plan["requested_aspect_ids"] = ["object_position"]
+        plan["requested_template_ids"] = [
+            "object_position.left_fixed",
+            "object_position.right_fixed",
+        ]
+        failed = self.session.navigation_options(plan, [_observation(success=0.0)])
+        succeeded = self.session.navigation_options(plan, [_observation(success=1.0)])
+        self.assertEqual(
+            failed["available_steps"]["refine"][0]["template_ids"],
+            ["object_position.right_fixed"],
+        )
+        self.assertEqual(failed["available_steps"]["propose"], [])
+        self.assertTrue(succeeded["available_steps"]["propose"])
+
+    def test_required_scope_blocks_early_stop_but_fallback_avoids_scope_creep(self):
+        success = _observation(success=1.0)
+        two_required = self.session.navigation_options(self.plan, [success])
+        self.assertFalse(two_required["available_steps"]["stop"])
+        self.assertEqual(
+            two_required["uncovered_initial_required_aspect_ids"],
+            ["object_instance"],
+        )
+        self.assertEqual(
+            two_required["fallback_step"]["aspect_id"], "object_instance"
+        )
+
+        one_required = deepcopy(self.plan)
+        one_required["requested_aspect_ids"] = ["object_position"]
+        one_required["requested_template_ids"] = [
+            "object_position.left_fixed",
+            "object_position.right_fixed",
+        ]
+        finished = self.session.navigation_options(one_required, [success])
+        self.assertTrue(finished["available_steps"]["stop"])
+        self.assertEqual(finished["fallback_step"]["action"], "stop")
+        self.assertTrue(finished["fallback_step"]["answered_query"])
+        self.assertIn("object_instance", finished["discoverable_aspect_ids"])
+
+    def test_provider_failure_uses_honest_fallback_decision_reason(self):
+        plan = deepcopy(self.plan)
+        plan["requested_aspect_ids"] = ["object_position"]
+        plan["requested_template_ids"] = [
+            "object_position.left_fixed",
+            "object_position.right_fixed",
+        ]
+        success = _observation(success=1.0)
+        options = self.session.navigation_options(plan, [success])
+        invalid_provider = _StepProvider({"not": "a PlanStepProposal"})
+        bundle = AdaptivePlanStepAgent(
+            invalid_provider, model="fake-step"
+        ).propose(
+            "Is the requested position condition handled?",
+            navigation_options=options,
+            planning_context={"target": "click_bell"},
+        )
+        self.assertEqual(
+            bundle["source"], "deterministic_fallback_after_provider_failure"
+        )
+        updated, decision, _ = self.session.apply_plan_step(
+            plan,
+            [success],
+            bundle["proposal"],
+            source=bundle["source"],
+        )
+        self.assertEqual(updated["planning_state"], "stopped_after_round_1")
+        self.assertEqual(
+            decision["decision_reason"],
+            "deterministic_fallback_after_provider_failure",
+        )
+
+    def test_provider_authored_step_reads_rule_vqa_and_query(self):
+        options = self.session.navigation_options(
+            self.plan, [_observation(success=1.0)]
+        )
+        proposal = {
+            "schema_version": 1,
+            "action": "propose",
+            "aspect_id": "robustness.scene_clutter",
+            "template_id": "robustness.scene_clutter.official_table",
+            "rationale": "The first condition passes; inspect clutter next.",
+            "answered_query": False,
+        }
+        provider = _StepProvider(proposal)
+        bundle = AdaptivePlanStepAgent(provider, model="fake-step").propose(
+            "Can it tolerate target and scene changes?",
+            navigation_options=options,
+            planning_context={"target": "click_bell"},
+        )
+        self.assertEqual(bundle["source"], "provider")
+        self.assertEqual(bundle["proposal"]["aspect_id"], "robustness.scene_clutter")
+        self.assertIn("Can it tolerate", provider.prompts[0])
+        self.assertIn('"rule"', provider.prompts[0])
+        self.assertIn('"vqa"', provider.prompts[0])
+
+    def test_bbh_uses_the_same_dynamic_discovery_api(self):
+        session = BoundTaskPlanSession.from_catalog(
+            self.catalog, "beat_block_hammer", max_rounds=2
+        )
+        adapter = PlanAgentPrototype(self.root, object(), model="unused")
+        first = adapter.materialize_plan_step(
+            "object_appearance.color_blue", 1, "test object generalization"
+        )
+        plan = {
+            "schema_version": 5,
+            "task_name": "beat_block_hammer",
+            "policy": self.catalog["policy"],
+            "evaluation_goal": "object generalization",
+            "requested_aspect_ids": ["object_appearance.color"],
+            "requested_template_ids": ["object_appearance.color_blue"],
+            "rounds": [first],
+            "round_decisions": [],
+            "max_rounds": 2,
+            "planning_state": "awaiting_round_1_observation",
+        }
+        observation = _observation(success=1.0)
+        options = session.navigation_options(plan, [observation])
+        proposed_aspects = {
+            item["aspect_id"] for item in options["available_steps"]["propose"]
+        }
+        self.assertIn("object_scale", proposed_aspects)
+        self.assertIn("safety.hammer_left_camera_contact", proposed_aspects)
+        scale_round = adapter.materialize_plan_step(
+            "object_scale.bounded_1_2", 2, "test object generalization"
+        )
+        updated, decision, _ = session.apply_plan_step(
+            plan,
+            [observation],
+            {
+                "schema_version": 1,
+                "action": "propose",
+                "aspect_id": "object_scale",
+                "template_id": "object_scale.bounded_1_2",
+                "rationale": "Appearance passes, so discover bounded scale.",
+                "answered_query": False,
+            },
+            materialized_round=scale_round,
+        )
+        self.assertEqual(decision["transition"], "switch_aspect")
+        self.assertEqual(updated["rounds"][-1]["capability_id"], "object_scale.bounded")
 
     def test_normalize_plan_enriches_legacy_round_for_execution(self):
         legacy_plan = dict(self.plan)

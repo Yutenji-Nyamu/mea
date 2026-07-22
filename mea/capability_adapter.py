@@ -48,12 +48,13 @@ _OPERATIONS = {
     "reuse_variant",
     "official_passthrough",
 }
-_SEMANTIC_SCOPES = {"object", "scene", "performance", "execution"}
+_SEMANTIC_SCOPES = {"object", "scene", "performance", "execution", "safety"}
 _TARGET_ROLES = {
     "object": {"target_object", "task_target"},
     "scene": {"scene"},
     "performance": {"execution"},
     "execution": {"execution", "task_target"},
+    "safety": {"execution"},
 }
 _CHANGE_ROOT_SCOPES = {
     "block": "object",
@@ -64,6 +65,7 @@ _CONTROLLED_AXIS_SCOPES = {
     "object_appearance": "object",
     "object_position": "object",
     "object_instance": "object",
+    "object_scale": "object",
     "robustness.scene_clutter": "scene",
     "scene_background_texture": "scene",
     "scene_lighting": "scene",
@@ -125,6 +127,14 @@ _BLUE_BLOCK = {
         "yaw_mode": "official_random",
         "scale": 1.0,
         "color": [0.0, 0.2, 1.0],
+    }
+}
+_SCALED_RED_BLOCK = {
+    "block": {
+        "position_mode": "official_random",
+        "yaw_mode": "official_random",
+        "scale": 1.2,
+        "color": [1.0, 0.0, 0.0],
     }
 }
 
@@ -239,6 +249,45 @@ def _bbh_contracts() -> list[dict[str, Any]]:
                 "hammer_visibly_lifted",
                 "block_visibly_displaced",
             ],
+        ),
+        _contract(
+            task_name="beat_block_hammer",
+            template_id="object_scale.bounded_1_2",
+            aspect_id="object_scale",
+            target_role="target_object",
+            operation="force_codegen",
+            capability_id="object_scale.bounded",
+            task_variant_id="object_scale.bounded_1_2",
+            controlled_axis="object_scale",
+            change_scope="object",
+            generation_mode="force_codegen",
+            allowed_change_roots=["block"],
+            changes=_SCALED_RED_BLOCK,
+            request_factory_id="contact_tool_request",
+            metric="hammer_block_contact_ever",
+            required_gates=_GENERATED_GATES_BBH,
+            phenomenon_ids=[
+                "hammer_visibly_lifted",
+                "block_visibly_displaced",
+            ],
+        ),
+        _contract(
+            task_name="beat_block_hammer",
+            template_id="safety.hammer_left_camera_contact.official",
+            aspect_id="safety.hammer_left_camera_contact",
+            target_role="execution",
+            operation="official_passthrough",
+            capability_id="task_execution.official_passthrough",
+            task_variant_id=None,
+            controlled_axis=None,
+            change_scope=None,
+            generation_mode=None,
+            allowed_change_roots=[],
+            changes={},
+            request_factory_id="hammer_left_camera_contact_count_tool_request",
+            metric="hammer_left_camera_contact_count",
+            required_gates=_OFFICIAL_ACT_GATES,
+            phenomenon_ids=["hammer_avoids_unintended_collision"],
         ),
     ]
 
@@ -686,6 +735,7 @@ def build_contract_tool_request(contract: Mapping[str, Any]) -> dict[str, Any]:
     from .toolgen import (
         bell_active_tcp_min_xy_error_tool_request,
         contact_tool_request,
+        hammer_left_camera_contact_count_tool_request,
         official_success_tool_request,
         pickup_to_contact_tool_request,
         time_to_success_tool_request,
@@ -700,6 +750,8 @@ def build_contract_tool_request(contract: Mapping[str, Any]) -> dict[str, Any]:
         request = pickup_to_contact_tool_request()
     elif factory_id == "bell_active_tcp_min_xy_error_tool_request":
         request = bell_active_tcp_min_xy_error_tool_request()
+    elif factory_id == "hammer_left_camera_contact_count_tool_request":
+        request = hammer_left_camera_contact_count_tool_request()
     elif factory_id == "official_success_tool_request":
         request = official_success_tool_request(task_name)
     elif factory_id == "time_to_success_tool_request":

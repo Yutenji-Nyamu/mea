@@ -9,6 +9,7 @@ from mea.toolgen import (
     MetricSpecError,
     compile_metric_spec_source,
     evaluate_metric_spec,
+    execute_tool_request,
     execute_metric_spec,
     metric_spec_tool_spec,
     route_tool_request,
@@ -66,6 +67,14 @@ class MetricSpecTests(unittest.TestCase):
             metric="query_min_tcp_block_xy",
             question="How close did the TCP get to the block?",
             metric_spec=SPEC,
+        )
+        self.assertEqual(
+            tool_spec["validation_requirements"],
+            {
+                "min_episodes": 1,
+                "distinct_reference_values": False,
+                "required_reference_values": [],
+            },
         )
         routing = route_tool_request(
             {
@@ -140,6 +149,92 @@ class MetricSpecTests(unittest.TestCase):
         request = tool_request_from_proposal(proposal)
         self.assertEqual(request["schema_version"], 2)
         self.assertEqual(request["metric_spec"], SPEC)
+
+    def test_agent_tool_boundary_executes_v3_metric_on_cached_telemetry(self):
+        """The normal Proposal -> Router -> Orchestrator path accepts v3."""
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            child = root / "generated_tasks/round_1"
+            (child / "evaluation/telemetry/act").mkdir(parents=True)
+            (child / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "task_name": "beat_block_hammer",
+                        "task_module": "beat_block_hammer",
+                        "generation_kind": "generated",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            act = child / "evaluation/telemetry/act/episode_000_seed_100000"
+            expert = child / "evaluation/telemetry/expert/episode_000_seed_100000"
+            write_episode(act, policy_name="ACT", physical_contact=False)
+            write_episode(expert, policy_name="expert", physical_contact=True)
+            proposal = validate_tool_proposal(
+                {
+                    "schema_version": 3,
+                    "proposal_id": "query_contact_count.tool",
+                    "task_name": "beat_block_hammer",
+                    "aspect_id": "performance.pickup_to_contact_timing",
+                    "evaluation_goal": "Count strict task contact intervals.",
+                    "metric": "query_hammer_block_contact_count",
+                    "question": "How many physical task contacts occurred?",
+                    "vqa_phenomenon_ids": [
+                        "block_visibly_displaced",
+                        "run_local.bbh.contact_count",
+                    ],
+                    "vqa_question_specs": [
+                        {
+                            "id": "run_local.bbh.contact_count",
+                            "question_type": "visible_state_change",
+                            "target_role": "task_target",
+                            "question": "Does the rollout show task-relevant contact?",
+                            "visual_scope": "rollout_change",
+                            "numeric_authority": "official_check_success_is_authoritative",
+                        }
+                    ],
+                    "reuse_first": True,
+                    "metric_spec": EVENT_COUNT_SPEC,
+                }
+            )
+            request = tool_request_from_proposal(proposal)
+            self.assertEqual(
+                route_tool_request(request)["route_decision"]["resolved_route"],
+                "typed_metric_spec_compile",
+            )
+
+            output = root / "evaluation/execution/round_1/planned_tool"
+            result = execute_tool_request(
+                Path(__file__).resolve().parents[2],
+                child,
+                output,
+                request,
+                task_proposal={"proposal_id": "round_1.task"},
+            )
+            self.assertEqual(result["route"], "typed_metric_spec_compile")
+            self.assertFalse(result["validation"]["provider_called"])
+            self.assertTrue(result["validation"]["task_code_context_consumed"])
+            self.assertEqual(
+                [item["result"]["value"] for item in result["episodes"]],
+                [0, 1],
+            )
+            self.assertTrue((output / "tool_execution.json").is_file())
+
+            paraphrase = {**request, "question": "Count strict contact intervals."}
+            replay = execute_tool_request(
+                Path(__file__).resolve().parents[2],
+                child,
+                root / "evaluation/execution/round_2/planned_tool",
+                paraphrase,
+                task_proposal={"proposal_id": "round_1.task"},
+            )
+            self.assertEqual(replay["route"], "run_local_reuse")
+            self.assertEqual(
+                replay["route_decision"]["matched_registry"],
+                "evaluation_local_tool_registry",
+            )
 
     def test_compile_validate_register_and_semantic_question_reuse(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -250,6 +345,53 @@ class MetricSpecTests(unittest.TestCase):
                 replay["registration"]["registration_id"],
                 result["registration"]["registration_id"],
             )
+
+    def test_single_safe_rollout_can_validate_a_zero_event_metric(self):
+        """A correct zero count must not require an artificial live collision."""
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            episode = root / "safe_act"
+            write_episode(episode, policy_name="ACT", physical_contact=False)
+            camera_spec = {
+                **EVENT_COUNT_SPEC,
+                "event": {
+                    **CONTACT_SELECTOR,
+                    "actors": ["020_hammer", "left_camera"],
+                },
+            }
+            result = execute_metric_spec(
+                task_name="beat_block_hammer",
+                metric="query_hammer_left_camera_contact_count",
+                question="How many hammer-left_camera contacts occurred?",
+                metric_spec=camera_spec,
+                episode_dirs=[episode],
+                output_dir=root / "single_zero",
+                registry_dir=root / "registry",
+            )
+            self.assertEqual(result["route"], "typed_metric_spec_compile")
+            self.assertEqual(result["episodes"][0]["generated_result"]["value"], 0)
+            self.assertEqual(
+                result["registration"]["scope"], "run_local"
+            )
+
+    def test_missing_trace_signal_is_reported_as_metric_spec_error(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            episode = root / "act"
+            write_episode(episode, policy_name="ACT", physical_contact=False)
+            invalid = {**SPEC, "left_signal": "invented_position"}
+            with self.assertRaisesRegex(
+                MetricSpecError, "absent from TaskSchema telemetry"
+            ):
+                execute_metric_spec(
+                    task_name="beat_block_hammer",
+                    metric="query_invalid_signal",
+                    question="Use an unavailable signal?",
+                    metric_spec=invalid,
+                    episode_dirs=[episode],
+                    output_dir=root / "invalid",
+                )
 
     def test_time_between_events_compiles_and_handles_missing_boundary(self):
         with tempfile.TemporaryDirectory() as temporary:

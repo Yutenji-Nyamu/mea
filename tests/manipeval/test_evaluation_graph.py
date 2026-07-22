@@ -135,6 +135,20 @@ class EvaluationGraphTests(unittest.TestCase):
         self.assertEqual(snapshot["status"], "completed")
         self.assertIsNone(snapshot["next_node"])
         self.assertIn("click success=1.0", snapshot["synthesis"]["strengths"])
+        self.assertEqual(
+            snapshot["synthesis"]["scope"], "cross_checkpoint_portfolio"
+        )
+        self.assertEqual(
+            snapshot["synthesis"]["original_query"], graph_value()["user_query"]
+        )
+        self.assertEqual(
+            snapshot["aspect_coverage"]["coverage_status"], "complete"
+        )
+        self.assertEqual(len(snapshot["aspect_coverage"]["covered"]), 1)
+        self.assertEqual(len(snapshot["aspect_coverage"]["uncovered"]), 0)
+        self.assertEqual(
+            len(snapshot["aspect_coverage"]["conditional_not_activated"]), 1
+        )
 
     def test_provider_retries_one_out_of_budget_graph(self):
         invalid = graph_value()
@@ -156,6 +170,17 @@ class EvaluationGraphTests(unittest.TestCase):
         snapshot = session.record(outcome(success=0.0))
         self.assertEqual(snapshot["status"], "awaiting_child")
         self.assertEqual(snapshot["next_node"]["task_name"], "beat_block_hammer")
+        second = {
+            **outcome(success=1.0),
+            "node_id": "node_bbh",
+            "task_name": "beat_block_hammer",
+            "evaluation_id": "eval_bbh",
+            "summary": "bbh success=1.0",
+        }
+        completed = session.record(second)
+        self.assertEqual(
+            completed["aspect_coverage"]["coverage_status"], "complete"
+        )
 
     def test_rejects_unknown_aspect_and_wrong_outcome_task(self):
         value = graph_value()

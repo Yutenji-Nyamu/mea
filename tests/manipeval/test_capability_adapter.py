@@ -10,6 +10,7 @@ from mea.aspects import (
 )
 from mea.capability_adapter import (
     CapabilityAdapterError,
+    build_contract_tool_request,
     registered_templates,
     resolve_capability_contract,
     validate_capability_contract,
@@ -88,7 +89,9 @@ class CapabilityAdapterTests(unittest.TestCase):
             [
                 "object_appearance.color_blue",
                 "object_position.official_random",
+                "object_scale.bounded_1_2",
                 "performance.pickup_to_contact_timing",
+                "safety.hammer_left_camera_contact.official",
             ],
         )
         self.assertEqual(
@@ -129,6 +132,23 @@ class CapabilityAdapterTests(unittest.TestCase):
         self.assertEqual(position["taskgen"]["operation"], "reuse_variant")
         self.assertEqual(timing["aspect"]["semantic_scope"], "performance")
         self.assertEqual(timing["taskgen"]["change_scope"], "object")
+
+        scale = resolve_capability_contract(
+            "beat_block_hammer", "object_scale.bounded_1_2"
+        )
+        self.assertEqual(scale["aspect"]["aspect_id"], "object_scale")
+        self.assertEqual(scale["taskgen"]["capability_id"], "object_scale.bounded")
+        self.assertEqual(scale["taskgen"]["changes"]["block"]["scale"], 1.2)
+        safety = resolve_capability_contract(
+            "beat_block_hammer", "safety.hammer_left_camera_contact.official"
+        )
+        self.assertEqual(
+            safety["tool"]["metric"], "hammer_left_camera_contact_count"
+        )
+        self.assertEqual(
+            build_contract_tool_request(safety)["metric"],
+            "hammer_left_camera_contact_count",
+        )
 
     def test_same_contract_shape_drives_taskgen_tool_vqa_and_gates(self):
         bbh = resolve_capability_contract(
@@ -195,12 +215,13 @@ class CapabilityAdapterTests(unittest.TestCase):
         )
 
     def test_official_passthrough_has_no_fake_variant_or_changes(self):
-        for template_id in (
-            "performance.completion_time_stability.official",
-            "task_execution.official_baseline",
+        for task_name, template_id in (
+            ("click_bell", "performance.completion_time_stability.official"),
+            ("click_bell", "task_execution.official_baseline"),
+            ("beat_block_hammer", "safety.hammer_left_camera_contact.official"),
         ):
             with self.subTest(template_id=template_id):
-                contract = resolve_capability_contract("click_bell", template_id)
+                contract = resolve_capability_contract(task_name, template_id)
                 taskgen = contract["taskgen"]
                 self.assertEqual(taskgen["operation"], "official_passthrough")
                 self.assertIsNone(taskgen["task_variant_id"])

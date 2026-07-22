@@ -450,6 +450,61 @@ class EvaluationGraphSession:
         self.outcomes.append(outcome)
         return self.snapshot()
 
+    def coverage(self) -> dict[str, Any]:
+        """Report requested versus evidenced child aspects.
+
+        This parent view is intentionally separate from the paper's core
+        single-policy Plan loop: task-specific ACT checkpoints cannot be
+        silently treated as one policy.  It is useful only when the caller
+        explicitly asks for a cross-checkpoint portfolio.
+        """
+
+        all_nodes = [
+            {
+                "node_id": node["node_id"],
+                "task_name": node["task_name"],
+                "aspect_id": node["requested_aspect_ids"][0],
+                "activation": node["activation"],
+            }
+            for node in self.plan["nodes"]
+        ]
+        covered_node_ids = {item["node_id"] for item in self.outcomes}
+        next_node = self.next_node()
+        active_node_ids = set(covered_node_ids)
+        active_node_ids.update(
+            item["node_id"]
+            for item in all_nodes
+            if item["activation"] in {"initial", "always"}
+        )
+        if next_node is not None:
+            active_node_ids.add(next_node["node_id"])
+        required = [
+            {key: value for key, value in item.items() if key != "activation"}
+            for item in all_nodes
+            if item["node_id"] in active_node_ids
+        ]
+        covered = [
+            item for item in required if item["node_id"] in covered_node_ids
+        ]
+        uncovered = [
+            item for item in required if item["node_id"] not in covered_node_ids
+        ]
+        conditional_not_activated = [
+            {key: value for key, value in item.items() if key != "activation"}
+            for item in all_nodes
+            if item["activation"] == "if_previous_failed_or_uncertain"
+            and item["node_id"] not in active_node_ids
+        ]
+        return {
+            "schema_version": 1,
+            "scope": "cross_checkpoint_portfolio",
+            "required": required,
+            "covered": covered,
+            "uncovered": uncovered,
+            "conditional_not_activated": conditional_not_activated,
+            "coverage_status": "complete" if not uncovered else "partial",
+        }
+
     def snapshot(self) -> dict[str, Any]:
         next_node = self.next_node()
         status = "awaiting_child" if next_node is not None else "completed"
@@ -459,6 +514,7 @@ class EvaluationGraphSession:
             "status": status,
             "outcomes": deepcopy(self.outcomes),
             "next_node": next_node,
+            "aspect_coverage": self.coverage(),
             "synthesis": self.synthesize() if status == "completed" else None,
         }
 
@@ -489,10 +545,13 @@ class EvaluationGraphSession:
             else "Repeat the same bounded graph with N=3 only if a stable estimate is needed."
         )
         return {
+            "scope": "cross_checkpoint_portfolio",
+            "original_query": self.plan["user_query"],
             "answer": (
                 f"Completed {len(self.outcomes)} bounded child evaluation(s) for: "
                 f"{self.plan['user_query']}"
             ),
+            "aspect_coverage": self.coverage(),
             "strengths": strengths,
             "weaknesses": weaknesses,
             "recommendations": [recommendation],

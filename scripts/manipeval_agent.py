@@ -33,6 +33,7 @@ from mea.capability_adapter import (
 from mea.feedback import FeedbackAgent, render_evaluation_report, write_evidence_report
 from mea.history import EvaluationHistoryDB
 from mea.planner import (
+    AdaptivePlanStepAgent,
     BoundTaskPlanSession,
     ClickBellAdaptivePlanAgent,
     ClickBellFixedSuitePlanAgent,
@@ -73,7 +74,11 @@ from mea.round_recovery import (
 )
 from mea.round_provenance import bind_round_provenance
 from mea.runtime_ledger import runtime_ledger_context, summarize_runtime_ledger
-from mea.toolgen import ToolOrchestrationError, execute_tool_request
+from mea.toolgen import (
+    ToolOrchestrationError,
+    execute_tool_request,
+    route_tool_request,
+)
 from mea.toolkit import aggregate_tool_executions
 from mea.strategy_plan import (
     StrategyPlanError,
@@ -444,7 +449,19 @@ def validate_round_capability_contract(
             raise ValueError(f"invalid round proposal: {exc}") from exc
         if task_proposal["capability_id"] != taskgen["capability_id"]:
             raise ValueError("TaskProposal capability differs from capability envelope")
-        if tool_proposal["metric"] != contract["tool"]["metric"]:
+        proposed_tool_request = tool_request_from_proposal(tool_proposal)
+        proposed_tool_route = route_tool_request(proposed_tool_request)[
+            "route_decision"
+        ]
+        typed_metric = (
+            tool_proposal["schema_version"] == 3
+            and proposed_tool_route["resolved_route"]
+            == "typed_metric_spec_compile"
+        )
+        if (
+            tool_proposal["metric"] != contract["tool"]["metric"]
+            and not typed_metric
+        ):
             raise ValueError("ToolProposal metric differs from capability envelope")
         catalog_phenomena = {
             item
@@ -1481,6 +1498,8 @@ def execute_round(
                     if round_plan.get("tool_proposal") is not None
                     else round_plan["tool_request"]
                 )
+                if round_plan.get("task_proposal") is not None:
+                    tool_kwargs["task_proposal"] = round_plan["task_proposal"]
                 return execute_tool_request(
                     repo_root,
                     child_dir,
@@ -2085,10 +2104,34 @@ def build_evidence_bundle(
     )
     evaluation_relative = Path("mea/evaluation_runs") / evaluation_id
     completed_template_ids = [item["round_plan"]["template_id"] for item in round_runs]
+    completed_aspect_ids: list[str] = []
+    for item in round_runs:
+        round_plan = item["round_plan"]
+        proposal = round_plan.get("task_proposal") or {}
+        aspect_id = str(
+            proposal.get("aspect_id")
+            or round_plan.get("aspect_id")
+            or round_plan.get("sub_aspect")
+            or ""
+        )
+        if aspect_id and aspect_id not in completed_aspect_ids:
+            completed_aspect_ids.append(aspect_id)
     remaining_template_ids = [
         item
         for item in plan.get("requested_template_ids", [])
         if item not in completed_template_ids
+    ]
+    required_aspect_ids = list(
+        plan.get("requested_aspect_ids") or completed_aspect_ids
+    )
+    initial_requested_aspect_ids = list(
+        plan.get("initial_requested_aspect_ids") or required_aspect_ids
+    )
+    discovered_aspect_ids = [
+        item for item in completed_aspect_ids if item not in initial_requested_aspect_ids
+    ]
+    uncovered_required_aspect_ids = [
+        item for item in required_aspect_ids if item not in completed_aspect_ids
     ]
     decision_artifacts = [
         str(evaluation_relative / f"plan/decision_after_round_{round_number}.json")
@@ -2132,6 +2175,21 @@ def build_evidence_bundle(
             "completed_template_ids": completed_template_ids,
             "remaining_template_ids": remaining_template_ids,
             "round_budget_remaining": max(int(plan["max_rounds"]) - len(rounds), 0),
+            "aspect_coverage": {
+                "schema_version": 1,
+                "initial_requested_aspect_ids": initial_requested_aspect_ids,
+                "required_aspect_ids": required_aspect_ids,
+                "covered_aspect_ids": completed_aspect_ids,
+                "discovered_aspect_ids": discovered_aspect_ids,
+                "uncovered_required_aspect_ids": uncovered_required_aspect_ids,
+                "coverage_status": (
+                    "complete"
+                    if not uncovered_required_aspect_ids
+                    else "partial"
+                    if completed_aspect_ids
+                    else "not_started"
+                ),
+            },
         },
         "rounds": rounds,
         "observations": {
@@ -2804,6 +2862,7 @@ def main() -> None:
     evaluation_target: dict[str, Any] | None = None
     planning_context: dict[str, Any] | None = None
     proposal_agent: BoundedProposalAgent | None = None
+    adaptive_step_agent: AdaptivePlanStepAgent | None = None
     if global_catalog is not None:
         try:
             raw_round_budget = plan.get("max_rounds")
@@ -2827,6 +2886,11 @@ def main() -> None:
             plan = bound_plan_session.normalize_plan(plan)
             planning_context = bound_plan_session.planning_context(repo_root)
             write_json(evaluation_dir / "plan/planning_context.json", planning_context)
+            if not fixed_click_bell and not legacy_click_bell and registered_execution is None:
+                assert provider is not None
+                adaptive_step_agent = AdaptivePlanStepAgent(
+                    provider, model=models["planner"]
+                )
             if args.proposal_mode != "catalog":
                 first_round = plan["rounds"][0]
                 first_aspect = str(first_round["task_proposal"]["aspect_id"])
@@ -3150,7 +3214,11 @@ def main() -> None:
                 if bound_plan_session is not None:
                     write_json(
                         evaluation_dir / "plan/bound_task_session.json",
-                        bound_plan_session.snapshot(args.request, plan),
+                        bound_plan_session.snapshot(
+                            args.request,
+                            plan,
+                            [item["round_summary"] for item in round_runs],
+                        ),
                     )
                 update_manifest(
                     evaluation_dir,
@@ -3180,33 +3248,81 @@ def main() -> None:
                 / "call_starts.jsonl"
             )
             plan_before_decision = plan
-            with runtime_ledger_context(decision_ledger, decision_context):
-                candidate_plan, candidate_decision = planner.decide_next_round(
-                    evaluation_id=evaluation_id,
-                    user_request=args.request,
-                    current_plan=plan_before_decision,
-                    observation_history=[item["round_summary"] for item in round_runs],
-                )
-            common_adaptive_session = (
+            observation_history = [
+                item["round_summary"] for item in round_runs
+            ]
+            dynamic_step_session = (
                 bound_plan_session is not None
-                and not fixed_click_bell
-                and not legacy_click_bell
-                and candidate_decision.get("action") in {"continue", "stop"}
+                and adaptive_step_agent is not None
+                and planning_context is not None
             )
-            if common_adaptive_session:
-                plan, decision, runtime_directive = adjudicate_bounded_transition(
-                    plan_session=bound_plan_session,
-                    user_query=args.request,
-                    observation_history=[
-                        item["round_summary"] for item in round_runs
-                    ],
-                    current_plan=plan_before_decision,
-                    candidate_plan=candidate_plan,
-                    candidate_decision=candidate_decision,
-                    proposal_mode=args.proposal_mode,
-                    proposal_agent=proposal_agent,
-                    planning_context=planning_context,
-                    evaluation_dir=evaluation_dir,
+            if dynamic_step_session:
+                with runtime_ledger_context(decision_ledger, decision_context):
+                    navigation_options = bound_plan_session.navigation_options(
+                        plan_before_decision, observation_history
+                    )
+                    step_bundle = adaptive_step_agent.propose(
+                        args.request,
+                        navigation_options=navigation_options,
+                        planning_context=planning_context,
+                    )
+                plan_step = step_bundle["proposal"]
+                materialized_round = None
+                if plan_step["action"] != "stop":
+                    materialize = getattr(planner, "materialize_plan_step", None)
+                    if not callable(materialize):
+                        raise RuntimeError(
+                            "bound task planner cannot materialize PlanStepProposal"
+                        )
+                    materialized_round = materialize(
+                        plan_step["template_id"],
+                        len(plan_before_decision["rounds"]) + 1,
+                        args.request,
+                    )
+                    if args.proposal_mode == "bounded_each_round":
+                        if proposal_agent is None:
+                            raise RuntimeError(
+                                "bounded_each_round proposal state was not initialized"
+                            )
+                        materialized_round, _proposal_artifact = (
+                            apply_bounded_round_proposal(
+                                proposal_agent=proposal_agent,
+                                user_query=args.request,
+                                target=bound_plan_session.target,
+                                planning_context=planning_context,
+                                round_plan=materialized_round,
+                                evaluation_dir=evaluation_dir,
+                                round_number=len(plan_before_decision["rounds"]) + 1,
+                            )
+                        )
+                plan, decision, runtime_directive = bound_plan_session.apply_plan_step(
+                    plan_before_decision,
+                    observation_history,
+                    plan_step,
+                    materialized_round=materialized_round,
+                    source=step_bundle["source"],
+                )
+                step_dir = (
+                    evaluation_dir
+                    / "plan"
+                    / "adaptive_steps"
+                    / f"after_round_{executed_rounds:02d}"
+                )
+                step_dir.mkdir(parents=True, exist_ok=True)
+                (step_dir / "prompt.md").write_text(
+                    adaptive_step_agent.last_prompt or "", encoding="utf-8"
+                )
+                for index, response in enumerate(
+                    adaptive_step_agent.last_responses, start=1
+                ):
+                    (step_dir / f"response_{index}.txt").write_text(
+                        response + "\n", encoding="utf-8"
+                    )
+                write_json(step_dir / "plan_step_bundle.json", step_bundle)
+                write_json(
+                    evaluation_dir
+                    / f"plan/evidence_after_round_{executed_rounds}.json",
+                    navigation_options,
                 )
                 write_json(
                     evaluation_dir
@@ -3214,12 +3330,49 @@ def main() -> None:
                     {
                         "schema_version": 1,
                         "owner": "BoundTaskPlanSession",
-                        "adapter_role": "materialize_and_explain",
+                        "adapter_role": "discover_materialize_and_adjudicate",
                         **runtime_directive,
                     },
                 )
             else:
-                plan, decision = candidate_plan, candidate_decision
+                with runtime_ledger_context(decision_ledger, decision_context):
+                    candidate_plan, candidate_decision = planner.decide_next_round(
+                        evaluation_id=evaluation_id,
+                        user_request=args.request,
+                        current_plan=plan_before_decision,
+                        observation_history=observation_history,
+                    )
+                common_adaptive_session = (
+                    bound_plan_session is not None
+                    and not fixed_click_bell
+                    and not legacy_click_bell
+                    and candidate_decision.get("action") in {"continue", "stop"}
+                )
+                if common_adaptive_session:
+                    plan, decision, runtime_directive = adjudicate_bounded_transition(
+                        plan_session=bound_plan_session,
+                        user_query=args.request,
+                        observation_history=observation_history,
+                        current_plan=plan_before_decision,
+                        candidate_plan=candidate_plan,
+                        candidate_decision=candidate_decision,
+                        proposal_mode=args.proposal_mode,
+                        proposal_agent=proposal_agent,
+                        planning_context=planning_context,
+                        evaluation_dir=evaluation_dir,
+                    )
+                    write_json(
+                        evaluation_dir
+                        / f"plan/runtime_directive_after_{round_plan['round_id']}.json",
+                        {
+                            "schema_version": 1,
+                            "owner": "BoundTaskPlanSession",
+                            "adapter_role": "materialize_and_explain",
+                            **runtime_directive,
+                        },
+                    )
+                else:
+                    plan, decision = candidate_plan, candidate_decision
             if bound_plan_session is not None:
                 # Persist and execute the exact normalized proposal-bearing plan;
                 # snapshot() alone normalizes only a deep copy for reporting.
@@ -3256,13 +3409,17 @@ def main() -> None:
                 if bound_plan_session is not None:
                     write_json(
                         evaluation_dir / "plan/bound_task_session.json",
-                        bound_plan_session.snapshot(args.request, plan),
+                        bound_plan_session.snapshot(
+                            args.request, plan, observation_history
+                        ),
                     )
                 break
             if bound_plan_session is not None:
                 write_json(
                     evaluation_dir / "plan/bound_task_session.json",
-                    bound_plan_session.snapshot(args.request, plan),
+                    bound_plan_session.snapshot(
+                        args.request, plan, observation_history
+                    ),
                 )
 
         evaluation_aggregate = aggregate_evaluation_results(

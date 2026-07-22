@@ -6,8 +6,10 @@ import numpy as np
 
 from mea.taskgen import (
     SuccessSpecError,
+    SuccessSpecRepairError,
     compile_success_spec,
     default_bbh_success_spec,
+    repair_success_spec,
     validate_compiled_success_method,
     validate_success_spec,
 )
@@ -66,6 +68,68 @@ def _load_official_check_success():
 
 
 class SuccessSpecTests(unittest.TestCase):
+    def test_accepts_valid_candidate_without_spending_repair_budget(self):
+        candidate = default_bbh_success_spec()
+
+        accepted, report = repair_success_spec(candidate)
+
+        self.assertEqual(accepted, validate_success_spec(candidate))
+        self.assertFalse(report["repaired"])
+        self.assertEqual(report["final_source"], "candidate")
+        self.assertEqual(
+            report["attempts"],
+            [
+                {
+                    "attempt_index": 0,
+                    "source": "candidate",
+                    "valid": True,
+                    "diagnosis": None,
+                }
+            ],
+        )
+
+    def test_diagnoses_invalid_candidate_and_repairs_once_with_trusted_default(self):
+        candidate = default_bbh_success_spec()
+        candidate["predicates"][0]["thresholds_m"] = [0.03, 0.02]
+
+        repaired, report = repair_success_spec(candidate, max_repairs=1)
+        source, validation = compile_success_spec(repaired)
+
+        self.assertEqual(repaired, default_bbh_success_spec())
+        self.assertTrue(report["repaired"])
+        self.assertEqual(report["final_source"], "trusted_default")
+        self.assertEqual(len(report["attempts"]), 2)
+        self.assertFalse(report["attempts"][0]["valid"])
+        self.assertIn(
+            "official thresholds",
+            report["attempts"][0]["diagnosis"]["message"],
+        )
+        self.assertTrue(report["attempts"][1]["valid"])
+        self.assertIn("def check_success(self):", source)
+        self.assertTrue(validation["valid"])
+
+    def test_zero_repair_budget_fails_closed_with_diagnosis_report(self):
+        candidate = default_bbh_success_spec()
+        candidate["task_name"] = "untrusted_task"
+
+        with self.assertRaises(SuccessSpecRepairError) as raised:
+            repair_success_spec(candidate, max_repairs=0)
+
+        report = raised.exception.report
+        self.assertFalse(report["repaired"])
+        self.assertIsNone(report["final_source"])
+        self.assertEqual(len(report["attempts"]), 1)
+        self.assertFalse(report["attempts"][0]["valid"])
+        self.assertEqual(report["attempts"][0]["source"], "candidate")
+        self.assertIn(
+            "only supports beat_block_hammer",
+            report["attempts"][0]["diagnosis"]["message"],
+        )
+
+    def test_repair_budget_is_bounded_to_one(self):
+        with self.assertRaisesRegex(SuccessSpecError, "must be 0 or 1"):
+            repair_success_spec(default_bbh_success_spec(), max_repairs=2)
+
     def test_compiles_closed_two_predicate_contract(self):
         spec = validate_success_spec(default_bbh_success_spec())
         source, validation = compile_success_spec(spec)

@@ -7,6 +7,7 @@ from mea.taskgen import (
     TaskGenError,
     TaskGenPrototype,
     build_variant_spec,
+    default_bbh_success_spec,
     validate_load_actors,
     validate_variant_spec,
 )
@@ -106,6 +107,34 @@ class RedProposalProvider(FakeProvider):
 
 
 class TaskGenPrototypeTests(unittest.TestCase):
+    def test_invalid_success_spec_is_diagnosed_and_repaired_once(self):
+        repo_root = Path(__file__).resolve().parents[2]
+        run_id = "run_unittest_success_spec_repair"
+        run_dir = repo_root / "mea/generated_tasks" / run_id
+        if run_dir.exists():
+            shutil.rmtree(run_dir)
+        invalid = default_bbh_success_spec()
+        invalid["predicates"][0]["thresholds_m"] = [0.2, 0.2]
+        try:
+            TaskGenPrototype(repo_root, FakeProvider(), model="fake").generate(
+                "generate a blue block after repairing the success checker",
+                run_id=run_id,
+                success_spec_candidate=invalid,
+                success_spec_max_repairs=1,
+            )
+            repair = json.loads(
+                (run_dir / "generation/success_spec_repair.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertTrue(repair["repaired"])
+            self.assertEqual(repair["final_source"], "trusted_default")
+            self.assertFalse(repair["attempts"][0]["valid"])
+            self.assertTrue(repair["attempts"][1]["valid"])
+        finally:
+            if run_dir.exists():
+                shutil.rmtree(run_dir)
+
     def test_complete_load_actors_generation(self):
         repo_root = Path(__file__).resolve().parents[2]
         run_id = "run_unittest_complete_method"

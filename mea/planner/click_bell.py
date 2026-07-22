@@ -579,6 +579,13 @@ class ClickBellAdaptivePlanAgent:
             "vqa_phenomenon_ids": list(contract["vqa"]["phenomenon_ids"]),
         })
 
+    def materialize_plan_step(
+        self, template_id: str, round_number: int, user_request: str
+    ) -> dict[str, Any]:
+        """Materialize a generic PlanStepProposal through the click catalog."""
+
+        return self._materialize_round(template_id, round_number, user_request)
+
     def _validate_proposal(
         self,
         value: Any,

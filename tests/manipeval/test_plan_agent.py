@@ -2,6 +2,7 @@ import json
 import shutil
 import tempfile
 import unittest
+from copy import deepcopy
 from pathlib import Path
 
 from mea.planner import (
@@ -15,7 +16,11 @@ from mea.planner import (
 from mea.toolgen import contact_tool_request, pickup_to_contact_tool_request
 
 
-REQUESTED = list(SUB_ASPECT_CATALOG)
+REQUESTED = [
+    "object_appearance.color_blue",
+    "object_position.official_random",
+    "performance.pickup_to_contact_timing",
+]
 PROPOSAL = {
     "schema_version": 5,
     "task_name": "beat_block_hammer",
@@ -152,6 +157,18 @@ class NeverCalledProvider:
 
 
 class PlanAgentPrototypeTests(unittest.TestCase):
+    def test_open_query_scale_template_materializes_bounded_codegen_contract(self):
+        proposal = deepcopy(PROPOSAL)
+        proposal["evaluation_goal"] = "evaluate bounded target-object scale"
+        proposal["requested_template_ids"] = ["object_scale.bounded_1_2"]
+        proposal["first_template_id"] = "object_scale.bounded_1_2"
+        plan = validate_evaluation_plan(proposal)
+        first = plan["rounds"][0]
+        self.assertEqual(first["sub_aspect"], "object_scale")
+        self.assertEqual(first["capability_id"], "object_scale.bounded")
+        self.assertEqual(first["variant_hint"]["block"]["scale"], 1.2)
+        self.assertEqual(first["route"], "force_codegen")
+
     def test_validated_global_proposal_skips_task_specific_model(self):
         with tempfile.TemporaryDirectory() as temporary:
             repo_root = Path(temporary)
@@ -299,7 +316,7 @@ class PlanAgentPrototypeTests(unittest.TestCase):
             )
             self.assertEqual(first_decision["action"], "continue")
             self.assertEqual(plan["rounds"][1]["route"], "reuse")
-            self.assertEqual(plan["rounds"][1]["execution"]["seeds"], [100002, 100003])
+            self.assertEqual(plan["rounds"][1]["execution"]["seeds"], [100002])
             self.assertEqual(plan["rounds"][1]["tool_request"], contact_tool_request())
 
             history.append(observation("round_2", policy_success=0.5))

@@ -50,6 +50,12 @@ class TrustedToolRetriever:
         )
         reasons = {name: reason for name in selected}
         optional = {
+            "hammer_left_camera_contact_count": (
+                "safety",
+                "unintended",
+                "camera",
+                "collision",
+            ),
             "max_contact_impulse": (
                 "impulse", "force", "力度", "冲量", "接触", "敲"
             ),

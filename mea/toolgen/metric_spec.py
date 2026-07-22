@@ -265,8 +265,11 @@ def metric_spec_tool_spec(
             "evidence": evidence_kind,
         },
         "validation_requirements": {
-            "min_episodes": 2,
-            "distinct_reference_values": True,
+            # The deterministic compiler is checked twice against its private
+            # interpreter on every real episode.  A single safe rollout with a
+            # legitimate zero event count must therefore remain valid.
+            "min_episodes": 1,
+            "distinct_reference_values": False,
             "required_reference_values": [],
         },
     }
@@ -644,7 +647,11 @@ def execute_metric_spec(
 ) -> dict[str, Any]:
     """Compile, differentially validate, and optionally register one typed Tool."""
 
-    from mea.toolgen.prototype import execute_generated_tool, validate_generated_tool
+    from mea.toolgen.prototype import (
+        ToolGenError,
+        execute_generated_tool,
+        validate_generated_tool,
+    )
     from mea.toolgen.registry import (
         find_run_local_registration,
         public_registration_summary,
@@ -662,8 +669,10 @@ def execute_metric_spec(
     if context is not None and context.get("task_name") != task_name:
         raise MetricSpecError("TaskGen code context belongs to a different task")
     episodes = [Path(item).expanduser().resolve() for item in episode_dirs]
-    if len(episodes) < 2 or len(set(episodes)) != len(episodes):
-        raise MetricSpecError("MetricSpec differential validation needs two episodes")
+    if not episodes or len(set(episodes)) != len(episodes):
+        raise MetricSpecError(
+            "MetricSpec validation needs at least one unique telemetry episode"
+        )
     trajectories = [TrajectoryView(path) for path in episodes]
     for trajectory in trajectories:
         if (
@@ -671,6 +680,14 @@ def execute_metric_spec(
             or trajectory.schema.get("task_name") != task_name
         ):
             raise MetricSpecError("MetricSpec episode task/schema does not match")
+    if spec["operation"] == "minimum_distance":
+        required_signals = {spec["left_signal"], spec["right_signal"]}
+        for trajectory in trajectories:
+            missing = sorted(required_signals - set(trajectory.trace))
+            if missing:
+                raise MetricSpecError(
+                    f"MetricSpec signals are absent from TaskSchema telemetry: {missing}"
+                )
     destination = Path(output_dir).expanduser().resolve()
     if destination.exists():
         raise MetricSpecError(f"MetricSpec output already exists: {destination}")
@@ -691,7 +708,12 @@ def execute_metric_spec(
     else:
         source_path = destination / "generated_tool.py"
         source_path.write_text(compile_metric_spec_source(spec), encoding="utf-8")
-        validate_generated_tool(source_path.read_text(encoding="utf-8"))
+        try:
+            validate_generated_tool(source_path.read_text(encoding="utf-8"))
+        except ToolGenError as exc:  # pragma: no cover - compiler invariant guard
+            raise MetricSpecError(
+                f"compiled MetricSpec failed the ToolGen static gate: {exc}"
+            ) from exc
         route = "typed_metric_spec_compile"
 
     source_text = source_path.read_text(encoding="utf-8")
@@ -703,8 +725,13 @@ def execute_metric_spec(
             for name in _CORE_ARTIFACTS
             if (episode / name).is_file()
         }
-        first = execute_generated_tool(source_text, episode, tool_name=metric)
-        second = execute_generated_tool(source_text, episode, tool_name=metric)
+        try:
+            first = execute_generated_tool(source_text, episode, tool_name=metric)
+            second = execute_generated_tool(source_text, episode, tool_name=metric)
+        except ToolGenError as exc:
+            raise MetricSpecError(
+                f"compiled MetricSpec failed on telemetry: {exc}"
+            ) from exc
         oracle = evaluate_metric_spec(spec, trajectory)
         generated = {
             key: first.get(key)
@@ -733,10 +760,8 @@ def execute_metric_spec(
             }
         )
     finite_values = [float(item) for item in values if isinstance(item, (int, float))]
-    if len({_canonical(item) for item in values}) < 2 or any(
-        not math.isfinite(item) for item in finite_values
-    ):
-        raise MetricSpecError("MetricSpec differential oracle values are insufficient")
+    if any(not math.isfinite(item) for item in finite_values):
+        raise MetricSpecError("MetricSpec oracle produced a non-finite value")
 
     registration = None
     if registry_match is None and registry_dir is not None:
@@ -784,6 +809,10 @@ def execute_metric_spec(
         "limitations": [
             "three bounded typed operators only",
             "development compiler path, not arbitrary Python generation",
+            (
+                "compiled output is checked twice against the trusted "
+                "interpreter on each live episode; live values need not differ"
+            ),
         ],
     }
     _write_json(destination / "execution.json", result)

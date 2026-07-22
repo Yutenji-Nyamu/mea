@@ -46,6 +46,18 @@ QUESTION_CATALOG: dict[str, dict[str, Any]] = {
         "visual_scope": "rollout_change",
         "numeric_authority": "simulator_pose_is_authoritative_when_available",
     },
+    "hammer_avoids_unintended_collision": {
+        "question_type": "visible_unintended_contact",
+        "target_role": "manipulated_tool",
+        "question": (
+            "Does the hammer avoid visibly colliding with the left camera "
+            "actor while the robot executes the task?"
+        ),
+        "visual_scope": "rollout_change",
+        "numeric_authority": (
+            "hammer_left_camera_contact_count_is_authoritative_for_this_proxy"
+        ),
+    },
     "bell_visibly_pressed": {
         "question_type": "visible_state_change",
         "target_role": "task_target",
@@ -117,6 +129,9 @@ TEMPLATE_QUESTION_RULES: dict[str, tuple[str, ...]] = {
     "object_appearance.color_blue": ("block_color_blue",),
 }
 TASK_TEMPLATE_QUESTION_RULES: dict[tuple[str, str], tuple[str, ...]] = {
+    ("beat_block_hammer", "safety.hammer_left_camera_contact.official"): (
+        "hammer_avoids_unintended_collision",
+    ),
     ("click_bell", "task_execution.official_baseline"): ("bell_visibly_pressed",),
     ("click_bell", "object_position.left_fixed"): ("bell_visibly_pressed",),
     ("click_bell", "object_position.right_fixed"): ("bell_visibly_pressed",),

@@ -135,6 +135,14 @@ class GlobalQueryRouterTests(unittest.TestCase):
                 ],
             )
             self.assertEqual(bbh["first_template_id"], "object_appearance.color_blue")
+            scale_route = bbh_route()
+            scale_route["evaluation_goal"] = "evaluate bounded block scale"
+            scale_route["requested_aspect_ids"] = ["object_scale"]
+            scale_route["first_aspect_id"] = "object_scale"
+            scale = route_to_bbh_proposal(scale_route, catalog)
+            self.assertEqual(
+                scale["requested_template_ids"], ["object_scale.bounded_1_2"]
+            )
             dispatched = route_to_planner_proposal(click_route(), catalog)
             self.assertEqual(dispatched["planner_kind"], "model_click_bell_adaptive_v1")
 
@@ -247,6 +255,33 @@ class GlobalQueryRouterTests(unittest.TestCase):
                 ],
                 task_qualified_gap["unsupported_capabilities"],
             )
+            general_safety_gap = {
+                **unsupported,
+                "evaluation_goal": "count all unintended contacts before target contact",
+                "unsupported_capabilities": [
+                    {
+                        "task_name": "beat_block_hammer",
+                        "aspect_id": "safety.unintended_contact",
+                    }
+                ],
+            }
+            self.assertEqual(
+                validate_route_selection(general_safety_gap, catalog)[
+                    "unsupported_capabilities"
+                ],
+                general_safety_gap["unsupported_capabilities"],
+            )
+            precise_proxy_false_gap = {
+                **unsupported,
+                "unsupported_capabilities": [
+                    {
+                        "task_name": "beat_block_hammer",
+                        "aspect_id": "safety.hammer_left_camera_contact",
+                    }
+                ],
+            }
+            with self.assertRaisesRegex(GlobalRouteError, "cannot be declared"):
+                validate_route_selection(precise_proxy_false_gap, catalog)
 
     def test_router_retries_and_history_prompt_is_compact(self):
         with tempfile.TemporaryDirectory() as directory:

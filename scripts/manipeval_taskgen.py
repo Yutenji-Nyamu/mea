@@ -40,6 +40,7 @@ from mea.taskgen import (
     validate_vision_observation,
     create_click_bell_variant_run,
     create_official_task_run,
+    default_bbh_success_spec,
     validate_click_bell_variant_hint,
     build_variant_spec,
     validate_variant_spec_envelope,
@@ -1882,6 +1883,14 @@ def parse_args() -> argparse.Namespace:
         choices=["wrong_color", "oversized_block"],
         help="Test-only injected visual mismatch used to exercise the repair loop.",
     )
+    parser.add_argument(
+        "--success-spec-fixture",
+        choices=["invalid_threshold"],
+        help=(
+            "Development-only invalid SuccessSpec used to prove diagnosis and one "
+            "bounded repair before code generation."
+        ),
+    )
     parser.add_argument("--run-act", action="store_true")
     parser.add_argument(
         "--registration-identity-json",
@@ -1894,6 +1903,14 @@ def main() -> None:
     args = parse_args()
     if args.num_episodes <= 0:
         raise SystemExit("--num-episodes 必须是正整数")
+    if args.success_spec_fixture is not None and (
+        args.resume_run
+        or args.mode != "force_codegen"
+        or args.task_name != "beat_block_hammer"
+    ):
+        raise SystemExit(
+            "--success-spec-fixture requires a fresh beat_block_hammer force_codegen run"
+        )
     repo_root = args.repo_root.expanduser().resolve()
     registration_identity: dict[str, Any] | None = None
     if args.registration_identity_json is not None:
@@ -2042,6 +2059,19 @@ def main() -> None:
             )
         else:
             prototype = TaskGenPrototype(repo_root, provider, model=args.text_model)
+            success_spec_candidate = None
+            success_spec_max_repairs = 0
+            if args.success_spec_fixture == "invalid_threshold":
+                if args.mode != "force_codegen":
+                    raise SystemExit(
+                        "--success-spec-fixture requires --mode force_codegen"
+                    )
+                success_spec_candidate = default_bbh_success_spec()
+                success_spec_candidate["predicates"][0]["thresholds_m"] = [
+                    0.2,
+                    0.2,
+                ]
+                success_spec_max_repairs = 1
             manifest = prototype.generate(
                 args.request,
                 task_name=args.task_name,
@@ -2049,6 +2079,8 @@ def main() -> None:
                 run_id=args.run_id,
                 variant_id=args.variant_id,
                 trusted_variant_spec=trusted_variant_spec,
+                success_spec_candidate=success_spec_candidate,
+                success_spec_max_repairs=success_spec_max_repairs,
             )
         run_dir = repo_root / "mea/generated_tasks" / manifest["run_id"]
 

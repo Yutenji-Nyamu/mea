@@ -117,6 +117,18 @@ class ToolkitTests(unittest.TestCase):
                 "simulation_time_seconds": 0.12,
                 "video_frame_index": 2,
             },
+            {
+                "type": "contact_interval",
+                "actors": ["020_hammer", "left_camera"],
+                "physical_contact": True,
+                "first_physical_policy_step": 0,
+                "first_physical_physics_step": 10,
+                "first_physical_simulation_time_seconds": 0.04,
+                "max_impulse": 0.1,
+                "min_separation": -0.0001,
+                "peak_policy_step": 0,
+                "peak_physics_step": 10,
+            },
         ]
         (episode_dir / "events.jsonl").write_text(
             "".join(json.dumps(item) + "\n" for item in events),
@@ -138,6 +150,16 @@ class ToolkitTests(unittest.TestCase):
             places=5,
         )
         self.assertTrue(by_name["hammer_block_contact_ever"]["value"])
+        self.assertEqual(
+            by_name["hammer_left_camera_contact_count"]["value"], 1
+        )
+        self.assertFalse(
+            by_name["hammer_left_camera_contact_count"]["passed"]
+        )
+        self.assertEqual(
+            by_name["hammer_left_camera_contact_count"]["details"]["scope"],
+            "bounded_unintended_contact_proxy",
+        )
         self.assertEqual(by_name["first_contact_step"]["value"], 20)
         self.assertAlmostEqual(by_name["max_contact_impulse"]["value"], 0.42)
         self.assertAlmostEqual(by_name["ee_path_length"]["value"], 0.19)
@@ -156,7 +178,10 @@ class ToolkitTests(unittest.TestCase):
 
     def test_tool_retriever_and_runner_write_auditable_results(self):
         selection = TrustedToolRetriever().select(
-            "Report contact force, active-arm path, and time to success.",
+            (
+                "Report contact force, active-arm path, time to success, and "
+                "any unintended hammer-camera collision."
+            ),
             task_name="beat_block_hammer",
         )
         self.assertEqual(selection["selected_tools"], list(TOOL_CATALOG))
@@ -164,7 +189,8 @@ class ToolkitTests(unittest.TestCase):
         summary = evaluate_telemetry_root(
             self.root,
             user_request=(
-                "Report contact force, active-arm path, and time to success."
+                "Report contact force, active-arm path, time to success, and "
+                "any unintended hammer-camera collision."
             ),
         )
         self.assertEqual(summary["episode_count"], 1)

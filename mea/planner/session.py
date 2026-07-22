@@ -22,6 +22,7 @@ from mea.proposals import (
 from .catalog import catalog_task, validate_act_catalog
 from .context import build_planning_context
 from .evidence_policy import assess_conditional_transition
+from .adaptive_step import validate_plan_step_proposal
 
 
 class PlanSessionError(ValueError):
@@ -327,7 +328,289 @@ class BoundTaskPlanSession:
         normalized["rounds"] = normalized_rounds
         return normalized
 
-    def snapshot(self, user_query: str, plan: Mapping[str, Any]) -> dict[str, Any]:
+    def coverage(
+        self,
+        plan: Mapping[str, Any],
+        observation_history: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        """Summarize query scope, dynamically discovered aspects, and evidence.
+
+        A materialized next round is not covered until a matching observation
+        exists.  This distinction prevents a planned template from being
+        reported as evidence and gives final Feedback a compact answer/coverage
+        contract without requiring a cross-task EvaluationGraph.
+        """
+
+        normalized = self._normalize_plan(plan)
+        history = list(observation_history or [])
+        if len(history) > len(normalized["rounds"]):
+            raise PlanSessionError("observation history exceeds materialized rounds")
+        for round_plan, observation in zip(normalized["rounds"], history):
+            if not isinstance(observation, Mapping):
+                raise PlanSessionError("each coverage observation must be an object")
+            if observation.get("round_id") != round_plan.get("round_id"):
+                raise PlanSessionError("coverage observation round_id does not match plan")
+
+        required = list(normalized["requested_aspect_ids"])
+        planned: list[str] = []
+        covered: list[str] = []
+        for index, round_plan in enumerate(normalized["rounds"]):
+            aspect_id = str(round_plan["task_proposal"]["aspect_id"])
+            if aspect_id not in planned:
+                planned.append(aspect_id)
+            if index < len(history) and aspect_id not in covered:
+                covered.append(aspect_id)
+        initially_requested = list(plan.get("initial_requested_aspect_ids") or required)
+        discovered = [item for item in planned if item not in initially_requested]
+        uncovered = [item for item in required if item not in covered]
+        return {
+            "schema_version": 1,
+            "initial_requested_aspect_ids": initially_requested,
+            "required_aspect_ids": required,
+            "planned_aspect_ids": planned,
+            "covered_aspect_ids": covered,
+            "discovered_aspect_ids": discovered,
+            "uncovered_required_aspect_ids": uncovered,
+            "completed_rounds": len(history),
+            "coverage_status": (
+                "complete" if not uncovered else "partial" if covered else "not_started"
+            ),
+        }
+
+    def navigation_options(
+        self,
+        plan: Mapping[str, Any],
+        observation_history: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Expose all evidence-legal next steps in the frozen task catalog.
+
+        Unlike the legacy adapter policy, this method does not freeze the
+        sub-aspect set before round one.  It temporarily projects every trusted
+        aspect/template of the already-bound task into the navigation catalog;
+        the provider may then discover a new aspect, refine the current one, or
+        stop.  Executable fields remain outside model control.
+        """
+
+        current = self._normalize_plan(plan)
+        expanded = deepcopy(current)
+        expanded["requested_aspect_ids"] = list(self.aspect_catalog)
+        expanded["requested_template_ids"] = [
+            str(template_id)
+            for aspect in self.aspect_catalog.values()
+            for template_id in aspect["template_ids"]
+        ]
+        assessment = assess_conditional_transition(
+            expanded,
+            observation_history,
+            aspect_catalog=self.aspect_catalog,
+        )
+        current_aspect = str(assessment["current_aspect_id"])
+        remaining = assessment["remaining_template_ids_by_aspect"]
+        aspect_coverage = self.coverage(current, observation_history)
+        initial_required = list(
+            aspect_coverage["initial_requested_aspect_ids"]
+        )
+        covered = set(aspect_coverage["covered_aspect_ids"])
+        initial_uncovered = [
+            aspect_id for aspect_id in initial_required if aspect_id not in covered
+        ]
+        refine = []
+        if remaining.get(current_aspect):
+            refine.append(
+                {
+                    "aspect_id": current_aspect,
+                    "template_ids": list(remaining[current_aspect]),
+                }
+            )
+        propose = [
+            {
+                "aspect_id": aspect_id,
+                "template_ids": list(template_ids),
+                "initially_required": aspect_id in initial_required,
+            }
+            for aspect_id, template_ids in remaining.items()
+            if aspect_id != current_aspect and template_ids
+        ]
+        propose.sort(
+            key=lambda item: (
+                item["aspect_id"] not in initial_uncovered,
+                item["aspect_id"],
+            )
+        )
+
+        unresolved = assessment["state"] in {
+            "evidence_conflict",
+            "aggregate_uncertain",
+        }
+        policy_success = assessment.get("policy_success")
+        # Conflicting evidence, or a measured failure with an available
+        # counterfactual, must first refine the current aspect.  Once that
+        # aspect has no remaining template, switching remains legal so the
+        # bounded evaluation cannot dead-end unnecessarily.
+        if refine and (
+            unresolved
+            or (policy_success is not None and float(policy_success) < 1.0)
+        ):
+            propose = []
+
+        forced_stop = (
+            assessment["state"] == "pipeline_failure"
+            or int(assessment["round_budget_remaining"]) <= 0
+            or (not refine and not propose)
+        )
+        stop_allowed = forced_stop or (
+            not unresolved and not initial_uncovered
+        )
+        if forced_stop:
+            fallback = {
+                "schema_version": 1,
+                "action": "stop",
+                "aspect_id": None,
+                "template_id": None,
+                "rationale": "Execution cannot safely continue inside the bound budget.",
+                "answered_query": False,
+            }
+        else:
+            transition = assessment.get("required_transition")
+            required_proposals = [
+                item
+                for item in propose
+                if item["aspect_id"] in initial_uncovered
+            ]
+            if transition == "drill_down" and refine:
+                candidates = refine
+            elif required_proposals:
+                candidates = required_proposals
+            elif stop_allowed:
+                candidates = []
+            else:
+                candidates = refine
+            if candidates:
+                candidate = candidates[0]
+                fallback = {
+                    "schema_version": 1,
+                    "action": "refine" if candidate in refine else "propose",
+                    "aspect_id": candidate["aspect_id"],
+                    "template_id": candidate["template_ids"][0],
+                    "rationale": "Deterministic fallback selected the first legal evidence-conditioned step.",
+                    "answered_query": False,
+                }
+            else:
+                fallback = {
+                    "schema_version": 1,
+                    "action": "stop",
+                    "aspect_id": None,
+                    "template_id": None,
+                    "rationale": (
+                        "The initially required query aspects are covered; "
+                        "provider failure must not spend rollout budget on an "
+                        "unrequested discovery."
+                    ),
+                    "answered_query": True,
+                }
+        return {
+            "schema_version": 1,
+            "task_name": self.target["task_name"],
+            "checkpoint_id": self.target["checkpoint"].get("checkpoint_id"),
+            "current_aspect_id": current_aspect,
+            "round_budget_remaining": assessment["round_budget_remaining"],
+            "evidence_state": assessment["state"],
+            "evidence_packet": deepcopy(assessment["evidence_packet"]),
+            "initial_required_aspect_ids": initial_required,
+            "covered_aspect_ids": sorted(covered),
+            "uncovered_initial_required_aspect_ids": initial_uncovered,
+            "discoverable_aspect_ids": [
+                item["aspect_id"]
+                for item in propose
+                if item["aspect_id"] not in initial_required
+            ],
+            "available_steps": {
+                "refine": refine,
+                "propose": propose,
+                "stop": stop_allowed,
+            },
+            "stop_requires_answered_query": stop_allowed and not forced_stop,
+            "forced_stop": forced_stop,
+            "fallback_step": fallback,
+        }
+
+    def apply_plan_step(
+        self,
+        plan: Mapping[str, Any],
+        observation_history: list[dict[str, Any]],
+        proposal: Mapping[str, Any],
+        *,
+        materialized_round: Mapping[str, Any] | None = None,
+        source: str = "provider",
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        """Append one discovered/refined round, or stop, without leaving bounds."""
+
+        current = self._normalize_plan(plan)
+        options = self.navigation_options(current, observation_history)
+        step = validate_plan_step_proposal(proposal, options)
+        updated = deepcopy(current)
+        action = step["action"]
+        next_round = None
+        if action != "stop":
+            if not isinstance(materialized_round, Mapping):
+                raise PlanSessionError("continuing PlanStepProposal needs a materialized round")
+            self._validate_materialized_round(
+                materialized_round,
+                expected_aspect_id=str(step["aspect_id"]),
+                expected_template_id=str(step["template_id"]),
+                location="PlanStepProposal.materialized_round",
+            )
+            next_round = deepcopy(dict(materialized_round))
+            if step["aspect_id"] not in updated["requested_aspect_ids"]:
+                updated["requested_aspect_ids"].append(step["aspect_id"])
+            requested_templates = list(updated.get("requested_template_ids") or [])
+            if step["template_id"] not in requested_templates:
+                requested_templates.append(step["template_id"])
+            updated["requested_template_ids"] = requested_templates
+            updated["rounds"].append(next_round)
+
+        transition = {
+            "propose": "switch_aspect",
+            "refine": "drill_down",
+            "stop": "stop",
+        }[action]
+        decision = {
+            "schema_version": 3,
+            "action": "stop" if action == "stop" else "continue",
+            "transition": transition,
+            "next_aspect_id": step["aspect_id"],
+            "next_template_id": step["template_id"],
+            "observation_summary": step["rationale"],
+            "decision_reason": (
+                "provider_authored_plan_step"
+                if source == "provider"
+                else "deterministic_fallback_after_provider_failure"
+            ),
+            "answered_query": step["answered_query"],
+            "plan_step_source": str(source),
+            "plan_step_proposal": step,
+            "round_budget_before_decision": options["round_budget_remaining"],
+            "evidence_assessment": options,
+            "next_round": next_round,
+        }
+        updated.setdefault("round_decisions", []).append(decision)
+        updated.setdefault("plan_step_history", []).append(step)
+        updated.setdefault(
+            "initial_requested_aspect_ids", list(current["requested_aspect_ids"])
+        )
+        updated["planning_state"] = (
+            f"stopped_after_round_{len(current['rounds'])}"
+            if action == "stop"
+            else f"awaiting_round_{len(updated['rounds'])}_observation"
+        )
+        return self._normalize_plan(updated), decision, options
+
+    def snapshot(
+        self,
+        user_query: str,
+        plan: Mapping[str, Any],
+        observation_history: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
         """Return a compact state used by reports and replay validation."""
 
         query = str(user_query).strip()
@@ -353,6 +636,7 @@ class BoundTaskPlanSession:
                 for item in normalized["rounds"]
             ],
             "decisions": deepcopy(list(normalized.get("round_decisions") or [])),
+            "aspect_coverage": self.coverage(normalized, observation_history),
         }
 
     def normalize_plan(self, plan: Mapping[str, Any]) -> dict[str, Any]:

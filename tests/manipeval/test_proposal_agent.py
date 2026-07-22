@@ -4,7 +4,11 @@ import unittest
 from pathlib import Path
 
 from mea.planner import BoundTaskPlanSession, build_act_catalog
-from mea.proposal_agent import BoundedProposalAgent
+from mea.proposal_agent import (
+    BoundedProposalAgent,
+    ProposalAgentError,
+    build_proposal_prompt,
+)
 from mea.capability_adapter import resolve_capability_contract
 
 
@@ -34,6 +38,118 @@ def _catalog(root: Path) -> dict:
 
 
 class ProposalAgentTests(unittest.TestCase):
+    def test_v3_can_propose_a_new_typed_metric_inside_bound_task(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = BoundTaskPlanSession.from_catalog(
+                _catalog(root), "beat_block_hammer", max_rounds=1
+            ).target
+            contract = resolve_capability_contract(
+                "beat_block_hammer", "object_appearance.color_blue"
+            )
+            value = {
+                "schema_version": 1,
+                "task_proposal": {
+                    "schema_version": 1,
+                    "proposal_id": "object_appearance.color_blue.reuse",
+                    "task_name": "beat_block_hammer",
+                    "aspect_id": "object_appearance.color",
+                    "intent": "reuse the registered blue appearance variant",
+                    "capability_id": contract["taskgen"]["capability_id"],
+                    "reuse_first": True,
+                    "changes": contract["taskgen"]["changes"],
+                    "preserve_success_semantics": True,
+                },
+                "tool_proposal": {
+                    "schema_version": 3,
+                    "proposal_id": "query_contact_count.tool",
+                    "task_name": "beat_block_hammer",
+                    "aspect_id": "object_appearance.color",
+                    "evaluation_goal": "count strict task contacts",
+                    "metric": "query_hammer_block_contact_count",
+                    "question": "How many strict task contacts occurred?",
+                    "vqa_phenomenon_ids": [
+                        "block_visibly_displaced",
+                        "run_local.bbh.contact_count",
+                    ],
+                    "vqa_question_specs": [
+                        {
+                            "id": "run_local.bbh.contact_count",
+                            "question_type": "visible_state_change",
+                            "target_role": "task_target",
+                            "question": "Does the rollout visibly show task contact?",
+                            "visual_scope": "rollout_change",
+                            "numeric_authority": (
+                                "official_check_success_is_authoritative"
+                            ),
+                        }
+                    ],
+                    "reuse_first": True,
+                    "metric_spec": {
+                        "schema_version": 1,
+                        "operation": "event_count",
+                        "event": {
+                            "event_type": "contact_interval",
+                            "actors": ["020_hammer", "box"],
+                            "physical_only": True,
+                        },
+                        "unit": "count",
+                        "null_semantics": "zero_if_absent",
+                    },
+                },
+            }
+            provider = FakeProvider(value)
+            result = BoundedProposalAgent(provider, model="fake-model").propose(
+                "How many contacts occur under an appearance shift?",
+                target=target,
+                aspect_id="object_appearance.color",
+                base_template_id="object_appearance.color_blue",
+                capability_mode="registered_reuse",
+            )
+            self.assertEqual(result["tool_proposal"]["schema_version"], 3)
+            self.assertEqual(
+                result["tool_route_preview"]["resolved_route"],
+                "typed_metric_spec_compile",
+            )
+            self.assertIn("typed_metric_spec_v1", provider.calls[0][0])
+            self.assertIn("null_if_no_finite_sample", provider.calls[0][0])
+            self.assertIn("020_hammer", provider.calls[0][0])
+
+            value["tool_proposal"]["metric_spec"]["event"]["actors"] = [
+                "020_hammer",
+                "fl_link1",
+            ]
+            with self.assertRaisesRegex(
+                ProposalAgentError, "outside the bound actor pairs"
+            ):
+                BoundedProposalAgent(
+                    FakeProvider(value), model="fake-model"
+                ).propose(
+                    "How many contacts occur under an appearance shift?",
+                    target=target,
+                    aspect_id="object_appearance.color",
+                    base_template_id="object_appearance.color_blue",
+                    capability_mode="registered_reuse",
+                )
+
+    def test_safety_prompt_uses_precise_left_camera_metric_example(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = BoundTaskPlanSession.from_catalog(
+                _catalog(root), "beat_block_hammer", max_rounds=1
+            ).target
+            prompt = build_proposal_prompt(
+                "Did the hammer collide with the left camera?",
+                target,
+                "safety.hammer_left_camera_contact",
+                base_template_id="safety.hammer_left_camera_contact.official",
+                capability_mode="registered_reuse",
+            )
+            self.assertIn("query_hammer_left_camera_contact_count", prompt)
+            self.assertIn('"actors": [', prompt)
+            self.assertIn('"left_camera"', prompt)
+            self.assertIn('"null_semantics": "zero_if_absent"', prompt)
+
     def test_open_query_produces_unlisted_task_and_tool_proposals(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

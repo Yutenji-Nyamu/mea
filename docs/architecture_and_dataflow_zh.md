@@ -963,3 +963,54 @@ open Query
 这仍只是单 seed、每变体 N=1 的机制验收；没有覆盖右侧位置、base1、clutter、纹理、光照，也没有
 形成论文 Tables 1--3、6--9 的统计结论。实现与失败修复细节见
 [2026-07-22 最小论文闭环开发记录](development_log_20260722_minimal_paper_loop_zh.md)。
+
+## 16. 2026-07-22：evidence-conditioned 动态 sub-aspect
+
+正常 adaptive runtime 不再只消费 evaluation 开始时冻结的 aspect 列表。每轮真实执行结束后，
+`AdaptivePlanStepAgent` 在固定 task/checkpoint 与 capability envelope 内读取 Query、coverage、Rule、
+Dynamic VQA 和 `EvidencePacket`，再选择 `propose`、`refine` 或 `stop`：
+
+```text
+开放 Query
+→ Global Router：固定 task + ACT checkpoint + initial required aspect
+→ Round TaskProposal / ToolProposal
+→ TaskGen：reuse / overlay / codegen
+   → VariantSpec + generated code + SuccessSpec/repair report
+   → static → render → vision → expert gate
+→ ACT telemetry + events + video
+→ trusted/generated/typed Rule Tool + Dynamic VQA
+→ Aggregate → EvidencePacket
+→ navigation_options(required / covered / discoverable)
+→ AdaptivePlanStepAgent(Query, Y1:t)
+   ├── refine 当前失败/不确定 aspect
+   ├── propose 同 task 的另一受支持 aspect → 下一轮
+   └── stop → strengths / weaknesses / recommendation / limitations
+```
+
+对应的人工可审计数据集中保存在 evaluation 下：
+
+| 阶段 | 主要 artifact |
+| --- | --- |
+| Query / scope | `plan/global_query_route.json`、`plan/bound_task_session.json` |
+| 每轮 Proposal | `plan/bounded_proposal/round_*/`、`plan/runtime_directive_after_round_*.json` |
+| TaskGen | child 的 `generation/variant_spec.json`、task code/overlay、SuccessSpec 与 repair report |
+| 视觉 gate | scene render、vision response、scene validation、expert telemetry |
+| ACT | rollout video、`telemetry.json`、`events.jsonl`、episode manifest |
+| Tool / VQA | Tool request/source/result、VQA prompt/keyframes/observation |
+| 证据 / 决策 | `plan/evidence_after_round_*.json`、PlanStep prompt/responses/decision、Aggregate |
+| 人工阅读 | `evidence_report.md` 或 `docs/evidence_runs/<evaluation_id>/` 小型发布包 |
+
+`ToolProposal v3` 携带的 `MetricSpec v1` 现在可从正常 runtime 进入严格
+compile/differential/register/reuse 通路。一条真实
+episode 已足够做 deterministic rerun 与 trusted-interpreter equality；不再要求两个 episode 的 live
+值不同。安全 concern 当前只有 canonical aspect `safety.hammer_left_camera_contact`：它统计
+`020_hammer ↔ left_camera` 的精确 physical contact，是窄代理。通用
+`safety.unintended_contact` 仍 unsupported，不代表所有意外接触、clearance 或完整安全性。
+
+错误 SuccessSpec 的本批 recovery 也有明确边界：非法候选被结构化诊断后，最多一次替换为可信
+official-equivalent spec；不合并非法字段，也不声称模型完成了 Proposal-derived semantic repair。
+
+更上层 `EvaluationGraph` 的 scope 固定为 `cross_checkpoint_portfolio`。它可汇总多个任务专属 ACT
+child 的 required/covered aspect 和最终答案；未触发的 conditional child 单列为
+`conditional_not_activated`，不伪装成 required gap。父层不在单 child 中切 checkpoint，也不替代上述
+单任务动态闭环。论文对应与剩余 gap 见 [自顶向下审查](paper_claim_gap_zh.md)。

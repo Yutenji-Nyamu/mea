@@ -16,6 +16,8 @@ from .prototype import (
     BLUE_TASK_INSTRUCTION,
     MAX_ROUNDS,
     POSITION_TASK_INSTRUCTION,
+    SCALE_TASK_INSTRUCTION,
+    SAFETY_TASK_INSTRUCTION,
     SUB_ASPECT_CATALOG,
     TIMING_TASK_INSTRUCTION,
     PlanAgentError,
@@ -62,11 +64,18 @@ from .session import (
     validate_adaptive_choice,
     validate_evaluation_target,
 )
+from .adaptive_step import (
+    AdaptivePlanStepAgent,
+    AdaptiveStepError,
+    validate_plan_step_proposal,
+)
 
 __all__ = [
     "BLUE_TASK_INSTRUCTION",
     "MAX_ROUNDS",
     "POSITION_TASK_INSTRUCTION",
+    "SCALE_TASK_INSTRUCTION",
+    "SAFETY_TASK_INSTRUCTION",
     "SUB_ASPECT_CATALOG",
     "TIMING_TASK_INSTRUCTION",
     "assess_evidence",
@@ -110,4 +119,7 @@ __all__ = [
     "build_evaluation_target",
     "validate_adaptive_choice",
     "validate_evaluation_target",
+    "AdaptivePlanStepAgent",
+    "AdaptiveStepError",
+    "validate_plan_step_proposal",
 ]

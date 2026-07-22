@@ -23,8 +23,10 @@ from mea.retrieval import KnowledgeRetriever, TaskRetriever
 from mea.taskgen.artifacts import write_task_artifact_bundle
 from mea.taskgen.capabilities import CapabilityError, build_variant_spec
 from mea.taskgen.success_spec import (
+    SuccessSpecRepairError,
     compile_success_spec,
     default_bbh_success_spec,
+    repair_success_spec,
 )
 
 
@@ -608,9 +610,13 @@ class TaskGenPrototype:
         run_id: str | None = None,
         variant_id: str | None = None,
         trusted_variant_spec: Mapping[str, Any] | None = None,
+        success_spec_candidate: Mapping[str, Any] | None = None,
+        success_spec_max_repairs: int = 0,
     ) -> dict[str, Any]:
         if mode not in {"force_codegen", "reuse"}:
             raise TaskGenError(f"不支持的 generation mode: {mode}")
+        if success_spec_candidate is not None and mode != "force_codegen":
+            raise TaskGenError("SuccessSpec candidate is only valid for force_codegen")
 
         trusted_spec: dict[str, Any] | None = None
         if trusted_variant_spec is not None:
@@ -726,7 +732,23 @@ class TaskGenPrototype:
         knowledge_retrieval = None
 
         if mode == "force_codegen":
-            success_spec = default_bbh_success_spec()
+            success_spec_repair = None
+            if success_spec_candidate is None:
+                success_spec = default_bbh_success_spec()
+            else:
+                try:
+                    success_spec, success_spec_repair = repair_success_spec(
+                        success_spec_candidate,
+                        max_repairs=success_spec_max_repairs,
+                    )
+                except SuccessSpecRepairError as exc:
+                    _write_json(
+                        generation_dir / "success_spec_repair.json",
+                        exc.report,
+                    )
+                    raise TaskGenError(
+                        f"SuccessSpec validation/repair failed: {exc}"
+                    ) from exc
             success_method_source, success_validation = compile_success_spec(
                 success_spec
             )
@@ -735,6 +757,12 @@ class TaskGenPrototype:
                 success_method_source, encoding="utf-8"
             )
             validation["success_spec"] = success_validation
+            if success_spec_repair is not None:
+                validation["success_spec_repair"] = success_spec_repair
+                _write_json(
+                    generation_dir / "success_spec_repair.json",
+                    success_spec_repair,
+                )
 
             manifest["status"] = "retrieving_task_sources"
             _write_json(run_dir / "manifest.json", manifest)

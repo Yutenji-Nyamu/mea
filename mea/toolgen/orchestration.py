@@ -21,6 +21,11 @@ from .reviewed_registry import (
     find_reviewed_registration,
     public_reviewed_registration_summary,
 )
+from .metric_spec import (
+    MetricSpecError,
+    build_task_code_context,
+    execute_metric_spec,
+)
 from .router import (
     ToolRouterError,
     route_tool_request,
@@ -145,6 +150,19 @@ def official_success_tool_request(task_name: str) -> dict[str, Any]:
         "task_name": task_name.strip(),
         "metric": "official_check_success",
         "question": "Did the rollout satisfy the official RoboTwin success check?",
+    }
+
+
+def hammer_left_camera_contact_count_tool_request() -> dict[str, Any]:
+    """Request the bounded BBH unintended-contact proxy from Trusted Tools."""
+
+    return {
+        "schema_version": 1,
+        "task_name": "beat_block_hammer",
+        "metric": "hammer_left_camera_contact_count",
+        "question": (
+            "How many physical hammer-left_camera contact intervals occurred?"
+        ),
     }
 
 
@@ -929,6 +947,129 @@ def _resolved_spec_from_request(
     return spec
 
 
+def _execute_typed_metric_request(
+    repo: Path,
+    child_run_dir: Path,
+    destination: Path,
+    request: dict[str, Any],
+    decision: dict[str, Any],
+    *,
+    registry_root: Path | None,
+    task_proposal: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Compile one ToolProposal v3 metric over the round's real telemetry."""
+
+    telemetry_root = child_run_dir / "evaluation/telemetry"
+    episode_dirs = [
+        path.parent
+        for path in sorted(telemetry_root.glob("*/episode_*/episode.json"))
+    ]
+    if not episode_dirs:
+        raise ToolOrchestrationError(
+            f"no complete telemetry episode found under {telemetry_root}"
+        )
+    try:
+        context = build_task_code_context(
+            child_run_dir, task_proposal=task_proposal
+        )
+        raw = execute_metric_spec(
+            task_name=request["task_name"],
+            metric=request["metric"],
+            question=request["question"],
+            metric_spec=request["metric_spec"],
+            episode_dirs=episode_dirs,
+            output_dir=destination / "typed_metric_spec",
+            task_code_context=context,
+            registry_dir=registry_root,
+        )
+    except MetricSpecError as exc:
+        raise ToolOrchestrationError(f"typed MetricSpec execution failed: {exc}") from exc
+
+    actual_route = str(raw["route"])
+    decision["resolved_route"] = actual_route
+    if actual_route == "run_local_reuse":
+        decision["matched_registry"] = "evaluation_local_tool_registry"
+        decision["reason"] = (
+            "exact typed MetricSpec, task, and telemetry schema matched a "
+            "validated evaluation-local Tool"
+        )
+    decision["provider_called"] = False
+    _write_json(destination / "route_decision.json", decision)
+
+    normalized_episodes = [
+        {
+            "episode_dir": _relative(Path(row["episode_dir"]), repo),
+            "policy_name": row.get("policy_name"),
+            "seed": row.get("seed"),
+            "role": _role(row.get("policy_name")),
+            "result": _result_projection(row["generated_result"]),
+        }
+        for row in raw["episodes"]
+    ]
+    generated_source = destination / "typed_metric_spec/generated_tool.py"
+    registration = raw.get("registration")
+    execution = {
+        "schema_version": 1,
+        "status": "passed",
+        "requested_route": "auto",
+        "route": actual_route,
+        "reference_tool": None,
+        "tool_spec": raw["tool_spec"],
+        "tool_request": request,
+        "route_decision": decision,
+        "source": {
+            "scope": (
+                "run_local_registry"
+                if actual_route == "run_local_reuse"
+                else "run_local_generated"
+            ),
+            "tool": request["metric"],
+            "reference_tool": None,
+            "artifact": (
+                _relative(generated_source, repo)
+                if generated_source.is_file()
+                else None
+            ),
+            "registration_id": (
+                registration.get("registration_id")
+                if isinstance(registration, dict)
+                else None
+            ),
+        },
+        "episodes": normalized_episodes,
+        "validation": {
+            "provider_called": False,
+            "typed_metric_spec": True,
+            "task_code_context_consumed": bool(
+                raw.get("task_code_context_consumed")
+            ),
+            "episode_count": len(normalized_episodes),
+            "differential_gates_passed": True,
+        },
+        "artifacts": {
+            "tool_request": _relative(destination / "tool_request.json", repo),
+            "catalog_snapshot": _relative(
+                destination / "catalog_snapshot.json", repo
+            ),
+            "route_decision": _relative(
+                destination / "route_decision.json", repo
+            ),
+            "metric_spec_execution": _relative(
+                destination / "typed_metric_spec/execution.json", repo
+            ),
+        },
+    }
+    _write_json(destination / "resolved_tool_spec.json", execution["tool_spec"])
+    execution["artifacts"]["resolved_tool_spec"] = _relative(
+        destination / "resolved_tool_spec.json", repo
+    )
+    execution["artifacts"]["tool_execution"] = _relative(
+        destination / "tool_execution.json", repo
+    )
+    _write_json(destination / "tool_execution.json", execution)
+    return execution
+
+
 def _register_generated_for_evaluation(
     repo: Path,
     child_run_dir: str | Path,
@@ -1010,6 +1151,7 @@ def execute_tool_request(
     max_attempts: int = 2,
     run_local_registry_dir: str | Path | None = None,
     reviewed_registry_dir: str | Path | None = None,
+    task_proposal: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Automatically route and execute one route-free semantic Tool request."""
 
@@ -1041,7 +1183,6 @@ def execute_tool_request(
     _write_json(destination / "tool_request.json", request)
     _write_json(destination / "catalog_snapshot.json", snapshot)
     _write_json(destination / "route_decision.json", decision)
-    spec = _resolved_spec_from_request(request, decision["resolved_route"])
     registry_root = (
         Path(run_local_registry_dir).expanduser().resolve()
         if run_local_registry_dir is not None
@@ -1052,6 +1193,28 @@ def execute_tool_request(
         if reviewed_registry_dir is not None
         else None
     )
+    if decision["resolved_route"] == "typed_metric_spec_compile":
+        try:
+            return _execute_typed_metric_request(
+                repo,
+                Path(child_run_dir).expanduser().resolve(),
+                destination,
+                request,
+                decision,
+                registry_root=registry_root,
+                task_proposal=task_proposal,
+            )
+        except Exception as exc:
+            decision["status"] = "execution_failed"
+            decision["provider_called"] = False
+            decision["failure"] = {
+                "type": type(exc).__name__,
+                "message": str(exc),
+            }
+            _write_json(destination / "route_decision.json", decision)
+            raise
+
+    spec = _resolved_spec_from_request(request, decision["resolved_route"])
     run_local_match = None
     reviewed_match = None
     registry_episodes: list[dict[str, Any]] | None = None

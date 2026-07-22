@@ -305,3 +305,22 @@ ACT 都失败这一 policy 结果必须与成功的 expert controls 和完整 pi
   描述为模型能够任意生成正确成功函数。
 - executable Tool 的语义复用只能忽略表述性字段；task、metric、typed spec、signals、output、源码与
   validation contract 必须保持精确。发现 registry collision 时 fail closed。
+
+## 14. 2026-07-22 自顶向下优先级修正
+
+论文 Sec. 3.2 与 Figs. 2/5 的核心动态性，是 Plan Agent 在**当前固定 task/checkpoint evaluation**
+中读到 `Y1:t` 后，再发现/选择下一 sub-aspect。初始 Query 预先列出两轮、或父层固定创建两个 task
+child，都不能替代这一点。因此每批优先级按以下顺序判断：
+
+1. evidence 是否真的进入下一次 Plan step，并改变 `propose/refine/stop`；
+2. Task Proposal 是否驱动 retrieve-or-generate，以及 runnable scene + `check_success()`；
+3. Tool Proposal 是否驱动 retrieve/generate/validate/register/reuse；
+4. Rule/VQA/Aggregate 是否形成 Query-centric feedback；
+5. 最后才是跨任务 portfolio、更多 task、更多 seed 和论文规模统计。
+
+一次 ACT evaluation 固定一个单任务 checkpoint 是预期边界。`EvaluationGraph` 只能称为可选的
+`cross_checkpoint_portfolio`：它可以让父层按 child evidence 决定是否启动另一个 checkpoint-bound
+child，但不是一个 policy 的跨任务能力，也不是论文核心 Plan Agent 的完成条件。
+
+本批实现与剩余 claim/gap 见 [自顶向下论文审查](paper_claim_gap_zh.md) 和
+[动态 sub-aspect / MetricSpec 开发记录](development_log_20260722_dynamic_plan_toolgen_zh.md)。
