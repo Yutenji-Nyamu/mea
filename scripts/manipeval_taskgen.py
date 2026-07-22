@@ -48,6 +48,7 @@ from mea.taskgen import (
     validate_scene_check_spec,
     write_task_artifact_bundle,
 )
+from mea.taskgen.resolver import TaskResolutionError, resolve_task_proposal
 
 
 _REGISTRATION_KEYS = {
@@ -1936,6 +1937,7 @@ def main() -> None:
 
     capability_contract: dict[str, Any] | None = None
     trusted_variant_spec: dict[str, Any] | None = None
+    task_resolution: dict[str, Any] | None = None
     if args.capability_contract_json is not None:
         try:
             raw_contract = json.loads(args.capability_contract_json)
@@ -1968,6 +1970,24 @@ def main() -> None:
         ):
             raise SystemExit(
                 "capability-bound official execution cannot override --task-module"
+            )
+    if task_proposal is not None and capability_contract is not None:
+        try:
+            # This decision now runs before provider construction.  The v1
+            # integration has exact official/built-in reuse plus an injected
+            # reviewed-artifact lookup boundary; persistent reviewed task
+            # materialization remains a separate admission concern.
+            task_resolution = resolve_task_proposal(
+                task_proposal,
+                capability_contract,
+                find_reviewed=None,
+            )
+        except TaskResolutionError as exc:
+            raise SystemExit(f"TaskGen reuse-first resolution failed: {exc}") from exc
+        if task_resolution["resolved_route"] != args.mode:
+            raise SystemExit(
+                "resolved TaskGen route cannot be materialized by this invocation: "
+                f"{task_resolution['resolved_route']!r}"
             )
     if (
         task_proposal is not None
@@ -2083,6 +2103,23 @@ def main() -> None:
                 success_spec_max_repairs=success_spec_max_repairs,
             )
         run_dir = repo_root / "mea/generated_tasks" / manifest["run_id"]
+
+    if task_resolution is not None:
+        write_json(run_dir / "generation/task_resolution.json", task_resolution)
+        update_manifest(
+            run_dir,
+            task_resolution_path="generation/task_resolution.json",
+            task_resolution={
+                "requested_route": task_resolution["requested_route"],
+                "resolved_route": task_resolution["resolved_route"],
+                "materialization": task_resolution["materialization"],
+                "provider_required": task_resolution["provider_required"],
+                "reviewed_lookup_attempted": task_resolution[
+                    "reviewed_lookup_attempted"
+                ],
+            },
+        )
+        manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
 
     if task_proposal is not None:
         write_json(run_dir / "generation/task_proposal.json", task_proposal)

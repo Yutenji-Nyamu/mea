@@ -381,6 +381,8 @@ class BoundTaskPlanSession:
         self,
         plan: Mapping[str, Any],
         observation_history: list[dict[str, Any]],
+        *,
+        allowed_template_ids: list[str] | tuple[str, ...] | None = None,
     ) -> dict[str, Any]:
         """Expose all evidence-legal next steps in the frozen task catalog.
 
@@ -388,21 +390,67 @@ class BoundTaskPlanSession:
         sub-aspect set before round one.  It temporarily projects every trusted
         aspect/template of the already-bound task into the navigation catalog;
         the provider may then discover a new aspect, refine the current one, or
-        stop.  Executable fields remain outside model control.
+        stop.  A preregistered comparison may supply ``allowed_template_ids``
+        to keep that discovery inside its hash-pinned candidate universe.
+        Executable fields remain outside model control.
         """
 
         current = self._normalize_plan(plan)
+        if allowed_template_ids is None:
+            allowed = {
+                str(template_id)
+                for aspect in self.aspect_catalog.values()
+                for template_id in aspect["template_ids"]
+            }
+        else:
+            allowed_list = [str(template_id) for template_id in allowed_template_ids]
+            if not allowed_list or len(allowed_list) != len(set(allowed_list)):
+                raise PlanSessionError(
+                    "allowed_template_ids must be a non-empty unique template list"
+                )
+            catalog_templates = {
+                str(template_id)
+                for aspect in self.aspect_catalog.values()
+                for template_id in aspect["template_ids"]
+            }
+            unknown = sorted(set(allowed_list) - catalog_templates)
+            if unknown:
+                raise PlanSessionError(
+                    f"allowed_template_ids contains unknown templates: {unknown}"
+                )
+            current_templates = {
+                str(template_id)
+                for template_id in current.get("requested_template_ids", [])
+            }
+            if not current_templates.issubset(set(allowed_list)):
+                raise PlanSessionError(
+                    "the current plan leaves the allowed template universe"
+                )
+            allowed = set(allowed_list)
+
+        scoped_catalog = {
+            aspect_id: {
+                **deepcopy(aspect),
+                "template_ids": [
+                    str(template_id)
+                    for template_id in aspect["template_ids"]
+                    if str(template_id) in allowed
+                ],
+            }
+            for aspect_id, aspect in self.aspect_catalog.items()
+            if any(str(template_id) in allowed for template_id in aspect["template_ids"])
+        }
         expanded = deepcopy(current)
-        expanded["requested_aspect_ids"] = list(self.aspect_catalog)
+        expanded["requested_aspect_ids"] = list(scoped_catalog)
         expanded["requested_template_ids"] = [
             str(template_id)
-            for aspect in self.aspect_catalog.values()
+            for aspect in scoped_catalog.values()
             for template_id in aspect["template_ids"]
         ]
         assessment = assess_conditional_transition(
             expanded,
             observation_history,
-            aspect_catalog=self.aspect_catalog,
+            aspect_catalog=scoped_catalog,
         )
         current_aspect = str(assessment["current_aspect_id"])
         remaining = assessment["remaining_template_ids_by_aspect"]

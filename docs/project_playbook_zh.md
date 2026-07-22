@@ -167,7 +167,10 @@ MEA 是 RoboTwin 的评估层扩展。以下事实必须始终保持清楚：
 4. 优先扩展共享 schema/spec/registry，再为具体任务写薄适配层；避免新增散落的
    `if task_name == ...`。
    顶层 evaluation 必须先冻结 task/checkpoint；跨 task 需求由多个 child session 表达。
-5. 先跑静态/单元测试，再跑 1 个真实 rollout；通过后才按 3、5 放大。
+5. 所有 Python 单元/集成测试、RoboTwin import、provider、expert、ACT 与仿真都在 canonical
+   AutoDL 工作区执行；Windows 只做源码阅读、轻量编辑和 `git diff --check`。本地不为 MEA 新建
+   Conda/venv、不安装测试依赖，也不把缺少 RoboTwin asset 的本地结果纳入验收。服务器测试通过后
+   才跑 1 个真实 rollout，再按 3、5 放大。
 6. 记录输入、seed、checkpoint、Git HEAD、wall-clock、sample count、失败阶段和 artifact 路径。
    generated 多变体实验必须把 `(variant_id, seed)` 作为样本身份，并同时报告 pooled 与逐变体
    coverage；不能把跨 variant 的同 seed 当成重复样本。
@@ -182,6 +185,8 @@ MEA 是 RoboTwin 的评估层扩展。以下事实必须始终保持清楚：
   默认它失效，也不要无缘由要求用户重配网页 key。
 - checkpoint、数据集和模型权重只在服务器直接下载。优先 AutoDL 学术加速，其次服务器侧
   Hugging Face mirror；不得让常规大文件经过 Windows、`C:` 或 Codex 工作区。
+- 临时 Windows 稀疏 clone、SSH helper 和文档缓存只用于当批小文件传输/编辑，批次结束即清理；
+  现有 E 盘 Python 若被调用，只能作为密码 SSH 的传输客户端，不能用来执行 MEA 测试。
 - 若误把大文件下载到本机，要删除 staging 和相关 cache，核对零残留，并在交接中记录原因、
   补救和以后采用的服务器侧路径。
 - 不提交运行 artifact、checkpoint、软链接、私钥或 token。提交前检查 Git status 和大文件。

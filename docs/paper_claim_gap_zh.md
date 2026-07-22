@@ -27,9 +27,9 @@ checkpoint 中途切任务。跨任务 `EvaluationGraph` 是可选的多 checkpo
 
 | 优先级 | 论文 claim | 当前最小对应 | 仍有的 gap |
 | ---: | --- | --- | --- |
-| 1 | Plan Agent 根据 `Query + Y1:t` 动态发现 sub-aspect（Sec. 3.2；Figs. 2/5） | `AdaptivePlanStepAgent` 每轮只接收受信 Rule/VQA/Evidence 与当前 coverage，输出 `propose/refine/stop`；`BoundTaskPlanSession` 区分 initial required、covered 与 discoverable | 本批源码与离线分支已接入正常 adaptive runtime；仍需一条当前 clean-head live N=1/轮证明真实 evidence 会驱动不同下一步 |
-| 2 | TaskGen 对 Proposal 做 retrieve-or-generate，并交付 runnable scene + `check_success()`（Sec. 3.3；Fig. 3） | official reuse、click overlay、BBH codegen、`VariantSpec`、受限 `SuccessSpec` 编译与静态/差分检查均存在；`object_scale.bounded_1_2` 已进入开放 Query/capability | resolver 仍可能先由模板决定 codegen，再做检索；尚不是统一的 reuse-first 决策。`SuccessSpec` 语义自由度也很窄 |
-| 3 | TaskGen 用 render/视觉反馈诊断并修复生成错误（Fig. 3；App. A.3.4） | scene static/render/vision/expert gate 与 BBH scene repair 已有；本批为错误 `SuccessSpec` 增加结构化 diagnosis 和最多一次 trusted fallback | 当前 SuccessSpec repair 是用可信 official-equivalent 默认值替换非法候选，不是模型依据 Proposal 修正语义；click overlay 仍以 validate 为主 |
+| 1 | Plan Agent 根据 `Query + Y1:t` 动态发现 sub-aspect（Sec. 3.2；Figs. 2/5） | `AdaptivePlanStepAgent` 每轮只接收受信 Rule/VQA/Evidence 与当前 coverage，输出 `propose/refine/stop`；registered `dynamic_evidence_v1` 也已接入公共 step，并被 hash-pinned candidate suite 限界 | 源码与离线分支已就绪；仍需本批 clean-head matched N=1 证明真实 provider/evidence 会 stop 或 refine，而非旧 task-specific planner |
+| 2 | TaskGen 对 Proposal 做 retrieve-or-generate，并交付 runnable scene + `check_success()`（Sec. 3.3；Fig. 3） | 正常 TaskGen 已在 provider 创建前运行 exact-semantic resolver，顺序为 official→内置 overlay→审核生成物 lookup→codegen；每次保存 `task_resolution.json`。`SuccessSpec v2` 增加可信 envelope、受限阈值与 `all/any` 编译 | official/overlay 已真正 reuse；审核 generated artifact 尚只有 exact lookup 合同，缺持久 registry 与 materializer。非官方 v2 语义目前仅 development fixture、禁止 ACT，尚不是 live Proposal-derived success generation |
+| 3 | TaskGen 用 render/视觉反馈诊断并修复生成错误（Fig. 3；App. A.3.4） | scene reflection、SuccessSpec repair 与 expert gate 已有；`TaskGenerationAttempt` controller 统一 typed stage/action、最多一次局部修复，并保证 accepted 前 0 ACT、policy failure 不重试 | controller 已由 fixture 真正执行 diagnosis→repair callback，但尚未把所有生产 TaskGen 分支改由同一 controller 驱动；click overlay 仍以 validate 为主 |
 | 4 | ToolGen 根据 Tool Proposal 检索、生成、验证、注册与复用（Sec. 3.3；Fig. 4） | trusted Tool、Python ToolGen、AST/differential gate、reviewed registry、run-local reuse 已有；`ToolProposal v3` 携带的 `MetricSpec v1` 已接入正常 runtime，并允许单条真实 episode 做 deterministic/oracle 校验 | DSL/operator 与可观测 signals 仍受限；安全只新增精确 camera-contact proxy，不能概括完整 unintended-contact/safety |
 | 5 | Rule Tool 与 Dynamic VQA 互补观测执行结果（Sec. 3.3；Fig. 4） | telemetry/events/video → trusted/generated Tool + 事件关键帧 VQA → typed evidence；数值冲突时 Rule 为权威 | 已有真实与缓存机制证据，但真实扰动下的独立人工 gold、正负平衡和 VQA accuracy/AUROC 仍缺 |
 | 6 | Aggregate 后的 evidence 改变后续规划并形成 Query-centric feedback（Secs. 3.2–3.4） | `EvidencePacket` 保留 policy/pipeline/rule/VQA；动态 step 可继续失败诊断、切换已支持 aspect 或停止；最终报告列强项、弱项、建议和局限 | 当前动态 step 的最新 live flagship 尚待验收；不能用旧 task-specific 两轮或 synthetic replay 替代 |
@@ -38,15 +38,15 @@ checkpoint 中途切任务。跨任务 `EvaluationGraph` 是可选的多 checkpo
 
 ## 3. 当前最值得补的顺序
 
-1. **TaskProposal 的统一 reuse-first resolver（0 ACT）**：先检索 exact/compatible artifact，再选择
-   official reuse、overlay 或 codegen；直接补 Sec. 3.3.1 的生成决策，而不是继续扩任务数量。
-2. **Proposal-derived `SuccessSpec v2`（0 ACT）**：允许少量受控 actor/阈值/逻辑变化，用正负 fixture
-   与 official oracle 差分验证；把本批 trusted fallback 从“恢复 plumbing”提升到真实 success generation。
-3. **当前动态 runtime 的 flagship 与 matched fixed N=1（约 2–4 ACT）**：相同 Query、seed、任务、
+1. **当前动态 runtime 的 flagship 与 matched fixed N=1（约 3–4 ACT）**：相同 Query、seed、任务、
    checkpoint 和最多两轮预算，先证明 evidence-conditioned planning 的真实功能差异。
-4. **统一 TaskGenerationAttempt recovery（0–1 expert probe）**：把代码、SuccessSpec、render/vision/
-   expert 的 diagnosis/action 归入一次有界 regenerate/repair 合同。
-5. **最后再补实验证据**：assistant-proxy 先验证格式；独立人工 gold、2–4 条真实扰动 clip、N=3 只在
+2. **审核 generated task 的持久 registry/materializer（0 ACT）**：把当前 exact lookup 从接口升级为
+   新 evaluation 中真实 no-provider reuse，同时 pin task.py、VariantSpec、SuccessSpec 与 validation。
+3. **把 production TaskGen 分支统一交给 `TaskGenerationAttempt`（0–1 expert）**：复用现有 success/
+   visual repair callback，不能让 controller 只存在于 fixture。
+4. **一个明确允许 success-semantics variation 的受控 capability（0 ACT fixtures，live 后置）**：先由
+   oracle 定义 envelope；当前 appearance/scale ACT 继续只接受 official-equivalent success。
+5. **最后再补实验证据**：assistant-proxy 先验证格式；独立人工 gold、少量同 commit 真实扰动 clip、N=3 只在
    主链稳定后支付。多 policy、10 repetitions 继续后置。
 
 ## 4. 声明边界

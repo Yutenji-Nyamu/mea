@@ -94,6 +94,25 @@ def write_json(path: Path, value: Any) -> None:
     )
 
 
+def should_enable_adaptive_plan_step(
+    *,
+    fixed_click_bell: bool,
+    legacy_click_bell: bool,
+    registered_strategy: str | None,
+) -> bool:
+    """Select the evidence-driven planner for normal and registered dynamic runs.
+
+    Registration freezes candidate identity, not the planning method. Fixed and
+    legacy baselines retain their pre-existing deterministic planners.
+    """
+
+    return (
+        not fixed_click_bell
+        and not legacy_click_bell
+        and registered_strategy != "fixed_predeclared_v1"
+    )
+
+
 def canonical_sha256(value: Any) -> str:
     payload = json.dumps(
         value,
@@ -2886,7 +2905,11 @@ def main() -> None:
             plan = bound_plan_session.normalize_plan(plan)
             planning_context = bound_plan_session.planning_context(repo_root)
             write_json(evaluation_dir / "plan/planning_context.json", planning_context)
-            if not fixed_click_bell and not legacy_click_bell and registered_execution is None:
+            if should_enable_adaptive_plan_step(
+                fixed_click_bell=fixed_click_bell,
+                legacy_click_bell=legacy_click_bell,
+                registered_strategy=args.registered_strategy,
+            ):
                 assert provider is not None
                 adaptive_step_agent = AdaptivePlanStepAgent(
                     provider, model=models["planner"]
@@ -3259,7 +3282,13 @@ def main() -> None:
             if dynamic_step_session:
                 with runtime_ledger_context(decision_ledger, decision_context):
                     navigation_options = bound_plan_session.navigation_options(
-                        plan_before_decision, observation_history
+                        plan_before_decision,
+                        observation_history,
+                        allowed_template_ids=(
+                            registered_execution["expected_candidate_suite"]
+                            if registered_execution is not None
+                            else None
+                        ),
                     )
                     step_bundle = adaptive_step_agent.propose(
                         args.request,

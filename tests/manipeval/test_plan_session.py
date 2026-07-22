@@ -250,6 +250,48 @@ class PlanSessionTests(unittest.TestCase):
         self.assertEqual(failed["available_steps"]["propose"], [])
         self.assertTrue(succeeded["available_steps"]["propose"])
 
+    def test_registered_navigation_stays_inside_candidate_universe(self):
+        plan = deepcopy(self.plan)
+        plan["evaluation_goal"] = "instance robustness"
+        plan["requested_aspect_ids"] = ["object_instance"]
+        plan["initial_requested_aspect_ids"] = ["object_instance"]
+        plan["requested_template_ids"] = [
+            "object_instance.base0",
+            "object_instance.base1",
+        ]
+        plan["rounds"] = [_round("object_instance.base0")]
+        observation = _observation(success=1.0)
+        observation["observations"]["aggregate"]["metrics"][0]["metric"] = (
+            plan["rounds"][0]["tool_request"]["metric"]
+        )
+        options = self.session.navigation_options(
+            plan,
+            [observation],
+            allowed_template_ids=(
+                "object_instance.base0",
+                "object_instance.base1",
+            ),
+        )
+        self.assertEqual(options["available_steps"]["propose"], [])
+        self.assertEqual(options["discoverable_aspect_ids"], [])
+        self.assertEqual(
+            options["available_steps"]["refine"],
+            [
+                {
+                    "aspect_id": "object_instance",
+                    "template_ids": ["object_instance.base1"],
+                }
+            ],
+        )
+        self.assertTrue(options["available_steps"]["stop"])
+
+        with self.assertRaisesRegex(PlanSessionError, "unknown templates"):
+            self.session.navigation_options(
+                plan,
+                [observation],
+                allowed_template_ids=("object_instance.base0", "unknown.template"),
+            )
+
     def test_required_scope_blocks_early_stop_but_fallback_avoids_scope_creep(self):
         success = _observation(success=1.0)
         two_required = self.session.navigation_options(self.plan, [success])

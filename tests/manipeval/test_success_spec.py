@@ -5,11 +5,16 @@ from pathlib import Path
 import numpy as np
 
 from mea.taskgen import (
+    SUCCESS_SPEC_V2_DEVELOPMENT_ENVELOPE,
+    SUCCESS_SPEC_V2_OFFICIAL_ENVELOPE,
     SuccessSpecError,
     SuccessSpecRepairError,
     compile_success_spec,
     default_bbh_success_spec,
+    default_bbh_success_spec_v2,
+    development_bbh_success_spec_v2,
     repair_success_spec,
+    success_spec_validation_report,
     validate_compiled_success_method,
     validate_success_spec,
 )
@@ -142,6 +147,98 @@ class SuccessSpecTests(unittest.TestCase):
         )
         self.assertFalse(validation["arbitrary_code_accepted"])
 
+    def test_v2_official_envelope_remains_official_equivalent_and_act_eligible(self):
+        spec = validate_success_spec(default_bbh_success_spec_v2())
+        source, validation = compile_success_spec(spec)
+
+        self.assertEqual(spec["schema_version"], 2)
+        self.assertEqual(
+            spec["envelope_id"], SUCCESS_SPEC_V2_OFFICIAL_ENVELOPE
+        )
+        self.assertEqual(validation["compiler"], "restricted_success_spec_v2")
+        self.assertTrue(validation["official_equivalent"])
+        self.assertTrue(validation["act_eligible"])
+        self.assertFalse(validation["development_fixture"])
+        self.assertFalse(validation["development_fixture_compilation"])
+        self.assertIn(" and self.check_actors_contact(", source)
+
+    def test_v2_validation_report_is_structured_and_envelope_bounded(self):
+        spec = development_bbh_success_spec_v2()
+
+        report = success_spec_validation_report(spec)
+
+        self.assertEqual(
+            report["envelope_id"], SUCCESS_SPEC_V2_DEVELOPMENT_ENVELOPE
+        )
+        self.assertEqual(report["logic"], "any")
+        self.assertEqual(
+            report["predicates"],
+            ["planar_axis_distance", "physical_contact"],
+        )
+        self.assertFalse(report["official_equivalent"])
+        self.assertFalse(report["act_eligible"])
+        self.assertTrue(report["development_fixture"])
+        self.assertEqual(
+            set(report["checks"]),
+            {
+                "closed_schema",
+                "trusted_envelope",
+                "bounded_predicates",
+                "trusted_actor_bindings",
+                "bounded_thresholds",
+                "official_equivalence_required_for_act",
+            },
+        )
+        self.assertTrue(all(report["checks"].values()))
+
+    def test_v2_any_is_development_only_and_never_implicitly_act_eligible(self):
+        spec = development_bbh_success_spec_v2(logic="any")
+
+        with self.assertRaisesRegex(SuccessSpecError, "not ACT eligible"):
+            compile_success_spec(spec)
+
+        source, validation = compile_success_spec(
+            spec, allow_development_fixture=True
+        )
+        namespace = {"np": np}
+        exec(compile(source, "<development SuccessSpec v2>", "exec"), namespace)
+        generated = namespace["check_success"]
+
+        self.assertTrue(validation["development_fixture_compilation"])
+        self.assertFalse(validation["act_eligible"])
+        self.assertIn(" or self.check_actors_contact(", source)
+        self.assertTrue(generated(_FixtureTask((0.0, 0.0), (0.04, 0.0), True)))
+        self.assertTrue(generated(_FixtureTask((0.0, 0.0), (0.01, 0.01), False)))
+        self.assertFalse(generated(_FixtureTask((0.0, 0.0), (0.04, 0.0), False)))
+
+    def test_v2_official_envelope_rejects_non_equivalent_logic_and_threshold(self):
+        changed_logic = default_bbh_success_spec_v2()
+        changed_logic["logic"] = "any"
+        with self.assertRaisesRegex(SuccessSpecError, "must use logic 'all'"):
+            validate_success_spec(changed_logic)
+
+        changed_threshold = default_bbh_success_spec_v2()
+        changed_threshold["predicates"][0]["thresholds_m"] = [0.03, 0.02]
+        with self.assertRaisesRegex(SuccessSpecError, "official thresholds"):
+            validate_success_spec(changed_threshold)
+
+    def test_v2_development_envelope_still_rejects_unbounded_fields(self):
+        oversized_threshold = development_bbh_success_spec_v2(
+            thresholds_m=(0.051, 0.02)
+        )
+        with self.assertRaisesRegex(SuccessSpecError, r"\(0.0, 0.05\]"):
+            validate_success_spec(oversized_threshold)
+
+        changed_actor = development_bbh_success_spec_v2()
+        changed_actor["predicates"][1]["actors"] = ["hammer", "table"]
+        with self.assertRaisesRegex(SuccessSpecError, "physical_contact.actors"):
+            validate_success_spec(changed_actor)
+
+        injected_field = development_bbh_success_spec_v2()
+        injected_field["python"] = "open('/tmp/x')"
+        with self.assertRaisesRegex(SuccessSpecError, "fields must be exactly"):
+            validate_success_spec(injected_field)
+
     def test_rejects_threshold_actor_and_code_expansion(self):
         changed_threshold = default_bbh_success_spec()
         changed_threshold["predicates"][0]["thresholds_m"] = [0.03, 0.02]
@@ -172,10 +269,6 @@ class SuccessSpecTests(unittest.TestCase):
             )
 
     def test_generated_method_matches_current_official_semantics(self):
-        source, _ = compile_success_spec(default_bbh_success_spec())
-        namespace = {"np": np}
-        exec(compile(source, "<generated check_success>", "exec"), namespace)
-        generated = namespace["check_success"]
         official = _load_official_check_success()
         fixtures = (
             ((0.0, 0.0), (0.019, -0.019), True, True),
@@ -183,13 +276,21 @@ class SuccessSpecTests(unittest.TestCase):
             ((0.0, 0.0), (0.0, 0.021), True, False),
             ((0.0, 0.0), (0.001, 0.001), False, False),
         )
-        for hammer_xy, block_xy, contact, expected in fixtures:
-            with self.subTest(
-                hammer_xy=hammer_xy, block_xy=block_xy, contact=contact
-            ):
-                task = _FixtureTask(hammer_xy, block_xy, contact)
-                self.assertEqual(bool(generated(task)), expected)
-                self.assertEqual(bool(generated(task)), bool(official(task)))
+        for spec in (default_bbh_success_spec(), default_bbh_success_spec_v2()):
+            source, _ = compile_success_spec(spec)
+            namespace = {"np": np}
+            exec(compile(source, "<generated check_success>", "exec"), namespace)
+            generated = namespace["check_success"]
+            for hammer_xy, block_xy, contact, expected in fixtures:
+                with self.subTest(
+                    schema_version=spec["schema_version"],
+                    hammer_xy=hammer_xy,
+                    block_xy=block_xy,
+                    contact=contact,
+                ):
+                    task = _FixtureTask(hammer_xy, block_xy, contact)
+                    self.assertEqual(bool(generated(task)), expected)
+                    self.assertEqual(bool(generated(task)), bool(official(task)))
 
 
 if __name__ == "__main__":
