@@ -346,11 +346,16 @@ def inject_oversized_block_fixture(
     fixture_dir.mkdir(parents=True, exist_ok=True)
     (fixture_dir / "method_before_fixture.py").write_text(source, encoding="utf-8")
     (fixture_dir / "oversized_load_actors.py").write_text(injected, encoding="utf-8")
+    # As with the wrong-color fixture below, validate the deliberately injected
+    # method against a fixture-only contract.  The committed VariantSpec remains
+    # unchanged, so the visual gate still observes and repairs the mismatch.
+    fixture_spec = copy.deepcopy(spec)
+    fixture_spec["changes"]["block"]["scale"] = 2.4
     static_validation = install_repaired_method(
         repo_root,
         run_dir,
         injected,
-        spec,
+        fixture_spec,
         protected_before,
     )
     result = {

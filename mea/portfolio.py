@@ -769,6 +769,17 @@ def _load_child(root: Path, task_name: str, evaluation_id: str) -> dict[str, Any
     }
     artifacts.update(runtime_refs)
     artifacts.update(provenance_refs)
+    manifest_plan = manifest.get("plan")
+    planned_aspects = (
+        deepcopy(manifest_plan.get("requested_aspect_ids"))
+        if isinstance(manifest_plan, Mapping)
+        else None
+    )
+    executed_aspects = [
+        raw_round.get("sub_aspect")
+        for raw_round in evidence.get("rounds", [])
+        if isinstance(raw_round, Mapping)
+    ]
     return {
         "task_name": task_name,
         "evaluation_id": evaluation_id,
@@ -784,8 +795,43 @@ def _load_child(root: Path, task_name: str, evaluation_id: str) -> dict[str, Any
         ],
         "runtime_accounting": runtime,
         "checkpoint_contract": checkpoint,
+        "evaluation_binding": {
+            "manifest_user_request": manifest.get("user_request"),
+            "evidence_user_request": evidence.get("user_request"),
+            "bound_task_name": manifest.get("bound_task_name"),
+            "bound_requested_aspect_ids": deepcopy(
+                manifest.get("bound_requested_aspect_ids")
+            ),
+            "planned_requested_aspect_ids": planned_aspects,
+            "executed_aspect_ids": executed_aspects,
+            "max_agent_rounds": manifest.get("max_agent_rounds"),
+            "plan_max_rounds": (
+                manifest_plan.get("max_rounds")
+                if isinstance(manifest_plan, Mapping)
+                else None
+            ),
+            "executed_rounds": len(evidence.get("rounds", [])),
+        },
         "artifacts": artifacts,
     }
+
+
+def load_child_evaluation(
+    repo_root: str | Path, task_name: str, evaluation_id: str
+) -> dict[str, Any]:
+    """Load one completed ACT child through the portfolio evidence checks.
+
+    This small public adapter lets other parent orchestration layers consume
+    the same recomputed policy outcome instead of interpreting report prose or
+    treating pipeline completion as policy success.
+    """
+
+    root = _repo_root(repo_root)
+    normalized_task = _text(task_name, field="task_name")
+    if normalized_task not in TRUSTED_TASKS:
+        raise PortfolioError(f"task is not a trusted ACT child: {normalized_task}")
+    normalized_evaluation = _evaluation_id(evaluation_id, field="evaluation_id")
+    return _load_child(root, normalized_task, normalized_evaluation)
 
 
 def _synthesize(children: list[Mapping[str, Any]], *, mode: str) -> dict[str, Any]:
@@ -1220,5 +1266,6 @@ __all__ = [
     "PortfolioError",
     "build_portfolio_command_plan",
     "build_reused_portfolio",
+    "load_child_evaluation",
     "render_portfolio_report",
 ]

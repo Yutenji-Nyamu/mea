@@ -1,0 +1,34 @@
+* text=auto eol=lf
+
+# Keep generated evidence hashes stable across Windows and Linux checkouts;
+# binary assets, recordings, archives, and model/data artifacts stay untouched.
+*.bib text eol=lf
+*.csv text eol=lf
+*.ipynb text eol=lf
+*.json text eol=lf
+*.lock text eol=lf
+*.md text eol=lf
+*.py text eol=lf
+*.sh text eol=lf
+*.toml text eol=lf
+*.txt text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+
+*.ckpt binary
+*.gif binary
+*.gz binary
+*.jpeg binary
+*.jpg binary
+*.npy binary
+*.npz binary
+*.pdf binary
+*.pkl binary
+*.png binary
+*.pt binary
+*.pth binary
+*.pyc binary
+*.tar binary
+*.webm binary
+*.mp4 binary
+*.zip binary

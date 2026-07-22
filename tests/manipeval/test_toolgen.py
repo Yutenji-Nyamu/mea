@@ -17,7 +17,10 @@ from mea.toolgen.prototype import (
     retrieve_examples,
     validate_generated_tool,
 )
-from mea.toolgen.targets import evaluate_target_oracle
+from mea.toolgen.targets import (
+    BELL_ACTIVE_TCP_MIN_XY_ERROR_METRIC,
+    evaluate_target_oracle,
+)
 from mea.toolkit.tools import TrajectoryView
 
 
@@ -290,6 +293,13 @@ class ToolGenTests(unittest.TestCase):
             "pickup_to_first_contact_time",
             {item["name"] for item in examples},
         )
+
+    def test_click_bell_retrieval_excludes_hammer_only_examples(self):
+        examples = retrieve_examples(
+            "Measure active TCP distance to the bell contact point.",
+            target_metric=BELL_ACTIVE_TCP_MIN_XY_ERROR_METRIC,
+        )
+        self.assertEqual([item["name"] for item in examples], ["time_to_success"])
 
     def test_force_codegen_validates_genuinely_new_composite_metric(self):
         source = generated_pickup_to_contact_source()

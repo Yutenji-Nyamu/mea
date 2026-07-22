@@ -17,7 +17,11 @@ from mea.capability_adapter import (
     taskgen_route,
 )
 from mea.planner.evidence_policy import assess_evidence
-from mea.proposals import attach_round_proposals
+from mea.proposals import (
+    ProposalError,
+    attach_round_proposals,
+    materialize_round_proposals,
+)
 from mea.taskgen import extract_json_response
 
 
@@ -241,6 +245,33 @@ def _materialize_verification_round(
     return result
 
 
+def _matches_bounded_proposal_round(
+    round_plan: dict[str, Any],
+    trusted_round: dict[str, Any],
+) -> bool:
+    """Accept a proposal-authored BBH round only after trusted rematerialization.
+
+    ``bounded_each_round`` may rewrite the semantic Task/Tool Proposals while
+    the registered capability remains authoritative for executable details.
+    Re-materializing from the trusted catalog round keeps task, seeds, gates,
+    and capability bindings fixed; the complete result must still match.
+    """
+
+    task_proposal = round_plan.get("task_proposal")
+    tool_proposal = round_plan.get("tool_proposal")
+    if not isinstance(task_proposal, dict) or not isinstance(tool_proposal, dict):
+        return False
+    try:
+        rematerialized = materialize_round_proposals(
+            trusted_round,
+            task_proposal,
+            tool_proposal,
+        )
+    except ProposalError:
+        return False
+    return rematerialized == round_plan
+
+
 def _validate_current_plan(plan: Any) -> dict[str, Any]:
     if not isinstance(plan, dict):
         raise PlanAgentError("current_plan 必须是 JSON object")
@@ -297,7 +328,9 @@ def _validate_current_plan(plan: Any) -> dict[str, Any]:
             )
         expected_bound = deepcopy(expected)
         expected_bound["task_name"] = "beat_block_hammer"
-        if round_plan not in (expected, expected_bound):
+        if round_plan not in (expected, expected_bound) and not (
+            _matches_bounded_proposal_round(round_plan, expected_bound)
+        ):
             raise PlanAgentError(f"round_{number} 与 trusted catalog 不一致")
         validated_rounds.append(round_plan)
     return plan

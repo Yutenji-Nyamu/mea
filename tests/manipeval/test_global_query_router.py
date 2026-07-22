@@ -316,6 +316,52 @@ class GlobalQueryRouterTests(unittest.TestCase):
             prompt = build_global_route_prompt("same query", catalog, history)
             self.assertNotIn("trajectory", prompt)
 
+    def test_parent_bound_aspects_are_exact_and_visible_to_child_router(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            make_ready_repo(root, "beat_block_hammer", "click_bell")
+            catalog = build_act_catalog(root)
+            position_only = {
+                **click_route(),
+                "evaluation_goal": "evaluate only position robustness",
+                "requested_aspect_ids": ["object_position"],
+                "first_aspect_id": "object_position",
+            }
+            provider = FakeProvider(
+                [json.dumps(click_route()), json.dumps(position_only)]
+            )
+            router = GlobalQueryRouter(
+                provider,
+                model="fake-model",
+                catalog=catalog,
+                bound_task_name="click_bell",
+                bound_requested_aspect_ids=["object_position"],
+            )
+            result = router.route("evaluate the parent-selected capability")
+            self.assertEqual(
+                result["selection"]["requested_aspect_ids"], ["object_position"]
+            )
+            self.assertEqual(result["attempt_count"], 2)
+            self.assertIn(
+                "fixed requested_aspect_ids to exactly ['object_position']",
+                router.last_prompt or "",
+            )
+
+            with self.assertRaisesRegex(GlobalRouteError, "exactly match"):
+                validate_route_selection(
+                    click_route(),
+                    catalog,
+                    expected_task_name="click_bell",
+                    expected_aspect_ids=["object_position"],
+                )
+            with self.assertRaisesRegex(GlobalRouteError, "require a bound task"):
+                GlobalQueryRouter(
+                    FakeProvider([]),
+                    model="fake-model",
+                    catalog=catalog,
+                    bound_requested_aspect_ids=["object_position"],
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

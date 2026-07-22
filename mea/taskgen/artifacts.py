@@ -5,10 +5,16 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import textwrap
 from pathlib import Path
 from typing import Any, Mapping
 
 from .scene_checks import build_scene_check_spec
+from .success_spec import (
+    SuccessSpecError,
+    validate_compiled_success_method,
+    validate_success_spec,
+)
 
 
 class TaskArtifactBundleError(RuntimeError):
@@ -16,6 +22,7 @@ class TaskArtifactBundleError(RuntimeError):
 
 
 SCENE_ORIGINS = {"generated_code", "bounded_overlay_wrapper", "official_reuse"}
+SUCCESS_ORIGINS = {"compiled_success_spec", "official_reuse"}
 
 
 def _canonical_sha256(value: Any) -> str:
@@ -112,6 +119,43 @@ def _method_binding(
     return binding
 
 
+def _declared_method_source(
+    repo_root: Path,
+    *,
+    module: str,
+    class_name: str,
+    method_name: str,
+) -> str | None:
+    """Return one class-local method, excluding inherited/runtime bindings."""
+
+    source_path = _module_source(repo_root, module)
+    if not source_path.is_file():
+        return None
+    source = source_path.read_text(encoding="utf-8")
+    try:
+        tree = ast.parse(source, filename=str(source_path))
+    except SyntaxError as exc:
+        raise TaskArtifactBundleError(
+            f"cannot parse task source {source_path}: {exc}"
+        ) from exc
+    classes = [
+        node
+        for node in tree.body
+        if isinstance(node, ast.ClassDef) and node.name == class_name
+    ]
+    if len(classes) != 1:
+        return None
+    methods = [
+        node
+        for node in classes[0].body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == method_name
+    ]
+    if len(methods) != 1:
+        return None
+    return textwrap.dedent(_node_source(source, methods[0]))
+
+
 def _route_bindings(manifest: Mapping[str, Any]) -> tuple[str, str, str]:
     task_name = str(manifest.get("task_name") or "")
     task_module = str(manifest.get("task_module") or "")
@@ -147,7 +191,52 @@ def write_task_artifact_bundle(
     if not task_name or not task_module or variant_spec.get("task_name") != task_name:
         raise TaskArtifactBundleError("manifest and VariantSpec task identity differ")
 
-    scene_origin, scene_module, success_module = _route_bindings(manifest)
+    scene_origin, scene_module, official_success_module = _route_bindings(manifest)
+    success_spec_path = run / "generation/success_spec.json"
+    if scene_origin == "generated_code" and not success_spec_path.is_file():
+        unbound_generated_success = _method_binding(
+            root,
+            module=task_module,
+            class_name=task_name,
+            method_name="check_success",
+            origin="compiled_success_spec",
+        )
+        if unbound_generated_success["symbol_declared"]:
+            raise TaskArtifactBundleError(
+                "generated check_success has no SuccessSpec provenance"
+            )
+    compiled_success = scene_origin == "generated_code" and success_spec_path.is_file()
+    success_module = task_module if compiled_success else official_success_module
+    success_origin = "compiled_success_spec" if compiled_success else "official_reuse"
+    success_spec_sha256 = None
+    if compiled_success:
+        try:
+            success_spec = validate_success_spec(
+                json.loads(success_spec_path.read_text(encoding="utf-8"))
+            )
+        except (OSError, UnicodeError, json.JSONDecodeError, SuccessSpecError) as exc:
+            raise TaskArtifactBundleError(
+                f"generated SuccessSpec is invalid: {exc}"
+            ) from exc
+        if success_spec["task_name"] != task_name:
+            raise TaskArtifactBundleError("SuccessSpec and task identity differ")
+        compiled_method = _declared_method_source(
+            root,
+            module=task_module,
+            class_name=task_name,
+            method_name="check_success",
+        )
+        if compiled_method is None:
+            raise TaskArtifactBundleError(
+                "generated task does not declare the SuccessSpec check_success method"
+            )
+        try:
+            validate_compiled_success_method(compiled_method, success_spec)
+        except SuccessSpecError as exc:
+            raise TaskArtifactBundleError(
+                f"generated check_success does not match SuccessSpec: {exc}"
+            ) from exc
+        success_spec_sha256 = _canonical_sha256(success_spec)
     scene_check = build_scene_check_spec(
         variant_spec,
         task_proposal=task_proposal,
@@ -182,13 +271,24 @@ def write_task_artifact_bundle(
             module=success_module,
             class_name=task_name,
             method_name="check_success",
-            origin="official_reuse",
+            origin=success_origin,
         ),
-        "success_semantics": {
-            "preserved": True,
-            "authority": "official_check_success",
-            "generated_by_model": False,
-        },
+        "success_semantics": (
+            {
+                "preserved": True,
+                "authority": "compiled_success_spec_official_equivalent",
+                "generated_by_model": False,
+                "generated_from_spec": True,
+                "success_spec": "generation/success_spec.json",
+                "success_spec_sha256": success_spec_sha256,
+            }
+            if compiled_success
+            else {
+                "preserved": True,
+                "authority": "official_check_success",
+                "generated_by_model": False,
+            }
+        ),
         "scene_check_spec": {
             "artifact": str(scene_check_path.relative_to(run)).replace("\\", "/"),
             "sha256": _canonical_sha256(scene_check),
@@ -196,8 +296,13 @@ def write_task_artifact_bundle(
             "repair_mode": scene_check["repair_policy"]["mode"],
         },
         "boundary": (
-            "TaskArtifactBundle binds executable scene and success methods; "
-            "it does not claim that official success logic was model-generated."
+            "TaskArtifactBundle binds executable scene and success methods. "
+            + (
+                "The success method was compiled from a restricted, validated "
+                "SuccessSpec; it was not arbitrary model-written Python."
+                if compiled_success
+                else "It does not claim that official success logic was model-generated."
+            )
         ),
     }
     validate_task_artifact_bundle(bundle)
@@ -233,15 +338,45 @@ def validate_task_artifact_bundle(value: Mapping[str, Any]) -> dict[str, Any]:
     success = value.get("success_method")
     if not isinstance(scene, Mapping) or scene.get("origin") not in SCENE_ORIGINS:
         raise TaskArtifactBundleError("scene method has no supported origin")
-    if not isinstance(success, Mapping) or success.get("origin") != "official_reuse":
-        raise TaskArtifactBundleError("success method must bind official reuse")
+    if not isinstance(success, Mapping) or success.get("origin") not in SUCCESS_ORIGINS:
+        raise TaskArtifactBundleError("success method has no supported origin")
     semantics = value.get("success_semantics")
-    if not isinstance(semantics, Mapping) or semantics != {
-        "preserved": True,
-        "authority": "official_check_success",
-        "generated_by_model": False,
-    }:
-        raise TaskArtifactBundleError("official success semantics were not preserved")
+    if success.get("origin") == "official_reuse":
+        if not isinstance(semantics, Mapping) or semantics != {
+            "preserved": True,
+            "authority": "official_check_success",
+            "generated_by_model": False,
+        }:
+            raise TaskArtifactBundleError("official success semantics were not preserved")
+    else:
+        if (
+            not success.get("symbol_declared")
+            or not isinstance(semantics, Mapping)
+            or set(semantics)
+            != {
+                "preserved",
+                "authority",
+                "generated_by_model",
+                "generated_from_spec",
+                "success_spec",
+                "success_spec_sha256",
+            }
+            or semantics.get("preserved") is not True
+            or semantics.get("authority")
+            != "compiled_success_spec_official_equivalent"
+            or semantics.get("generated_by_model") is not False
+            or semantics.get("generated_from_spec") is not True
+            or semantics.get("success_spec") != "generation/success_spec.json"
+            or not isinstance(semantics.get("success_spec_sha256"), str)
+            or len(semantics["success_spec_sha256"]) != 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in semantics["success_spec_sha256"]
+            )
+        ):
+            raise TaskArtifactBundleError(
+                "compiled success method lacks a validated SuccessSpec binding"
+            )
     return json.loads(json.dumps(value, ensure_ascii=False))
 
 

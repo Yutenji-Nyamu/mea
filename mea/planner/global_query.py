@@ -78,11 +78,40 @@ def _capability_gaps(
     return normalized
 
 
+def _bound_aspect_ids(
+    catalog: Mapping[str, Any],
+    task_name: str | None,
+    aspect_ids: list[str] | tuple[str, ...] | None,
+) -> list[str] | None:
+    if aspect_ids is None:
+        return None
+    if task_name is None:
+        raise GlobalRouteError("bound requested aspects require a bound task")
+    task = catalog_task(validate_act_catalog(catalog), str(task_name))
+    raw = _unique_text_list(
+        list(aspect_ids), "bound_requested_aspect_ids", allow_empty=False
+    )
+    try:
+        normalized = canonicalize_aspect_ids(raw, allow_unknown=True)
+    except AspectError as exc:
+        raise GlobalRouteError(str(exc)) from exc
+    available = {str(item["aspect_id"]) for item in task["aspects"]}
+    unknown = sorted(set(normalized) - available)
+    if unknown:
+        raise GlobalRouteError(
+            f"bound requested aspects are unavailable for {task_name}: {unknown}"
+        )
+    if len(normalized) > int(task["max_rounds"]):
+        raise GlobalRouteError("bound requested aspects exceed the round budget")
+    return normalized
+
+
 def validate_route_selection(
     value: Mapping[str, Any],
     catalog: Mapping[str, Any],
     *,
     expected_task_name: str | None = None,
+    expected_aspect_ids: list[str] | tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
     """Validate a model proposal without accepting executable parameters."""
 
@@ -97,6 +126,9 @@ def validate_route_selection(
             bound_task = catalog_task(trusted_catalog, str(expected_task_name))
         except ValueError as exc:
             raise GlobalRouteError(str(exc)) from exc
+    bound_aspects = _bound_aspect_ids(
+        trusted_catalog, expected_task_name, expected_aspect_ids
+    )
     proposal = deepcopy(dict(value))
     if proposal.get("schema_version") != 2:
         raise GlobalRouteError("GlobalRouteSelection schema_version must be 2")
@@ -151,6 +183,10 @@ def validate_route_selection(
         for aspect in task["aspects"]
     }
     if decision == "unsupported":
+        if bound_aspects is not None:
+            raise GlobalRouteError(
+                "a parent-selected task/aspect route cannot become unsupported"
+            )
         if any(
             proposal.get(field) is not None
             for field in ("task_name", "task_profile", "first_aspect_id")
@@ -202,6 +238,10 @@ def validate_route_selection(
     unknown = sorted(set(requested) - available_aspects)
     if unknown:
         raise GlobalRouteError(f"unsupported routed aspects for {task_name}: {unknown}")
+    if bound_aspects is not None and set(requested) != set(bound_aspects):
+        raise GlobalRouteError(
+            "requested_aspect_ids must exactly match the parent-selected aspects"
+        )
     if len(requested) > int(task["max_rounds"]):
         raise GlobalRouteError("requested aspects exceed the trusted round budget")
     try:
@@ -278,6 +318,7 @@ def build_global_route_prompt(
     history_context: list[dict[str, Any]] | None = None,
     *,
     bound_task_name: str | None = None,
+    bound_requested_aspect_ids: list[str] | tuple[str, ...] | None = None,
     planning_contexts: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> str:
     """Build a catalog-only prompt with compact completed-plan provenance."""
@@ -289,6 +330,17 @@ def build_global_route_prompt(
         if bound_task_name is not None
         else None
     )
+    bound_aspects = _bound_aspect_ids(
+        trusted_catalog, bound_task_name, bound_requested_aspect_ids
+    )
+    if bound_task is not None and bound_aspects is not None:
+        bound_task = deepcopy(bound_task)
+        selected = set(bound_aspects)
+        bound_task["aspects"] = [
+            aspect
+            for aspect in bound_task["aspects"]
+            if aspect["aspect_id"] in selected
+        ]
     visible_tasks = [bound_task] if bound_task is not None else trusted_catalog["tasks"]
     if visible_tasks:
         example_task = visible_tasks[0]
@@ -299,7 +351,11 @@ def build_global_route_prompt(
             "task_name": example_task["task_name"],
             "task_profile": example_task["task_profile"],
             "evaluation_goal": "evaluate the requested supported capability",
-            "requested_aspect_ids": [example_aspect],
+            "requested_aspect_ids": (
+                list(bound_aspects)
+                if bound_aspects is not None
+                else [example_aspect]
+            ),
             "first_aspect_id": example_aspect,
             "unsupported_capabilities": [],
         }
@@ -323,9 +379,16 @@ def build_global_route_prompt(
         f"The evaluation target is already fixed to task "
         f"{bound_task['task_name']!r} and checkpoint "
         f"{bound_task['checkpoint']['checkpoint_id']!r}.  Never select another "
-        "task or checkpoint.  Decompose the query only into supported aspects "
-        "of this task.  If the query needs an unavailable capability, return "
-        "unsupported and qualify every gap with this fixed task."
+        "task or checkpoint.  "
+        + (
+            "A parent Planner also fixed requested_aspect_ids to exactly "
+            f"{bound_aspects!r}; copy this complete set and choose first_aspect_id "
+            "from it.  Do not add, remove, or substitute an aspect."
+            if bound_aspects is not None
+            else "Decompose the query only into supported aspects of this task.  "
+            "If the query needs an unavailable capability, return unsupported "
+            "and qualify every gap with this fixed task."
+        )
         if bound_task is not None
         else "Select exactly one ACT-ready task before decomposing its aspects."
     )
@@ -339,14 +402,20 @@ def build_global_route_prompt(
         for task_name, context in (planning_contexts or {}).items()
         if str(task_name) in visible_task_names
     }
+    unsupported_instruction = (
+        "The parent route was already validated.  Route exactly its bound aspect "
+        "set; do not replace it with an unsupported decision."
+        if bound_aspects is not None
+        else "If the query requires any capability outside the catalog, return "
+        'decision="unsupported", null task/profile/first_aspect, no requested '
+        "aspects, and list task-qualified unsupported capability objects."
+    )
     return f"""You are the bounded global Plan Agent for an ACT-only MEA reproduction.
 {binding_instruction}
 Select the query-relevant aspects and the first aspect.  Use only the catalog
 below.  Never output paths,
 Python, modules, checkpoints, seeds, gates, tools, variants, or execution fields.
-If the query requires any capability outside the catalog, return
-decision=\"unsupported\", null task/profile/first_aspect, no requested aspects,
-and list task-qualified unsupported capability objects.  A capability can be
+{unsupported_instruction}  A capability can be
 supported for one task and unsupported for another, so never omit task_name
 from a gap.  Use the canonical aspect ids or their explicit aliases from the
 ontology below.  Object appearance/position/instance and simulator scene
@@ -384,6 +453,7 @@ class GlobalQueryRouter:
         model: str,
         catalog: Mapping[str, Any],
         bound_task_name: str | None = None,
+        bound_requested_aspect_ids: list[str] | tuple[str, ...] | None = None,
         planning_contexts: Mapping[str, Mapping[str, Any]] | None = None,
     ):
         self.provider = provider
@@ -393,6 +463,11 @@ class GlobalQueryRouter:
             catalog_task(self.catalog, str(bound_task_name))["task_name"]
             if bound_task_name is not None
             else None
+        )
+        self.bound_requested_aspect_ids = _bound_aspect_ids(
+            self.catalog,
+            self.bound_task_name,
+            bound_requested_aspect_ids,
         )
         self.planning_contexts = {
             str(task_name): deepcopy(dict(context))
@@ -413,6 +488,7 @@ class GlobalQueryRouter:
             self.catalog,
             history_context=history_context,
             bound_task_name=self.bound_task_name,
+            bound_requested_aspect_ids=self.bound_requested_aspect_ids,
             planning_contexts=self.planning_contexts,
         )
         self.last_prompt = prompt
@@ -442,6 +518,7 @@ class GlobalQueryRouter:
                     _extract_json_response(str(response)),
                     self.catalog,
                     expected_task_name=self.bound_task_name,
+                    expected_aspect_ids=self.bound_requested_aspect_ids,
                 )
                 break
             except Exception as exc:

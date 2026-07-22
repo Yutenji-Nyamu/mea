@@ -12,6 +12,6 @@ python scripts/manipeval_agent.py \
 
 The inner TaskGen entry point is `scripts/manipeval_taskgen.py`, and the parameterized ACT evaluation entry point is `policy/ACT/eval_mea.sh`.
 
-See the concise [Chinese setup and running guide](docs/running_guide_zh.md) for environment, assets, checkpoints, entry points, and artifacts.
+Start from the [Chinese documentation index](docs/index_zh.md), or go directly to the concise [setup and running guide](docs/running_guide_zh.md) for environment, assets, checkpoints, entry points, and artifacts.
 
 The original implementation was difficult to navigate. This repository reorganizes it as a clean, structured refactor for study and teaching.

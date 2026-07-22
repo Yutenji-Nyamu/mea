@@ -8,6 +8,7 @@ from mea.taskgen import (
     TaskGenPrototype,
     build_variant_spec,
     validate_load_actors,
+    validate_variant_spec,
 )
 
 
@@ -124,6 +125,7 @@ class TaskGenPrototypeTests(unittest.TestCase):
             self.assertIn(run_id, manifest["task_module"])
             generated = (run_dir / "task.py").read_text(encoding="utf-8")
             self.assertIn("def load_actors(self):", generated)
+            self.assertIn("def check_success(self):", generated)
             self.assertIn("color=(0.0, 0.2, 1.0)", generated)
             bundle = json.loads(
                 (run_dir / "generation/task_artifact_bundle.json").read_text(
@@ -131,13 +133,22 @@ class TaskGenPrototypeTests(unittest.TestCase):
                 )
             )
             self.assertEqual(bundle["scene_method"]["origin"], "generated_code")
-            self.assertEqual(bundle["success_method"]["origin"], "official_reuse")
+            self.assertEqual(
+                bundle["success_method"]["origin"], "compiled_success_spec"
+            )
             self.assertTrue(bundle["success_semantics"]["preserved"])
+            self.assertTrue(bundle["success_semantics"]["generated_from_spec"])
+            self.assertFalse(bundle["success_semantics"]["generated_by_model"])
             static = json.loads(
                 (run_dir / "validation/static.json").read_text(encoding="utf-8")
             )
             self.assertTrue(static["load_actors_ast"]["complete_method_generated"])
             self.assertFalse(static["load_actors_ast"]["calls_super"])
+            self.assertEqual(
+                static["success_spec"]["predicates"],
+                ["planar_axis_distance", "physical_contact"],
+            )
+            self.assertTrue((run_dir / "generation/success_spec.json").is_file())
             retrieval = json.loads(
                 (run_dir / "generation/retrieval.json").read_text(
                     encoding="utf-8"
@@ -205,6 +216,68 @@ class TaskGenPrototypeTests(unittest.TestCase):
         delegated = "def load_actors(self):\n    return super().load_actors()\n"
         with self.assertRaises(TaskGenError):
             validate_load_actors(delegated, SPEC)
+
+    def test_bounded_non_template_scale_is_checked_against_geometry(self):
+        scaled = build_variant_spec(
+            task_name="beat_block_hammer",
+            variant_id="object_scale.run_local_1_2",
+            capability_id="object_scale.bounded",
+            intent="evaluate a query-generated bounded block scale",
+            changes={
+                "block": {
+                    "position_mode": "official_random",
+                    "yaw_mode": "official_random",
+                    "scale": 1.2,
+                    "color": [1.0, 0.0, 0.0],
+                }
+            },
+        )
+        method = BLUE_METHOD.replace(
+            "half_size=(0.025, 0.025, 0.025)",
+            "half_size=(0.03, 0.03, 0.03)",
+        ).replace("color=(0.0, 0.2, 1.0)", "color=(1.0, 0.0, 0.0)")
+        result = validate_load_actors(method, scaled)
+        self.assertEqual(result["generated_half_size"], [0.03, 0.03, 0.03])
+
+        wrong_geometry = method.replace(
+            "half_size=(0.03, 0.03, 0.03)",
+            "half_size=(0.025, 0.025, 0.025)",
+        )
+        with self.assertRaisesRegex(TaskGenError, "does not match VariantSpec scale"):
+            validate_load_actors(wrong_geometry, scaled)
+
+    def test_variant_scene_numbers_reject_bool_nan_and_infinity(self):
+        for invalid in (True, float("nan"), float("inf"), float("-inf")):
+            with self.subTest(field="scale", value=invalid), self.assertRaises(
+                TaskGenError
+            ):
+                validate_variant_spec(
+                    {
+                        "task_name": "beat_block_hammer",
+                        "changes": {
+                            "block": {
+                                "color": [0.0, 0.2, 1.0],
+                                "scale": invalid,
+                            }
+                        },
+                    },
+                    "beat_block_hammer",
+                )
+            with self.subTest(field="color", value=invalid), self.assertRaises(
+                TaskGenError
+            ):
+                validate_variant_spec(
+                    {
+                        "task_name": "beat_block_hammer",
+                        "changes": {
+                            "block": {
+                                "color": [invalid, 0.2, 1.0],
+                                "scale": 1.0,
+                            }
+                        },
+                    },
+                    "beat_block_hammer",
+                )
 
 
 if __name__ == "__main__":

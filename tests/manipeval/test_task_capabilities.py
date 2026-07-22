@@ -133,6 +133,59 @@ class TaskCapabilityTests(unittest.TestCase):
         self.assertEqual(lighting["controlled_axis"], "scene_lighting")
         self.assertIn("static_per_episode_lighting", lighting["preserve"])
 
+    def test_bbh_scale_capability_is_bounded_and_single_axis(self):
+        spec = build_variant_spec(
+            task_name="beat_block_hammer",
+            variant_id="object_scale.run_local_1_2",
+            capability_id="object_scale.bounded",
+            intent="evaluate bounded scale generalization",
+            changes={
+                "block": {
+                    "position_mode": "official_random",
+                    "yaw_mode": "official_random",
+                    "scale": 1.2,
+                    "color": [1.0, 0.0, 0.0],
+                }
+            },
+        )
+        self.assertEqual(spec["controlled_axis"], "object_scale")
+        self.assertIn("official_block_color", spec["preserve"])
+
+        for invalid_scale in (True, 0.5, 1.5, float("inf")):
+            with self.subTest(scale=invalid_scale), self.assertRaises(CapabilityError):
+                build_variant_spec(
+                    task_name="beat_block_hammer",
+                    variant_id="object_scale.invalid",
+                    capability_id="object_scale.bounded",
+                    intent="invalid bounded scale",
+                    changes={
+                        "block": {
+                            "position_mode": "official_random",
+                            "yaw_mode": "official_random",
+                            "scale": invalid_scale,
+                            "color": [1.0, 0.0, 0.0],
+                        }
+                    },
+                )
+
+    def test_bbh_scene_numeric_contract_rejects_non_finite_and_bool(self):
+        for invalid in (True, float("nan"), float("inf"), float("-inf")):
+            with self.subTest(value=invalid), self.assertRaises(CapabilityError):
+                build_variant_spec(
+                    task_name="beat_block_hammer",
+                    variant_id="object_appearance.invalid",
+                    capability_id="object_appearance.color",
+                    intent="invalid scene numeric",
+                    changes={
+                        "block": {
+                            "position_mode": "official_random",
+                            "yaw_mode": "official_random",
+                            "scale": 1.0,
+                            "color": [invalid, 0.0, 0.0],
+                        }
+                    },
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,26 @@
+{
+  "schema_version": 2,
+  "task_name": "click_bell",
+  "variant_id": "object_position.query_generated_1",
+  "capability_id": "object_position.fixed_xy",
+  "intent": "evaluate_bell_object_position_generalization",
+  "controlled_axis": "object_position",
+  "generation_mode": "bounded_variant_overlay",
+  "changes": {
+    "bell": {
+      "position_mode": "fixed",
+      "xy": [
+        -0.14,
+        -0.12
+      ]
+    }
+  },
+  "preserve": [
+    "official_pose_rng_consumption",
+    "official_instance_rng_consumption",
+    "official_bell_assets",
+    "play_once",
+    "check_success",
+    "checkpoint"
+  ]
+}

@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -28,6 +29,31 @@ SPEC = {
     "unit": "m",
     "null_semantics": "null_if_no_finite_sample",
 }
+CONTACT_SELECTOR = {
+    "event_type": "contact_interval",
+    "actors": ["020_hammer", "box"],
+    "physical_only": True,
+}
+SUCCESS_SELECTOR = {
+    "event_type": "success_transition",
+    "actors": None,
+    "physical_only": False,
+}
+EVENT_COUNT_SPEC = {
+    "schema_version": 1,
+    "operation": "event_count",
+    "event": CONTACT_SELECTOR,
+    "unit": "count",
+    "null_semantics": "zero_if_absent",
+}
+TIME_BETWEEN_EVENTS_SPEC = {
+    "schema_version": 1,
+    "operation": "time_between_events",
+    "start_event": CONTACT_SELECTOR,
+    "end_event": SUCCESS_SELECTOR,
+    "unit": "s",
+    "null_semantics": "null_if_missing_or_reversed",
+}
 
 
 class MetricSpecTests(unittest.TestCase):
@@ -55,10 +81,16 @@ class MetricSpecTests(unittest.TestCase):
             "typed_metric_spec_compile",
         )
         self.assertFalse(routing["route_decision"]["provider_required"])
+        self.assertEqual(
+            routing["catalog_snapshot"]["typed_metric_spec"]["operations"],
+            ["event_count", "minimum_distance", "time_between_events"],
+        )
 
     def test_unbounded_operator_and_registry_collision_are_rejected(self):
         with self.assertRaisesRegex(MetricSpecError, "operation"):
             validate_metric_spec({**SPEC, "operation": "eval_python"})
+        with self.assertRaisesRegex(MetricSpecError, "operation"):
+            validate_metric_spec({**SPEC, "operation": ["minimum_distance"]})
         with self.assertRaisesRegex(RuntimeError, "cannot override"):
             route_tool_request(
                 {
@@ -69,6 +101,13 @@ class MetricSpecTests(unittest.TestCase):
                     "metric_spec": SPEC,
                 }
             )
+
+        invalid_selector = {
+            **EVENT_COUNT_SPEC,
+            "event": {**CONTACT_SELECTOR, "actors": ["../hammer", "box"]},
+        }
+        with self.assertRaisesRegex(MetricSpecError, "actor ids"):
+            validate_metric_spec(invalid_selector)
 
     def test_tool_proposal_v3_carries_the_typed_metric(self):
         proposal = validate_tool_proposal(
@@ -151,6 +190,121 @@ class MetricSpecTests(unittest.TestCase):
             self.assertEqual(
                 replay["registration"]["registration_id"],
                 result["registration"]["registration_id"],
+            )
+
+    def test_event_count_compiles_and_differentially_validates(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            first = root / "episode_no_contact"
+            second = root / "episode_contact"
+            write_episode(first, policy_name="ACT", physical_contact=False)
+            write_episode(second, policy_name="expert", physical_contact=True)
+
+            self.assertEqual(
+                evaluate_metric_spec(
+                    EVENT_COUNT_SPEC, TrajectoryView(first)
+                )["value"],
+                0,
+            )
+            self.assertEqual(
+                evaluate_metric_spec(
+                    EVENT_COUNT_SPEC, TrajectoryView(second)
+                )["value"],
+                1,
+            )
+            source = compile_metric_spec_source(EVENT_COUNT_SPEC)
+            self.assertTrue(validate_generated_tool(source)["valid"])
+            registry = root / "registry"
+            result = execute_metric_spec(
+                task_name="beat_block_hammer",
+                metric="query_hammer_block_contact_count",
+                question=(
+                    "How many physical hammer-block contact intervals occurred?"
+                ),
+                metric_spec=EVENT_COUNT_SPEC,
+                episode_dirs=[first, second],
+                output_dir=root / "event_count",
+                registry_dir=registry,
+            )
+            self.assertEqual(result["route"], "typed_metric_spec_compile")
+            self.assertEqual(
+                [
+                    item["oracle_projection"]["value"]
+                    for item in result["episodes"]
+                ],
+                [0, 1],
+            )
+            replay = execute_metric_spec(
+                task_name="beat_block_hammer",
+                metric="query_hammer_block_contact_count",
+                question=(
+                    "Count physical contact intervals between the task actors."
+                ),
+                metric_spec=EVENT_COUNT_SPEC,
+                episode_dirs=[first, second],
+                output_dir=root / "event_count_reuse",
+                registry_dir=registry,
+            )
+            self.assertEqual(replay["route"], "run_local_reuse")
+            self.assertEqual(
+                replay["registration"]["registration_id"],
+                result["registration"]["registration_id"],
+            )
+
+    def test_time_between_events_compiles_and_handles_missing_boundary(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            first = root / "episode_short"
+            second = root / "episode_long"
+            missing = root / "episode_missing"
+            for path in (first, second):
+                write_episode(path, policy_name="expert", physical_contact=True)
+            write_episode(missing, policy_name="ACT", physical_contact=False)
+
+            for path, contact_step in ((first, 1), (second, 0)):
+                events_path = path / "events.jsonl"
+                contact = json.loads(events_path.read_text(encoding="utf-8"))
+                contact["first_physical_physics_step"] = contact_step
+                contact["first_physical_simulation_time_seconds"] = (
+                    contact_step * 0.004
+                )
+                success = {
+                    "type": "success_transition",
+                    "policy_step": 0,
+                    "physics_step": 2,
+                    "simulation_time_seconds": 0.008,
+                    "video_frame_index": 0,
+                }
+                events_path.write_text(
+                    json.dumps(contact) + "\n" + json.dumps(success) + "\n",
+                    encoding="utf-8",
+                )
+
+            source = compile_metric_spec_source(TIME_BETWEEN_EVENTS_SPEC)
+            self.assertTrue(validate_generated_tool(source)["valid"])
+            missing_result = evaluate_metric_spec(
+                TIME_BETWEEN_EVENTS_SPEC, TrajectoryView(missing)
+            )
+            self.assertIsNone(missing_result["value"])
+            self.assertEqual(
+                missing_result["details"]["reason"], "start_event_missing"
+            )
+
+            result = execute_metric_spec(
+                task_name="beat_block_hammer",
+                metric="query_contact_to_success_time",
+                question="How long passed from contact to success?",
+                metric_spec=TIME_BETWEEN_EVENTS_SPEC,
+                episode_dirs=[first, second],
+                output_dir=root / "time_between_events",
+            )
+            self.assertEqual(result["route"], "typed_metric_spec_compile")
+            self.assertEqual(
+                [
+                    item["oracle_projection"]["value"]
+                    for item in result["episodes"]
+                ],
+                [0.004, 0.008],
             )
 
 

@@ -1,0 +1,155 @@
+{
+  "schema_version": 1,
+  "snapshot_date": "2026-07-22",
+  "purpose": "Compact index of the MEA functional-reproduction evidence boundary; not a paper-results table.",
+  "source_evidence": {
+    "repository": "https://github.com/Yutenji-Nyamu/mea",
+    "validated_worktree_base_commit": "ca234bddf955b515abe998039d24da559766b2c4",
+    "snapshot_commit_resolution": "Run git rev-parse HEAD after checkout; this file does not self-assert its containing commit.",
+    "policy_scope": [
+      "ACT"
+    ],
+    "primary_task_adapters": [
+      "beat_block_hammer",
+      "click_bell"
+    ],
+    "full_test_suite": {
+      "passed": 480,
+      "failed": 0,
+      "elapsed_seconds": 48.848,
+      "environment": "/root/autodl-tmp/conda/envs/RoboTwin/bin/python"
+    },
+    "paper_method_contract_audit": {
+      "artifact": "mea/validation_runs/batch14_method_coverage_v4/report.json",
+      "implemented": 16,
+      "partial": 0,
+      "evidence_pending": 0,
+      "claim_boundary": "Executable functional-contract audit; not a paper-scale validity or performance result."
+    },
+    "tracked_compact_live_bundle": {
+      "evaluation_id": "eval_20260722_batch14_click_flagship_n1_v2",
+      "path": "docs/evidence_runs/eval_20260722_batch14_click_flagship_n1_v2/evidence_bundle_manifest.json",
+      "rounds": 2,
+      "act_episodes_per_round": 1,
+      "contains": [
+        "bounded_task_and_tool_proposals",
+        "generated_or_reused_task_artifacts",
+        "scene_renders",
+        "ACT_rollout_videos",
+        "generated_or_trusted_Rule_Tool_results",
+        "Dynamic_VQA_montages_and_results",
+        "evidence_driven_round_decision",
+        "final_feedback"
+      ],
+      "claim_boundary": "A committed single-seed N=1-per-variant mechanism demonstration, not a stability or broad-generalization result."
+    },
+    "typed_metric_spec": {
+      "operations": [
+        "minimum_distance",
+        "event_count",
+        "time_between_events"
+      ],
+      "new_operator_evidence": "cached_real_RoboTwin_telemetry_compile_oracle_register_reuse",
+      "new_act_rollouts_started": 0
+    },
+    "taskgen_success_method": {
+      "schema": "SuccessSpec v1",
+      "task_scope": "beat_block_hammer",
+      "origin": "compiled_success_spec",
+      "semantic_scope": "official-equivalent actor, threshold, contact and boolean logic",
+      "limitation": "Not arbitrary model-authored Python or open-ended success semantics."
+    },
+    "evaluation_graph": {
+      "scope": "one query, at most two checkpoint-bound ACT child nodes, one aspect and N=1 round per node",
+      "evidence": "live_provider_plan_plus_synthetic_success_failure_branch_replay",
+      "strict_cli_roundtrip": "mea/validation_runs/batch14_graph_cli_strict_v1",
+      "limitation": "The CLI emits and adjudicates inert child commands but does not yet launch live children automatically."
+    }
+  },
+  "server_only_evidence": {
+    "canonical_repo_path": "/root/autodl-tmp/mea",
+    "verification_date": "2026-07-22",
+    "validated_worktree_base_head": "ca234bddf955b515abe998039d24da559766b2c4",
+    "head_equal_origin_main_before_commit": true,
+    "runtime": {
+      "gpu": "NVIDIA RTX 4090",
+      "RoboTwin_python_imports": "passed",
+      "ACT_checkpoints_verified": [
+        "adjust_bottle",
+        "beat_block_hammer",
+        "click_bell",
+        "grab_roller"
+      ]
+    },
+    "artifacts": [
+      {
+        "kind": "completed_evidence_conditioned_click_bell_flagship",
+        "id": "eval_20260722_batch14_click_flagship_n1_v2",
+        "status": "completed",
+        "act_rollouts_started": 2,
+        "act_success": "2/2",
+        "wall_clock_seconds": 392.168,
+        "round_1_transition": "object_position success -> switch_aspect -> object_instance"
+      },
+      {
+        "kind": "failed_flagship_then_zero_ACT_toolgen_recovery",
+        "failed_id": "eval_20260722_batch14_click_flagship_n1_v1",
+        "recovery_path": "mea/validation_runs/batch14_click_toolgen_recovery_smoke_v1",
+        "act_rollouts_started": 1,
+        "failure_stage": "planned_tool_postprocessing",
+        "fix": "task-compatible retrieval examples"
+      },
+      {
+        "kind": "bounded_scale_live_provider_codegen",
+        "id": "run_20260722_batch14_bbh_scale_codegen_v1",
+        "strict_revalidation": "mea/validation_runs/batch14_scale_strict_revalidation_v1/summary.json",
+        "scale": 1.2,
+        "generated_half_size": [
+          0.03,
+          0.03,
+          0.03
+        ],
+        "success_spec_sha256": "ea70132ae08c8427cf0d8192a68ca60b593a5f47087a1f7d1b006eb9429f58b0",
+        "act_rollouts_started": 0
+      },
+      {
+        "kind": "typed_metric_spec_cached_real_telemetry",
+        "path": "mea/validation_runs/batch14_metric_spec_real_v1/summary.json",
+        "event_count_values": [
+          0,
+          1
+        ],
+        "time_between_events_values": [
+          null,
+          5.684
+        ],
+        "act_rollouts_started": 0
+      },
+      {
+        "kind": "conditional_evaluation_graph",
+        "synthetic_replay_path": "mea/validation_runs/batch14_evaluation_graph_v1",
+        "live_plan_path": "mea/validation_runs/batch14_evaluation_graph_live_plan_v2/plan.json",
+        "strict_cli_roundtrip_path": "mea/validation_runs/batch14_graph_cli_strict_v1",
+        "act_rollouts_started": 0
+      }
+    ],
+    "batch14_act_budget": {
+      "failed_run_started": 1,
+      "successful_flagship_started": 2,
+      "total_started": 3
+    },
+    "availability_note": "validation_runs and raw evaluation artifacts are not Git-tracked; re-run their validators on the canonical server before citing them as current after environment changes."
+  },
+  "reproduction_status": {
+    "functional": "The single-task open-query loop is live on the current worktree: bounded planning, Task/Tool proposals, TaskGen, ACT, Rule Tool, Dynamic VQA, evidence-conditioned next-round choice and final feedback. A bounded cross-task EvaluationGraph exists at plan/outcome/replay level but does not yet auto-launch real children.",
+    "experimental": "Not reproduced at paper scale: ACT only, mostly N=1, proxy rather than independent human gold, limited task/aspect coverage, and no complete matched ablation, multi-policy or repeated benchmark tables.",
+    "highest_priority_gaps": [
+      "execute one query-driven EvaluationGraph with verified real child outcomes and coverage-aware parent synthesis",
+      "route the bounded BBH scale capability from an open query through render and expert gates",
+      "demonstrate SuccessSpec diagnosis and bounded repair, not only compile-time rejection",
+      "materialize one performance and one safety concern from query to Tool/VQA evidence",
+      "run matched adaptive versus fixed ACT N=1, expanding to N=3 only if stable",
+      "replace assistant-proxy labels with independent human gold before paper-style Planner/VQA claims"
+    ]
+  }
+}

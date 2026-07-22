@@ -6,6 +6,7 @@ remain separate so adding a generated capability cannot invalidate Tool caches.
 
 from __future__ import annotations
 
+import math
 from copy import deepcopy
 from typing import Any, Mapping
 
@@ -29,7 +30,23 @@ TASK_CAPABILITIES: dict[str, dict[str, dict[str, Any]]] = {
                 "check_success",
                 "checkpoint",
             ],
-        }
+        },
+        "object_scale.bounded": {
+            "controlled_axis": "object_scale",
+            "allowed_change_roots": ["block"],
+            "generation_mode": "force_codegen",
+            "allowed_generation_modes": ["force_codegen", "reuse"],
+            "default_metric": "hammer_block_contact_ever",
+            "scale_bounds": [0.75, 1.25],
+            "preserve": [
+                "official_position_sampling",
+                "official_yaw_sampling",
+                "official_block_color",
+                "play_once",
+                "check_success_semantics",
+                "checkpoint",
+            ],
+        },
     },
     "click_bell": {
         "object_position.fixed_xy": {
@@ -165,6 +182,50 @@ def build_variant_spec(
             f"changes for {capability_id!r} must stay within roots "
             f"{sorted(allowed_change_roots)}; got {sorted(change_roots)}"
         )
+    if task_name == "beat_block_hammer" and capability_id in {
+        "object_appearance.color",
+        "object_scale.bounded",
+    }:
+        block = changes.get("block")
+        if not isinstance(block, Mapping):
+            raise CapabilityError(f"{capability_id} requires changes.block")
+        color = block.get("color")
+        if not isinstance(color, (list, tuple)) or len(color) != 3:
+            raise CapabilityError(f"{capability_id} block.color must have three channels")
+        if any(
+            isinstance(channel, bool) or not isinstance(channel, (int, float))
+            for channel in color
+        ):
+            raise CapabilityError(f"{capability_id} block.color must be finite numeric")
+        normalized_color = [float(channel) for channel in color]
+        if not all(math.isfinite(channel) for channel in normalized_color):
+            raise CapabilityError(f"{capability_id} block.color must be finite numeric")
+        if any(channel < 0.0 or channel > 1.0 for channel in normalized_color):
+            raise CapabilityError(f"{capability_id} block.color must be within [0, 1]")
+    if task_name == "beat_block_hammer" and capability_id == "object_scale.bounded":
+        block = changes.get("block")
+        scale = block.get("scale")
+        if isinstance(scale, bool) or not isinstance(scale, (int, float)):
+            raise CapabilityError("object_scale.bounded block.scale must be numeric")
+        scale = float(scale)
+        low, high = capability["scale_bounds"]
+        if not math.isfinite(scale) or not low <= scale <= high:
+            raise CapabilityError(
+                f"object_scale.bounded scale must be within [{low}, {high}]"
+            )
+        if block.get("position_mode", "official_random") != "official_random":
+            raise CapabilityError("object_scale.bounded preserves official position sampling")
+        if block.get("yaw_mode", "official_random") != "official_random":
+            raise CapabilityError("object_scale.bounded preserves official yaw sampling")
+        if normalized_color != [1.0, 0.0, 0.0]:
+            raise CapabilityError("object_scale.bounded preserves official block color")
+    if task_name == "beat_block_hammer" and capability_id == "object_appearance.color":
+        raw_scale = block.get("scale", 1.0)
+        if isinstance(raw_scale, bool) or not isinstance(raw_scale, (int, float)):
+            raise CapabilityError("object_appearance.color block.scale must be finite numeric")
+        scale = float(raw_scale)
+        if not math.isfinite(scale) or abs(scale - 1.0) > 1e-12:
+            raise CapabilityError("object_appearance.color preserves official block scale")
     resolved_mode = str(generation_mode or capability["generation_mode"])
     if resolved_mode not in capability["allowed_generation_modes"]:
         raise CapabilityError(

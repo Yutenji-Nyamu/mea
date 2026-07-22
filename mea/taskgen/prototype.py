@@ -10,6 +10,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import math
 import re
 import subprocess
 import textwrap
@@ -21,6 +22,10 @@ from typing import Any, Mapping
 from mea.retrieval import KnowledgeRetriever, TaskRetriever
 from mea.taskgen.artifacts import write_task_artifact_bundle
 from mea.taskgen.capabilities import CapabilityError, build_variant_spec
+from mea.taskgen.success_spec import (
+    compile_success_spec,
+    default_bbh_success_spec,
+)
 
 
 class TaskGenError(RuntimeError):
@@ -191,9 +196,23 @@ def validate_variant_spec(spec: dict[str, Any], task_name: str) -> dict[str, Any
     color = block.get("color")
     if not isinstance(color, list) or len(color) != 3:
         raise TaskGenError("block.color 必须是三个通道的 list")
+    if any(
+        isinstance(channel, bool) or not isinstance(channel, (int, float))
+        for channel in color
+    ):
+        raise TaskGenError("block.color channels must be finite numbers")
     normalized_color = [float(channel) for channel in color]
+    if not all(math.isfinite(channel) for channel in normalized_color):
+        raise TaskGenError("block.color channels must be finite numbers")
     if any(channel < 0.0 or channel > 1.0 for channel in normalized_color):
         raise TaskGenError("block.color 通道必须在 [0, 1]")
+
+    raw_scale = block.get("scale", 1.0)
+    if isinstance(raw_scale, bool) or not isinstance(raw_scale, (int, float)):
+        raise TaskGenError("block.scale must be a finite number")
+    normalized_scale = float(raw_scale)
+    if not math.isfinite(normalized_scale):
+        raise TaskGenError("block.scale must be a finite number")
 
     normalized = {
         "task_name": task_name,
@@ -203,7 +222,7 @@ def validate_variant_spec(spec: dict[str, Any], task_name: str) -> dict[str, Any
             "block": {
                 "position_mode": str(block.get("position_mode") or "official_random"),
                 "yaw_mode": str(block.get("yaw_mode") or "official_random"),
-                "scale": float(block.get("scale", 1.0)),
+                "scale": normalized_scale,
                 "color": normalized_color,
             }
         },
@@ -241,13 +260,31 @@ def validate_variant_spec(spec: dict[str, Any], task_name: str) -> dict[str, Any
     """Wrap task-specific BBH changes in the trusted VariantSpec v2 envelope."""
 
     legacy = _validate_legacy_variant_spec(spec, task_name)
+    requested_capability = str(spec.get("capability_id") or "").strip()
+    scale = legacy["changes"]["block"]["scale"]
+    if requested_capability:
+        capability_id = requested_capability
+    elif abs(scale - 1.0) > 1e-12:
+        capability_id = "object_scale.bounded"
+    else:
+        capability_id = "object_appearance.color"
+    if capability_id == "object_appearance.color" and abs(scale - 1.0) > 1e-12:
+        raise TaskGenError(
+            "object_appearance.color cannot also change block scale; use "
+            "object_scale.bounded"
+        )
     try:
         return build_variant_spec(
             task_name=task_name,
             variant_id=str(
-                spec.get("variant_id") or "object_appearance.color_custom"
+                spec.get("variant_id")
+                or (
+                    "object_scale.bounded_custom"
+                    if capability_id == "object_scale.bounded"
+                    else "object_appearance.color_custom"
+                )
             ),
-            capability_id="object_appearance.color",
+            capability_id=capability_id,
             intent=str(legacy.get("intent") or "change_object_appearance"),
             changes=legacy["changes"],
             generation_mode=str(
@@ -287,6 +324,25 @@ def _literal_create_box_color(function: ast.FunctionDef) -> list[float] | None:
                 continue
             if isinstance(value, (list, tuple)) and len(value) == 3:
                 return [float(channel) for channel in value]
+    return None
+
+
+def _literal_create_box_half_size(function: ast.FunctionDef) -> list[float] | None:
+    for node in ast.walk(function):
+        if not isinstance(node, ast.Call) or _call_name(node) != "create_box":
+            continue
+        for keyword in node.keywords:
+            if keyword.arg != "half_size":
+                continue
+            try:
+                value = ast.literal_eval(keyword.value)
+            except (ValueError, TypeError):
+                continue
+            if isinstance(value, (list, tuple)) and len(value) == 3:
+                try:
+                    return [float(channel) for channel in value]
+                except (TypeError, ValueError):
+                    return None
     return None
 
 
@@ -370,6 +426,16 @@ def validate_load_actors(method_source: str, spec: dict[str, Any]) -> dict[str, 
             f"生成颜色 {generated_color} 与 VariantSpec {expected_color} 不一致"
         )
 
+    expected_half_size = 0.025 * float(spec["changes"]["block"]["scale"])
+    generated_half_size = _literal_create_box_half_size(function)
+    if generated_half_size is None:
+        raise TaskGenError("create_box(..., half_size=<literal triple>) is required")
+    if any(abs(value - expected_half_size) > 1e-9 for value in generated_half_size):
+        raise TaskGenError(
+            f"generated half_size {generated_half_size} does not match "
+            f"VariantSpec scale {spec['changes']['block']['scale']}"
+        )
+
     node_count = sum(1 for _ in ast.walk(function))
     if node_count > 500:
         raise TaskGenError(f"load_actors AST 过大: {node_count} nodes")
@@ -379,6 +445,7 @@ def validate_load_actors(method_source: str, spec: dict[str, Any]) -> dict[str, 
         "node_count": node_count,
         "calls": sorted(set(name for name in calls if name)),
         "generated_color": generated_color,
+        "generated_half_size": generated_half_size,
         "complete_method_generated": True,
         "calls_super": False,
     }
@@ -399,16 +466,26 @@ def compile_overlay(spec: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def build_generated_module(method_source: str) -> str:
+def build_generated_module(
+    method_source: str,
+    success_spec: Mapping[str, Any] | None = None,
+) -> str:
+    """Build a task module with generated scene and compiled success methods."""
+
+    success_method, _ = compile_success_spec(
+        success_spec or default_bbh_success_spec()
+    )
     method = textwrap.indent(textwrap.dedent(method_source).strip(), "    ")
+    success = textwrap.indent(success_method.strip(), "    ")
     return (
-        '"""TaskGen output: canonical BeatBlockHammer with a generated load_actors."""\n\n'
+        '"""TaskGen output: generated load_actors and compiled check_success."""\n\n'
         "import numpy as np\n"
         "import sapien\n\n"
         "from envs.beat_block_hammer import beat_block_hammer as OfficialBeatBlockHammer\n"
         "from envs.utils import create_actor, create_box, rand_pose\n\n\n"
         "class beat_block_hammer(OfficialBeatBlockHammer):\n"
-        f"{method}\n"
+        f"{method}\n\n"
+        f"{success}\n"
     )
 
 
@@ -487,7 +564,8 @@ OUTPUT CONTRACT:
 4. Recreate every actor, official pose sampling/rejection rule, mass setting,
    and prohibited area used by BeatBlockHammer.
 5. Apply only the validated requested change. For this spec, use a literal RGB
-   tuple in ``create_box(..., color=...)``.
+   tuple in ``create_box(..., color=...)`` and the fully evaluated literal
+   three-vector in ``create_box(..., half_size=...)``.
 6. Preserve actor attribute names ``self.hammer`` and ``self.block`` because
    inherited ``play_once`` and ``check_success`` depend on them.
 7. Available globals are: ``np``, ``sapien``, ``create_actor``, ``create_box``,
@@ -648,6 +726,16 @@ class TaskGenPrototype:
         knowledge_retrieval = None
 
         if mode == "force_codegen":
+            success_spec = default_bbh_success_spec()
+            success_method_source, success_validation = compile_success_spec(
+                success_spec
+            )
+            _write_json(generation_dir / "success_spec.json", success_spec)
+            (generation_dir / "check_success.py.txt").write_text(
+                success_method_source, encoding="utf-8"
+            )
+            validation["success_spec"] = success_validation
+
             manifest["status"] = "retrieving_task_sources"
             _write_json(run_dir / "manifest.json", manifest)
             task_retrieval = TaskRetriever(
@@ -710,7 +798,7 @@ class TaskGenPrototype:
             )
             validation["load_actors_ast"] = validate_load_actors(method_source, spec)
 
-            module_source = build_generated_module(method_source)
+            module_source = build_generated_module(method_source, success_spec)
             compile(module_source, str(run_dir / "task.py"), "exec")
             (run_dir / "task.py").write_text(module_source, encoding="utf-8")
             task_module = f"mea.generated_tasks.{run_id}.task"

@@ -78,6 +78,8 @@ class MethodCoverageTests(unittest.TestCase):
             by_id["taxonomy_unsupported_boundary"]["status"], "implemented"
         )
         self.assertEqual(by_id["stage_recovery_resume"]["status"], "implemented")
+        self.assertEqual(by_id["proposal_every_round"]["status"], "implemented")
+        self.assertEqual(by_id["complete_task_codegen"]["status"], "implemented")
 
     def test_run_local_vqa_rejects_synthetic_shape_and_accepts_full_provenance(self):
         with tempfile.TemporaryDirectory() as temporary:

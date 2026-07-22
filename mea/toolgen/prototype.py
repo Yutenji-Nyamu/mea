@@ -691,8 +691,12 @@ def retrieve_examples(
     if missing:
         raise ToolGenError(f"缺少 standalone supporting examples: {missing}")
     text = f"{target_metric} {reference_tool or ''} {user_request}".lower()
+    target_tasks = set(definition.get("supported_task_names", []))
     ranked = []
     for name, item in EXAMPLE_CATALOG.items():
+        example_tasks = set(item.get("supported_task_names", []))
+        if "*" not in example_tasks and not (target_tasks & example_tasks):
+            continue
         matches = [tag for tag in item["tags"] if str(tag).lower() in text]
         required_rank = required.index(name) if name in required else None
         score = len(matches) + (
@@ -702,6 +706,14 @@ def retrieve_examples(
         )
         ranked.append((score, name, matches, item))
     ranked.sort(key=lambda item: (-item[0], item[1]))
+    unavailable_required = sorted(
+        set(required) - {name for _, name, _, _ in ranked}
+    )
+    if unavailable_required:
+        raise ToolGenError(
+            f"supporting examples are incompatible with target task: "
+            f"{unavailable_required}"
+        )
     effective_limit = max(len(required), max(1, int(limit)))
     return [
         {

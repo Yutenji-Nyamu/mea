@@ -144,6 +144,7 @@ def time_to_success_example(trajectory):
 EXAMPLE_CATALOG: dict[str, dict[str, Any]] = {
     "first_hammer_pickup_step": {
         "function": first_hammer_pickup_step_example,
+        "supported_task_names": ["beat_block_hammer"],
         "description": (
             "First physics step where hammer height rise reaches the task "
             "pickup threshold."
@@ -152,21 +153,25 @@ EXAMPLE_CATALOG: dict[str, dict[str, Any]] = {
     },
     "hammer_block_contact_ever": {
         "function": hammer_block_contact_example,
+        "supported_task_names": ["beat_block_hammer"],
         "description": "Whether hammer and block ever had physical contact.",
         "tags": ["hammer", "block", "contact", "hit", "接触", "敲击"],
     },
     "first_contact_step": {
         "function": first_contact_step_example,
+        "supported_task_names": ["beat_block_hammer"],
         "description": "First physical hammer-block contact step.",
         "tags": ["first", "contact", "step", "首次", "接触", "时间"],
     },
     "max_contact_impulse": {
         "function": max_contact_impulse_example,
+        "supported_task_names": ["beat_block_hammer"],
         "description": "Maximum hammer-block contact impulse.",
         "tags": ["contact", "impulse", "force", "接触", "冲量", "力度"],
     },
     "time_to_success": {
         "function": time_to_success_example,
+        "supported_task_names": ["*"],
         "description": (
             "First official-success time, including an explicit null result "
             "when the event is absent."

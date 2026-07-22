@@ -1,10 +1,14 @@
 import json
 import tempfile
+import textwrap
 import unittest
 from pathlib import Path
 
 from mea.taskgen import (
+    TaskArtifactBundleError,
     build_scene_check_spec,
+    compile_success_spec,
+    default_bbh_success_spec,
     validate_task_artifact_bundle,
     write_task_artifact_bundle,
 )
@@ -20,10 +24,34 @@ class TaskArtifactBundleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             run = root / "mea/generated_tasks/run_generated"
+            success_method, _ = compile_success_spec(default_bbh_success_spec())
             write(
                 run / "task.py",
                 "class beat_block_hammer:\n"
-                "    def load_actors(self):\n        self.block = object()\n",
+                "    def load_actors(self):\n        self.block = object()\n"
+                + textwrap.indent(success_method, "    "),
+            )
+            write(
+                run / "generation/success_spec.json",
+                json.dumps({
+                    "schema_version": 1,
+                    "task_name": "beat_block_hammer",
+                    "logic": "all",
+                    "predicates": [
+                        {
+                            "predicate": "planar_axis_distance",
+                            "left": {"actor": "hammer", "functional_point_id": 0},
+                            "right": {"actor": "block", "functional_point_id": 1},
+                            "axes": [0, 1],
+                            "thresholds_m": [0.02, 0.02],
+                            "comparison": "strict_lt",
+                        },
+                        {
+                            "predicate": "physical_contact",
+                            "actors": ["hammer", "block"],
+                        },
+                    ],
+                }),
             )
             write(
                 root / "envs/beat_block_hammer.py",
@@ -46,12 +74,88 @@ class TaskArtifactBundleTests(unittest.TestCase):
 
             self.assertEqual(bundle["scene_method"]["origin"], "generated_code")
             self.assertTrue(bundle["scene_method"]["symbol_declared"])
-            self.assertEqual(bundle["success_method"]["origin"], "official_reuse")
+            self.assertEqual(
+                bundle["success_method"]["origin"], "compiled_success_spec"
+            )
             self.assertTrue(bundle["success_method"]["symbol_declared"])
             self.assertFalse(
                 bundle["success_semantics"]["generated_by_model"]
             )
+            self.assertTrue(bundle["success_semantics"]["generated_from_spec"])
             validate_task_artifact_bundle(bundle)
+
+    def test_generated_success_must_match_success_spec_compiler(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            run = root / "mea/generated_tasks/run_wrong_success"
+            write(
+                run / "task.py",
+                "class beat_block_hammer:\n"
+                "    def load_actors(self):\n        pass\n"
+                "    def check_success(self):\n        return True\n",
+            )
+            write(
+                run / "generation/success_spec.json",
+                json.dumps(default_bbh_success_spec()),
+            )
+            write(
+                run / "variant_spec.json",
+                json.dumps(
+                    {
+                        "task_name": "beat_block_hammer",
+                        "controlled_axis": "object_appearance",
+                        "changes": {"block": {"color": [0.0, 0.2, 1.0]}},
+                    }
+                ),
+            )
+            with self.assertRaisesRegex(
+                TaskArtifactBundleError, "does not match SuccessSpec"
+            ):
+                write_task_artifact_bundle(
+                    root,
+                    run,
+                    {
+                        "task_name": "beat_block_hammer",
+                        "task_module": "mea.generated_tasks.run_wrong_success.task",
+                        "mode": "force_codegen",
+                    },
+                )
+
+    def test_generated_success_requires_success_spec_provenance(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            run = root / "mea/generated_tasks/run_unbound_success"
+            write(
+                run / "task.py",
+                "class beat_block_hammer:\n"
+                "    def load_actors(self):\n        pass\n"
+                "    def check_success(self):\n        return True\n",
+            )
+            write(
+                root / "envs/beat_block_hammer.py",
+                "class beat_block_hammer:\n"
+                "    def check_success(self):\n        return True\n",
+            )
+            write(
+                run / "variant_spec.json",
+                json.dumps({
+                    "task_name": "beat_block_hammer",
+                    "controlled_axis": "object_appearance",
+                    "changes": {"block": {"color": [0.0, 0.2, 1.0]}},
+                }),
+            )
+            with self.assertRaisesRegex(
+                TaskArtifactBundleError, "no SuccessSpec provenance"
+            ):
+                write_task_artifact_bundle(
+                    root,
+                    run,
+                    {
+                        "task_name": "beat_block_hammer",
+                        "task_module": "mea.generated_tasks.run_unbound_success.task",
+                        "mode": "force_codegen",
+                    },
+                )
 
     def test_overlay_and_official_routes_have_honest_origins(self):
         with tempfile.TemporaryDirectory() as temporary:

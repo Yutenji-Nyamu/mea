@@ -1187,9 +1187,11 @@ export UIUI_API_KEY='只放在当前 shell 环境变量中'
 真实缓存 telemetry 验收使用公开 API `mea.toolgen.execute_metric_spec(...)`：传入同一 task/schema 的
 两个不同 episode、一个新 metric id、`MetricSpec`、append-only output 和 registry 目录。第一遍应为
 `route=typed_metric_spec_compile`，第二遍仅改自然语言 question 应为 `route=run_local_reuse`；两遍都应
-`provider_called=false`。当前唯一 operator 是 `minimum_distance`，signals 必须真实存在，两个 episode
-的 oracle 值必须不同。不要把 unit-test 合成 telemetry 写成真实 RoboTwin 证据，也不要用 typed metric
-覆盖 `official_check_success` 等已注册指标。
+`provider_called=false`。当前 operator 为 `minimum_distance`、`event_count` 和
+`time_between_events`。距离算子的 signals 必须真实存在；事件算子只读取 `events.jsonl` 中的
+`contact_interval` / `success_transition`，并使用受限 actor/physical selector。差分 gate 要求两个
+episode 的 oracle 值不同。不要把 unit-test 合成 telemetry 写成真实 RoboTwin 证据，也不要用 typed
+metric 覆盖 `official_check_success` 等已注册指标。
 
 ## 31. 在既有真实 rollout 上 replay run-local Dynamic VQA（0 新 ACT）
 
@@ -1213,3 +1215,70 @@ export UIUI_API_KEY='只放在当前 shell 环境变量中'
 boolean-or-null observation。source evaluation/round/child 必须可追溯。这个结果证明 Dynamic VQA
 能够消费真实 rollout keyframes，不是新的 ACT 样本，也不提供 VQA accuracy/AUROC；若源 evaluation
 不存在，应换成另一条真实 completed `click_bell` run，不能用空壳或图片 proxy 冒充。
+
+## 32. 公共 Proposal、SuccessSpec 与 EvaluationGraph 快速检查
+
+三个核心 source contract 都可先用 0-ACT 单测检查：
+
+```bash
+cd /root/autodl-tmp/mea
+PYTHON=/root/autodl-tmp/conda/envs/RoboTwin/bin/python
+
+"$PYTHON" -m unittest -v \
+  tests.manipeval.test_common_plan_proposal_adapter \
+  tests.manipeval.test_success_spec \
+  tests.manipeval.test_evaluation_graph
+```
+
+EvaluationGraph 的 `plan` 只调用一次 Planner，不启动 simulator/ACT；输出中的每个 node 都固定一个
+task、checkpoint、aspect 和 N=1 child command：
+
+```bash
+OUT=mea/validation_runs/graph_smoke
+"$PYTHON" scripts/manipeval_evaluation_graph.py --repo-root "$PWD" plan \
+  --graph-id graph_smoke \
+  --query 'Evaluate ACT object generalization; inspect another task family only if the first is failed or uncertain.' \
+  --output "$OUT/plan.json" \
+  --model-profile economy
+```
+
+先读 `plan.json` 取得真实 `node_id`、派生 `evaluation_id` 和 inert child command。只有人工决定支付
+预算并按该命令得到 completed child 后，才把它转成 typed outcome，再 replay 父图；`outcome` 会精确
+核验原 Query、task、aspect、单轮预算、ACT started 数和 graph 派生 ID，不能拿无关旧 run 代替：
+
+```bash
+NODE_ID='<从 plan.json 读取>'
+EVAL='<该 node 对应的 completed evaluation id>'
+
+"$PYTHON" scripts/manipeval_evaluation_graph.py --repo-root "$PWD" outcome \
+  --plan "$OUT/plan.json" \
+  --node-id "$NODE_ID" --evaluation-id "$EVAL" \
+  --output "$OUT/outcome_1.json"
+
+jq -s '.' "$OUT/outcome_1.json" > "$OUT/outcomes.json"
+"$PYTHON" scripts/manipeval_evaluation_graph.py --repo-root "$PWD" replay \
+  --plan "$OUT/plan.json" \
+  --outcomes "$OUT/outcomes.json" --output "$OUT/replay_1.json"
+```
+
+必须先读取 replay 的 `next_node` 再决定是否运行第二 child。当前 CLI 不自动执行 child；plan/replay
+本身不是 ACT 证据。想做完全离线的 0-provider 检查，可向 `plan` 传一个符合严格 schema 的
+`--proposal-json`。
+
+完成真实 Agent run 后，可把报告实际展示的小文件发布到 Git，而让原始 telemetry/checkpoint 留在服务器：
+
+```bash
+EVAL=eval_20260722_batch14_click_flagship_n1_v2
+PUB="docs/evidence_runs/$EVAL"
+test -f "mea/evaluation_runs/$EVAL/manifest.json"
+test ! -e "$PUB"
+
+"$PYTHON" scripts/manipeval_evidence_report.py \
+  --repo-root "$PWD" --evaluation-id "$EVAL" \
+  --publish-dir "$PUB" --max-video-mb 2
+du -sh "$PUB"
+```
+
+发布前需人工核对 source evaluation 已 completed，并使用全新目录；publisher 不清旧目录。它只复制
+overlay/task code、render、短视频、Tool、VQA montage 和 compact round JSON，不能替代原始 evaluation
+或论文规模统计。

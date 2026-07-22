@@ -115,7 +115,11 @@ def catalog_snapshot() -> dict[str, Any]:
         "composite_targets": composite_targets,
         "typed_metric_spec": {
             "schema_version": 1,
-            "operations": ["minimum_distance"],
+            "operations": [
+                "event_count",
+                "minimum_distance",
+                "time_between_events",
+            ],
             "execution": "compile_validate_register",
         },
     }

@@ -112,6 +112,14 @@ def apply_bounded_round_proposal(
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Author and persist one bounded Task/Tool Proposal for a materialized round."""
 
+    round_plan = deepcopy(round_plan)
+    bound_task_name = str(target.get("task_name") or "")
+    supplied_task_name = round_plan.get("task_name")
+    if supplied_task_name not in {None, bound_task_name}:
+        raise RuntimeError("round proposal cannot change the bound task")
+    # The legacy BBH materializer predates explicit per-round task identity.
+    # Inject it only from the already frozen EvaluationTarget.
+    round_plan["task_name"] = bound_task_name
     aspect_id = str(
         (round_plan.get("task_proposal") or {}).get("aspect_id")
         or round_plan.get("aspect_id")
@@ -119,7 +127,7 @@ def apply_bounded_round_proposal(
         or ""
     )
     template_id = str(round_plan.get("template_id") or "")
-    task_name = str(target.get("task_name") or "")
+    task_name = bound_task_name
     mode = proposal_capability_mode(task_name, aspect_id)
     bundle = proposal_agent.propose(
         user_query,
@@ -161,6 +169,67 @@ def apply_bounded_round_proposal(
         )
         write_json(compatibility_dir / "proposal_bundle.json", artifact)
     return materialized, artifact
+
+
+def adjudicate_bounded_transition(
+    *,
+    plan_session: BoundTaskPlanSession,
+    user_query: str,
+    observation_history: list[dict[str, Any]],
+    current_plan: dict[str, Any],
+    candidate_plan: dict[str, Any],
+    candidate_decision: dict[str, Any],
+    proposal_mode: str,
+    proposal_agent: BoundedProposalAgent | None,
+    planning_context: dict[str, Any] | None,
+    evaluation_dir: Path,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Use one task-agnostic boundary for adaptive BBH/click transitions.
+
+    Task-specific planners still explain and materialize their candidate next
+    round.  This common entry point optionally authors that round's bounded
+    Task/Tool Proposals, then lets ``BoundTaskPlanSession`` enforce the
+    evidence-selected transition and frozen task/checkpoint/round budget.
+    """
+
+    candidate = deepcopy(candidate_plan)
+    decision = deepcopy(candidate_decision)
+    action = decision.get("action")
+    if action not in {"continue", "stop"}:
+        raise RuntimeError(
+            "common bounded transition accepts continue or stop; task-specific "
+            "verification remains a compatibility path"
+        )
+    if proposal_mode == "bounded_each_round" and action == "continue":
+        if proposal_agent is None or planning_context is None:
+            raise RuntimeError(
+                "bounded_each_round proposal state was not initialized"
+            )
+        next_round_number = len(current_plan["rounds"]) + 1
+        proposed_round, _proposal_artifact = apply_bounded_round_proposal(
+            proposal_agent=proposal_agent,
+            user_query=user_query,
+            target=plan_session.target,
+            planning_context=planning_context,
+            round_plan=candidate["rounds"][-1],
+            evaluation_dir=evaluation_dir,
+            round_number=next_round_number,
+        )
+        candidate["rounds"][-1] = proposed_round
+        decision["next_round"] = proposed_round
+        candidate["round_decisions"][-1] = decision
+    updated, canonical = plan_session.adjudicate(
+        current_plan,
+        observation_history,
+        candidate_plan=candidate,
+        candidate_decision=decision,
+    )
+    directive = plan_session.directive(
+        current_plan,
+        observation_history,
+        candidate_decision=decision,
+    )
+    return updated, canonical, directive
 
 
 def directory_tree_sha256(root: Path) -> str:
@@ -2155,6 +2224,16 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--bound-requested-aspect-id",
+        dest="bound_requested_aspect_ids",
+        action="append",
+        help=(
+            "Repeat to bind an auto-routed child evaluation to the exact "
+            "parent-selected aspect set. Requires --bound-task-name and "
+            "preserves the same task/checkpoint and rollout budget."
+        ),
+    )
+    parser.add_argument(
         "--proposal-mode",
         choices=["catalog", "novel_first_round", "bounded_each_round"],
         default="catalog",
@@ -2352,6 +2431,10 @@ def main() -> None:
         )
     if args.bound_task_name is not None and not args.auto_route:
         raise SystemExit("--bound-task-name requires --auto-route")
+    if args.bound_requested_aspect_ids is not None and args.bound_task_name is None:
+        raise SystemExit(
+            "--bound-requested-aspect-id requires --bound-task-name"
+        )
     if args.proposal_mode != "catalog" and not args.auto_route:
         raise SystemExit("--proposal-mode novel_first_round requires --auto-route")
     registered_values = (
@@ -2493,6 +2576,7 @@ def main() -> None:
             model=models["planner"],
             catalog=global_catalog,
             bound_task_name=args.bound_task_name,
+            bound_requested_aspect_ids=args.bound_requested_aspect_ids,
             planning_contexts=global_planning_contexts,
         )
         global_ledger_context = {
@@ -2800,7 +2884,7 @@ def main() -> None:
         "fixed_predeclared_v1"
         if fixed_click_bell
         else "dynamic_evidence_v1"
-        if adaptive_click_bell
+        if adaptive_click_bell or args.task_name == "beat_block_hammer"
         else None
     )
     registration_identity: dict[str, Any] | None = None
@@ -2918,6 +3002,11 @@ def main() -> None:
         max_agent_rounds=args.max_agent_rounds,
         bound_task_name=(
             evaluation_target["task_name"] if evaluation_target is not None else None
+        ),
+        bound_requested_aspect_ids=(
+            list(args.bound_requested_aspect_ids)
+            if args.bound_requested_aspect_ids is not None
+            else None
         ),
         evaluation_target=evaluation_target,
         plan_session_path=bound_plan_session_path,
@@ -3098,37 +3187,26 @@ def main() -> None:
                     current_plan=plan_before_decision,
                     observation_history=[item["round_summary"] for item in round_runs],
                 )
-            if (
-                args.proposal_mode == "bounded_each_round"
-                and bound_plan_session is not None
-                and adaptive_click_bell
-                and candidate_decision.get("action") == "continue"
-            ):
-                if proposal_agent is None or planning_context is None:
-                    raise RuntimeError(
-                        "bounded_each_round proposal state was not initialized"
-                    )
-                candidate_plan = deepcopy(candidate_plan)
-                candidate_decision = deepcopy(candidate_decision)
-                next_round_number = len(plan_before_decision["rounds"]) + 1
-                proposed_round, _proposal_artifact = apply_bounded_round_proposal(
-                    proposal_agent=proposal_agent,
+            common_adaptive_session = (
+                bound_plan_session is not None
+                and not fixed_click_bell
+                and not legacy_click_bell
+                and candidate_decision.get("action") in {"continue", "stop"}
+            )
+            if common_adaptive_session:
+                plan, decision, runtime_directive = adjudicate_bounded_transition(
+                    plan_session=bound_plan_session,
                     user_query=args.request,
-                    target=bound_plan_session.target,
-                    planning_context=planning_context,
-                    round_plan=candidate_plan["rounds"][-1],
-                    evaluation_dir=evaluation_dir,
-                    round_number=next_round_number,
-                )
-                candidate_plan["rounds"][-1] = proposed_round
-                candidate_decision["next_round"] = proposed_round
-                candidate_plan["round_decisions"][-1] = candidate_decision
-            if bound_plan_session is not None and adaptive_click_bell:
-                plan, decision = bound_plan_session.adjudicate(
-                    plan_before_decision,
-                    [item["round_summary"] for item in round_runs],
+                    observation_history=[
+                        item["round_summary"] for item in round_runs
+                    ],
+                    current_plan=plan_before_decision,
                     candidate_plan=candidate_plan,
                     candidate_decision=candidate_decision,
+                    proposal_mode=args.proposal_mode,
+                    proposal_agent=proposal_agent,
+                    planning_context=planning_context,
+                    evaluation_dir=evaluation_dir,
                 )
                 write_json(
                     evaluation_dir
@@ -3137,11 +3215,7 @@ def main() -> None:
                         "schema_version": 1,
                         "owner": "BoundTaskPlanSession",
                         "adapter_role": "materialize_and_explain",
-                        **bound_plan_session.directive(
-                            plan_before_decision,
-                            [item["round_summary"] for item in round_runs],
-                            candidate_decision=candidate_decision,
-                        ),
+                        **runtime_directive,
                     },
                 )
             else:
