@@ -129,10 +129,21 @@ def arm(prereg, name, attempts, stop_reason):
 
 class ClickBellEfficiencyTests(unittest.TestCase):
     def prereg(self, root, mode="toy_5to7act"):
+        checkpoint_sha = write_bytes(
+            root,
+            (
+                "policy/ACT/act_ckpt/act-click_bell/"
+                "demo_clean-50/policy_last.ckpt"
+            ),
+            b"test act checkpoint",
+        )
         prereg = build_click_bell_efficiency_preregistration(
             study_id="click_efficiency_test",
             mode=mode,
-            checkpoint=checkpoint("act"),
+            checkpoint={
+                "checkpoint_id": "act",
+                "artifact_sha256": checkpoint_sha,
+            },
             seed=17,
             created_at_utc="2026-07-24T00:00:00Z",
             artifact_root_ref="artifacts/click_efficiency",
@@ -278,10 +289,32 @@ class ClickBellEfficiencyTests(unittest.TestCase):
 
 class ExactSeedRankingTests(unittest.TestCase):
     def prereg(self, root):
+        act_sha = write_bytes(
+            root,
+            (
+                "policy/ACT/act_ckpt/act-beat_block_hammer/"
+                "demo_clean-50/policy_last.ckpt"
+            ),
+            b"test act checkpoint",
+        )
+        dp3_sha = write_bytes(
+            root,
+            (
+                "policy/DP3/3D-Diffusion-Policy/checkpoints/"
+                "beat_block_hammer-demo_clean-50_0/3000.ckpt"
+            ),
+            b"test dp3 checkpoint",
+        )
         prereg = build_ranking_preregistration(
             study_id="act_dp3_n3",
-            act_checkpoint=checkpoint("act"),
-            dp3_checkpoint=checkpoint("dp3"),
+            act_checkpoint={
+                "checkpoint_id": "act",
+                "artifact_sha256": act_sha,
+            },
+            dp3_checkpoint={
+                "checkpoint_id": "dp3",
+                "artifact_sha256": dp3_sha,
+            },
             seeds=[101, 102, 103],
             created_at_utc="2026-07-24T00:00:00Z",
             reference_source_ref="official_leaderboard_snapshot.json",
@@ -291,22 +324,82 @@ class ExactSeedRankingTests(unittest.TestCase):
         materialize_ranking_preregistration(root, prereg)
         return prereg
 
-    def runs(self, prereg, act_scores, dp3_scores):
+    def runs(self, root, prereg, act_scores, dp3_scores):
         policies = []
         for policy_id, scores in (("act", act_scores), ("dp3", dp3_scores)):
             trials = []
             for index, (seed, score) in enumerate(zip(prereg["seeds"], scores)):
+                command = next(
+                    row
+                    for row in prereg["execution_schedule"][policy_id]
+                    if row["seed"] == seed
+                )
+                telemetry_path = root / command["expected_telemetry_episode_ref"]
+                success = bool(score)
+                seed_results = {
+                    "schema_version": 1,
+                    "protocol": "exact_seed_paired_v1",
+                    "task_name": "beat_block_hammer",
+                    "task_config": "demo_clean",
+                    "condition_id": "clean",
+                    "requested_seeds": [seed],
+                    "requested_count": 1,
+                    "eligible_count": 1,
+                    "evaluated_count": 1,
+                    "success_count": int(success),
+                    "success_rate_evaluated": float(success),
+                    "all_eligible": True,
+                    "no_seed_replacement": True,
+                    "seed_measurements": [
+                        {
+                            "requested_index": 0,
+                            "seed": seed,
+                            "eligibility_status": "passed",
+                            "policy_executed": True,
+                            "policy_success": success,
+                            "policy_status": "success" if success else "failure",
+                            "time_to_success": 1.0 if success else None,
+                            "execution_attempted": True,
+                            "telemetry_episode_dir": str(
+                                telemetry_path.parent.resolve()
+                            ),
+                        }
+                    ],
+                }
+                seed_sha = write_json(
+                    root, command["expected_seed_results_ref"], seed_results
+                )
+                episode = {
+                    "schema_version": 1,
+                    "recorder_schema_version": 2,
+                    "task_name": "beat_block_hammer",
+                    "task_module": "envs.beat_block_hammer",
+                    "task_config": "demo_clean",
+                    "checkpoint_setting": "demo_clean",
+                    "policy_name": "ACT" if policy_id == "act" else "DP3",
+                    "seed": seed,
+                    "episode_index": 0,
+                    "success": success,
+                    "policy_steps": 10 + index,
+                    "wall_duration_seconds": 5.0 + index,
+                    "error": None,
+                }
+                telemetry_sha = write_json(
+                    root, command["expected_telemetry_episode_ref"], episode
+                )
                 trials.append(
                     {
                         "trial_id": f"{policy_id}_{seed}",
                         "seed": seed,
                         "evidence_source": "live_policy_rollout",
-                        "rollout_ref": f"runs/{policy_id}/{seed}.json",
                         "status": "completed",
-                        "score": score,
-                        "started_at_utc": f"2026-07-24T01:0{index}:00Z",
-                        "ended_at_utc": f"2026-07-24T01:0{index}:10Z",
-                        "wall_seconds": 10.0,
+                        "error": None,
+                        "seed_results_ref": command["expected_seed_results_ref"],
+                        "seed_results_sha256": seed_sha,
+                        "telemetry_episode_ref": command[
+                            "expected_telemetry_episode_ref"
+                        ],
+                        "telemetry_episode_sha256": telemetry_sha,
                     }
                 )
             policies.append(
@@ -363,13 +456,71 @@ class ExactSeedRankingTests(unittest.TestCase):
             prereg = self.prereg(root)
             result = evaluate_exact_seed_ranking(
                 prereg,
-                self.runs(prereg, [0, 0, 0], [0, 0, 0]),
+                self.runs(root, prereg, [0, 0, 0], [0, 0, 0]),
                 repo_root=root,
             )
             self.assertIsNone(result["spearman_rho"])
             self.assertEqual(result["claim_status"], "toy_order_inconclusive_tie")
             self.assertEqual(result["exact_total_policy_rollouts"], 6)
             self.assertFalse(result["paper_table9_eligible"])
+            self.assertEqual(result["measured_trial_wall_seconds_total"], 36.0)
+
+    def test_scores_and_rollout_refs_cannot_be_supplied_by_caller(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            prereg = self.prereg(root)
+            runs = self.runs(root, prereg, [0, 0, 0], [1, 1, 1])
+            runs["policies"][0]["trials"][0]["score"] = 1.0
+            runs["policies"][0]["trials"][0]["rollout_ref"] = "forged.json"
+            with self.assertRaisesRegex(
+                LivePaperProtocolError, "fields must be exactly"
+            ):
+                evaluate_exact_seed_ranking(prereg, runs, repo_root=root)
+
+    def test_substituted_seed_result_or_tampered_hash_fails_closed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            prereg = self.prereg(root)
+            runs = self.runs(root, prereg, [0, 0, 0], [1, 1, 1])
+            act_trials = runs["policies"][0]["trials"]
+            act_trials[0]["seed_results_ref"] = act_trials[1][
+                "seed_results_ref"
+            ]
+            with self.assertRaisesRegex(
+                LivePaperProtocolError, "paths differ"
+            ):
+                evaluate_exact_seed_ranking(prereg, runs, repo_root=root)
+
+            runs = self.runs(root, prereg, [0, 0, 0], [1, 1, 1])
+            runs["policies"][0]["trials"][0]["telemetry_episode_sha256"] = (
+                "0" * 64
+            )
+            with self.assertRaisesRegex(
+                LivePaperProtocolError, "telemetry hash mismatch"
+            ):
+                evaluate_exact_seed_ranking(prereg, runs, repo_root=root)
+
+    def test_episode_identity_error_and_policy_steps_are_validated(self):
+        mutations = (
+            ("policy_name", "DP3", "policy/task/seed/outcome binding"),
+            ("seed", 999, "policy/task/seed/outcome binding"),
+            ("error", {"type": "RuntimeError"}, "policy/task/seed/outcome binding"),
+            ("policy_steps", 0, "policy_steps"),
+        )
+        for field, replacement, error in mutations:
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                prereg = self.prereg(root)
+                runs = self.runs(root, prereg, [0, 0, 0], [1, 1, 1])
+                trial = runs["policies"][0]["trials"][0]
+                episode_path = root / trial["telemetry_episode_ref"]
+                episode = json.loads(episode_path.read_text())
+                episode[field] = replacement
+                trial["telemetry_episode_sha256"] = write_json(
+                    root, trial["telemetry_episode_ref"], episode
+                )
+                with self.assertRaisesRegex(LivePaperProtocolError, error):
+                    evaluate_exact_seed_ranking(prereg, runs, repo_root=root)
 
 
 class Table3AndProxyTests(unittest.TestCase):
@@ -457,6 +608,16 @@ class Table3AndProxyTests(unittest.TestCase):
                 runner = json.loads((root / cell["runner_ref"]).read_text())
                 self.assertIn(
                     "--taskgen-ablation-json", runner["argv"]
+                )
+                mode_index = runner["argv"].index("--mode")
+                self.assertEqual(runner["argv"][mode_index + 1], "force_codegen")
+                proposal_index = runner["argv"].index(
+                    "--task-proposal-json"
+                )
+                self.assertTrue(
+                    json.loads(runner["argv"][proposal_index + 1])[
+                        "reuse_first"
+                    ]
                 )
                 self.assertIn("--accept-task-only", runner["argv"])
                 self.assertNotIn("--run-act", runner["argv"])

@@ -268,6 +268,34 @@ def _bound_path(repo_root: Path, ref: Any, *, field: str, must_exist: bool = Tru
     return path
 
 
+def _checkpoint_artifact_path(
+    repo_root: Path, ref: Any, *, field: str
+) -> Path:
+    """Resolve a repo-bound checkpoint or its server-side model-store link."""
+
+    relative = _relative_ref(ref, field=field)
+    lexical_path = repo_root / relative
+    if not lexical_path.exists():
+        raise LivePaperProtocolError(f"{field} does not exist")
+    resolved = lexical_path.resolve()
+    server_asset_roots = [
+        (repo_root.parent / name).resolve()
+        for name in ("models", "RoboTwin")
+        if (repo_root.parent / name).exists()
+    ]
+    if not (
+        resolved.is_relative_to(repo_root)
+        or any(
+            resolved.is_relative_to(asset_root)
+            for asset_root in server_asset_roots
+        )
+    ):
+        raise LivePaperProtocolError(
+            f"{field} resolves outside the repository and server model store"
+        )
+    return resolved
+
+
 def _write_bound_file(repo_root: Path, ref: str, payload: bytes) -> None:
     path = _bound_path(repo_root, ref, field="artifact_ref", must_exist=False)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -648,6 +676,13 @@ def validate_click_bell_efficiency_preregistration(
         if repo_root is None:
             raise LivePaperProtocolError("repo_root is required for materialized validation")
         root = Path(repo_root).expanduser().resolve()
+        checkpoint_path = _checkpoint_artifact_path(
+            root,
+            row["checkpoint"]["artifact_ref"],
+            field="checkpoint.artifact_ref",
+        )
+        if _file_sha256(checkpoint_path) != row["checkpoint"]["artifact_sha256"]:
+            raise LivePaperProtocolError("checkpoint artifact hash mismatch")
         for candidate in row["candidate_universe"]:
             binding = candidate["variant_binding"]
             overlay_path = _bound_path(
@@ -1205,7 +1240,7 @@ def _ranking_command_binding(
             "0",
             "0",
             "1",
-            "",
+            "envs.beat_block_hammer",
             "",
             "",
             f"{live_root}/telemetry",
@@ -1225,6 +1260,8 @@ def _ranking_command_binding(
             "--overrides",
             "--task_name",
             "beat_block_hammer",
+            "--task_module",
+            "envs.beat_block_hammer",
             "--task_config",
             "demo_clean",
             "--ckpt_setting",
@@ -1392,6 +1429,16 @@ def validate_ranking_preregistration(
         if repo_root is None:
             raise LivePaperProtocolError("repo_root is required for materialized ranking")
         root = Path(repo_root).expanduser().resolve()
+        for policy_id, checkpoint in row["policies"].items():
+            checkpoint_path = _checkpoint_artifact_path(
+                root,
+                checkpoint["artifact_ref"],
+                field=f"policies.{policy_id}.artifact_ref",
+            )
+            if _file_sha256(checkpoint_path) != checkpoint["artifact_sha256"]:
+                raise LivePaperProtocolError(
+                    f"{policy_id} checkpoint artifact hash mismatch"
+                )
         for policy_rows in row["execution_schedule"].values():
             for binding in policy_rows:
                 seed_path = _bound_path(
@@ -1444,7 +1491,7 @@ def materialize_ranking_preregistration(
                     "0",
                     "0",
                     "1",
-                    "",
+                    "envs.beat_block_hammer",
                     "",
                     "",
                     f"{live_root}/telemetry",
@@ -1464,6 +1511,8 @@ def materialize_ranking_preregistration(
                     "--overrides",
                     "--task_name",
                     "beat_block_hammer",
+                    "--task_module",
+                    "envs.beat_block_hammer",
                     "--task_config",
                     "demo_clean",
                     "--ckpt_setting",
@@ -1526,18 +1575,159 @@ def materialize_ranking_preregistration(
     )
 
 
+def _read_ranking_json(path: Path, *, field: str) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise LivePaperProtocolError(f"{field} is invalid JSON: {exc}") from exc
+    return _object(value, field=field)
+
+
+def _ranking_command_for_seed(
+    prereg: Mapping[str, Any],
+    *,
+    policy_id: str,
+    seed: int,
+) -> dict[str, Any]:
+    matches = [
+        row
+        for row in prereg["execution_schedule"][policy_id]
+        if row.get("policy_id") == policy_id and row.get("seed") == seed
+    ]
+    if len(matches) != 1:
+        raise LivePaperProtocolError(
+            f"{policy_id} seed {seed} has no unique preregistered command"
+        )
+    return dict(matches[0])
+
+
+def _ranking_seed_result(
+    value: Mapping[str, Any],
+    *,
+    policy_id: str,
+    seed: int,
+    expected_episode_dir: Path,
+) -> bool:
+    field = f"{policy_id}.seed_{seed}.seed_results"
+    required_identity = {
+        "schema_version": 1,
+        "protocol": "exact_seed_paired_v1",
+        "task_name": "beat_block_hammer",
+        "task_config": "demo_clean",
+        "condition_id": "clean",
+        "requested_seeds": [seed],
+        "requested_count": 1,
+        "eligible_count": 1,
+        "evaluated_count": 1,
+        "all_eligible": True,
+        "no_seed_replacement": True,
+    }
+    if any(value.get(key) != expected for key, expected in required_identity.items()):
+        raise LivePaperProtocolError(
+            f"{field} does not prove the exact eligible N=1 contract"
+        )
+    measurements = value.get("seed_measurements")
+    if not isinstance(measurements, list) or len(measurements) != 1:
+        raise LivePaperProtocolError(f"{field} must contain exactly one measurement")
+    measurement = _object(measurements[0], field=f"{field}.seed_measurements[0]")
+    success = measurement.get("policy_success")
+    if not isinstance(success, bool):
+        raise LivePaperProtocolError(f"{field} policy_success must be boolean")
+    expected_status = "success" if success else "failure"
+    if (
+        measurement.get("requested_index") != 0
+        or measurement.get("seed") != seed
+        or measurement.get("eligibility_status") != "passed"
+        or measurement.get("policy_executed") is not True
+        or measurement.get("execution_attempted") is not True
+        or measurement.get("policy_status") != expected_status
+        or "policy_error" in measurement
+        or "eligibility_error" in measurement
+    ):
+        raise LivePaperProtocolError(
+            f"{field} does not prove one completed policy execution"
+        )
+    telemetry_episode_dir = measurement.get("telemetry_episode_dir")
+    if not isinstance(telemetry_episode_dir, str) or not telemetry_episode_dir:
+        raise LivePaperProtocolError(f"{field} is missing telemetry_episode_dir")
+    observed_episode_dir = Path(telemetry_episode_dir).expanduser()
+    if not observed_episode_dir.is_absolute():
+        raise LivePaperProtocolError(
+            f"{field} telemetry_episode_dir must be absolute"
+        )
+    if observed_episode_dir.resolve() != expected_episode_dir.resolve():
+        raise LivePaperProtocolError(
+            f"{field} telemetry directory differs from preregistration"
+        )
+    if (
+        value.get("success_count") != int(success)
+        or value.get("success_rate_evaluated") != float(success)
+    ):
+        raise LivePaperProtocolError(f"{field} aggregate success differs from episode")
+    return success
+
+
+def _ranking_episode(
+    value: Mapping[str, Any],
+    *,
+    policy_id: str,
+    seed: int,
+    success: bool,
+) -> tuple[float, int]:
+    field = f"{policy_id}.seed_{seed}.telemetry_episode"
+    expected_policy_name = {"act": "ACT", "dp3": "DP3"}[policy_id]
+    required_identity = {
+        "schema_version": 1,
+        "task_name": "beat_block_hammer",
+        "task_module": "envs.beat_block_hammer",
+        "task_config": "demo_clean",
+        "checkpoint_setting": "demo_clean",
+        "policy_name": expected_policy_name,
+        "seed": seed,
+        "episode_index": 0,
+        "success": success,
+        "error": None,
+    }
+    if any(value.get(key) != expected for key, expected in required_identity.items()):
+        raise LivePaperProtocolError(
+            f"{field} policy/task/seed/outcome binding mismatch"
+        )
+    policy_steps = _integer(
+        value.get("policy_steps"), field=f"{field}.policy_steps", minimum=1
+    )
+    wall_seconds = _number(
+        value.get("wall_duration_seconds"),
+        field=f"{field}.wall_duration_seconds",
+    )
+    if value.get("recorder_schema_version") not in {2, 3}:
+        raise LivePaperProtocolError(f"{field} recorder schema is unsupported")
+    return wall_seconds, policy_steps
+
+
 def evaluate_exact_seed_ranking(
     preregistration: Any,
     result_manifest: Any,
     *,
     repo_root: str | Path,
 ) -> dict[str, Any]:
+    root = Path(repo_root).expanduser().resolve()
     prereg = validate_ranking_preregistration(
         preregistration,
-        repo_root=repo_root,
+        repo_root=root,
         require_materialized=True,
     )
     result = _object(result_manifest, field="ranking result")
+    expected_result_fields = {
+        "schema_version",
+        "protocol",
+        "preregistration_sha256",
+        "policies",
+    }
+    if set(result) != expected_result_fields:
+        raise LivePaperProtocolError(
+            "ranking result fields must be exactly "
+            f"{sorted(expected_result_fields)}"
+        )
     if result.get("schema_version") != 1 or result.get("protocol") != f"{RANKING_PROTOCOL}_runs":
         raise LivePaperProtocolError("unsupported ranking result manifest")
     if result.get("preregistration_sha256") != prereg["preregistration_sha256"]:
@@ -1547,11 +1737,19 @@ def evaluate_exact_seed_ranking(
         raise LivePaperProtocolError("ranking result must contain exactly ACT and DP3")
     converted: list[dict[str, Any]] = []
     run_ids: set[str] = set()
-    rollout_refs: set[str] = set()
+    trial_ids: set[str] = set()
+    seed_result_refs: set[str] = set()
+    telemetry_refs: set[str] = set()
+    seed_result_hashes: set[str] = set()
+    telemetry_hashes: set[str] = set()
     total_wall = 0.0
-    preregistered_at = _utc(prereg["created_at_utc"], field="created_at_utc")
     for raw_policy in policy_rows:
         policy = _object(raw_policy, field="policy")
+        expected_policy_fields = {"policy_id", "checkpoint", "run_id", "trials"}
+        if set(policy) != expected_policy_fields:
+            raise LivePaperProtocolError(
+                f"policy fields must be exactly {sorted(expected_policy_fields)}"
+            )
         policy_id = policy.get("policy_id")
         checkpoint = _checkpoint(policy.get("checkpoint"), field=f"{policy_id}.checkpoint")
         if checkpoint != prereg["policies"][policy_id]:
@@ -1567,39 +1765,117 @@ def evaluate_exact_seed_ranking(
         converted_trials: list[dict[str, Any]] = []
         for index, raw_trial in enumerate(trials):
             trial = _object(raw_trial, field=f"{policy_id}.trials[{index}]")
+            expected_trial_fields = {
+                "trial_id",
+                "seed",
+                "evidence_source",
+                "status",
+                "error",
+                "seed_results_ref",
+                "seed_results_sha256",
+                "telemetry_episode_ref",
+                "telemetry_episode_sha256",
+            }
+            if set(trial) != expected_trial_fields:
+                raise LivePaperProtocolError(
+                    f"{policy_id}.trials[{index}] fields must be exactly "
+                    f"{sorted(expected_trial_fields)}"
+                )
             seed = _integer(trial.get("seed"), field="trial.seed")
             if seed not in prereg["seeds"] or seed in seen_seeds:
                 raise LivePaperProtocolError("policy trials must cover exact unique seeds")
             seen_seeds.add(seed)
             if trial.get("evidence_source") != "live_policy_rollout":
                 raise LivePaperProtocolError("ranking trials must be live, never cached")
-            if trial.get("status") != "completed":
+            if trial.get("status") != "completed" or trial.get("error") is not None:
                 raise LivePaperProtocolError("ranking requires six completed trials")
-            start = _utc(trial.get("started_at_utc"), field="trial.started_at_utc")
-            end = _utc(trial.get("ended_at_utc"), field="trial.ended_at_utc")
-            if start < preregistered_at or end < start:
-                raise LivePaperProtocolError("ranking trial predates preregistration")
-            wall = _number(trial.get("wall_seconds"), field="trial.wall_seconds")
-            if wall > (end - start).total_seconds() + 1.0:
-                raise LivePaperProtocolError("trial wall time exceeds elapsed time")
+            trial_id = _identifier(trial.get("trial_id"), field="trial.trial_id")
+            if trial_id in trial_ids:
+                raise LivePaperProtocolError("ranking trial ids must be unique")
+            trial_ids.add(trial_id)
+            command = _ranking_command_for_seed(
+                prereg, policy_id=policy_id, seed=seed
+            )
+            seed_results_ref = _relative_ref(
+                trial.get("seed_results_ref"), field="trial.seed_results_ref"
+            )
+            telemetry_ref = _relative_ref(
+                trial.get("telemetry_episode_ref"),
+                field="trial.telemetry_episode_ref",
+            )
+            if (
+                seed_results_ref != command["expected_seed_results_ref"]
+                or telemetry_ref != command["expected_telemetry_episode_ref"]
+            ):
+                raise LivePaperProtocolError(
+                    "ranking output paths differ from preregistered command"
+                )
+            if (
+                seed_results_ref in seed_result_refs
+                or telemetry_ref in telemetry_refs
+            ):
+                raise LivePaperProtocolError(
+                    "ranking trials cannot share evidence files"
+                )
+            seed_result_refs.add(seed_results_ref)
+            telemetry_refs.add(telemetry_ref)
+            seed_results_path = _bound_path(
+                root, seed_results_ref, field="trial.seed_results_ref"
+            )
+            telemetry_path = _bound_path(
+                root, telemetry_ref, field="trial.telemetry_episode_ref"
+            )
+            supplied_seed_sha = _sha256(
+                trial.get("seed_results_sha256"),
+                field="trial.seed_results_sha256",
+            )
+            supplied_telemetry_sha = _sha256(
+                trial.get("telemetry_episode_sha256"),
+                field="trial.telemetry_episode_sha256",
+            )
+            if _file_sha256(seed_results_path) != supplied_seed_sha:
+                raise LivePaperProtocolError("ranking seed results hash mismatch")
+            if _file_sha256(telemetry_path) != supplied_telemetry_sha:
+                raise LivePaperProtocolError("ranking telemetry hash mismatch")
+            if (
+                supplied_seed_sha in seed_result_hashes
+                or supplied_telemetry_sha in telemetry_hashes
+            ):
+                raise LivePaperProtocolError(
+                    "ranking trials must have unique evidence hashes"
+                )
+            seed_result_hashes.add(supplied_seed_sha)
+            telemetry_hashes.add(supplied_telemetry_sha)
+            success = _ranking_seed_result(
+                _read_ranking_json(
+                    seed_results_path, field="trial.seed_results"
+                ),
+                policy_id=policy_id,
+                seed=seed,
+                expected_episode_dir=telemetry_path.parent,
+            )
+            wall, policy_steps = _ranking_episode(
+                _read_ranking_json(
+                    telemetry_path, field="trial.telemetry_episode"
+                ),
+                policy_id=policy_id,
+                seed=seed,
+                success=success,
+            )
             total_wall += wall
-            rollout_ref = _text(trial.get("rollout_ref"), field="trial.rollout_ref")
-            if rollout_ref in rollout_refs:
-                raise LivePaperProtocolError("ranking trials cannot share rollout refs")
-            rollout_refs.add(rollout_ref)
-            score = _number(trial.get("score"), field="trial.score")
-            if score > 1.0:
-                raise LivePaperProtocolError("trial score must be in [0, 1]")
+            score = float(success)
             converted_trials.append(
                 {
-                    "trial_id": _identifier(
-                        trial.get("trial_id"), field="trial.trial_id"
-                    ),
+                    "trial_id": trial_id,
                     "candidate_id": prereg["candidate_id"],
                     "seed": seed,
-                    "rollout_ref": rollout_ref,
+                    "rollout_ref": telemetry_ref,
                     "episode_status": "completed",
                     "score": score,
+                    "policy_steps": policy_steps,
+                    "seed_results_ref": seed_results_ref,
+                    "seed_results_sha256": supplied_seed_sha,
+                    "telemetry_episode_sha256": supplied_telemetry_sha,
                 }
             )
         if seen_seeds != set(prereg["seeds"]):
@@ -1674,7 +1950,9 @@ def _table3_task_proposal(proposal: Mapping[str, Any]) -> dict[str, Any]:
         "aspect_id": "object_scale" if is_scale else "object_appearance.color",
         "intent": proposal["prompt"],
         "capability_id": "object_scale" if is_scale else "object_appearance.color",
-        "reuse_first": False,
+        # TaskProposal schema remains reuse-first; the preregistered runner's
+        # explicit ``force_codegen`` mode supplies the ablation override.
+        "reuse_first": True,
         "changes": changes,
         "preserve_success_semantics": False,
         "success_spec": _table3_success_spec(),
@@ -1761,7 +2039,7 @@ def _table3_runner(
         "proposal_ref": proposal_ref,
         "proposal_sha256": proposal_sha256,
         "provider_models": {"text": text_model, "vision": vision_model},
-        "required_environment": ["OPENAI_API_KEY"],
+        "required_environment": ["UIUI_API_KEY"],
         "cwd": ".",
         "argv": argv,
         "run_id": run_id,
