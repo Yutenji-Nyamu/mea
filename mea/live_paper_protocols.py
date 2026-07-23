@@ -444,7 +444,10 @@ def _seed_manifest(
         "protocol": "exact_seed_paired_v1",
         "task_name": task_name,
         "seeds": [seed],
-        "conditions": [{"id": "clean", "task_config": "demo_clean"}],
+        "conditions": [
+            {"id": "clean", "task_config": "demo_clean"},
+            {"id": "unused", "task_config": "demo_randomized"},
+        ],
         "checkpoint_setting": checkpoint_setting,
         "expert_data_num": 50,
         "policy_seed": 0,
@@ -919,6 +922,7 @@ def _live_attempt(
         raise LivePaperProtocolError(f"{field}.success must be boolean when completed")
     if status == "runtime_error" and success is not None:
         raise LivePaperProtocolError(f"{field}.success must be null on runtime_error")
+    policy_steps: int | None = None
     if status == "completed":
         seed_results_ref = _relative_ref(
             receipt["seed_results_ref"], field=f"{field}.seed_results_ref"
@@ -965,6 +969,34 @@ def _live_attempt(
             or measurements[0].get("policy_success") is not success
         ):
             raise LivePaperProtocolError(f"{field} seed results do not prove exact N=1")
+        try:
+            telemetry = json.loads(telemetry_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise LivePaperProtocolError(
+                f"{field} telemetry episode is invalid JSON: {exc}"
+            ) from exc
+        required_telemetry = {
+            "task_name": "click_bell",
+            "task_module": CLICK_BELL_TASK_MODULE,
+            "task_config": "demo_clean",
+            "policy_name": "ACT",
+            "seed": prereg["seed"],
+            "episode_index": 0,
+            "success": success,
+            "error": None,
+        }
+        if any(
+            telemetry.get(key) != expected
+            for key, expected in required_telemetry.items()
+        ):
+            raise LivePaperProtocolError(
+                f"{field} telemetry policy/task/seed/outcome binding mismatch"
+            )
+        policy_steps = _integer(
+            telemetry.get("policy_steps"),
+            field=f"{field}.telemetry_episode.policy_steps",
+            minimum=1,
+        )
     else:
         if any(
             receipt.get(key) is not None
@@ -991,6 +1023,7 @@ def _live_attempt(
         "wall_seconds": wall,
         "status": status,
         "success": success,
+        "policy_steps": policy_steps,
     }
 
 
@@ -1096,6 +1129,7 @@ def _efficiency_arm(
         "arm": arm,
         "arm_run_id": arm_run_id,
         "wall_seconds": sum(item["wall_seconds"] for item in attempts),
+        "policy_steps": sum(item["policy_steps"] or 0 for item in attempts),
         "stop_reason": row["stop_reason"],
         "attempts": attempts,
     }
@@ -1163,6 +1197,7 @@ def evaluate_click_bell_efficiency(
     agrees = all(conclusions["fixed"][field] == conclusions["adaptive"][field] for field in fields)
     act_saving = len(fixed["attempts"]) - len(adaptive["attempts"])
     wall_saving = fixed["wall_seconds"] - adaptive["wall_seconds"]
+    policy_step_saving = fixed["policy_steps"] - adaptive["policy_steps"]
     technical_errors = sum(
         item["status"] != "completed"
         for arm in (fixed, adaptive)
@@ -1174,6 +1209,7 @@ def evaluate_click_bell_efficiency(
         and agrees
         and act_saving > 0
         and wall_saving > 0
+        and policy_step_saving > 0
     )
     return {
         "schema_version": 1,
@@ -1195,6 +1231,9 @@ def evaluate_click_bell_efficiency(
             "fixed_wall_seconds": fixed["wall_seconds"],
             "adaptive_wall_seconds": adaptive["wall_seconds"],
             "measured_wall_second_saving": wall_saving,
+            "fixed_policy_steps": fixed["policy_steps"],
+            "adaptive_policy_steps": adaptive["policy_steps"],
+            "policy_step_saving": policy_step_saving,
             "technical_runtime_errors": technical_errors,
         },
         "toy_efficiency_evidence_passed": eligible_toy,
@@ -1202,6 +1241,7 @@ def evaluate_click_bell_efficiency(
         "limitations": [
             "The three-ACT mode is a mechanism smoke, not a dense reference.",
             "The five-to-seven-ACT mode is one task, one checkpoint, and one seed.",
+            "Policy steps are the shared simulator-sample proxy for this toy.",
             "This protocol does not reproduce the paper trial or agent-run counts.",
         ],
     }
@@ -1277,7 +1317,7 @@ def _ranking_command_binding(
             "--checkpoint_num",
             "3000",
             "--use_rgb",
-            "false",
+            "False",
             "--num_episodes",
             "1",
             "--seed_manifest",
@@ -1528,7 +1568,7 @@ def materialize_ranking_preregistration(
                     "--checkpoint_num",
                     "3000",
                     "--use_rgb",
-                    "false",
+                    "False",
                     "--num_episodes",
                     "1",
                     "--seed_manifest",

@@ -21,6 +21,12 @@ import argparse
 import pdb
 
 from generate_episode_instructions import *
+from mea.execution_receipt import (
+    load_execution_receipt,
+    validate_execution_invocation,
+    validate_frozen_candidate_source,
+    validate_imported_task_binding,
+)
 from mea.paired import PROTOCOL_ID, load_seed_manifest
 
 current_file_path = os.path.abspath(__file__)
@@ -84,6 +90,22 @@ def main(usr_args):
     # checkpoint_num = usr_args['checkpoint_num']
     policy_name = usr_args["policy_name"]
     instruction_type = usr_args["instruction_type"]
+    execution_receipt = usr_args.pop(
+        "_validated_execution_receipt",
+        None,
+    )
+    if execution_receipt is None and usr_args.get("execution_receipt"):
+        execution_receipt = load_execution_receipt(
+            usr_args["execution_receipt"],
+            verify_checkpoint_files=True,
+        )
+    if execution_receipt is not None and not usr_args.get("telemetry_dir"):
+        raise ValueError(
+            "execution_receipt requires telemetry_dir so the executed "
+            "binding is recorded"
+        )
+    if execution_receipt is not None:
+        validate_frozen_candidate_source(execution_receipt)
     save_dir = None
     video_save_dir = None
     video_size = None
@@ -192,6 +214,8 @@ def main(usr_args):
         task_name=args["task_name"],
         task_module=usr_args.get("task_module"),
     )
+    if execution_receipt is not None:
+        validate_imported_task_binding(execution_receipt, TASK_ENV)
     args["policy_name"] = policy_name
     usr_args["left_arm_dim"] = len(args["left_embodiment_config"]["arm_joints_name"][0])
     usr_args["right_arm_dim"] = len(args["right_embodiment_config"]["arm_joints_name"][1])
@@ -237,6 +261,29 @@ def main(usr_args):
                 "num_episodes must equal the exact seed count: "
                 f"{configured_count} != {test_num}"
             )
+    if execution_receipt is not None:
+        expected_seed = execution_receipt["episode"]["seed"]
+        if test_num != 1:
+            raise ValueError(
+                "execution_receipt currently requires exactly one episode"
+            )
+        if st_seed != expected_seed:
+            raise ValueError(
+                "execution_receipt seed differs from evaluation seed: "
+                f"{expected_seed} != {st_seed}"
+            )
+        validate_execution_invocation(
+            execution_receipt,
+            task_name=task_name,
+            task_module=usr_args.get("task_module"),
+            task_config=task_config,
+            checkpoint_setting=ckpt_setting,
+            policy_name=policy_name,
+            seed=st_seed,
+            episode_index=0,
+            checkpoint_dir=usr_args.get("ckpt_dir"),
+            verify_checkpoint_files=False,
+        )
 
     print(f"Evaluation episodes: {test_num}")
     if exact_seeds is None:
@@ -259,6 +306,7 @@ def main(usr_args):
         telemetry_profile=usr_args.get("telemetry_profile", "balanced_v1"),
         task_module=usr_args.get("task_module"),
         exact_seeds=exact_seeds,
+        execution_receipt=execution_receipt,
         return_measurements=True,
     )
     suc_nums.append(suc_num)
@@ -335,6 +383,7 @@ def eval_policy(task_name,
                 telemetry_profile="balanced_v1",
                 task_module=None,
                 exact_seeds=None,
+                execution_receipt=None,
                 return_measurements=False):
     """Evaluate ACT in legacy scan mode or strict exact-seed mode.
 
@@ -371,8 +420,12 @@ def eval_policy(task_name,
         else None
     )
 
-    strict_mode = exact_seeds is not None
-    exact_seed_list = list(exact_seeds or [])
+    strict_mode = exact_seeds is not None or execution_receipt is not None
+    exact_seed_list = (
+        [execution_receipt["episode"]["seed"]]
+        if execution_receipt is not None
+        else list(exact_seeds or [])
+    )
     exact_index = 0
 
     def close_env_safely(*, clear_cache=False):
@@ -404,6 +457,9 @@ def eval_policy(task_name,
 
         render_freq = args["render_freq"]
         args["render_freq"] = 0
+
+        if execution_receipt is not None:
+            validate_imported_task_binding(execution_receipt, TASK_ENV)
 
         if expert_check:
             try:
@@ -526,6 +582,7 @@ def eval_policy(task_name,
                     task_config=args.get("task_config"),
                     checkpoint_setting=args.get("ckpt_setting"),
                     telemetry_profile_id=str(telemetry_profile),
+                    execution_receipt=execution_receipt,
                 )
                 TASK_ENV._mea_recorder = recorder
                 try:
@@ -635,6 +692,57 @@ def eval_policy(task_name,
     return now_seed, TASK_ENV.suc
 
 
+def preflight_execution_receipt_before_simulator(usr_args):
+    """Reject stale receipt inputs before the renderer/simulator smoke test."""
+
+    receipt_path = usr_args.get("execution_receipt")
+    if not receipt_path:
+        return None
+    if not usr_args.get("telemetry_dir"):
+        raise ValueError("execution_receipt requires telemetry_dir")
+    if int(usr_args.get("num_episodes", 100)) != 1:
+        raise ValueError(
+            "execution_receipt currently requires exactly one episode"
+        )
+    receipt = load_execution_receipt(
+        receipt_path,
+        verify_checkpoint_files=True,
+    )
+    validate_frozen_candidate_source(receipt)
+    if usr_args.get("seed_manifest"):
+        seed_manifest = load_seed_manifest(
+            usr_args["seed_manifest"],
+            expected_task_name=usr_args["task_name"],
+        )
+        seeds = list(seed_manifest["seeds"])
+        if len(seeds) != 1:
+            raise ValueError(
+                "execution_receipt seed manifest must contain one seed"
+            )
+        episode_seed = int(seeds[0])
+    else:
+        episode_seed = int(
+            usr_args.get(
+                "start_seed",
+                100000 * (1 + int(usr_args["seed"])),
+            )
+        )
+    validated = validate_execution_invocation(
+        receipt,
+        task_name=usr_args["task_name"],
+        task_module=usr_args.get("task_module"),
+        task_config=usr_args["task_config"],
+        checkpoint_setting=usr_args["ckpt_setting"],
+        policy_name=usr_args["policy_name"],
+        seed=episode_seed,
+        episode_index=0,
+        checkpoint_dir=usr_args.get("ckpt_dir"),
+        verify_checkpoint_files=False,
+    )
+    usr_args["_validated_execution_receipt"] = validated
+    return validated
+
+
 def parse_args_and_config():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, required=True)
@@ -666,8 +774,9 @@ def parse_args_and_config():
 
 if __name__ == "__main__":
     from test_render import Sapien_TEST
-    Sapien_TEST()
 
     usr_args = parse_args_and_config()
+    preflight_execution_receipt_before_simulator(usr_args)
+    Sapien_TEST()
 
     main(usr_args)

@@ -14,9 +14,14 @@ import subprocess
 import time
 from copy import deepcopy
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 import numpy as np
+
+from mea.execution_receipt import (
+    validate_execution_invocation,
+    validate_imported_task_binding,
+)
 
 from .profiles import load_telemetry_profile, telemetry_profile_sha256
 from .schema import load_task_schema
@@ -106,6 +111,7 @@ class EpisodeRecorder:
         checkpoint_setting: str | None = None,
         telemetry_profile_id: str = "balanced_v1",
         visual_capture_profile_id: str | None = None,
+        execution_receipt: Mapping[str, Any] | None = None,
     ):
         self.repo_root = Path(repo_root).expanduser().resolve()
         self.output_dir = Path(output_dir).expanduser().resolve()
@@ -118,6 +124,28 @@ class EpisodeRecorder:
         self.task_module = task_module
         self.task_config = task_config
         self.checkpoint_setting = checkpoint_setting
+        self.execution_receipt = (
+            validate_execution_invocation(
+                execution_receipt,
+                task_name=task_name,
+                task_module=task_module,
+                task_config=task_config,
+                checkpoint_setting=checkpoint_setting,
+                policy_name=policy_name,
+                seed=self.seed,
+                episode_index=self.episode_index,
+                checkpoint_dir=(
+                    execution_receipt.get("checkpoint", {}).get("root")
+                    if execution_receipt.get("checkpoint", {}).get("kind")
+                    == "act_checkpoint_bundle"
+                    else None
+                ),
+                verify_checkpoint_files=True,
+            )
+            if execution_receipt is not None
+            else None
+        )
+        self.executed_binding: dict[str, Any] | None = None
         self.telemetry_profile = load_telemetry_profile(telemetry_profile_id)
         self.telemetry_profile_id = telemetry_profile_id
         self.telemetry_profile_hash = telemetry_profile_sha256(
@@ -173,10 +201,26 @@ class EpisodeRecorder:
             json.dumps(self.telemetry_profile, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
+        if self.execution_receipt is not None:
+            (self.output_dir / "execution_receipt.json").write_text(
+                json.dumps(
+                    self.execution_receipt,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
 
     def start(self, task: Any) -> None:
         self._task = task
         self._validate_task(task)
+        if self.execution_receipt is not None:
+            self.executed_binding = validate_imported_task_binding(
+                self.execution_receipt,
+                task,
+            )
         if self.visual_capture_profile_id is not None:
             # Resting/support contacts exist before expert motion and must not
             # consume the first action-induced contact keyframe.
@@ -992,6 +1036,24 @@ class EpisodeRecorder:
             ),
             "error": error,
             **(
+                {
+                    "execution_receipt": deepcopy(self.execution_receipt),
+                    "execution_receipt_sha256": self.execution_receipt[
+                        "receipt_sha256"
+                    ],
+                    "executed_binding": deepcopy(self.executed_binding),
+                    "executed_task_module_sha256": self.executed_binding[
+                        "task_source_sha256"
+                    ],
+                    "executed_checkpoint_bundle_sha256": (
+                        self.executed_binding["checkpoint_bundle_sha256"]
+                    ),
+                }
+                if self.execution_receipt is not None
+                and self.executed_binding is not None
+                else {}
+            ),
+            **(
                 {"visual_capture": visual_capture}
                 if visual_capture is not None
                 else {}
@@ -1023,6 +1085,11 @@ class EpisodeRecorder:
                 "events": "events.jsonl",
                 "task_schema": "schema.json",
                 "telemetry_profile": "telemetry_profile.json",
+                **(
+                    {"execution_receipt": "execution_receipt.json"}
+                    if self.execution_receipt is not None
+                    else {}
+                ),
                 **(
                     {"visual_keyframes": "visual_keyframes.json"}
                     if (self.output_dir / "visual_keyframes.json").is_file()

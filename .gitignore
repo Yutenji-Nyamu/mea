@@ -40,6 +40,8 @@ envs/curobo/*
 /mea/evaluation_runs/eval_*/
 /mea/evaluation_runs/eval_*.launcher.log
 /mea/evaluation_runs/history.sqlite3*
+/mea/evaluation_runs/.runtime_ledgers/
+/mea/evaluation_runs/_launch_logs/
 
 # Explicitly reviewed generated Tool runtime registry (hash-pinned artifacts).
 /mea/tool_registry/*/

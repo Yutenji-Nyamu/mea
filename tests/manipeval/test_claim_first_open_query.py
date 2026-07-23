@@ -148,6 +148,17 @@ class _InvalidProvider:
 
 
 class ClaimFirstOpenQueryTest(unittest.TestCase):
+    def test_prompt_distinguishes_visible_axes_from_hidden_itinerary(self):
+        prompt = ClaimFirstOpenQueryAgent._prompt(
+            "Where is the first generalization weakness?",
+            _capabilities(),
+            [],
+        )
+        self.assertIn("candidate/template-ID itinerary", prompt)
+        self.assertIn("may appear in the capability cards", prompt)
+        self.assertIn("not a prescribed test order", prompt)
+        self.assertNotIn("There is no candidate\naspect list", prompt)
+
     def test_capabilities_reject_predeclared_navigation(self):
         value = _capabilities()
         value["simulator_card"]["available_aspect_ids"] = ["object_position"]

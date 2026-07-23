@@ -699,7 +699,12 @@ def bbh_distractor_rollout_execution(
         raise BBHDistractorTaskGenError(
             "episode task_module differs from candidate"
         )
-    success = bool(trajectory.metadata.get("success"))
+    success_value = trajectory.metadata.get("success")
+    if not isinstance(success_value, bool):
+        raise BBHDistractorTaskGenError(
+            "episode metadata success must be a JSON boolean"
+        )
+    success = success_value
     first = trajectory.success_events[0] if trajectory.success_events else None
     evidence_steps = []
     if isinstance(first, Mapping):

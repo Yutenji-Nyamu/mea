@@ -463,10 +463,12 @@ class ClaimFirstOpenQueryAgent:
             "rationale": "Why this is the most informative next test for the Query.",
         }
         return f"""You are the claim-first Plan Agent in ManipEvalAgent.
-Discover a small set of evaluation sub-aspects online.  There is no candidate
-aspect list, template itinerary, success-then-switch script, or fallback route.
-Choose only the single most informative next experiment for the original
-Query, using the policy/simulator capabilities and completed evidence below.
+Discover a small set of evaluation sub-aspects online.  There is no predeclared
+candidate/template-ID itinerary, success-then-switch script, or fallback route.
+Supported controlled axes and operations may appear in the capability cards;
+they are execution boundaries, not a prescribed test order.  Choose only the
+single most informative next experiment for the original Query, using the
+policy/simulator capabilities and completed evidence below.
 
 For action=continue, invent a precise semantic sub_aspect identifier and one
 falsifiable hypothesis.  Request a bounded perturbation supported by the

@@ -13,6 +13,13 @@ from typing import Any
 
 import yaml
 
+from mea.execution_receipt import (
+    load_execution_receipt,
+    validate_execution_invocation,
+    validate_frozen_candidate_source,
+    validate_imported_task_binding,
+)
+
 
 def deep_update(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     for key, value in override.items():
@@ -230,6 +237,9 @@ def run_probe(arguments: argparse.Namespace) -> dict[str, Any]:
         "expert_requested": arguments.expert,
         "telemetry_requested": arguments.telemetry_dir is not None,
         "eval_mode": bool(getattr(arguments, "eval_mode", False)),
+        "execution_receipt_requested": (
+            getattr(arguments, "execution_receipt", None) is not None
+        ),
     }
     task = None
     recorder = None
@@ -252,9 +262,45 @@ def run_probe(arguments: argparse.Namespace) -> dict[str, Any]:
             overlay_path=arguments.overlay,
             eval_mode=bool(getattr(arguments, "eval_mode", False)),
         )
+        execution_receipt_path = getattr(
+            arguments,
+            "execution_receipt",
+            None,
+        )
+        execution_receipt = (
+            load_execution_receipt(
+                execution_receipt_path,
+                verify_checkpoint_files=True,
+            )
+            if execution_receipt_path is not None
+            else None
+        )
+        if execution_receipt is not None:
+            if arguments.telemetry_dir is None:
+                raise ValueError(
+                    "execution_receipt requires telemetry_dir"
+                )
+            receipt_policy = (
+                "expert" if arguments.expert else "setup_probe"
+            )
+            validate_execution_invocation(
+                execution_receipt,
+                task_name=arguments.task_name,
+                task_module=arguments.task_module,
+                task_config=arguments.task_config,
+                checkpoint_setting=arguments.ckpt_setting,
+                policy_name=receipt_policy,
+                seed=arguments.seed,
+                episode_index=arguments.episode_index,
+                checkpoint_dir=None,
+                verify_checkpoint_files=True,
+            )
+            validate_frozen_candidate_source(execution_receipt)
         module = importlib.import_module(arguments.task_module)
         task_class = getattr(module, arguments.task_name)
         task = task_class()
+        if execution_receipt is not None:
+            validate_imported_task_binding(execution_receipt, task)
         task.setup_demo(now_ep_num=0, seed=arguments.seed, is_test=True, **args)
         result["setup_success"] = True
         task_info = getattr(task, "info", {}) or {}
@@ -370,6 +416,7 @@ def run_probe(arguments: argparse.Namespace) -> dict[str, Any]:
                 visual_capture_profile_id=getattr(
                     arguments, "visual_capture_profile", None
                 ),
+                execution_receipt=execution_receipt,
             )
             task._mea_recorder = recorder
             try:
@@ -473,6 +520,7 @@ def parse_args() -> argparse.Namespace:
         help="Use the evaluator distribution (including unseen randomization).",
     )
     parser.add_argument("--telemetry-dir", type=Path)
+    parser.add_argument("--execution-receipt", type=Path)
     parser.add_argument(
         "--telemetry-profile",
         choices=["balanced_v1", "legacy_v1"],

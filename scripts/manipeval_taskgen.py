@@ -613,6 +613,7 @@ def run_probe(
     telemetry_dir: Path | None = None,
     telemetry_profile: str = "balanced_v1",
     visual_capture_profile_id: str | None = None,
+    execution_receipt: Path | None = None,
 ) -> dict[str, Any]:
     scene_json = scene_json or run_dir / "validation/scene.json"
     image = image or run_dir / "evidence/initial_head.png"
@@ -653,6 +654,8 @@ def run_probe(
         command.extend(["--telemetry-dir", str(telemetry_dir)])
     if visual_capture_profile_id is not None:
         command.extend(["--visual-capture-profile", visual_capture_profile_id])
+    if execution_receipt is not None:
+        command.extend(["--execution-receipt", str(execution_receipt)])
 
     attempts: list[dict[str, Any]] = []
     attempt_logs: list[Path] = []
@@ -1792,6 +1795,7 @@ def run_act(
     gpu: int,
     num_episodes: int,
     telemetry_profile: str = "balanced_v1",
+    execution_receipt: Path | None = None,
 ) -> dict[str, Any]:
     """Run a task-specific ACT checkpoint and attach videos to telemetry."""
 
@@ -1852,6 +1856,14 @@ def run_act(
         str(telemetry_root),
         telemetry_profile,
     ]
+    if execution_receipt is not None:
+        if num_episodes != 1:
+            raise RuntimeError(
+                "execution receipt ACT runs require num_episodes=1"
+            )
+        # Positions 13-15 remain the existing optional seed/result/output
+        # arguments. Empty placeholders preserve the legacy shell contract.
+        command.extend(["", "", "", str(execution_receipt)])
     started = datetime.now().astimezone().isoformat()
     record_act_batch_start(
         task_name=task_name,
@@ -1974,6 +1986,9 @@ def run_act(
             ],
             "preflight_passed": True,
         },
+        "execution_receipt": (
+            str(execution_receipt) if execution_receipt is not None else None
+        ),
         "source_eval_dir": str(source_dir) if source_dir else None,
         "copied_artifacts": copied,
         "copied_video_count": len(copied_videos),

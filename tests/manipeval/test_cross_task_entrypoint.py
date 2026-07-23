@@ -665,6 +665,31 @@ class CrossTaskEntrypointTests(unittest.TestCase):
             )
             self.assertNotIn("--visual-capture-profile", default_command)
 
+    def test_probe_command_forwards_execution_receipt_only_when_requested(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            run_dir = root / "mea/generated_tasks/run_receipt_probe"
+            (run_dir / "validation").mkdir(parents=True)
+            receipt = run_dir / "expert_receipt.json"
+            manifest = {
+                "task_name": "beat_block_hammer",
+                "task_module": "envs.beat_block_hammer",
+            }
+            with patch(
+                "scripts.manipeval_taskgen.run_command", return_value=0
+            ) as invoked:
+                run_probe(
+                    root,
+                    run_dir,
+                    manifest,
+                    seed=7,
+                    expert=True,
+                    execution_receipt=receipt,
+                )
+            command = invoked.call_args.args[0]
+            flag_index = command.index("--execution-receipt")
+            self.assertEqual(command[flag_index + 1], str(receipt))
+
     def test_act_wrapper_receives_telemetry_profile_as_twelfth_argument(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -695,6 +720,41 @@ class CrossTaskEntrypointTests(unittest.TestCase):
                     )
             command = invoked.call_args.args[0]
             self.assertEqual(command[-1], "legacy_v1")
+
+    def test_act_wrapper_places_execution_receipt_in_sixteenth_argument(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            run_dir = root / "mea/generated_tasks/run_act_receipt"
+            (run_dir / "evaluation").mkdir(parents=True)
+            checkpoint_dir = (
+                root
+                / "policy/ACT/act_ckpt/act-beat_block_hammer/demo_clean-50"
+            )
+            checkpoint_dir.mkdir(parents=True)
+            (checkpoint_dir / "policy_last.ckpt").write_bytes(b"checkpoint")
+            (checkpoint_dir / "dataset_stats.pkl").write_bytes(b"stats")
+            receipt = run_dir / "act_execution_receipt.json"
+            with patch(
+                "scripts.manipeval_taskgen.run_command", return_value=0
+            ) as invoked:
+                with self.assertRaises(RuntimeError):
+                    run_act(
+                        root,
+                        run_dir,
+                        {
+                            "task_name": "beat_block_hammer",
+                            "task_module": "mea.tasks.beat_block_hammer",
+                        },
+                        seed=7,
+                        gpu=0,
+                        num_episodes=1,
+                        telemetry_profile="legacy_v1",
+                        execution_receipt=receipt,
+                    )
+            command = invoked.call_args.args[0]
+            shell_args = command[4:]
+            self.assertEqual(shell_args[15], str(receipt))
+            self.assertEqual(shell_args[12:15], ["", "", ""])
 
     def test_act_wrapper_uses_click_bell_checkpoint_and_eval_tree(self):
         with tempfile.TemporaryDirectory() as temporary:

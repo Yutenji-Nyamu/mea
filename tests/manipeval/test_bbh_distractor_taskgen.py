@@ -276,6 +276,22 @@ class BBHDistractorTaskGenTests(unittest.TestCase):
                     candidate_dir=candidate,
                 )
 
+            metadata_path = episode / "episode.json"
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            metadata["success"] = 1
+            metadata_path.write_text(
+                json.dumps(metadata),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                BBHDistractorTaskGenError,
+                "JSON boolean",
+            ):
+                bbh_distractor_rollout_execution(
+                    episode_dir=episode,
+                    candidate_dir=candidate,
+                )
+
     def test_query_tool_bridge_preserves_numeric_and_null_evidence(self) -> None:
         numeric = query_induced_result_to_tool_execution(
             _query_result(12.5, None),

@@ -73,7 +73,18 @@ def bound_attempt(root, prereg, arm_name, arm_run_id, candidate, index, success)
     telemetry_sha = write_json(
         root,
         command["expected_telemetry_episode_ref"],
-        {"schema_version": 1, "seed": seed, "success": success},
+        {
+            "schema_version": 1,
+            "task_name": "click_bell",
+            "task_module": "mea.tasks.click_bell",
+            "task_config": "demo_clean",
+            "policy_name": "ACT",
+            "seed": seed,
+            "episode_index": 0,
+            "success": success,
+            "error": None,
+            "policy_steps": 100,
+        },
     )
     variant = next(
         row["variant_binding"]
@@ -170,6 +181,16 @@ class ClickBellEfficiencyTests(unittest.TestCase):
             command_value = json.loads((root / command["command_ref"]).read_text())
             self.assertEqual(command_value["argv"][8], "1")
             self.assertEqual(command_value["argv"][9], "mea.tasks.click_bell")
+            seed_manifest = json.loads(
+                (root / command["seed_manifest_ref"]).read_text()
+            )
+            self.assertEqual(
+                seed_manifest["conditions"],
+                [
+                    {"id": "clean", "task_config": "demo_clean"},
+                    {"id": "unused", "task_config": "demo_randomized"},
+                ],
+            )
             validate_click_bell_efficiency_preregistration(
                 prereg, repo_root=root, require_materialized=True
             )
@@ -233,6 +254,9 @@ class ClickBellEfficiencyTests(unittest.TestCase):
             self.assertEqual(
                 result["resource_measurement"]["measured_wall_second_saving"],
                 20.0,
+            )
+            self.assertEqual(
+                result["resource_measurement"]["policy_step_saving"], 200
             )
             self.assertTrue(result["original_query_conclusion_agrees"])
             self.assertTrue(result["toy_efficiency_evidence_passed"])
@@ -447,6 +471,9 @@ class ExactSeedRankingTests(unittest.TestCase):
                 "/root/autodl-tmp/conda/envs/RoboTwin-DP3/bin/python",
             )
             self.assertIn("--seed_manifest", dp3["argv"])
+            use_rgb_index = dp3["argv"].index("--use_rgb")
+            self.assertEqual(dp3["argv"][use_rgb_index + 1], "False")
+            self.assertIs(eval(dp3["argv"][use_rgb_index + 1]), False)
             self.assertIn("--seed_results_path", dp3["argv"])
             self.assertIn("--output_dir", dp3["argv"])
 

@@ -7,6 +7,13 @@ from unittest.mock import patch
 
 import numpy as np
 
+from mea.execution_receipt import (
+    build_checkpoint_bundle,
+    canonical_sha256,
+    file_sha256,
+    seal_execution_receipt,
+    validate_recorded_execution_metadata,
+)
 from mea.toolkit import EpisodeRecorder, TrajectoryView
 
 
@@ -74,6 +81,10 @@ class _Robot:
         return 0.75
 
 
+class _Task(SimpleNamespace):
+    pass
+
+
 class BalancedRecorderTests(unittest.TestCase):
     def setUp(self):
         self._temporary = tempfile.TemporaryDirectory()
@@ -128,7 +139,7 @@ class BalancedRecorderTests(unittest.TestCase):
         (schema_dir / "generic_task.json").write_text(
             json.dumps(schema), encoding="utf-8"
         )
-        self.task = SimpleNamespace(
+        self.task = _Task(
             target=_Actor(),
             robot=_Robot(),
             scene=SimpleNamespace(get_contacts=lambda: []),
@@ -225,6 +236,74 @@ class BalancedRecorderTests(unittest.TestCase):
                 policy_name="test",
                 telemetry_profile_id="agent_supplied_python",
             )
+
+    def test_execution_receipt_records_actual_imported_source_binding(self):
+        module_origin = Path(__file__).resolve()
+        identity = {
+            "task_name": "generic_task",
+            "task_class": "_Task",
+            "task_module": _Task.__module__,
+            "task_source_sha256": file_sha256(module_origin),
+            "proposal_sha256": "1" * 64,
+            "scene_method_sha256": "2" * 64,
+            "success_method_sha256": "3" * 64,
+        }
+        receipt = seal_execution_receipt(
+            {
+                "schema_version": 1,
+                "receipt_type": "mea_task_execution_preflight",
+                "candidate": {
+                    **identity,
+                    "module_origin": str(module_origin),
+                    "candidate_manifest_sha256": "4" * 64,
+                    "execution_module_sha256": canonical_sha256(identity),
+                },
+                "episode": {
+                    "task_name": "generic_task",
+                    "task_module": _Task.__module__,
+                    "task_config": "demo_clean",
+                    "checkpoint_setting": "demo_clean",
+                    "policy_name": "expert",
+                    "seed": 7,
+                    "episode_index": 0,
+                },
+                "checkpoint": build_checkpoint_bundle(
+                    None,
+                    kind="expert_no_checkpoint",
+                ),
+            }
+        )
+        recorder = EpisodeRecorder(
+            self.root,
+            self.episode,
+            task_name="generic_task",
+            seed=7,
+            episode_index=0,
+            policy_name="expert",
+            task_module=_Task.__module__,
+            task_config="demo_clean",
+            checkpoint_setting="demo_clean",
+            execution_receipt=receipt,
+        )
+        receipt["candidate"]["proposal_sha256"] = "f" * 64
+        recorder.start(self.task)
+        metadata = recorder.finish(self.task, success=False)
+        self.assertEqual(
+            metadata["executed_task_module_sha256"],
+            identity["task_source_sha256"],
+        )
+        self.assertEqual(
+            metadata["execution_receipt"]["candidate"]["proposal_sha256"],
+            "1" * 64,
+        )
+        validate_recorded_execution_metadata(
+            metadata,
+            metadata["execution_receipt"],
+        )
+        self.assertEqual(
+            metadata["artifacts"]["execution_receipt"],
+            "execution_receipt.json",
+        )
 
     def test_event_keyframes_dedupe_contact_and_success_on_same_step(self):
         success = {"value": False}

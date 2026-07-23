@@ -4,8 +4,8 @@ set -euo pipefail
 
 policy_name="ACT"
 
-if [ "$#" -lt 6 ] || [ "$#" -gt 15 ]; then
-    echo "Usage: $0 TASK CONFIG CKPT EXPERT_NUM SEED GPU [NUM_EPISODES] [TASK_MODULE] [TASK_OVERLAY] [START_SEED] [TELEMETRY_DIR] [TELEMETRY_PROFILE] [SEED_MANIFEST] [SEED_RESULTS_PATH] [OUTPUT_DIR]" >&2
+if [ "$#" -lt 6 ] || [ "$#" -gt 16 ]; then
+    echo "Usage: $0 TASK CONFIG CKPT EXPERT_NUM SEED GPU [NUM_EPISODES] [TASK_MODULE] [TASK_OVERLAY] [START_SEED] [TELEMETRY_DIR] [TELEMETRY_PROFILE] [SEED_MANIFEST] [SEED_RESULTS_PATH] [OUTPUT_DIR] [EXECUTION_RECEIPT]" >&2
     exit 2
 fi
 
@@ -25,6 +25,7 @@ telemetry_profile="${12:-balanced_v1}"
 seed_manifest="${13:-}"
 seed_results_path="${14:-}"
 output_dir="${15:-}"
+execution_receipt="${16:-}"
 
 export CUDA_VISIBLE_DEVICES="${gpu_id}"
 
@@ -38,6 +39,7 @@ echo "telemetry_profile=${telemetry_profile}"
 echo "seed_manifest=${seed_manifest:-<legacy-scan>}"
 echo "seed_results_path=${seed_results_path:-<default>}"
 echo "output_dir=${output_dir:-<timestamped-default>}"
+echo "execution_receipt=${execution_receipt:-<disabled>}"
 
 SCRIPT_DIR="$(
     cd "$(dirname "${BASH_SOURCE[0]}")"
@@ -87,6 +89,9 @@ if [ -n "${seed_results_path}" ]; then
 fi
 if [ -n "${output_dir}" ]; then
     OVERRIDES+=(--output_dir "${output_dir}")
+fi
+if [ -n "${execution_receipt}" ]; then
+    OVERRIDES+=(--execution_receipt "${execution_receipt}")
 fi
 
 python_bin="${PYTHON_BIN:-python}"
