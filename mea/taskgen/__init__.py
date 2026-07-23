@@ -83,6 +83,18 @@ from .attempts import (
     run_bounded_task_generation,
     task_generation_recovery_action,
 )
+from .bbh_distractor import (
+    BBHDistractorTaskGenError,
+    bbh_distractor_rollout_execution,
+    build_bbh_distractor_module,
+    default_bbh_distractor_proposal,
+    materialize_bbh_distractor_candidate,
+    reference_bbh_distractor_methods,
+    run_bbh_distractor_checker_fixtures,
+    validate_bbh_distractor_manifest,
+    validate_bbh_distractor_methods,
+    validate_bbh_distractor_proposal,
+)
 
 __all__ = [
     "TaskGenError",
@@ -148,4 +160,14 @@ __all__ = [
     "TaskGenerationStageError",
     "run_bounded_task_generation",
     "task_generation_recovery_action",
+    "BBHDistractorTaskGenError",
+    "bbh_distractor_rollout_execution",
+    "build_bbh_distractor_module",
+    "default_bbh_distractor_proposal",
+    "materialize_bbh_distractor_candidate",
+    "reference_bbh_distractor_methods",
+    "run_bbh_distractor_checker_fixtures",
+    "validate_bbh_distractor_manifest",
+    "validate_bbh_distractor_methods",
+    "validate_bbh_distractor_proposal",
 ]

@@ -981,3 +981,102 @@ def run_query_induced_toolgen(
     }
     _write_json(output / "query_induced_toolgen_result.json", result)
     return result
+
+
+def query_induced_result_to_tool_execution(
+    value: Mapping[str, Any],
+    *,
+    policy_name: str = "ACT",
+    role: str = "policy_under_evaluation",
+    seed: int | None = None,
+) -> dict[str, Any]:
+    """Adapt one validated live ToolGen result to the shared Aggregate schema.
+
+    Synthetic oracle rows are intentionally absent.  A null live result stays
+    null and carries its explicit reason into ``details.reason`` so Aggregate
+    counts it as missing evidence instead of silently turning it into failure
+    or a numeric sample.
+    """
+
+    if not isinstance(value, Mapping) or value.get("schema_version") != 2:
+        raise QueryInducedToolError(
+            "query-induced result must be a schema v2 object"
+        )
+    proposal = value.get("proposal")
+    result = value.get("tool_result")
+    live = value.get("live_telemetry")
+    if (
+        not isinstance(proposal, Mapping)
+        or not isinstance(result, Mapping)
+        or not isinstance(live, Mapping)
+    ):
+        raise QueryInducedToolError(
+            "query-induced result lacks proposal, tool_result, or live_telemetry"
+        )
+    validated = validate_query_metric_proposal(proposal)
+    metric = validated["metric_id"]
+    if result.get("tool") != metric:
+        raise QueryInducedToolError(
+            "query-induced result tool differs from the validated proposal"
+        )
+    episode_dir = live.get("episode_dir")
+    if not isinstance(episode_dir, str) or not episode_dir.strip():
+        raise QueryInducedToolError(
+            "query-induced result lacks a live episode directory"
+        )
+    if live.get("synthetic_fallback_used") is not False:
+        raise QueryInducedToolError(
+            "Aggregate bridge requires real recorded telemetry"
+        )
+    evidence_steps = result.get("evidence_steps")
+    if not isinstance(evidence_steps, list) or any(
+        isinstance(item, bool) or not isinstance(item, int)
+        for item in evidence_steps
+    ):
+        raise QueryInducedToolError(
+            "query-induced evidence_steps must be an integer list"
+        )
+    null_reason = result.get("null_reason")
+    if null_reason is not None and not isinstance(null_reason, str):
+        raise QueryInducedToolError(
+            "query-induced null_reason must be a string or null"
+        )
+    tool_result = {
+        "tool": metric,
+        "value": result.get("value"),
+        "unit": result.get("unit"),
+        "passed": result.get("passed"),
+        "evidence_steps": list(evidence_steps),
+        "details": {
+            "reason": null_reason,
+            "null_semantics": result.get("null_semantics"),
+            "active_arm": result.get("active_arm"),
+            "signal": result.get("signal"),
+            "first_target_contact_trace_index": result.get(
+                "first_target_contact_trace_index"
+            ),
+            "registration_id": value.get("registration_id"),
+            "resolution_route": value.get("route"),
+            "oracle_rows_included": False,
+            "synthetic_fallback_used": False,
+        },
+    }
+    return {
+        "schema_version": 1,
+        "status": "passed",
+        "route": str(value.get("route") or ""),
+        "tool_spec": {
+            "task_name": live.get("task_name"),
+            "metric": metric,
+            "query": value.get("query"),
+        },
+        "episodes": [
+            {
+                "episode_dir": episode_dir,
+                "policy_name": str(policy_name),
+                "role": str(role),
+                "seed": seed,
+                "result": tool_result,
+            }
+        ],
+    }

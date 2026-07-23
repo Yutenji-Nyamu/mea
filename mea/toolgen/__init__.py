@@ -57,6 +57,7 @@ from .metric_spec import (
     metric_spec_tool_spec,
     validate_metric_spec,
 )
+from .query_induced import query_induced_result_to_tool_execution
 
 __all__ = [
     "ToolGenError",
@@ -102,4 +103,5 @@ __all__ = [
     "execute_metric_spec",
     "metric_spec_tool_spec",
     "validate_metric_spec",
+    "query_induced_result_to_tool_execution",
 ]
