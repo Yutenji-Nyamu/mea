@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from mea.paper_claim_demo import evaluate_policy_ranking
+from mea.taskgen.click_bell import compile_click_bell_overlay
 
 
 class LivePaperProtocolError(ValueError):
@@ -29,38 +30,60 @@ PROXY_PROTOCOL = "plan_vqa_development_proxy_manifest_v1"
 
 CLICK_BELL_CANDIDATES = (
     {
-        "candidate_id": "left_base0",
+        "candidate_id": "object_position.left_fixed",
         "task_name": "click_bell",
-        "position": "left",
-        "instance": 0,
-        "xy": [-0.20, -0.08],
+        "axis_id": "object_position",
+        "variant_hint": {
+            "bell": {"position_mode": "fixed", "xy": [-0.20, -0.08]}
+        },
     },
     {
-        "candidate_id": "right_base0",
+        "candidate_id": "object_position.right_fixed",
         "task_name": "click_bell",
-        "position": "right",
-        "instance": 0,
-        "xy": [0.20, -0.08],
+        "axis_id": "object_position",
+        "variant_hint": {
+            "bell": {"position_mode": "fixed", "xy": [0.20, -0.08]}
+        },
     },
     {
-        "candidate_id": "left_base1",
+        "candidate_id": "object_instance.base0",
         "task_name": "click_bell",
-        "position": "left",
-        "instance": 1,
-        "xy": [-0.20, -0.08],
+        "axis_id": "object_instance",
+        "variant_hint": {
+            "bell": {
+                "position_mode": "official_random",
+                "instance_mode": "fixed",
+                "bell_id": 0,
+            }
+        },
     },
     {
-        "candidate_id": "right_base1",
+        "candidate_id": "object_instance.base1",
         "task_name": "click_bell",
-        "position": "right",
-        "instance": 1,
-        "xy": [0.20, -0.08],
+        "axis_id": "object_instance",
+        "variant_hint": {
+            "bell": {
+                "position_mode": "official_random",
+                "instance_mode": "fixed",
+                "bell_id": 1,
+            }
+        },
     },
 )
 _CANDIDATE_IDS = tuple(row["candidate_id"] for row in CLICK_BELL_CANDIDATES)
+_EFFICIENCY_AXIS_PAIRS = {
+    "object_position": (
+        "object_position.left_fixed",
+        "object_position.right_fixed",
+    ),
+    "object_instance": (
+        "object_instance.base0",
+        "object_instance.base1",
+    ),
+}
 _EFFICIENCY_MODES = {
     "smoke_3act": {
-        "fixed_candidates": ("left_base0", "right_base0"),
+        "fixed_candidates": _EFFICIENCY_AXIS_PAIRS["object_position"],
         "adaptive_min": 1,
         "adaptive_max": 1,
         "total_min": 3,
@@ -69,9 +92,9 @@ _EFFICIENCY_MODES = {
     },
     "toy_5to7act": {
         "fixed_candidates": _CANDIDATE_IDS,
-        "adaptive_min": 1,
+        "adaptive_min": 2,
         "adaptive_max": 3,
-        "total_min": 5,
+        "total_min": 6,
         "total_max": 7,
         "claim_scope": "independent_live_toy_not_paper_tables_1_2",
     },
@@ -348,17 +371,8 @@ def _verify_seal(value: Mapping[str, Any], *, hash_field: str) -> dict[str, Any]
 
 
 def _click_overlay(candidate: Mapping[str, Any]) -> dict[str, Any]:
-    return {
-        "mea": {
-            "enabled": True,
-            "bell": {
-                "position_mode": "fixed",
-                "xy": list(candidate["xy"]),
-                "instance_mode": "fixed",
-                "bell_id": int(candidate["instance"]),
-            },
-        }
-    }
+    variant_hint = deepcopy(dict(candidate["variant_hint"]))
+    return compile_click_bell_overlay(variant_hint)
 
 
 def _click_variant_binding(
@@ -371,13 +385,13 @@ def _click_variant_binding(
     overlay_sha256 = _bytes_sha256(_json_bytes(overlay))
     variant_manifest = {
         "schema_version": 1,
-        "kind": "click_bell_joint_position_instance_variant_v1",
+        "kind": "click_bell_single_axis_variant_v1",
         "variant_id": f"click_bell.{candidate_id}",
         "candidate_id": candidate_id,
         "task_name": "click_bell",
         "task_module": CLICK_BELL_TASK_MODULE,
-        "xy": list(candidate["xy"]),
-        "bell_id": int(candidate["instance"]),
+        "axis_id": str(candidate["axis_id"]),
+        "variant_hint": deepcopy(dict(candidate["variant_hint"])),
         "overlay_ref": overlay_ref,
         "overlay_sha256": overlay_sha256,
     }
@@ -385,8 +399,8 @@ def _click_variant_binding(
     return {
         "variant_id": variant_manifest["variant_id"],
         "task_module": CLICK_BELL_TASK_MODULE,
-        "xy": list(candidate["xy"]),
-        "bell_id": int(candidate["instance"]),
+        "axis_id": variant_manifest["axis_id"],
+        "variant_hint": deepcopy(variant_manifest["variant_hint"]),
         "overlay_ref": overlay_ref,
         "overlay_sha256": overlay_sha256,
         "variant_manifest_ref": manifest_ref,
@@ -561,7 +575,11 @@ def build_click_bell_efficiency_preregistration(
             "candidate_ids": list(_CANDIDATE_IDS),
             "min_episode_starts": spec["adaptive_min"],
             "max_episode_starts": spec["adaptive_max"],
-            "query_sufficient_rule": "at_least_one_completed_failure",
+            "query_sufficient_rule": (
+                "at_least_one_completed_failure"
+                if mode == "smoke_3act"
+                else "completed_failure_with_its_frozen_axis_pair_observed"
+            ),
             "allowed_stop_reasons": ["query_sufficient", "budget_exhausted"],
         },
         "total_episode_start_contract": {
@@ -672,13 +690,13 @@ def materialize_click_bell_efficiency_preregistration(
         _write_bound_file(root, binding["overlay_ref"], _json_bytes(overlay))
         variant_manifest = {
             "schema_version": 1,
-            "kind": "click_bell_joint_position_instance_variant_v1",
+            "kind": "click_bell_single_axis_variant_v1",
             "variant_id": binding["variant_id"],
             "candidate_id": candidate["candidate_id"],
             "task_name": "click_bell",
             "task_module": binding["task_module"],
-            "xy": binding["xy"],
-            "bell_id": binding["bell_id"],
+            "axis_id": binding["axis_id"],
+            "variant_hint": deepcopy(binding["variant_hint"]),
             "overlay_ref": binding["overlay_ref"],
             "overlay_sha256": binding["overlay_sha256"],
         }
@@ -1004,11 +1022,38 @@ def _efficiency_arm(
             item["status"] == "completed" and item["success"] is False
             for item in attempts
         )
+        completed_scores = {
+            item["candidate_id"]: item["success"]
+            for item in attempts
+            if item["status"] == "completed"
+        }
+        paired_failure = any(
+            completed_scores.get(left) is False
+            or completed_scores.get(right) is False
+            for left, right in _EFFICIENCY_AXIS_PAIRS.values()
+            if left in completed_scores and right in completed_scores
+        )
         if row["stop_reason"] == "query_sufficient":
-            if not has_failure:
-                raise LivePaperProtocolError("query_sufficient requires a completed failure")
+            sufficient = (
+                has_failure
+                if prereg["mode"] == "smoke_3act"
+                else has_failure and paired_failure
+            )
+            if not sufficient:
+                raise LivePaperProtocolError(
+                    "query_sufficient requires a completed failure and its "
+                    "frozen paired-axis contrast"
+                )
         elif row["stop_reason"] == "budget_exhausted":
-            if len(attempts) != contract["max_episode_starts"] or has_failure:
+            evidence_sufficient = (
+                has_failure
+                if prereg["mode"] == "smoke_3act"
+                else paired_failure
+            )
+            if (
+                len(attempts) != contract["max_episode_starts"]
+                or evidence_sufficient
+            ):
                 raise LivePaperProtocolError("budget_exhausted does not match adaptive evidence")
         else:
             raise LivePaperProtocolError("invalid adaptive stop reason")
@@ -1035,21 +1080,8 @@ def _efficiency_conclusion(arm: Mapping[str, Any]) -> dict[str, Any]:
     else:
         verdict = "inconclusive"
     axes: list[str] = []
-    pairs = {
-        "position": (
-            ("left_base0", "right_base0"),
-            ("left_base1", "right_base1"),
-        ),
-        "instance": (
-            ("left_base0", "left_base1"),
-            ("right_base0", "right_base1"),
-        ),
-    }
-    for axis, comparisons in pairs.items():
-        if any(
-            left in scores and right in scores and scores[left] != scores[right]
-            for left, right in comparisons
-        ):
+    for axis, (left, right) in _EFFICIENCY_AXIS_PAIRS.items():
+        if left in scores and right in scores and scores[left] != scores[right]:
             axes.append(axis)
     return {
         "overall_verdict": verdict,

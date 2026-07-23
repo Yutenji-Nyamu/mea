@@ -117,6 +117,60 @@ class AnswerScopeTests(unittest.TestCase):
             exhausted["required_limitations"][-1]["text"],
         )
 
+    def test_claim_first_runtime_assessment_reaches_final_scope(self):
+        value = {
+            "total_episodes": 2,
+            "rounds": [
+                {
+                    "seeds": [102000],
+                    "num_episodes": 1,
+                    "round_plan": {
+                        "template_id": (
+                            "performance.completion_time_stability.official"
+                        )
+                    },
+                },
+                {
+                    "seeds": [102000],
+                    "num_episodes": 1,
+                    "round_plan": {
+                        "template_id": "object_instance.base0"
+                    },
+                },
+            ],
+            "claim_first_runtime": {
+                "assessment": {
+                    "stop_reason": "evidence_sufficient",
+                    "should_stop": True,
+                    "evidence_sufficient": True,
+                    "claim_verdict": "supported",
+                    "observed_candidate_ids": ["object_instance.base0"],
+                    "untested_candidate_ids": [
+                        "object_position.left_fixed",
+                        "object_position.right_fixed",
+                        "object_instance.base1",
+                    ],
+                    "conflict_candidate_ids": [],
+                }
+            },
+        }
+
+        scope = build_answer_scope(value)
+
+        self.assertEqual(scope["termination"], "evidence_sufficient")
+        self.assertEqual(scope["claim_verdict"], "supported")
+        self.assertEqual(
+            scope["tested_candidate_ids"], ["object_instance.base0"]
+        )
+        self.assertEqual(
+            scope["untested_candidate_ids"],
+            [
+                "object_position.left_fixed",
+                "object_position.right_fixed",
+                "object_instance.base1",
+            ],
+        )
+
     def test_adversarial_omissions_fail_closed(self):
         scope = build_answer_scope(evidence())
         projected = project_answer_scope(BASE_FEEDBACK, scope)

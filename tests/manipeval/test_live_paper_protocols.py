@@ -140,7 +140,7 @@ class ClickBellEfficiencyTests(unittest.TestCase):
         materialize_click_bell_efficiency_preregistration(root, prereg)
         return prereg
 
-    def test_prereg_materializes_four_joint_variants_and_exact_commands(self):
+    def test_prereg_materializes_four_single_axis_variants_and_exact_commands(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             prereg = self.prereg(root)
@@ -149,12 +149,12 @@ class ClickBellEfficiencyTests(unittest.TestCase):
                 binding = candidate["variant_binding"]
                 self.assertEqual(binding["task_module"], "mea.tasks.click_bell")
                 overlay = json.loads((root / binding["overlay_ref"]).read_text())
+                self.assertTrue(overlay["mea"]["enabled"])
                 self.assertEqual(
-                    overlay["mea"]["bell"]["xy"], candidate["xy"]
+                    overlay["mea"]["bell"],
+                    candidate["variant_hint"]["bell"],
                 )
-                self.assertEqual(
-                    overlay["mea"]["bell"]["bell_id"], candidate["instance"]
-                )
+                self.assertEqual(binding["axis_id"], candidate["axis_id"])
             command = prereg["execution_schedule"]["fixed"][0]
             command_value = json.loads((root / command["command_ref"]).read_text())
             self.assertEqual(command_value["argv"][8], "1")
@@ -186,10 +186,10 @@ class ClickBellEfficiencyTests(unittest.TestCase):
                 )
                 for index, (candidate, success) in enumerate(
                     (
-                        ("left_base0", False),
-                        ("right_base0", True),
-                        ("left_base1", False),
-                        ("right_base1", True),
+                        ("object_position.left_fixed", False),
+                        ("object_position.right_fixed", True),
+                        ("object_instance.base0", False),
+                        ("object_instance.base1", False),
                     )
                 )
             ]
@@ -204,7 +204,10 @@ class ClickBellEfficiencyTests(unittest.TestCase):
                     success,
                 )
                 for index, (candidate, success) in enumerate(
-                    (("right_base0", True), ("left_base0", False))
+                    (
+                        ("object_position.right_fixed", True),
+                        ("object_position.left_fixed", False),
+                    )
                 )
             ]
             result = evaluate_click_bell_efficiency(
@@ -239,7 +242,10 @@ class ClickBellEfficiencyTests(unittest.TestCase):
                     success,
                 )
                 for index, (candidate, success) in enumerate(
-                    (("left_base0", False), ("right_base0", True))
+                    (
+                        ("object_position.left_fixed", False),
+                        ("object_position.right_fixed", True),
+                    )
                 )
             ]
             adaptive = [
@@ -248,7 +254,7 @@ class ClickBellEfficiencyTests(unittest.TestCase):
                     prereg,
                     "adaptive",
                     "adaptive_independent_run",
-                    "left_base0",
+                    "object_position.left_fixed",
                     2,
                     False,
                 )

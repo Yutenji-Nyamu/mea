@@ -152,6 +152,11 @@ def _query_assessment(evidence: Mapping[str, Any]) -> Mapping[str, Any] | None:
         value = plan.get("query_sufficiency")
         if isinstance(value, Mapping):
             return value
+    claim_first = evidence.get("claim_first_runtime")
+    if isinstance(claim_first, Mapping):
+        value = claim_first.get("assessment")
+        if isinstance(value, Mapping):
+            return value
     return None
 
 
