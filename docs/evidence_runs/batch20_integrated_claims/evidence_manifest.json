@@ -1,0 +1,254 @@
+{
+  "schema_version": 1,
+  "bundle_id": "batch20_integrated_claims",
+  "paper_claim_eligibility": {
+    "fig2_5_finite_domain_mechanism": true,
+    "fig3_single_case_mechanism": true,
+    "fig4_tool_lifecycle_mechanism": true,
+    "tables1_2_positive_efficiency_claim": false,
+    "table3_ablation_effect": false,
+    "tables6_8_human_validity": false,
+    "table9_policy_ranking": false,
+    "fig6_system_error_rate": false
+  },
+  "claim_first": {
+    "query": "Can this ACT click_bell policy succeed on at least one supported bell-property variation?",
+    "rounds": 2,
+    "sample_count": 2,
+    "seeds": [
+      102000
+    ],
+    "claim_verdict": "supported",
+    "termination": "evidence_sufficient",
+    "tested_candidate_ids": [
+      "object_instance.base0"
+    ],
+    "untested_candidate_ids": [
+      "object_position.left_fixed",
+      "object_position.right_fixed",
+      "object_instance.base1"
+    ],
+    "limitations": [
+      "sample_count_and_seeds",
+      "untested_candidates",
+      "termination_evidence_sufficient"
+    ],
+    "sources": [
+      {
+        "ref": "mea/evaluation_runs/eval_20260723_batch20_claim_first_live_n1_v3/plan/claim_first_runtime/query_answer.json",
+        "sha256": "c8c6b05c23e74ba5205860468ea330ef153ff782488f7704766e71c62dff573c"
+      },
+      {
+        "ref": "mea/evaluation_runs/eval_20260723_batch20_claim_first_live_n1_v3/plan/decision_after_round_2.json",
+        "sha256": "caf436793eab5e88b4071e43b7b21e06e682c2398d1d94eecdb8fd7c35450a7f"
+      },
+      {
+        "ref": "mea/evaluation_runs/eval_20260723_batch20_claim_first_live_n1_v3/feedback_repaired/repair_summary.json",
+        "sha256": "6931ed3616c019a70b37a0a8d0faeb4cc57c19e7d1991e5c1a1f35f67fdad49e"
+      }
+    ]
+  },
+  "taskgen_and_toolgen": {
+    "taskgen": {
+      "generated_by_model": true,
+      "restricted_success_spec_compiler_used": false,
+      "fixture_pass_count": 3,
+      "fixture_count": 3,
+      "expert_probe_checker_results": {
+        "1011": true,
+        "1012": false,
+        "1013": true
+      },
+      "seed1012_physical_distractor_hit_proven": false,
+      "act_seed": 1011,
+      "act_success": false,
+      "act_policy_steps": 400,
+      "act_error": null,
+      "production_accepted": false
+    },
+    "toolgen": {
+      "metric_id": "active_tcp_precontact_peak_jerk",
+      "first_route": "provider_generate_validate_register",
+      "reuse_route": "exact_query_registry_reuse",
+      "oracle_fixture_count": 3,
+      "validated_episode_count": 0,
+      "live_value": null,
+      "live_null_reason": "no_target_contact_event"
+    },
+    "sources": [
+      {
+        "ref": "mea/generated_tasks/run_20260723_batch20_bbh_distractor_live_v1/candidate_manifest.json",
+        "sha256": "f9fa8ad805be863b6b2c561bd145fb3605277ba84a369a0dbc707ce0fb6ea9aa"
+      },
+      {
+        "ref": "mea/generated_tasks/run_20260723_batch20_bbh_distractor_live_v1/evaluation/seed_results.json",
+        "sha256": "7970a9d64fcbd4bc3076c466d7276c398b5a086ae9cf34ebd9a9920510317fad"
+      },
+      {
+        "ref": "mea/generated_tasks/run_20260723_batch20_bbh_distractor_live_v1/evaluation/telemetry/act_seed1011/episode_000_seed_1011/episode.json",
+        "sha256": "ff7393f624a690986a6ecdc6158c94aae234f82c5527a224e8d76cc377d4d6b9"
+      },
+      {
+        "ref": "mea/generated_tasks/run_20260723_batch20_bbh_distractor_live_v1/evaluation/query_tool_act_seed1011/first/query_induced_toolgen_result.json",
+        "sha256": "285d71266c0e64f3e3a3c8b7e66b86544c007c3c80c084d113dec53bb85b34f9"
+      },
+      {
+        "ref": "mea/generated_tasks/run_20260723_batch20_bbh_distractor_live_v1/evaluation/query_tool_act_seed1011/exact_reuse/query_induced_toolgen_result.json",
+        "sha256": "801a98f32054b3be88b49025efafbbe8a315c797831988ae7ff98ad208fc84ef"
+      },
+      {
+        "ref": "mea/generated_tasks/run_20260723_batch20_bbh_distractor_live_v1/evaluation/query_tool_act_seed1011/tool_registry/entries/runlocal_6c78abeca41e13d3f84f/registration.json",
+        "sha256": "09bef435935c2207d520f63857e61b271b0e8cd11b6d4e4ddb89e7f322d95728"
+      }
+    ]
+  },
+  "efficiency_toy": {
+    "seed_selection": "development_selected_not_unbiased",
+    "fixed_outcomes": {
+      "object_position.left_fixed": false,
+      "object_position.right_fixed": true,
+      "object_instance.base0": true,
+      "object_instance.base1": false
+    },
+    "adaptive_outcomes": {
+      "object_position.left_fixed": false,
+      "object_position.right_fixed": true
+    },
+    "resource_measurement": {
+      "fixed_act_episode_starts": 4,
+      "adaptive_act_episode_starts": 2,
+      "act_episode_start_saving": 2,
+      "fixed_wall_seconds": 342.9307889454067,
+      "adaptive_wall_seconds": 172.63474155962467,
+      "measured_wall_second_saving": 170.296047385782,
+      "fixed_policy_steps": 942,
+      "adaptive_policy_steps": 472,
+      "policy_step_saving": 470,
+      "technical_runtime_errors": 0
+    },
+    "fixed_weakness_axes": [
+      "object_position",
+      "object_instance"
+    ],
+    "adaptive_weakness_axes": [
+      "object_position"
+    ],
+    "conclusion_agrees": false,
+    "toy_efficiency_evidence_passed": false,
+    "source": {
+      "ref": "mea/protocol_runs/batch20_click_bell_efficiency_toy_v3/live_execution/efficiency_result_samples.json",
+      "sha256": "2988fc2d8e1ab3dfab12f68af91d1584383c7092c8b3bc77796786095d3749c1"
+    }
+  },
+  "ranking_pilot": {
+    "requested_policy_rollouts": 6,
+    "completed_policy_rollouts": 5,
+    "observed_policy_outcomes": {
+      "act": [
+        {
+          "seed": 100600,
+          "success": true,
+          "telemetry_episode_ref": "mea/protocol_runs/batch20_act_dp3_exact3_v5/preregistration_artifacts/live_runs/act/seed_100600/telemetry/episode_000_seed_100600/episode.json",
+          "telemetry_episode_sha256": "6ab168605e68f6c9f8dc6969ca4a88d8fed26becef4368f3285fc01cf0539074"
+        },
+        {
+          "seed": 100601,
+          "success": true,
+          "telemetry_episode_ref": "mea/protocol_runs/batch20_act_dp3_exact3_v5/preregistration_artifacts/live_runs/act/seed_100601/telemetry/episode_000_seed_100601/episode.json",
+          "telemetry_episode_sha256": "852b69099a2c2f90dc8dde7f37877c442f29a4658a486ac7d11ddb62ec685d46"
+        },
+        {
+          "seed": 100602,
+          "success": false,
+          "telemetry_episode_ref": "mea/protocol_runs/batch20_act_dp3_exact3_v5/preregistration_artifacts/live_runs/act/seed_100602/telemetry/episode_000_seed_100602/episode.json",
+          "telemetry_episode_sha256": "3b49082d18852f993fb7c5cf6b0c7399d3029083e1d2067c609559c712442bc2"
+        }
+      ],
+      "dp3": [
+        {
+          "seed": 100600,
+          "success": true,
+          "telemetry_episode_ref": "mea/protocol_runs/batch20_act_dp3_exact3_v5/preregistration_artifacts/live_runs/dp3/seed_100600/telemetry/episode_000_seed_100600/episode.json",
+          "telemetry_episode_sha256": "3135b5b8f730e3042f3218429a89aa27e9e2070ecf6ef92f16a5daffa9a93ee2"
+        },
+        {
+          "seed": 100601,
+          "success": true,
+          "telemetry_episode_ref": "mea/protocol_runs/batch20_act_dp3_exact3_v5/preregistration_artifacts/live_runs/dp3/seed_100601/telemetry/episode_000_seed_100601/episode.json",
+          "telemetry_episode_sha256": "9d23c7c8a54b94b83a2dce8360786016151157b81d2747f7d65d75ed9118a88c"
+        }
+      ]
+    },
+    "issues": [
+      {
+        "policy_id": "dp3",
+        "seed": 100602,
+        "reason": "ineligible_or_not_executed",
+        "eligibility_status": "expert_failed",
+        "policy_status": "not_run",
+        "seed_results_ref": "mea/protocol_runs/batch20_act_dp3_exact3_v5/preregistration_artifacts/live_runs/dp3/seed_100602/seed_results.json",
+        "seed_results_sha256": "74eefb15c0d2e56688c09d30afcbcc6878839dfa3295f2083b28064dc3398a95"
+      }
+    ],
+    "pair_order": null,
+    "spearman": null,
+    "source": {
+      "ref": "mea/protocol_runs/batch20_act_dp3_exact3_v5/live_execution/ranking_incomplete_result.json",
+      "sha256": "f44451da36cb39f89c97cc633a0f4f35888cda542b32755972a53b6cc7b1ac42"
+    }
+  },
+  "table3_path_smoke": {
+    "proposal_id": "u01_bbh_blue_block",
+    "conditions": [
+      {
+        "condition": "complete",
+        "returncode": 0,
+        "wall_seconds": 113.28343885019422,
+        "manifest_status": "completed_without_act"
+      },
+      {
+        "condition": "base",
+        "returncode": 0,
+        "wall_seconds": 61.11498985439539,
+        "manifest_status": "completed_without_act"
+      },
+      {
+        "condition": "no_rag",
+        "returncode": 0,
+        "wall_seconds": 107.87442721053958,
+        "manifest_status": "completed_without_act"
+      },
+      {
+        "condition": "no_visual_self_check",
+        "returncode": 0,
+        "wall_seconds": 60.331316616386175,
+        "manifest_status": "completed_without_act"
+      },
+      {
+        "condition": "no_readme_agent",
+        "returncode": 0,
+        "wall_seconds": 117.51700451225042,
+        "manifest_status": "completed_without_act"
+      }
+    ],
+    "generated_scene_by_provider": true,
+    "checker_generated_by_model": false,
+    "paper_table3_eligible": false,
+    "source": {
+      "ref": "mea/protocol_runs/batch20_table3_path_smoke_v3/path_smoke_results.json",
+      "sha256": "40ecc423f798e75e54ad512d6ffdb0c1bdc4e32d2e9421716fe1fe066792e9c4"
+    }
+  },
+  "development_failures_excluded_from_policy_denominators": [
+    {
+      "run_id": "batch20_click_bell_efficiency_toy_v2",
+      "stage": "pre_act_seed_manifest_validation",
+      "reason": "single_condition_manifest_rejected_by_paired_runtime"
+    },
+    {
+      "run_id": "batch20_act_dp3_exact3_v4",
+      "stage": "pre_policy_checkpoint_resolution",
+      "reason": "lowercase_false_parsed_as_truthy_string"
+    }
+  ]
+}
