@@ -375,6 +375,35 @@ class PlanSessionTests(unittest.TestCase):
         self.assertIn('"vqa"', provider.prompts[0])
         self.assertIn("aggregate_status only says", provider.prompts[0])
 
+    def test_claim_first_provider_source_keeps_provider_provenance(self):
+        plan = deepcopy(self.plan)
+        success = _observation(success=1.0)
+        proposal = {
+            "schema_version": 1,
+            "action": "propose",
+            "aspect_id": "object_instance",
+            "template_id": "object_instance.base0",
+            "rationale": "Probe a supported alternate object instance.",
+            "answered_query": False,
+        }
+        materialized = _round("object_instance.base0", "round_2")
+
+        _, decision, _ = self.session.apply_plan_step(
+            plan,
+            [success],
+            proposal,
+            materialized_round=materialized,
+            source="provider_claim_first_open_query",
+        )
+
+        self.assertEqual(
+            decision["decision_reason"], "provider_authored_plan_step"
+        )
+        self.assertEqual(
+            decision["plan_step_source"],
+            "provider_claim_first_open_query",
+        )
+
     def test_bbh_uses_the_same_dynamic_discovery_api(self):
         session = BoundTaskPlanSession.from_catalog(
             self.catalog, "beat_block_hammer", max_rounds=2

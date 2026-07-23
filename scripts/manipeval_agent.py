@@ -3260,10 +3260,24 @@ def main() -> None:
                 claim_first_capabilities = project_open_query_capabilities(
                     planning_context
                 )
+                routed_candidate_aspect_ids = None
+                if isinstance(global_route_result, dict):
+                    route_selection = global_route_result.get("selection")
+                    if isinstance(route_selection, dict):
+                        raw_routed_aspects = route_selection.get(
+                            "requested_aspect_ids"
+                        )
+                        if isinstance(raw_routed_aspects, list):
+                            routed_candidate_aspect_ids = [
+                                str(item)
+                                for item in raw_routed_aspects
+                                if isinstance(item, str) and item.strip()
+                            ]
                 claim_first_controller = ClaimFirstRuntimeController(
                     args.request,
                     bound_plan_session.target,
                     query_contract=query_sufficiency_contract,
+                    candidate_aspect_ids=routed_candidate_aspect_ids,
                 )
                 if not args.plan_only:
                     assert provider is not None

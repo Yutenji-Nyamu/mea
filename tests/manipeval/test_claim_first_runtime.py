@@ -3,6 +3,7 @@ import unittest
 from mea.planner.claim_first_runtime import (
     ClaimFirstRuntimeController,
     ClaimFirstRuntimeError,
+    resolve_semantic_proposal,
 )
 from mea.round_provenance import canonical_sha256
 
@@ -26,6 +27,21 @@ def target():
                 "template_ids": [
                     "object_position.left_fixed",
                     "object_position.right_fixed",
+                ],
+            },
+            {
+                "aspect_id": "object_instance",
+                "description": "Generalization across supported bell instances.",
+                "template_ids": [
+                    "object_instance.base0",
+                    "object_instance.base1",
+                ],
+            },
+            {
+                "aspect_id": "robustness.scene_clutter",
+                "description": "Generalization with official table clutter.",
+                "template_ids": [
+                    "robustness.scene_clutter.official_table",
                 ],
             },
         ],
@@ -153,6 +169,68 @@ def semantic_bundle(sub_aspect="object_position.left_fixed"):
 
 
 class ClaimFirstRuntimeTests(unittest.TestCase):
+    def test_routed_aspects_bound_query_candidate_universe(self):
+        controller = ClaimFirstRuntimeController(
+            "Can it succeed on at least one bell-property variation?",
+            target(),
+            candidate_aspect_ids=["object_position", "object_instance"],
+        )
+
+        self.assertEqual(
+            set(controller.query_contract["candidate_universe"]),
+            {
+                "object_position.left_fixed",
+                "object_position.right_fixed",
+                "object_instance.base0",
+                "object_instance.base1",
+            },
+        )
+        self.assertNotIn(
+            "robustness.scene_clutter.official_table",
+            controller.query_contract["candidate_universe"],
+        )
+
+    def test_explicit_change_intent_outranks_preserved_scene_tokens(self):
+        proposal = semantic_bundle("bell_property.object_instance_transfer")[
+            "proposal"
+        ]
+        proposal["requested_perturbation"] = {
+            "description": (
+                "Replace the default bell with a supported non-default bell_id."
+            ),
+            "controlled_changes": ["bell object_instance (bell_id)"],
+            "preserve": [
+                "bell position",
+                "scene clutter",
+                "lighting and background conditions",
+            ],
+        }
+        proposal["rationale"] = (
+            "Preserve clutter while testing object-instance transfer."
+        )
+
+        resolved = resolve_semantic_proposal(
+            proposal,
+            target=target(),
+            executed_template_ids=[
+                "performance.completion_time_stability.official"
+            ],
+            control_template=(
+                "performance.completion_time_stability.official"
+            ),
+        )
+
+        self.assertEqual(
+            resolved["resolved_aspect_id"], "object_instance"
+        )
+        self.assertEqual(
+            resolved["resolved_template_id"], "object_instance.base0"
+        )
+        self.assertEqual(
+            resolved["resolution"],
+            "explicit_change_intent_aspect_runtime_order",
+        )
+
     def test_control_pass_automatically_binds_evidence_and_semantic_step(self):
         controller = ClaimFirstRuntimeController(
             "Where does this policy first expose a weakness?",

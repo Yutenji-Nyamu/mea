@@ -676,7 +676,7 @@ class BoundTaskPlanSession:
             "observation_summary": step["rationale"],
             "decision_reason": (
                 "provider_authored_plan_step"
-                if source == "provider"
+                if source == "provider" or source.startswith("provider_")
                 else "deterministic_fallback_after_provider_failure"
             ),
             "answered_query": step["answered_query"],

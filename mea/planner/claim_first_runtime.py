@@ -76,6 +76,13 @@ _SEMANTIC_STOPWORDS = {
     "policy",
 }
 
+_ASPECT_GENERIC_TOKENS = {
+    "object",
+    "scene",
+    "performance",
+    "robustness",
+}
+
 
 def _nonempty_text(value: Any, field: str) -> str:
     if not isinstance(value, str) or not value.strip():
@@ -197,6 +204,19 @@ def resolve_semantic_proposal(
     executed = {str(item) for item in executed_template_ids}
     proposal_aspect = str(normalized["sub_aspect"])
     proposal_tokens = _semantic_tokens(normalized)
+    perturbation = normalized.get("requested_perturbation")
+    if not isinstance(perturbation, Mapping):
+        perturbation = {}
+    # Resolve what the proposal explicitly asks to *change* before looking at
+    # the full prose.  In particular, tokens in ``preserve`` must not turn an
+    # object-instance proposal into a clutter or lighting experiment.
+    change_intent_tokens = _semantic_tokens(
+        {
+            "sub_aspect": proposal_aspect,
+            "description": perturbation.get("description"),
+            "controlled_changes": perturbation.get("controlled_changes", []),
+        }
+    )
     eligible_aspects: list[dict[str, Any]] = []
     for aspect in target.get("aspects", []):
         if not isinstance(aspect, Mapping):
@@ -223,6 +243,13 @@ def resolve_semantic_proposal(
                 "template_ids": templates,
                 "score": len(proposal_tokens & aspect_tokens),
                 "matched_tokens": sorted(proposal_tokens & aspect_tokens),
+                "change_intent_tokens": sorted(
+                    change_intent_tokens
+                    & (
+                        _semantic_tokens(aspect_id)
+                        - _ASPECT_GENERIC_TOKENS
+                    )
+                ),
             }
         )
     if not eligible_aspects:
@@ -246,21 +273,37 @@ def resolve_semantic_proposal(
             chosen = aspect["template_ids"][0]
             resolution = "exact_aspect_runtime_order"
         else:
-            best_score = max(int(aspect["score"]) for aspect in eligible_aspects)
-            tied = [
+            best_change_score = max(
+                len(aspect["change_intent_tokens"])
+                for aspect in eligible_aspects
+            )
+            change_tied = [
                 aspect
                 for aspect in eligible_aspects
-                if int(aspect["score"]) == best_score
+                if len(aspect["change_intent_tokens"]) == best_change_score
             ]
-            if best_score <= 0 or len(tied) != 1:
-                raise ClaimFirstRuntimeError(
-                    "semantic proposal does not resolve uniquely across trusted "
-                    "aspects; top candidates="
-                    f"{[(item['aspect_id'], item['score']) for item in tied]}"
+            if best_change_score > 0 and len(change_tied) == 1:
+                aspect = change_tied[0]
+                chosen = aspect["template_ids"][0]
+                resolution = "explicit_change_intent_aspect_runtime_order"
+            else:
+                best_score = max(
+                    int(aspect["score"]) for aspect in eligible_aspects
                 )
-            aspect = tied[0]
-            chosen = aspect["template_ids"][0]
-            resolution = "unique_lexical_aspect_runtime_order"
+                tied = [
+                    aspect
+                    for aspect in eligible_aspects
+                    if int(aspect["score"]) == best_score
+                ]
+                if best_score <= 0 or len(tied) != 1:
+                    raise ClaimFirstRuntimeError(
+                        "semantic proposal does not resolve uniquely across "
+                        "trusted aspects; top candidates="
+                        f"{[(item['aspect_id'], item['score']) for item in tied]}"
+                    )
+                aspect = tied[0]
+                chosen = aspect["template_ids"][0]
+                resolution = "unique_lexical_aspect_runtime_order"
     selected = next(
         aspect
         for aspect in eligible_aspects
@@ -548,10 +591,37 @@ class ClaimFirstRuntimeController:
         target: Mapping[str, Any],
         *,
         query_contract: Mapping[str, Any] | None = None,
+        candidate_aspect_ids: Sequence[str] | None = None,
     ):
         self.user_query = _nonempty_text(user_query, "user_query")
         self.target = deepcopy(dict(target))
         self.control_template = control_template_id(self.target)
+        if candidate_aspect_ids is not None:
+            allowed_aspects = {
+                _nonempty_text(item, "candidate_aspect_ids[]")
+                for item in candidate_aspect_ids
+            }
+            known_aspects = {
+                str(aspect.get("aspect_id") or "")
+                for aspect in self.target.get("aspects", [])
+                if isinstance(aspect, Mapping)
+            }
+            unknown_aspects = allowed_aspects - known_aspects
+            if unknown_aspects:
+                raise ClaimFirstRuntimeError(
+                    "routed candidate aspects leave the bound task catalog: "
+                    f"{sorted(unknown_aspects)}"
+                )
+            self.target["aspects"] = [
+                deepcopy(dict(aspect))
+                for aspect in self.target.get("aspects", [])
+                if isinstance(aspect, Mapping)
+                and (
+                    str(aspect.get("aspect_id") or "") in allowed_aspects
+                    or self.control_template
+                    in {str(item) for item in aspect.get("template_ids", [])}
+                )
+            ]
         self.template_to_aspect = _template_aspect(self.target)
         candidates = [
             template_id
