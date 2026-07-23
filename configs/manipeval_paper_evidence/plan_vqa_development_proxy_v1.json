@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "protocol": "plan_vqa_development_proxy_manifest_v1",
+  "manifest_id": "batch20_plan_vqa_development_proxy_v1",
+  "annotator_kind": "development_agent_proxy",
+  "human_reviewer_count": 0,
+  "paper_eligible": false,
+  "query_manifest_ref": "configs/manipeval_validation/query_aspects_development_agent_proxy_v1.json",
+  "clip_slots": [
+    {
+      "clip_id": "clean_positive",
+      "condition": "clean",
+      "polarity": "positive",
+      "proxy_gold_observed": true,
+      "label_source": "development_agent_proxy",
+      "materialized": true,
+      "source_or_recipe_ref": "docs/evidence_runs/eval_20260723_batch17_clean_head_click_live_n1_v4/assets/round_2_act.mp4"
+    },
+    {
+      "clip_id": "clean_negative",
+      "condition": "clean",
+      "polarity": "negative",
+      "proxy_gold_observed": false,
+      "label_source": "development_agent_proxy",
+      "materialized": true,
+      "source_or_recipe_ref": "docs/evidence_runs/eval_20260723_batch17_clean_head_click_live_n1_v4/assets/round_1_act.mp4"
+    },
+    {
+      "clip_id": "scene_clutter_positive",
+      "condition": "scene_clutter",
+      "polarity": "positive",
+      "proxy_gold_observed": true,
+      "label_source": "development_agent_proxy",
+      "materialized": false,
+      "source_or_recipe_ref": "planned:clean_positive_plus_frozen_clutter_transform"
+    },
+    {
+      "clip_id": "scene_clutter_negative",
+      "condition": "scene_clutter",
+      "polarity": "negative",
+      "proxy_gold_observed": false,
+      "label_source": "development_agent_proxy",
+      "materialized": false,
+      "source_or_recipe_ref": "planned:clean_negative_plus_frozen_clutter_transform"
+    },
+    {
+      "clip_id": "background_texture_positive",
+      "condition": "background_texture",
+      "polarity": "positive",
+      "proxy_gold_observed": true,
+      "label_source": "development_agent_proxy",
+      "materialized": false,
+      "source_or_recipe_ref": "planned:clean_positive_plus_frozen_texture_transform"
+    },
+    {
+      "clip_id": "background_texture_negative",
+      "condition": "background_texture",
+      "polarity": "negative",
+      "proxy_gold_observed": false,
+      "label_source": "development_agent_proxy",
+      "materialized": false,
+      "source_or_recipe_ref": "planned:clean_negative_plus_frozen_texture_transform"
+    },
+    {
+      "clip_id": "lighting_positive",
+      "condition": "lighting",
+      "polarity": "positive",
+      "proxy_gold_observed": true,
+      "label_source": "development_agent_proxy",
+      "materialized": false,
+      "source_or_recipe_ref": "planned:clean_positive_plus_frozen_lighting_transform"
+    },
+    {
+      "clip_id": "lighting_negative",
+      "condition": "lighting",
+      "polarity": "negative",
+      "proxy_gold_observed": false,
+      "label_source": "development_agent_proxy",
+      "materialized": false,
+      "source_or_recipe_ref": "planned:clean_negative_plus_frozen_lighting_transform"
+    }
+  ],
+  "limitations": [
+    "Development-agent proxy labels are not independent human gold.",
+    "Only the two clean clip slots are currently materialized.",
+    "This manifest is an entry point, not Tables 6-8 evidence."
+  ]
+}
