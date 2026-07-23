@@ -1,0 +1,29 @@
+{
+  "schema_version": 2,
+  "task_name": "beat_block_hammer",
+  "variant_id": "object_scale.run_local_1_2",
+  "capability_id": "object_scale.bounded",
+  "intent": "Evaluate one bounded, query-generated 1.2x block-scale variation.",
+  "controlled_axis": "object_scale",
+  "generation_mode": "force_codegen",
+  "changes": {
+    "block": {
+      "position_mode": "official_random",
+      "yaw_mode": "official_random",
+      "scale": 1.2,
+      "color": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "preserve": [
+    "official_position_sampling",
+    "official_yaw_sampling",
+    "official_block_color",
+    "play_once",
+    "check_success_semantics",
+    "checkpoint"
+  ]
+}

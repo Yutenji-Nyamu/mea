@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "task_name": "beat_block_hammer",
+  "task_module": "mea.generated_tasks.run_20260722_batch14_bbh_scale_codegen_v1.task",
+  "generation_kind": "generated_scene_code",
+  "variant_spec_sha256": "2c159c62f0190347c2c2f7f2a64fcfe78d47d3710b3393f14652785535199540",
+  "task_proposal_sha256": null,
+  "scene_method": {
+    "method": "load_actors",
+    "origin": "generated_code",
+    "module": "mea.generated_tasks.run_20260722_batch14_bbh_scale_codegen_v1.task",
+    "class_name": "beat_block_hammer",
+    "source": "mea/generated_tasks/run_20260722_batch14_bbh_scale_codegen_v1/task.py",
+    "source_available": true,
+    "source_sha256": "6624466a1b269e6ec30b3174e578ae5f0fe28eeb7c3a7d11b7bc78b8edcba18d",
+    "symbol_declared": true,
+    "symbol_sha256": "b5e789fdad8094841f2a41e9e526d3b8a007aef75c28d8b5eeffdca5db49aabd",
+    "resolution": "source_symbol"
+  },
+  "success_method": {
+    "method": "check_success",
+    "origin": "compiled_success_spec",
+    "module": "mea.generated_tasks.run_20260722_batch14_bbh_scale_codegen_v1.task",
+    "class_name": "beat_block_hammer",
+    "source": "mea/generated_tasks/run_20260722_batch14_bbh_scale_codegen_v1/task.py",
+    "source_available": true,
+    "source_sha256": "6624466a1b269e6ec30b3174e578ae5f0fe28eeb7c3a7d11b7bc78b8edcba18d",
+    "symbol_declared": true,
+    "symbol_sha256": "935e9b4d4ce14f8c4fba006a94265c6416c9c47547f6d35326662ab09d92b060",
+    "resolution": "source_symbol"
+  },
+  "success_semantics": {
+    "preserved": true,
+    "authority": "compiled_success_spec_official_equivalent",
+    "generated_by_model": false,
+    "generated_from_spec": true,
+    "success_spec": "generation/success_spec.json",
+    "success_spec_sha256": "ea70132ae08c8427cf0d8192a68ca60b593a5f47087a1f7d1b006eb9429f58b0"
+  },
+  "scene_check_spec": {
+    "artifact": "generation/scene_check_spec.json",
+    "sha256": "a17a1393ff0877275ba133b673c948d50bfed8e3cfdf1a31942c68229ad59c59",
+    "source": "variant_spec",
+    "repair_mode": "regenerate_scene_code"
+  },
+  "boundary": "TaskArtifactBundle binds executable scene and success methods. The success method was compiled from a restricted, validated SuccessSpec; it was not arbitrary model-written Python."
+}

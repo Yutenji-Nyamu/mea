@@ -28,7 +28,7 @@ class ProposalError(ValueError):
     """Raised when a semantic proposal exceeds the bound task contract."""
 
 
-_TASK_PROPOSAL_KEYS = {
+_TASK_PROPOSAL_V1_KEYS = {
     "schema_version",
     "proposal_id",
     "task_name",
@@ -39,6 +39,7 @@ _TASK_PROPOSAL_KEYS = {
     "changes",
     "preserve_success_semantics",
 }
+_TASK_PROPOSAL_V2_KEYS = _TASK_PROPOSAL_V1_KEYS | {"success_spec"}
 _TOOL_PROPOSAL_V1_KEYS = {
     "schema_version",
     "proposal_id",
@@ -75,13 +76,24 @@ def validate_task_proposal(
 ) -> dict[str, Any]:
     """Validate one TaskGen request without accepting executable fields."""
 
-    if not isinstance(value, Mapping) or set(value) != _TASK_PROPOSAL_KEYS:
+    if not isinstance(value, Mapping):
+        raise ProposalError("TaskProposal must be an object")
+    schema_version = value.get("schema_version")
+    expected_keys = (
+        _TASK_PROPOSAL_V1_KEYS
+        if schema_version == 1
+        else _TASK_PROPOSAL_V2_KEYS
+        if schema_version == 2
+        else None
+    )
+    if expected_keys is None:
+        raise ProposalError("TaskProposal.schema_version must be 1 or 2")
+    if set(value) != expected_keys:
         raise ProposalError(
-            f"TaskProposal fields must be exactly {sorted(_TASK_PROPOSAL_KEYS)}"
+            f"TaskProposal v{schema_version} fields must be exactly "
+            f"{sorted(expected_keys)}"
         )
     proposal = deepcopy(dict(value))
-    if proposal.get("schema_version") != 1:
-        raise ProposalError("TaskProposal.schema_version must be 1")
     proposal["proposal_id"] = _proposal_id(
         proposal.get("proposal_id"), "TaskProposal.proposal_id"
     )
@@ -90,6 +102,10 @@ def validate_task_proposal(
         raise ProposalError(
             f"TaskProposal cannot switch bound task {expected_task_name!r} to "
             f"{task_name!r}"
+        )
+    if schema_version == 2 and task_name != "beat_block_hammer":
+        raise ProposalError(
+            "TaskProposal v2 SuccessSpec only supports beat_block_hammer"
         )
     try:
         aspect_id = canonicalize_aspect_id(proposal.get("aspect_id"))
@@ -121,10 +137,42 @@ def validate_task_proposal(
         )
     if proposal.get("reuse_first") is not True:
         raise ProposalError("TaskProposal.reuse_first must be true")
-    if proposal.get("preserve_success_semantics") is not True:
+    if schema_version == 1 and proposal.get("preserve_success_semantics") is not True:
         raise ProposalError(
             "TaskProposal.preserve_success_semantics must be true"
         )
+    if schema_version == 2:
+        if official_passthrough:
+            raise ProposalError(
+                "TaskProposal v2 SuccessSpec requires a generated BBH capability"
+            )
+        if proposal.get("preserve_success_semantics") is not False:
+            raise ProposalError(
+                "TaskProposal v2 preserve_success_semantics must be false"
+            )
+        try:
+            from mea.taskgen.success_spec import (
+                SUCCESS_SPEC_V2_EXPERIMENTAL_ACT_ENVELOPE,
+                success_spec_validation_report,
+                validate_success_spec,
+            )
+
+            success_spec = validate_success_spec(proposal.get("success_spec"))
+            success_report = success_spec_validation_report(success_spec)
+        except ValueError as exc:
+            raise ProposalError(f"invalid TaskProposal SuccessSpec: {exc}") from exc
+        if (
+            success_spec.get("envelope_id")
+            != SUCCESS_SPEC_V2_EXPERIMENTAL_ACT_ENVELOPE
+            or success_report["official_equivalent"]
+            or not success_report["act_eligible"]
+            or not success_report["experimental_bounded"]
+        ):
+            raise ProposalError(
+                "TaskProposal v2 requires the trusted experimental bounded "
+                "ACT SuccessSpec envelope"
+            )
+        proposal["success_spec"] = success_spec
     proposal.update(
         {
             "task_name": task_name,

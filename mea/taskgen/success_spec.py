@@ -5,9 +5,10 @@ logic.  Executing arbitrary model-written predicates would be an unnecessarily
 large boundary for the first reproduction.  This module therefore accepts a
 small declarative contract and compiles it to a complete ``check_success``
 method.  Version 1 exactly matches RoboTwin's official BeatBlockHammer
-semantics.  Version 2 adds a trusted envelope selector: official capabilities
-remain official-equivalent, while a deliberately non-ACT development envelope
-can exercise bounded ``all``/``any`` composition.
+semantics.  Version 2 adds trusted envelope selectors: official capabilities
+remain official-equivalent, a deliberately non-ACT development envelope can
+exercise bounded ``all``/``any`` composition, and one experimental envelope
+permits a narrowly bounded non-equivalent predicate to run under ACT.
 """
 
 from __future__ import annotations
@@ -53,7 +54,10 @@ DEFAULT_BBH_SUCCESS_SPEC: dict[str, Any] = {
 
 SUCCESS_SPEC_V2_OFFICIAL_ENVELOPE = "bbh.official_capability"
 SUCCESS_SPEC_V2_DEVELOPMENT_ENVELOPE = "bbh.development_fixture"
+SUCCESS_SPEC_V2_EXPERIMENTAL_ACT_ENVELOPE = "bbh.experimental_bounded_act"
 SUCCESS_SPEC_V2_MAX_THRESHOLD_M = 0.05
+SUCCESS_SPEC_V2_EXPERIMENTAL_MIN_THRESHOLD_M = 0.015
+SUCCESS_SPEC_V2_EXPERIMENTAL_MAX_THRESHOLD_M = 0.03
 
 
 def default_bbh_success_spec() -> dict[str, Any]:
@@ -88,6 +92,23 @@ def development_bbh_success_spec_v2(
     return spec
 
 
+def experimental_bbh_success_spec_v2(
+    *, thresholds_m: tuple[float, float] = (0.025, 0.025)
+) -> dict[str, Any]:
+    """Return the trusted non-equivalent BBH SuccessSpec accepted by ACT.
+
+    This is not a general success-function language.  Only the official actor
+    bindings, XY axes, strict comparison, physical-contact predicate, and
+    ``all`` composition are accepted.  The sole experimental degree of
+    freedom is an inclusive 0.015--0.03 metre threshold per planar axis.
+    """
+
+    spec = default_bbh_success_spec_v2()
+    spec["envelope_id"] = SUCCESS_SPEC_V2_EXPERIMENTAL_ACT_ENVELOPE
+    spec["predicates"][0]["thresholds_m"] = list(thresholds_m)
+    return spec
+
+
 def _require_exact_fields(
     value: Mapping[str, Any], expected: set[str], *, label: str
 ) -> None:
@@ -111,7 +132,7 @@ def _require_finite_number(value: Any, *, label: str) -> float:
 
 
 def _validate_bbh_predicates(
-    predicates: Any, *, official_equivalent: bool, schema_label: str
+    predicates: Any, *, envelope_id: str, schema_label: str
 ) -> list[dict[str, Any]]:
     if not isinstance(predicates, list) or len(predicates) != 2:
         raise SuccessSpecError(f"{schema_label} requires exactly two predicates")
@@ -174,7 +195,7 @@ def _validate_bbh_predicates(
         _require_finite_number(item, label="planar_axis_distance.thresholds_m[]")
         for item in thresholds
     ]
-    if official_equivalent:
+    if envelope_id == SUCCESS_SPEC_V2_OFFICIAL_ENVELOPE:
         if any(
             abs(actual - expected) > 1e-12
             for actual, expected in zip(normalized_thresholds, (0.02, 0.02))
@@ -182,6 +203,24 @@ def _validate_bbh_predicates(
             raise SuccessSpecError(
                 f"{schema_label} preserves official thresholds "
                 "[0.02, 0.02] metres"
+            )
+    elif envelope_id == SUCCESS_SPEC_V2_EXPERIMENTAL_ACT_ENVELOPE:
+        if any(
+            threshold < SUCCESS_SPEC_V2_EXPERIMENTAL_MIN_THRESHOLD_M
+            or threshold > SUCCESS_SPEC_V2_EXPERIMENTAL_MAX_THRESHOLD_M
+            for threshold in normalized_thresholds
+        ):
+            raise SuccessSpecError(
+                "SuccessSpec v2 experimental ACT thresholds must be within "
+                "[0.015, 0.03] metres"
+            )
+        if all(
+            abs(actual - official) <= 1e-12
+            for actual, official in zip(normalized_thresholds, (0.02, 0.02))
+        ):
+            raise SuccessSpecError(
+                "SuccessSpec v2 experimental ACT thresholds must differ from "
+                "official [0.02, 0.02] semantics"
             )
     elif any(
         threshold <= 0.0 or threshold > SUCCESS_SPEC_V2_MAX_THRESHOLD_M
@@ -226,7 +265,8 @@ def validate_success_spec(spec: Mapping[str, Any]) -> dict[str, Any]:
     actor, predicate, axis, comparison, or threshold boundaries.  The official
     envelope only accepts RoboTwin-equivalent semantics.  The development
     envelope additionally accepts ``any`` and bounded thresholds but is never
-    ACT eligible.
+    ACT eligible.  The experimental ACT envelope accepts only ``all`` with the
+    official predicates and thresholds in the narrower [0.015, 0.03] range.
     """
 
     if not isinstance(spec, Mapping):
@@ -246,7 +286,7 @@ def validate_success_spec(spec: Mapping[str, Any]) -> dict[str, Any]:
             raise SuccessSpecError("SuccessSpec v1 logic must be 'all'")
         predicates = _validate_bbh_predicates(
             spec.get("predicates"),
-            official_equivalent=True,
+            envelope_id=SUCCESS_SPEC_V2_OFFICIAL_ENVELOPE,
             schema_label="SuccessSpec v1",
         )
         return {
@@ -269,19 +309,22 @@ def validate_success_spec(spec: Mapping[str, Any]) -> dict[str, Any]:
     if envelope_id not in {
         SUCCESS_SPEC_V2_OFFICIAL_ENVELOPE,
         SUCCESS_SPEC_V2_DEVELOPMENT_ENVELOPE,
+        SUCCESS_SPEC_V2_EXPERIMENTAL_ACT_ENVELOPE,
     }:
         raise SuccessSpecError("SuccessSpec v2 envelope_id is not trusted")
     logic = spec.get("logic")
     if logic not in {"all", "any"}:
         raise SuccessSpecError("SuccessSpec v2 logic must be 'all' or 'any'")
-    official_equivalent = envelope_id == SUCCESS_SPEC_V2_OFFICIAL_ENVELOPE
-    if official_equivalent and logic != "all":
+    if envelope_id in {
+        SUCCESS_SPEC_V2_OFFICIAL_ENVELOPE,
+        SUCCESS_SPEC_V2_EXPERIMENTAL_ACT_ENVELOPE,
+    } and logic != "all":
         raise SuccessSpecError(
-            "SuccessSpec v2 official capability envelope must use logic 'all'"
+            f"SuccessSpec v2 {envelope_id} envelope must use logic 'all'"
         )
     predicates = _validate_bbh_predicates(
         spec.get("predicates"),
-        official_equivalent=official_equivalent,
+        envelope_id=envelope_id,
         schema_label="SuccessSpec v2",
     )
     return {
@@ -304,6 +347,10 @@ def success_spec_validation_report(spec: Mapping[str, Any]) -> dict[str, Any]:
         else normalized["envelope_id"]
     )
     official_equivalent = envelope_id == SUCCESS_SPEC_V2_OFFICIAL_ENVELOPE
+    experimental_bounded = (
+        envelope_id == SUCCESS_SPEC_V2_EXPERIMENTAL_ACT_ENVELOPE
+    )
+    development_fixture = envelope_id == SUCCESS_SPEC_V2_DEVELOPMENT_ENVELOPE
     return {
         "valid": True,
         "schema_version": schema_version,
@@ -311,15 +358,23 @@ def success_spec_validation_report(spec: Mapping[str, Any]) -> dict[str, Any]:
         "logic": normalized["logic"],
         "predicates": [item["predicate"] for item in normalized["predicates"]],
         "official_equivalent": official_equivalent,
-        "act_eligible": official_equivalent,
-        "development_fixture": not official_equivalent,
+        "act_eligible": official_equivalent or experimental_bounded,
+        "development_fixture": development_fixture,
+        "experimental_bounded": experimental_bounded,
+        "execution_scope": (
+            "official_equivalent"
+            if official_equivalent
+            else "experimental_bounded_act"
+            if experimental_bounded
+            else "offline_development_fixture"
+        ),
         "checks": {
             "closed_schema": True,
             "trusted_envelope": True,
             "bounded_predicates": True,
             "trusted_actor_bindings": True,
             "bounded_thresholds": True,
-            "official_equivalence_required_for_act": True,
+            "trusted_act_envelope_required": True,
         },
     }
 
@@ -441,7 +496,7 @@ def _require_compilation_scope(
     if allow_development_fixture:
         return
     raise SuccessSpecError(
-        "development SuccessSpec v2 is not ACT eligible; "
+        "SuccessSpec is not ACT eligible; "
         "set allow_development_fixture=True only in an offline fixture"
     )
 
@@ -493,7 +548,8 @@ def compile_success_spec(
 ) -> tuple[str, dict[str, Any]]:
     """Compile a validated SuccessSpec into one complete Python method.
 
-    Non-equivalent v2 contracts fail closed by default.  The explicit
+    Non-ACT v2 contracts fail closed by default.  The trusted experimental
+    envelope is ACT eligible despite being explicitly non-equivalent.  The
     ``allow_development_fixture`` switch exists only for offline/unit fixtures;
     normal TaskGen and ACT call sites do not set it.
     """
@@ -510,6 +566,9 @@ def compile_success_spec(
 __all__ = [
     "DEFAULT_BBH_SUCCESS_SPEC",
     "SUCCESS_SPEC_V2_DEVELOPMENT_ENVELOPE",
+    "SUCCESS_SPEC_V2_EXPERIMENTAL_ACT_ENVELOPE",
+    "SUCCESS_SPEC_V2_EXPERIMENTAL_MAX_THRESHOLD_M",
+    "SUCCESS_SPEC_V2_EXPERIMENTAL_MIN_THRESHOLD_M",
     "SUCCESS_SPEC_V2_MAX_THRESHOLD_M",
     "SUCCESS_SPEC_V2_OFFICIAL_ENVELOPE",
     "SuccessSpecError",
@@ -518,6 +577,7 @@ __all__ = [
     "default_bbh_success_spec",
     "default_bbh_success_spec_v2",
     "development_bbh_success_spec_v2",
+    "experimental_bbh_success_spec_v2",
     "repair_success_spec",
     "success_spec_validation_report",
     "validate_compiled_success_method",

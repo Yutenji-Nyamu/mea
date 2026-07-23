@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "decision": "approved",
+  "review_scope": "persistent_generated_task_reuse",
+  "reviewer": {
+    "id": "codex-batch17-development-review",
+    "kind": "development_agent"
+  },
+  "reviewed_at": "2026-07-22T23:45:52.072078+08:00",
+  "source_run_id": "run_20260722_batch14_bbh_scale_codegen_v1",
+  "semantic_key_sha256": "45f2f0e2624a93d86fe4857e4ad9b5c6fb6a08ba82241dfa8cdd3d0b1945af1e",
+  "runtime_dependency_hashes": {
+    "envs/beat_block_hammer.py": "90269f15f9ce274fb5bcad703c47b0b552ff5a2f0a3ff62d12dbe9a553018014",
+    "envs/_base_task.py": "5abe6fe5eee77485f56082fecfc1b654bac665999b9836a538deeb67167346f4",
+    "envs/utils/__init__.py": "d3a670160e83b2467c232f5cbbfffcfc987e3bf0a03617fcf853989e4416d979",
+    "envs/utils/create_actor.py": "6bababee8e70da2460b2bbf47d3b5fbb20ccf73368782a7be596a63c962dce6d",
+    "envs/utils/rand_create_actor.py": "6c409ff1d97528b9dc654d39cc34683f51af6e797c1c5d92c076c29c09f9bedb"
+  },
+  "checks": {
+    "overlay_matches_variant_spec": true,
+    "repair_source_reviewed": true,
+    "scene_check_reviewed": true,
+    "static_validation_reviewed": true,
+    "success_semantics_reviewed": true,
+    "task_artifact_bundle_reviewed": true,
+    "task_source_reviewed": true,
+    "variant_spec_matches_semantic_key": true
+  },
+  "notes": "Development-only review: generated load_actors changes only block half-size to 0.03 for the bounded 1.2x variant; compiled check_success remains official-equivalent. This is not independent human paper evidence.",
+  "task_sha256": "6624466a1b269e6ec30b3174e578ae5f0fe28eeb7c3a7d11b7bc78b8edcba18d",
+  "variant_spec_sha256": "6ab6d411a36a4a245da925192508d71e449c8384d0fdddfeff55e04a163ac46f",
+  "overlay_sha256": "5e383b1fc39b38aeb8b05d98c4e5e98b21302164c7e84c497da57a5deb7a6664",
+  "load_actors_source_sha256": "1473925de55f56592775e40dec739d05f5996da71df8affd0856224c13062012",
+  "success_spec_sha256": "3dc5e21f71a80752368539acb51247058b36bcc16f882cfbeebfe4dc1e8171a2",
+  "task_artifact_bundle_sha256": "de2ee56692921ed6e0085ce824d4d306b39db9b27238d88d6128222ab0798b63",
+  "scene_check_spec_sha256": "87c78cd39c38618fd9f159abe9f8d2f337efdfd59a759ef892719e06b724033d",
+  "static_validation_sha256": "99d83de30c5e17563122d9379bd6d8abdd75285b65483247c421028d32030d73"
+}

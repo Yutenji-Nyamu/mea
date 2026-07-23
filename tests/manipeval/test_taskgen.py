@@ -11,6 +11,7 @@ from mea.taskgen import (
     validate_load_actors,
     validate_variant_spec,
 )
+from mea.taskgen.success_spec import experimental_bbh_success_spec_v2
 
 
 BLUE_METHOD = '''
@@ -107,6 +108,119 @@ class RedProposalProvider(FakeProvider):
 
 
 class TaskGenPrototypeTests(unittest.TestCase):
+    def test_v1_proposal_cannot_smuggle_experimental_success_candidate(self):
+        proposal = {
+            "schema_version": 1,
+            "proposal_id": "object_appearance.preserved_success",
+            "task_name": "beat_block_hammer",
+            "aspect_id": "object_appearance.color",
+            "intent": "preserve official success",
+            "capability_id": "object_appearance.color",
+            "reuse_first": True,
+            "changes": SPEC["changes"],
+            "preserve_success_semantics": True,
+        }
+        with self.assertRaisesRegex(
+            TaskGenError, "cannot be combined with a legacy SuccessSpec"
+        ):
+            TaskGenPrototype(
+                Path(__file__).resolve().parents[2], FakeProvider(), model="fake"
+            ).generate(
+                "reject contradictory success authority",
+                task_proposal=proposal,
+                success_spec_candidate=experimental_bbh_success_spec_v2(),
+            )
+
+    def test_task_proposal_v2_compiles_bounded_success_with_provenance(self):
+        repo_root = Path(__file__).resolve().parents[2]
+        run_id = "run_unittest_proposal_success_spec_v2"
+        run_dir = repo_root / "mea/generated_tasks" / run_id
+        if run_dir.exists():
+            shutil.rmtree(run_dir)
+        proposal = {
+            "schema_version": 2,
+            "proposal_id": "object_appearance.experimental_success",
+            "task_name": "beat_block_hammer",
+            "aspect_id": "object_appearance.color",
+            "intent": "blue block with a bounded experimental success threshold",
+            "capability_id": "object_appearance.color",
+            "reuse_first": True,
+            "changes": SPEC["changes"],
+            "preserve_success_semantics": False,
+            "success_spec": experimental_bbh_success_spec_v2(
+                thresholds_m=(0.015, 0.03)
+            ),
+        }
+        trusted = build_variant_spec(
+            task_name="beat_block_hammer",
+            variant_id=proposal["proposal_id"],
+            capability_id=proposal["capability_id"],
+            intent=proposal["intent"],
+            changes=proposal["changes"],
+            generation_mode="force_codegen",
+        )
+        try:
+            manifest = TaskGenPrototype(
+                repo_root, FakeProvider(), model="fake"
+            ).generate(
+                "evaluate a proposal-derived success predicate",
+                run_id=run_id,
+                trusted_variant_spec=trusted,
+                task_proposal=proposal,
+            )
+
+            task_source = (run_dir / "task.py").read_text(encoding="utf-8")
+            self.assertIn("np.array([0.015, 0.03])", task_source)
+            self.assertIn("def check_success(self):", task_source)
+            code_response = (
+                run_dir / "generation/code_response.txt"
+            ).read_text(encoding="utf-8")
+            self.assertNotIn("check_success", code_response)
+
+            provenance = json.loads(
+                (run_dir / "generation/success_spec_provenance.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(provenance["source"], "task_proposal_v2")
+            self.assertFalse(provenance["preserve_success_semantics"])
+            self.assertFalse(provenance["official_equivalent"])
+            self.assertTrue(provenance["act_eligible"])
+            self.assertTrue(provenance["experimental_bounded"])
+            self.assertFalse(provenance["generated_by_model"])
+
+            bundle = json.loads(
+                (run_dir / "generation/task_artifact_bundle.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertIsNotNone(bundle["task_proposal_sha256"])
+            self.assertIsNotNone(
+                bundle["success_semantics"]["success_spec_sha256"]
+            )
+            scene_check = json.loads(
+                (run_dir / "generation/scene_check_spec.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(
+                scene_check["success_semantics"],
+                "experimental_bounded_success_spec",
+            )
+            self.assertIn(
+                "compiled_success_spec", scene_check["simulator_authorities"]
+            )
+            self.assertFalse(
+                manifest["task_artifact_summary"]["success_semantics_preserved"]
+            )
+            self.assertEqual(
+                manifest["task_artifact_summary"]["success_execution_scope"],
+                "experimental_bounded_act",
+            )
+        finally:
+            if run_dir.exists():
+                shutil.rmtree(run_dir)
+
     def test_invalid_success_spec_is_diagnosed_and_repaired_once(self):
         repo_root = Path(__file__).resolve().parents[2]
         run_id = "run_unittest_success_spec_repair"

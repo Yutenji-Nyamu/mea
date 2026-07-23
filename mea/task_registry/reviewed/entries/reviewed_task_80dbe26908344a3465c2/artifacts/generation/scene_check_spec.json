@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "task_name": "beat_block_hammer",
+  "aspect_id": "object_scale",
+  "source": "variant_spec",
+  "proposal_id": null,
+  "proposal_sha256": null,
+  "target_actor": "block",
+  "requested_changes": {
+    "block": {
+      "position_mode": "official_random",
+      "yaw_mode": "official_random",
+      "scale": 1.2,
+      "color": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "visual_checks": [
+    "target_actor_visible",
+    "requested_appearance_is_plausible",
+    "no_obvious_unrequested_scene_change"
+  ],
+  "simulator_authorities": [
+    "simulator_actor_identity",
+    "simulator_rule_check",
+    "official_check_success"
+  ],
+  "success_semantics": "official_check_success",
+  "repair_policy": {
+    "mode": "regenerate_scene_code",
+    "handler": "regenerate_load_actors",
+    "max_repairs_supported": 5
+  }
+}

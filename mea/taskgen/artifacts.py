@@ -12,6 +12,7 @@ from typing import Any, Mapping
 from .scene_checks import build_scene_check_spec
 from .success_spec import (
     SuccessSpecError,
+    success_spec_validation_report,
     validate_compiled_success_method,
     validate_success_spec,
 )
@@ -174,8 +175,9 @@ def write_task_artifact_bundle(
     manifest: Mapping[str, Any],
     *,
     task_proposal: Mapping[str, Any] | None = None,
+    persist: bool = True,
 ) -> dict[str, Any]:
-    """Write or refresh the run's scene/success/proposal evidence contract."""
+    """Build and optionally persist the scene/success/proposal evidence contract."""
 
     root = Path(repo_root).expanduser().resolve()
     run = Path(run_dir).expanduser().resolve()
@@ -209,17 +211,41 @@ def write_task_artifact_bundle(
     success_module = task_module if compiled_success else official_success_module
     success_origin = "compiled_success_spec" if compiled_success else "official_reuse"
     success_spec_sha256 = None
+    success_spec_report: dict[str, Any] | None = None
     if compiled_success:
         try:
-            success_spec = validate_success_spec(
-                json.loads(success_spec_path.read_text(encoding="utf-8"))
-            )
+            raw_success_spec = json.loads(success_spec_path.read_text(encoding="utf-8"))
+            success_spec = validate_success_spec(raw_success_spec)
+            success_spec_report = success_spec_validation_report(raw_success_spec)
         except (OSError, UnicodeError, json.JSONDecodeError, SuccessSpecError) as exc:
             raise TaskArtifactBundleError(
                 f"generated SuccessSpec is invalid: {exc}"
             ) from exc
         if success_spec["task_name"] != task_name:
             raise TaskArtifactBundleError("SuccessSpec and task identity differ")
+        if success_spec_report["experimental_bounded"]:
+            if task_proposal is None:
+                raise TaskArtifactBundleError(
+                    "experimental SuccessSpec requires TaskProposal v2 provenance"
+                )
+            try:
+                from mea.proposals import ProposalError, validate_task_proposal
+
+                bound_proposal = validate_task_proposal(
+                    task_proposal, expected_task_name=task_name
+                )
+            except ProposalError as exc:
+                raise TaskArtifactBundleError(
+                    f"experimental SuccessSpec TaskProposal is invalid: {exc}"
+                ) from exc
+            if (
+                bound_proposal.get("schema_version") != 2
+                or bound_proposal.get("preserve_success_semantics") is not False
+                or bound_proposal.get("success_spec") != success_spec
+            ):
+                raise TaskArtifactBundleError(
+                    "experimental SuccessSpec differs from TaskProposal v2"
+                )
         compiled_method = _declared_method_source(
             root,
             module=task_module,
@@ -242,11 +268,12 @@ def write_task_artifact_bundle(
         task_proposal=task_proposal,
     )
     scene_check_path = run / "generation/scene_check_spec.json"
-    scene_check_path.parent.mkdir(parents=True, exist_ok=True)
-    scene_check_path.write_text(
-        json.dumps(scene_check, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    if persist:
+        scene_check_path.parent.mkdir(parents=True, exist_ok=True)
+        scene_check_path.write_text(
+            json.dumps(scene_check, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
     bundle = {
         "schema_version": 1,
         "task_name": task_name,
@@ -275,8 +302,12 @@ def write_task_artifact_bundle(
         ),
         "success_semantics": (
             {
-                "preserved": True,
-                "authority": "compiled_success_spec_official_equivalent",
+                "preserved": bool(success_spec_report["official_equivalent"]),
+                "authority": (
+                    "compiled_success_spec_official_equivalent"
+                    if success_spec_report["official_equivalent"]
+                    else "compiled_success_spec_experimental_bounded"
+                ),
                 "generated_by_model": False,
                 "generated_from_spec": True,
                 "success_spec": "generation/success_spec.json",
@@ -299,18 +330,27 @@ def write_task_artifact_bundle(
             "TaskArtifactBundle binds executable scene and success methods. "
             + (
                 "The success method was compiled from a restricted, validated "
-                "SuccessSpec; it was not arbitrary model-written Python."
+                "SuccessSpec; it was not arbitrary model-written Python. "
+                + (
+                    "Its semantics are official-equivalent."
+                    if success_spec_report["official_equivalent"]
+                    else (
+                        "Its semantics are an explicitly non-equivalent, "
+                        "bounded experimental ACT predicate."
+                    )
+                )
                 if compiled_success
                 else "It does not claim that official success logic was model-generated."
             )
         ),
     }
     validate_task_artifact_bundle(bundle)
-    bundle_path = run / "generation/task_artifact_bundle.json"
-    bundle_path.write_text(
-        json.dumps(bundle, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    if persist:
+        bundle_path = run / "generation/task_artifact_bundle.json"
+        bundle_path.write_text(
+            json.dumps(bundle, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
     return bundle
 
 
@@ -349,6 +389,13 @@ def validate_task_artifact_bundle(value: Mapping[str, Any]) -> dict[str, Any]:
         }:
             raise TaskArtifactBundleError("official success semantics were not preserved")
     else:
+        compiled_authority = (
+            semantics.get("authority") if isinstance(semantics, Mapping) else None
+        )
+        expected_preserved = {
+            "compiled_success_spec_official_equivalent": True,
+            "compiled_success_spec_experimental_bounded": False,
+        }.get(compiled_authority)
         if (
             not success.get("symbol_declared")
             or not isinstance(semantics, Mapping)
@@ -361,9 +408,8 @@ def validate_task_artifact_bundle(value: Mapping[str, Any]) -> dict[str, Any]:
                 "success_spec",
                 "success_spec_sha256",
             }
-            or semantics.get("preserved") is not True
-            or semantics.get("authority")
-            != "compiled_success_spec_official_equivalent"
+            or expected_preserved is None
+            or semantics.get("preserved") is not expected_preserved
             or semantics.get("generated_by_model") is not False
             or semantics.get("generated_from_spec") is not True
             or semantics.get("success_spec") != "generation/success_spec.json"

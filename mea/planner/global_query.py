@@ -217,8 +217,6 @@ def validate_route_selection(
             )
         return proposal
 
-    if unsupported:
-        raise GlobalRouteError("routed selection cannot contain unsupported aspects")
     task_name = _require_text(proposal.get("task_name"), "task_name")
     if bound_task is not None and task_name != bound_task["task_name"]:
         raise GlobalRouteError(
@@ -241,6 +239,30 @@ def validate_route_selection(
     if bound_aspects is not None and set(requested) != set(bound_aspects):
         raise GlobalRouteError(
             "requested_aspect_ids must exactly match the parent-selected aspects"
+        )
+    if bound_aspects is not None and unsupported:
+        raise GlobalRouteError(
+            "a parent-selected aspect route cannot add unsupported capabilities"
+        )
+    false_gaps = sorted(
+        (item["task_name"], item["aspect_id"])
+        for item in unsupported
+        if (item["task_name"], item["aspect_id"]) in supported_capabilities
+    )
+    if false_gaps:
+        raise GlobalRouteError(
+            "supported task-qualified capabilities cannot be declared "
+            f"unsupported: {false_gaps}"
+        )
+    wrong_task_gaps = sorted(
+        (item["task_name"], item["aspect_id"])
+        for item in unsupported
+        if item["task_name"] != task_name
+    )
+    if wrong_task_gaps:
+        raise GlobalRouteError(
+            "a partial route must qualify every unsupported capability against "
+            f"its selected task {task_name!r}: {wrong_task_gaps}"
         )
     if len(requested) > int(task["max_rounds"]):
         raise GlobalRouteError("requested aspects exceed the trusted round budget")
@@ -385,9 +407,11 @@ def build_global_route_prompt(
             f"{bound_aspects!r}; copy this complete set and choose first_aspect_id "
             "from it.  Do not add, remove, or substitute an aspect."
             if bound_aspects is not None
-            else "Decompose the query only into supported aspects of this task.  "
-            "If the query needs an unavailable capability, return unsupported "
-            "and qualify every gap with this fixed task."
+            else "Decompose the query into the relevant supported aspects of this "
+            "task.  If useful supported aspects exist, route that subset and list "
+            "every unavailable capability as a task-qualified gap.  Return "
+            "unsupported only when no supported aspect can materially answer the "
+            "query."
         )
         if bound_task is not None
         else "Select exactly one ACT-ready task before decomposing its aspects."
@@ -406,16 +430,22 @@ def build_global_route_prompt(
         "The parent route was already validated.  Route exactly its bound aspect "
         "set; do not replace it with an unsupported decision."
         if bound_aspects is not None
-        else "If the query requires any capability outside the catalog, return "
-        'decision="unsupported", null task/profile/first_aspect, no requested '
-        "aspects, and list task-qualified unsupported capability objects."
+        else "Prefer a bounded partial answer over all-or-nothing rejection: when "
+        "at least one relevant catalog aspect exists, return decision=\"route\", "
+        "put only supported aspects in requested_aspect_ids, and list every "
+        "unavailable capability in unsupported_capabilities.  Return "
+        "decision=\"unsupported\" with null task/profile/first_aspect and no "
+        "requested aspects only when no supported aspect can materially answer "
+        "the query."
     )
     return f"""You are the bounded global Plan Agent for an ACT-only MEA reproduction.
 {binding_instruction}
-Select the query-relevant aspects and the first aspect.  Use only the catalog
+Select the query-relevant supported aspects and the first aspect.  Use only the catalog
 below.  Never output paths,
 Python, modules, checkpoints, seeds, gates, tools, variants, or execution fields.
-{unsupported_instruction}  A capability can be
+{unsupported_instruction}  A routed selection may therefore contain true
+task-qualified gaps, but it must never place an unavailable aspect in
+requested_aspect_ids.  A capability can be
 supported for one task and unsupported for another, so never omit task_name
 from a gap.  Use the canonical aspect ids or their explicit aliases from the
 ontology below.  Object appearance/position/instance and simulator scene

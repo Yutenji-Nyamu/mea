@@ -53,9 +53,9 @@ def _qualified_contract_valid(selection: Mapping[str, Any], decision: str) -> bo
     qualified = selection.get("unsupported_capabilities")
     if not isinstance(qualified, list):
         return False
-    if decision == "route":
-        return not qualified
-    if decision != "unsupported" or not qualified:
+    if decision not in {"route", "unsupported"}:
+        return False
+    if decision == "unsupported" and not qualified:
         return False
     return all(
         isinstance(item, Mapping)
@@ -94,11 +94,12 @@ def score_live_query_case(
         schema_valid = schema_valid and _qualified_contract_valid(selection, decision)
         predicted_task = selection.get("task_name")
         first_aspect = selection.get("first_aspect_id")
+        gap_aspects, gap_tasks = _unsupported_prediction(selection)
         if decision == "route":
-            predicted_aspects = set(_strings(selection.get("requested_aspect_ids")))
-            gap_tasks = []
+            predicted_aspects = set(
+                _strings(selection.get("requested_aspect_ids")) + gap_aspects
+            )
         else:
-            gap_aspects, gap_tasks = _unsupported_prediction(selection)
             predicted_aspects = set(gap_aspects)
     expected_decision = "route" if expected_status == "supported" else "unsupported"
     decision_match = schema_valid and decision == expected_decision
@@ -126,7 +127,8 @@ def score_live_query_case(
         "predicted_task_name": predicted_task,
         "task_match": task_match,
         "task_match_evaluable": task_evaluable,
-        "task_qualified_gap_available": decision == "unsupported" and bool(gap_tasks),
+        "task_qualified_gap_available": bool(gap_tasks),
+        "partial_route": decision == "route" and bool(gap_tasks),
         "gold_aspects": sorted(expected_aspects),
         "predicted_aspects": sorted(predicted_aspects),
         "true_positive": tp,

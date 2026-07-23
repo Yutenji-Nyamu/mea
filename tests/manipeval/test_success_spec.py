@@ -18,6 +18,10 @@ from mea.taskgen import (
     validate_compiled_success_method,
     validate_success_spec,
 )
+from mea.taskgen.success_spec import (
+    SUCCESS_SPEC_V2_EXPERIMENTAL_ACT_ENVELOPE,
+    experimental_bbh_success_spec_v2,
+)
 
 
 class _Pose:
@@ -186,7 +190,7 @@ class SuccessSpecTests(unittest.TestCase):
                 "bounded_predicates",
                 "trusted_actor_bindings",
                 "bounded_thresholds",
-                "official_equivalence_required_for_act",
+                "trusted_act_envelope_required",
             },
         )
         self.assertTrue(all(report["checks"].values()))
@@ -210,6 +214,70 @@ class SuccessSpecTests(unittest.TestCase):
         self.assertTrue(generated(_FixtureTask((0.0, 0.0), (0.04, 0.0), True)))
         self.assertTrue(generated(_FixtureTask((0.0, 0.0), (0.01, 0.01), False)))
         self.assertFalse(generated(_FixtureTask((0.0, 0.0), (0.04, 0.0), False)))
+
+    def test_v2_experimental_bounded_envelope_is_non_equivalent_but_act_eligible(self):
+        spec = experimental_bbh_success_spec_v2(
+            thresholds_m=(0.015, 0.03)
+        )
+
+        source, validation = compile_success_spec(spec)
+
+        self.assertEqual(
+            validation["envelope_id"],
+            SUCCESS_SPEC_V2_EXPERIMENTAL_ACT_ENVELOPE,
+        )
+        self.assertFalse(validation["official_equivalent"])
+        self.assertTrue(validation["act_eligible"])
+        self.assertTrue(validation["experimental_bounded"])
+        self.assertFalse(validation["development_fixture"])
+        self.assertEqual(validation["execution_scope"], "experimental_bounded_act")
+        self.assertIn("np.array([0.015, 0.03])", source)
+        self.assertIn(" and self.check_actors_contact(", source)
+
+    def test_v2_experimental_bounded_envelope_rejects_semantic_expansion(self):
+        cases = []
+        any_logic = experimental_bbh_success_spec_v2()
+        any_logic["logic"] = "any"
+        cases.append(("logic", any_logic, "must use logic 'all'"))
+
+        low_threshold = experimental_bbh_success_spec_v2(
+            thresholds_m=(0.0149, 0.02)
+        )
+        cases.append(("low_threshold", low_threshold, r"\[0.015, 0.03\]"))
+
+        high_threshold = experimental_bbh_success_spec_v2(
+            thresholds_m=(0.02, 0.0301)
+        )
+        cases.append(("high_threshold", high_threshold, r"\[0.015, 0.03\]"))
+
+        official_thresholds = experimental_bbh_success_spec_v2(
+            thresholds_m=(0.02, 0.02)
+        )
+        cases.append(
+            (
+                "official_thresholds",
+                official_thresholds,
+                r"must differ from official \[0.02, 0.02\]",
+            )
+        )
+
+        wrong_axis = experimental_bbh_success_spec_v2()
+        wrong_axis["predicates"][0]["axes"] = [0, 2]
+        cases.append(("axis", wrong_axis, r"axes must be \[0, 1\]"))
+
+        wrong_comparison = experimental_bbh_success_spec_v2()
+        wrong_comparison["predicates"][0]["comparison"] = "lte"
+        cases.append(("comparison", wrong_comparison, "must be strict_lt"))
+
+        wrong_actor = experimental_bbh_success_spec_v2()
+        wrong_actor["predicates"][1]["actors"] = ["hammer", "table"]
+        cases.append(("actor", wrong_actor, "physical_contact.actors"))
+
+        for name, spec, message in cases:
+            with self.subTest(name=name), self.assertRaisesRegex(
+                SuccessSpecError, message
+            ):
+                validate_success_spec(spec)
 
     def test_v2_official_envelope_rejects_non_equivalent_logic_and_threshold(self):
         changed_logic = default_bbh_success_spec_v2()

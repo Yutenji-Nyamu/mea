@@ -1,0 +1,573 @@
+{
+  "schema_version": 1,
+  "protocol": "mea_paper_method_coverage_v1",
+  "scope": "paper_method_functionality_not_full_statistical_reproduction",
+  "claim_count": 16,
+  "counts": {
+    "evidence_pending": 0,
+    "implemented": 16,
+    "partial": 0
+  },
+  "claims": [
+    {
+      "rank": 1,
+      "claim_id": "plan_evidence_loop",
+      "title": "Evidence-driven dynamic sub-aspect Plan Agent",
+      "paper_anchor": "Sec. 3.2; Figs. 2 and 5",
+      "status": "implemented",
+      "code_ready": true,
+      "evidence_required": false,
+      "evidence_ready": true,
+      "code_checks": [
+        {
+          "check_id": "adaptive_step_agent",
+          "kind": "symbol",
+          "path": "mea/planner/adaptive_step.py",
+          "symbol": "AdaptivePlanStepAgent.propose",
+          "passed": true,
+          "detail": "AST symbol found"
+        },
+        {
+          "check_id": "session_navigation_options",
+          "kind": "symbol",
+          "path": "mea/planner/session.py",
+          "symbol": "BoundTaskPlanSession.navigation_options",
+          "passed": true,
+          "detail": "AST symbol found"
+        },
+        {
+          "check_id": "session_applies_model_step",
+          "kind": "symbol",
+          "path": "mea/planner/session.py",
+          "symbol": "BoundTaskPlanSession.apply_plan_step",
+          "passed": true,
+          "detail": "AST symbol found"
+        },
+        {
+          "check_id": "adaptive_step_inside_runtime_loop",
+          "kind": "call_inside_loop",
+          "path": "scripts/manipeval_agent.py",
+          "symbol": null,
+          "passed": true,
+          "detail": "matching calls inside loops: 1"
+        }
+      ],
+      "evidence_checks": []
+    },
+    {
+      "rank": 2,
+      "claim_id": "proposal_every_round",
+      "title": "Runtime supports observation-conditioned Task/Tool Proposal each round",
+      "paper_anchor": "Figs. 2-4",
+      "status": "implemented",
+      "code_ready": true,
+      "evidence_required": false,
+      "evidence_ready": true,
+      "code_checks": [
+        {
+          "check_id": "bounded_proposal_agent",
+          "kind": "symbol",
+          "path": "mea/proposal_agent.py",
+          "symbol": "BoundedProposalAgent.propose",
+          "passed": true,
+          "detail": "AST symbol found"
+        },
+        {
+          "check_id": "common_proposal_transition_inside_runtime_loop",
+          "kind": "call_inside_loop",
+          "path": "scripts/manipeval_agent.py",
+          "symbol": null,
+          "passed": true,
+          "detail": "matching calls inside loops: 1"
+        }
+      ],
+      "evidence_checks": []
+    },
+    {
+      "rank": 3,
+      "claim_id": "task_agnostic_adapter",
+      "title": "Declarative task capability adapter",
+      "paper_anchor": "Fig. 2; Sec. 3.3",
+      "status": "implemented",
+      "code_ready": true,
+      "evidence_required": false,
+      "evidence_ready": true,
+      "code_checks": [
+        {
+          "check_id": "resolve_capability",
+          "kind": "symbol",
+          "path": "mea/capability_adapter.py",
+          "symbol": "resolve_capability_contract",
+          "passed": true,
+          "detail": "AST symbol found"
+        },
+        {
+          "check_id": "validate_capability",
+          "kind": "symbol",
+          "path": "mea/capability_adapter.py",
+          "symbol": "validate_capability_contract",
+          "passed": true,
+          "detail": "AST symbol found"
+        },
+        {
+          "check_id": "registered_templates",
+          "kind": "symbol",
+          "path": "mea/capability_adapter.py",
+          "symbol": "registered_templates",
+          "passed": true,
+          "detail": "AST symbol found"
+        }
+      ],
+      "evidence_checks": []
+    },
+    {
+      "rank": 4,
+      "claim_id": "complete_task_codegen",
+      "title": "Complete executable task scene and success code generation",
+      "paper_anchor": "Sec. 3.3.1; Fig. 3",
+      "status": "implemented",
+      "code_ready": true,
+      "evidence_required": false,
+      "evidence_ready": true,
+      "code_checks": [
+        {
+          "check_id": "generated_module_builder",
+          "kind": "symbol",
+          "path": "mea/taskgen/prototype.py",
+          "symbol": "build_generated_module",
+          "passed": true,
+          "detail": "AST symbol found"
+        },
+        {
+          "check_id": "generated_scene_and_success",
+          "kind": "function_literals",
+          "path": "mea/taskgen/prototype.py",
+          "symbol": "build_generated_module",
+          "passed": true,
+          "detail": "required generated methods are present"
+        },
+        {
+          "check_id": "success_spec_validation",
+          "kind": "symbol",
+          "path": "mea/taskgen/success_spec.py",
+          "symbol": "validate_success_spec",
+          "passed": true,
+          "detail": "AST symbol found"
+        },
+        {
+          "check_id": "success_spec_compiler",
+          "kind": "symbol",
+          "path": "mea/taskgen/success_spec.py",
+          "symbol": "compile_success_spec",
+          "passed": true,
+          "detail": "AST symbol found"
+        },
+        {
+          "check_id": "compiled_success_method",
+          "kind": "function_literals",
+          "path": "mea/taskgen/success_spec.py",
+          "symbol": "_render_bbh_success_method",
+          "passed": true,
+          "detail": "required generated methods are present"
+        }
+      ],
+      "evidence_checks": []
+    },
+    {
+      "rank": 5,
+      "claim_id": "generated_metric_toolgen",
+      "title": "Proposal-conditioned generated metric Tool",
+      "paper_anchor": "Sec. 3.3.2; Fig. 4",
+      "status": "implemented",
+      "code_ready": true,
+      "evidence_required": false,
+      "evidence_ready": true,
+      "code_checks": [
+        {
+          "check_id": "toolgen_generate",
+          "kind": "symbol",
+          "path": "mea/toolgen/prototype.py",
+          "symbol": "ToolGenPrototype.generate",
+          "passed": true,
+          "detail": "AST symbol found"
+        },
+        {
+          "check_id": "tool_static_validation",
+          "kind": "symbol",
+          "path": "mea/toolgen/prototype.py",
+          "symbol": "validate_generated_tool",
+          "passed": true,
+          "detail": "AST symbol found"
+        },
+        {
+          "check_id": "tool_execution",
+          "kind": "symbol",
+          "path": "mea/toolgen/prototype.py",
+          "symbol": "execute_generated_tool",
+          "passed": true,
+          "detail": "AST symbol found"
+        }
+      ],
+      "evidence_checks": []
+    },
+    {
+      "rank": 6,
+      "claim_id": "policy_simulator_cards",
+      "title": "Structured policy and simulator context cards",
+      "paper_anchor": "Sec. 3.2",
+      "status": "implemented",
+      "code_ready": true,
+      "evidence_required": false,
+      "evidence_ready": true,
+      "code_checks": [
+        {
+          "check_id": "planning_context_builder",
+          "kind": "symbol",
+          "path": "mea/planner/context.py",
+          "symbol": "build_planning_context",
+          "passed": true,
+          "detail": "AST symbol found"
+        },
+        {
+          "check_id": "planning_context_validator",
+          "kind": "symbol",
+          "path": "mea/planner/context.py",
+          "symbol": "validate_planning_context",
+          "passed": true,
+          "detail": "AST symbol found"
+        },
+        {
+          "check_id": "planning_context_consumed_by_initial_router",
+          "kind": "text",
+          "path": "scripts/manipeval_agent.py",
+          "symbol": null,
+          "passed": true,
+          "detail": "required CLI/source marker found"
+        }
+      ],
+      "evidence_checks": []
+    },
+    {
+      "rank": 7,
+      "claim_id": "typed_evidence_packet",
+      "title": "Typed scalar and visual evidence packet",
+      "paper_anchor": "Sec. 3.2; App. A.3.5",
+      "status": "implemented",
+      "code_ready": true,
+      "evidence_required": false,
+      "evidence_ready": true,
+      "code_checks": [
+        {
+          "check_id": "evidence_packet_builder",
+          "kind": "symbol",
+          "path": "mea/planner/evidence_policy.py",
+          "symbol": "build_evidence_packet",
+          "passed": true,
+          "detail": "AST symbol found"
+        },
+        {
+          "check_id": "evidence_packet_validator",
+          "kind": "symbol",
+          "path": "mea/planner/evidence_policy.py",
+          "symbol": "validate_evidence_packet",
+          "passed": true,
+          "detail": "AST symbol found"
+        }
+      ],
+      "evidence_checks": []
+    },
+    {
+      "rank": 8,
+      "claim_id": "task_asset_document_rag",
+      "title": "Reuse-first task and documentation retrieval",
+      "paper_anchor": "Sec. 3.3.1; Fig. 3",
+      "status": "implemented",
+      "code_ready": true,
+      "evidence_required": false,
+      "evidence_ready": true,
+      "code_checks": [
+        {
+          "check_id": "task_catalog",
+          "kind": "symbol",
+          "path": "mea/retrieval/task_library.py",
+          "symbol": "discover_task_catalog",
+          "passed": true,
+          "detail": "AST symbol found"
+        },
+        {
+          "check_id": "task_retriever",
+          "kind": "symbol",
+          "path": "mea/retrieval/task_library.py",
+          "symbol": "TaskRetriever",
+          "passed": true,
+          "detail": "AST symbol found"
+        },
+        {
+          "check_id": "tool_examples",
+          "kind": "symbol",
+          "path": "mea/toolgen/prototype.py",
+          "symbol": "retrieve_examples",
+          "passed": true,
+          "detail": "AST symbol found"
+        }
+      ],
+      "evidence_checks": []
+    },
+    {
+      "rank": 9,
+      "claim_id": "visual_diagnosis_repair",
+      "title": "Rendered scene visual diagnosis and bounded repair",
+      "paper_anchor": "Sec. 3.3.1; Fig. 3; App. A.3.4",
+      "status": "implemented",
+      "code_ready": true,
+      "evidence_required": false,
+      "evidence_ready": true,
+      "code_checks": [
+        {
+          "check_id": "reflection_loop",
+          "kind": "symbol",
+          "path": "mea/taskgen/reflection.py",
+          "symbol": "execute_reflection_loop",
+          "passed": true,
+          "detail": "AST symbol found"
+        },
+        {
+          "check_id": "repair_generated_method",
+          "kind": "symbol",
+          "path": "mea/taskgen/reflection.py",
+          "symbol": "repair_generated_method",
+          "passed": true,
+          "detail": "AST symbol found"
+        }
+      ],
+      "evidence_checks": []
+    },
+    {
+      "rank": 10,
+      "claim_id": "semantic_history_reuse",
+      "title": "Canonical aspect-aware historical plan reuse",
+      "paper_anchor": "App. A.3.3",
+      "status": "implemented",
+      "code_ready": true,
+      "evidence_required": false,
+      "evidence_ready": true,
+      "code_checks": [
+        {
+          "check_id": "history_requested_aspects",
+          "kind": "parameter",
+          "path": "mea/history/database.py",
+          "symbol": "EvaluationHistoryDB.retrieve_similar",
+          "passed": true,
+          "detail": "parameter 'requested_aspect_ids' found"
+        },
+        {
+          "check_id": "history_aspect_similarity",
+          "kind": "symbol",
+          "path": "mea/history/database.py",
+          "symbol": "_aspect_similarity",
+          "passed": true,
+          "detail": "AST symbol found"
+        }
+      ],
+      "evidence_checks": []
+    },
+    {
+      "rank": 11,
+      "claim_id": "persistent_tool_reuse",
+      "title": "Reviewed Tool persistence across evaluations",
+      "paper_anchor": "Sec. 3.3.2; App. A.3.3",
+      "status": "implemented",
+      "code_ready": true,
+      "evidence_required": false,
+      "evidence_ready": true,
+      "code_checks": [
+        {
+          "check_id": "install_reviewed_tool",
+          "kind": "symbol",
+          "path": "mea/toolgen/reviewed_registry.py",
+          "symbol": "install_reviewed_registration",
+          "passed": true,
+          "detail": "AST symbol found"
+        },
+        {
+          "check_id": "find_reviewed_tool",
+          "kind": "symbol",
+          "path": "mea/toolgen/reviewed_registry.py",
+          "symbol": "find_reviewed_registration",
+          "passed": true,
+          "detail": "AST symbol found"
+        }
+      ],
+      "evidence_checks": []
+    },
+    {
+      "rank": 12,
+      "claim_id": "taxonomy_unsupported_boundary",
+      "title": "Canonical aspect taxonomy and explicit unsupported boundary",
+      "paper_anchor": "Sec. 3.2; App. A.4",
+      "status": "implemented",
+      "code_ready": true,
+      "evidence_required": false,
+      "evidence_ready": true,
+      "code_checks": [
+        {
+          "check_id": "query_gold_taxonomy",
+          "kind": "mapping_keys",
+          "path": "mea/aspects.py",
+          "symbol": "_ASPECT_ONTOLOGY",
+          "passed": true,
+          "detail": "required ontology ids found"
+        },
+        {
+          "check_id": "route_validation",
+          "kind": "symbol",
+          "path": "mea/planner/global_query.py",
+          "symbol": "validate_route_selection",
+          "passed": true,
+          "detail": "AST symbol found"
+        }
+      ],
+      "evidence_checks": []
+    },
+    {
+      "rank": 13,
+      "claim_id": "readme_agent_freshness",
+      "title": "README.Agent knowledge extraction and freshness hashes",
+      "paper_anchor": "Sec. 3.3.1; Fig. 3",
+      "status": "implemented",
+      "code_ready": true,
+      "evidence_required": false,
+      "evidence_ready": true,
+      "code_checks": [
+        {
+          "check_id": "knowledge_index",
+          "kind": "symbol",
+          "path": "mea/knowledge/extractor.py",
+          "symbol": "build_knowledge_index_data",
+          "passed": true,
+          "detail": "AST symbol found"
+        },
+        {
+          "check_id": "symbol_source",
+          "kind": "symbol",
+          "path": "mea/knowledge/extractor.py",
+          "symbol": "source_symbol_text",
+          "passed": true,
+          "detail": "AST symbol found"
+        }
+      ],
+      "evidence_checks": []
+    },
+    {
+      "rank": 14,
+      "claim_id": "stage_recovery_resume",
+      "title": "Stage-aware recovery and resumable evaluation protocol",
+      "paper_anchor": "App. A.3.4",
+      "status": "implemented",
+      "code_ready": true,
+      "evidence_required": false,
+      "evidence_ready": true,
+      "code_checks": [
+        {
+          "check_id": "stage_recovery",
+          "kind": "symbol",
+          "path": "mea/round_recovery.py",
+          "symbol": "run_stage_aware_round_recovery",
+          "passed": true,
+          "detail": "AST symbol found"
+        },
+        {
+          "check_id": "protocol_runner",
+          "kind": "symbol",
+          "path": "scripts/manipeval_protocol.py",
+          "symbol": "run_protocol",
+          "passed": true,
+          "detail": "AST symbol found"
+        },
+        {
+          "check_id": "resume_cli",
+          "kind": "text",
+          "path": "scripts/manipeval_protocol.py",
+          "symbol": null,
+          "passed": true,
+          "detail": "required CLI/source marker found"
+        }
+      ],
+      "evidence_checks": []
+    },
+    {
+      "rank": 15,
+      "claim_id": "live_run_local_vqa",
+      "title": "Run-local Dynamic Execution VQA on rollout keyframes",
+      "paper_anchor": "App. A.3.5",
+      "status": "implemented",
+      "code_ready": true,
+      "evidence_required": true,
+      "evidence_ready": true,
+      "code_checks": [
+        {
+          "check_id": "run_local_question",
+          "kind": "symbol",
+          "path": "mea/execution_vqa/query.py",
+          "symbol": "validate_run_local_question_spec",
+          "passed": true,
+          "detail": "AST symbol found"
+        },
+        {
+          "check_id": "execution_vqa",
+          "kind": "symbol",
+          "path": "mea/execution_vqa/prototype.py",
+          "symbol": "run_execution_vqa",
+          "passed": true,
+          "detail": "AST symbol found"
+        }
+      ],
+      "evidence_checks": [
+        {
+          "check_id": "live_run_local_vqa_artifact",
+          "validator": "run_local_vqa",
+          "passed": true,
+          "artifact": "mea/evaluation_runs/eval_20260722_batch14_click_flagship_n1_v2/execution/round_1/execution_vqa/execution_vqa.json",
+          "candidate_count": 43,
+          "detail": "validated provider-backed run-local VQA for ['run_local.click_bell.object_position.query_observation'] on mea/generated_tasks/run_20260722_batch14_click_flagship_n1_v2_round_1/evaluation/telemetry/act/episode_000_seed_100502"
+        }
+      ]
+    },
+    {
+      "rank": 16,
+      "claim_id": "matched_fixed_adaptive_protocol",
+      "title": "Matched ACT fixed versus adaptive protocol",
+      "paper_anchor": "Tables 1-2 mechanism evidence",
+      "status": "implemented",
+      "code_ready": true,
+      "evidence_required": true,
+      "evidence_ready": true,
+      "code_checks": [
+        {
+          "check_id": "strategy_comparator",
+          "kind": "symbol",
+          "path": "mea/strategy_comparison.py",
+          "symbol": "compare_fixed_dynamic",
+          "passed": true,
+          "detail": "AST symbol found"
+        }
+      ],
+      "evidence_checks": [
+        {
+          "check_id": "matched_strategy_artifact",
+          "validator": "matched_strategy",
+          "passed": true,
+          "artifact": "mea/validation_runs/batch16_instance_pair_n1_412fe6e/comparison/summary.json",
+          "candidate_count": 5,
+          "detail": "validated matched ACT fixed-versus-dynamic evidence"
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "Static source checks demonstrate interfaces, not semantic correctness.",
+    "Only claims with explicit evidence requirements may become evidence_pending.",
+    "A passed N=1 artifact is mechanism evidence, not a paper-scale result.",
+    "The audit reads existing artifacts and starts no provider, simulator, or ACT rollout."
+  ]
+}

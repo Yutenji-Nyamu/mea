@@ -283,6 +283,56 @@ class GlobalQueryRouterTests(unittest.TestCase):
             with self.assertRaisesRegex(GlobalRouteError, "cannot be declared"):
                 validate_route_selection(precise_proxy_false_gap, catalog)
 
+    def test_partial_route_executes_supported_subset_and_preserves_true_gaps(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            make_ready_repo(root, "beat_block_hammer", "click_bell")
+            catalog = build_act_catalog(root)
+            partial = {
+                **click_route(),
+                "evaluation_goal": "evaluate supported bell properties and report gaps",
+                "unsupported_capabilities": [
+                    {"task_name": "click_bell", "aspect_id": "object_scale"},
+                    {
+                        "task_name": "click_bell",
+                        "aspect_id": "object_appearance.texture",
+                    },
+                ],
+            }
+            normalized = validate_route_selection(partial, catalog)
+            self.assertEqual(normalized["decision"], "route")
+            self.assertEqual(
+                route_to_click_proposal(normalized, catalog)[
+                    "requested_aspect_ids"
+                ],
+                ["object_position", "object_instance"],
+            )
+            self.assertEqual(
+                normalized["unsupported_capabilities"],
+                partial["unsupported_capabilities"],
+            )
+
+            false_gap = {
+                **partial,
+                "unsupported_capabilities": [
+                    {"task_name": "click_bell", "aspect_id": "object_position"}
+                ],
+            }
+            with self.assertRaisesRegex(GlobalRouteError, "cannot be declared"):
+                validate_route_selection(false_gap, catalog)
+
+            wrong_task = {
+                **partial,
+                "unsupported_capabilities": [
+                    {
+                        "task_name": "beat_block_hammer",
+                        "aspect_id": "camera_viewpoint",
+                    }
+                ],
+            }
+            with self.assertRaisesRegex(GlobalRouteError, "selected task"):
+                validate_route_selection(wrong_task, catalog)
+
     def test_router_retries_and_history_prompt_is_compact(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

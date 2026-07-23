@@ -1,0 +1,207 @@
+{
+  "schema_version": 1,
+  "status": "counterfactual_plan_replay",
+  "task_name": "click_bell",
+  "checkpoint": {
+    "policy_name": "ACT",
+    "checkpoint_setting": "demo_clean",
+    "expert_data_num": 50,
+    "checkpoint_id": "act-click_bell/demo_clean-50",
+    "ready": true
+  },
+  "plan_source": "mea/evaluation_runs/eval_20260723_batch17_clean_head_click_live_n1_v2/plan/evaluation_plan.json",
+  "observation_source": "mea/evaluation_runs/eval_20260723_batch17_clean_head_click_live_n1_v2/summary/round_1.json",
+  "frozen_non_policy_evidence": true,
+  "development_evidence_only": true,
+  "act_rollouts_started": 0,
+  "results": [
+    {
+      "counterfactual_policy_success": 0.0,
+      "required_action": "continue",
+      "required_transition": "drill_down",
+      "required_next_aspect_id": "object_position",
+      "reasons": [
+        "policy_failure_requires_same_aspect_counterfactual"
+      ],
+      "assessment": {
+        "schema_version": 1,
+        "state": "sufficient",
+        "pipeline_passed": true,
+        "latest_round_id": "round_1",
+        "latest_template_id": "object_position.left_fixed",
+        "current_aspect_id": "object_position",
+        "policy_success": 0.0,
+        "aggregate_status": "passed",
+        "evidence_conflict": false,
+        "aggregate_checks": {
+          "metric": "bell_active_tcp_min_xy_error",
+          "expected_policy_episodes": 1,
+          "aggregate_status": "passed",
+          "input_issue_count": 0,
+          "valid": 1,
+          "missing": 0,
+          "invalid": 0,
+          "semantic_missing": 0,
+          "semantic_missing_reasons": [],
+          "observed_policy_episodes": 1,
+          "complete": true,
+          "reasons": []
+        },
+        "reasons": [
+          "policy_failure_requires_same_aspect_counterfactual"
+        ],
+        "unresolved": false,
+        "round_budget_remaining": 2,
+        "remaining_template_ids_by_aspect": {
+          "object_position": [
+            "object_position.right_fixed"
+          ],
+          "object_instance": [
+            "object_instance.base0",
+            "object_instance.base1"
+          ]
+        },
+        "available_transitions": {
+          "drill_down": [
+            "object_position"
+          ],
+          "switch_aspect": []
+        },
+        "required_action": "continue",
+        "required_transition": "drill_down",
+        "required_next_aspect_id": "object_position",
+        "allowed_actions": [
+          "continue"
+        ],
+        "evidence_packet": {
+          "schema_version": 1,
+          "round_id": "round_1",
+          "template_id": "object_position.left_fixed",
+          "pipeline": {
+            "passed": true,
+            "failure_stage": null
+          },
+          "policy": {
+            "success_rate": 0.0,
+            "reported": true
+          },
+          "rule": {
+            "metric": "bell_active_tcp_min_xy_error",
+            "expected_policy_episodes": 1,
+            "aggregate_status": "passed",
+            "input_issue_count": 0,
+            "valid": 1,
+            "missing": 0,
+            "invalid": 0,
+            "semantic_missing": 0,
+            "semantic_missing_reasons": [],
+            "observed_policy_episodes": 1,
+            "complete": true,
+            "reasons": []
+          },
+          "vqa": {
+            "required": true,
+            "status": "passed",
+            "evidence_conflict": false
+          },
+          "evidence_strength": "sufficient",
+          "reason_codes": []
+        }
+      }
+    },
+    {
+      "counterfactual_policy_success": 1.0,
+      "required_action": "continue",
+      "required_transition": "switch_aspect",
+      "required_next_aspect_id": "object_instance",
+      "reasons": [
+        "successful_sentinel_switches_to_uncovered_aspect"
+      ],
+      "assessment": {
+        "schema_version": 1,
+        "state": "sufficient",
+        "pipeline_passed": true,
+        "latest_round_id": "round_1",
+        "latest_template_id": "object_position.left_fixed",
+        "current_aspect_id": "object_position",
+        "policy_success": 1.0,
+        "aggregate_status": "passed",
+        "evidence_conflict": false,
+        "aggregate_checks": {
+          "metric": "bell_active_tcp_min_xy_error",
+          "expected_policy_episodes": 1,
+          "aggregate_status": "passed",
+          "input_issue_count": 0,
+          "valid": 1,
+          "missing": 0,
+          "invalid": 0,
+          "semantic_missing": 0,
+          "semantic_missing_reasons": [],
+          "observed_policy_episodes": 1,
+          "complete": true,
+          "reasons": []
+        },
+        "reasons": [
+          "successful_sentinel_switches_to_uncovered_aspect"
+        ],
+        "unresolved": false,
+        "round_budget_remaining": 2,
+        "remaining_template_ids_by_aspect": {
+          "object_position": [
+            "object_position.right_fixed"
+          ],
+          "object_instance": [
+            "object_instance.base0",
+            "object_instance.base1"
+          ]
+        },
+        "available_transitions": {
+          "drill_down": [],
+          "switch_aspect": [
+            "object_instance"
+          ]
+        },
+        "required_action": "continue",
+        "required_transition": "switch_aspect",
+        "required_next_aspect_id": "object_instance",
+        "allowed_actions": [
+          "continue"
+        ],
+        "evidence_packet": {
+          "schema_version": 1,
+          "round_id": "round_1",
+          "template_id": "object_position.left_fixed",
+          "pipeline": {
+            "passed": true,
+            "failure_stage": null
+          },
+          "policy": {
+            "success_rate": 1.0,
+            "reported": true
+          },
+          "rule": {
+            "metric": "bell_active_tcp_min_xy_error",
+            "expected_policy_episodes": 1,
+            "aggregate_status": "passed",
+            "input_issue_count": 0,
+            "valid": 1,
+            "missing": 0,
+            "invalid": 0,
+            "semantic_missing": 0,
+            "semantic_missing_reasons": [],
+            "observed_policy_episodes": 1,
+            "complete": true,
+            "reasons": []
+          },
+          "vqa": {
+            "required": true,
+            "status": "passed",
+            "evidence_conflict": false
+          },
+          "evidence_strength": "sufficient",
+          "reason_codes": []
+        }
+      }
+    }
+  ]
+}

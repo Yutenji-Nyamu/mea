@@ -149,6 +149,28 @@ class QueryPlannerValidationTests(unittest.TestCase):
         self.assertIsNone(scored["task_match"])
         self.assertFalse(scored["task_qualified_gap_available"])
 
+    def test_partial_route_is_valid_but_uncovered_gap_is_not_hidden(self):
+        scored = score_live_query_case(
+            case(1),
+            {
+                "selection": {
+                    "decision": "route",
+                    "task_name": "click_bell",
+                    "requested_aspect_ids": ["object_position"],
+                    "first_aspect_id": "object_position",
+                    "unsupported_capabilities": [
+                        {"task_name": "click_bell", "aspect_id": "object_scale"}
+                    ],
+                }
+            },
+        )
+        self.assertTrue(scored["schema_valid"])
+        self.assertTrue(scored["partial_route"])
+        self.assertEqual(
+            scored["predicted_aspects"], ["object_position", "object_scale"]
+        )
+        self.assertFalse(scored["aspect_exact_set_match"])
+
     def test_provider_failure_counts_as_wrong_and_keeps_run_alive(self):
         scored = score_live_query_case(case(1), None, error="timeout")
         metrics = aggregate_live_query_cases([scored])

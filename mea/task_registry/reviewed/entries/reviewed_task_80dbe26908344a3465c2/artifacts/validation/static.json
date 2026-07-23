@@ -1,0 +1,54 @@
+{
+  "variant_spec": {
+    "valid": true
+  },
+  "success_spec": {
+    "valid": true,
+    "schema_version": 1,
+    "compiler": "restricted_success_spec_v1",
+    "logic": "all",
+    "predicates": [
+      "planar_axis_distance",
+      "physical_contact"
+    ],
+    "node_count": 91,
+    "complete_method_generated": true,
+    "arbitrary_code_accepted": false
+  },
+  "load_actors_ast": {
+    "valid": true,
+    "node_count": 254,
+    "calls": [
+      "Pose",
+      "abs",
+      "add_prohibit_area",
+      "append",
+      "create_actor",
+      "create_box",
+      "pow",
+      "rand_pose",
+      "set_mass",
+      "sum"
+    ],
+    "generated_color": [
+      1.0,
+      0.0,
+      0.0
+    ],
+    "generated_half_size": [
+      0.03,
+      0.03,
+      0.03
+    ],
+    "complete_method_generated": true,
+    "calls_super": false
+  },
+  "protected_diff": {
+    "valid": true,
+    "hashes_after": {
+      "envs/beat_block_hammer.py": "90269f15f9ce274fb5bcad703c47b0b552ff5a2f0a3ff62d12dbe9a553018014",
+      "policy/ACT/eval.sh": "65fa39ced68bae149dec3d0194d044cbefc7ea48870803fe94889211435f4b4d",
+      "script/eval_policy.py": "1df0ba37ae74117647a74c6a72019e58c990d2d8a67843ae49a8677efc676f40"
+    }
+  }
+}

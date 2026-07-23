@@ -266,6 +266,64 @@ class ProposalAgentTests(unittest.TestCase):
                 "run_local.click_bell.midright_progress",
             )
 
+    def test_malformed_v2_vqa_binding_gets_one_audited_bounded_repair(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = BoundTaskPlanSession.from_catalog(
+                _catalog(root), "click_bell", max_rounds=1
+            ).target
+            value = {
+                "schema_version": 1,
+                "task_proposal": {
+                    "schema_version": 1,
+                    "proposal_id": "object_position.query_generated_repair",
+                    "task_name": "click_bell",
+                    "aspect_id": "object_position",
+                    "intent": "test an unseen safe left position",
+                    "capability_id": "object_position.fixed_xy",
+                    "reuse_first": True,
+                    "changes": {
+                        "bell": {"position_mode": "fixed", "xy": [-0.14, -0.12]}
+                    },
+                    "preserve_success_semantics": True,
+                },
+                "tool_proposal": {
+                    "schema_version": 2,
+                    "proposal_id": "object_position.query_generated_repair.tool",
+                    "task_name": "click_bell",
+                    "aspect_id": "object_position",
+                    "evaluation_goal": "diagnose visible target interaction",
+                    "metric": "bell_active_tcp_min_xy_error",
+                    "question": "How close did the active TCP get to the bell?",
+                    "vqa_phenomenon_ids": [
+                        "bell_visibly_pressed",
+                        "run_local.click_bell.mismatched",
+                    ],
+                    "vqa_question_specs": [],
+                    "reuse_first": True,
+                },
+            }
+            provider = FakeProvider(value)
+            agent = BoundedProposalAgent(provider, model="fake-model")
+            result = agent.propose(
+                "Can this policy handle a new target position?",
+                target=target,
+                aspect_id="object_position",
+            )
+            repaired_tool = result["tool_proposal"]
+            self.assertEqual(len(provider.calls), 1)
+            self.assertEqual(len(agent.last_repairs), 1)
+            self.assertEqual(
+                agent.last_repairs[0]["action"],
+                "bind_card_reference_vqa_question",
+            )
+            question_id = repaired_tool["vqa_question_specs"][0]["id"]
+            self.assertIn(question_id, repaired_tool["vqa_phenomenon_ids"])
+            self.assertNotIn(
+                "run_local.click_bell.mismatched",
+                repaired_tool["vqa_phenomenon_ids"],
+            )
+
     def test_non_novel_axis_uses_registered_changes_and_receives_context(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

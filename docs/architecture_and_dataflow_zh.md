@@ -2,8 +2,9 @@
 
 本文说明当前实现，而不是目标蓝图。MEA 不替换 RoboTwin 的物理仿真、机器人控制、
 官方任务成功判定或 ACT 推理；它在执行前增加受限规划/生成，在执行中记录可审计证据，
-在执行后用确定性工具、视觉检查和反馈组织评估结果。项目长期目标、论文逐点映射、可复用
-资产和跨对话开发规则见 [MEA 项目手册](project_playbook_zh.md)。
+在执行后用确定性工具、视觉检查和反馈组织评估结果。当前实现只覆盖两个任务族和少量受信
+capability，是受限功能原型，不是开放世界 TaskGen 或论文规模结果。项目长期目标、论文逐点映射、
+可复用资产和跨对话开发规则见 [MEA 项目手册](project_playbook_zh.md)。
 
 ## 1. 分层与主要模块
 
@@ -15,8 +16,9 @@
 | 语义 Proposal | `mea/proposals.py`、`mea/proposal_agent.py`、`scripts/manipeval_proposal.py` | 用受限 `TaskProposal`/`ToolProposal` 描述“测什么”；主 Agent 可用 `novel_first_round` 生成未精确登记的新变式，再投影到可信 capability envelope；路径、seed、checkpoint 和 gate 仍由 runtime 注入 |
 | 检索与历史 | `mea/retrieval/`、`mea/history/`、`mea/knowledge/` | 检索任务/源码知识，复用历史评估上下文 |
 | TaskGen | `scripts/manipeval_taskgen.py`、`mea/taskgen/` | 生成或复用受限 task overlay；也可创建不改官方源码的 passthrough run |
-| TaskGen resolution | `mea/taskgen/resolver.py` | 在上游可信 capability 已选 route 后、provider 创建前计算 exact executable semantic key；记录 official/内置 materializer，force-codegen 分支可注入审核生成物 lookup，否则诚实转入 codegen |
+| TaskGen resolution | `mea/taskgen/resolver.py` | 在上游可信 capability 已选 route 后、provider 创建前计算 exact executable semantic key；记录 official/内置 materializer，并可从显式审核的 task registry 做 exact semantic lookup |
 | TaskGen capability | `mea/taskgen/capabilities.py` | 用共享 capability catalog 和 `VariantSpec` v2 固定受控轴、生成模式与必须保留的官方语义 |
+| reviewed Task 与生产验收 | `mea/taskgen/reviewed_registry.py`、`mea/taskgen/production_acceptance.py` | 安装经显式审核的 generated Task；新 run 复核 immutable provenance、当前 runtime dependencies、artifact contract 与 ACT 前置条件，derived bundle 在 run-local 重建 |
 | TaskGen 局部恢复 | `mea/taskgen/attempts.py` | 在 policy 启动前对 SuccessSpec、code/static、render/vision、expert failure 做最多一次 typed repair/regenerate；policy failure 不重试 |
 | RoboTwin 执行 | `mea/taskgen/probe.py`、`policy/ACT/eval_mea.sh` | setup/render、official expert `play_once()`、ACT rollout |
 | 严格 paired 评估 | `scripts/manipeval_paired.py`、`mea/paired.py` | 冻结 exact seed，运行 Easy/Hard eligibility 与 ACT，并做确定性逐 seed 统计 |
@@ -48,7 +50,7 @@ template、metric 和最大轮数；checkpoint 路径、Python module、seed、g
 open query
 → completed-only global planning history（trusted task allowlist）
 → build_act_catalog() + catalog SHA-256
-→ GlobalQueryRouter：route 或显式 unsupported
+→ GlobalQueryRouter：route supported subset 并保留 gaps，或在没有可回答子集时显式 unsupported
 → strict validator：task/profile/aspect 必须来自 catalog
 → route_to_planner_proposal()：只在 evaluation 开始时选一次 task/checkpoint
 → EvaluationTarget + BoundTaskPlanSession
@@ -64,8 +66,10 @@ open query
 `--proposal-mode novel_first_round` 会增加一次受限 Proposal 调用，为首轮产生 catalog 中没有精确登记、
 但仍处于 capability 范围内的 Task/Tool/VQA 请求。后续 Planner 只能解释公共 PlanSession 确定的
 动作、转移与目标；candidate plan 还必须通过 `adjudicate()`，不能覆盖 task/checkpoint、预算、
-历史轮次或 evidence-selected template。不支持的 query 会生成
-`status=unsupported` 的无执行 evaluation，而不是偷偷降级到无关任务。
+历史轮次或 evidence-selected template。若宽 Query 同时包含受支持与未支持轴，Router 可执行同一
+task 中的 supported subset，并把其余 task-qualified capabilities 留在 route/最终 limitations；只有
+没有任何 material answer 时才生成 `status=unsupported` 的无执行 evaluation。两种情况都不会偷偷
+降级到无关任务或把 gap 伪装成已支持能力。
 
 一次 evaluation 只绑定一个 task 和它的 ACT checkpoint。Planner 可以在该 task 的受信
 sub-aspect/variant 间继续、切换或停止，但不能切换 task/checkpoint；跨任务回答由 portfolio
@@ -79,13 +83,14 @@ BBH/click_bell adapter 在其后提供 materialization 细节。
 裁决另写 `plan/runtime_directive_after_*.json`。历史只消费已完成 evaluation；plan-only 不会反向
 写成执行证据。
 
-TaskProposal 与 capability 同时存在时，TaskGen 在 provider 创建前计算 resolution；run 成功物化后才把它
-保存为 `generation/task_resolution.json`，所以当前生成早期失败不会留下该文件。v1 resolver 只允许 exact
-semantic match；Query/intent 改写不改变 executable key，而 changes、capability、SuccessSpec 或 contract
-改变都会产生新 key。official 与内置 overlay 继续执行上游可信 capability 已选择的 materializer；
-force-codegen 分支已有严格 reviewed lookup 注入接口，但正常 runtime 尚未配置 registry callback，因此会
-诚实记录 `reviewed_lookup_attempted=false` 并进入 codegen。它还不是论文 Fig. 3 完整的全局 retrieve-first
-selector，也不能宣称 generated-task registry 已完成。
+TaskProposal 与 capability 同时存在时，TaskGen 在 provider 创建前计算 resolution，并把成功物化后的结果
+保存为 `generation/task_resolution.json`。resolver 只允许 exact executable semantic match；Query/intent
+改写不改变 executable key，而 changes、capability、SuccessSpec 或 contract 改变都会产生新 key。official
+与内置 overlay 继续执行上游可信 capability 已选择的 materializer；force-codegen 可在正常 runtime 中查询
+显式配置的 reviewed-task registry。命中时由 registry 的 VariantSpec 与 immutable artifacts 掌握 authority，
+当前请求的 run-local variant id 可以不同，但语义字段、contract 与 provenance 必须匹配；未命中则诚实转入
+codegen。当前真实 registry 只覆盖一个受限 BBH variant，仍不是论文 Fig. 3 面向任意资产/文档的全局
+retrieve-first selector。
 
 ## 2. Route 与 execution backend
 
@@ -299,7 +304,12 @@ mea/paired_runs/<run_id>/
 5. VQA 与数值证据冲突时保存 `evidence_conflict`，不能覆盖可信数值；
 6. 未审核的 generated Tool 只在当前 evaluation 内自动复用；经显式人工审核并精确固定
    registration/code/ToolSpec/contract/schema hashes 后，才可进入 reviewed persistent registry
-   跨 evaluation 复用，但始终不会自动晋升为全局 Trusted Tool。
+   跨 evaluation 复用，但始终不会自动晋升为全局 Trusted Tool；
+7. reviewed generated Task 同样不能自动晋升：当前 registry 固定 task.py、VariantSpec、
+   overlay/load_actors、可选 SuccessSpec 与 validation/static 等 immutable inputs，以及登记的 5 个
+   Python runtime dependencies。`TaskArtifactBundle` 与 `SceneCheckSpec` 是 run-local derived rebuild，
+   production acceptance 必须在 ACT 前重新核验。development-agent review 不是独立人工审核，也不使
+   artifact 具备 paper eligibility。
 
 Scene VQA 与 Execution VQA 也应区分：前者检查生成场景是否符合请求，后者检查真实
 rollout 中的可见现象。official passthrough 不生成场景，因此不需要 Scene VQA。
@@ -311,6 +321,7 @@ rollout 中的可见现象。official passthrough 不生成场景，因此不需
 | 新 official expert 任务 | TaskSchema、任务 VQA 映射、必要的 Trusted Tool | 可复用 Recorder/聚合；需真实 seed 验收 |
 | 新任务 ACT 评估 | TaskSchema、选择性 checkpoint 下载、通用 ACT backend、preflight | official passthrough 已支持；当前仅约定 `demo_clean-50` |
 | 新 generated 任务族 | planner template、TaskGen contract、知识卡、repair gate | 当前生成/修复 contract 仍以 BBH 为主 |
+| 新成功语义 | 公共 Proposal v2、oracle-bounded SuccessSpec、正负 fixture 与 production acceptance | compiler/envelope 已有；公共 Proposal Agent 仍主要产生 v1/official-preserving 语义，尚无 ACT live 证据 |
 | 新数值 metric | 已有 Trusted Tool 或 ToolGen target + required signals | Recorder 未记录的信号不能事后推断 |
 | 更高频动力学 | 新显式 telemetry profile | 默认 `balanced_v1` 只保存 50 Hz dynamics |
 | 更丰富视觉 | 新 visual capture profile | `event_keyframes_v1` 无 depth/segmentation，也不连续 |
@@ -935,9 +946,9 @@ VQA replay 必须保留 source evaluation、真实视频/montage、live model id
 `act_rollouts_started=0`，不能冒充新 rollout。完整映射和剩余 gap 见
 [论文主体方法 16 项覆盖审计](development_log_20260719_paper_method_coverage_zh.md)。
 
-## 15. 2026-07-22：公共 Proposal、完整 TaskGen 与条件 EvaluationGraph
+## 15. 2026-07-22：公共 Proposal、受限 Task artifact 与条件 EvaluationGraph
 
-### 15.1 从开放 Query 到逐轮证据的当前最小闭环
+### 15.1 从开放 Query 到逐轮证据的受限公共链路
 
 `scripts/manipeval_agent.py` 现在让 BBH 与 `click_bell` 共享
 `adjudicate_bounded_transition()`：task adapter 只提出候选，公共 `BoundTaskPlanSession` 根据上一轮
@@ -964,11 +975,12 @@ open Query
 ### 15.2 本批真实机制证据
 
 `eval_20260722_batch14_click_flagship_n1_v2` 在同一固定 `click_bell` ACT checkpoint 下运行两轮：
-第一轮 query-generated 左侧位置成功后，公共证据策略要求从 `object_position` 切换到
+第一轮 query-generated 左侧位置成功后，旧 task-specific 路径从 `object_position` 切换到
 `object_instance`；第二轮 official base0 也成功。两轮 ACT 为 `2/2`，Dynamic VQA 均为 passed 且
-`evidence_conflict=false`，全部 required gates 通过。对应可提交图文包在
-[`evidence_runs/eval_20260722_batch14_click_flagship_n1_v2/`](evidence_runs/eval_20260722_batch14_click_flagship_n1_v2/)；
-它包含 Proposal 物化后的 overlay、场景图、短 rollout、生成/复用 Tool、VQA 关键帧和逐轮决定。
+`evidence_conflict=false`，全部 required gates 通过。原始图文包仅保留在服务器侧忽略目录
+`mea/evaluation_runs/eval_20260722_batch14_click_flagship_n1_v2/`，未随仓库发布；其可提交摘要见本节和
+[2026-07-22 开发记录](development_log_20260722_minimal_paper_loop_zh.md)。该 run
+早于公共 `AdaptivePlanStepAgent` 的最终接线，不能作为当前公共 step 的 clean-head live 证据。
 
 这仍只是单 seed、每变体 N=1 的机制验收；没有覆盖右侧位置、base1、clutter、纹理、光照，也没有
 形成论文 Tables 1--3、6--9 的统计结论。实现与失败修复细节见
@@ -1024,3 +1036,102 @@ official-equivalent spec；不合并非法字段，也不声称模型完成了 P
 child 的 required/covered aspect 和最终答案；未触发的 conditional child 单列为
 `conditional_not_activated`，不伪装成 required gap。父层不在单 child 中切 checkpoint，也不替代上述
 单任务动态闭环。论文对应与剩余 gap 见 [自顶向下审查](paper_claim_gap_zh.md)。
+
+## 17. 2026-07-23：partial route、reviewed Task 与当前 clean-head 边界
+
+### 17.1 宽 Query 的 supported subset 与显式 gaps
+
+全局 Router 不再把“部分可回答”的宽 Query 整体拒绝。它必须同时满足两条约束：
+
+```text
+broad Query
+→ task-qualified requested aspects
+   ├── supported subset 非空：route，并只执行该 subset
+   │   └── unsupported axes 原样进入 gaps / final limitations
+   └── supported subset 为空：status=unsupported，0 ACT
+```
+
+严格 validator 会拒绝虚构 gap、把另一个 task 的能力混入当前 task，或在调用方已经显式绑定父 aspect
+时擅自扩成 partial route。当前 plan-only evidence 对“operated bell properties”宽 Query 选择了
+`object_position` 作为首个方面，同时保留 appearance、mass、scale 等未支持轴；这只证明可信 catalog
+内的自主选择，不表示系统发现或执行了 catalog 外的新属性。
+
+### 17.2 reviewed generated Task 的复用与 acceptance
+
+`scripts/manipeval_task_registry.py` 为 generated Task 提供 pending review template、显式 install 与 exact
+find。正常 Agent/TaskGen 通过 `--reviewed-task-registry` 使用它；命中后 TaskGen 不再调用 codegen
+provider，但仍在新 run 中物化、render/probe，并在 ACT 前运行 production acceptance。
+
+注册边界故意区分两类文件：
+
+- immutable copied inputs：task.py、VariantSpec、overlay/load_actors、可选 SuccessSpec、validation/static；
+- run-local derived outputs：`TaskArtifactBundle` 与 `SceneCheckSpec`，每个新 run 重新生成并验证。
+
+acceptance 还固定当前登记的 5 个 Python runtime dependency hashes。这个合同能检测 reviewed source、
+contract 或 runtime 依赖篡改，但不是完整 Conda、driver、checkpoint 和 simulator environment 的 bitwise
+snapshot。当前真实复用只覆盖一个 development-agent 审核的受限 BBH scale variant；expert 与 ACT N=1
+均已走 TaskGen provider=0 路径，但 `paper_table_eligible=false`，也不能称为全局 retrieve-first RAG。
+
+### 17.3 bounded Proposal 修复与 stage-specific recovery
+
+Proposal Agent 对 v2/v3 VQA question binding 的修复只从当前 capability card 重建允许的结构字段；它不
+修改 scene、SuccessSpec、metric 或其他可执行语义，并把 repair trace 写入 proposal artifact。该机制用于
+消除 provider 输出中可确定修复的 schema 漂移，不证明模型进行了新的语义推理。
+
+TaskGen/ToolGen/Planning 的恢复继续遵循论文 App. A.3.4 的 stage/action 边界：哪个 stage 失败，就在该
+stage 内有界 repair/regenerate；policy/simulator outcome 不重试。论文并不要求把所有生产分支改写成同一个
+中央 recovery controller，因此“统一 controller”不是剩余论文 gap；真实 visual repair 和正常路径覆盖面
+仍然是实现限制。
+
+### 17.4 clean-head live v4 的有限完成态证据
+
+`eval_20260723_batch17_clean_head_click_live_n1_v4` 使用 task-only binding
+`--bound-task-name click_bell`；Query 自身也点名该 task，但没有 bound aspect、history 或内部测试顺序
+提示。所有模型角色显式覆盖为 `gpt-5.6-terra`。Router 对宽 Query 保留 supported
+`object_position + object_instance`，同时把
+color/gloss/texture/mass/scale 留作 partial gaps。完整运行是：
+
+```text
+Query
+→ autonomous first aspect: object_position.left_fixed
+→ query_generated xy=[-0.14,-0.12]
+→ ACT seed=100502, success=1
+→ Rule/VQA/Aggregate/Evidence
+→ AdaptivePlanStep provider: propose/switch_aspect
+→ object_instance.base0
+→ ACT seed=100502, success=1
+→ Rule/VQA/Aggregate/Evidence
+→ hard cap=2 → completed
+```
+
+两轮 pipeline、Aggregate 和 Dynamic VQA 都为 passed，`evidence_conflict=false`；最终
+`status/lifecycle=completed`。runtime ledger 为 11 个 logical provider calls、16 个 transport attempts、
+2 个 ACT starts。该 run 没有触发 whole-round recovery/restart，因此这三个数是无 recovery 路径的精确
+计数，不能拿来验证之后新增的 restart instrumentation。
+
+仓库内的 [v4 compact evidence bundle](evidence_runs/eval_20260723_batch17_clean_head_click_live_n1_v4/)
+包含 15 个小文件（内容合计 600,465 bytes，目录占用约 628K）的两轮视频、scene、VQA montage、代码
+与紧凑数据；完整 machine audit
+仍留在服务器 evaluation 目录。整个开发批次新增 ACT starts 为 4，而非成功 v4 中的 2：reviewed BBH
+reuse=1、clean-head v2=1、v3=0、v4=2；clean-head 本身累计 3 ACT，左侧 position 在 v2/v4 重复。
+
+失败历史继续保留：v2 在首轮成功后于下一 Proposal gateway 失败；v3 的 Luna vision 调用返回 403，
+在 ACT 前以 pipeline failure 终止，ACT starts=0。v4 的成功说明全角色 Terra override 在这一次运行可用，
+不证明 Luna 或默认混合 profile 已稳定。最终源码又补了失败/restart attempt ledger 与 feedback `finally`
+收口，但 v4 artifact 产生于无 restart 路径，不能把源码合同自动提升成 live restart 证据。
+
+### 17.5 下一方法 gap：Query-conditioned evidence sufficiency
+
+v4 证明真实 Evidence 能改变下一 aspect，但 hard cap=2 仍在 `right_fixed`、`base1` 未测时结束。
+架构上需要分开三个概念：
+
+| 概念 | 含义 | 当前问题 |
+| --- | --- | --- |
+| `candidate_universe` | 当前 task/capability 下所有合法可选测试 | 不能自动等同于 Query 必须覆盖的集合 |
+| `required_coverage` | 回答当前 Query 所需的最小证据，由量词和目标决定 | `all/across/some/worst-case/compare` 尚无显式 sufficiency contract |
+| `budget_cap` | 用户允许的最大 rollout/round 成本 | cap 耗尽只能写 `budget_exhausted`，不能写 `evidence_sufficient` |
+
+已有 0-ACT cached replay v2 在固定同一非 policy evidence 时，只修改 `policy_success`：`0` 产生
+`drill_down position`，`1` 产生 `switch instance`。它与 v4 一起证明 branch sensitivity，但不证明停止
+充分性。下一批应先用缓存 evidence 建立量词解析、required coverage 和 stop-reason 的确定性合同，再决定
+是否支付新的 ACT。

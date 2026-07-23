@@ -1,278 +1,295 @@
 {
   "schema_version": 1,
-  "snapshot_date": "2026-07-22",
-  "purpose": "Compact index of the MEA functional-reproduction evidence boundary; not a paper-results table.",
-  "source_evidence": {
-    "repository": "https://github.com/Yutenji-Nyamu/mea",
-    "validated_worktree_base_commit": "412fe6ed6fb6dd2ed20149a1b49e87549bbf1ce7",
-    "snapshot_commit_resolution": "Run git rev-parse HEAD after checkout; this file does not self-assert its containing commit.",
-    "policy_scope": [
-      "ACT"
-    ],
-    "primary_task_adapters": [
+  "snapshot_date": "2026-07-23",
+  "project_stage": "limited_functional_prototype",
+  "paper_reproduction_status": "functional_subset_only_not_paper_scale",
+  "scope": {
+    "policy": "ACT",
+    "task_families": [
       "beat_block_hammer",
       "click_bell"
     ],
-    "full_test_suite": {
-      "passed": 516,
-      "failed": 0,
-      "elapsed_seconds": 49.857,
-      "environment": "/root/autodl-tmp/conda/envs/RoboTwin/bin/python"
-    },
-    "paper_method_contract_audit": {
-      "artifact": "mea/validation_runs/batch15_method_coverage_v1/report.json",
-      "implemented": 16,
-      "partial": 0,
-      "evidence_pending": 0,
-      "claim_boundary": "Executable functional-contract audit; not a paper-scale validity or performance result."
-    },
-    "tracked_compact_live_bundle": {
-      "evaluation_id": "eval_20260722_batch14_click_flagship_n1_v2",
-      "path": "docs/evidence_runs/eval_20260722_batch14_click_flagship_n1_v2/evidence_bundle_manifest.json",
-      "rounds": 2,
-      "act_episodes_per_round": 1,
-      "contains": [
-        "bounded_task_and_tool_proposals",
-        "generated_or_reused_task_artifacts",
-        "scene_renders",
-        "ACT_rollout_videos",
-        "generated_or_trusted_Rule_Tool_results",
-        "Dynamic_VQA_montages_and_results",
-        "evidence_driven_round_decision",
-        "final_feedback"
-      ],
-      "claim_boundary": "A committed single-seed N=1-per-variant mechanism demonstration, not a stability or broad-generalization result."
-    },
-    "typed_metric_spec": {
-      "operations": [
-        "minimum_distance",
-        "event_count",
-        "time_between_events"
-      ],
-      "new_operator_evidence": "cached_real_RoboTwin_telemetry_compile_oracle_register_reuse",
-      "normal_runtime_route": "ToolProposal_v3_to_MetricSpec_v1_to_compile_or_reuse",
-      "minimum_real_episode_count": 1,
-      "new_act_rollouts_started": 0
-    },
-    "taskgen_resolution": {
-      "route_authority": "upstream trusted capability contract",
-      "identity": "exact executable semantic key excluding Query wording and proposal_id",
-      "runtime_artifact": "generation/task_resolution.json",
-      "artifact_write_timing": "computed before provider; saved only after successful run materialization",
-      "normal_runtime_reviewed_lookup_configured": false,
-      "unconfigured_lookup_recorded_as_attempted": false,
-      "limitation": "Official and built-in routes execute the upstream trusted capability choice. The force-codegen branch has an exact reviewed lookup interface, but normal runtime has no persistent registry callback/materializer and is not yet a global retrieve-first selector."
-    },
-    "taskgen_success_method": {
-      "schemas": [
-        "SuccessSpec v1",
-        "SuccessSpec v2"
-      ],
-      "task_scope": "beat_block_hammer",
-      "origin": "compiled_success_spec",
-      "act_eligible_envelope": "bbh.official_capability; official-equivalent all logic, actor bindings, 0.02 m thresholds and contact",
-      "development_only_envelope": "bbh.development_fixture; bounded thresholds and all/any, act_eligible=false",
-      "bounded_recovery_artifact": "mea/validation_runs/batch15_safety_success_recovery_v1/success_spec_repair.json",
-      "limitation": "v2 proves a bounded DSL/compiler with fixtures. Non-official semantics are prohibited from ACT and do not yet prove live Proposal-derived success generation."
-    },
-    "task_generation_attempt": {
-      "stages": [
-        "success_spec",
-        "scene_codegen_or_static",
-        "render_or_vision",
-        "expert_gate"
-      ],
-      "max_local_repairs": 1,
-      "act_before_acceptance": 0,
-      "fixture_path": "tests/manipeval/test_taskgen_attempts.py",
-      "limitation": "The controller executes typed fixture diagnosis and repair callbacks, but all production TaskGen branches are not yet routed through it."
-    },
-    "evaluation_graph": {
-      "scope": "optional cross-checkpoint portfolio with at most two ACT child nodes, one active aspect and N=1 round per node",
-      "evidence": "live_provider_plan_plus_synthetic_success_failure_branch_replay",
-      "strict_cli_roundtrip": "mea/validation_runs/batch14_graph_cli_strict_v1",
-      "coverage_semantics": "required and uncovered include only activated nodes; skipped conditional nodes remain conditional_not_activated",
-      "limitation": "The CLI emits and adjudicates inert child commands but does not yet launch live children automatically; this is not the paper core single-task loop."
-    }
+    "evidence_levels_present": [
+      "source",
+      "unit_and_integration_tests",
+      "cached_real_replay",
+      "live_n1"
+    ],
+    "paper_table_eligible": false
   },
-  "server_only_evidence": {
-    "canonical_repo_path": "/root/autodl-tmp/mea",
-    "verification_date": "2026-07-22",
-    "validated_worktree_base_head": "412fe6ed6fb6dd2ed20149a1b49e87549bbf1ce7",
-    "head_equal_origin_main_before_commit": true,
-    "runtime": {
-      "gpu": "NVIDIA RTX 4090",
-      "RoboTwin_python_imports": "passed",
-      "ACT_checkpoints_verified": [
-        "adjust_bottle",
-        "beat_block_hammer",
-        "click_bell",
-        "grab_roller"
+  "source_revision": {
+    "canonical_repo": "/root/autodl-tmp/mea",
+    "base_head_before_batch": "13db03d48bad470b26b93a6ccd3f20bca3ad5865",
+    "validation_scope": "final_batch_worktree_before_signed_commit",
+    "full_tests": {
+      "passed": 552,
+      "failed": 0
+    },
+    "method_coverage_audit": {
+      "artifact_id": "batch17_method_coverage_v1",
+      "runtime_calls": {
+        "provider": 0,
+        "simulator": 0,
+        "act": 0
+      },
+      "interface_claims_implemented": 16,
+      "interface_claims_total": 16,
+      "published_report": "docs/evidence_runs/batch17_validation/method_coverage_report.json",
+      "fresh_clone_recompute_requires_ignored_server_artifacts": true,
+      "interpretation": "interface_and_minimal_evidence_gate_only",
+      "not_evidence_of": [
+        "query_semantic_sufficiency",
+        "paper_scale_statistics",
+        "paper_conclusion_reproduction"
       ]
     },
-    "artifacts": [
+    "post_v4_source_only_changes": {
+      "failure_and_restart_attempt_ledger": true,
+      "feedback_finally_cleanup": true,
+      "live_restart_validation": false,
+      "reason": "v4 completed without whole-round recovery or restart"
+    }
+  },
+  "reviewed_task_reuse": {
+    "registration_id": "reviewed_task_80dbe26908344a3465c2",
+    "artifact_id": "task_artifact_b0906f5572867b12c0c7",
+    "source_run_id": "run_20260722_batch14_bbh_scale_codegen_v1",
+    "task_name": "beat_block_hammer",
+    "variation": "block_scale_1.2x",
+    "success_semantics": "official_equivalent",
+    "reviewer_kind": "development_agent",
+    "review_attestation_paper_eligible": false,
+    "provenance_boundary": {
+      "immutable_inputs_pinned": true,
+      "runtime_python_dependencies_pinned": 5,
+      "task_artifact_bundle": "run_local_rebuild",
+      "scene_check_spec": "run_local_rebuild",
+      "full_environment_bitwise_snapshot": false
+    },
+    "live_runs": [
       {
-        "kind": "strict_registered_fixed_dynamic_n1_pair",
-        "registration_id": "batch16_instance_pair_n1_412fe6e",
-        "comparison": "mea/validation_runs/batch16_instance_pair_n1_412fe6e/comparison/summary.json",
-        "fixed_evaluation": "eval_batch16_instance_pair_n1_412fe6e_fixed",
-        "dynamic_evaluation": "eval_batch16_instance_pair_n1_412fe6e_dynamic",
-        "task": "click_bell",
-        "seed": 100401,
-        "candidate_suite": [
-          "object_instance.base0",
-          "object_instance.base1"
-        ],
-        "fixed_act_rollouts": 2,
-        "dynamic_act_rollouts": 2,
-        "fixed_successes": 1,
-        "dynamic_successes": 1,
-        "overlap_exact_success_agreement_rate": 1.0,
-        "rollout_savings": 0,
-        "paper_table_eligible": false,
-        "dynamic_planner_path": "legacy_task_specific_decision_v1",
-        "current_adaptive_plan_step_live_evidence": false,
-        "dynamic_decisions": [
-          "round_1 sufficient evidence -> continue/drill_down to required counterfactual",
-          "round_2 sufficient evidence and exhausted suite -> stop"
-        ],
-        "limitation": "This N=1 pair proves the registered ACT/Tool/VQA execution path and exact same-seed conclusion agreement, but it exposed that the registered dynamic command still skipped the common AdaptivePlanStepAgent. Source and server regressions now initialize its trusted catalog and provider as a pair; a new clean-head live N=1 remains required. The frozen two-candidate scope also provides no efficiency gain and cannot support Tables 1-2."
-      },
-      {
-        "kind": "cross_commit_historical_scene_shift_inventory",
-        "path": "mea/validation_runs/batch16_cross_commit_scene_inventory_412fe6e",
-        "conditions": [
-          "scene_background_texture.unseen",
-          "scene_lighting.static_random"
-        ],
-        "ready_candidates": 4,
-        "seeds": [
-          100402,
-          100403
-        ],
-        "act_rollouts_started": 0,
-        "paper_table_eligible": false,
-        "limitation": "This is a zero-ACT inventory of completed real-simulator artifacts from multiple commits. It validates artifact availability, not a strict same-commit Tables 7-8 suite or independent human labels."
-      },
-      {
-        "kind": "live_provider_plan_only_counterfactual_on_cached_real_evidence",
-        "task": "click_bell",
-        "source_evaluation": "eval_batch16_instance_pair_n1_412fe6e_dynamic",
-        "source_round": "round_1",
-        "frozen_non_policy_evidence": true,
-        "counterfactual_results": [
-          {
-            "policy_success": 0.0,
-            "stop_allowed": false,
-            "provider_action": "refine",
-            "template_id": "object_instance.base1"
-          },
-          {
-            "policy_success": 1.0,
-            "stop_allowed": true,
-            "provider_action": "stop",
-            "template_id": null
-          }
-        ],
-        "provider_validation_errors": 0,
-        "act_rollouts_started": 0,
-        "paper_table_eligible": false,
-        "limitation": "This validates Query-conditioned PlanStep control flow using a live provider and cached real evidence. It is not a new integrated TaskGen/ACT/Tool/VQA runtime execution or a policy result."
-      },
-      {
-        "kind": "completed_evidence_conditioned_click_bell_flagship",
-        "id": "eval_20260722_batch14_click_flagship_n1_v2",
+        "run_id": "run_20260723_batch17_reviewed_scale_reuse_expert_v4",
+        "backend": "expert",
         "status": "completed",
-        "act_rollouts_started": 2,
-        "act_success": "2/2",
-        "wall_clock_seconds": 392.168,
-        "round_1_transition": "object_position success -> switch_aspect -> object_instance"
+        "taskgen_provider_calls": 0,
+        "setup_render_rule_expert": "passed"
       },
       {
-        "kind": "failed_flagship_then_zero_ACT_toolgen_recovery",
-        "failed_id": "eval_20260722_batch14_click_flagship_n1_v1",
-        "recovery_path": "mea/validation_runs/batch14_click_toolgen_recovery_smoke_v1",
-        "act_rollouts_started": 1,
-        "failure_stage": "planned_tool_postprocessing",
-        "fix": "task-compatible retrieval examples"
-      },
+        "run_id": "run_20260723_batch17_reviewed_scale_reuse_act_n1_v1",
+        "backend": "expert_plus_act",
+        "status": "completed",
+        "taskgen_provider_calls": 0,
+        "expert_seed": 1000,
+        "act_seed": 1001,
+        "act_success": true,
+        "official_success": true,
+        "hammer_block_contact_ever": false,
+        "strict_paired_result": false
+      }
+    ]
+  },
+  "open_query_routing": {
+    "query": "How well does the click_bell ACT policy generalize across properties of the operated bell?",
+    "binding": {
+      "mode": "task_only",
+      "task_name": "click_bell",
+      "query_names_same_task": true,
+      "bound_aspect": false,
+      "history_used": false,
+      "internal_test_order_hint": false
+    },
+    "plan_only_evaluation_id": "eval_20260723_batch17_clean_head_click_plan_v2",
+    "supported_aspects": [
+      "object_position",
+      "object_instance"
+    ],
+    "first_selected_aspect": "object_position",
+    "partial_gaps": [
+      "color",
+      "gloss",
+      "texture",
+      "mass",
+      "scale"
+    ],
+    "act_starts": 0
+  },
+  "clean_head_live": {
+    "completed_evaluation_id": "eval_20260723_batch17_clean_head_click_live_n1_v4",
+    "status": "completed",
+    "lifecycle_status": "completed",
+    "model_overrides": {
+      "planner": "gpt-5.6-terra",
+      "taskgen": "gpt-5.6-terra",
+      "toolgen": "gpt-5.6-terra",
+      "vision": "gpt-5.6-terra",
+      "feedback": "gpt-5.6-terra"
+    },
+    "rounds": [
       {
-        "kind": "bounded_scale_live_provider_codegen",
-        "id": "run_20260722_batch14_bbh_scale_codegen_v1",
-        "strict_revalidation": "mea/validation_runs/batch14_scale_strict_revalidation_v1/summary.json",
-        "scale": 1.2,
-        "generated_half_size": [
-          0.03,
-          0.03,
-          0.03
+        "round": 1,
+        "aspect_id": "object_position",
+        "template_id": "object_position.left_fixed",
+        "proposal_origin": "query_generated",
+        "xy": [
+          -0.14,
+          -0.12
         ],
-        "success_spec_sha256": "ea70132ae08c8427cf0d8192a68ca60b593a5f47087a1f7d1b006eb9429f58b0",
-        "status": "completed_without_act",
-        "vision_passed": true,
-        "vision_confidence": 0.93,
-        "scene_repairs_used": 0,
-        "expert_gate_passed": true,
-        "act_rollouts_started": 0
+        "act_seed": 100502,
+        "act_success": true,
+        "pipeline": "passed",
+        "aggregate": "passed",
+        "dynamic_vqa": "passed",
+        "evidence_conflict": false,
+        "next_plan_action": "propose",
+        "next_transition": "switch_aspect",
+        "next_target": "object_instance.base0"
       },
       {
-        "kind": "bounded_camera_contact_and_success_recovery",
-        "path": "mea/validation_runs/batch15_safety_success_recovery_v1/summary.json",
-        "cached_act_episode_reused": true,
-        "camera_contact_count": 1,
-        "typed_metric_routes": [
-          "typed_metric_spec_compile",
-          "run_local_reuse"
-        ],
-        "success_spec_repair_final_source": "trusted_default",
-        "act_rollouts_started": 0
-      },
-      {
-        "kind": "typed_metric_spec_cached_real_telemetry",
-        "path": "mea/validation_runs/batch14_metric_spec_real_v1/summary.json",
-        "event_count_values": [
-          0,
-          1
-        ],
-        "time_between_events_values": [
-          null,
-          5.684
-        ],
-        "act_rollouts_started": 0
-      },
-      {
-        "kind": "conditional_evaluation_graph",
-        "synthetic_replay_path": "mea/validation_runs/batch14_evaluation_graph_v1",
-        "live_plan_path": "mea/validation_runs/batch14_evaluation_graph_live_plan_v2/plan.json",
-        "strict_cli_roundtrip_path": "mea/validation_runs/batch14_graph_cli_strict_v1",
-        "act_rollouts_started": 0
+        "round": 2,
+        "aspect_id": "object_instance",
+        "template_id": "object_instance.base0",
+        "act_seed": 100502,
+        "act_success": true,
+        "pipeline": "passed",
+        "aggregate": "passed",
+        "dynamic_vqa": "passed",
+        "evidence_conflict": false
       }
     ],
-    "batch14_act_budget": {
-      "failed_run_started": 1,
-      "successful_flagship_started": 2,
-      "total_started": 3
+    "terminal": {
+      "reason": "hard_cap",
+      "round_cap": 2,
+      "evidence_sufficient": false,
+      "untested_supported_templates": [
+        "object_position.right_fixed",
+        "object_instance.base1"
+      ],
+      "unsupported_gaps": [
+        "color",
+        "gloss",
+        "texture",
+        "mass",
+        "scale"
+      ]
     },
-    "batch15_execution_budget": {
-      "new_act_rollouts_started": 0,
-      "scale_expert_gate_episodes": 1,
-      "cached_act_episodes_reused": 1
+    "runtime_totals": {
+      "logical_provider_calls": 11,
+      "transport_attempts": 16,
+      "act_starts": 2,
+      "whole_round_recovery_or_restart": 0
     },
-    "batch16_execution_budget": {
-      "fixed_act_rollouts_started": 2,
-      "dynamic_act_rollouts_started": 2,
-      "total_act_rollouts_started": 4
-    },
-    "availability_note": "validation_runs and raw evaluation artifacts are not Git-tracked; re-run their validators on the canonical server before citing them as current after environment changes."
+    "compact_evidence_bundle": {
+      "path": "docs/evidence_runs/eval_20260723_batch17_clean_head_click_live_n1_v4",
+      "files": 15,
+      "file_bytes": 600465,
+      "reported_disk_size": "628K",
+      "contains": [
+        "two_round_videos",
+        "scene",
+        "vqa_montage",
+        "code",
+        "compact_structured_data"
+      ],
+      "replaces_full_server_audit": false
+    }
   },
-  "reproduction_status": {
-    "functional": "The single-task open-query loop has a common evidence-conditioned dynamic step in normal runtime, plus bounded Task/Tool proposals, capability-bound Task resolution, TaskGen, ACT, Rule Tool, Dynamic VQA and final feedback. Reviewed generated-task retrieval remains an interface rather than a configured production registry. Registered adaptive source now initializes the trusted catalog and provider as a pair, but its completed strict N=1 pair predates that final wiring and used the legacy task-specific decision path; a clean-head public-step live acceptance remains open. EvaluationGraph remains an optional cross-checkpoint portfolio.",
-    "experimental": "Not reproduced at paper scale: ACT only, mostly N=1, proxy rather than independent human gold, limited task/aspect coverage, no efficiency gain in the newest strict pair, and no complete multi-policy or repeated benchmark tables.",
-    "highest_priority_gaps": [
-      "add a persistent reviewed generated-task registry/materializer so an exact hit truly reuses task.py, VariantSpec, SuccessSpec and validation without a provider",
-      "route production TaskGen branches through the bounded TaskGenerationAttempt controller instead of limiting it to fixtures",
-      "run one clean-head registered AdaptivePlanStep N=1 acceptance, then design a fair optional-counterfactual Query/suite where real evidence can legitimately stop or change direction before discussing efficiency",
-      "add an explicitly authorized success-semantics-variation capability and oracle before any live non-official SuccessSpec claim",
-      "replace assistant-proxy labels with independent human gold before paper-style Planner/VQA claims"
+  "failed_clean_head_attempts": [
+    {
+      "evaluation_id": "eval_20260723_batch17_clean_head_click_live_n1_v2",
+      "completed_rounds": 1,
+      "act_starts": 1,
+      "terminal_stage": "next_round_proposal",
+      "failure": "empty_provider_content_then_http_403",
+      "completed": false
+    },
+    {
+      "evaluation_id": "eval_20260723_batch17_clean_head_click_live_n1_v3",
+      "completed_rounds": 0,
+      "act_starts": 0,
+      "terminal_stage": "vision",
+      "failure": "luna_http_403",
+      "completed": false
+    }
+  ],
+  "cached_branch_replay": {
+    "artifact": "docs/evidence_runs/batch17_validation/clean_head_click_counterfactual.json",
+    "source_artifact": "mea/validation_runs/batch17_clean_head_click_counterfactual_v1.json",
+    "new_act_starts": 0,
+    "fixed_non_policy_evidence": true,
+    "branches": [
+      {
+        "policy_success": 0.0,
+        "decision": "drill_down",
+        "target": "object_position"
+      },
+      {
+        "policy_success": 1.0,
+        "decision": "switch_aspect",
+        "target": "object_instance"
+      }
+    ],
+    "supports_claim": "evidence_can_change_next_action",
+    "does_not_support": [
+      "evidence_sufficiency",
+      "sampling_savings",
+      "policy_generalization"
     ]
-  }
+  },
+  "development_act_accounting": {
+    "batch_new_act_starts": 4,
+    "components": {
+      "reviewed_bbh_reuse": 1,
+      "clean_head_v2": 1,
+      "clean_head_v3": 0,
+      "clean_head_v4": 2
+    },
+    "clean_head_total_act_starts": 3,
+    "repeated_sample": "object_position.left_fixed repeated in v2 and v4",
+    "sampling_savings_claim_supported": false
+  },
+  "current_claims": {
+    "supported": [
+      "partial_query_routes_supported_subset_and_preserves_task_qualified_gaps",
+      "reviewed_generated_task_exact_reuse_with_pre_act_acceptance",
+      "clean_head_real_evidence_changes_next_aspect_in_one_completed_two_round_run",
+      "rule_vqa_aggregate_planner_pipeline_completed_for_two_n1_rounds"
+    ],
+    "not_supported": [
+      "broad_click_bell_property_generalization",
+      "query_conditioned_evidence_sufficiency",
+      "adaptive_sampling_savings",
+      "paper_benchmark_conclusion_consistency",
+      "proposal_derived_successspec_v2_live_act",
+      "human_gold_or_paper_eligible_review",
+      "luna_or_default_mixed_profile_stability",
+      "live_failure_restart_path_validation"
+    ]
+  },
+  "next_gaps_ranked": [
+    {
+      "rank": 1,
+      "gap": "query_conditioned_evidence_sufficiency",
+      "minimum_next_step": "decouple_candidate_universe_required_coverage_budget_cap_and_test_query_quantifiers_with_cached_evidence",
+      "initial_act_budget": 0
+    },
+    {
+      "rank": 2,
+      "gap": "public_proposal_to_successspec_v2",
+      "minimum_next_step": "proposal_derived_scene_and_oracle_bounded_success_semantics_with_positive_negative_fixtures",
+      "initial_act_budget": 0
+    },
+    {
+      "rank": 3,
+      "gap": "adaptive_vs_fixed_efficiency_and_conclusion_consistency",
+      "minimum_next_step": "preregister_same_query_seed_checkpoint_max_budget_and_sufficiency_contract_then_run_n1_before_n3"
+    },
+    {
+      "rank": 4,
+      "gap": "independent_human_gold_and_vqa_robustness"
+    },
+    {
+      "rank": 5,
+      "gap": "more_tasks_policies_and_repetitions"
+    }
+  ]
 }

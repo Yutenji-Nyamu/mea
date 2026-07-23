@@ -610,6 +610,7 @@ class TaskGenPrototype:
         run_id: str | None = None,
         variant_id: str | None = None,
         trusted_variant_spec: Mapping[str, Any] | None = None,
+        task_proposal: Mapping[str, Any] | None = None,
         success_spec_candidate: Mapping[str, Any] | None = None,
         success_spec_max_repairs: int = 0,
     ) -> dict[str, Any]:
@@ -617,6 +618,28 @@ class TaskGenPrototype:
             raise TaskGenError(f"不支持的 generation mode: {mode}")
         if success_spec_candidate is not None and mode != "force_codegen":
             raise TaskGenError("SuccessSpec candidate is only valid for force_codegen")
+
+        validated_task_proposal: dict[str, Any] | None = None
+        if task_proposal is not None:
+            try:
+                from mea.proposals import ProposalError, validate_task_proposal
+
+                validated_task_proposal = validate_task_proposal(
+                    task_proposal, expected_task_name=task_name
+                )
+            except ProposalError as exc:
+                raise TaskGenError(f"invalid TaskProposal: {exc}") from exc
+            if success_spec_candidate is not None:
+                raise TaskGenError(
+                    "TaskProposal cannot be combined with a legacy SuccessSpec candidate"
+                )
+            if validated_task_proposal["schema_version"] == 2:
+                if mode != "force_codegen":
+                    raise TaskGenError(
+                        "TaskProposal v2 SuccessSpec requires force_codegen"
+                    )
+            if variant_id is None:
+                variant_id = validated_task_proposal["proposal_id"]
 
         trusted_spec: dict[str, Any] | None = None
         if trusted_variant_spec is not None:
@@ -628,6 +651,29 @@ class TaskGenPrototype:
             if variant_id is not None and trusted_spec["variant_id"] != str(variant_id):
                 raise TaskGenError(
                     "trusted VariantSpec variant_id differs from planner identity"
+                )
+        elif validated_task_proposal is not None:
+            try:
+                trusted_spec = build_variant_spec(
+                    task_name=task_name,
+                    variant_id=validated_task_proposal["proposal_id"],
+                    capability_id=validated_task_proposal["capability_id"],
+                    intent=validated_task_proposal["intent"],
+                    changes=validated_task_proposal["changes"],
+                    generation_mode=mode,
+                )
+            except CapabilityError as exc:
+                raise TaskGenError(str(exc)) from exc
+        if validated_task_proposal is not None and trusted_spec is not None:
+            if (
+                trusted_spec["variant_id"]
+                != validated_task_proposal["proposal_id"]
+                or trusted_spec["capability_id"]
+                != validated_task_proposal["capability_id"]
+                or trusted_spec["changes"] != validated_task_proposal["changes"]
+            ):
+                raise TaskGenError(
+                    "trusted VariantSpec differs from TaskProposal identity or changes"
                 )
 
         run_id = run_id or make_run_id()
@@ -657,6 +703,12 @@ class TaskGenPrototype:
             "protected_hashes_before": self._base_hashes(),
             "provider": {"model_requested": self.model},
         }
+        if validated_task_proposal is not None:
+            manifest["task_proposal"] = validated_task_proposal
+            manifest["task_proposal_path"] = "generation/task_proposal.json"
+            _write_json(
+                generation_dir / "task_proposal.json", validated_task_proposal
+            )
         _write_json(run_dir / "request.json", {"user_request": user_request})
         _write_json(run_dir / "manifest.json", manifest)
 
@@ -733,9 +785,17 @@ class TaskGenPrototype:
 
         if mode == "force_codegen":
             success_spec_repair = None
-            if success_spec_candidate is None:
+            if (
+                validated_task_proposal is not None
+                and validated_task_proposal["schema_version"] == 2
+            ):
+                success_spec = validated_task_proposal["success_spec"]
+                success_spec_source = "task_proposal_v2"
+            elif success_spec_candidate is None:
                 success_spec = default_bbh_success_spec()
+                success_spec_source = "trusted_default"
             else:
+                success_spec_source = "legacy_candidate"
                 try:
                     success_spec, success_spec_repair = repair_success_spec(
                         success_spec_candidate,
@@ -757,6 +817,33 @@ class TaskGenPrototype:
                 success_method_source, encoding="utf-8"
             )
             validation["success_spec"] = success_validation
+            success_spec_provenance = {
+                "schema_version": 1,
+                "source": success_spec_source,
+                "task_proposal_id": (
+                    validated_task_proposal["proposal_id"]
+                    if validated_task_proposal is not None
+                    else None
+                ),
+                "preserve_success_semantics": (
+                    validated_task_proposal["preserve_success_semantics"]
+                    if validated_task_proposal is not None
+                    else True
+                ),
+                "official_equivalent": success_validation["official_equivalent"],
+                "act_eligible": success_validation["act_eligible"],
+                "experimental_bounded": success_validation[
+                    "experimental_bounded"
+                ],
+                "execution_scope": success_validation["execution_scope"],
+                "generated_by_model": False,
+                "compiler": success_validation["compiler"],
+            }
+            validation["success_spec_provenance"] = success_spec_provenance
+            _write_json(
+                generation_dir / "success_spec_provenance.json",
+                success_spec_provenance,
+            )
             if success_spec_repair is not None:
                 validation["success_spec_repair"] = success_spec_repair
                 _write_json(
@@ -870,13 +957,30 @@ class TaskGenPrototype:
                 ),
             }
         )
-        bundle = write_task_artifact_bundle(self.repo_root, run_dir, manifest)
+        bundle = write_task_artifact_bundle(
+            self.repo_root,
+            run_dir,
+            manifest,
+            task_proposal=validated_task_proposal,
+        )
         manifest["task_artifact_bundle"] = "generation/task_artifact_bundle.json"
         manifest["scene_check_spec"] = "generation/scene_check_spec.json"
         manifest["task_artifact_summary"] = {
             "scene_origin": bundle["scene_method"]["origin"],
             "success_origin": bundle["success_method"]["origin"],
-            "success_semantics_preserved": True,
+            "success_semantics_preserved": (
+                validated_task_proposal is None
+                or validated_task_proposal["preserve_success_semantics"]
+            ),
+            "success_official_equivalent": validation.get(
+                "success_spec", {}
+            ).get("official_equivalent", True),
+            "success_act_eligible": validation.get("success_spec", {}).get(
+                "act_eligible", True
+            ),
+            "success_execution_scope": validation.get(
+                "success_spec", {}
+            ).get("execution_scope", "official_equivalent"),
         }
         _write_json(run_dir / "manifest.json", manifest)
         return manifest

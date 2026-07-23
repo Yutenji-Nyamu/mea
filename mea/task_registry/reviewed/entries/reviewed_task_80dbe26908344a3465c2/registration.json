@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "registration_id": "reviewed_task_80dbe26908344a3465c2",
+  "artifact_id": "task_artifact_b0906f5572867b12c0c7",
+  "scope": "reviewed_generated_task_reuse",
+  "status": "approved",
+  "source_run_id": "run_20260722_batch14_bbh_scale_codegen_v1",
+  "task_name": "beat_block_hammer",
+  "semantic_key": {
+    "schema_version": 1,
+    "task_name": "beat_block_hammer",
+    "aspect_id": "object_scale",
+    "capability_id": "object_scale.bounded",
+    "changes": {
+      "block": {
+        "position_mode": "official_random",
+        "yaw_mode": "official_random",
+        "scale": 1.2,
+        "color": [
+          1.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    "preserve_success_semantics": true,
+    "success_spec": null,
+    "capability_contract_sha256": "61e700e8092b7e64ae248c1eec31a664371d11177ae82d07259c8467fdb2d3ea"
+  },
+  "semantic_key_sha256": "45f2f0e2624a93d86fe4857e4ad9b5c6fb6a08ba82241dfa8cdd3d0b1945af1e",
+  "artifact_hashes": {
+    "task.py": "6624466a1b269e6ec30b3174e578ae5f0fe28eeb7c3a7d11b7bc78b8edcba18d",
+    "variant_spec.json": "6ab6d411a36a4a245da925192508d71e449c8384d0fdddfeff55e04a163ac46f",
+    "overlay.yml": "5e383b1fc39b38aeb8b05d98c4e5e98b21302164c7e84c497da57a5deb7a6664",
+    "generation/load_actors.py.txt": "1473925de55f56592775e40dec739d05f5996da71df8affd0856224c13062012",
+    "generation/task_artifact_bundle.json": "de2ee56692921ed6e0085ce824d4d306b39db9b27238d88d6128222ab0798b63",
+    "generation/scene_check_spec.json": "87c78cd39c38618fd9f159abe9f8d2f337efdfd59a759ef892719e06b724033d",
+    "validation/static.json": "99d83de30c5e17563122d9379bd6d8abdd75285b65483247c421028d32030d73",
+    "generation/success_spec.json": "3dc5e21f71a80752368539acb51247058b36bcc16f882cfbeebfe4dc1e8171a2"
+  },
+  "runtime_dependency_hashes": {
+    "envs/beat_block_hammer.py": "90269f15f9ce274fb5bcad703c47b0b552ff5a2f0a3ff62d12dbe9a553018014",
+    "envs/_base_task.py": "5abe6fe5eee77485f56082fecfc1b654bac665999b9836a538deeb67167346f4",
+    "envs/utils/__init__.py": "d3a670160e83b2467c232f5cbbfffcfc987e3bf0a03617fcf853989e4416d979",
+    "envs/utils/create_actor.py": "6bababee8e70da2460b2bbf47d3b5fbb20ccf73368782a7be596a63c962dce6d",
+    "envs/utils/rand_create_actor.py": "6c409ff1d97528b9dc654d39cc34683f51af6e797c1c5d92c076c29c09f9bedb"
+  },
+  "review_manifest_sha256": "294953888426d2ada2bb3211786ea72087c2c69c7ec7842778536920e610524a",
+  "reviewer": {
+    "id": "codex-batch17-development-review",
+    "kind": "development_agent"
+  },
+  "reviewed_at": "2026-07-22T23:45:52.072078+08:00",
+  "installed_at": "2026-07-22T23:47:03.739142+08:00"
+}

@@ -165,8 +165,9 @@ generated route。
 
 ## 5. 运行端到端 Agent
 
-Agent 会调用兼容 OpenAI Chat Completions 的文本/视觉模型，用于 planning、Execution VQA
-和最终反馈。密钥只通过环境变量传入：
+Agent 会调用兼容 OpenAI Chat Completions 的文本/视觉模型，用于 planning、Proposal、TaskGen/
+ToolGen、Execution VQA 和最终反馈。当前 profile 的这些角色共用一个 `UIUI_API_KEY`，不需要为不同
+stage 准备第二把 key；密钥只通过环境变量传入：
 
 ```bash
 export UIUI_API_KEY='在当前 shell 中设置，不要写入文件'
@@ -174,25 +175,39 @@ export UIUI_API_KEY='在当前 shell 中设置，不要写入文件'
 # export UIUI_BASE_URL='https://example.com/v1'
 ```
 
-推荐先使用全局开放 Query 入口；不再手写 task/profile/aspect。下面的旗舰命令最多运行 3 个
-ACT rollout（每轮 1 个），证据会决定继续深挖当前方面、切换方面或停止：
+推荐先使用全局开放 Query 入口；不手写 profile/aspect。下面的 clean-head 命令让 Query 自身点名
+`click_bell`，并使用相同的 task-only binding 防止跨 task 改路由，但不提示首个 aspect 或后续分支；
+最多运行 2 个 ACT rollout（每轮 1 个），证据决定继续、切换方面或停止：
 
 ```bash
 python scripts/manipeval_agent.py \
   --repo-root "$PWD" \
-  --request 'How well does ACT generalize across positions and official instances of the operated bell?' \
+  --request 'How well does the click_bell ACT policy generalize across properties of the operated bell?' \
   --auto-route \
-  --generated-rounds 3 \
-  --start-seed 100402 \
+  --bound-task-name click_bell \
+  --proposal-mode bounded_each_round \
+  --generated-rounds 2 \
+  --max-agent-rounds 2 \
+  --start-seed 100502 \
   --num-episodes 1 \
+  --execution-backend act \
   --max-reflections 0 \
-  --model-profile economy \
-  --reviewed-tool-registry "$PWD/mea/tool_registry/reviewed"
+  --model-profile balanced \
+  --planner-model gpt-5.6-terra \
+  --taskgen-model gpt-5.6-terra \
+  --toolgen-model gpt-5.6-terra \
+  --vision-model gpt-5.6-terra \
+  --feedback-model gpt-5.6-terra \
+  --reviewed-task-registry "$PWD/mea/task_registry/reviewed" \
+  --reviewed-tool-registry "$PWD/mea/tool_registry/reviewed" \
+  --no-history
 ```
 
 `--auto-route` 只会选择 TaskSchema 与 ACT checkpoint 都就绪的可信 catalog 项；当前覆盖
-BBH 和 `click_bell`。若 query 超出 catalog，会写一个 `status=unsupported`、不启动仿真的
-evaluation。先验证路由和历史复用而不跑 TaskGen/ACT，可增加 `--plan-only`：
+BBH 和 `click_bell`。若宽 Query 同时包含支持与未支持的属性，Router 会执行同一 task 的 supported
+subset，并把其余 task-qualified capabilities 写入 route 与最终 limitations；只有没有任何可回答子集时，
+才写一个 `status=unsupported`、不启动仿真的 evaluation。先验证路由和历史复用而不跑
+TaskGen/ACT，可增加 `--plan-only`：
 
 ```bash
 python scripts/manipeval_agent.py \
@@ -233,6 +248,13 @@ python scripts/manipeval_agent.py \
 `act`/`both` 的 Execution VQA 读取 ACT 连续 rollout 视频；`expert` 读取
 `event_keyframes_v1` 稀疏事件视频。完整 Agent 仍需要有效的 `UIUI_API_KEY` 才能完成
 视觉问答与最终反馈；无 key 时可先用第 3、4 节入口检查仿真、telemetry 和 checkpoint。
+一个 key 覆盖全部 stage 不表示外部服务永远可用；模型路由、服务配额或网关可暂时返回空响应、
+403/429/5xx。此时应保留已完成 ACT、provider ledger 和失败 manifest，不能把未完成 evaluation 写成
+成功，也不应把模型级瞬时故障误报成“还缺另一把 key”。
+
+上面的全角色 Terra override 对应当前 clean-head v4 的已验收路径。此前 v3 在 Luna vision 403 后于
+ACT 前失败，不能由 v4 反推 Luna/default mixed profile 已恢复；更换模型组合时仍应先 plan-only，再以
+最多 N=1 验证。
 
 `both` 会在本次 Agent 运行结束时比较 expert 与 ACT episode 的实际有序 seed；若不一致
 则把流水线标为失败，避免静默混用。但 Agent 的 `both` 仍会扫描替代 seed，也不计算
@@ -434,7 +456,45 @@ python scripts/manipeval_tool_registry.py install \
 `provider_called=false`。它不会把生成工具加入 Trusted Tool catalog。registry 运行 artifact
 已由 `.gitignore` 排除。
 
-### 8.2 无 ACT 的 TaskGen 功能验收
+### 8.2 审核后跨 evaluation 复用 generated Task
+
+generated Task 首次通过 code/static、render/vision、expert 与 SuccessSpec/contract 检查后，仍不能自动
+成为跨 evaluation 资产。先生成 pending review template，逐项检查源码、VariantSpec、SuccessSpec、
+场景和 validation，再显式安装：
+
+```bash
+python scripts/manipeval_task_registry.py template \
+  --source-run mea/generated_tasks/<source_run_id> \
+  > /tmp/task_review.json
+
+# 实际审阅后填写 decision=approved、reviewer.id/kind、时间和全部 checks；pending 不能安装。
+python scripts/manipeval_task_registry.py install \
+  --source-run mea/generated_tasks/<source_run_id> \
+  --review-manifest /tmp/task_review.json \
+  --reviewed-registry mea/task_registry/reviewed
+
+python scripts/manipeval_task_registry.py find \
+  --task-resolution mea/generated_tasks/<new_run_id>/generation/task_resolution.json \
+  --reviewed-registry mea/task_registry/reviewed
+```
+
+后续 Agent/TaskGen 显式增加：
+
+```bash
+--reviewed-task-registry "$PWD/mea/task_registry/reviewed"
+```
+
+复用要求 exact executable semantics；registry-authoritative variant id 可与新 run-local id 不同，但
+capability、changes、SuccessSpec、contract 和 provenance 不能变化。命中后仅表示 TaskGen 文本生成
+provider 为 0；Router、Planner、VQA 或 Feedback 仍可调用 provider，不能把前者写成整次 evaluation
+provider=0。
+
+每个新 run 都会重建 `TaskArtifactBundle` 与 `SceneCheckSpec`，并在 ACT 前读取
+`validation/task_generation_attempts/task_generation_attempt_summary.json` 做 production acceptance。
+注册项固定 immutable task inputs 与登记的 runtime dependency hashes，而不是完整环境快照。
+`reviewer.kind=development_agent` 时必须报告 `review_attestation_paper_eligible=false`；它不是 human gold。
+
+### 8.3 无 ACT 的 TaskGen 功能验收
 
 下面的命令只读复核既有真实 artifact，不调用模型、仿真或 ACT：
 
@@ -1294,7 +1354,12 @@ PYTHON=/root/autodl-tmp/conda/envs/RoboTwin/bin/python
 
 "$PYTHON" -m unittest -v \
   tests.manipeval.test_plan_session \
+  tests.manipeval.test_global_query_router \
+  tests.manipeval.test_query_planner_validation \
   tests.manipeval.test_proposal_agent \
+  tests.manipeval.test_reviewed_task_registry \
+  tests.manipeval.test_production_task_acceptance \
+  tests.manipeval.test_taskgen_capability_binding \
   tests.manipeval.test_metric_spec \
   tests.manipeval.test_success_spec \
   tests.manipeval.test_taskgen \
@@ -1302,27 +1367,33 @@ PYTHON=/root/autodl-tmp/conda/envs/RoboTwin/bin/python
   tests.manipeval.test_method_coverage
 ```
 
-要检查 `object_scale` 的开放 Query 路由和首轮物化，先做 `--plan-only`；它不启动 ACT，也不证明
-render/expert gate：
+先用 task-only binding、没有 bound aspect/history/内部顺序提示的宽 Query 检查 partial route 和首轮
+选择；`--plan-only` 不启动 ACT，也不证明 render/expert gate：
 
 ```bash
 export UIUI_API_KEY='只放在当前 shell 环境变量中'
 
 "$PYTHON" scripts/manipeval_agent.py \
   --repo-root "$PWD" \
-  --request 'Evaluate whether the beat_block_hammer ACT policy is robust to a bounded object scale change.' \
+  --request 'How well does the click_bell ACT policy generalize across properties of the operated bell?' \
   --auto-route \
-  --bound-task-name beat_block_hammer \
-  --bound-requested-aspect-id object_scale \
+  --bound-task-name click_bell \
   --proposal-mode bounded_each_round \
   --plan-only \
-  --generated-rounds 1 \
-  --max-agent-rounds 1 \
+  --generated-rounds 2 \
+  --max-agent-rounds 2 \
   --num-episodes 1 \
-  --evaluation-id eval_scale_plan_smoke \
-  --model-profile economy \
+  --evaluation-id eval_clean_head_click_plan_smoke \
+  --model-profile balanced \
+  --reviewed-task-registry "$PWD/mea/task_registry/reviewed" \
+  --reviewed-tool-registry "$PWD/mea/tool_registry/reviewed" \
   --no-history
 ```
+
+检查 `plan/global_query_route.json`：supported subset 应绑定 `click_bell` 的真实 capability，首个方面由
+Router/Planner 在允许集合内选择；appearance、mass、scale 等未 materialize 的轴应保留为
+task-qualified gaps，而不是让整个 Query 变成 unsupported 或在报告中消失。显式绑定某个父 aspect 的
+调试命令仍是严格单 aspect，不应被自动扩成 partial route。
 
 TaskGen 的错误 SuccessSpec recovery 可用 CLI 的开发 fixture 走 fresh BBH `force_codegen`：
 `--success-spec-fixture invalid_threshold` 必须与 `--mode force_codegen` 一起使用。该 fixture 只证明
@@ -1336,6 +1407,20 @@ unsupported。推荐在既有真实 BBH telemetry 上调用 trusted Tool 或 typ
 把此单项 proxy 命名为完整 unintended-contact、clearance 或 safety 指标。缓存 replay 的
 `act_rollouts_started` 必须保持 0。
 
-动态 PlanStep 的 `plan-only` 只能检查首轮范围。要证明 Sec. 3.2/Fig. 5 的 `Query + Y1:t` 数据流，
-必须让当前 adaptive runtime 至少完成一轮真实 ACT N=1，并检查下一步 artifact 同时包含 Rule/VQA/
-Evidence、coverage/navigation options、模型响应与最终裁决；之后才按 `1 → 3 → 5` 放大。
+动态 PlanStep 的 `plan-only` 只能检查首轮范围。当前完成态验收是
+`eval_20260723_batch17_clean_head_click_live_n1_v4`：首轮自主选择
+`object_position.left_fixed/query_generated [-0.14,-0.12]`，ACT seed `100502` 成功；真实 Evidence 后
+provider 选择 `propose/switch_aspect→object_instance.base0`，第二轮同 seed ACT 也成功。两轮
+pipeline/Aggregate/Dynamic VQA 均 passed、conflict=false，最终 status/lifecycle=completed。
+
+审计时核对 runtime totals：11 logical provider calls、16 transport attempts、2 ACT starts；本 run 没有
+whole-round recovery/restart。最终源码虽已增加失败/restart attempt ledger 与 feedback `finally`，v4
+不能验证未触发的新分支。失败历史也不能覆盖：v2 是首轮后 Proposal gateway failure；v3 是 Luna
+vision 403、ACT=0 的 pipeline failure。v4 使用所有角色 `gpt-5.6-terra` override，只验收该组合。
+
+v4 的 terminal 原因是 hard cap=2，`right_fixed` 和 `base1` 没有执行；partial gaps 仍含
+color/gloss/texture/mass/scale。因此 completed 不等于 Query evidence sufficient。下一检查应把
+`candidate_universe`、`required_coverage` 和 `budget_cap` 分开，并让 `all/across/some/worst-case/compare`
+等 Query 量词决定 sufficiency。缓存 replay v2 已在 0 ACT 下证明 `policy_success=0→drill_down position`、
+`1→switch instance`；它证明 evidence 改变分支，不证明何时可停止。该合同稳定后才按 `1 → 3 → 5`
+扩大实验。

@@ -12,6 +12,8 @@ import json
 from copy import deepcopy
 from typing import Any, Mapping
 
+from .success_spec import SuccessSpecError, success_spec_validation_report
+
 
 class SceneCheckSpecError(ValueError):
     """Raised when a scene-check contract is inconsistent with its task."""
@@ -98,6 +100,7 @@ def build_scene_check_spec(
     proposal_id = None
     source = "variant_spec"
     aspect_id = _inferred_aspect(task_name, variant_spec)
+    success_semantics = "official_check_success"
     if task_proposal is not None:
         if not isinstance(task_proposal, Mapping):
             raise SceneCheckSpecError("task_proposal must be an object")
@@ -114,6 +117,23 @@ def build_scene_check_spec(
             aspect_id = proposal_aspect
         proposal_id = str(task_proposal.get("proposal_id") or "").strip() or None
         source = "task_proposal"
+        if task_proposal.get("preserve_success_semantics") is False:
+            try:
+                success_report = success_spec_validation_report(
+                    task_proposal.get("success_spec")
+                )
+            except SuccessSpecError as exc:
+                raise SceneCheckSpecError(
+                    f"TaskProposal replacement SuccessSpec is invalid: {exc}"
+                ) from exc
+            if (
+                not success_report["act_eligible"]
+                or not success_report["experimental_bounded"]
+            ):
+                raise SceneCheckSpecError(
+                    "SceneCheckSpec only accepts experimental bounded ACT semantics"
+                )
+            success_semantics = "experimental_bounded_success_spec"
 
     if task_name == "beat_block_hammer":
         target_actor = "block"
@@ -125,7 +145,11 @@ def build_scene_check_spec(
         simulator_authorities = [
             "simulator_actor_identity",
             "simulator_rule_check",
-            "official_check_success",
+            (
+                "compiled_success_spec"
+                if success_semantics == "experimental_bounded_success_spec"
+                else "official_check_success"
+            ),
         ]
         repair_policy = {
             "mode": "regenerate_scene_code",
@@ -168,7 +192,7 @@ def build_scene_check_spec(
         "requested_changes": deepcopy(dict(changes)),
         "visual_checks": visual_checks,
         "simulator_authorities": simulator_authorities,
-        "success_semantics": "official_check_success",
+        "success_semantics": success_semantics,
         "repair_policy": repair_policy,
     }
     return validate_scene_check_spec(result)
@@ -216,8 +240,20 @@ def validate_scene_check_spec(value: Mapping[str, Any]) -> dict[str, Any]:
             or len(items) != len(set(items))
         ):
             raise SceneCheckSpecError(f"{field} must be a non-empty unique list")
-    if result.get("success_semantics") != "official_check_success":
-        raise SceneCheckSpecError("SceneCheckSpec must preserve official success")
+    if result.get("success_semantics") not in {
+        "official_check_success",
+        "experimental_bounded_success_spec",
+    }:
+        raise SceneCheckSpecError("SceneCheckSpec success semantics are unsupported")
+    if result["success_semantics"] == "experimental_bounded_success_spec" and (
+        result["task_name"] != "beat_block_hammer"
+        or result["source"] != "task_proposal"
+        or not result.get("proposal_sha256")
+        or "compiled_success_spec" not in result["simulator_authorities"]
+    ):
+        raise SceneCheckSpecError(
+            "experimental SceneCheckSpec lacks bounded proposal authority"
+        )
     policy = result.get("repair_policy")
     if not isinstance(policy, Mapping) or set(policy) != {
         "mode",

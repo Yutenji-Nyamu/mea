@@ -10,6 +10,7 @@ import re
 import shutil
 import subprocess
 import sys
+from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -30,6 +31,7 @@ from mea.runtime_ledger import record_act_batch_start
 from mea.toolkit import evaluate_telemetry_root
 from mea.taskgen import (
     ClickBellTaskGenError,
+    TaskArtifactBundleError,
     TaskGenPrototype,
     VisualReflectionError,
     execute_reflection_loop,
@@ -49,6 +51,16 @@ from mea.taskgen import (
     write_task_artifact_bundle,
 )
 from mea.taskgen.resolver import TaskResolutionError, resolve_task_proposal
+from mea.taskgen.production_acceptance import (
+    record_production_task_acceptance,
+    require_production_task_acceptance,
+)
+from mea.taskgen.reflection import protected_hashes
+from mea.taskgen.reviewed_registry import (
+    ReviewedTaskRegistryError,
+    copy_reviewed_task_artifacts,
+    find_reviewed_task,
+)
 
 
 _REGISTRATION_KEYS = {
@@ -155,6 +167,136 @@ def _canonical_sha256(value: Any) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
+def task_artifact_summary(bundle: Mapping[str, Any]) -> dict[str, Any]:
+    """Expose success authority without relabeling experimental semantics."""
+
+    semantics = bundle.get("success_semantics")
+    if not isinstance(semantics, Mapping):
+        raise TaskArtifactBundleError("TaskArtifactBundle success semantics are missing")
+    authority = semantics.get("authority")
+    experimental = authority == "compiled_success_spec_experimental_bounded"
+    return {
+        "scene_origin": bundle.get("scene_method", {}).get("origin"),
+        "success_origin": bundle.get("success_method", {}).get("origin"),
+        "success_semantics_preserved": bool(semantics.get("preserved")),
+        "success_official_equivalent": not experimental,
+        "success_act_eligible": True,
+        "success_execution_scope": (
+            "experimental_bounded_act" if experimental else "official_equivalent"
+        ),
+    }
+
+
+def materialize_reviewed_task_run(
+    repo_root: Path,
+    *,
+    user_request: str,
+    run_id: str,
+    reviewed_match: dict[str, Any],
+    text_model: str,
+) -> dict[str, Any]:
+    """Create a fresh executable run from one hash-verified reviewed Task."""
+
+    if not re.fullmatch(r"run_[A-Za-z0-9_]+", run_id):
+        raise ReviewedTaskRegistryError(
+            "run_id must be a safe Python package name starting with run_"
+        )
+    run_dir = repo_root / "mea/generated_tasks" / run_id
+    if run_dir.exists():
+        raise ReviewedTaskRegistryError(f"run directory already exists: {run_dir}")
+    copy_result = copy_reviewed_task_artifacts(
+        reviewed_match, run_dir, repo_root=repo_root
+    )
+    for relative in ("generation", "validation", "evidence", "evaluation"):
+        (run_dir / relative).mkdir(parents=True, exist_ok=True)
+    (run_dir / "__init__.py").write_text("", encoding="utf-8")
+    write_json(run_dir / "request.json", {"user_request": user_request})
+    spec = json.loads((run_dir / "variant_spec.json").read_text(encoding="utf-8"))
+    bundle = json.loads(
+        (run_dir / "generation/task_artifact_bundle.json").read_text(encoding="utf-8")
+    )
+    static = json.loads(
+        (run_dir / "validation/static.json").read_text(encoding="utf-8")
+    )
+    task_name = str(spec.get("task_name") or "")
+    if not task_name or task_name != reviewed_match["semantic_key"]["task_name"]:
+        raise ReviewedTaskRegistryError("reviewed task identity changed during copy")
+    try:
+        base_commit = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=repo_root, text=True
+        ).strip()
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise ReviewedTaskRegistryError("cannot resolve current Git HEAD") from exc
+    manifest: dict[str, Any] = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "status": "generated",
+        "created_at": datetime.now().astimezone().isoformat(),
+        "user_request": user_request,
+        "task_name": task_name,
+        "mode": "force_codegen",
+        "generation_kind": "reviewed_generated_task_reuse",
+        "base_commit": base_commit,
+        "protected_hashes_before": protected_hashes(repo_root),
+        "provider": {
+            "model_requested": text_model,
+            "called": False,
+            "calls": {},
+            "reason": "exact_reviewed_generated_task_reuse",
+        },
+        "task_module": f"mea.generated_tasks.{run_id}.task",
+        "overlay": str((run_dir / "overlay.yml").relative_to(repo_root)),
+        "static_validation": static,
+        "task_retrieval": {
+            "status": "exact_reviewed_match",
+            "registration_id": reviewed_match["registration_id"],
+            "artifact_id": reviewed_match["artifact_id"],
+            "semantic_key_sha256": reviewed_match["semantic_key_sha256"],
+            "provider_called": False,
+        },
+        "knowledge_retrieval": None,
+        "variant_spec_authority": "reviewed_task_registry",
+        "task_artifact_bundle": "generation/task_artifact_bundle.json",
+        "scene_check_spec": "generation/scene_check_spec.json",
+        "task_artifact_summary": task_artifact_summary(bundle),
+        "reviewed_task_registration": {
+            "registration_id": reviewed_match["registration_id"],
+            "artifact_id": reviewed_match["artifact_id"],
+            "semantic_key_sha256": reviewed_match["semantic_key_sha256"],
+            "runtime_dependency_hashes": copy_result[
+                "runtime_dependency_hashes"
+            ],
+            "review_authority": copy_result["review_authority"],
+            "reviewed_at": copy_result["reviewed_at"],
+            "review_attestation_paper_eligible": copy_result[
+                "review_attestation_paper_eligible"
+            ],
+            "copied_files": copy_result["files"],
+            "immutable_copied_files": {
+                relative: digest
+                for relative, digest in copy_result["files"].items()
+                if relative
+                not in {
+                    "generation/task_artifact_bundle.json",
+                    "generation/scene_check_spec.json",
+                }
+            },
+            "run_local_derived_files": {
+                relative: {
+                    "source_reviewed_sha256": copy_result["files"][relative],
+                    "policy": "rebuild_and_revalidate_for_current_run_binding",
+                }
+                for relative in (
+                    "generation/task_artifact_bundle.json",
+                    "generation/scene_check_spec.json",
+                )
+            },
+        },
+    }
+    write_json(run_dir / "manifest.json", manifest)
+    return manifest
+
+
 def prepare_planner_capability_binding(
     raw_contract: Any,
     *,
@@ -251,6 +393,7 @@ def validate_planner_capability_binding(
         if trusted_spec is not None
         else taskgen["task_variant_id"]
     )
+    reviewed_reuse = False
     if expected_variant is None:
         manifest_path = run_dir / "manifest.json"
         spec_path = run_dir / "variant_spec.json"
@@ -305,11 +448,41 @@ def validate_planner_capability_binding(
             "generation_mode": trusted_spec["generation_mode"],
             "changes": trusted_spec["changes"],
         }
-        observed = {field: spec.get(field) for field in expected}
-        if observed != expected:
+        reviewed_reuse = (
+            materialized_manifest.get("generation_kind")
+            == "reviewed_generated_task_reuse"
+        )
+        compared_fields = (
+            tuple(field for field in expected if field != "variant_id")
+            if reviewed_reuse
+            else tuple(expected)
+        )
+        observed = {field: spec.get(field) for field in compared_fields}
+        compared_expected = {field: expected[field] for field in compared_fields}
+        if observed != compared_expected:
             raise RuntimeError(
                 "materialized VariantSpec differs from planner capability contract"
             )
+        if reviewed_reuse:
+            registration = materialized_manifest.get("reviewed_task_registration")
+            copied_files = (
+                registration.get("copied_files")
+                if isinstance(registration, Mapping)
+                else None
+            )
+            pinned_variant_sha256 = (
+                copied_files.get("variant_spec.json")
+                if isinstance(copied_files, Mapping)
+                else None
+            )
+            actual_variant_sha256 = hashlib.sha256(spec_path.read_bytes()).hexdigest()
+            if (
+                not isinstance(pinned_variant_sha256, str)
+                or pinned_variant_sha256 != actual_variant_sha256
+            ):
+                raise RuntimeError(
+                    "reviewed VariantSpec differs from its registry-pinned artifact"
+                )
         if (
             materialized_manifest.get("task_name") != task_name
             or materialized_manifest.get("mode") != mode
@@ -328,9 +501,14 @@ def validate_planner_capability_binding(
                     "bounded TaskGen artifact differs from capability adapter"
                 )
         elif taskgen["operation"] == "force_codegen":
+            expected_authority = (
+                "reviewed_task_registry"
+                if reviewed_reuse
+                else "planner_capability_contract"
+            )
             if (
                 materialized_manifest.get("variant_spec_authority")
-                != "planner_capability_contract"
+                != expected_authority
                 or not str(materialized_manifest.get("task_module") or "").startswith(
                     "mea.generated_tasks."
                 )
@@ -358,6 +536,8 @@ def validate_planner_capability_binding(
         "variant_spec_authority": (
             "official_passthrough"
             if trusted_spec is None
+            else "reviewed_task_registry"
+            if reviewed_reuse
             else (
                 "planner_task_proposal"
                 if task_proposal is not None
@@ -366,6 +546,9 @@ def validate_planner_capability_binding(
         ),
         "capability_contract_sha256": _canonical_sha256(contract),
         "variant_spec_sha256": _canonical_sha256(spec) if spec is not None else None,
+        "materialized_task_variant_id": (
+            spec.get("variant_id") if spec is not None else None
+        ),
         "task_proposal_sha256": (
             _canonical_sha256(task_proposal)
             if task_proposal is not None
@@ -1327,6 +1510,7 @@ def run_visual_self_reflection(
         else build_scene_check_spec(spec)
     )
     is_click_bell = spec.get("task_name") == "click_bell"
+    is_reviewed_reuse = isinstance(manifest.get("reviewed_task_registration"), Mapping)
     reflection_dir = run_dir / "reflection"
     reflection_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1427,6 +1611,11 @@ def run_visual_self_reflection(
         }
 
     def repair(repair_index: int, observation: dict[str, Any]) -> dict[str, Any]:
+        if is_reviewed_reuse:
+            raise VisualReflectionError(
+                "reviewed generated-Task reuse is validate-only; repair requires "
+                "a newly generated candidate and a new review"
+            )
         if is_click_bell:
             raise VisualReflectionError(
                 "click_bell bounded overlay is validate-only and does not support repair"
@@ -1452,7 +1641,7 @@ def run_visual_self_reflection(
         return result
 
     effective_max_repairs = min(
-        max_repairs,
+        0 if is_reviewed_reuse else max_repairs,
         int(scene_check["repair_policy"]["max_repairs_supported"]),
     )
     summary = execute_reflection_loop(
@@ -1466,6 +1655,10 @@ def run_visual_self_reflection(
         summary[
             "validation_mode"
         ] = "simulator_position_or_instance_plus_visual_plausibility"
+    if is_reviewed_reuse:
+        summary["requested_max_repairs"] = max_repairs
+        summary["repair_supported"] = False
+        summary["reviewed_artifact_mutation_allowed"] = False
     summary["scene_check_spec"] = "generation/scene_check_spec.json"
     summary["scene_check_source"] = scene_check["source"]
     summary["repair_mode"] = scene_check["repair_policy"]["mode"]
@@ -1492,11 +1685,7 @@ def run_visual_self_reflection(
         run_dir,
         task_artifact_bundle="generation/task_artifact_bundle.json",
         scene_check_spec="generation/scene_check_spec.json",
-        task_artifact_summary={
-            "scene_origin": refreshed_bundle["scene_method"]["origin"],
-            "success_origin": refreshed_bundle["success_method"]["origin"],
-            "success_semantics_preserved": True,
-        },
+        task_artifact_summary=task_artifact_summary(refreshed_bundle),
     )
     write_json(reflection_dir / "summary.json", summary)
     if not summary["passed"]:
@@ -1855,6 +2044,14 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--reviewed-task-registry",
+        type=Path,
+        help=(
+            "Explicit approved generated-Task registry. Only an exact semantic "
+            "and artifact-hash match can bypass TaskGen text generation."
+        ),
+    )
+    parser.add_argument(
         "--mode",
         choices=["reuse", "force_codegen", "official"],
         default="force_codegen",
@@ -1935,9 +2132,15 @@ def main() -> None:
         except (json.JSONDecodeError, ProposalError) as exc:
             raise SystemExit(f"invalid --task-proposal-json: {exc}") from exc
 
+    reviewed_task_registry = (
+        args.reviewed_task_registry.expanduser().resolve()
+        if args.reviewed_task_registry is not None
+        else None
+    )
     capability_contract: dict[str, Any] | None = None
     trusted_variant_spec: dict[str, Any] | None = None
     task_resolution: dict[str, Any] | None = None
+    reviewed_task_match: dict[str, Any] | None = None
     if args.capability_contract_json is not None:
         try:
             raw_contract = json.loads(args.capability_contract_json)
@@ -1977,14 +2180,29 @@ def main() -> None:
             # integration has exact official/built-in reuse plus an injected
             # reviewed-artifact lookup boundary; persistent reviewed task
             # materialization remains a separate admission concern.
+            def reviewed_lookup(query: dict[str, Any]) -> dict[str, Any] | None:
+                nonlocal reviewed_task_match
+                if reviewed_task_registry is None:
+                    return None
+                reviewed_task_match = find_reviewed_task(
+                    reviewed_task_registry, query, repo_root=repo_root
+                )
+                return reviewed_task_match
+
             task_resolution = resolve_task_proposal(
                 task_proposal,
                 capability_contract,
-                find_reviewed=None,
+                find_reviewed=(
+                    reviewed_lookup if reviewed_task_registry is not None else None
+                ),
             )
-        except TaskResolutionError as exc:
+        except (TaskResolutionError, ReviewedTaskRegistryError) as exc:
             raise SystemExit(f"TaskGen reuse-first resolution failed: {exc}") from exc
-        if task_resolution["resolved_route"] != args.mode:
+        materializable_route = task_resolution["resolved_route"] == args.mode or (
+            args.mode == "force_codegen"
+            and task_resolution["resolved_route"] == "reviewed_generated_reuse"
+        )
+        if not materializable_route:
             raise SystemExit(
                 "resolved TaskGen route cannot be materialized by this invocation: "
                 f"{task_resolution['resolved_route']!r}"
@@ -2041,6 +2259,10 @@ def main() -> None:
         and args.mode != "official"
         and not bounded_click_bell
         and not (trusted_variant_spec is not None and args.mode == "reuse")
+        and not (
+            task_resolution is not None
+            and task_resolution.get("provider_required") is False
+        )
     ) or args.vision_check:
         provider = OpenAICompatibleProvider(
             base_url=args.base_url,
@@ -2077,6 +2299,25 @@ def main() -> None:
                 run_id=args.run_id,
                 telemetry_profile=args.telemetry_profile,
             )
+        elif (
+            task_resolution is not None
+            and task_resolution["resolved_route"] == "reviewed_generated_reuse"
+        ):
+            if reviewed_task_match is None:
+                raise SystemExit(
+                    "reviewed TaskGen resolution did not retain a verified registry match"
+                )
+            if not args.run_id:
+                raise SystemExit(
+                    "reviewed generated-Task reuse requires an explicit --run-id"
+                )
+            manifest = materialize_reviewed_task_run(
+                repo_root,
+                user_request=args.request,
+                run_id=args.run_id,
+                reviewed_match=reviewed_task_match,
+                text_model=args.text_model,
+            )
         else:
             prototype = TaskGenPrototype(repo_root, provider, model=args.text_model)
             success_spec_candidate = None
@@ -2099,6 +2340,7 @@ def main() -> None:
                 run_id=args.run_id,
                 variant_id=args.variant_id,
                 trusted_variant_spec=trusted_variant_spec,
+                task_proposal=task_proposal,
                 success_spec_candidate=success_spec_candidate,
                 success_spec_max_repairs=success_spec_max_repairs,
             )
@@ -2135,11 +2377,7 @@ def main() -> None:
             task_proposal_path="generation/task_proposal.json",
             task_artifact_bundle="generation/task_artifact_bundle.json",
             scene_check_spec="generation/scene_check_spec.json",
-            task_artifact_summary={
-                "scene_origin": bundle["scene_method"]["origin"],
-                "success_origin": bundle["success_method"]["origin"],
-                "success_semantics_preserved": True,
-            },
+            task_artifact_summary=task_artifact_summary(bundle),
         )
         manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
 
@@ -2186,13 +2424,22 @@ def main() -> None:
             else "setup_probe"
         )
         if manifest.get("mode") == "official"
-        else ("act" if args.run_act else "expert" if args.expert else "setup_probe")
+        else (
+            "expert+act"
+            if args.expert and args.run_act
+            else "expert_gate+act"
+            if args.run_act
+            else "expert"
+            if args.expert
+            else "setup_probe"
+        )
     )
     update_manifest(
         run_dir,
         requested_execution_backend=requested_execution_backend,
     )
 
+    position_samples: dict[str, Any] | None = None
     try:
         if manifest.get("mode") == "official" and (
             args.vision_check or args.reflection_fixture
@@ -2202,6 +2449,10 @@ def main() -> None:
                 "use expert, act, or both execution without scene codegen"
             )
         if args.reflection_fixture:
+            if isinstance(manifest.get("reviewed_task_registration"), Mapping):
+                raise RuntimeError(
+                    "reflection fixtures cannot mutate an approved reviewed Task"
+                )
             if manifest.get("task_name") != "beat_block_hammer":
                 raise RuntimeError(
                     "reflection fixtures are only defined for beat_block_hammer"
@@ -2331,6 +2582,46 @@ def main() -> None:
                     position_samples,
                 )
             update_manifest(run_dir, position_samples=position_samples)
+            manifest = json.loads(
+                (run_dir / "manifest.json").read_text(encoding="utf-8")
+            )
+            effective_task_resolution = task_resolution
+            task_resolution_path = run_dir / "generation/task_resolution.json"
+            if effective_task_resolution is None and task_resolution_path.is_file():
+                effective_task_resolution = json.loads(
+                    task_resolution_path.read_text(encoding="utf-8")
+                )
+            task_acceptance = record_production_task_acceptance(
+                run_dir,
+                manifest,
+                scene=scene,
+                position_samples=position_samples,
+                task_resolution=effective_task_resolution,
+                require_expert=bool(
+                    args.expert or manifest.get("mode") != "official"
+                ),
+            )
+            update_manifest(
+                run_dir,
+                task_generation_acceptance={
+                    "status": task_acceptance["status"],
+                    "artifact": (
+                        "validation/task_generation_attempts/"
+                        "task_generation_attempt_summary.json"
+                    ),
+                    "act_rollouts_started_before_acceptance": task_acceptance[
+                        "runtime"
+                    ]["act_rollouts_started"],
+                },
+            )
+            manifest = json.loads(
+                (run_dir / "manifest.json").read_text(encoding="utf-8")
+            )
+            require_production_task_acceptance(
+                run_dir,
+                manifest,
+                task_resolution=effective_task_resolution,
+            )
             act = run_act(
                 repo_root,
                 run_dir,
@@ -2396,7 +2687,18 @@ def main() -> None:
                 status="completed",
                 failure=None,
                 act_evaluation=act,
-                execution_backends=(["expert", "ACT"] if args.expert else ["ACT"]),
+                execution_backends=(
+                    ["expert", "ACT"]
+                    if args.expert or manifest.get("mode") != "official"
+                    else ["ACT"]
+                ),
+                pre_policy_gates=(
+                    ["expert_solvability", "controlled_variation_samples"]
+                    if manifest.get("mode") != "official"
+                    else ["expert_solvability"]
+                    if args.expert
+                    else ["setup_render_rule"]
+                ),
                 backend_seed_alignment=alignment,
                 trusted_tool_evaluation=trusted_tools,
             )

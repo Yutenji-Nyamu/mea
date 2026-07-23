@@ -15,7 +15,14 @@ from mea.proposals import (
     task_proposal_from_contract,
     tool_proposal_from_contract,
 )
-from scripts.manipeval_agent import apply_bounded_round_proposal
+from mea.proposal_agent import ProposalAgentError
+from mea.runtime_ledger import record_act_batch_start, runtime_ledger_context
+from scripts.manipeval_agent import (
+    apply_bounded_round_proposal,
+    persist_adaptive_step_selection,
+    record_round_attempt_ledgers,
+    record_runtime_ledger_stage,
+)
 
 
 def _ready_catalog(root: Path) -> dict:
@@ -143,6 +150,17 @@ class FakeProposalAgent:
         }
 
 
+class FailingProposalAgent:
+    def __init__(self) -> None:
+        self.last_prompt = "prompt retained after provider failure"
+        self.last_responses = ["malformed first response"]
+        self.last_errors = ["ProposalError: malformed first response"]
+        self.last_repairs = []
+
+    def propose(self, *args, **kwargs):
+        raise ProposalAgentError("proposal failed twice")
+
+
 class AgentBoundedProposalIntegrationTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -188,8 +206,157 @@ class AgentBoundedProposalIntegrationTests(unittest.TestCase):
             )
         self.assertEqual(first["round_number"], 1)
         self.assertEqual(second["round_number"], 2)
+        self.assertEqual(first["attempt_count"], 1)
+        self.assertEqual(first["provider_or_validation_errors"], [])
         self.assertEqual(agent.calls[0]["capability_mode"], "novel_bounded")
         self.assertEqual(agent.calls[1]["capability_mode"], "registered_reuse")
+
+    def test_adaptive_step_selection_is_durable_before_task_materialization(self):
+        bundle = {
+            "schema_version": 1,
+            "source": "unit_test",
+            "proposal": {
+                "action": "continue",
+                "template_id": "object_instance.base1",
+            },
+        }
+        navigation = {
+            "schema_version": 1,
+            "completed_template_ids": ["object_position.left_fixed"],
+        }
+
+        relative = persist_adaptive_step_selection(
+            self.evaluation_dir,
+            after_round=1,
+            prompt="choose the next evidence-bearing test",
+            responses=["continue with object_instance.base1"],
+            step_bundle=bundle,
+            navigation_options=navigation,
+        )
+
+        step_dir = self.evaluation_dir / relative
+        self.assertEqual(relative, "plan/adaptive_steps/after_round_01")
+        self.assertEqual(
+            json.loads((step_dir / "plan_step_bundle.json").read_text()), bundle
+        )
+        self.assertEqual(
+            json.loads(
+                (self.evaluation_dir / "plan/evidence_after_round_1.json").read_text()
+            ),
+            navigation,
+        )
+        self.assertEqual(
+            (step_dir / "response_1.txt").read_text(encoding="utf-8"),
+            "continue with object_instance.base1\n",
+        )
+
+    def test_failed_proposal_retains_prompt_response_and_typed_failure(self):
+        with self.assertRaisesRegex(ProposalAgentError, "failed twice"):
+            self._apply(
+                FailingProposalAgent(),
+                _round("object_position.left_fixed", "round_1"),
+                1,
+            )
+
+        proposal_dir = self.evaluation_dir / "plan/bounded_proposal/round_01"
+        failure = json.loads(
+            (proposal_dir / "proposal_failure.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(failure["status"], "failed")
+        self.assertEqual(failure["failure"]["type"], "ProposalAgentError")
+        self.assertEqual(
+            failure["provider_or_validation_errors"],
+            ["ProposalError: malformed first response"],
+        )
+        self.assertEqual(
+            (proposal_dir / "prompt.md").read_text(encoding="utf-8"),
+            "prompt retained after provider failure",
+        )
+        self.assertEqual(
+            (proposal_dir / "response_1.txt").read_text(encoding="utf-8"),
+            "malformed first response\n",
+        )
+
+    def test_runtime_stage_upsert_is_idempotent_and_updates_manifest(self):
+        self.evaluation_dir.mkdir(parents=True, exist_ok=True)
+        (self.evaluation_dir / "manifest.json").write_text("{}", encoding="utf-8")
+        ledger = self.evaluation_dir / "runtime/test/call_starts.jsonl"
+        context = {
+            "schema_version": 1,
+            "evaluation_id": "eval_test",
+            "logical_round_id": "bounded_proposal_round_1",
+            "round_attempt_index": 1,
+            "child_run_id": "bounded_proposal_agent",
+        }
+        with runtime_ledger_context(ledger, context):
+            record_act_batch_start(
+                task_name="click_bell",
+                policy_name="ACT",
+                start_seed=100401,
+                num_rollouts=1,
+            )
+
+        summaries = []
+        for _ in range(2):
+            record_runtime_ledger_stage(
+                self.root,
+                self.evaluation_dir,
+                summaries,
+                ledger_path=ledger,
+                context=context,
+                stage="bounded_proposal_round_1",
+            )
+
+        manifest = json.loads(
+            (self.evaluation_dir / "manifest.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(len(summaries), 1)
+        self.assertEqual(manifest["runtime_totals"]["act_rollouts_started"], 1)
+        self.assertEqual(manifest["runtime_totals"]["ledger_count"], 1)
+
+    def test_all_round_attempt_ledgers_are_counted_after_recovery(self):
+        self.evaluation_dir.mkdir(parents=True, exist_ok=True)
+        (self.evaluation_dir / "manifest.json").write_text("{}", encoding="utf-8")
+        for attempt in (1, 2):
+            ledger = (
+                self.evaluation_dir
+                / f"runtime/round_1/attempt_{attempt:02d}/call_starts.jsonl"
+            )
+            suffix = "" if attempt == 1 else "_attempt_02"
+            context = {
+                "schema_version": 1,
+                "evaluation_id": "eval_test",
+                "logical_round_id": "round_1",
+                "round_attempt_index": attempt,
+                "child_run_id": f"run_test_round_1{suffix}",
+            }
+            with runtime_ledger_context(ledger, context):
+                record_act_batch_start(
+                    task_name="click_bell",
+                    policy_name="ACT",
+                    start_seed=100400 + attempt,
+                    num_rollouts=1,
+                )
+
+        summaries = []
+        recorded = record_round_attempt_ledgers(
+            self.root,
+            self.evaluation_dir,
+            summaries,
+            evaluation_id="eval_test",
+            round_id="round_1",
+        )
+
+        manifest = json.loads(
+            (self.evaluation_dir / "manifest.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(len(recorded), 2)
+        self.assertEqual(
+            [item["stage"] for item in summaries],
+            ["round_1_attempt_01", "round_1_attempt_02"],
+        )
+        self.assertEqual(manifest["runtime_totals"]["act_rollouts_started"], 2)
+        self.assertEqual(manifest["runtime_totals"]["ledger_count"], 2)
 
     def test_round_one_keeps_novel_first_round_compatibility_artifacts(self):
         agent = FakeProposalAgent()

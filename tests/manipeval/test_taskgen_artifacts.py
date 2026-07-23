@@ -12,6 +12,7 @@ from mea.taskgen import (
     validate_task_artifact_bundle,
     write_task_artifact_bundle,
 )
+from mea.taskgen.success_spec import experimental_bbh_success_spec_v2
 
 
 def write(path: Path, content: str) -> None:
@@ -20,6 +21,44 @@ def write(path: Path, content: str) -> None:
 
 
 class TaskArtifactBundleTests(unittest.TestCase):
+    def test_experimental_success_requires_task_proposal_v2(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            run = root / "mea/generated_tasks/run_unbound_experimental"
+            success_spec = experimental_bbh_success_spec_v2()
+            success_method, _ = compile_success_spec(success_spec)
+            write(
+                run / "task.py",
+                "class beat_block_hammer:\n"
+                "    def load_actors(self):\n        pass\n"
+                + textwrap.indent(success_method, "    "),
+            )
+            write(run / "generation/success_spec.json", json.dumps(success_spec))
+            write(
+                run / "variant_spec.json",
+                json.dumps(
+                    {
+                        "task_name": "beat_block_hammer",
+                        "controlled_axis": "object_appearance",
+                        "changes": {"block": {"color": [0.0, 0.2, 1.0]}},
+                    }
+                ),
+            )
+            with self.assertRaisesRegex(
+                TaskArtifactBundleError, "requires TaskProposal v2 provenance"
+            ):
+                write_task_artifact_bundle(
+                    root,
+                    run,
+                    {
+                        "task_name": "beat_block_hammer",
+                        "task_module": (
+                            "mea.generated_tasks.run_unbound_experimental.task"
+                        ),
+                        "mode": "force_codegen",
+                    },
+                )
+
     def test_generated_route_binds_generated_scene_and_official_success(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

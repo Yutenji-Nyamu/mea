@@ -380,7 +380,57 @@ shape when an existing metric is enough:
 Or use this exact ToolProposal v3 shape when the query genuinely needs a new
 typed metric; copy only identifiers admitted by allowed_identifiers:
 {json.dumps(card['typed_metric_example'], ensure_ascii=False, indent=2)}
+
+For ToolProposal v2/v3, vqa_question_specs must be a non-empty list and the
+set of run_local.* ids in vqa_phenomenon_ids must exactly equal the ids in
+vqa_question_specs.  Prefer the registered ToolProposal v2 example verbatim
+when no genuinely new visual question is needed.
 """
+
+
+def _repair_vqa_question_binding(
+    value: Mapping[str, Any], card: Mapping[str, Any]
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Apply one bounded structural repair to a malformed v2/v3 VQA binding."""
+
+    repaired = deepcopy(dict(value))
+    tool = repaired.get("tool_proposal")
+    if not isinstance(tool, Mapping) or tool.get("schema_version") not in {2, 3}:
+        raise ProposalError("bounded VQA repair requires ToolProposal v2 or v3")
+    normalized_tool = deepcopy(dict(tool))
+    reference = deepcopy(
+        card["example"]["tool_proposal"]["vqa_question_specs"][0]
+    )
+    allowed_catalog = list(card["toolgen"]["vqa_phenomenon_candidates"])
+    raw_phenomena = normalized_tool.get("vqa_phenomenon_ids")
+    retained_catalog = (
+        [
+            item
+            for item in raw_phenomena
+            if isinstance(item, str) and item in allowed_catalog
+        ]
+        if isinstance(raw_phenomena, list)
+        else []
+    )
+    if not retained_catalog:
+        retained_catalog = [allowed_catalog[0]]
+    normalized_tool["vqa_phenomenon_ids"] = [
+        *dict.fromkeys(retained_catalog),
+        reference["id"],
+    ]
+    normalized_tool["vqa_question_specs"] = [reference]
+    repaired["tool_proposal"] = normalized_tool
+    return repaired, {
+        "schema_version": 1,
+        "action": "bind_card_reference_vqa_question",
+        "reference_question_id": reference["id"],
+        "retained_catalog_phenomenon_ids": list(dict.fromkeys(retained_catalog)),
+        "semantic_fields_changed": [
+            "tool_proposal.vqa_phenomenon_ids",
+            "tool_proposal.vqa_question_specs",
+        ],
+        "executable_fields_changed": [],
+    }
 
 
 def _validate_typed_metric_identifiers(
@@ -514,6 +564,7 @@ class BoundedProposalAgent:
         self.last_prompt: str | None = None
         self.last_responses: list[str] = []
         self.last_errors: list[str] = []
+        self.last_repairs: list[dict[str, Any]] = []
 
     def propose(
         self,
@@ -542,6 +593,13 @@ class BoundedProposalAgent:
         self.last_prompt = prompt
         self.last_responses = []
         self.last_errors = []
+        self.last_repairs = []
+        card = _proposal_card(
+            target,
+            aspect_id,
+            base_template_id=base_template_id,
+            capability_mode=mode,
+        )
         for _attempt in range(2):
             attempt_prompt = prompt
             if self.last_errors:
@@ -559,14 +617,53 @@ class BoundedProposalAgent:
                     temperature=0.0,
                 )
                 self.last_responses.append(str(response))
-                return validate_proposal_bundle(
-                    extract_json_response(str(response)),
-                    target=target,
-                    aspect_id=aspect_id,
-                    require_novel_changes=require_novel_changes,
-                    base_template_id=base_template_id,
-                    capability_mode=mode,
-                )
+                raw = extract_json_response(str(response))
+                try:
+                    return validate_proposal_bundle(
+                        raw,
+                        target=target,
+                        aspect_id=aspect_id,
+                        require_novel_changes=require_novel_changes,
+                        base_template_id=base_template_id,
+                        capability_mode=mode,
+                    )
+                except ProposalError as exc:
+                    tool = raw.get("tool_proposal")
+                    raw_specs = (
+                        tool.get("vqa_question_specs")
+                        if isinstance(tool, Mapping)
+                        else None
+                    )
+                    vqa_binding_error = (
+                        isinstance(tool, Mapping)
+                        and tool.get("schema_version") in {2, 3}
+                        and (
+                            not isinstance(raw_specs, list)
+                            or not raw_specs
+                            or "vqa_question_specs" in str(exc)
+                            or "run-local phenomenon ids" in str(exc)
+                            or "run-local VQA question" in str(exc)
+                        )
+                    )
+                    if not vqa_binding_error:
+                        raise
+                    repaired, trace = _repair_vqa_question_binding(raw, card)
+                    validated = validate_proposal_bundle(
+                        repaired,
+                        target=target,
+                        aspect_id=aspect_id,
+                        require_novel_changes=require_novel_changes,
+                        base_template_id=base_template_id,
+                        capability_mode=mode,
+                    )
+                    trace.update(
+                        {
+                            "attempt_index": _attempt + 1,
+                            "trigger": f"{type(exc).__name__}: {exc}",
+                        }
+                    )
+                    self.last_repairs.append(trace)
+                    return validated
             except Exception as exc:
                 self.last_errors.append(f"{type(exc).__name__}: {exc}")
         raise ProposalAgentError(f"proposal failed twice: {self.last_errors}")

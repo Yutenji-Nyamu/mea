@@ -89,9 +89,8 @@ def task_semantic_key(
         "capability_id": proposal["capability_id"],
         "changes": deepcopy(proposal["changes"]),
         "preserve_success_semantics": proposal["preserve_success_semantics"],
-        # TaskProposal v1 has no SuccessSpec.  Keeping an explicit null here
-        # makes the reuse identity forward-compatible with a bounded v2
-        # proposal without interpreting or validating that later schema here.
+        # V1 yields null; bounded v2 binds the complete validated predicate so
+        # a semantic change can never reuse an older executable task.
         "success_spec": deepcopy(proposal.get("success_spec")),
         "capability_contract_sha256": _canonical_sha256(contract),
     }
