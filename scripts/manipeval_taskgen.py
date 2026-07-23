@@ -51,6 +51,10 @@ from mea.taskgen import (
     write_task_artifact_bundle,
 )
 from mea.taskgen.resolver import TaskResolutionError, resolve_task_proposal
+from mea.taskgen.prototype import (
+    TaskGenError,
+    validate_taskgen_ablation_switches,
+)
 from mea.taskgen.production_acceptance import (
     ProductionTaskAcceptanceError,
     record_production_task_acceptance,
@@ -2150,6 +2154,13 @@ def parse_args() -> argparse.Namespace:
         "--registration-identity-json",
         help="Parent Agent registration identity propagated to child/episode artifacts.",
     )
+    parser.add_argument(
+        "--taskgen-ablation-json",
+        help=(
+            "Preregistered Table 3 switches with exactly rag, "
+            "visual_self_check, and readme_agent booleans."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -2169,6 +2180,23 @@ def main() -> None:
         raise SystemExit("--accept-task-only cannot be combined with --run-act")
     if args.accept_task_only and not args.expert:
         raise SystemExit("--accept-task-only requires --expert")
+    taskgen_ablation: dict[str, bool] | None = None
+    if args.taskgen_ablation_json is not None:
+        try:
+            taskgen_ablation = validate_taskgen_ablation_switches(
+                json.loads(args.taskgen_ablation_json)
+            )
+        except (json.JSONDecodeError, TaskGenError) as exc:
+            raise SystemExit(f"invalid --taskgen-ablation-json: {exc}") from exc
+        if args.mode != "force_codegen" or args.resume_run:
+            raise SystemExit(
+                "--taskgen-ablation-json requires a fresh force_codegen run"
+            )
+        if args.vision_check != taskgen_ablation["visual_self_check"]:
+            raise SystemExit(
+                "--vision-check must exactly match the preregistered "
+                "visual_self_check switch"
+            )
     repo_root = args.repo_root.expanduser().resolve()
     registration_identity: dict[str, Any] | None = None
     if args.registration_identity_json is not None:
@@ -2402,6 +2430,7 @@ def main() -> None:
                 task_proposal=task_proposal,
                 success_spec_candidate=success_spec_candidate,
                 success_spec_max_repairs=success_spec_max_repairs,
+                ablation_switches=taskgen_ablation,
             )
         run_dir = repo_root / "mea/generated_tasks" / manifest["run_id"]
 

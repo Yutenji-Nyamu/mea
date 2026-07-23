@@ -552,13 +552,32 @@ def _extract_method_from_file(path: Path, method_name: str) -> str:
     return textwrap.dedent(_source_for_node(source, methods[0]))
 
 
+def validate_taskgen_ablation_switches(value: Any) -> dict[str, bool]:
+    """Validate the exact switches used by a preregistered Table 3 cell."""
+
+    expected = {"rag", "visual_self_check", "readme_agent"}
+    if not isinstance(value, Mapping) or set(value) != expected:
+        raise TaskGenError(
+            f"TaskGen ablation switches must contain exactly {sorted(expected)}"
+        )
+    if any(not isinstance(value[key], bool) for key in expected):
+        raise TaskGenError("TaskGen ablation switches must be booleans")
+    return {key: bool(value[key]) for key in sorted(expected)}
+
+
 def _codegen_prompt(
     repo_root: Path,
     user_request: str,
     spec: dict[str, Any],
     knowledge_context: str,
+    *,
+    readme_agent_enabled: bool = True,
 ) -> str:
-    agent_readme = (repo_root / "mea/taskgen/README.Agent.md").read_text(encoding="utf-8")
+    agent_readme = (
+        (repo_root / "mea/taskgen/README.Agent.md").read_text(encoding="utf-8")
+        if readme_agent_enabled
+        else "DISABLED BY PREREGISTERED no_readme_agent CONDITION."
+    )
     official_method = _extract_method_from_file(
         repo_root / "envs/beat_block_hammer.py", "load_actors"
     )
@@ -628,11 +647,25 @@ class TaskGenPrototype:
         task_proposal: Mapping[str, Any] | None = None,
         success_spec_candidate: Mapping[str, Any] | None = None,
         success_spec_max_repairs: int = 0,
+        ablation_switches: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         if mode not in {"force_codegen", "reuse"}:
             raise TaskGenError(f"不支持的 generation mode: {mode}")
         if success_spec_candidate is not None and mode != "force_codegen":
             raise TaskGenError("SuccessSpec candidate is only valid for force_codegen")
+        normalized_ablation = (
+            validate_taskgen_ablation_switches(ablation_switches)
+            if ablation_switches is not None
+            else {
+                "rag": True,
+                "readme_agent": True,
+                "visual_self_check": True,
+            }
+        )
+        if ablation_switches is not None and mode != "force_codegen":
+            raise TaskGenError(
+                "TaskGen ablation switches are valid only for force_codegen"
+            )
 
         validated_task_proposal: dict[str, Any] | None = None
         if task_proposal is not None:
@@ -741,6 +774,7 @@ class TaskGenPrototype:
             "base_commit": _git_head(self.repo_root),
             "protected_hashes_before": self._base_hashes(),
             "provider": {"model_requested": self.model},
+            "taskgen_ablation_switches": normalized_ablation,
         }
         if validated_task_proposal is not None:
             manifest["task_proposal"] = validated_task_proposal
@@ -900,32 +934,48 @@ class TaskGenPrototype:
 
             manifest["status"] = "retrieving_task_sources"
             _write_json(run_dir / "manifest.json", manifest)
-            task_retrieval = TaskRetriever(
-                self.repo_root,
-                self.provider,
-                model=self.model,
-            ).select(
-                user_request,
-                task_name,
-                spec,
-                output_dir=generation_dir,
-            )
-            provider_calls["retrieval"] = dict(
-                getattr(self.provider, "last_metadata", {})
-            )
+            if normalized_ablation["rag"]:
+                task_retrieval = TaskRetriever(
+                    self.repo_root,
+                    self.provider,
+                    model=self.model,
+                ).select(
+                    user_request,
+                    task_name,
+                    spec,
+                    output_dir=generation_dir,
+                )
+                provider_calls["retrieval"] = dict(
+                    getattr(self.provider, "last_metadata", {})
+                )
 
-            knowledge_retrieval = KnowledgeRetriever(self.repo_root).select(
-                user_request,
-                task_name,
-                spec,
-                task_retrieval["selected_tasks"],
-                output_dir=generation_dir,
-            )
-            knowledge_manifest = {
-                key: value
-                for key, value in knowledge_retrieval.items()
-                if key != "context"
-            }
+                knowledge_retrieval = KnowledgeRetriever(self.repo_root).select(
+                    user_request,
+                    task_name,
+                    spec,
+                    task_retrieval["selected_tasks"],
+                    output_dir=generation_dir,
+                )
+                knowledge_manifest = {
+                    key: value
+                    for key, value in knowledge_retrieval.items()
+                    if key != "context"
+                }
+                knowledge_context = knowledge_retrieval["context"]
+            else:
+                task_retrieval = {
+                    "status": "disabled_by_preregistered_ablation",
+                    "selected_tasks": [],
+                    "provider_called": False,
+                }
+                knowledge_retrieval = {
+                    "status": "disabled_by_preregistered_ablation",
+                    "context": "DISABLED BY PREREGISTERED no_rag CONDITION.",
+                }
+                knowledge_manifest = {
+                    "status": "disabled_by_preregistered_ablation"
+                }
+                knowledge_context = knowledge_retrieval["context"]
 
             manifest["status"] = "generating"
             manifest["task_retrieval"] = task_retrieval
@@ -935,7 +985,8 @@ class TaskGenPrototype:
                 self.repo_root,
                 user_request,
                 spec,
-                knowledge_retrieval["context"],
+                knowledge_context,
+                readme_agent_enabled=normalized_ablation["readme_agent"],
             )
             (generation_dir / "code_prompt.md").write_text(code_prompt, encoding="utf-8")
             code_response = self.provider.text(

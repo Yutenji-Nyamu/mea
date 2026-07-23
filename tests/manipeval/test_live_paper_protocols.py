@@ -1,3 +1,4 @@
+import hashlib
 import json
 import tempfile
 import unittest
@@ -15,11 +16,20 @@ from mea.live_paper_protocols import (
     evaluate_click_bell_efficiency,
     evaluate_exact_seed_ranking,
     evaluate_table3_codegen,
+    materialize_click_bell_efficiency_preregistration,
+    materialize_ranking_preregistration,
+    materialize_table3_codegen_preregistration,
+    validate_click_bell_efficiency_preregistration,
     validate_proxy_gold_manifest,
+    validate_table3_codegen_preregistration,
 )
 from mea.prospective_error_ledger import (
     ProspectiveOperationLedger,
     initialize_ledger,
+)
+from mea.taskgen.prototype import (
+    TaskGenError,
+    validate_taskgen_ablation_switches,
 )
 
 
@@ -27,111 +37,242 @@ def checkpoint(name):
     return {"checkpoint_id": name, "artifact_sha256": name[0] * 64}
 
 
-def attempt(candidate, index, success, *, seed=17, source="live_policy_rollout"):
+def write_bytes(root, ref, payload):
+    path = root / ref
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(payload)
+    return hashlib.sha256(payload).hexdigest()
+
+
+def write_json(root, ref, value):
+    return write_bytes(
+        root,
+        ref,
+        (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
+    )
+
+
+def bound_attempt(root, prereg, arm_name, arm_run_id, candidate, index, success):
+    command = next(
+        row
+        for row in prereg["execution_schedule"][arm_name]
+        if row["candidate_id"] == candidate
+    )
+    seed = prereg["seed"]
+    seed_results = {
+        "schema_version": 1,
+        "protocol": "exact_seed_paired_v1",
+        "requested_seeds": [seed],
+        "requested_count": 1,
+        "evaluated_count": 1,
+        "seed_measurements": [{"seed": seed, "policy_success": success}],
+    }
+    seed_sha = write_json(
+        root, command["expected_seed_results_ref"], seed_results
+    )
+    telemetry_sha = write_json(
+        root,
+        command["expected_telemetry_episode_ref"],
+        {"schema_version": 1, "seed": seed, "success": success},
+    )
+    variant = next(
+        row["variant_binding"]
+        for row in prereg["candidate_universe"]
+        if row["candidate_id"] == candidate
+    )
     minute = index + 1
-    return {
-        "attempt_id": f"attempt_{candidate}_{index}",
+    attempt_id = f"{arm_name}_{candidate}_{index}"
+    receipt = {
+        "schema_version": 1,
+        "protocol": "click_bell_bound_live_rollout_receipt_v1",
+        "preregistration_sha256": prereg["preregistration_sha256"],
+        "arm": arm_name,
+        "arm_run_id": arm_run_id,
+        "attempt_id": attempt_id,
         "candidate_id": candidate,
+        "variant_id": variant["variant_id"],
+        "variant_manifest_sha256": variant["variant_manifest_sha256"],
+        "command_sha256": command["command_sha256"],
+        "checkpoint_sha256": prereg["checkpoint"]["artifact_sha256"],
         "seed": seed,
-        "evidence_source": source,
-        "rollout_ref": f"runs/{candidate}_{index}/episode.json",
+        "evidence_source": "live_policy_rollout",
         "started_at_utc": f"2026-07-24T00:{minute:02d}:00Z",
         "ended_at_utc": f"2026-07-24T00:{minute:02d}:10Z",
         "wall_seconds": 10.0,
         "status": "completed",
         "success": success,
+        "seed_results_ref": command["expected_seed_results_ref"],
+        "seed_results_sha256": seed_sha,
+        "telemetry_episode_ref": command["expected_telemetry_episode_ref"],
+        "telemetry_episode_sha256": telemetry_sha,
+    }
+    receipt_sha = write_json(root, command["receipt_ref"], receipt)
+    return {
+        "attempt_id": attempt_id,
+        "candidate_id": candidate,
+        "receipt_ref": command["receipt_ref"],
+        "receipt_sha256": receipt_sha,
     }
 
 
-def arm(prereg, name, attempts, stop_reason, wall):
+def arm(prereg, name, attempts, stop_reason):
     return {
         "schema_version": 1,
         "protocol": f"{EFFICIENCY_PROTOCOL}_arm",
         "arm": name,
         "arm_run_id": f"{name}_independent_run",
         "preregistration_sha256": prereg["preregistration_sha256"],
-        "started_at_utc": "2026-07-24T00:01:00Z",
-        "ended_at_utc": "2026-07-24T00:10:00Z",
-        "wall_seconds": wall,
         "stop_reason": stop_reason,
         "attempts": attempts,
     }
 
 
 class ClickBellEfficiencyTests(unittest.TestCase):
-    def prereg(self, mode="toy_5to7act"):
-        return build_click_bell_efficiency_preregistration(
+    def prereg(self, root, mode="toy_5to7act"):
+        prereg = build_click_bell_efficiency_preregistration(
             study_id="click_efficiency_test",
             mode=mode,
             checkpoint=checkpoint("act"),
             seed=17,
             created_at_utc="2026-07-24T00:00:00Z",
+            artifact_root_ref="artifacts/click_efficiency",
         )
+        materialize_click_bell_efficiency_preregistration(root, prereg)
+        return prereg
 
-    def test_independent_toy_uses_real_starts_and_wall(self):
-        prereg = self.prereg()
-        fixed_attempts = [
-            attempt("left_base0", 0, False),
-            attempt("right_base0", 1, True),
-            attempt("left_base1", 2, False),
-            attempt("right_base1", 3, True),
-        ]
-        adaptive_attempts = [
-            attempt("right_base0", 4, True),
-            attempt("left_base0", 5, False),
-        ]
-        for row in adaptive_attempts:
-            row["attempt_id"] = "adaptive_" + row["attempt_id"]
-            row["rollout_ref"] = "adaptive/" + row["rollout_ref"]
-        result = evaluate_click_bell_efficiency(
-            prereg,
-            arm(prereg, "fixed", fixed_attempts, "fixed_suite_complete", 44.0),
-            arm(prereg, "adaptive", adaptive_attempts, "query_sufficient", 23.0),
-        )
-        self.assertEqual(result["resource_measurement"]["act_episode_start_saving"], 2)
-        self.assertEqual(result["resource_measurement"]["measured_wall_second_saving"], 21.0)
-        self.assertTrue(result["original_query_conclusion_agrees"])
-        self.assertTrue(result["toy_efficiency_evidence_passed"])
-        self.assertFalse(result["cached_prefix_used"])
-        self.assertFalse(result["paper_tables_1_2_eligible"])
-
-    def test_three_act_smoke_never_becomes_efficiency_claim(self):
-        prereg = self.prereg("smoke_3act")
-        fixed = [
-            attempt("left_base0", 0, False),
-            attempt("right_base0", 1, True),
-        ]
-        adaptive = [attempt("left_base0", 2, False)]
-        adaptive[0]["attempt_id"] = "adaptive_attempt"
-        adaptive[0]["rollout_ref"] = "adaptive/episode.json"
-        result = evaluate_click_bell_efficiency(
-            prereg,
-            arm(prereg, "fixed", fixed, "fixed_suite_complete", 20.0),
-            arm(prereg, "adaptive", adaptive, "query_sufficient", 9.0),
-        )
-        self.assertEqual(
-            result["claim_scope"], "three_act_mechanism_smoke_not_dense_reference"
-        )
-        self.assertFalse(result["toy_efficiency_evidence_passed"])
-
-    def test_cached_or_shared_receipts_fail_closed(self):
-        prereg = self.prereg("smoke_3act")
-        fixed = [
-            attempt("left_base0", 0, False),
-            attempt("right_base0", 1, True),
-        ]
-        adaptive = [attempt("left_base0", 2, False, source="cached_artifact")]
-        with self.assertRaisesRegex(LivePaperProtocolError, "never cached"):
-            evaluate_click_bell_efficiency(
-                prereg,
-                arm(prereg, "fixed", fixed, "fixed_suite_complete", 20.0),
-                arm(prereg, "adaptive", adaptive, "query_sufficient", 9.0),
+    def test_prereg_materializes_four_joint_variants_and_exact_commands(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            prereg = self.prereg(root)
+            self.assertEqual(len(prereg["candidate_universe"]), 4)
+            for candidate in prereg["candidate_universe"]:
+                binding = candidate["variant_binding"]
+                self.assertEqual(binding["task_module"], "mea.tasks.click_bell")
+                overlay = json.loads((root / binding["overlay_ref"]).read_text())
+                self.assertEqual(
+                    overlay["mea"]["bell"]["xy"], candidate["xy"]
+                )
+                self.assertEqual(
+                    overlay["mea"]["bell"]["bell_id"], candidate["instance"]
+                )
+            command = prereg["execution_schedule"]["fixed"][0]
+            command_value = json.loads((root / command["command_ref"]).read_text())
+            self.assertEqual(command_value["argv"][8], "1")
+            self.assertEqual(command_value["argv"][9], "mea.tasks.click_bell")
+            validate_click_bell_efficiency_preregistration(
+                prereg, repo_root=root, require_materialized=True
             )
+            (root / command["command_ref"]).write_text("tampered", encoding="utf-8")
+            with self.assertRaisesRegex(
+                LivePaperProtocolError, "command spec hash mismatch"
+            ):
+                validate_click_bell_efficiency_preregistration(
+                    prereg, repo_root=root, require_materialized=True
+                )
+
+    def test_independent_toy_uses_bound_receipts_and_measured_wall(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            prereg = self.prereg(root)
+            fixed = [
+                bound_attempt(
+                    root,
+                    prereg,
+                    "fixed",
+                    "fixed_independent_run",
+                    candidate,
+                    index,
+                    success,
+                )
+                for index, (candidate, success) in enumerate(
+                    (
+                        ("left_base0", False),
+                        ("right_base0", True),
+                        ("left_base1", False),
+                        ("right_base1", True),
+                    )
+                )
+            ]
+            adaptive = [
+                bound_attempt(
+                    root,
+                    prereg,
+                    "adaptive",
+                    "adaptive_independent_run",
+                    candidate,
+                    index + 4,
+                    success,
+                )
+                for index, (candidate, success) in enumerate(
+                    (("right_base0", True), ("left_base0", False))
+                )
+            ]
+            result = evaluate_click_bell_efficiency(
+                prereg,
+                arm(prereg, "fixed", fixed, "fixed_suite_complete"),
+                arm(prereg, "adaptive", adaptive, "query_sufficient"),
+                repo_root=root,
+            )
+            self.assertEqual(
+                result["resource_measurement"]["act_episode_start_saving"], 2
+            )
+            self.assertEqual(
+                result["resource_measurement"]["measured_wall_second_saving"],
+                20.0,
+            )
+            self.assertTrue(result["original_query_conclusion_agrees"])
+            self.assertTrue(result["toy_efficiency_evidence_passed"])
+            self.assertFalse(result["cached_prefix_used"])
+
+    def test_missing_tampered_or_cached_receipt_fails_closed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            prereg = self.prereg(root, "smoke_3act")
+            fixed = [
+                bound_attempt(
+                    root,
+                    prereg,
+                    "fixed",
+                    "fixed_independent_run",
+                    candidate,
+                    index,
+                    success,
+                )
+                for index, (candidate, success) in enumerate(
+                    (("left_base0", False), ("right_base0", True))
+                )
+            ]
+            adaptive = [
+                bound_attempt(
+                    root,
+                    prereg,
+                    "adaptive",
+                    "adaptive_independent_run",
+                    "left_base0",
+                    2,
+                    False,
+                )
+            ]
+            receipt_path = root / adaptive[0]["receipt_ref"]
+            receipt = json.loads(receipt_path.read_text())
+            receipt["evidence_source"] = "cached_artifact"
+            adaptive[0]["receipt_sha256"] = write_json(
+                root, adaptive[0]["receipt_ref"], receipt
+            )
+            with self.assertRaisesRegex(
+                LivePaperProtocolError, "receipt identity mismatch"
+            ):
+                evaluate_click_bell_efficiency(
+                    prereg,
+                    arm(prereg, "fixed", fixed, "fixed_suite_complete"),
+                    arm(prereg, "adaptive", adaptive, "query_sufficient"),
+                    repo_root=root,
+                )
 
 
 class ExactSeedRankingTests(unittest.TestCase):
-    def prereg(self):
-        return build_ranking_preregistration(
+    def prereg(self, root):
+        prereg = build_ranking_preregistration(
             study_id="act_dp3_n3",
             act_checkpoint=checkpoint("act"),
             dp3_checkpoint=checkpoint("dp3"),
@@ -139,7 +280,10 @@ class ExactSeedRankingTests(unittest.TestCase):
             created_at_utc="2026-07-24T00:00:00Z",
             reference_source_ref="official_leaderboard_snapshot.json",
             reference_scores={"act": 0.56, "dp3": 0.72},
+            artifact_root_ref="artifacts/ranking",
         )
+        materialize_ranking_preregistration(root, prereg)
+        return prereg
 
     def runs(self, prereg, act_scores, dp3_scores):
         policies = []
@@ -174,63 +318,175 @@ class ExactSeedRankingTests(unittest.TestCase):
             "policies": policies,
         }
 
-    def test_three_seed_tie_leaves_spearman_null(self):
-        prereg = self.prereg()
-        result = evaluate_exact_seed_ranking(
-            prereg, self.runs(prereg, [0, 0, 0], [0, 0, 0])
-        )
-        self.assertIsNone(result["spearman_rho"])
-        self.assertEqual(result["claim_status"], "toy_order_inconclusive_tie")
-        self.assertEqual(result["exact_total_policy_rollouts"], 6)
-        self.assertFalse(result["paper_table9_eligible"])
+    def test_commands_use_exact_n1_act_and_direct_dp3_environment(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            prereg = self.prereg(root)
+            self.assertEqual(
+                prereg["execution_entrypoints"]["dp3"], "script/eval_policy.py"
+            )
+            self.assertEqual(
+                sum(len(rows) for rows in prereg["execution_schedule"].values()),
+                6,
+            )
+            act = json.loads(
+                (
+                    root
+                    / prereg["execution_schedule"]["act"][0]["command_ref"]
+                ).read_text()
+            )
+            dp3 = json.loads(
+                (
+                    root
+                    / prereg["execution_schedule"]["dp3"][0]["command_ref"]
+                ).read_text()
+            )
+            self.assertIn("policy/ACT/eval_mea.sh", act["argv"])
+            self.assertIn("--num_episodes", dp3["argv"])
+            self.assertEqual(
+                dp3["python_environment"],
+                "/root/autodl-tmp/conda/envs/RoboTwin-DP3/bin/python",
+            )
+            self.assertIn("--seed_manifest", dp3["argv"])
+            self.assertIn("--seed_results_path", dp3["argv"])
+            self.assertIn("--output_dir", dp3["argv"])
 
-    def test_missing_seed_fails_closed(self):
-        prereg = self.prereg()
-        runs = self.runs(prereg, [0, 0, 0], [0, 1, 1])
-        runs["policies"][0]["trials"].pop()
-        with self.assertRaisesRegex(LivePaperProtocolError, ">= 3|exactly three"):
-            evaluate_exact_seed_ranking(prereg, runs)
+    def test_three_seed_tie_leaves_spearman_null(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            prereg = self.prereg(root)
+            result = evaluate_exact_seed_ranking(
+                prereg,
+                self.runs(prereg, [0, 0, 0], [0, 0, 0]),
+                repo_root=root,
+            )
+            self.assertIsNone(result["spearman_rho"])
+            self.assertEqual(result["claim_status"], "toy_order_inconclusive_tie")
+            self.assertEqual(result["exact_total_policy_rollouts"], 6)
+            self.assertFalse(result["paper_table9_eligible"])
 
 
 class Table3AndProxyTests(unittest.TestCase):
-    def test_table3_requires_real_downstream_receipts_for_all_25_cells(self):
-        prereg = build_table3_codegen_preregistration(
-            study_id="table3_test", created_at_utc="2026-07-24T00:00:00Z"
-        )
+    def table3_runs(self, root, prereg):
         cells = []
         for frozen in prereg["cells"]:
+            expected = frozen["expected_stage_receipts"]
+            task_sha = write_bytes(
+                root, expected["codegen"]["artifact_ref"], b"def load_actors(self):\n    pass\n"
+            )
+            static_sha = write_json(
+                root, expected["compile"]["receipt_ref"], {"passed": True}
+            )
+            scene_sha = write_json(
+                root,
+                expected["render"]["receipt_ref"],
+                {"setup_success": True, "render_success": True},
+            )
+            oracle_sha = write_json(
+                root,
+                expected["oracle"]["receipt_ref"],
+                {"positive_fixture_count": 1, "negative_fixture_count": 2},
+            )
             stages = {
                 "codegen": {
                     "generated_by_provider": True,
-                    "artifact_ref": f"artifacts/{frozen['cell_id']}/task.py",
-                    "artifact_sha256": "a" * 64,
-                }
-            }
-            for stage in ("compile", "render", "simulator", "oracle"):
-                stages[stage] = {
+                    "artifact_ref": expected["codegen"]["artifact_ref"],
+                    "artifact_sha256": task_sha,
+                },
+                "compile": {
                     "passed": True,
-                    "receipt_ref": f"receipts/{frozen['cell_id']}/{stage}.json",
-                    "receipt_sha256": "b" * 64,
+                    "receipt_ref": expected["compile"]["receipt_ref"],
+                    "receipt_sha256": static_sha,
+                },
+                "render": {
+                    "passed": True,
+                    "receipt_ref": expected["render"]["receipt_ref"],
+                    "receipt_sha256": scene_sha,
+                },
+                "simulator": {
+                    "passed": True,
+                    "receipt_ref": expected["simulator"]["receipt_ref"],
+                    "receipt_sha256": scene_sha,
+                },
+                "oracle": {
+                    "passed": True,
+                    "receipt_ref": expected["oracle"]["receipt_ref"],
+                    "receipt_sha256": oracle_sha,
+                    "positive_fixture_count": 1,
+                    "negative_fixture_count": 2,
+                },
+            }
+            cells.append(
+                {
+                    "cell_id": frozen["cell_id"],
+                    "proposal_id": frozen["proposal_id"],
+                    "condition": frozen["condition"],
+                    "stages": stages,
                 }
-            stages["oracle"].update(
-                {"positive_fixture_count": 1, "negative_fixture_count": 2}
             )
-            cells.append({**frozen, "stages": stages})
-        runs = {
+        return {
             "schema_version": 1,
             "protocol": "table3_real_codegen_ablation_v1_runs",
             "preregistration_sha256": prereg["preregistration_sha256"],
             "cells": cells,
         }
-        result = evaluate_table3_codegen(prereg, runs)
-        self.assertEqual(result["provider_generation_count"], 25)
-        self.assertEqual(set(result["success_rates"]), set(TABLE3_CONDITIONS))
-        self.assertTrue(all(value == 1.0 for value in result["success_rates"].values()))
-        self.assertEqual(result["act_rollouts_started"], 0)
-        proposal_only = deepcopy(runs)
-        proposal_only["cells"][0]["stages"]["codegen"]["generated_by_provider"] = False
-        with self.assertRaisesRegex(LivePaperProtocolError, "proposal-only"):
-            evaluate_table3_codegen(prereg, proposal_only)
+
+    def test_table3_materializes_25_executable_real_taskgen_cells(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            prereg = build_table3_codegen_preregistration(
+                study_id="table3_test",
+                created_at_utc="2026-07-24T00:00:00Z",
+                artifact_root_ref="artifacts/table3",
+                text_model="frozen-text-model",
+                vision_model="frozen-vision-model",
+            )
+            materialize_table3_codegen_preregistration(root, prereg)
+            self.assertEqual(len(prereg["cells"]), 25)
+            self.assertEqual(
+                {cell["condition"] for cell in prereg["cells"]},
+                set(TABLE3_CONDITIONS),
+            )
+            for cell in prereg["cells"]:
+                runner = json.loads((root / cell["runner_ref"]).read_text())
+                self.assertIn(
+                    "--taskgen-ablation-json", runner["argv"]
+                )
+                self.assertIn("--accept-task-only", runner["argv"])
+                self.assertNotIn("--run-act", runner["argv"])
+                self.assertEqual(runner["module_switches"], cell["module_switches"])
+            runs = self.table3_runs(root, prereg)
+            result = evaluate_table3_codegen(
+                prereg, runs, repo_root=root
+            )
+            self.assertEqual(result["provider_generation_count"], 25)
+            self.assertTrue(
+                all(value == 1.0 for value in result["success_rates"].values())
+            )
+            self.assertEqual(result["act_rollouts_started"], 0)
+
+            runner_path = root / prereg["cells"][0]["runner_ref"]
+            runner_path.write_text("tampered", encoding="utf-8")
+            with self.assertRaisesRegex(
+                LivePaperProtocolError, "runner hash mismatch"
+            ):
+                validate_table3_codegen_preregistration(
+                    prereg, repo_root=root, require_materialized=True
+                )
+
+    def test_ablation_switch_schema_is_exact(self):
+        self.assertEqual(
+            validate_taskgen_ablation_switches(
+                {
+                    "rag": False,
+                    "visual_self_check": True,
+                    "readme_agent": True,
+                }
+            )["rag"],
+            False,
+        )
+        with self.assertRaises(TaskGenError):
+            validate_taskgen_ablation_switches({"rag": False})
 
     def test_checked_proxy_manifest_stays_non_human_and_partial(self):
         root = Path(__file__).resolve().parents[2]
@@ -246,7 +502,6 @@ class Table3AndProxyTests(unittest.TestCase):
         self.assertEqual(result["clip_slot_count"], 8)
         self.assertEqual(result["materialized_clip_count"], 2)
         self.assertFalse(result["ready_for_proxy_smoke"])
-        self.assertFalse(result["paper_plan_validity_eligible"])
 
 
 class ProspectiveLedgerTests(unittest.TestCase):
@@ -273,7 +528,6 @@ class ProspectiveLedgerTests(unittest.TestCase):
             self.assertEqual(summary["numerator_terminal_errors"], 1)
             self.assertEqual(summary["prospective_error_rate"], 0.5)
             self.assertEqual(summary["categories"]["taskgen"]["errors"], 1)
-            self.assertFalse(summary["paper_fig6_eligible"])
 
 
 if __name__ == "__main__":

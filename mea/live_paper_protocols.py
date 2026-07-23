@@ -33,24 +33,28 @@ CLICK_BELL_CANDIDATES = (
         "task_name": "click_bell",
         "position": "left",
         "instance": 0,
+        "xy": [-0.20, -0.08],
     },
     {
         "candidate_id": "right_base0",
         "task_name": "click_bell",
         "position": "right",
         "instance": 0,
+        "xy": [0.20, -0.08],
     },
     {
         "candidate_id": "left_base1",
         "task_name": "click_bell",
         "position": "left",
         "instance": 1,
+        "xy": [-0.20, -0.08],
     },
     {
         "candidate_id": "right_base1",
         "task_name": "click_bell",
         "position": "right",
         "instance": 1,
+        "xy": [0.20, -0.08],
     },
 )
 _CANDIDATE_IDS = tuple(row["candidate_id"] for row in CLICK_BELL_CANDIDATES)
@@ -76,37 +80,106 @@ _EFFICIENCY_MODES = {
 TABLE3_CONDITIONS = (
     "complete",
     "base",
-    "minus_rag",
-    "minus_visual_self_check",
-    "minus_readme_agent",
+    "no_rag",
+    "no_visual_self_check",
+    "no_readme_agent",
 )
 TABLE3_PROPOSALS = (
     {
-        "proposal_id": "u01_click_bell_physical_decoy",
-        "task_name": "click_bell",
-        "prompt": "Add a visually similar physical decoy bell that must not be pressed.",
-    },
-    {
-        "proposal_id": "u02_click_bell_partial_occlusion",
-        "task_name": "click_bell",
-        "prompt": "Partially occlude the bell contact point without moving the target.",
-    },
-    {
-        "proposal_id": "u03_bbh_target_distractor",
+        "proposal_id": "u01_bbh_blue_block",
         "task_name": "beat_block_hammer",
-        "prompt": "Add a physical distractor block; hit only the designated target block.",
+        "prompt": "Use a blue target block while preserving official pose, yaw, and scale.",
+        "changes": {
+            "block": {
+                "position_mode": "official_random",
+                "yaw_mode": "official_random",
+                "scale": 1.0,
+                "color": [0.0, 0.2, 1.0],
+            }
+        },
     },
     {
-        "proposal_id": "u04_bbh_clearance",
+        "proposal_id": "u02_bbh_green_block",
         "task_name": "beat_block_hammer",
-        "prompt": "Constrain hammer clearance around a nearby obstacle.",
+        "prompt": "Use a green target block while preserving official pose, yaw, and scale.",
+        "changes": {
+            "block": {
+                "position_mode": "official_random",
+                "yaw_mode": "official_random",
+                "scale": 1.0,
+                "color": [0.1, 0.8, 0.2],
+            }
+        },
     },
     {
-        "proposal_id": "u05_bbh_precontact_motion",
+        "proposal_id": "u03_bbh_yellow_block",
         "task_name": "beat_block_hammer",
-        "prompt": "Evaluate pre-contact smoothness before the first target contact.",
+        "prompt": "Use a yellow target block while preserving official pose, yaw, and scale.",
+        "changes": {
+            "block": {
+                "position_mode": "official_random",
+                "yaw_mode": "official_random",
+                "scale": 1.0,
+                "color": [0.9, 0.8, 0.1],
+            }
+        },
+    },
+    {
+        "proposal_id": "u04_bbh_scale_0_8",
+        "task_name": "beat_block_hammer",
+        "prompt": "Use a 0.8-scale target block while preserving official pose, yaw, and color.",
+        "changes": {
+            "block": {
+                "position_mode": "official_random",
+                "yaw_mode": "official_random",
+                "scale": 0.8,
+                "color": [0.0, 0.0, 1.0],
+            }
+        },
+    },
+    {
+        "proposal_id": "u05_bbh_scale_1_2",
+        "task_name": "beat_block_hammer",
+        "prompt": "Use a 1.2-scale target block while preserving official pose, yaw, and color.",
+        "changes": {
+            "block": {
+                "position_mode": "official_random",
+                "yaw_mode": "official_random",
+                "scale": 1.2,
+                "color": [0.0, 0.0, 1.0],
+            }
+        },
     },
 )
+TABLE3_SWITCHES = {
+    "complete": {"rag": True, "visual_self_check": True, "readme_agent": True},
+    "base": {"rag": False, "visual_self_check": False, "readme_agent": False},
+    "no_rag": {"rag": False, "visual_self_check": True, "readme_agent": True},
+    "no_visual_self_check": {
+        "rag": True,
+        "visual_self_check": False,
+        "readme_agent": True,
+    },
+    "no_readme_agent": {
+        "rag": True,
+        "visual_self_check": True,
+        "readme_agent": False,
+    },
+}
+
+CLICK_BELL_TASK_MODULE = "mea.tasks.click_bell"
+CLICK_BELL_ACT_CHECKPOINT_REF = (
+    "policy/ACT/act_ckpt/act-click_bell/demo_clean-50/policy_last.ckpt"
+)
+BBH_ACT_CHECKPOINT_REF = (
+    "policy/ACT/act_ckpt/act-beat_block_hammer/demo_clean-50/policy_last.ckpt"
+)
+BBH_DP3_CHECKPOINT_REF = (
+    "policy/DP3/3D-Diffusion-Policy/checkpoints/"
+    "beat_block_hammer-demo_clean-50_0/3000.ckpt"
+)
+ROBOTWIN_PYTHON = "/root/autodl-tmp/conda/envs/RoboTwin/bin/python"
+DP3_PYTHON = "/root/autodl-tmp/conda/envs/RoboTwin-DP3/bin/python"
 PAPER_VQA_CONDITIONS = (
     "clean",
     "scene_clutter",
@@ -127,6 +200,57 @@ def canonical_sha256(value: Any) -> str:
     except (TypeError, ValueError) as exc:
         raise LivePaperProtocolError(f"value is not canonical JSON: {exc}") from exc
     return hashlib.sha256(payload).hexdigest()
+
+
+def _json_bytes(value: Any) -> bytes:
+    return (
+        json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            indent=2,
+            allow_nan=False,
+        )
+        + "\n"
+    ).encode("utf-8")
+
+
+def _bytes_sha256(value: bytes) -> str:
+    return hashlib.sha256(value).hexdigest()
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _relative_ref(value: Any, *, field: str) -> str:
+    text = _text(value, field=field).replace("\\", "/")
+    path = Path(text)
+    if path.is_absolute() or ".." in path.parts:
+        raise LivePaperProtocolError(f"{field} must be a repository-relative path")
+    return path.as_posix()
+
+
+def _bound_path(repo_root: Path, ref: Any, *, field: str, must_exist: bool = True) -> Path:
+    relative = _relative_ref(ref, field=field)
+    path = (repo_root / relative).resolve()
+    if not path.is_relative_to(repo_root):
+        raise LivePaperProtocolError(f"{field} escapes repository")
+    if must_exist and not path.is_file():
+        raise LivePaperProtocolError(f"{field} is missing: {relative}")
+    return path
+
+
+def _write_bound_file(repo_root: Path, ref: str, payload: bytes) -> None:
+    path = _bound_path(repo_root, ref, field="artifact_ref", must_exist=False)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        raise LivePaperProtocolError(f"append-only artifact already exists: {ref}")
+    path.write_bytes(payload)
 
 
 def _object(value: Any, *, field: str) -> dict[str, Any]:
@@ -191,10 +315,16 @@ def _utc(value: Any, *, field: str) -> datetime:
     return parsed
 
 
-def _checkpoint(value: Any, *, field: str) -> dict[str, str]:
+def _checkpoint(
+    value: Any, *, field: str, artifact_ref: str | None = None
+) -> dict[str, str]:
     row = _object(value, field=field)
+    resolved_ref = artifact_ref or row.get("artifact_ref")
     return {
         "checkpoint_id": _text(row.get("checkpoint_id"), field=f"{field}.checkpoint_id"),
+        "artifact_ref": _relative_ref(
+            resolved_ref, field=f"{field}.artifact_ref"
+        ),
         "artifact_sha256": _sha256(
             row.get("artifact_sha256"), field=f"{field}.artifact_sha256"
         ),
@@ -217,6 +347,140 @@ def _verify_seal(value: Mapping[str, Any], *, hash_field: str) -> dict[str, Any]
     return result
 
 
+def _click_overlay(candidate: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "mea": {
+            "enabled": True,
+            "bell": {
+                "position_mode": "fixed",
+                "xy": list(candidate["xy"]),
+                "instance_mode": "fixed",
+                "bell_id": int(candidate["instance"]),
+            },
+        }
+    }
+
+
+def _click_variant_binding(
+    candidate: Mapping[str, Any], *, artifact_root_ref: str
+) -> dict[str, Any]:
+    candidate_id = str(candidate["candidate_id"])
+    variant_root = f"{artifact_root_ref}/variants/{candidate_id}"
+    overlay = _click_overlay(candidate)
+    overlay_ref = f"{variant_root}/overlay.yml"
+    overlay_sha256 = _bytes_sha256(_json_bytes(overlay))
+    variant_manifest = {
+        "schema_version": 1,
+        "kind": "click_bell_joint_position_instance_variant_v1",
+        "variant_id": f"click_bell.{candidate_id}",
+        "candidate_id": candidate_id,
+        "task_name": "click_bell",
+        "task_module": CLICK_BELL_TASK_MODULE,
+        "xy": list(candidate["xy"]),
+        "bell_id": int(candidate["instance"]),
+        "overlay_ref": overlay_ref,
+        "overlay_sha256": overlay_sha256,
+    }
+    manifest_ref = f"{variant_root}/variant_manifest.json"
+    return {
+        "variant_id": variant_manifest["variant_id"],
+        "task_module": CLICK_BELL_TASK_MODULE,
+        "xy": list(candidate["xy"]),
+        "bell_id": int(candidate["instance"]),
+        "overlay_ref": overlay_ref,
+        "overlay_sha256": overlay_sha256,
+        "variant_manifest_ref": manifest_ref,
+        "variant_manifest_sha256": _bytes_sha256(_json_bytes(variant_manifest)),
+    }
+
+
+def _seed_manifest(
+    *, task_name: str, seed: int, checkpoint_setting: str = "demo_clean"
+) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "protocol": "exact_seed_paired_v1",
+        "task_name": task_name,
+        "seeds": [seed],
+        "conditions": [{"id": "clean", "task_config": "demo_clean"}],
+        "checkpoint_setting": checkpoint_setting,
+        "expert_data_num": 50,
+        "policy_seed": 0,
+    }
+
+
+def _efficiency_command_binding(
+    *,
+    study_id: str,
+    arm: str,
+    candidate: Mapping[str, Any],
+    seed: int,
+    checkpoint: Mapping[str, Any],
+    artifact_root_ref: str,
+) -> dict[str, Any]:
+    candidate_id = str(candidate["candidate_id"])
+    variant = candidate["variant_binding"]
+    command_root = f"{artifact_root_ref}/commands/{arm}/{candidate_id}"
+    live_root = f"{artifact_root_ref}/live_runs/{arm}/{candidate_id}"
+    seed_manifest = _seed_manifest(task_name="click_bell", seed=seed)
+    seed_manifest_ref = f"{command_root}/seed_manifest.json"
+    seed_manifest_sha256 = _bytes_sha256(_json_bytes(seed_manifest))
+    command = {
+        "schema_version": 1,
+        "kind": "click_bell_exact_n1_act_command_v1",
+        "study_id": study_id,
+        "arm": arm,
+        "candidate_id": candidate_id,
+        "variant_id": variant["variant_id"],
+        "variant_manifest_ref": variant["variant_manifest_ref"],
+        "variant_manifest_sha256": variant["variant_manifest_sha256"],
+        "checkpoint": deepcopy(dict(checkpoint)),
+        "seed": seed,
+        "cwd": ".",
+        "environment": {"PYTHON_BIN": ROBOTWIN_PYTHON},
+        "argv": [
+            "bash",
+            "policy/ACT/eval_mea.sh",
+            "click_bell",
+            "demo_clean",
+            "demo_clean",
+            "50",
+            "0",
+            "0",
+            "1",
+            CLICK_BELL_TASK_MODULE,
+            variant["overlay_ref"],
+            "",
+            f"{live_root}/telemetry",
+            "balanced_v1",
+            seed_manifest_ref,
+            f"{live_root}/seed_results.json",
+            f"{live_root}/eval_output",
+        ],
+        "seed_manifest_ref": seed_manifest_ref,
+        "seed_manifest_sha256": seed_manifest_sha256,
+        "expected_seed_results_ref": f"{live_root}/seed_results.json",
+        "expected_telemetry_episode_ref": (
+            f"{live_root}/telemetry/episode_000_seed_{seed}/episode.json"
+        ),
+        "receipt_ref": f"{live_root}/rollout_receipt.json",
+    }
+    command_ref = f"{command_root}/command.json"
+    return {
+        "candidate_id": candidate_id,
+        "variant_id": variant["variant_id"],
+        "command_ref": command_ref,
+        "command_sha256": _bytes_sha256(_json_bytes(command)),
+        "seed_manifest_ref": seed_manifest_ref,
+        "seed_manifest_sha256": seed_manifest_sha256,
+        "receipt_ref": command["receipt_ref"],
+        "expected_seed_results_ref": command["expected_seed_results_ref"],
+        "expected_telemetry_episode_ref": command[
+            "expected_telemetry_episode_ref"
+        ],
+    }
+
+
 def build_click_bell_efficiency_preregistration(
     *,
     study_id: str,
@@ -224,16 +488,61 @@ def build_click_bell_efficiency_preregistration(
     checkpoint: Mapping[str, Any],
     seed: int,
     created_at_utc: str,
+    artifact_root_ref: str | None = None,
 ) -> dict[str, Any]:
     if mode not in _EFFICIENCY_MODES:
         raise LivePaperProtocolError(f"unknown efficiency mode: {mode}")
     spec = _EFFICIENCY_MODES[mode]
     _utc(created_at_utc, field="created_at_utc")
+    resolved_study_id = _identifier(study_id, field="study_id")
+    resolved_artifact_root = _relative_ref(
+        artifact_root_ref
+        or f"mea/protocol_runs/{resolved_study_id}/efficiency_artifacts",
+        field="artifact_root_ref",
+    )
+    resolved_checkpoint = _checkpoint(
+        checkpoint,
+        field="checkpoint",
+        artifact_ref=CLICK_BELL_ACT_CHECKPOINT_REF,
+    )
+    candidates = []
+    for raw in CLICK_BELL_CANDIDATES:
+        candidate = deepcopy(dict(raw))
+        candidate["variant_binding"] = _click_variant_binding(
+            candidate, artifact_root_ref=resolved_artifact_root
+        )
+        candidates.append(candidate)
+    by_candidate = {item["candidate_id"]: item for item in candidates}
+    execution_schedule = {
+        "fixed": [
+            _efficiency_command_binding(
+                study_id=resolved_study_id,
+                arm="fixed",
+                candidate=by_candidate[candidate_id],
+                seed=seed,
+                checkpoint=resolved_checkpoint,
+                artifact_root_ref=resolved_artifact_root,
+            )
+            for candidate_id in spec["fixed_candidates"]
+        ],
+        "adaptive": [
+            _efficiency_command_binding(
+                study_id=resolved_study_id,
+                arm="adaptive",
+                candidate=by_candidate[candidate_id],
+                seed=seed,
+                checkpoint=resolved_checkpoint,
+                artifact_root_ref=resolved_artifact_root,
+            )
+            for candidate_id in _CANDIDATE_IDS
+        ],
+    }
     body = {
         "schema_version": 1,
         "protocol": EFFICIENCY_PROTOCOL,
-        "study_id": _identifier(study_id, field="study_id"),
+        "study_id": resolved_study_id,
         "created_at_utc": created_at_utc,
+        "artifact_root_ref": resolved_artifact_root,
         "evidence_requirement": "independent_live_rollout_only",
         "mode": mode,
         "claim_scope": spec["claim_scope"],
@@ -241,9 +550,9 @@ def build_click_bell_efficiency_preregistration(
             "Does at least one of the four frozen click_bell candidates fail, "
             "and which paired position/instance axis is directly contrasted?"
         ),
-        "checkpoint": _checkpoint(checkpoint, field="checkpoint"),
+        "checkpoint": resolved_checkpoint,
         "seed": _integer(seed, field="seed"),
-        "candidate_universe": deepcopy(list(CLICK_BELL_CANDIDATES)),
+        "candidate_universe": candidates,
         "fixed_contract": {
             "candidate_ids": list(spec["fixed_candidates"]),
             "stop_reason": "fixed_suite_complete",
@@ -278,16 +587,11 @@ def build_click_bell_efficiency_preregistration(
             "required_attempt_fields": [
                 "attempt_id",
                 "candidate_id",
-                "seed",
-                "evidence_source",
-                "rollout_ref",
-                "started_at_utc",
-                "ended_at_utc",
-                "wall_seconds",
-                "status",
-                "success",
+                "receipt_ref",
+                "receipt_sha256",
             ],
         },
+        "execution_schedule": execution_schedule,
         "execution_entrypoint": "policy/ACT/eval_mea.sh",
         "calls_started_by_preregistration": {
             "provider": 0,
@@ -300,80 +604,337 @@ def build_click_bell_efficiency_preregistration(
     return _seal(body, hash_field="preregistration_sha256")
 
 
-def validate_click_bell_efficiency_preregistration(value: Any) -> dict[str, Any]:
+def validate_click_bell_efficiency_preregistration(
+    value: Any,
+    *,
+    repo_root: str | Path | None = None,
+    require_materialized: bool = False,
+) -> dict[str, Any]:
     row = _verify_seal(_object(value, field="preregistration"), hash_field="preregistration_sha256")
     if row.get("schema_version") != 1 or row.get("protocol") != EFFICIENCY_PROTOCOL:
         raise LivePaperProtocolError("unsupported efficiency preregistration")
     mode = row.get("mode")
     if mode not in _EFFICIENCY_MODES:
         raise LivePaperProtocolError("efficiency mode is not frozen")
-    if row.get("candidate_universe") != list(CLICK_BELL_CANDIDATES):
-        raise LivePaperProtocolError("candidate universe differs from the frozen four")
     rebuilt = build_click_bell_efficiency_preregistration(
         study_id=row.get("study_id"),
         mode=mode,
         checkpoint=row.get("checkpoint"),
         seed=row.get("seed"),
         created_at_utc=row.get("created_at_utc"),
+        artifact_root_ref=row.get("artifact_root_ref"),
     )
     if rebuilt != row:
         raise LivePaperProtocolError("preregistration contract was modified")
+    if require_materialized:
+        if repo_root is None:
+            raise LivePaperProtocolError("repo_root is required for materialized validation")
+        root = Path(repo_root).expanduser().resolve()
+        for candidate in row["candidate_universe"]:
+            binding = candidate["variant_binding"]
+            overlay_path = _bound_path(
+                root, binding["overlay_ref"], field="overlay_ref"
+            )
+            if _file_sha256(overlay_path) != binding["overlay_sha256"]:
+                raise LivePaperProtocolError("overlay hash mismatch")
+            manifest_path = _bound_path(
+                root,
+                binding["variant_manifest_ref"],
+                field="variant_manifest_ref",
+            )
+            if _file_sha256(manifest_path) != binding["variant_manifest_sha256"]:
+                raise LivePaperProtocolError("variant manifest hash mismatch")
+        for arm_rows in row["execution_schedule"].values():
+            for binding in arm_rows:
+                seed_path = _bound_path(
+                    root,
+                    binding["seed_manifest_ref"],
+                    field="seed_manifest_ref",
+                )
+                command_path = _bound_path(
+                    root, binding["command_ref"], field="command_ref"
+                )
+                if _file_sha256(seed_path) != binding["seed_manifest_sha256"]:
+                    raise LivePaperProtocolError("seed manifest hash mismatch")
+                if _file_sha256(command_path) != binding["command_sha256"]:
+                    raise LivePaperProtocolError("command spec hash mismatch")
     return row
+
+
+def materialize_click_bell_efficiency_preregistration(
+    repo_root: str | Path, preregistration: Any
+) -> dict[str, Any]:
+    root = Path(repo_root).expanduser().resolve()
+    prereg = validate_click_bell_efficiency_preregistration(preregistration)
+    for candidate in prereg["candidate_universe"]:
+        binding = candidate["variant_binding"]
+        overlay = _click_overlay(candidate)
+        _write_bound_file(root, binding["overlay_ref"], _json_bytes(overlay))
+        variant_manifest = {
+            "schema_version": 1,
+            "kind": "click_bell_joint_position_instance_variant_v1",
+            "variant_id": binding["variant_id"],
+            "candidate_id": candidate["candidate_id"],
+            "task_name": "click_bell",
+            "task_module": binding["task_module"],
+            "xy": binding["xy"],
+            "bell_id": binding["bell_id"],
+            "overlay_ref": binding["overlay_ref"],
+            "overlay_sha256": binding["overlay_sha256"],
+        }
+        _write_bound_file(
+            root,
+            binding["variant_manifest_ref"],
+            _json_bytes(variant_manifest),
+        )
+    by_candidate = {
+        candidate["candidate_id"]: candidate
+        for candidate in prereg["candidate_universe"]
+    }
+    for arm, arm_rows in prereg["execution_schedule"].items():
+        for binding in arm_rows:
+            candidate = by_candidate[binding["candidate_id"]]
+            seed_manifest = _seed_manifest(
+                task_name="click_bell", seed=prereg["seed"]
+            )
+            _write_bound_file(
+                root, binding["seed_manifest_ref"], _json_bytes(seed_manifest)
+            )
+            command = _efficiency_command_binding(
+                study_id=prereg["study_id"],
+                arm=arm,
+                candidate=candidate,
+                seed=prereg["seed"],
+                checkpoint=prereg["checkpoint"],
+                artifact_root_ref=prereg["artifact_root_ref"],
+            )
+            command_body = {
+                "schema_version": 1,
+                "kind": "click_bell_exact_n1_act_command_v1",
+                "study_id": prereg["study_id"],
+                "arm": arm,
+                "candidate_id": binding["candidate_id"],
+                "variant_id": binding["variant_id"],
+                "variant_manifest_ref": candidate["variant_binding"][
+                    "variant_manifest_ref"
+                ],
+                "variant_manifest_sha256": candidate["variant_binding"][
+                    "variant_manifest_sha256"
+                ],
+                "checkpoint": prereg["checkpoint"],
+                "seed": prereg["seed"],
+                "cwd": ".",
+                "environment": {"PYTHON_BIN": ROBOTWIN_PYTHON},
+                "argv": [
+                    "bash",
+                    "policy/ACT/eval_mea.sh",
+                    "click_bell",
+                    "demo_clean",
+                    "demo_clean",
+                    "50",
+                    "0",
+                    "0",
+                    "1",
+                    CLICK_BELL_TASK_MODULE,
+                    candidate["variant_binding"]["overlay_ref"],
+                    "",
+                    (
+                        f"{prereg['artifact_root_ref']}/live_runs/{arm}/"
+                        f"{binding['candidate_id']}/telemetry"
+                    ),
+                    "balanced_v1",
+                    binding["seed_manifest_ref"],
+                    binding["expected_seed_results_ref"],
+                    (
+                        f"{prereg['artifact_root_ref']}/live_runs/{arm}/"
+                        f"{binding['candidate_id']}/eval_output"
+                    ),
+                ],
+                "seed_manifest_ref": binding["seed_manifest_ref"],
+                "seed_manifest_sha256": binding["seed_manifest_sha256"],
+                "expected_seed_results_ref": binding["expected_seed_results_ref"],
+                "expected_telemetry_episode_ref": binding[
+                    "expected_telemetry_episode_ref"
+                ],
+                "receipt_ref": binding["receipt_ref"],
+            }
+            if command["command_sha256"] != binding["command_sha256"]:
+                raise LivePaperProtocolError("internal command materialization mismatch")
+            _write_bound_file(root, binding["command_ref"], _json_bytes(command_body))
+    return validate_click_bell_efficiency_preregistration(
+        prereg, repo_root=root, require_materialized=True
+    )
 
 
 def _live_attempt(
     value: Any,
     *,
     field: str,
-    seed: int,
+    arm: str,
+    arm_run_id: str,
+    prereg: Mapping[str, Any],
     allowed_candidates: set[str],
-    preregistered_at: datetime,
+    repo_root: Path,
 ) -> dict[str, Any]:
     row = _object(value, field=field)
-    expected = {
-        "attempt_id",
-        "candidate_id",
-        "seed",
-        "evidence_source",
-        "rollout_ref",
-        "started_at_utc",
-        "ended_at_utc",
-        "wall_seconds",
-        "status",
-        "success",
-    }
+    expected = {"attempt_id", "candidate_id", "receipt_ref", "receipt_sha256"}
     if set(row) != expected:
         raise LivePaperProtocolError(f"{field} fields must be exactly {sorted(expected)}")
     candidate = _identifier(row["candidate_id"], field=f"{field}.candidate_id")
     if candidate not in allowed_candidates:
         raise LivePaperProtocolError(f"{field} candidate is outside frozen arm")
-    if row["seed"] != seed:
-        raise LivePaperProtocolError(f"{field}.seed differs from exact seed")
-    if row["evidence_source"] != "live_policy_rollout":
-        raise LivePaperProtocolError(f"{field} must be a live rollout, never cached")
-    start = _utc(row["started_at_utc"], field=f"{field}.started_at_utc")
-    end = _utc(row["ended_at_utc"], field=f"{field}.ended_at_utc")
+    schedule_rows = prereg["execution_schedule"][arm]
+    matches = [item for item in schedule_rows if item["candidate_id"] == candidate]
+    if len(matches) != 1:
+        raise LivePaperProtocolError(f"{field} has no unique command binding")
+    command_binding = matches[0]
+    receipt_ref = _relative_ref(row["receipt_ref"], field=f"{field}.receipt_ref")
+    if receipt_ref != command_binding["receipt_ref"]:
+        raise LivePaperProtocolError(f"{field} receipt path differs from preregistration")
+    receipt_path = _bound_path(repo_root, receipt_ref, field=f"{field}.receipt_ref")
+    supplied_receipt_sha256 = _sha256(
+        row["receipt_sha256"], field=f"{field}.receipt_sha256"
+    )
+    if _file_sha256(receipt_path) != supplied_receipt_sha256:
+        raise LivePaperProtocolError(f"{field} receipt hash mismatch")
+    try:
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise LivePaperProtocolError(f"{field} receipt is invalid JSON: {exc}") from exc
+    receipt = _object(receipt, field=f"{field}.receipt")
+    expected_receipt_fields = {
+        "schema_version",
+        "protocol",
+        "preregistration_sha256",
+        "arm",
+        "arm_run_id",
+        "attempt_id",
+        "candidate_id",
+        "variant_id",
+        "variant_manifest_sha256",
+        "command_sha256",
+        "checkpoint_sha256",
+        "seed",
+        "evidence_source",
+        "started_at_utc",
+        "ended_at_utc",
+        "wall_seconds",
+        "status",
+        "success",
+        "seed_results_ref",
+        "seed_results_sha256",
+        "telemetry_episode_ref",
+        "telemetry_episode_sha256",
+    }
+    if set(receipt) != expected_receipt_fields:
+        raise LivePaperProtocolError(f"{field} receipt fields are not exact")
+    candidate_binding = next(
+        item["variant_binding"]
+        for item in prereg["candidate_universe"]
+        if item["candidate_id"] == candidate
+    )
+    expected_identity = {
+        "schema_version": 1,
+        "protocol": "click_bell_bound_live_rollout_receipt_v1",
+        "preregistration_sha256": prereg["preregistration_sha256"],
+        "arm": arm,
+        "arm_run_id": arm_run_id,
+        "attempt_id": _identifier(row["attempt_id"], field=f"{field}.attempt_id"),
+        "candidate_id": candidate,
+        "variant_id": candidate_binding["variant_id"],
+        "variant_manifest_sha256": candidate_binding["variant_manifest_sha256"],
+        "command_sha256": command_binding["command_sha256"],
+        "checkpoint_sha256": prereg["checkpoint"]["artifact_sha256"],
+        "seed": prereg["seed"],
+        "evidence_source": "live_policy_rollout",
+    }
+    if any(receipt.get(key) != value for key, value in expected_identity.items()):
+        raise LivePaperProtocolError(f"{field} receipt identity mismatch")
+    preregistered_at = _utc(prereg["created_at_utc"], field="created_at_utc")
+    start = _utc(receipt["started_at_utc"], field=f"{field}.started_at_utc")
+    end = _utc(receipt["ended_at_utc"], field=f"{field}.ended_at_utc")
     if start < preregistered_at or end < start:
         raise LivePaperProtocolError(f"{field} timestamps violate preregistration order")
-    wall = _number(row["wall_seconds"], field=f"{field}.wall_seconds")
+    wall = _number(receipt["wall_seconds"], field=f"{field}.wall_seconds")
     if wall > (end - start).total_seconds() + 1.0:
         raise LivePaperProtocolError(f"{field}.wall_seconds exceeds elapsed time")
-    status = row["status"]
+    status = receipt["status"]
     if status not in {"completed", "runtime_error"}:
         raise LivePaperProtocolError(f"{field}.status is invalid")
-    success = row["success"]
+    success = receipt["success"]
     if status == "completed" and not isinstance(success, bool):
         raise LivePaperProtocolError(f"{field}.success must be boolean when completed")
     if status == "runtime_error" and success is not None:
         raise LivePaperProtocolError(f"{field}.success must be null on runtime_error")
+    if status == "completed":
+        seed_results_ref = _relative_ref(
+            receipt["seed_results_ref"], field=f"{field}.seed_results_ref"
+        )
+        telemetry_ref = _relative_ref(
+            receipt["telemetry_episode_ref"],
+            field=f"{field}.telemetry_episode_ref",
+        )
+        if (
+            seed_results_ref != command_binding["expected_seed_results_ref"]
+            or telemetry_ref != command_binding["expected_telemetry_episode_ref"]
+        ):
+            raise LivePaperProtocolError(f"{field} output paths differ from command")
+        seed_results_path = _bound_path(
+            repo_root, seed_results_ref, field=f"{field}.seed_results_ref"
+        )
+        telemetry_path = _bound_path(
+            repo_root, telemetry_ref, field=f"{field}.telemetry_episode_ref"
+        )
+        if _file_sha256(seed_results_path) != _sha256(
+            receipt["seed_results_sha256"],
+            field=f"{field}.seed_results_sha256",
+        ):
+            raise LivePaperProtocolError(f"{field} seed results hash mismatch")
+        if _file_sha256(telemetry_path) != _sha256(
+            receipt["telemetry_episode_sha256"],
+            field=f"{field}.telemetry_episode_sha256",
+        ):
+            raise LivePaperProtocolError(f"{field} telemetry hash mismatch")
+        try:
+            seed_results = json.loads(seed_results_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise LivePaperProtocolError(
+                f"{field} seed results are invalid JSON: {exc}"
+            ) from exc
+        measurements = seed_results.get("seed_measurements")
+        if (
+            seed_results.get("requested_seeds") != [prereg["seed"]]
+            or seed_results.get("requested_count") != 1
+            or seed_results.get("evaluated_count") != 1
+            or not isinstance(measurements, list)
+            or len(measurements) != 1
+            or measurements[0].get("seed") != prereg["seed"]
+            or measurements[0].get("policy_success") is not success
+        ):
+            raise LivePaperProtocolError(f"{field} seed results do not prove exact N=1")
+    else:
+        if any(
+            receipt.get(key) is not None
+            for key in (
+                "seed_results_ref",
+                "seed_results_sha256",
+                "telemetry_episode_ref",
+                "telemetry_episode_sha256",
+            )
+        ):
+            raise LivePaperProtocolError(
+                f"{field} runtime_error cannot attest completed outputs"
+            )
     return {
-        "attempt_id": _identifier(row["attempt_id"], field=f"{field}.attempt_id"),
+        "attempt_id": expected_identity["attempt_id"],
         "candidate_id": candidate,
-        "seed": seed,
+        "seed": prereg["seed"],
         "evidence_source": "live_policy_rollout",
-        "rollout_ref": _text(row["rollout_ref"], field=f"{field}.rollout_ref"),
-        "started_at_utc": row["started_at_utc"],
-        "ended_at_utc": row["ended_at_utc"],
+        "receipt_ref": receipt_ref,
+        "receipt_sha256": supplied_receipt_sha256,
+        "variant_id": candidate_binding["variant_id"],
+        "started_at_utc": receipt["started_at_utc"],
+        "ended_at_utc": receipt["ended_at_utc"],
         "wall_seconds": wall,
         "status": status,
         "success": success,
@@ -385,6 +946,7 @@ def _efficiency_arm(
     *,
     arm: str,
     prereg: Mapping[str, Any],
+    repo_root: Path,
 ) -> dict[str, Any]:
     row = _object(value, field=f"{arm}_result")
     expected = {
@@ -393,9 +955,6 @@ def _efficiency_arm(
         "arm",
         "arm_run_id",
         "preregistration_sha256",
-        "started_at_utc",
-        "ended_at_utc",
-        "wall_seconds",
         "stop_reason",
         "attempts",
     }
@@ -405,14 +964,7 @@ def _efficiency_arm(
         raise LivePaperProtocolError(f"unsupported {arm} result")
     if row["arm"] != arm or row["preregistration_sha256"] != prereg["preregistration_sha256"]:
         raise LivePaperProtocolError(f"{arm} result is not bound to preregistration")
-    preregistered_at = _utc(prereg["created_at_utc"], field="created_at_utc")
-    start = _utc(row["started_at_utc"], field=f"{arm}.started_at_utc")
-    end = _utc(row["ended_at_utc"], field=f"{arm}.ended_at_utc")
-    if start < preregistered_at or end < start:
-        raise LivePaperProtocolError(f"{arm} timestamps violate preregistration order")
-    wall = _number(row["wall_seconds"], field=f"{arm}.wall_seconds")
-    if wall > (end - start).total_seconds() + 1.0:
-        raise LivePaperProtocolError(f"{arm}.wall_seconds exceeds elapsed time")
+    arm_run_id = _identifier(row["arm_run_id"], field=f"{arm}.arm_run_id")
     allowed = (
         set(prereg["fixed_contract"]["candidate_ids"])
         if arm == "fixed"
@@ -422,14 +974,16 @@ def _efficiency_arm(
         _live_attempt(
             item,
             field=f"{arm}.attempts[{index}]",
-            seed=prereg["seed"],
+            arm=arm,
+            arm_run_id=arm_run_id,
+            prereg=prereg,
             allowed_candidates=allowed,
-            preregistered_at=preregistered_at,
+            repo_root=repo_root,
         )
         for index, item in enumerate(_items(row["attempts"], field=f"{arm}.attempts", minimum=1))
     ]
     identities = [item["attempt_id"] for item in attempts]
-    refs = [item["rollout_ref"] for item in attempts]
+    refs = [item["receipt_ref"] for item in attempts]
     candidates = [item["candidate_id"] for item in attempts]
     if len(identities) != len(set(identities)) or len(refs) != len(set(refs)):
         raise LivePaperProtocolError(f"{arm} attempt ids and rollout refs must be unique")
@@ -460,10 +1014,8 @@ def _efficiency_arm(
             raise LivePaperProtocolError("invalid adaptive stop reason")
     return {
         "arm": arm,
-        "arm_run_id": _identifier(row["arm_run_id"], field=f"{arm}.arm_run_id"),
-        "started_at_utc": row["started_at_utc"],
-        "ended_at_utc": row["ended_at_utc"],
-        "wall_seconds": wall,
+        "arm_run_id": arm_run_id,
+        "wall_seconds": sum(item["wall_seconds"] for item in attempts),
         "stop_reason": row["stop_reason"],
         "attempts": attempts,
     }
@@ -511,16 +1063,25 @@ def evaluate_click_bell_efficiency(
     preregistration: Any,
     fixed_result: Any,
     adaptive_result: Any,
+    *,
+    repo_root: str | Path,
 ) -> dict[str, Any]:
-    prereg = validate_click_bell_efficiency_preregistration(preregistration)
-    fixed = _efficiency_arm(fixed_result, arm="fixed", prereg=prereg)
-    adaptive = _efficiency_arm(adaptive_result, arm="adaptive", prereg=prereg)
+    root = Path(repo_root).expanduser().resolve()
+    prereg = validate_click_bell_efficiency_preregistration(
+        preregistration, repo_root=root, require_materialized=True
+    )
+    fixed = _efficiency_arm(
+        fixed_result, arm="fixed", prereg=prereg, repo_root=root
+    )
+    adaptive = _efficiency_arm(
+        adaptive_result, arm="adaptive", prereg=prereg, repo_root=root
+    )
     if fixed["arm_run_id"] == adaptive["arm_run_id"]:
         raise LivePaperProtocolError("arms must have independent run ids")
     fixed_ids = {item["attempt_id"] for item in fixed["attempts"]}
     adaptive_ids = {item["attempt_id"] for item in adaptive["attempts"]}
-    fixed_refs = {item["rollout_ref"] for item in fixed["attempts"]}
-    adaptive_refs = {item["rollout_ref"] for item in adaptive["attempts"]}
+    fixed_refs = {item["receipt_ref"] for item in fixed["attempts"]}
+    adaptive_refs = {item["receipt_ref"] for item in adaptive["attempts"]}
     if fixed_ids & adaptive_ids or fixed_refs & adaptive_refs:
         raise LivePaperProtocolError("arms cannot share rollout receipts")
     total_starts = len(fixed["attempts"]) + len(adaptive["attempts"])
@@ -579,6 +1140,116 @@ def evaluate_click_bell_efficiency(
     }
 
 
+def _ranking_command_binding(
+    *,
+    study_id: str,
+    policy_id: str,
+    seed: int,
+    checkpoint: Mapping[str, Any],
+    artifact_root_ref: str,
+) -> dict[str, Any]:
+    command_root = f"{artifact_root_ref}/commands/{policy_id}/seed_{seed}"
+    live_root = f"{artifact_root_ref}/live_runs/{policy_id}/seed_{seed}"
+    seed_manifest = _seed_manifest(task_name="beat_block_hammer", seed=seed)
+    seed_manifest_ref = f"{command_root}/seed_manifest.json"
+    common_outputs = {
+        "seed_manifest_ref": seed_manifest_ref,
+        "seed_manifest_sha256": _bytes_sha256(_json_bytes(seed_manifest)),
+        "expected_seed_results_ref": f"{live_root}/seed_results.json",
+        "expected_telemetry_episode_ref": (
+            f"{live_root}/telemetry/episode_000_seed_{seed}/episode.json"
+        ),
+        "expected_output_dir": f"{live_root}/eval_output",
+    }
+    if policy_id == "act":
+        environment = {"PYTHON_BIN": ROBOTWIN_PYTHON}
+        argv = [
+            "bash",
+            "policy/ACT/eval_mea.sh",
+            "beat_block_hammer",
+            "demo_clean",
+            "demo_clean",
+            "50",
+            "0",
+            "0",
+            "1",
+            "",
+            "",
+            "",
+            f"{live_root}/telemetry",
+            "balanced_v1",
+            seed_manifest_ref,
+            common_outputs["expected_seed_results_ref"],
+            common_outputs["expected_output_dir"],
+        ]
+        entrypoint = "policy/ACT/eval_mea.sh"
+    elif policy_id == "dp3":
+        environment = {"CUDA_VISIBLE_DEVICES": "0"}
+        argv = [
+            DP3_PYTHON,
+            "script/eval_policy.py",
+            "--config",
+            "policy/DP3/deploy_policy.yml",
+            "--overrides",
+            "--task_name",
+            "beat_block_hammer",
+            "--task_config",
+            "demo_clean",
+            "--ckpt_setting",
+            "demo_clean",
+            "--expert_data_num",
+            "50",
+            "--seed",
+            "0",
+            "--policy_name",
+            "DP3",
+            "--config_name",
+            "robot_dp3",
+            "--checkpoint_num",
+            "3000",
+            "--use_rgb",
+            "false",
+            "--num_episodes",
+            "1",
+            "--seed_manifest",
+            seed_manifest_ref,
+            "--telemetry_dir",
+            f"{live_root}/telemetry",
+            "--telemetry_profile",
+            "balanced_v1",
+            "--seed_results_path",
+            common_outputs["expected_seed_results_ref"],
+            "--output_dir",
+            common_outputs["expected_output_dir"],
+        ]
+        entrypoint = "script/eval_policy.py"
+    else:  # pragma: no cover - only the frozen policies call this helper.
+        raise LivePaperProtocolError(f"unsupported ranking policy: {policy_id}")
+    command = {
+        "schema_version": 1,
+        "kind": "exact_seed_policy_n1_command_v1",
+        "study_id": study_id,
+        "policy_id": policy_id,
+        "seed": seed,
+        "checkpoint": deepcopy(dict(checkpoint)),
+        "entrypoint": entrypoint,
+        "python_environment": (
+            ROBOTWIN_PYTHON if policy_id == "act" else DP3_PYTHON
+        ),
+        "cwd": ".",
+        "environment": environment,
+        "argv": argv,
+        **common_outputs,
+    }
+    return {
+        "policy_id": policy_id,
+        "seed": seed,
+        "command_ref": f"{command_root}/command.json",
+        "command_sha256": _bytes_sha256(_json_bytes(command)),
+        **common_outputs,
+    }
+
+
 def build_ranking_preregistration(
     *,
     study_id: str,
@@ -588,6 +1259,7 @@ def build_ranking_preregistration(
     created_at_utc: str,
     reference_source_ref: str,
     reference_scores: Mapping[str, float],
+    artifact_root_ref: str | None = None,
 ) -> dict[str, Any]:
     _utc(created_at_utc, field="created_at_utc")
     normalized_seeds = [_integer(seed, field="seeds[]") for seed in seeds]
@@ -595,17 +1267,46 @@ def build_ranking_preregistration(
         raise LivePaperProtocolError("ranking pilot requires exactly three unique seeds")
     if set(reference_scores) != {"act", "dp3"}:
         raise LivePaperProtocolError("reference_scores must contain exactly act and dp3")
+    resolved_study_id = _identifier(study_id, field="study_id")
+    resolved_artifact_root = _relative_ref(
+        artifact_root_ref
+        or f"mea/protocol_runs/{resolved_study_id}/ranking_artifacts",
+        field="artifact_root_ref",
+    )
+    policies = {
+        "act": _checkpoint(
+            act_checkpoint,
+            field="act_checkpoint",
+            artifact_ref=BBH_ACT_CHECKPOINT_REF,
+        ),
+        "dp3": _checkpoint(
+            dp3_checkpoint,
+            field="dp3_checkpoint",
+            artifact_ref=BBH_DP3_CHECKPOINT_REF,
+        ),
+    }
+    commands = {
+        policy_id: [
+            _ranking_command_binding(
+                study_id=resolved_study_id,
+                policy_id=policy_id,
+                seed=seed,
+                checkpoint=policies[policy_id],
+                artifact_root_ref=resolved_artifact_root,
+            )
+            for seed in normalized_seeds
+        ]
+        for policy_id in ("act", "dp3")
+    }
     body = {
         "schema_version": 1,
         "protocol": RANKING_PROTOCOL,
-        "study_id": _identifier(study_id, field="study_id"),
+        "study_id": resolved_study_id,
         "created_at_utc": created_at_utc,
+        "artifact_root_ref": resolved_artifact_root,
         "candidate_id": "bbh_official_demo_clean",
         "seeds": normalized_seeds,
-        "policies": {
-            "act": _checkpoint(act_checkpoint, field="act_checkpoint"),
-            "dp3": _checkpoint(dp3_checkpoint, field="dp3_checkpoint"),
-        },
+        "policies": policies,
         "reference_source_ref": _text(reference_source_ref, field="reference_source_ref"),
         "reference_scores": {
             key: _number(reference_scores[key], field=f"reference_scores.{key}")
@@ -613,8 +1314,9 @@ def build_ranking_preregistration(
         },
         "execution_entrypoints": {
             "act": "policy/ACT/eval_mea.sh",
-            "dp3": "policy/DP3/eval.sh",
+            "dp3": "script/eval_policy.py",
         },
+        "execution_schedule": commands,
         "rollout_contract": {
             "exact_trials_per_policy": 3,
             "exact_total_policy_rollouts": 6,
@@ -633,7 +1335,12 @@ def build_ranking_preregistration(
     return _seal(body, hash_field="preregistration_sha256")
 
 
-def validate_ranking_preregistration(value: Any) -> dict[str, Any]:
+def validate_ranking_preregistration(
+    value: Any,
+    *,
+    repo_root: str | Path | None = None,
+    require_materialized: bool = False,
+) -> dict[str, Any]:
     row = _verify_seal(_object(value, field="ranking preregistration"), hash_field="preregistration_sha256")
     if row.get("schema_version") != 1 or row.get("protocol") != RANKING_PROTOCOL:
         raise LivePaperProtocolError("unsupported ranking preregistration")
@@ -645,14 +1352,159 @@ def validate_ranking_preregistration(value: Any) -> dict[str, Any]:
         created_at_utc=row.get("created_at_utc"),
         reference_source_ref=row.get("reference_source_ref"),
         reference_scores=row.get("reference_scores"),
+        artifact_root_ref=row.get("artifact_root_ref"),
     )
     if rebuilt != row:
         raise LivePaperProtocolError("ranking preregistration contract was modified")
+    if require_materialized:
+        if repo_root is None:
+            raise LivePaperProtocolError("repo_root is required for materialized ranking")
+        root = Path(repo_root).expanduser().resolve()
+        for policy_rows in row["execution_schedule"].values():
+            for binding in policy_rows:
+                seed_path = _bound_path(
+                    root, binding["seed_manifest_ref"], field="seed_manifest_ref"
+                )
+                command_path = _bound_path(
+                    root, binding["command_ref"], field="command_ref"
+                )
+                if _file_sha256(seed_path) != binding["seed_manifest_sha256"]:
+                    raise LivePaperProtocolError("ranking seed manifest hash mismatch")
+                if _file_sha256(command_path) != binding["command_sha256"]:
+                    raise LivePaperProtocolError("ranking command hash mismatch")
     return row
 
 
-def evaluate_exact_seed_ranking(preregistration: Any, result_manifest: Any) -> dict[str, Any]:
+def materialize_ranking_preregistration(
+    repo_root: str | Path, preregistration: Any
+) -> dict[str, Any]:
+    root = Path(repo_root).expanduser().resolve()
     prereg = validate_ranking_preregistration(preregistration)
+    for policy_id, rows in prereg["execution_schedule"].items():
+        for binding in rows:
+            seed = binding["seed"]
+            _write_bound_file(
+                root,
+                binding["seed_manifest_ref"],
+                _json_bytes(
+                    _seed_manifest(task_name="beat_block_hammer", seed=seed)
+                ),
+            )
+            rebuilt = _ranking_command_binding(
+                study_id=prereg["study_id"],
+                policy_id=policy_id,
+                seed=seed,
+                checkpoint=prereg["policies"][policy_id],
+                artifact_root_ref=prereg["artifact_root_ref"],
+            )
+            live_root = (
+                f"{prereg['artifact_root_ref']}/live_runs/{policy_id}/seed_{seed}"
+            )
+            if policy_id == "act":
+                environment = {"PYTHON_BIN": ROBOTWIN_PYTHON}
+                argv = [
+                    "bash",
+                    "policy/ACT/eval_mea.sh",
+                    "beat_block_hammer",
+                    "demo_clean",
+                    "demo_clean",
+                    "50",
+                    "0",
+                    "0",
+                    "1",
+                    "",
+                    "",
+                    "",
+                    f"{live_root}/telemetry",
+                    "balanced_v1",
+                    binding["seed_manifest_ref"],
+                    binding["expected_seed_results_ref"],
+                    binding["expected_output_dir"],
+                ]
+                entrypoint = "policy/ACT/eval_mea.sh"
+            else:
+                environment = {"CUDA_VISIBLE_DEVICES": "0"}
+                argv = [
+                    DP3_PYTHON,
+                    "script/eval_policy.py",
+                    "--config",
+                    "policy/DP3/deploy_policy.yml",
+                    "--overrides",
+                    "--task_name",
+                    "beat_block_hammer",
+                    "--task_config",
+                    "demo_clean",
+                    "--ckpt_setting",
+                    "demo_clean",
+                    "--expert_data_num",
+                    "50",
+                    "--seed",
+                    "0",
+                    "--policy_name",
+                    "DP3",
+                    "--config_name",
+                    "robot_dp3",
+                    "--checkpoint_num",
+                    "3000",
+                    "--use_rgb",
+                    "false",
+                    "--num_episodes",
+                    "1",
+                    "--seed_manifest",
+                    binding["seed_manifest_ref"],
+                    "--telemetry_dir",
+                    f"{live_root}/telemetry",
+                    "--telemetry_profile",
+                    "balanced_v1",
+                    "--seed_results_path",
+                    binding["expected_seed_results_ref"],
+                    "--output_dir",
+                    binding["expected_output_dir"],
+                ]
+                entrypoint = "script/eval_policy.py"
+            command = {
+                "schema_version": 1,
+                "kind": "exact_seed_policy_n1_command_v1",
+                "study_id": prereg["study_id"],
+                "policy_id": policy_id,
+                "seed": seed,
+                "checkpoint": prereg["policies"][policy_id],
+                "entrypoint": entrypoint,
+                "python_environment": (
+                    ROBOTWIN_PYTHON if policy_id == "act" else DP3_PYTHON
+                ),
+                "cwd": ".",
+                "environment": environment,
+                "argv": argv,
+                "seed_manifest_ref": binding["seed_manifest_ref"],
+                "seed_manifest_sha256": binding["seed_manifest_sha256"],
+                "expected_seed_results_ref": binding[
+                    "expected_seed_results_ref"
+                ],
+                "expected_telemetry_episode_ref": binding[
+                    "expected_telemetry_episode_ref"
+                ],
+                "expected_output_dir": binding["expected_output_dir"],
+            }
+            if rebuilt["command_sha256"] != binding["command_sha256"]:
+                raise LivePaperProtocolError("internal ranking command mismatch")
+            _write_bound_file(root, binding["command_ref"], _json_bytes(command))
+    return validate_ranking_preregistration(
+        prereg, repo_root=root, require_materialized=True
+    )
+
+
+def evaluate_exact_seed_ranking(
+    preregistration: Any,
+    result_manifest: Any,
+    *,
+    repo_root: str | Path,
+) -> dict[str, Any]:
+    prereg = validate_ranking_preregistration(
+        preregistration,
+        repo_root=repo_root,
+        require_materialized=True,
+    )
     result = _object(result_manifest, field="ranking result")
     if result.get("schema_version") != 1 or result.get("protocol") != f"{RANKING_PROTOCOL}_runs":
         raise LivePaperProtocolError("unsupported ranking result manifest")
@@ -757,25 +1609,203 @@ def evaluate_exact_seed_ranking(preregistration: Any, result_manifest: Any) -> d
     return ranking
 
 
+def _table3_success_spec() -> dict[str, Any]:
+    return {
+        "schema_version": 2,
+        "task_name": "beat_block_hammer",
+        "envelope_id": "bbh.experimental_bounded_act",
+        "logic": "all",
+        "predicates": [
+            {
+                "predicate": "planar_axis_distance",
+                "left": {"actor": "hammer", "functional_point_id": 0},
+                "right": {"actor": "block", "functional_point_id": 1},
+                "axes": [0, 1],
+                "thresholds_m": [0.025, 0.025],
+                "comparison": "strict_lt",
+            },
+            {
+                "predicate": "physical_contact",
+                "actors": ["hammer", "block"],
+            },
+        ],
+    }
+
+
+def _table3_task_proposal(proposal: Mapping[str, Any]) -> dict[str, Any]:
+    changes = deepcopy(proposal["changes"])
+    is_scale = float(changes["block"]["scale"]) != 1.0
+    return {
+        "schema_version": 2,
+        "proposal_id": proposal["proposal_id"],
+        "task_name": "beat_block_hammer",
+        "aspect_id": "object_scale" if is_scale else "object_appearance.color",
+        "intent": proposal["prompt"],
+        "capability_id": "object_scale" if is_scale else "object_appearance.color",
+        "reuse_first": False,
+        "changes": changes,
+        "preserve_success_semantics": False,
+        "success_spec": _table3_success_spec(),
+    }
+
+
+def _table3_runner(
+    *,
+    study_id: str,
+    proposal: Mapping[str, Any],
+    condition: str,
+    proposal_ref: str,
+    proposal_sha256: str,
+    artifact_root_ref: str,
+    text_model: str,
+    vision_model: str,
+    seed: int,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    cell_id = f"{proposal['proposal_id']}__{condition}"
+    run_token = "".join(
+        ch if ch.isalnum() or ch == "_" else "_" for ch in study_id
+    )
+    run_id = f"run_{run_token}_{cell_id}"
+    switches = deepcopy(TABLE3_SWITCHES[condition])
+    task_proposal = _table3_task_proposal(proposal)
+    argv = [
+        ROBOTWIN_PYTHON,
+        "scripts/manipeval_taskgen.py",
+        "--repo-root",
+        ".",
+        "--request",
+        proposal["prompt"],
+        "--run-id",
+        run_id,
+        "--task-name",
+        "beat_block_hammer",
+        "--mode",
+        "force_codegen",
+        "--task-proposal-json",
+        json.dumps(task_proposal, ensure_ascii=False, sort_keys=True),
+        "--taskgen-ablation-json",
+        json.dumps(switches, ensure_ascii=False, sort_keys=True),
+        "--text-model",
+        text_model,
+        "--vision-model",
+        vision_model,
+        "--seed",
+        str(seed),
+        "--num-episodes",
+        "1",
+        "--gpu",
+        "0",
+        "--expert",
+        "--accept-task-only",
+        "--max-reflections",
+        "2",
+    ]
+    if switches["visual_self_check"]:
+        argv.append("--vision-check")
+    run_root = f"mea/generated_tasks/{run_id}"
+    stage_receipts = {
+        "codegen": {
+            "artifact_ref": f"{run_root}/task.py",
+            "manifest_ref": f"{run_root}/manifest.json",
+        },
+        "compile": {"receipt_ref": f"{run_root}/validation/static.json"},
+        "render": {"receipt_ref": f"{run_root}/validation/scene.json"},
+        "simulator": {"receipt_ref": f"{run_root}/validation/scene.json"},
+        "oracle": {
+            "receipt_ref": (
+                f"{run_root}/validation/task_generation_attempts/"
+                "task_generation_attempt_summary.json"
+            )
+        },
+    }
+    runner = {
+        "schema_version": 1,
+        "kind": "table3_real_taskgen_cell_runner_v1",
+        "study_id": study_id,
+        "cell_id": cell_id,
+        "proposal_id": proposal["proposal_id"],
+        "condition": condition,
+        "module_switches": switches,
+        "proposal_ref": proposal_ref,
+        "proposal_sha256": proposal_sha256,
+        "provider_models": {"text": text_model, "vision": vision_model},
+        "required_environment": ["OPENAI_API_KEY"],
+        "cwd": ".",
+        "argv": argv,
+        "run_id": run_id,
+        "act_rollout_budget": 0,
+        "expected_stage_receipts": stage_receipts,
+    }
+    runner_ref = f"{artifact_root_ref}/cells/{cell_id}/runner.json"
+    binding = {
+        "cell_id": cell_id,
+        "proposal_id": proposal["proposal_id"],
+        "condition": condition,
+        "module_switches": switches,
+        "proposal_ref": proposal_ref,
+        "proposal_sha256": proposal_sha256,
+        "runner_ref": runner_ref,
+        "runner_sha256": _bytes_sha256(_json_bytes(runner)),
+        "run_id": run_id,
+        "expected_stage_receipts": stage_receipts,
+    }
+    return binding, runner
+
+
 def build_table3_codegen_preregistration(
-    *, study_id: str, created_at_utc: str
+    *,
+    study_id: str,
+    created_at_utc: str,
+    artifact_root_ref: str | None = None,
+    text_model: str = "gpt-4o-2024-11-20",
+    vision_model: str = "gpt-4o-2024-11-20",
 ) -> dict[str, Any]:
     _utc(created_at_utc, field="created_at_utc")
-    cells = [
-        {
-            "cell_id": f"{proposal['proposal_id']}__{condition}",
-            "proposal_id": proposal["proposal_id"],
-            "condition": condition,
-        }
-        for proposal in TABLE3_PROPOSALS
-        for condition in TABLE3_CONDITIONS
-    ]
+    resolved_study_id = _identifier(study_id, field="study_id")
+    resolved_artifact_root = _relative_ref(
+        artifact_root_ref
+        or f"mea/protocol_runs/{resolved_study_id}/table3_artifacts",
+        field="artifact_root_ref",
+    )
+    resolved_text_model = _text(text_model, field="text_model")
+    resolved_vision_model = _text(vision_model, field="vision_model")
+    proposals: list[dict[str, Any]] = []
+    cells: list[dict[str, Any]] = []
+    for proposal_index, raw in enumerate(TABLE3_PROPOSALS):
+        proposal = deepcopy(dict(raw))
+        task_proposal = _table3_task_proposal(proposal)
+        proposal_ref = (
+            f"{resolved_artifact_root}/proposals/"
+            f"{proposal['proposal_id']}.json"
+        )
+        proposal_sha256 = _bytes_sha256(_json_bytes(task_proposal))
+        proposal["task_proposal_ref"] = proposal_ref
+        proposal["task_proposal_sha256"] = proposal_sha256
+        proposals.append(proposal)
+        for condition in TABLE3_CONDITIONS:
+            binding, _ = _table3_runner(
+                study_id=resolved_study_id,
+                proposal=proposal,
+                condition=condition,
+                proposal_ref=proposal_ref,
+                proposal_sha256=proposal_sha256,
+                artifact_root_ref=resolved_artifact_root,
+                text_model=resolved_text_model,
+                vision_model=resolved_vision_model,
+                seed=100700 + proposal_index,
+            )
+            cells.append(binding)
     body = {
         "schema_version": 1,
         "protocol": TABLE3_PROTOCOL,
-        "study_id": _identifier(study_id, field="study_id"),
+        "study_id": resolved_study_id,
         "created_at_utc": created_at_utc,
-        "unseen_proposals": deepcopy(list(TABLE3_PROPOSALS)),
+        "artifact_root_ref": resolved_artifact_root,
+        "provider_models": {
+            "text": resolved_text_model,
+            "vision": resolved_vision_model,
+        },
+        "unseen_proposals": proposals,
         "conditions": list(TABLE3_CONDITIONS),
         "cells": cells,
         "required_downstream_stages": [
@@ -788,25 +1818,109 @@ def build_table3_codegen_preregistration(
         "success_rule": "all_five_downstream_stages_pass",
         "oracle_fixture_minimum": {"positive": 1, "negative": 1},
         "act_rollout_budget": 0,
+        "execution_contract": {
+            "runner": "scripts/manipeval_taskgen.py",
+            "taskgen_ablation_switch_argument": "--taskgen-ablation-json",
+            "one_command_per_cell": True,
+            "provider_generation_calls": 25,
+            "simulator_acceptance_calls": 25,
+        },
         "claim_scope": "five_unseen_proposals_per_condition_micro_ablation_not_table3",
     }
     return _seal(body, hash_field="preregistration_sha256")
 
 
-def validate_table3_codegen_preregistration(value: Any) -> dict[str, Any]:
+def validate_table3_codegen_preregistration(
+    value: Any,
+    *,
+    repo_root: str | Path | None = None,
+    require_materialized: bool = False,
+) -> dict[str, Any]:
     row = _verify_seal(_object(value, field="table3 preregistration"), hash_field="preregistration_sha256")
     if row.get("schema_version") != 1 or row.get("protocol") != TABLE3_PROTOCOL:
         raise LivePaperProtocolError("unsupported Table 3 preregistration")
     rebuilt = build_table3_codegen_preregistration(
-        study_id=row.get("study_id"), created_at_utc=row.get("created_at_utc")
+        study_id=row.get("study_id"),
+        created_at_utc=row.get("created_at_utc"),
+        artifact_root_ref=row.get("artifact_root_ref"),
+        text_model=_object(row.get("provider_models"), field="provider_models").get(
+            "text"
+        ),
+        vision_model=_object(
+            row.get("provider_models"), field="provider_models"
+        ).get("vision"),
     )
     if rebuilt != row:
         raise LivePaperProtocolError("Table 3 preregistration contract was modified")
+    if require_materialized:
+        if repo_root is None:
+            raise LivePaperProtocolError("repo_root is required for materialized Table 3")
+        root = Path(repo_root).expanduser().resolve()
+        for proposal in row["unseen_proposals"]:
+            path = _bound_path(
+                root, proposal["task_proposal_ref"], field="task_proposal_ref"
+            )
+            if _file_sha256(path) != proposal["task_proposal_sha256"]:
+                raise LivePaperProtocolError("Table 3 proposal hash mismatch")
+        for cell in row["cells"]:
+            path = _bound_path(root, cell["runner_ref"], field="runner_ref")
+            if _file_sha256(path) != cell["runner_sha256"]:
+                raise LivePaperProtocolError("Table 3 runner hash mismatch")
     return row
 
 
-def evaluate_table3_codegen(preregistration: Any, result_manifest: Any) -> dict[str, Any]:
+def materialize_table3_codegen_preregistration(
+    repo_root: str | Path, preregistration: Any
+) -> dict[str, Any]:
+    root = Path(repo_root).expanduser().resolve()
     prereg = validate_table3_codegen_preregistration(preregistration)
+    by_proposal = {
+        proposal["proposal_id"]: proposal
+        for proposal in prereg["unseen_proposals"]
+    }
+    proposal_templates = {
+        proposal["proposal_id"]: proposal for proposal in TABLE3_PROPOSALS
+    }
+    for proposal in prereg["unseen_proposals"]:
+        task_proposal = _table3_task_proposal(
+            proposal_templates[proposal["proposal_id"]]
+        )
+        _write_bound_file(
+            root, proposal["task_proposal_ref"], _json_bytes(task_proposal)
+        )
+    for cell in prereg["cells"]:
+        proposal = proposal_templates[cell["proposal_id"]]
+        proposal_binding = by_proposal[cell["proposal_id"]]
+        proposal_index = list(proposal_templates).index(cell["proposal_id"])
+        rebuilt, runner = _table3_runner(
+            study_id=prereg["study_id"],
+            proposal=proposal,
+            condition=cell["condition"],
+            proposal_ref=proposal_binding["task_proposal_ref"],
+            proposal_sha256=proposal_binding["task_proposal_sha256"],
+            artifact_root_ref=prereg["artifact_root_ref"],
+            text_model=prereg["provider_models"]["text"],
+            vision_model=prereg["provider_models"]["vision"],
+            seed=100700 + proposal_index,
+        )
+        if rebuilt != cell:
+            raise LivePaperProtocolError("internal Table 3 cell mismatch")
+        _write_bound_file(root, cell["runner_ref"], _json_bytes(runner))
+    return validate_table3_codegen_preregistration(
+        prereg, repo_root=root, require_materialized=True
+    )
+
+
+def evaluate_table3_codegen(
+    preregistration: Any,
+    result_manifest: Any,
+    *,
+    repo_root: str | Path,
+) -> dict[str, Any]:
+    root = Path(repo_root).expanduser().resolve()
+    prereg = validate_table3_codegen_preregistration(
+        preregistration, repo_root=root, require_materialized=True
+    )
     result = _object(result_manifest, field="table3 result")
     if result.get("schema_version") != 1 or result.get("protocol") != f"{TABLE3_PROTOCOL}_runs":
         raise LivePaperProtocolError("unsupported Table 3 result")
@@ -829,15 +1943,48 @@ def evaluate_table3_codegen(preregistration: Any, result_manifest: Any) -> dict[
         codegen = _object(stages["codegen"], field=f"{cell_id}.codegen")
         if codegen.get("generated_by_provider") is not True:
             raise LivePaperProtocolError(f"{cell_id} is proposal-only, not real codegen")
-        _text(codegen.get("artifact_ref"), field=f"{cell_id}.codegen.artifact_ref")
-        _sha256(codegen.get("artifact_sha256"), field=f"{cell_id}.codegen.artifact_sha256")
+        codegen_ref = _relative_ref(
+            codegen.get("artifact_ref"), field=f"{cell_id}.codegen.artifact_ref"
+        )
+        expected_codegen_ref = frozen["expected_stage_receipts"]["codegen"][
+            "artifact_ref"
+        ]
+        if codegen_ref != expected_codegen_ref:
+            raise LivePaperProtocolError(f"{cell_id} codegen artifact path mismatch")
+        codegen_path = _bound_path(
+            root, codegen_ref, field=f"{cell_id}.codegen.artifact_ref"
+        )
+        if _file_sha256(codegen_path) != _sha256(
+            codegen.get("artifact_sha256"),
+            field=f"{cell_id}.codegen.artifact_sha256",
+        ):
+            raise LivePaperProtocolError(f"{cell_id} codegen artifact hash mismatch")
         stage_pass = [True]
         for stage_name in ("compile", "render", "simulator", "oracle"):
             stage = _object(stages[stage_name], field=f"{cell_id}.{stage_name}")
             if not isinstance(stage.get("passed"), bool):
                 raise LivePaperProtocolError(f"{cell_id}.{stage_name}.passed must be boolean")
-            _text(stage.get("receipt_ref"), field=f"{cell_id}.{stage_name}.receipt_ref")
-            _sha256(stage.get("receipt_sha256"), field=f"{cell_id}.{stage_name}.receipt_sha256")
+            receipt_ref = _relative_ref(
+                stage.get("receipt_ref"),
+                field=f"{cell_id}.{stage_name}.receipt_ref",
+            )
+            expected_ref = frozen["expected_stage_receipts"][stage_name][
+                "receipt_ref"
+            ]
+            if receipt_ref != expected_ref:
+                raise LivePaperProtocolError(
+                    f"{cell_id}.{stage_name} receipt path mismatch"
+                )
+            receipt_path = _bound_path(
+                root, receipt_ref, field=f"{cell_id}.{stage_name}.receipt_ref"
+            )
+            if _file_sha256(receipt_path) != _sha256(
+                stage.get("receipt_sha256"),
+                field=f"{cell_id}.{stage_name}.receipt_sha256",
+            ):
+                raise LivePaperProtocolError(
+                    f"{cell_id}.{stage_name} receipt hash mismatch"
+                )
             stage_pass.append(stage["passed"])
             if stage_name == "oracle":
                 if _integer(stage.get("positive_fixture_count"), field="positive_fixture_count", minimum=1) < 1:

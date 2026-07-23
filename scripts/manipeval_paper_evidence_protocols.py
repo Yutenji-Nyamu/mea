@@ -20,6 +20,9 @@ from mea.live_paper_protocols import (
     evaluate_click_bell_efficiency,
     evaluate_exact_seed_ranking,
     evaluate_table3_codegen,
+    materialize_click_bell_efficiency_preregistration,
+    materialize_ranking_preregistration,
+    materialize_table3_codegen_preregistration,
     validate_proxy_gold_manifest,
 )
 from mea.prospective_error_ledger import (
@@ -43,6 +46,21 @@ def _write(path: Path, value: dict) -> None:
 
 def _checkpoint(identifier: str, sha256: str) -> dict:
     return {"checkpoint_id": identifier, "artifact_sha256": sha256}
+
+
+def _bound_output(path: Path) -> tuple[Path, str]:
+    candidate = path.expanduser()
+    resolved = (
+        candidate.resolve()
+        if candidate.is_absolute()
+        else (REPO_ROOT / candidate).resolve()
+    )
+    if not resolved.is_relative_to(REPO_ROOT):
+        raise LivePaperProtocolError(
+            "paper-evidence outputs must stay inside the repository"
+        )
+    artifact_root = resolved.parent / f"{resolved.stem}_artifacts"
+    return resolved, artifact_root.relative_to(REPO_ROOT).as_posix()
 
 
 def main() -> None:
@@ -85,6 +103,8 @@ def main() -> None:
     table3_pre = sub.add_parser("table3-preregister")
     table3_pre.add_argument("--study-id", required=True)
     table3_pre.add_argument("--created-at-utc", required=True)
+    table3_pre.add_argument("--text-model", default="gpt-4o-2024-11-20")
+    table3_pre.add_argument("--vision-model", default="gpt-4o-2024-11-20")
     table3_pre.add_argument("--output", type=Path, required=True)
 
     table3_eval = sub.add_parser("table3-finalize")
@@ -116,22 +136,27 @@ def main() -> None:
     args = parser.parse_args()
     try:
         if args.command == "efficiency-preregister":
+            output_path, artifact_root_ref = _bound_output(args.output)
             output = build_click_bell_efficiency_preregistration(
                 study_id=args.study_id,
                 mode=args.mode,
                 checkpoint=_checkpoint(args.checkpoint_id, args.checkpoint_sha256),
                 seed=args.seed,
                 created_at_utc=args.created_at_utc,
+                artifact_root_ref=artifact_root_ref,
             )
-            _write(args.output, output)
+            materialize_click_bell_efficiency_preregistration(REPO_ROOT, output)
+            _write(output_path, output)
         elif args.command == "efficiency-finalize":
             output = evaluate_click_bell_efficiency(
                 _read(args.preregistration),
                 _read(args.fixed_result),
                 _read(args.adaptive_result),
+                repo_root=REPO_ROOT,
             )
             _write(args.output, output)
         elif args.command == "ranking-preregister":
+            output_path, artifact_root_ref = _bound_output(args.output)
             output = build_ranking_preregistration(
                 study_id=args.study_id,
                 act_checkpoint=_checkpoint(args.act_checkpoint_id, args.act_checkpoint_sha256),
@@ -143,21 +168,33 @@ def main() -> None:
                     "act": args.act_reference_score,
                     "dp3": args.dp3_reference_score,
                 },
+                artifact_root_ref=artifact_root_ref,
             )
-            _write(args.output, output)
+            materialize_ranking_preregistration(REPO_ROOT, output)
+            _write(output_path, output)
         elif args.command == "ranking-finalize":
             output = evaluate_exact_seed_ranking(
-                _read(args.preregistration), _read(args.runs)
+                _read(args.preregistration),
+                _read(args.runs),
+                repo_root=REPO_ROOT,
             )
             _write(args.output, output)
         elif args.command == "table3-preregister":
+            output_path, artifact_root_ref = _bound_output(args.output)
             output = build_table3_codegen_preregistration(
-                study_id=args.study_id, created_at_utc=args.created_at_utc
+                study_id=args.study_id,
+                created_at_utc=args.created_at_utc,
+                artifact_root_ref=artifact_root_ref,
+                text_model=args.text_model,
+                vision_model=args.vision_model,
             )
-            _write(args.output, output)
+            materialize_table3_codegen_preregistration(REPO_ROOT, output)
+            _write(output_path, output)
         elif args.command == "table3-finalize":
             output = evaluate_table3_codegen(
-                _read(args.preregistration), _read(args.runs)
+                _read(args.preregistration),
+                _read(args.runs),
+                repo_root=REPO_ROOT,
             )
             _write(args.output, output)
         elif args.command == "proxy-validate":
