@@ -873,17 +873,15 @@ class TaskGenPrototype:
                 ),
                 "official_equivalent": success_validation["official_equivalent"],
                 "compiler_eligible": success_validation["act_eligible"],
-                "act_runtime_eligible": bool(
-                    success_validation["act_eligible"]
-                    and not success_validation["experimental_bounded"]
-                ),
+                "act_runtime_eligible": bool(success_validation["act_eligible"]),
                 "experimental_bounded": success_validation[
                     "experimental_bounded"
                 ],
-                "execution_scope": (
-                    "experimental_bounded_probe_only"
+                "execution_scope": success_validation["execution_scope"],
+                "outcome_label": (
+                    "generated_check_success"
                     if success_validation["experimental_bounded"]
-                    else success_validation["execution_scope"]
+                    else "official_check_success"
                 ),
                 "generated_by_model": False,
                 "compiler": success_validation["compiler"],
@@ -1029,17 +1027,17 @@ class TaskGenPrototype:
             ).get("act_eligible", True),
             "success_act_eligible": bool(
                 validation.get("success_spec", {}).get("act_eligible", True)
-                and not validation.get("success_spec", {}).get(
-                    "experimental_bounded", False
-                )
             ),
             "success_execution_scope": validation.get(
                 "success_spec", {}
-            ).get("execution_scope", "official_equivalent")
-            if not validation.get("success_spec", {}).get(
-                "experimental_bounded", False
-            )
-            else "experimental_bounded_probe_only",
+            ).get("execution_scope", "official_equivalent"),
+            "success_outcome_label": (
+                "generated_check_success"
+                if validation.get("success_spec", {}).get(
+                    "experimental_bounded", False
+                )
+                else "official_check_success"
+            ),
         }
         _write_json(run_dir / "manifest.json", manifest)
         return manifest

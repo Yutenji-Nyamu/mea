@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "protocol": "paper_claim_small_efficiency_v1",
+  "evidence_source": "live_act_rollout",
+  "study_id": "bbh_object_property_n1_finite_domain_v4",
+  "query": "Does the ACT policy retain official-equivalent task success across every candidate in this two-item bounded object-property suite?",
+  "claim_type": "universal_all_candidates",
+  "comparison_design": "cached_prefix_counterfactual",
+  "comparison_timing": "post_hoc_after_observed_outcomes",
+  "cost_scope": "policy_episode_wall_only",
+  "adaptive_stop_assessment_ref": "mea/generated_tasks/run_20260723_batch19_efficiency_claim_v4/adaptive_query_sufficiency_round_1_v2.json",
+  "candidate_universe": [
+    "object_scale.bounded_1_2",
+    "object_appearance.color_blue"
+  ],
+  "seeds": [
+    1000,
+    1010
+  ],
+  "candidate_seed_pairs": [
+    {
+      "candidate_id": "object_scale.bounded_1_2",
+      "seed": 1000
+    },
+    {
+      "candidate_id": "object_appearance.color_blue",
+      "seed": 1010
+    }
+  ],
+  "conclusion_rule": {
+    "metric": "success_rate",
+    "operator": ">=",
+    "threshold": 1.0
+  },
+  "fixed": {
+    "arm": "fixed",
+    "run_id": "batch19_fixed_dense_official_equivalent_v4",
+    "policy_id": "act",
+    "checkpoint_id": "act-beat_block_hammer/demo_clean-50",
+    "wall_seconds": 168.32765316963196,
+    "arm_trace_ref": "mea/generated_tasks/run_20260723_batch19_efficiency_claim_v4/fixed_trace.json",
+    "trials": [
+      {
+        "trial_id": "fixed_scale_1000",
+        "candidate_id": "object_scale.bounded_1_2",
+        "seed": 1000,
+        "rollout_ref": "mea/generated_tasks/run_20260723_batch19_claim_first_scale_act_n1/evaluation/telemetry/act/episode_000_seed_1000/episode.json",
+        "episode_status": "completed",
+        "success": false,
+        "outcome_metric": "official_check_success",
+        "outcome_authority": "compiled_success_spec_official_equivalent",
+        "outcome_tool_sha256": "a81c64679f614717fa869b312e8e927bff9fbfae65c02f57bddcf14964285822"
+      },
+      {
+        "trial_id": "fixed_appearance_1010",
+        "candidate_id": "object_appearance.color_blue",
+        "seed": 1010,
+        "rollout_ref": "mea/generated_tasks/run_20260723_batch19_claim_first_appearance_round3_act_n1/evaluation/telemetry/act/episode_000_seed_1010/episode.json",
+        "episode_status": "completed",
+        "success": false,
+        "outcome_metric": "official_check_success",
+        "outcome_authority": "compiled_success_spec_official_equivalent",
+        "outcome_tool_sha256": "a81c64679f614717fa869b312e8e927bff9fbfae65c02f57bddcf14964285822"
+      }
+    ]
+  },
+  "adaptive": {
+    "arm": "adaptive",
+    "run_id": "batch19_adaptive_cached_prefix_refutation_v4",
+    "policy_id": "act",
+    "checkpoint_id": "act-beat_block_hammer/demo_clean-50",
+    "wall_seconds": 86.02182841300964,
+    "arm_trace_ref": "mea/generated_tasks/run_20260723_batch19_efficiency_claim_v4/adaptive_query_sufficiency_round_1_v2.json",
+    "trials": [
+      {
+        "trial_id": "adaptive_scale_1000",
+        "candidate_id": "object_scale.bounded_1_2",
+        "seed": 1000,
+        "rollout_ref": "mea/generated_tasks/run_20260723_batch19_claim_first_scale_act_n1/evaluation/telemetry/act/episode_000_seed_1000/episode.json",
+        "episode_status": "completed",
+        "success": false,
+        "outcome_metric": "official_check_success",
+        "outcome_authority": "compiled_success_spec_official_equivalent",
+        "outcome_tool_sha256": "a81c64679f614717fa869b312e8e927bff9fbfae65c02f57bddcf14964285822"
+      }
+    ]
+  }
+}

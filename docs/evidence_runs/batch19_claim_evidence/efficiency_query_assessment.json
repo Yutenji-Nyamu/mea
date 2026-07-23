@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "status": "offline_query_sufficiency_assessment",
+  "execution_mode": "cached_offline_0_act",
+  "task_name": "beat_block_hammer",
+  "checkpoint": {
+    "policy_name": "ACT",
+    "checkpoint_setting": "demo_clean",
+    "expert_data_num": 50,
+    "checkpoint_id": "act-beat_block_hammer/demo_clean-50",
+    "ready": true
+  },
+  "contract_source": "mea/generated_tasks/run_20260723_batch19_efficiency_claim_v4/query_sufficiency_contract.json",
+  "candidate_evidence_source": "mea/generated_tasks/run_20260723_batch19_efficiency_claim_v4/round_1_candidate_evidence.json",
+  "candidate_evidence_source_kind": "cached_compact_evidence",
+  "live_planner_changed": false,
+  "provider_calls_started": 0,
+  "simulator_calls_started": 0,
+  "act_rollouts_started": 0,
+  "assessment": {
+    "schema_version": 1,
+    "contract": {
+      "schema_version": 1,
+      "claim_type": "universal",
+      "candidate_universe": [
+        "object_scale.bounded_1_2",
+        "object_appearance.color_blue"
+      ],
+      "required_coverage": {
+        "candidate_ids": [
+          "object_scale.bounded_1_2",
+          "object_appearance.color_blue"
+        ],
+        "minimum_evaluated": 2,
+        "minimum_per_group": null
+      },
+      "round_budget": 2,
+      "comparison_groups": null
+    },
+    "should_stop": true,
+    "stop_reason": "evidence_sufficient",
+    "claim_verdict": "refuted",
+    "evidence_sufficient": true,
+    "completed_rounds": 1,
+    "round_budget": 2,
+    "budget_remaining": 1,
+    "observed_candidate_ids": [
+      "object_scale.bounded_1_2"
+    ],
+    "decisive_candidate_ids": [
+      "object_scale.bounded_1_2"
+    ],
+    "conflict_candidate_ids": [],
+    "unknown_candidate_ids": [],
+    "untested_required_candidate_ids": [
+      "object_appearance.color_blue"
+    ],
+    "untested_candidate_ids": [
+      "object_appearance.color_blue"
+    ],
+    "recommended_candidate_ids": [],
+    "rationale": "A definitive failing candidate falsifies the universal claim.",
+    "statistics": {},
+    "limitations": [
+      "This is a finite-domain stopping prototype, not a statistical generalization guarantee."
+    ]
+  }
+}

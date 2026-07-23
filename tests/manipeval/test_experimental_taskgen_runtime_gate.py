@@ -5,7 +5,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from mea.taskgen.production_acceptance import ProductionTaskAcceptanceError
+from mea.taskgen.production_acceptance import (
+    ProductionTaskAcceptanceError,
+    require_task_artifact_act_runtime_eligible,
+)
 from mea.taskgen.success_spec import experimental_bbh_success_spec_v2
 from scripts.manipeval_taskgen import main
 
@@ -33,29 +36,29 @@ def proposal_v2() -> dict:
 
 
 class ExperimentalTaskGenRuntimeGateTests(unittest.TestCase):
-    def test_fresh_v2_run_act_fails_before_provider_or_simulator(self):
+    @patch("mea.taskgen.production_acceptance._validate_current_candidate")
+    def test_generated_success_bundle_is_act_eligible(self, validate_candidate):
         with tempfile.TemporaryDirectory() as temporary:
-            argv = [
-                "manipeval_taskgen.py",
-                "--repo-root",
-                str(Path(temporary)),
-                "--request",
-                "must not start ACT",
-                "--task-name",
-                "beat_block_hammer",
-                "--mode",
-                "force_codegen",
-                "--task-proposal-json",
-                json.dumps(proposal_v2()),
-                "--run-act",
-            ]
-            with patch.object(sys, "argv", argv), self.assertRaisesRegex(
-                SystemExit,
-                "experimental TaskProposal v2 is 0-ACT only",
-            ):
-                main()
+            validate_candidate.return_value = (
+                {"task_name": "beat_block_hammer"},
+                {
+                    "success_semantics": {
+                        "authority": "compiled_success_spec_experimental_bounded",
+                        "act_runtime_eligible": True,
+                        "outcome_label": "generated_check_success",
+                    }
+                },
+                {},
+            )
+            bundle = require_task_artifact_act_runtime_eligible(
+                Path(temporary), {"task_proposal": proposal_v2()}
+            )
+            self.assertEqual(
+                bundle["success_semantics"]["outcome_label"],
+                "generated_check_success",
+            )
 
-    def test_resumed_v2_run_act_also_fails_before_simulator(self):
+    def test_resumed_v2_run_act_reaches_simulator_after_bundle_gate(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             run_dir = root / "mea/generated_tasks/run_v2_resume_gate"
@@ -85,11 +88,30 @@ class ExperimentalTaskGenRuntimeGateTests(unittest.TestCase):
                 "force_codegen",
                 "--run-act",
             ]
-            with patch.object(sys, "argv", argv), self.assertRaisesRegex(
-                SystemExit,
-                "experimental TaskProposal v2 is 0-ACT only",
+            with (
+                patch.object(sys, "argv", argv),
+                patch(
+                    "scripts.manipeval_taskgen."
+                    "require_task_artifact_act_runtime_eligible",
+                    return_value={
+                        "success_semantics": {
+                            "authority": (
+                                "compiled_success_spec_experimental_bounded"
+                            ),
+                            "act_runtime_eligible": True,
+                            "outcome_label": "generated_check_success",
+                        }
+                    },
+                ) as gate,
+                patch(
+                    "scripts.manipeval_taskgen.run_probe",
+                    side_effect=RuntimeError("simulator_reached"),
+                ) as simulator,
+                self.assertRaisesRegex(RuntimeError, "simulator_reached"),
             ):
                 main()
+            gate.assert_called_once()
+            simulator.assert_called_once()
 
     def test_resumed_act_uses_bundle_gate_when_manifest_copy_is_missing_or_stale(self):
         manifest_copies = (

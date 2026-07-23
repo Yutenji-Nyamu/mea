@@ -506,6 +506,38 @@ def official_check_success(trajectory: TrajectoryView) -> dict[str, Any]:
     )
 
 
+def generated_check_success(trajectory: TrajectoryView) -> dict[str, Any]:
+    """Expose a compiled SuccessSpec outcome without calling it official."""
+
+    binding = getattr(trajectory, "outcome_binding", None)
+    if (
+        not isinstance(binding, dict)
+        or binding.get("metric") != "generated_check_success"
+        or binding.get("authority")
+        != "compiled_success_spec_experimental_bounded"
+    ):
+        raise TrajectoryError(
+            "generated_check_success requires a validated runtime outcome binding"
+        )
+    final_success = bool(trajectory.metadata.get("success"))
+    first = trajectory.success_events[0] if trajectory.success_events else None
+    return _result(
+        "generated_check_success",
+        generated_check_success,
+        value=final_success,
+        unit=None,
+        evidence=[first] if first else [],
+        details={
+            "latched_eval_success": final_success,
+            "success_transition_recorded": first is not None,
+            "authority": binding["authority"],
+            "success_spec_sha256": binding["success_spec_sha256"],
+            "task_module": binding["task_module"],
+        },
+        passed=final_success,
+    )
+
+
 def time_to_success(trajectory: TrajectoryView) -> dict[str, Any]:
     first = trajectory.success_events[0] if trajectory.success_events else None
     value = float(first["simulation_time_seconds"]) if first else None
@@ -584,6 +616,12 @@ TOOL_CATALOG: dict[str, dict[str, Any]] = {
         "function": official_check_success,
         "description": "Latched official RoboTwin task success.",
         "tags": ["success", "result", "成功", "结果", "评估"],
+        "supported_task_names": ["*"],
+    },
+    "generated_check_success": {
+        "function": generated_check_success,
+        "description": "Latched outcome from a validated compiled SuccessSpec.",
+        "tags": ["success", "generated", "experimental", "result"],
         "supported_task_names": ["*"],
     },
     "time_to_success": {

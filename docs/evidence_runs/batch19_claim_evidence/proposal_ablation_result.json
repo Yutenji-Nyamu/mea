@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "protocol": "paper_claim_proposal_prompt_ablation_v1_result",
+  "study_id": "batch19_table3_task_tool_proposal_prompt_proxy_v3",
+  "input_manifest_sha256": "627ad8632ec65036fdc143436c68b4b54d4cdd9bc61cd2e75da8839f975e28b3",
+  "claim_scope": "observed_structured_proposal_attempts_not_codegen_or_table3",
+  "attempt_count": 7,
+  "conditions": {
+    "taskgen": {
+      "complete": {
+        "attempts": 1,
+        "accepted": 1,
+        "acceptance_rate": 1.0,
+        "input_ids": [
+          "bbh_target_with_similar_physical_distractor"
+        ],
+        "json_parse_pass_rate": 1.0,
+        "proposal_proxy_pass_rate": 1.0
+      },
+      "base": {
+        "attempts": 1,
+        "accepted": 1,
+        "acceptance_rate": 1.0,
+        "input_ids": [
+          "bbh_target_with_similar_physical_distractor"
+        ],
+        "json_parse_pass_rate": 1.0,
+        "proposal_proxy_pass_rate": 1.0
+      },
+      "no_rag": {
+        "attempts": 1,
+        "accepted": 1,
+        "acceptance_rate": 1.0,
+        "input_ids": [
+          "bbh_target_with_similar_physical_distractor"
+        ],
+        "json_parse_pass_rate": 1.0,
+        "proposal_proxy_pass_rate": 1.0
+      },
+      "no_visual_self_check": {
+        "attempts": 1,
+        "accepted": 1,
+        "acceptance_rate": 1.0,
+        "input_ids": [
+          "bbh_target_with_similar_physical_distractor"
+        ],
+        "json_parse_pass_rate": 1.0,
+        "proposal_proxy_pass_rate": 1.0
+      },
+      "no_readme_agent": {
+        "attempts": 1,
+        "accepted": 1,
+        "acceptance_rate": 1.0,
+        "input_ids": [
+          "bbh_target_with_similar_physical_distractor"
+        ],
+        "json_parse_pass_rate": 1.0,
+        "proposal_proxy_pass_rate": 1.0
+      }
+    },
+    "toolgen": {
+      "complete": {
+        "attempts": 1,
+        "accepted": 1,
+        "acceptance_rate": 1.0,
+        "input_ids": [
+          "bbh_target_contact_impulse_rise_time"
+        ],
+        "json_parse_pass_rate": 1.0,
+        "proposal_proxy_pass_rate": 1.0
+      },
+      "no_rag": {
+        "attempts": 1,
+        "accepted": 1,
+        "acceptance_rate": 1.0,
+        "input_ids": [
+          "bbh_target_contact_impulse_rise_time"
+        ],
+        "json_parse_pass_rate": 1.0,
+        "proposal_proxy_pass_rate": 1.0
+      }
+    }
+  },
+  "coverage": {
+    "taskgen": {
+      "present_conditions": [
+        "complete",
+        "base",
+        "no_rag",
+        "no_visual_self_check",
+        "no_readme_agent"
+      ],
+      "missing_conditions": [],
+      "paired_input_sets_across_present_conditions": true,
+      "prompt_condition_complete": true
+    },
+    "toolgen": {
+      "present_conditions": [
+        "complete",
+        "no_rag"
+      ],
+      "missing_conditions": [],
+      "paired_input_sets_across_present_conditions": true,
+      "prompt_condition_complete": true
+    }
+  },
+  "failure_stage_counts": {},
+  "prompt_condition_matrix_complete": true,
+  "task_or_tool_code_generated_and_executed": false,
+  "claim_status": "proposal_prompt_matrix_complete_no_codegen_evidence"
+}

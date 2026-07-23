@@ -314,11 +314,8 @@ def write_task_artifact_bundle(
                 "success_spec_sha256": success_spec_sha256,
                 **(
                     {
-                        "act_runtime_eligible": False,
-                        "runtime_blocker": (
-                            "main ACT outcome labeling still maps check_success "
-                            "to official policy success"
-                        ),
+                        "act_runtime_eligible": True,
+                        "outcome_label": "generated_check_success",
                     }
                     if success_spec_report["experimental_bounded"]
                     else {}
@@ -347,10 +344,11 @@ def write_task_artifact_bundle(
                     if success_spec_report["official_equivalent"]
                     else (
                         "Its semantics are an explicitly non-equivalent, "
-                        "bounded experimental predicate accepted only for "
-                        "compile/probe/TaskGen acceptance. Main ACT is disabled "
-                        "until official and experimental outcomes are labeled "
-                        "separately at runtime."
+                        "bounded experimental predicate. When "
+                        "act_runtime_eligible is true, a policy rollout may "
+                        "evaluate it only under the distinct "
+                        "generated_check_success outcome label; it is never "
+                        "official policy success."
                     )
                 )
                 if compiled_success
@@ -420,7 +418,7 @@ def validate_task_artifact_bundle(value: Mapping[str, Any]) -> dict[str, Any]:
         }
         if compiled_authority == "compiled_success_spec_experimental_bounded":
             expected_semantics_fields.update(
-                {"act_runtime_eligible", "runtime_blocker"}
+                {"act_runtime_eligible", "outcome_label"}
             )
         if (
             not success.get("symbol_declared")
@@ -435,9 +433,8 @@ def validate_task_artifact_bundle(value: Mapping[str, Any]) -> dict[str, Any]:
                 compiled_authority
                 == "compiled_success_spec_experimental_bounded"
                 and (
-                    semantics.get("act_runtime_eligible") is not False
-                    or not isinstance(semantics.get("runtime_blocker"), str)
-                    or not semantics["runtime_blocker"].strip()
+                    semantics.get("act_runtime_eligible") is not True
+                    or semantics.get("outcome_label") != "generated_check_success"
                 )
             )
             or not isinstance(semantics.get("success_spec_sha256"), str)

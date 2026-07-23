@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "status": "claim_first_open_query_plan_completed",
+  "execution_mode": "live_provider_semantic_plan_0_act",
+  "task_name": "beat_block_hammer",
+  "checkpoint": {
+    "policy_name": "ACT",
+    "checkpoint_setting": "demo_clean",
+    "expert_data_num": 50,
+    "checkpoint_id": "act-beat_block_hammer/demo_clean-50",
+    "ready": true
+  },
+  "query": "How well does this ACT policy generalize across manipulated-object properties, and where is its first likely weakness?",
+  "evidence_rounds": 1,
+  "capabilities_exclude_navigation_catalog": true,
+  "simulator_calls_started": 0,
+  "expert_calls_started": 0,
+  "act_rollouts_started": 0,
+  "result": {
+    "schema_version": 1,
+    "source": "provider_claim_first_open_query",
+    "input_digest": "986d1f4d5fba4a8d56dd737ff44d9cab55506b5d1fbbc643cbad6893fad4377e",
+    "proposal": {
+      "schema_version": 1,
+      "action": "continue",
+      "sub_aspect": "object_property_generalization.target_geometry_scale_directionality",
+      "hypothesis": "Reducing only the block geometry to 0.8x will restore hammer-block contact and official success; if it does not, the observed 1.2x failure is unlikely to be caused solely by scale-induced contact clearance.",
+      "requested_perturbation": {
+        "description": "Decrease only the target block geometry scale to 0.8x, keeping the hammer, placements, task procedure, and ACT checkpoint unchanged.",
+        "controlled_changes": [
+          "target block geometry scale set to 0.8x"
+        ],
+        "preserve": [
+          "task identity",
+          "policy checkpoint",
+          "hammer geometry",
+          "object placements",
+          "task success criteria"
+        ]
+      },
+      "task_need": {
+        "required": true,
+        "description": "TaskGen must force-generate a scene variant with only the block geometry scaled to 0.8x and preserve all other task elements."
+      },
+      "tool_need": {
+        "required": true,
+        "description": "ToolGen must retrieve or generate an observable reporting hammer-block contact occurrence and peak contact impulse, minimum XY distance, and official success for the rollout.",
+        "reuse_first": true
+      },
+      "rationale": "The 1.2x scale test failed without physical contact, but a single direction cannot distinguish a scale-induced clearance problem from a broader ACT weakness on altered geometry. Testing the opposite bounded scale direction is the most informative causal discriminator available: recovery would indicate a directional contact-clearance sensitivity, while persistent no-contact failure would identify geometry-scale generalization as an early weakness independent of direction."
+    },
+    "provider": {
+      "model_requested": "gpt-5.6-luna",
+      "called": true,
+      "attempt_count": 1,
+      "errors": [],
+      "last_metadata": {
+        "id": "chatcmpl-202607230711284003101888268d9d6dIbcToCf",
+        "model": "gpt-5.6-luna",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 1386,
+          "completion_tokens": 573,
+          "total_tokens": 1959,
+          "billing_usage": {
+            "source": "oai_responses",
+            "semantic": "openai",
+            "openai_usage": {
+              "prompt_tokens": 0,
+              "completion_tokens": 0,
+              "total_tokens": 1959,
+              "prompt_tokens_details": {
+                "cached_tokens": 0,
+                "text_tokens": 0,
+                "audio_tokens": 0,
+                "image_tokens": 0
+              },
+              "completion_tokens_details": {
+                "text_tokens": 0,
+                "audio_tokens": 0,
+                "image_tokens": 0,
+                "reasoning_tokens": 0
+              },
+              "input_tokens": 1386,
+              "output_tokens": 573,
+              "input_tokens_details": {
+                "cached_tokens": 0,
+                "text_tokens": 0,
+                "audio_tokens": 0,
+                "image_tokens": 0
+              },
+              "claude_cache_creation_5_m_tokens": 0,
+              "claude_cache_creation_1_h_tokens": 0
+            }
+          },
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "text_tokens": 0,
+            "audio_tokens": 0,
+            "image_tokens": 0
+          },
+          "completion_tokens_details": {
+            "text_tokens": 0,
+            "audio_tokens": 0,
+            "image_tokens": 0,
+            "reasoning_tokens": 0
+          },
+          "input_tokens": 1386,
+          "output_tokens": 573,
+          "input_tokens_details": null,
+          "claude_cache_creation_5_m_tokens": 0,
+          "claude_cache_creation_1_h_tokens": 0
+        },
+        "retry_count": 0
+      }
+    }
+  }
+}

@@ -550,6 +550,11 @@ def assess_query_sufficiency(
             for candidate_id in normalized["candidate_universe"]
             if candidate_id not in states
         ]
+    if should_stop:
+        # Keep uncovered candidates in the explicit untested fields below,
+        # but never encode them as a next action after either semantic
+        # sufficiency or a hard budget stop.
+        recommended = []
 
     observed = [
         candidate_id

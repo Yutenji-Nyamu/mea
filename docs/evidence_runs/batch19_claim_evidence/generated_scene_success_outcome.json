@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "run_id": "run_20260723_batch19_generated_scene_success_act_n1",
+  "task_module": "mea.generated_tasks.run_20260723_batch19_generated_scene_success_act_n1.task",
+  "outcome_label": "generated_check_success",
+  "outcome_authority": "compiled_success_spec_experimental_bounded",
+  "outcome_binding": {
+    "metric": "generated_check_success",
+    "authority": "compiled_success_spec_experimental_bounded",
+    "success_spec_sha256": "bff5da9e947fc6f3628b37380ed1fb1292463d39304306b0b3fb64aef5985e77",
+    "task_module": "mea.generated_tasks.run_20260723_batch19_generated_scene_success_act_n1.task",
+    "tool_sha256": "59a1162ccfe1b23cfe80b9ec45a51255047912f302211b7accd55daf8029d1ca"
+  },
+  "seed": 1002,
+  "act": {
+    "policy_executed": true,
+    "generated_check_success": false,
+    "hammer_block_min_xy_error_m": 0.042417146265506744,
+    "hammer_block_physical_contact": false,
+    "policy_steps": 400
+  },
+  "expert": {
+    "generated_check_success": true,
+    "success_transition_physics_step": 1443,
+    "success_transition_simulation_time_seconds": 5.772
+  },
+  "source_refs": [
+    "mea/generated_tasks/run_20260723_batch19_generated_scene_success_act_n1/generation/task_artifact_bundle.json",
+    "mea/generated_tasks/run_20260723_batch19_generated_scene_success_act_n1/evaluation/telemetry/tool_results.json",
+    "mea/generated_tasks/run_20260723_batch19_generated_scene_success_act_n1/evaluation/telemetry/act/episode_000_seed_1002/episode.json"
+  ],
+  "boundary": "This is one bounded standalone TaskGen generated scene and checker case. The main Agent continues to block experimental v2 ACT. It is not official policy success and does not establish arbitrary TaskGen correctness."
+}

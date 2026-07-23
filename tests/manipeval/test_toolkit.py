@@ -33,6 +33,7 @@ class ToolkitTests(unittest.TestCase):
         schema = {
             "schema_version": 1,
             "task_name": "beat_block_hammer",
+            "task_module": "mea.generated_tasks.fixture.task",
             "physics_timestep_seconds": 0.004,
             "pickup_height_threshold_m": 0.03,
             "success_contract": {"xy_tolerance_m": [0.02, 0.02]},
@@ -40,6 +41,7 @@ class ToolkitTests(unittest.TestCase):
         episode = {
             "schema_version": 1,
             "task_name": "beat_block_hammer",
+            "task_module": "mea.generated_tasks.fixture.task",
             "policy_name": "ACT",
             "seed": 100000,
             "episode_index": 0,
@@ -137,6 +139,12 @@ class ToolkitTests(unittest.TestCase):
 
     def test_all_trusted_tools_on_synthetic_trajectory(self):
         trajectory = TrajectoryView(self.episode_dir)
+        trajectory.outcome_binding = {
+            "metric": "generated_check_success",
+            "authority": "compiled_success_spec_experimental_bounded",
+            "success_spec_sha256": "b" * 64,
+            "task_module": "mea.generated_tasks.fixture.task",
+        }
         results = run_trusted_tools(trajectory, list(TOOL_CATALOG))
         by_name = {item["tool"]: item for item in results}
 
@@ -184,7 +192,14 @@ class ToolkitTests(unittest.TestCase):
             ),
             task_name="beat_block_hammer",
         )
-        self.assertEqual(selection["selected_tools"], list(TOOL_CATALOG))
+        self.assertEqual(
+            selection["selected_tools"],
+            [
+                name
+                for name in TOOL_CATALOG
+                if name != "generated_check_success"
+            ],
+        )
 
         summary = evaluate_telemetry_root(
             self.root,
@@ -195,7 +210,8 @@ class ToolkitTests(unittest.TestCase):
         )
         self.assertEqual(summary["episode_count"], 1)
         self.assertEqual(
-            len(summary["episodes"][0]["tool_results"]), len(TOOL_CATALOG)
+            len(summary["episodes"][0]["tool_results"]),
+            len(TOOL_CATALOG) - 1,
         )
         self.assertTrue((self.root / "tool_results.json").is_file())
         self.assertTrue((self.episode_dir / "tool_results.json").is_file())
@@ -203,6 +219,49 @@ class ToolkitTests(unittest.TestCase):
             set(summary["episodes"][0]["artifact_sha256"]),
             {"episode.json", "states.csv", "semantic_trace.npz", "events.jsonl"},
         )
+
+    def test_generated_success_has_a_distinct_runtime_label(self):
+        selection = TrustedToolRetriever().select(
+            "Evaluate the generated success predicate.",
+            task_name="beat_block_hammer",
+            outcome_metric="generated_check_success",
+        )
+        self.assertIn("generated_check_success", selection["selected_tools"])
+        self.assertNotIn("official_check_success", selection["selected_tools"])
+        summary = evaluate_telemetry_root(
+            self.root,
+            user_request="Evaluate the generated success predicate.",
+            outcome_metric="generated_check_success",
+            outcome_binding={
+                "metric": "generated_check_success",
+                "authority": "compiled_success_spec_experimental_bounded",
+                "success_spec_sha256": "b" * 64,
+                "task_module": "mea.generated_tasks.fixture.task",
+            },
+        )
+        by_name = {
+            item["tool"]: item
+            for item in summary["episodes"][0]["tool_results"]
+        }
+        self.assertTrue(by_name["generated_check_success"]["value"])
+        self.assertEqual(
+            by_name["generated_check_success"]["details"]["authority"],
+            "compiled_success_spec_experimental_bounded",
+        )
+        self.assertEqual(
+            by_name["generated_check_success"]["details"][
+                "success_spec_sha256"
+            ],
+            "b" * 64,
+        )
+
+    def test_generated_success_rejects_missing_outcome_binding(self):
+        with self.assertRaisesRegex(RuntimeError, "exact outcome binding"):
+            evaluate_telemetry_root(
+                self.root,
+                user_request="Evaluate the generated success predicate.",
+                outcome_metric="generated_check_success",
+            )
 
     def test_contact_samples_keep_physical_evidence_and_peak(self):
         def point(impulse, separation, position, normal):

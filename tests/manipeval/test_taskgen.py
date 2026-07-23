@@ -241,7 +241,7 @@ class TaskGenPrototypeTests(unittest.TestCase):
             )
             self.assertEqual(
                 manifest["task_artifact_summary"]["success_execution_scope"],
-                "experimental_bounded_probe_only",
+                "experimental_bounded_act",
             )
             comparison = bundle["success_semantics_comparison"]
             self.assertEqual(
@@ -250,7 +250,7 @@ class TaskGenPrototypeTests(unittest.TestCase):
             )
             self.assertEqual(
                 comparison["experimental"]["result_status"],
-                "pending_materialization_or_probe",
+                "pending_materialization_or_rollout",
             )
             persisted = json.loads(
                 (
@@ -342,11 +342,11 @@ class TaskGenPrototypeTests(unittest.TestCase):
             self.assertFalse(provenance["preserve_success_semantics"])
             self.assertFalse(provenance["official_equivalent"])
             self.assertTrue(provenance["compiler_eligible"])
-            self.assertFalse(provenance["act_runtime_eligible"])
+            self.assertTrue(provenance["act_runtime_eligible"])
             self.assertTrue(provenance["experimental_bounded"])
             self.assertEqual(
                 provenance["execution_scope"],
-                "experimental_bounded_probe_only",
+                "experimental_bounded_act",
             )
             self.assertFalse(provenance["generated_by_model"])
 
@@ -359,6 +359,9 @@ class TaskGenPrototypeTests(unittest.TestCase):
             self.assertIsNotNone(
                 bundle["success_semantics"]["success_spec_sha256"]
             )
+            self.assertIn("generated_check_success", bundle["boundary"])
+            self.assertIn("never official policy success", bundle["boundary"])
+            self.assertNotIn("ACT is disabled", bundle["boundary"])
             scene_check = json.loads(
                 (run_dir / "generation/scene_check_spec.json").read_text(
                     encoding="utf-8"
@@ -380,9 +383,9 @@ class TaskGenPrototypeTests(unittest.TestCase):
             )
             self.assertEqual(
                 manifest["task_artifact_summary"]["success_execution_scope"],
-                "experimental_bounded_probe_only",
+                "experimental_bounded_act",
             )
-            self.assertFalse(
+            self.assertTrue(
                 manifest["task_artifact_summary"]["success_act_eligible"]
             )
             self.assertTrue(

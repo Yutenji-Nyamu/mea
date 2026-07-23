@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "query": "接触前是否有抖动或急动",
+  "query_fingerprint": "qit_8246f91c6707637f418b2ee9",
+  "route": "registry_reuse",
+  "proposal": {
+    "schema_version": 1,
+    "metric": "precontact_jerk_peak",
+    "operation": "precontact_jerk_peak",
+    "signal": "left_tcp_position",
+    "threshold": 0.01,
+    "unit": "m_per_sample_cubed",
+    "null_semantics": "null_if_no_target_contact_event",
+    "rationale": "接触事件前左侧TCP位置的峰值三阶差分可量化抖动或急动程度。"
+  },
+  "provider_metadata": null,
+  "registration_id": "runlocal_f9edb813a200dbe378da",
+  "live_telemetry": {
+    "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260723_batch17_reviewed_scale_reuse_act_n1_v1/evaluation/telemetry/act/episode_000_seed_1001",
+    "task_name": "beat_block_hammer",
+    "synthetic_fallback_used": false
+  },
+  "tool_result": {
+    "tool": "precontact_jerk_peak",
+    "value": 3.977465777564733e-06,
+    "unit": "m_per_sample_cubed",
+    "passed": true,
+    "null_semantics": "null_if_no_target_contact_event",
+    "signal": "left_tcp_position",
+    "first_target_contact_trace_index": 7007,
+    "evidence": [
+      {
+        "trace_index": 4014,
+        "physics_step": 4014,
+        "policy_step": 57,
+        "simulation_time_seconds": 16.056,
+        "video_frame_before": 57,
+        "video_frame_after": 58
+      }
+    ],
+    "evidence_steps": [
+      4014
+    ]
+  }
+}

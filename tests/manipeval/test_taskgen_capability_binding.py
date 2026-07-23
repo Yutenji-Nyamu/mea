@@ -89,23 +89,27 @@ class TaskGenCapabilityBindingTests(unittest.TestCase):
         ):
             task_artifact_summary({"success_semantics": None})
 
-    def test_experimental_task_summary_is_probe_only_not_act_eligible(self):
+    def test_experimental_task_summary_is_act_eligible_with_distinct_label(self):
         summary = task_artifact_summary(
             {
                 "success_semantics": {
                     "preserved": False,
                     "authority": "compiled_success_spec_experimental_bounded",
-                    "act_runtime_eligible": False,
+                    "act_runtime_eligible": True,
+                    "outcome_label": "generated_check_success",
                 },
                 "scene_method": {"origin": "generated_code"},
                 "success_method": {"origin": "compiled_success_spec"},
             }
         )
         self.assertTrue(summary["success_compiler_eligible"])
-        self.assertFalse(summary["success_act_eligible"])
+        self.assertTrue(summary["success_act_eligible"])
         self.assertEqual(
             summary["success_execution_scope"],
-            "experimental_bounded_probe_only",
+            "experimental_bounded_act",
+        )
+        self.assertEqual(
+            summary["success_outcome_label"], "generated_check_success"
         )
 
     def _run_dir(
@@ -344,7 +348,7 @@ class TaskGenCapabilityBindingTests(unittest.TestCase):
                     max_reflections=1,
                 )
 
-    def test_main_agent_rejects_experimental_v2_before_taskgen_or_act(self):
+    def test_main_agent_blocks_experimental_v2_until_label_is_end_to_end(self):
         contract = resolve_capability_contract(
             "beat_block_hammer", "object_appearance.color_blue"
         )
@@ -395,11 +399,11 @@ class TaskGenCapabilityBindingTests(unittest.TestCase):
             base_round, task_proposal, tool_proposal
         )
         with self.assertRaisesRegex(
-            ValueError, "disabled in the main Agent"
+            ValueError, "generated_check_success authority"
         ):
             build_taskgen_command(
                 Path("/repo"),
-                "eval_experimental_blocked",
+                "eval_experimental_labeled",
                 round_plan,
                 text_model="text",
                 vision_model="vision",

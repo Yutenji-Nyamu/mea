@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "protocol": "exact_seed_paired_v1",
+  "task_name": "beat_block_hammer",
+  "task_config": "demo_clean",
+  "condition_id": "clean",
+  "requested_seeds": [
+    100000
+  ],
+  "requested_count": 1,
+  "eligible_count": 1,
+  "evaluated_count": 1,
+  "success_count": 0,
+  "success_rate_evaluated": 0.0,
+  "all_eligible": true,
+  "no_seed_replacement": true,
+  "seed_measurements": [
+    {
+      "requested_index": 0,
+      "seed": 100000,
+      "eligibility_status": "passed",
+      "policy_executed": true,
+      "policy_success": false,
+      "policy_status": "failure",
+      "time_to_success": null,
+      "execution_attempted": true,
+      "telemetry_episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260723_batch19_act_official_seed100000_n1/evaluation/telemetry/episode_000_seed_100000"
+    }
+  ]
+}

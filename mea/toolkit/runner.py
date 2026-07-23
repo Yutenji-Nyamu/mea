@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from .retrieval import TrustedToolRetriever
 from .tools import TrajectoryView, run_trusted_tools
@@ -24,10 +25,44 @@ def evaluate_telemetry_root(
     *,
     user_request: str,
     task_name: str = "beat_block_hammer",
+    outcome_metric: str = "official_check_success",
+    outcome_binding: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
+    normalized_outcome_binding: dict[str, str] | None = None
+    if outcome_metric == "generated_check_success":
+        expected = {
+            "metric",
+            "authority",
+            "success_spec_sha256",
+            "task_module",
+        }
+        if not isinstance(outcome_binding, Mapping) or set(outcome_binding) != expected:
+            raise RuntimeError(
+                "generated_check_success requires an exact outcome binding"
+            )
+        normalized_outcome_binding = {
+            key: str(outcome_binding[key]).strip() for key in expected
+        }
+        if (
+            normalized_outcome_binding["metric"] != "generated_check_success"
+            or normalized_outcome_binding["authority"]
+            != "compiled_success_spec_experimental_bounded"
+            or not re.fullmatch(
+                r"[0-9a-f]{64}",
+                normalized_outcome_binding["success_spec_sha256"],
+            )
+            or not normalized_outcome_binding["task_module"]
+        ):
+            raise RuntimeError("invalid generated outcome binding")
+    elif outcome_binding is not None:
+        raise RuntimeError(
+            "outcome_binding is only valid for generated_check_success"
+        )
     root = Path(telemetry_root).expanduser().resolve()
     selection = TrustedToolRetriever().select(
-        user_request, task_name=task_name
+        user_request,
+        task_name=task_name,
+        outcome_metric=outcome_metric,
     )
     episodes: list[dict[str, Any]] = []
     for metadata_path in sorted(root.rglob("episode.json")):
@@ -40,6 +75,15 @@ def evaluate_telemetry_root(
                 f"requested={task_name!r}, episode={episode_task!r}, "
                 f"path={episode_dir}"
             )
+        if normalized_outcome_binding is not None:
+            if (
+                trajectory.metadata.get("task_module")
+                != normalized_outcome_binding["task_module"]
+            ):
+                raise RuntimeError(
+                    "generated outcome binding task_module differs from episode"
+                )
+            trajectory.outcome_binding = dict(normalized_outcome_binding)
         results = run_trusted_tools(
             trajectory, selection["selected_tools"]
         )
@@ -73,6 +117,7 @@ def evaluate_telemetry_root(
         "schema_version": 1,
         "task_name": task_name,
         "user_request": user_request,
+        "outcome_binding": normalized_outcome_binding,
         "tool_retrieval": selection,
         "episode_count": len(episodes),
         "episodes": episodes,

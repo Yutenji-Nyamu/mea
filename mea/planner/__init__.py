@@ -78,6 +78,15 @@ from .query_contract import (
     infer_claim_type,
     validate_query_sufficiency_contract,
 )
+from .claim_first import (
+    ClaimFirstOpenQueryAgent,
+    ClaimFirstPlanError,
+    open_query_input_digest,
+    project_open_query_capabilities,
+    validate_open_query_capabilities,
+    validate_open_query_evidence,
+    validate_open_query_plan_proposal,
+)
 
 __all__ = [
     "BLUE_TASK_INSTRUCTION",
@@ -138,4 +147,11 @@ __all__ = [
     "build_query_sufficiency_contract",
     "infer_claim_type",
     "validate_query_sufficiency_contract",
+    "ClaimFirstOpenQueryAgent",
+    "ClaimFirstPlanError",
+    "open_query_input_digest",
+    "project_open_query_capabilities",
+    "validate_open_query_capabilities",
+    "validate_open_query_evidence",
+    "validate_open_query_plan_proposal",
 ]

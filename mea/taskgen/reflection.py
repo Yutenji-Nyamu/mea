@@ -206,8 +206,12 @@ OUTPUT CONTRACT:
    def load_actors(self): method and nothing else.
 2. Correct only diagnosed scene mismatches. Preserve official position/yaw
    sampling, hammer creation, actor names, mass, prohibited areas, and inheritance.
+   A single sampled render cannot invalidate an official_random position/yaw
+   distribution, so never change its sampling bounds from visual placement alone.
 3. For scale=1.0 the BeatBlockHammer block must use half_size
-   (0.025, 0.025, 0.025). Apply scale multiplicatively for other values.
+   (0.025, 0.025, 0.025). For another scale, precompute the product and emit a
+   literal numeric triple such as (0.02, 0.02, 0.02); arithmetic expressions in
+   create_box(half_size=...) are forbidden by the static contract.
 4. Use the literal RGB tuple from VariantSpec for create_box(color=...).
 5. Do not call super(), import modules, access files/network/processes, or add
    any new task behavior.

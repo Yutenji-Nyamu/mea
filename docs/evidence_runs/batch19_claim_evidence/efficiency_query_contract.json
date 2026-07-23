@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "claim_type": "universal",
+  "candidate_universe": [
+    "object_scale.bounded_1_2",
+    "object_appearance.color_blue"
+  ],
+  "required_coverage": {
+    "candidate_ids": [
+      "object_scale.bounded_1_2",
+      "object_appearance.color_blue"
+    ],
+    "minimum_evaluated": 2,
+    "minimum_per_group": null
+  },
+  "round_budget": 2,
+  "comparison_groups": null
+}

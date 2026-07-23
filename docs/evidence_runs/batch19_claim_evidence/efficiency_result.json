@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "protocol": "paper_claim_small_efficiency_v1_result",
+  "study_id": "bbh_object_property_n1_finite_domain_v4",
+  "input_manifest_sha256": "c5f6eee23b81347c2f91712bb4fc34ec1454af50650e43f4720f04b574fbf366",
+  "claim_scope": "post_hoc_cached_prefix_counterfactual_not_observed_saving",
+  "query": "Does the ACT policy retain official-equivalent task success across every candidate in this two-item bounded object-property suite?",
+  "claim_type": "universal_all_candidates",
+  "comparison_design": "cached_prefix_counterfactual",
+  "comparison_timing": "post_hoc_after_observed_outcomes",
+  "cost_scope": "policy_episode_wall_only",
+  "adaptive_stop_assessment_ref": "mea/generated_tasks/run_20260723_batch19_efficiency_claim_v4/adaptive_query_sufficiency_round_1_v2.json",
+  "candidate_universe": [
+    "object_scale.bounded_1_2",
+    "object_appearance.color_blue"
+  ],
+  "seeds": [
+    1000,
+    1010
+  ],
+  "candidate_seed_pairs": [
+    {
+      "candidate_id": "object_appearance.color_blue",
+      "seed": 1010
+    },
+    {
+      "candidate_id": "object_scale.bounded_1_2",
+      "seed": 1000
+    }
+  ],
+  "conclusion_rule": {
+    "metric": "success_rate",
+    "operator": ">=",
+    "threshold": 1.0
+  },
+  "arms": {
+    "fixed": {
+      "run_id": "batch19_fixed_dense_official_equivalent_v4",
+      "policy_id": "act",
+      "checkpoint_id": "act-beat_block_hammer/demo_clean-50",
+      "wall_seconds": 168.32765316963196,
+      "arm_trace_ref": "mea/generated_tasks/run_20260723_batch19_efficiency_claim_v4/fixed_trace.json",
+      "act_rollouts": 2,
+      "completed_policy_trials": 2,
+      "runtime_error_trials": 0,
+      "successes": 0,
+      "success_rate": 0.0,
+      "conclusion": "refuted_in_sample",
+      "outcome_binding": {
+        "metric": "official_check_success",
+        "authority": "compiled_success_spec_official_equivalent",
+        "tool_sha256": "a81c64679f614717fa869b312e8e927bff9fbfae65c02f57bddcf14964285822"
+      },
+      "tested_candidate_seed_pairs": [
+        [
+          "object_scale.bounded_1_2",
+          1000
+        ],
+        [
+          "object_appearance.color_blue",
+          1010
+        ]
+      ]
+    },
+    "adaptive": {
+      "run_id": "batch19_adaptive_cached_prefix_refutation_v4",
+      "policy_id": "act",
+      "checkpoint_id": "act-beat_block_hammer/demo_clean-50",
+      "wall_seconds": 86.02182841300964,
+      "arm_trace_ref": "mea/generated_tasks/run_20260723_batch19_efficiency_claim_v4/adaptive_query_sufficiency_round_1_v2.json",
+      "act_rollouts": 1,
+      "completed_policy_trials": 1,
+      "runtime_error_trials": 0,
+      "successes": 0,
+      "success_rate": 0.0,
+      "conclusion": "refuted_in_sample",
+      "outcome_binding": {
+        "metric": "official_check_success",
+        "authority": "compiled_success_spec_official_equivalent",
+        "tool_sha256": "a81c64679f614717fa869b312e8e927bff9fbfae65c02f57bddcf14964285822"
+      },
+      "tested_candidate_seed_pairs": [
+        [
+          "object_scale.bounded_1_2",
+          1000
+        ]
+      ]
+    }
+  },
+  "conclusion_agreement": true,
+  "act_rollout_saving": null,
+  "act_rollout_saving_fraction": null,
+  "counterfactual_avoidable_rollout_count": 1,
+  "counterfactual_avoidable_rollout_fraction": 0.5,
+  "wall_second_saving": null,
+  "wall_second_saving_fraction": null,
+  "avoided_rollout_wall_seconds_estimate": 82.30582475662231,
+  "measured_independent_arm_wall_speedup": false,
+  "claim_status": "post_hoc_cached_counterfactual_protocol_demo"
+}

@@ -734,10 +734,11 @@ def build_taskgen_command(
             raise ValueError(f"invalid TaskProposal before TaskGen: {exc}") from exc
         if normalized_task_proposal["schema_version"] == 2:
             raise ValueError(
-                "experimental TaskProposal v2 is disabled in the main Agent "
-                "until official and experimental ACT outcomes have distinct "
-                "runtime labels; use the standalone 0-ACT proposal/TaskGen "
-                "acceptance path"
+                "experimental TaskProposal v2 is disabled in the end-to-end "
+                "Agent until generated_check_success authority is propagated "
+                "through round evidence, Aggregate, Planner, and Feedback; use "
+                "the standalone TaskGen ACT path, which preserves the distinct "
+                "runtime outcome label"
             )
         variant_hint = normalized_task_proposal["changes"]
     task_module = round_plan.get("task_module")

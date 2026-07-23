@@ -34,7 +34,18 @@ class TrustedToolRetriever:
             else Path(__file__).resolve().parents[2]
         )
 
-    def select(self, user_request: str, *, task_name: str) -> dict[str, Any]:
+    def select(
+        self,
+        user_request: str,
+        *,
+        task_name: str,
+        outcome_metric: str = "official_check_success",
+    ) -> dict[str, Any]:
+        if outcome_metric not in {
+            "official_check_success",
+            "generated_check_success",
+        }:
+            raise ValueError(f"unsupported outcome metric: {outcome_metric}")
         schema = load_task_schema(self.repo_root, task_name)
         profile = schema.get("trusted_tool_profile", "generic_success")
         text = user_request.lower()
@@ -43,6 +54,11 @@ class TrustedToolRetriever:
             if profile == "beat_block_hammer"
             else self.GENERIC_BASELINE
         )
+        if outcome_metric != "official_check_success":
+            selected = [
+                outcome_metric if name == "official_check_success" else name
+                for name in selected
+            ]
         reason = (
             "BeatBlockHammer baseline evidence"
             if profile == "beat_block_hammer"
@@ -83,4 +99,5 @@ class TrustedToolRetriever:
                 "trusted_tool_profile": profile,
             },
             "selection_mode": "schema_profile_plus_deterministic_keywords",
+            "outcome_metric": outcome_metric,
         }

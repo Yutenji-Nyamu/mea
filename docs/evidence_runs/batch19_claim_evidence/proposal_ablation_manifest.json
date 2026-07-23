@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "protocol": "paper_claim_proposal_prompt_ablation_v1",
+  "evidence_source": "live_provider_structured_proposal",
+  "study_id": "batch19_table3_task_tool_proposal_prompt_proxy_v3",
+  "evidence_boundary": {
+    "syntax_valid": "candidate.txt parses as strict JSON",
+    "downstream_valid": "independent development_agent_proxy judged the generated implementation proposal against the matched bounded request",
+    "accepted": "proposal-contract acceptance only",
+    "not_observed": [
+      "generated Python compilation",
+      "simulator execution",
+      "render-based visual self-check execution",
+      "ACT rollout",
+      "independent human review"
+    ]
+  },
+  "attempts": [
+    {
+      "attempt_id": "taskgen_complete_distractor_1905",
+      "component": "taskgen",
+      "condition": "complete",
+      "input_id": "bbh_target_with_similar_physical_distractor",
+      "provider_attempt_ref": "mea/generated_tasks/run_20260723_batch19_table3_unseen_distractor_live/items/taskgen.complete.bbh_target_with_similar_physical_distractor/manifest.json",
+      "artifact_ref": "mea/generated_tasks/run_20260723_batch19_table3_unseen_distractor_live/items/taskgen.complete.bbh_target_with_similar_physical_distractor/candidate.txt",
+      "artifact_kind": "structured_proposal_json",
+      "syntax_valid": true,
+      "downstream_valid": true,
+      "accepted": true,
+      "failure_stage": null
+    },
+    {
+      "attempt_id": "taskgen_base_distractor_1905",
+      "component": "taskgen",
+      "condition": "base",
+      "input_id": "bbh_target_with_similar_physical_distractor",
+      "provider_attempt_ref": "mea/generated_tasks/run_20260723_batch19_table3_unseen_distractor_live/items/taskgen.base.bbh_target_with_similar_physical_distractor/manifest.json",
+      "artifact_ref": "mea/generated_tasks/run_20260723_batch19_table3_unseen_distractor_live/items/taskgen.base.bbh_target_with_similar_physical_distractor/candidate.txt",
+      "artifact_kind": "structured_proposal_json",
+      "syntax_valid": true,
+      "downstream_valid": true,
+      "accepted": true,
+      "failure_stage": null
+    },
+    {
+      "attempt_id": "taskgen_no_rag_distractor_1905",
+      "component": "taskgen",
+      "condition": "no_rag",
+      "input_id": "bbh_target_with_similar_physical_distractor",
+      "provider_attempt_ref": "mea/generated_tasks/run_20260723_batch19_table3_unseen_distractor_live/items/taskgen.no_rag.bbh_target_with_similar_physical_distractor/manifest.json",
+      "artifact_ref": "mea/generated_tasks/run_20260723_batch19_table3_unseen_distractor_live/items/taskgen.no_rag.bbh_target_with_similar_physical_distractor/candidate.txt",
+      "artifact_kind": "structured_proposal_json",
+      "syntax_valid": true,
+      "downstream_valid": true,
+      "accepted": true,
+      "failure_stage": null
+    },
+    {
+      "attempt_id": "taskgen_no_visual_distractor_1905",
+      "component": "taskgen",
+      "condition": "no_visual_self_check",
+      "input_id": "bbh_target_with_similar_physical_distractor",
+      "provider_attempt_ref": "mea/generated_tasks/run_20260723_batch19_table3_unseen_distractor_live/items/taskgen.no_visual_self_check.bbh_target_with_similar_physical_distractor/manifest.json",
+      "artifact_ref": "mea/generated_tasks/run_20260723_batch19_table3_unseen_distractor_live/items/taskgen.no_visual_self_check.bbh_target_with_similar_physical_distractor/candidate.txt",
+      "artifact_kind": "structured_proposal_json",
+      "syntax_valid": true,
+      "downstream_valid": true,
+      "accepted": true,
+      "failure_stage": null
+    },
+    {
+      "attempt_id": "taskgen_no_readme_distractor_1905",
+      "component": "taskgen",
+      "condition": "no_readme_agent",
+      "input_id": "bbh_target_with_similar_physical_distractor",
+      "provider_attempt_ref": "mea/generated_tasks/run_20260723_batch19_table3_unseen_distractor_live/items/taskgen.no_readme_agent.bbh_target_with_similar_physical_distractor/manifest.json",
+      "artifact_ref": "mea/generated_tasks/run_20260723_batch19_table3_unseen_distractor_live/items/taskgen.no_readme_agent.bbh_target_with_similar_physical_distractor/candidate.txt",
+      "artifact_kind": "structured_proposal_json",
+      "syntax_valid": true,
+      "downstream_valid": true,
+      "accepted": true,
+      "failure_stage": null
+    },
+    {
+      "attempt_id": "toolgen_complete_contact_rise_1906",
+      "component": "toolgen",
+      "condition": "complete",
+      "input_id": "bbh_target_contact_impulse_rise_time",
+      "provider_attempt_ref": "mea/generated_tasks/run_20260723_batch19_table3_unseen_contact_rise_tool_live/items/toolgen.complete.bbh_target_contact_impulse_rise_time/manifest.json",
+      "artifact_ref": "mea/generated_tasks/run_20260723_batch19_table3_unseen_contact_rise_tool_live/items/toolgen.complete.bbh_target_contact_impulse_rise_time/candidate.txt",
+      "artifact_kind": "structured_proposal_json",
+      "syntax_valid": true,
+      "downstream_valid": true,
+      "accepted": true,
+      "failure_stage": null
+    },
+    {
+      "attempt_id": "toolgen_no_rag_contact_rise_1906",
+      "component": "toolgen",
+      "condition": "no_rag",
+      "input_id": "bbh_target_contact_impulse_rise_time",
+      "provider_attempt_ref": "mea/generated_tasks/run_20260723_batch19_table3_unseen_contact_rise_tool_live/items/toolgen.no_rag.bbh_target_contact_impulse_rise_time/manifest.json",
+      "artifact_ref": "mea/generated_tasks/run_20260723_batch19_table3_unseen_contact_rise_tool_live/items/toolgen.no_rag.bbh_target_contact_impulse_rise_time/candidate.txt",
+      "artifact_kind": "structured_proposal_json",
+      "syntax_valid": true,
+      "downstream_valid": true,
+      "accepted": true,
+      "failure_stage": null
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "protocol": "paper_claim_policy_ranking_v1_result",
+  "study_id": "batch19_act_dp3_official_exact_seed100000_n1",
+  "input_manifest_sha256": "25ca979ceeaf3334581725515ecbc9c8a6bd0273b079168d291b9ac9fea89870",
+  "claim_scope": "two_policy_toy_ranking_not_table9",
+  "reference_source_ref": "https://robotwin-platform.github.io/leaderboard",
+  "policy_count": 2,
+  "two_policy_toy": true,
+  "policies": [
+    {
+      "policy_id": "act",
+      "checkpoint_id": "act-beat_block_hammer-demo_clean-50",
+      "run_id": "run_20260723_batch19_act_official_seed100000_n1",
+      "act_rollouts": 1,
+      "mean_score": 0.0
+    },
+    {
+      "policy_id": "dp3",
+      "checkpoint_id": "dp3-beat_block_hammer-demo_clean-50-3000",
+      "run_id": "run_20260723_batch19_dp3_official_seed100000_n1_v2",
+      "act_rollouts": 1,
+      "mean_score": 0.0
+    }
+  ],
+  "observed_mean_scores": {
+    "act": 0.0,
+    "dp3": 0.0
+  },
+  "reference_scores": {
+    "act": 0.56,
+    "dp3": 0.72
+  },
+  "observed_ranks": {
+    "act": 1.5,
+    "dp3": 1.5
+  },
+  "reference_ranks": {
+    "dp3": 1.0,
+    "act": 2.0
+  },
+  "spearman_rho": null,
+  "exact_order_agreement": false,
+  "claim_status": "toy_order_inconclusive_tie"
+}

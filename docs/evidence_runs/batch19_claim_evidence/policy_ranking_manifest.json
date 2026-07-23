@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "protocol": "paper_claim_policy_ranking_v1",
+  "evidence_source": "live_policy_rollout",
+  "study_id": "batch19_act_dp3_official_exact_seed100000_n1",
+  "candidate_universe": [
+    "bbh_official_demo_clean"
+  ],
+  "seeds": [
+    100000
+  ],
+  "reference_source_ref": "https://robotwin-platform.github.io/leaderboard",
+  "reference_scores": {
+    "act": 0.56,
+    "dp3": 0.72
+  },
+  "policies": [
+    {
+      "policy_id": "act",
+      "checkpoint_id": "act-beat_block_hammer-demo_clean-50",
+      "run_id": "run_20260723_batch19_act_official_seed100000_n1",
+      "trials": [
+        {
+          "trial_id": "act_bbh_official_seed100000",
+          "candidate_id": "bbh_official_demo_clean",
+          "seed": 100000,
+          "rollout_ref": "mea/generated_tasks/run_20260723_batch19_act_official_seed100000_n1/evaluation/telemetry/episode_000_seed_100000/episode.json",
+          "episode_status": "completed",
+          "score": 0.0
+        }
+      ]
+    },
+    {
+      "policy_id": "dp3",
+      "checkpoint_id": "dp3-beat_block_hammer-demo_clean-50-3000",
+      "run_id": "run_20260723_batch19_dp3_official_seed100000_n1_v2",
+      "trials": [
+        {
+          "trial_id": "dp3_bbh_official_seed100000",
+          "candidate_id": "bbh_official_demo_clean",
+          "seed": 100000,
+          "rollout_ref": "mea/generated_tasks/run_20260723_batch19_dp3_official_seed100000_n1_v2/evaluation/telemetry/episode_000_seed_100000/episode.json",
+          "episode_status": "completed",
+          "score": 0.0
+        }
+      ]
+    }
+  ]
+}

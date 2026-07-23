@@ -1,5 +1,16 @@
 # TaskGen global output rules
 
+## Paper-claim execution
+
+- A validated `bbh.experimental_bounded_act` SuccessSpec may evaluate a policy
+  rollout after TaskGen acceptance.
+- Its outcome must be named `generated_check_success`; never relabel it as
+  `official_check_success`.
+- Claim evidence requires the generated scene and compiled checker to be bound
+  in the same TaskArtifactBundle and exercised by the same recorded rollout.
+- Engineering guardrails must protect that evidence path, not silently replace
+  the paper claim with a probe-only surrogate.
+
 本文档只记录所有 TaskGen 生成都适用的规则。任务不变量、API 语义与示例代码由 Knowledge Retriever 按需注入，避免 prompt 重复。
 
 - 输出完整 `def load_actors(self):`，不能调用 `super()`。

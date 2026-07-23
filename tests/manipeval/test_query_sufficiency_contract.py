@@ -85,6 +85,11 @@ class QuerySufficiencyTruthTableTests(unittest.TestCase):
         )
         self.assertTrue(one_failure["should_stop"])
         self.assertEqual(one_failure["claim_verdict"], "refuted")
+        self.assertEqual(one_failure["recommended_candidate_ids"], [])
+        self.assertEqual(
+            one_failure["untested_required_candidate_ids"],
+            ["right"],
+        )
 
     def test_existential_success_is_a_witness_but_refutation_needs_all(self):
         contract = self.contract("existential")
@@ -113,6 +118,11 @@ class QuerySufficiencyTruthTableTests(unittest.TestCase):
         self.assertFalse(result["evidence_sufficient"])
         self.assertEqual(result["claim_verdict"], "inconclusive")
         self.assertEqual(result["stop_reason"], "budget_exhausted")
+        self.assertEqual(result["recommended_candidate_ids"], [])
+        self.assertEqual(
+            result["untested_required_candidate_ids"],
+            ["right"],
+        )
 
     def test_comparison_requires_both_preregistered_groups(self):
         contract = self.contract(

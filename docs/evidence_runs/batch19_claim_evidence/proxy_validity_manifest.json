@@ -1,0 +1,173 @@
+{
+  "schema_version": 1,
+  "protocol": "paper_claim_proxy_validity_v1",
+  "evidence_source": "development_agent_proxy",
+  "study_id": "batch19_proxy_validity_pilot",
+  "human_reviewer_count": 0,
+  "provider_prediction_models": [
+    "gpt-5.6-luna"
+  ],
+  "development_agent_review": {
+    "reviewer_kind": "development_agent_proxy",
+    "independent_human_gold": false,
+    "visual_review_performed": true,
+    "reviewed_artifact_count": 8,
+    "scope": "five_query_plan_subset_and_two_binary_visual_items_per_condition"
+  },
+  "limitations": [
+    "The Plan subset contains one query per paper category and is not the paper's 20-to-30-query, four-human study.",
+    "The visual subset has n=2 per condition and uses one VLM, not three VLMs.",
+    "The positive and negative items within a condition can test different visual propositions and mix rollout montages with initial-frame validation images.",
+    "Reference labels are development-agent proxy judgments aided by simulator and Rule Tool records; they are not independent human gold.",
+    "The eight items were selected from existing cached evidence and are not a preregistered random sample."
+  ],
+  "plan": {
+    "reference_session_id": "mea_proxy_dataset_reference_20260717",
+    "prediction_session_id": "mea_query_validation_luna_20260717",
+    "source_ref": "mea/validation_runs/query_validation_20260717_batch8_budget20_8ab6e3b/validation_summary.json",
+    "items": [
+      {
+        "item_id": "q004",
+        "paper_category": "generalization_object",
+        "reference_aspects": [
+          "object_appearance.color"
+        ],
+        "predicted_aspects": [
+          "object_appearance.color"
+        ]
+      },
+      {
+        "item_id": "q010",
+        "paper_category": "generalization_scene",
+        "reference_aspects": [
+          "scene_lighting"
+        ],
+        "predicted_aspects": [
+          "scene_lighting"
+        ]
+      },
+      {
+        "item_id": "q015",
+        "paper_category": "performance",
+        "reference_aspects": [
+          "performance.motion_smoothness"
+        ],
+        "predicted_aspects": [
+          "performance.motion_smoothness"
+        ]
+      },
+      {
+        "item_id": "q017",
+        "paper_category": "safety",
+        "reference_aspects": [
+          "safety.unintended_contact"
+        ],
+        "predicted_aspects": [
+          "unintended_contacts_before_block"
+        ]
+      },
+      {
+        "item_id": "q020",
+        "paper_category": "language_or_multitask",
+        "reference_aspects": [
+          "conclusion.multi_task_consistency",
+          "language.paraphrase_consistency"
+        ],
+        "predicted_aspects": [
+          "paraphrase_consistency"
+        ]
+      }
+    ]
+  },
+  "vqa": {
+    "reference_session_id": "batch19_development_agent_visual_review",
+    "prediction_session_id": "cached_luna_visual_predictions",
+    "threshold": 0.5,
+    "items": [
+      {
+        "item_id": "clean_positive_press",
+        "condition": "clean",
+        "reference_observed": true,
+        "positive_score": 0.9,
+        "evidence_ref": "mea/evaluation_runs/eval_20260717_batch7_click_bell_clean_n1/execution/round_1/execution_vqa/execution_montage.png",
+        "question": "Is the bell visibly pressed during the rollout?",
+        "prediction_ref": "mea/evaluation_runs/eval_20260717_batch7_click_bell_clean_n1/execution/round_1/execution_vqa/execution_vqa.json",
+        "reference_basis": "development-agent visual review plus official success record"
+      },
+      {
+        "item_id": "clean_negative_press",
+        "condition": "clean",
+        "reference_observed": false,
+        "positive_score": 0.09,
+        "evidence_ref": "mea/evaluation_runs/eval_20260717_batch7_click_bell_clean_seed100402_n1/execution/round_1/execution_vqa/execution_montage.png",
+        "question": "Is the bell visibly pressed during the rollout?",
+        "prediction_ref": "mea/evaluation_runs/eval_20260717_batch7_click_bell_clean_seed100402_n1/execution/round_1/execution_vqa/execution_vqa.json",
+        "reference_basis": "development-agent visual review plus official failure record",
+        "prediction_conversion": "observed=false at confidence 0.91 gives positive_score=0.09"
+      },
+      {
+        "item_id": "clutter_positive_target_visible",
+        "condition": "scene_clutter",
+        "reference_observed": true,
+        "positive_score": 0.98,
+        "evidence_ref": "mea/generated_tasks/run_20260717_batch7_click_bell_clutter_seed100402_n1_round_1/evidence/initial_head.png",
+        "question": "Is the target bell visible in the cluttered scene?",
+        "prediction_ref": "mea/generated_tasks/run_20260717_batch7_click_bell_clutter_seed100402_n1_round_1/validation/vision.json",
+        "reference_basis": "development-agent visual review of the rendered scene"
+      },
+      {
+        "item_id": "clutter_negative_press",
+        "condition": "scene_clutter",
+        "reference_observed": false,
+        "positive_score": 0.04,
+        "evidence_ref": "mea/evaluation_runs/eval_20260717_batch7_click_bell_clutter_seed100402_n1/execution/round_1/execution_vqa/execution_montage.png",
+        "question": "Is the bell visibly pressed during the cluttered rollout?",
+        "prediction_ref": "mea/evaluation_runs/eval_20260717_batch7_click_bell_clutter_seed100402_n1/execution/round_1/execution_vqa/execution_vqa.json",
+        "reference_basis": "development-agent visual review plus official failure record",
+        "prediction_conversion": "observed=false at confidence 0.96 gives positive_score=0.04"
+      },
+      {
+        "item_id": "texture_positive_target_visible",
+        "condition": "background_texture",
+        "reference_observed": true,
+        "positive_score": 0.98,
+        "evidence_ref": "mea/generated_tasks/run_batch10_scene_texture_seed100403_ecbf7b1_round_1/evidence/initial_head.png",
+        "question": "Is the target bell visible on the shifted background texture?",
+        "prediction_ref": "mea/generated_tasks/run_batch10_scene_texture_seed100403_ecbf7b1_round_1/validation/vision.json",
+        "reference_basis": "development-agent visual review of the rendered scene"
+      },
+      {
+        "item_id": "texture_negative_press",
+        "condition": "background_texture",
+        "reference_observed": false,
+        "positive_score": 0.04,
+        "evidence_ref": "mea/evaluation_runs/eval_batch10_scene_texture_seed100403_ecbf7b1/execution/round_1/execution_vqa/execution_montage.png",
+        "question": "Is the bell visibly pressed during the texture-shift rollout?",
+        "prediction_ref": "mea/evaluation_runs/eval_batch10_scene_texture_seed100403_ecbf7b1/execution/round_1/execution_vqa/execution_vqa.json",
+        "reference_basis": "development-agent visual review plus official failure record",
+        "prediction_conversion": "observed=false at confidence 0.96 gives positive_score=0.04"
+      },
+      {
+        "item_id": "lighting_positive_press",
+        "condition": "lighting",
+        "reference_observed": true,
+        "positive_score": 0.96,
+        "evidence_ref": "mea/evaluation_runs/eval_batch10_scene_lighting_seed100403_ecbf7b1/execution/round_1/execution_vqa/execution_montage.png",
+        "question": "Is the bell visibly pressed under the shifted lighting?",
+        "prediction_ref": "mea/evaluation_runs/eval_batch10_scene_lighting_seed100403_ecbf7b1/execution/round_1/execution_vqa/execution_vqa.json",
+        "reference_basis": "development-agent visual review plus official success record"
+      },
+      {
+        "item_id": "lighting_negative_unexpected_change",
+        "condition": "lighting",
+        "reference_observed": false,
+        "positive_score": 0.04,
+        "evidence_ref": "mea/generated_tasks/run_batch10_scene_lighting_seed100403_ecbf7b1_round_1/evidence/initial_head.png",
+        "question": "Are unintended scene changes visible beyond the requested lighting shift?",
+        "prediction_ref": "mea/generated_tasks/run_batch10_scene_lighting_seed100403_ecbf7b1_round_1/validation/vision.json",
+        "reference_basis": "development-agent visual review of the rendered scene",
+        "prediction_conversion": "unexpected_changes=[] at confidence 0.96 gives positive_score=0.04"
+      }
+    ]
+  }
+}

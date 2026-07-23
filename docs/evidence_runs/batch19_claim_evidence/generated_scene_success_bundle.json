@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "task_name": "beat_block_hammer",
+  "task_module": "mea.generated_tasks.run_20260723_batch19_generated_scene_success_act_n1.task",
+  "generation_kind": "generated_scene_code",
+  "variant_spec_sha256": "c208948ae404dd70221e0ba7dfc390f03148ddc914bed4f1a0323b7cd9be9531",
+  "task_proposal_sha256": "5ba5853bb8418306547b198c374b365bec3833d99b1e8c4f2042c8446e8ded85",
+  "scene_method": {
+    "method": "load_actors",
+    "origin": "generated_code",
+    "module": "mea.generated_tasks.run_20260723_batch19_generated_scene_success_act_n1.task",
+    "class_name": "beat_block_hammer",
+    "source": "mea/generated_tasks/run_20260723_batch19_generated_scene_success_act_n1/task.py",
+    "source_available": true,
+    "source_sha256": "acf8c5ea1a4bed336ec35014ff4ba414e62b31744e3e72be0cc6d9400c4c9f37",
+    "symbol_declared": true,
+    "symbol_sha256": "73d1797ae8c35c8951b7139655199e60817585271774cab0edff4ef8ac277254",
+    "resolution": "source_symbol"
+  },
+  "success_method": {
+    "method": "check_success",
+    "origin": "compiled_success_spec",
+    "module": "mea.generated_tasks.run_20260723_batch19_generated_scene_success_act_n1.task",
+    "class_name": "beat_block_hammer",
+    "source": "mea/generated_tasks/run_20260723_batch19_generated_scene_success_act_n1/task.py",
+    "source_available": true,
+    "source_sha256": "acf8c5ea1a4bed336ec35014ff4ba414e62b31744e3e72be0cc6d9400c4c9f37",
+    "symbol_declared": true,
+    "symbol_sha256": "58b6d6b7fa44cdb787af0655c3774aae61dd6152f1939a38fae8dc98997d2097",
+    "resolution": "source_symbol"
+  },
+  "success_semantics": {
+    "preserved": false,
+    "authority": "compiled_success_spec_experimental_bounded",
+    "generated_by_model": false,
+    "generated_from_spec": true,
+    "success_spec": "generation/success_spec.json",
+    "success_spec_sha256": "bff5da9e947fc6f3628b37380ed1fb1292463d39304306b0b3fb64aef5985e77",
+    "act_runtime_eligible": true,
+    "outcome_label": "generated_check_success"
+  },
+  "scene_check_spec": {
+    "artifact": "generation/scene_check_spec.json",
+    "sha256": "b6212e1d46fdf6c9e36cfb216e507fcaea4484988e014f9d64209428eff70e7a",
+    "source": "task_proposal",
+    "repair_mode": "regenerate_scene_code"
+  },
+  "boundary": "TaskArtifactBundle binds executable scene and success methods. The success method was compiled from a restricted, validated SuccessSpec; it was not arbitrary model-written Python. Its semantics are an explicitly non-equivalent, bounded experimental predicate. When act_runtime_eligible is true, a policy rollout may evaluate it only under the distinct generated_check_success outcome label; it is never official policy success."
+}

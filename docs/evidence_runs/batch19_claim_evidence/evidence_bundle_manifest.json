@@ -1,0 +1,293 @@
+{
+  "schema_version": 1,
+  "bundle_id": "batch19_claim_first_compact_evidence",
+  "date": "2026-07-23",
+  "canonical_repo": "/root/autodl-tmp/mea",
+  "paper_table_eligible": false,
+  "root_readme_modified": false,
+  "files": [
+    {
+      "artifact": "open_query_round_1_plan.json",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_claim_first_open/round_1_plan.json",
+      "evidence_level": "live_provider_plan_before_round_1"
+    },
+    {
+      "artifact": "open_query_round_2_plan.json",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_claim_first_open/round_2_plan_after_real_failure.json",
+      "evidence_level": "live_provider_plan_conditioned_on_one_real_act_failure"
+    },
+    {
+      "artifact": "open_query_round_3_plan.json",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_claim_first_open/round_3_plan_after_two_real_failures.json",
+      "evidence_level": "live_provider_plan_conditioned_on_two_real_act_failures"
+    },
+    {
+      "artifact": "open_query_after_budget_plan.json",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_claim_first_open/final_plan_after_three_real_rounds.json",
+      "evidence_level": "live_provider_plan_after_three_real_act_failures",
+      "boundary": "Requested a clean baseline control; not evidence sufficient."
+    },
+    {
+      "artifact": "open_query_three_round_evidence.json",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_claim_first_open/three_round_real_evidence.json",
+      "evidence_level": "manually_chained_capability_conditioned_three_live_n1_rounds",
+      "boundary": "Template IDs and order were hidden, but controlled capability axes were exposed. Separate CLI calls were manually chained; no integrated VQA, Aggregate, or Feedback artifact exists."
+    },
+    {
+      "artifact": "post_budget_clean_anchor_seed1000_result.json",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_claim_first_clean_anchor_seed1000_n1/evaluation/seed_results.json",
+      "evidence_level": "live_exact_seed_official_clean_post_budget_anchor",
+      "boundary": "The clean seed1000 control also failed. It was outside the three-round budget and prevents property-specific attribution."
+    },
+    {
+      "artifact": "open_query_with_post_budget_anchor_evidence.json",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_claim_first_open/four_round_with_post_budget_clean_anchor_evidence.json",
+      "evidence_level": "manual_chain_plus_post_budget_clean_anchor",
+      "boundary": "The fourth item is a post-budget control, not an in-budget adaptive round."
+    },
+    {
+      "artifact": "open_query_after_post_budget_anchor_plan.json",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_claim_first_open/final_plan_after_post_budget_clean_anchor.json",
+      "evidence_level": "live_provider_plan_after_post_budget_anchor",
+      "boundary": "Planner continued and requested an exact seed1010 clean-vs-blue control. The original query remains unanswered; no further ACT was run."
+    },
+    {
+      "artifact": "generated_scene_success_bundle.json",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_generated_scene_success_act_n1/generation/task_artifact_bundle.json",
+      "evidence_level": "generated_scene_and_compiled_success_spec_binding",
+      "boundary": "Standalone TaskGen may execute this predicate only under generated_check_success; the main Agent continues to block experimental v2 ACT, and it is never official success."
+    },
+    {
+      "artifact": "generated_scene_success_act_episode.json",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_generated_scene_success_act_n1/evaluation/telemetry/act/episode_000_seed_1002/episode.json",
+      "evidence_level": "live_n1_generated_checker_policy_episode",
+      "boundary": "success=false is generated_check_success for this generated task module, not official success."
+    },
+    {
+      "artifact": "generated_scene_success_outcome.json",
+      "sha256": "d038dda4c4e50a908c7ce0510dc32f48ec5ec74678ce9d294395393428972eb3",
+      "server_source": "derived only from the three source_refs embedded in the artifact",
+      "evidence_level": "compact_projection_of_generated_checker_tool_results",
+      "boundary": "One bounded experimental case; the projection preserves the generated outcome label."
+    },
+    {
+      "artifact": "generated_scene_success_tool_results.json",
+      "sha256": "dcf46369bb8dce08e833a7c3ebd201e333ba64a1b62a54c43be7f207c75fe331",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_generated_scene_success_act_n1/evaluation/telemetry/tool_results.json",
+      "evidence_level": "canonical_generated_checker_tool_results",
+      "boundary": "The outcome binding records the task module, SuccessSpec hash, and compiled tool hash; generated_check_success remains experimental and distinct from official success."
+    },
+    {
+      "artifact": "generated_scene_success_run_manifest.json",
+      "sha256": "5a1d6ccb5cc0f78a171ff28fc920df86c72e7cca5f76f85cc312ef90abbf44ae",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_generated_scene_success_act_n1/manifest.json",
+      "evidence_level": "canonical_standalone_generated_checker_run_manifest",
+      "boundary": "Standalone TaskGen ACT only; the main Agent continues to block experimental v2 ACT."
+    },
+    {
+      "artifact": "query_toolgen_v2_invalid_first.json",
+      "sha256": "f9ef710317c067fed5de0c27792e725449d1e02221abea76678c06d53a007f8b",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_query_toolgen_v2/first_generation/query_induced_toolgen_result.json",
+      "evidence_level": "superseded_invalid_failure_audit",
+      "boundary": "Invalid: the generated metric read the inactive left arm for the current BBH task. Superseded by v3b."
+    },
+    {
+      "artifact": "query_toolgen_v2_invalid_reuse.json",
+      "sha256": "c95b304abc34a22cc5966243079188c390af13d9fc71c03364a5c30430c6ba09",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_query_toolgen_v2/second_reuse/query_induced_toolgen_result.json",
+      "evidence_level": "superseded_invalid_failure_audit",
+      "boundary": "Registry reuse of the invalid inactive-arm metric is retained only as failure evidence."
+    },
+    {
+      "artifact": "query_toolgen_v3_failed_request.json",
+      "sha256": "4b91ff909087250a87ca7cbf2f3ab4c1d622e35d4ca62cc6c42f24ed30357688",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_query_toolgen_v3/first_generation/provider_request.json",
+      "evidence_level": "post_frozen_cutoff_system_failure_audit"
+    },
+    {
+      "artifact": "query_toolgen_v3_failed_response.txt",
+      "sha256": "7ada06a936241c387eaca331edfa7569e3f1f2d2c4edc7aa390e3a072a55b3c1",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_query_toolgen_v3/first_generation/provider_response.txt",
+      "evidence_level": "post_frozen_cutoff_system_failure_audit",
+      "boundary": "finite_difference_order was returned as a string. This occurred after the frozen 23-operation error audit and is not inserted into that denominator."
+    },
+    {
+      "artifact": "query_toolgen_v3b_provider_request.json",
+      "sha256": "493820496ce4fb867a21042f8cd1bf175527244079383c55c3fa52a9cfd68cec",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_query_toolgen_v3b/first_generation/provider_request.json",
+      "evidence_level": "bounded_dsl_provider_input"
+    },
+    {
+      "artifact": "query_toolgen_v3b_provider_response.txt",
+      "sha256": "eb245a006f587ecfe87c475740b24e48d9bda09d4a06a412c16cd1c440bf92eb",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_query_toolgen_v3b/first_generation/provider_response.txt",
+      "evidence_level": "bounded_dsl_provider_output"
+    },
+    {
+      "artifact": "query_toolgen_v3b_first_result.json",
+      "sha256": "1202bfc86f7808ac95b59fc3ca104d3385793c15c10fa280d9756cc59d7b257c",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_query_toolgen_v3b/first_generation/query_induced_toolgen_result.json",
+      "evidence_level": "bounded_dsl_generate_synthetic_oracle_validate_register_routing",
+      "boundary": "The recorded 43.4348 value is invalid because its source event has physical_contact=false. Keep only the bounded DSL, synthetic-oracle, and run-local registration routing evidence."
+    },
+    {
+      "artifact": "query_toolgen_v3b_paraphrase_request.json",
+      "sha256": "ba017f3bffe0a13d0cd1810d974b9c4a3ec7bf7e1e38795a976cc20b671c3036",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_query_toolgen_v3b/second_paraphrase_reuse/provider_request.json",
+      "evidence_level": "semantic_reuse_provider_input"
+    },
+    {
+      "artifact": "query_toolgen_v3b_paraphrase_response.txt",
+      "sha256": "4ed1712300e9f66e3b0058a7e28ecf94e3ee831c116e9062dc30b53548e0abb8",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_query_toolgen_v3b/second_paraphrase_reuse/provider_response.txt",
+      "evidence_level": "semantic_reuse_provider_output"
+    },
+    {
+      "artifact": "query_toolgen_v3b_paraphrase_reuse_result.json",
+      "sha256": "2a2c07989e196863de812ae261cbc7597bb6ed8edfd2ec6a390d2af5c1a8270a",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_query_toolgen_v3b/second_paraphrase_reuse/query_induced_toolgen_result.json",
+      "evidence_level": "provider_semantic_registry_reuse",
+      "boundary": "Provider was called for semantic matching; codegen, oracle validation, and registration were all false. The recorded 43.4348 value is invalid because the source event was not physical target contact."
+    },
+    {
+      "artifact": "query_toolgen_v3b_exact_reuse_result.json",
+      "sha256": "b909df02433c95c2a2cca326b0deddd009d49d6fb965b1e0f7cdbf3d671652db",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_query_toolgen_v3b/third_exact_reuse/query_induced_toolgen_result.json",
+      "evidence_level": "exact_query_registry_reuse",
+      "boundary": "provider_called=false; codegen, oracle validation, and registration were all false. The recorded 43.4348 value is invalid because the source event was not physical target contact."
+    },
+    {
+      "artifact": "query_toolgen_v3b_registry_index.json",
+      "sha256": "f5895b61f5a8d6683203552c1339459aaa823a817fcc2eb9239ebb36f4a038e6",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_query_toolgen_v3b/tool_registry/index.json",
+      "evidence_level": "run_local_tool_registry_manifest"
+    },
+    {
+      "artifact": "query_toolgen_v3b_query_registry.json",
+      "sha256": "dd19c777341eb3175402bbe89d95d5167493effb7d4955b123dc51bcd72d4710",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_query_toolgen_v3b/tool_registry/query_induced_index.json",
+      "evidence_level": "run_local_query_registry_manifest"
+    },
+    {
+      "artifact": "query_toolgen_v3c_corrected_original_result.json",
+      "sha256": "88a85e488da09e4b8cd0626635e9965fbb1a595cbd9df2b4cb01ed5ac19c8177",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_query_toolgen_v3c_corrected/first_exact_reuse/query_induced_toolgen_result.json",
+      "evidence_level": "corrected_exact_registry_reuse_with_physical_contact_gate",
+      "boundary": "provider_called=false; value=null and null_reason=no_target_contact_event. No cached ACT episode has validated hammer-box physical contact."
+    },
+    {
+      "artifact": "query_toolgen_v3c_corrected_paraphrase_result.json",
+      "sha256": "fff563f25e65d2d668f26d7a19484aff4ba4a25353311e1f9b56fb51a3652f86",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_query_toolgen_v3c_corrected/paraphrase_exact_reuse/query_induced_toolgen_result.json",
+      "evidence_level": "corrected_semantic_registry_reuse_with_physical_contact_gate",
+      "boundary": "value=null and null_reason=no_target_contact_event; validated_episode_count=0 and threshold=100 m/s^3 is uncalibrated."
+    },
+    {
+      "artifact": "efficiency_manifest.json",
+      "sha256": "c60b9edde9c2e9461cc183aa8976e09719a426b3b3a25fa660eba8184679e798",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_efficiency_claim_v4/manifest.json",
+      "evidence_level": "finite_domain_cached_prefix_counterfactual_manifest"
+    },
+    {
+      "artifact": "efficiency_query_contract.json",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_efficiency_claim_v4/query_sufficiency_contract.json",
+      "evidence_level": "finite_domain_universal_query_contract"
+    },
+    {
+      "artifact": "efficiency_query_assessment.json",
+      "sha256": "6a57127c7ddd603cbf0bde89456e8069c9d082388ff206a7ffffdeab87d0fe7c",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_efficiency_claim_v4/adaptive_query_sufficiency_round_1_v2.json",
+      "evidence_level": "post_hoc_cached_prefix_stop_assessment"
+    },
+    {
+      "artifact": "efficiency_result.json",
+      "sha256": "4f9ced259e31ce3333df907567a117e0af0ed49ac8a33551d95f0d1294b8bb5f",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_efficiency_claim_v4/result_v2.json",
+      "evidence_level": "post_hoc_cached_prefix_counterfactual_protocol_demo",
+      "boundary": "Outcomes were observed before the comparison. Actual rollout and wall saving are null; one avoidable rollout (50%) is counterfactual and 82.306 seconds is only an estimate."
+    },
+    {
+      "artifact": "policy_ranking_manifest.json",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_policy_ranking_toy_exact_seed100000/manifest.json",
+      "evidence_level": "exact_seed_two_policy_preregistration"
+    },
+    {
+      "artifact": "policy_ranking_result.json",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_policy_ranking_toy_exact_seed100000/result.json",
+      "evidence_level": "two_policy_live_n1_tie",
+      "boundary": "ACT=0/1 and DP3=0/1; Spearman is null and ranking is inconclusive."
+    },
+    {
+      "artifact": "act_seed100000_result.json",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_act_official_seed100000_n1/evaluation/seed_results.json",
+      "evidence_level": "live_official_act_n1"
+    },
+    {
+      "artifact": "dp3_seed100000_result.json",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_dp3_official_seed100000_n1_v2/evaluation/seed_results.json",
+      "evidence_level": "live_official_dp3_n1"
+    },
+    {
+      "artifact": "proxy_validity_manifest.json",
+      "sha256": "a562dbc119d3fd71eaf38503720ae8e72bea1b285149b4a2f900c030c1851b9d",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_proxy_validity_pilot/manifest.json",
+      "evidence_level": "legacy_taxonomy_and_heterogeneous_vqa_proxy_input_manifest"
+    },
+    {
+      "artifact": "proxy_validity_result.json",
+      "sha256": "ed007bc736cad46968461d2eab94b369f79934fcd9190f81704aaeb04c5d521e",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_proxy_validity_pilot/result.json",
+      "evidence_level": "development_agent_protocol_smoke",
+      "boundary": "Plan n=5 is legacy 20260717 taxonomy-routing proxy, not batch19 ClaimFirst. VQA uses heterogeneous propositions, a hand-selected non-preregistered sample, one cached VLM, and N=2 per visual condition; AUROC 1.0 is not a robustness estimate."
+    },
+    {
+      "artifact": "proposal_ablation_manifest.json",
+      "sha256": "56bdffc5cad18fa96a12b8e01c02983280d9764f52a4cb68d185f1e710142100",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_table3_proposal_prompt_v3/manifest.json",
+      "evidence_level": "live_provider_structured_proposal_ablation_input_manifest"
+    },
+    {
+      "artifact": "proposal_ablation_result.json",
+      "sha256": "001df79edc5c35673fe0b4ac536815582d2914de4d5c5e922ca7c9e5b49b69df",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_table3_proposal_prompt_v3/result.json",
+      "evidence_level": "seven_live_provider_proposal_calls_prompt_level_proxy",
+      "boundary": "Structured-proposal-only prompt ablation, not task/tool code generation or execution. One attempt per condition; all pass; no measured component uplift."
+    },
+    {
+      "artifact": "runtime_error_distribution_manifest.json",
+      "sha256": "8732d7be3b2325c31bdeb501037de5d39ffd7525f2923a8b5dae27a885bbf74f",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_runtime_error_audit/manifest.json",
+      "evidence_level": "frozen_observed_development_operations_input_manifest"
+    },
+    {
+      "artifact": "runtime_error_distribution_result.json",
+      "sha256": "06838d4440dc915b0d1ee88f15538a1a6064aa5935554338153e114c4041385a",
+      "server_source": "mea/generated_tasks/run_20260723_batch19_runtime_error_audit/result.json",
+      "evidence_level": "retrospective_status_review_of_frozen_development_operations",
+      "boundary": "23 frozen operations and 8 retrospective errors (34.78%): ToolGen 4/4 and simulator 4/6. Two later failures are outside the denominator. This is not the paper repetition protocol or its approximately 5% rate."
+    }
+  ],
+  "claims_supported": [
+    "manually_chained_capability_conditioned_real_evidence_changed_the_next_semantic_probe",
+    "one_standalone_generated_scene_and_compiled_successspec_directly_evaluated_act_under_a_distinct_label",
+    "one_bounded_dsl_metric_was_synthetic_oracle_validated_and_run_local_registered_with_reuse_routing",
+    "one_two_candidate_post_hoc_cached_prefix_counterfactual_protocol_was_computed",
+    "act_and_dp3_official_exact_seed_adapters_both_executed"
+  ],
+  "claims_not_supported": [
+    "integrated_open_query_vqa_aggregate_feedback_runtime",
+    "evidence_sufficient_answer_to_the_open_generalization_query",
+    "property_specific_attribution_of_the_observed_variant_failures",
+    "query_induced_tool_policy_jerk_evidence",
+    "query_induced_tool_validated_episode_or_calibrated_threshold",
+    "query_induced_tool_agent_vqa_or_live_confirmation",
+    "paper_scale_sampling_efficiency",
+    "measured_independent_arm_wall_speedup",
+    "multi_policy_ranking_preservation",
+    "independent_human_plan_or_vqa_validity",
+    "task_or_tool_codegen_ablation_success",
+    "rag_visual_or_readme_component_uplift",
+    "paper_scale_five_percent_system_error_rate",
+    "rdt_pi0_multitask_or_libero_consistency"
+  ]
+}

@@ -320,11 +320,8 @@ def _proposal_card(
                         "track": "experimental",
                         "official_equivalent": False,
                         "compile_probe_acceptance_eligible": True,
-                        "act_runtime_eligible": False,
-                        "runtime_blocker": (
-                            "main ACT currently labels generated check_success as "
-                            "official policy success"
-                        ),
+                        "act_runtime_eligible": True,
+                        "outcome_label": "generated_check_success",
                         "allowed_example": experimental_success,
                         "degrees_of_freedom": (
                             "only the two planar thresholds inside the trusted "
@@ -779,17 +776,15 @@ def validate_proposal_bundle(
                 ),
                 "success_spec": deepcopy(task["success_spec"]),
                 "result": None,
-                "result_status": "pending_materialization_or_probe",
-                "act_runtime_eligible": False,
-                "runtime_blocker": (
-                    "main ACT is disabled until official and experimental "
-                    "outcomes have distinct runtime labels"
-                ),
+                "result_status": "pending_materialization_or_rollout",
+                "act_runtime_eligible": True,
+                "outcome_label": "generated_check_success",
             },
             "reporting_contract": (
                 "Keep official and experimental outcomes as separate channels. "
-                "Both remain null in this 0-ACT release; null means unmeasured, "
-                "and the experimental channel is never official policy success."
+                "Null means unmeasured. A later rollout may populate the "
+                "generated_check_success channel, which is never relabeled as "
+                "official policy success."
             ),
         }
     return result

@@ -1,0 +1,118 @@
+{
+  "schema_version": 2,
+  "query": "接触前是否有抖动或急动",
+  "query_fingerprint": "qit_v2_f461d8161269e9f748f19118",
+  "route": "provider_generate_validate_register",
+  "proposal": {
+    "schema_version": 2,
+    "metric_id": "precontact_peak_tcp_jerk",
+    "finite_difference_order": 3,
+    "window_seconds": 0.5,
+    "reducer": "peak_l2",
+    "time_normalization": "physical_seconds",
+    "threshold": 100.0,
+    "unit": "m_per_second_cubed",
+    "null_semantics": "null_if_no_target_contact_or_insufficient_precontact_samples",
+    "rationale": "Peak TCP jerk over the final 0.5 seconds before target contact detects abrupt pre-contact motion and high-frequency jitter, using the runtime-selected active TCP."
+  },
+  "provider_called": true,
+  "provider_metadata": {
+    "id": "chatcmpl-202607230903543302745138268d9d6sd31bQJG",
+    "model": "gpt-5.6-terra",
+    "finish_reason": "stop",
+    "usage": {
+      "prompt_tokens": 332,
+      "completion_tokens": 299,
+      "total_tokens": 631,
+      "billing_usage": {
+        "source": "oai_responses",
+        "semantic": "openai",
+        "openai_usage": {
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "total_tokens": 631,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "text_tokens": 0,
+            "audio_tokens": 0,
+            "image_tokens": 0
+          },
+          "completion_tokens_details": {
+            "text_tokens": 0,
+            "audio_tokens": 0,
+            "image_tokens": 0,
+            "reasoning_tokens": 0
+          },
+          "input_tokens": 332,
+          "output_tokens": 299,
+          "input_tokens_details": {
+            "cached_tokens": 0,
+            "text_tokens": 0,
+            "audio_tokens": 0,
+            "image_tokens": 0
+          },
+          "claude_cache_creation_5_m_tokens": 0,
+          "claude_cache_creation_1_h_tokens": 0
+        }
+      },
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "text_tokens": 0,
+        "audio_tokens": 0,
+        "image_tokens": 0
+      },
+      "completion_tokens_details": {
+        "text_tokens": 0,
+        "audio_tokens": 0,
+        "image_tokens": 0,
+        "reasoning_tokens": 0
+      },
+      "input_tokens": 332,
+      "output_tokens": 299,
+      "input_tokens_details": null,
+      "claude_cache_creation_5_m_tokens": 0,
+      "claude_cache_creation_1_h_tokens": 0
+    },
+    "retry_count": 0
+  },
+  "registered_summary_count_presented": 0,
+  "codegen_performed": true,
+  "oracle_validation_performed": true,
+  "registration_performed": true,
+  "registration_id": "runlocal_35d8b91b8a3830b59e62",
+  "live_telemetry": {
+    "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260723_batch17_reviewed_scale_reuse_act_n1_v1/evaluation/telemetry/act/episode_000_seed_1001",
+    "task_name": "beat_block_hammer",
+    "synthetic_fallback_used": false
+  },
+  "tool_result": {
+    "tool": "precontact_peak_tcp_jerk",
+    "value": 43.43477342821219,
+    "unit": "m_per_second_cubed",
+    "passed": true,
+    "null_semantics": "null_if_no_target_contact_or_insufficient_precontact_samples",
+    "null_reason": null,
+    "finite_difference_order": 3,
+    "window_seconds": 0.5,
+    "reducer": "peak_l2",
+    "time_normalization": "physical_seconds",
+    "active_arm": "right",
+    "active_arm_rule": "initial_block_position_x_lt_0_left_else_right",
+    "initial_block_position_x": 0.23275457322597504,
+    "signal": "right_tcp_position",
+    "first_target_contact_trace_index": 7007,
+    "evidence": [
+      {
+        "trace_index": 6928,
+        "physics_step": 6928,
+        "policy_step": 97,
+        "simulation_time_seconds": 27.712,
+        "video_frame_before": 97,
+        "video_frame_after": 98
+      }
+    ],
+    "evidence_steps": [
+      6928
+    ]
+  }
+}

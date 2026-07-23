@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "status": "claim_first_open_query_plan_completed",
+  "execution_mode": "live_provider_semantic_plan_0_act",
+  "task_name": "beat_block_hammer",
+  "checkpoint": {
+    "policy_name": "ACT",
+    "checkpoint_setting": "demo_clean",
+    "expert_data_num": 50,
+    "checkpoint_id": "act-beat_block_hammer/demo_clean-50",
+    "ready": true
+  },
+  "query": "How well does this ACT policy generalize across manipulated-object properties, and where is its first likely weakness?",
+  "evidence_rounds": 2,
+  "capabilities_exclude_navigation_catalog": true,
+  "simulator_calls_started": 0,
+  "expert_calls_started": 0,
+  "act_rollouts_started": 0,
+  "result": {
+    "schema_version": 1,
+    "source": "provider_claim_first_open_query",
+    "input_digest": "935ca7d6e049f982ac93c949f32a616fda895eebb92369d9c8b91623b810e062",
+    "proposal": {
+      "schema_version": 1,
+      "action": "continue",
+      "sub_aspect": "object_property_generalization.target_appearance_invariance",
+      "hypothesis": "A bounded appearance-only change to the target block, with geometry and collision unchanged, will cause ACT to miss strict hammer-block contact or official success, indicating that target appearance is a weakness independent of scale.",
+      "requested_perturbation": {
+        "description": "Generate one reviewed target-block appearance variant that changes only visual appearance while preserving the block mesh, pose, scale, collision geometry, and official success semantics.",
+        "controlled_changes": [
+          "target block visual appearance"
+        ],
+        "preserve": [
+          "task identity",
+          "policy checkpoint",
+          "target block geometry and collision",
+          "target block pose and scale",
+          "official success semantics"
+        ]
+      },
+      "task_need": {
+        "required": true,
+        "description": "TaskGen must generate or reuse a target-block appearance variant with appearance as the only changed factor and verify that geometry, collision, pose, scale, and success semantics are preserved."
+      },
+      "tool_need": {
+        "required": true,
+        "description": "ToolGen must retrieve or generate an observable rule metric recording strict hammer-block physical contact, minimum functional-point XY error, and official success for the ACT rollout and matched expert probe.",
+        "reuse_first": true
+      },
+      "rationale": "Both tested scale directions failed to produce contact, but each has N=1 evidence and the smaller-scale run included visual false-positive diagnosis repairs. An appearance-only perturbation is the most informative supported next test because it separates a geometry/scale weakness from sensitivity to target visual properties while preserving the same task and policy."
+    },
+    "provider": {
+      "model_requested": "gpt-5.6-luna",
+      "called": true,
+      "attempt_count": 1,
+      "errors": [],
+      "last_metadata": {
+        "id": "chatcmpl-61a1c4cd-aff8-4670-b2a1-d95ec93309b8",
+        "model": "gpt-5.6-luna",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 3133,
+          "completion_tokens": 706,
+          "total_tokens": 3839,
+          "completion_tokens_details": {
+            "reasoning_tokens": 400
+          },
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "cache_write_tokens": 0
+          }
+        },
+        "retry_count": 0
+      }
+    }
+  }
+}

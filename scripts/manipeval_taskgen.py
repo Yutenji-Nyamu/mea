@@ -183,11 +183,18 @@ def task_artifact_summary(bundle: Mapping[str, Any]) -> dict[str, Any]:
         "success_semantics_preserved": bool(semantics.get("preserved")),
         "success_official_equivalent": not experimental,
         "success_compiler_eligible": True,
-        "success_act_eligible": not experimental,
+        "success_act_eligible": bool(
+            semantics.get("act_runtime_eligible", True)
+        ),
         "success_execution_scope": (
-            "experimental_bounded_probe_only"
+            "experimental_bounded_act"
             if experimental
             else "official_equivalent"
+        ),
+        "success_outcome_label": (
+            semantics.get("outcome_label")
+            if experimental
+            else "official_check_success"
         ),
     }
 
@@ -1162,6 +1169,12 @@ PROPOSAL-DERIVED SCENE CHECK SPEC:
 PROPOSAL-DERIVED SCENE CHECK SPEC:
 {scene_check_text}
 
+If position_mode or yaw_mode is official_random, one sampled RGB frame cannot
+prove that the distribution or strike-path alignment is wrong. Simulator state,
+the rule gate, and the expert gate own that judgment. Do not report a sampled
+legal pose as an unexpected position change unless the actor is visibly missing,
+overlapping another object, or outside the workspace.
+
 官方 scale=1.0 的方块 half_size 是 (0.025, 0.025, 0.025) 米；本次预期
 half_size 是 ({expected_half_size:.6f}, {expected_half_size:.6f}, {expected_half_size:.6f}) 米。
 请结合方块与锤子的相对尺寸判断是否明显偏大或偏小。
@@ -1996,14 +2009,41 @@ def evaluate_run_telemetry(
     manifest: dict[str, Any],
 ) -> dict[str, Any]:
     telemetry_root = run_dir / "evaluation/telemetry"
+    bundle = json.loads(
+        (run_dir / "generation/task_artifact_bundle.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    semantics = bundle.get("success_semantics", {})
+    outcome_metric = (
+        "generated_check_success"
+        if semantics.get("authority")
+        == "compiled_success_spec_experimental_bounded"
+        else "official_check_success"
+    )
+    outcome_binding = (
+        {
+            "metric": outcome_metric,
+            "authority": semantics["authority"],
+            "success_spec_sha256": semantics["success_spec_sha256"],
+            "task_module": manifest["task_module"],
+        }
+        if outcome_metric == "generated_check_success"
+        else None
+    )
     summary = evaluate_telemetry_root(
         telemetry_root,
         user_request=manifest["user_request"],
         task_name=manifest["task_name"],
+        outcome_metric=outcome_metric,
+        outcome_binding=outcome_binding,
     )
     return {
         "artifact": str((telemetry_root / "tool_results.json").relative_to(repo_root)),
         "episode_count": summary["episode_count"],
+        "outcome_metric": outcome_metric,
+        "outcome_authority": semantics.get("authority"),
+        "outcome_binding": outcome_binding,
         "tool_retrieval": summary["tool_retrieval"],
         "episodes": [
             {
@@ -2151,12 +2191,6 @@ def main() -> None:
             )
         except (json.JSONDecodeError, ProposalError) as exc:
             raise SystemExit(f"invalid --task-proposal-json: {exc}") from exc
-        if args.run_act and task_proposal.get("schema_version") == 2:
-            raise SystemExit(
-                "experimental TaskProposal v2 is 0-ACT only: main ACT outcome "
-                "labeling does not yet separate official and experimental success"
-            )
-
     reviewed_task_registry = (
         args.reviewed_task_registry.expanduser().resolve()
         if args.reviewed_task_registry is not None
@@ -2436,17 +2470,6 @@ def main() -> None:
         update_manifest(
             run_dir,
             registration_identity=registration_identity,
-        )
-
-    manifest_task_proposal = manifest.get("task_proposal")
-    if (
-        args.run_act
-        and isinstance(manifest_task_proposal, Mapping)
-        and manifest_task_proposal.get("schema_version") == 2
-    ):
-        raise SystemExit(
-            "experimental TaskProposal v2 is 0-ACT only: main ACT outcome "
-            "labeling does not yet separate official and experimental success"
         )
 
     if args.run_act:
@@ -2811,24 +2834,11 @@ def main() -> None:
                     bind_registration_to_episode_metadata(
                         run_dir, registration_identity
                     )
-                if (
-                    isinstance(manifest.get("task_proposal"), Mapping)
-                    and manifest["task_proposal"].get("schema_version") == 2
-                ):
-                    updates["trusted_tool_evaluation"] = {
-                        "status": "skipped",
-                        "reason": (
-                            "experimental check_success cannot enter the current "
-                            "official_check_success telemetry label"
-                        ),
-                        "act_runtime_eligible": False,
-                    }
-                else:
-                    updates["trusted_tool_evaluation"] = evaluate_run_telemetry(
-                        repo_root,
-                        run_dir,
-                        manifest,
-                    )
+                updates["trusted_tool_evaluation"] = evaluate_run_telemetry(
+                    repo_root,
+                    run_dir,
+                    manifest,
+                )
             update_manifest(run_dir, **updates)
     except Exception as exc:
         update_manifest(

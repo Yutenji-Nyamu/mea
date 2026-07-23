@@ -1,11 +1,9 @@
 # import packages and module here
 import sys
 
-import torch
 import sapien.core as sapien
 import traceback
 import os
-import numpy as np
 from envs import *
 from hydra import initialize, compose
 from omegaconf import OmegaConf
@@ -29,12 +27,10 @@ sys.path.append(os.path.join(parent_directory, '3D-Diffusion-Policy'))
 
 from dp3_policy import *
 
-
-def encode_obs(observation):  # Post-Process Observation
-    obs = dict()
-    obs['agent_pos'] = observation['joint_action']['vector']
-    obs['point_cloud'] = observation['pointcloud']
-    return obs
+try:
+    from .observation_adapter import encode_obs, ensure_pointcloud_observation
+except ImportError:
+    from observation_adapter import encode_obs, ensure_pointcloud_observation
 
 
 def get_model(usr_args):
@@ -73,6 +69,7 @@ def get_model(usr_args):
 
 
 def eval(TASK_ENV, model, observation):
+    observation = ensure_pointcloud_observation(TASK_ENV, observation)
     obs = encode_obs(observation)  # Post-Process Observation
     # instruction = TASK_ENV.get_instruction()
 

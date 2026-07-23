@@ -144,8 +144,12 @@ class ProposalAgentTests(unittest.TestCase):
                 "compiled_success_spec_experimental_bounded",
             )
             self.assertIsNone(comparison["experimental"]["result"])
-            self.assertFalse(
+            self.assertTrue(
                 comparison["experimental"]["act_runtime_eligible"]
+            )
+            self.assertEqual(
+                comparison["experimental"]["outcome_label"],
+                "generated_check_success",
             )
             self.assertNotEqual(
                 comparison["official"]["success_spec"],

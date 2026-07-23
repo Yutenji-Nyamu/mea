@@ -1,0 +1,21 @@
+{
+  "query": "目标接触前，TCP 是否出现抖动或突然急动？",
+  "prompt": "Propose one bounded pre-target-contact motion metric for the Query.\nQuery: 目标接触前，TCP 是否出现抖动或突然急动？\nThe runtime, not you, selects the active TCP: it reads the initial block_position x coordinate (x < 0 => left, otherwise right). Do not return a signal name or Python code.\nThe only compiler family is a physical-time-normalized finite difference of order 2 or 3 over a bounded pre-contact window, reduced by peak L2. finite_difference_order, window_seconds, and threshold must be JSON numbers, not strings. Order 2 requires m_per_second_squared; order 3 requires m_per_second_cubed. Choose the semantics and a meaningful metric_id within that family.\nCompatible validated run-local metrics are listed below. A paraphrase may reuse one only by copying all its executable fields exactly. Otherwise choose a new metric_id.\nregistered_metric_summaries:\n[\n  {\n    \"registration_id\": \"runlocal_35d8b91b8a3830b59e62\",\n    \"task_name\": \"beat_block_hammer\",\n    \"executable_spec\": {\n      \"schema_version\": 2,\n      \"metric_id\": \"precontact_peak_tcp_jerk\",\n      \"unit\": \"m_per_second_cubed\",\n      \"time_normalization\": \"physical_seconds\",\n      \"null_semantics\": \"null_if_no_target_contact_or_insufficient_precontact_samples\",\n      \"finite_difference_order\": 3,\n      \"reducer\": \"peak_l2\",\n      \"window_seconds\": 0.5,\n      \"threshold\": 100.0\n    }\n  }\n]\nReturn JSON only with these exact fields. The values below are a type-correct example, not values you must copy:\n{\n  \"schema_version\": 2,\n  \"metric_id\": \"descriptive_snake_case_id\",\n  \"finite_difference_order\": 3,\n  \"window_seconds\": 0.5,\n  \"reducer\": \"peak_l2\",\n  \"time_normalization\": \"physical_seconds\",\n  \"threshold\": 50.0,\n  \"unit\": \"m_per_second_cubed\",\n  \"null_semantics\": \"null_if_no_target_contact_or_insufficient_precontact_samples\",\n  \"rationale\": \"semantic explanation\"\n}",
+  "registered_metric_summaries": [
+    {
+      "registration_id": "runlocal_35d8b91b8a3830b59e62",
+      "task_name": "beat_block_hammer",
+      "executable_spec": {
+        "schema_version": 2,
+        "metric_id": "precontact_peak_tcp_jerk",
+        "unit": "m_per_second_cubed",
+        "time_normalization": "physical_seconds",
+        "null_semantics": "null_if_no_target_contact_or_insufficient_precontact_samples",
+        "finite_difference_order": 3,
+        "reducer": "peak_l2",
+        "window_seconds": 0.5,
+        "threshold": 100.0
+      }
+    }
+  ]
+}
