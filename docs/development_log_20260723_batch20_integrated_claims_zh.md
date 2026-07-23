@@ -1,8 +1,10 @@
 # 2026-07-23：batch20 集成主链与论文 claim 实验
 
 本批按论文 Abstract、Figs. 2–6、Tables 1–9 与 Appendix A.1 自顶向下实现和验收。
-所有 provider、RoboTwin、ACT、DP3、TaskGen、expert/probe 和测试都在 canonical AutoDL
-`/root/autodl-tmp/mea` 执行；checkpoint 未经过 Windows。本批未修改根 `README.md`。
+所有 provider、RoboTwin、ACT、DP3、TaskGen、expert/probe、真实 rollout 和最终回归测试都在
+canonical AutoDL `/root/autodl-tmp/mea` 执行；Windows 只用于临时文本 staging 和一次 runner
+上传前语法编译，没有运行 simulator/policy，checkpoint 也未经过 Windows。本批未修改根
+`README.md`。
 
 ## 1. 结果总览
 
