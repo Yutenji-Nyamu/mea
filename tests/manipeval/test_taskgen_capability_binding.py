@@ -9,8 +9,15 @@ from mea.capability_adapter import (
     resolve_capability_contract,
     taskgen_route,
 )
-from mea.taskgen import TaskArtifactBundleError, build_variant_spec
+from mea.taskgen import (
+    EXPERIMENTAL_SUCCESS_PRESERVE_MARKER,
+    CapabilityError,
+    TaskArtifactBundleError,
+    build_variant_spec,
+    validate_variant_spec_envelope,
+)
 from mea.proposals import materialize_round_proposals, task_proposal_from_contract
+from mea.taskgen.success_spec import experimental_bbh_success_spec_v2
 from scripts.manipeval_agent import (
     build_taskgen_command,
     validate_round_capability_contract,
@@ -23,11 +30,83 @@ from scripts.manipeval_taskgen import (
 
 
 class TaskGenCapabilityBindingTests(unittest.TestCase):
+    def test_v2_success_replacement_has_a_distinct_preserve_contract(self):
+        kwargs = {
+            "task_name": "beat_block_hammer",
+            "variant_id": "object_appearance.experimental",
+            "capability_id": "object_appearance.color",
+            "intent": "compile a bounded experimental success fixture",
+            "changes": {
+                "block": {
+                    "position_mode": "official_random",
+                    "yaw_mode": "official_random",
+                    "scale": 1.0,
+                    "color": [0.25, 0.25, 0.75],
+                }
+            },
+            "generation_mode": "force_codegen",
+        }
+        official = build_variant_spec(**kwargs)
+        experimental = build_variant_spec(
+            **kwargs, preserve_success_semantics=False
+        )
+        self.assertIn("check_success", official["preserve"])
+        self.assertNotIn("check_success", experimental["preserve"])
+        self.assertIn(
+            EXPERIMENTAL_SUCCESS_PRESERVE_MARKER,
+            experimental["preserve"],
+        )
+        self.assertEqual(
+            validate_variant_spec_envelope(experimental), experimental
+        )
+
+        scale_kwargs = dict(kwargs)
+        scale_kwargs.update(
+            {
+                "variant_id": "object_scale.experimental",
+                "capability_id": "object_scale.bounded",
+                "changes": {
+                    "block": {
+                        "position_mode": "official_random",
+                        "yaw_mode": "official_random",
+                        "scale": 1.2,
+                        "color": [1.0, 0.0, 0.0],
+                    }
+                },
+            }
+        )
+        with self.assertRaisesRegex(
+            CapabilityError,
+            "capability-gated to beat_block_hammer/object_appearance.color",
+        ):
+            build_variant_spec(
+                **scale_kwargs, preserve_success_semantics=False
+            )
+
     def test_task_artifact_summary_fails_with_typed_error(self):
         with self.assertRaisesRegex(
             TaskArtifactBundleError, "success semantics are missing"
         ):
             task_artifact_summary({"success_semantics": None})
+
+    def test_experimental_task_summary_is_probe_only_not_act_eligible(self):
+        summary = task_artifact_summary(
+            {
+                "success_semantics": {
+                    "preserved": False,
+                    "authority": "compiled_success_spec_experimental_bounded",
+                    "act_runtime_eligible": False,
+                },
+                "scene_method": {"origin": "generated_code"},
+                "success_method": {"origin": "compiled_success_spec"},
+            }
+        )
+        self.assertTrue(summary["success_compiler_eligible"])
+        self.assertFalse(summary["success_act_eligible"])
+        self.assertEqual(
+            summary["success_execution_scope"],
+            "experimental_bounded_probe_only",
+        )
 
     def _run_dir(
         self, root: Path, spec: dict, manifest_updates: dict | None = None
@@ -264,6 +343,70 @@ class TaskGenCapabilityBindingTests(unittest.TestCase):
                     gpu=0,
                     max_reflections=1,
                 )
+
+    def test_main_agent_rejects_experimental_v2_before_taskgen_or_act(self):
+        contract = resolve_capability_contract(
+            "beat_block_hammer", "object_appearance.color_blue"
+        )
+        task_proposal = task_proposal_from_contract(
+            contract, intent="bounded experimental fixture"
+        )
+        task_proposal.update(
+            {
+                "schema_version": 2,
+                "proposal_id": "object_appearance.main_agent_blocked_v2",
+                "preserve_success_semantics": False,
+                "success_spec": experimental_bbh_success_spec_v2(),
+            }
+        )
+        tool_proposal = {
+            "schema_version": 1,
+            "proposal_id": "object_appearance.main_agent_blocked_v2.tool",
+            "task_name": "beat_block_hammer",
+            "aspect_id": "object_appearance.color",
+            "evaluation_goal": "measure strict task contact",
+            "metric": "hammer_block_contact_ever",
+            "question": "Did hammer-block contact occur?",
+            "vqa_phenomenon_ids": ["block_visibly_displaced"],
+            "reuse_first": True,
+        }
+        base_round = {
+            "round_id": "round_1",
+            "task_name": "beat_block_hammer",
+            "task_instruction": "compile a bounded experimental fixture",
+            "template_id": contract["template_id"],
+            "capability_id": contract["taskgen"]["capability_id"],
+            "task_variant_id": contract["taskgen"]["task_variant_id"],
+            "capability_contract": contract,
+            "sub_aspect": contract["aspect"]["aspect_id"],
+            "aspect_id": contract["aspect"]["aspect_id"],
+            "route": taskgen_route(contract),
+            "variant_hint": contract["taskgen"]["changes"],
+            "execution": {
+                "backend": "act",
+                "seeds": [7],
+                "num_episodes": 1,
+                "gates": contract["required_gates"],
+            },
+            "tool_request": build_contract_tool_request(contract),
+            "vqa_phenomenon_ids": contract["vqa"]["phenomenon_ids"],
+        }
+        round_plan = materialize_round_proposals(
+            base_round, task_proposal, tool_proposal
+        )
+        with self.assertRaisesRegex(
+            ValueError, "disabled in the main Agent"
+        ):
+            build_taskgen_command(
+                Path("/repo"),
+                "eval_experimental_blocked",
+                round_plan,
+                text_model="text",
+                vision_model="vision",
+                base_url=None,
+                gpu=0,
+                max_reflections=1,
+            )
 
     def test_novel_task_proposal_uses_contract_as_envelope(self):
         contract = resolve_capability_contract(

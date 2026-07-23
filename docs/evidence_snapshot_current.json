@@ -13,16 +13,18 @@
       "source",
       "unit_and_integration_tests",
       "cached_real_replay",
+      "live_taskgen_acceptance_0_act",
+      "synthetic_protocol_smoke",
       "live_n1"
     ],
     "paper_table_eligible": false
   },
   "source_revision": {
     "canonical_repo": "/root/autodl-tmp/mea",
-    "base_head_before_batch": "13db03d48bad470b26b93a6ccd3f20bca3ad5865",
+    "base_head_before_batch": "23f4e4b28933b60e1ee5aceea791383d39987988",
     "validation_scope": "final_batch_worktree_before_signed_commit",
     "full_tests": {
-      "passed": 552,
+      "passed": 597,
       "failed": 0
     },
     "method_coverage_audit": {
@@ -36,7 +38,7 @@
       "interface_claims_total": 16,
       "published_report": "docs/evidence_runs/batch17_validation/method_coverage_report.json",
       "fresh_clone_recompute_requires_ignored_server_artifacts": true,
-      "interpretation": "interface_and_minimal_evidence_gate_only",
+      "interpretation": "legacy_16_item_interface_and_minimal_evidence_gate_only_not_updated_for_batch18",
       "not_evidence_of": [
         "query_semantic_sufficiency",
         "paper_scale_statistics",
@@ -48,6 +50,77 @@
       "feedback_finally_cleanup": true,
       "live_restart_validation": false,
       "reason": "v4 completed without whole-round recovery or restart"
+    }
+  },
+  "batch18_contracts": {
+    "compact_bundle": "docs/evidence_runs/batch18_contracts",
+    "query_sufficiency": {
+      "mode": "cached_offline_0_act",
+      "source_evaluation": "eval_20260723_batch17_clean_head_click_live_n1_v4",
+      "claim_type": "universal",
+      "candidate_universe": [
+        "object_position.left_fixed",
+        "object_position.right_fixed",
+        "object_instance.base0",
+        "object_instance.base1"
+      ],
+      "round_budget": 3,
+      "completed_rounds": 2,
+      "budget_remaining": 1,
+      "verdict": "inconclusive",
+      "stop_reason": "continue",
+      "untested": [
+        "object_position.right_fixed",
+        "object_instance.base1"
+      ],
+      "live_planner_changed": false,
+      "provider_calls": 0,
+      "simulator_calls": 0,
+      "act_starts": 0
+    },
+    "answer_scope": {
+      "mode": "cached_projection",
+      "sample_count": 2,
+      "seeds": [
+        100502
+      ],
+      "termination": "continue",
+      "claim_verdict": "inconclusive",
+      "untested_count": 2,
+      "unsupported_capability_count": 5,
+      "new_act_starts": 0
+    },
+    "experimental_taskgen_v2": {
+      "run_id": "run_20260723_batch18_p2_experimental_bbh_v2_final",
+      "task_name": "beat_block_hammer",
+      "aspect_id": "object_appearance.color",
+      "status": "accepted",
+      "scope": "task_generation_only_no_act",
+      "provider_calls": 3,
+      "simulator_probes": 2,
+      "expert_probes": 1,
+      "act_starts": 0,
+      "setup_render_rule_expert": "passed",
+      "act_runtime_eligible": false,
+      "act_gate_authority": "rebuilt_TaskArtifactBundle.success_semantics.act_runtime_eligible",
+      "policy_performance_evidence": false
+    },
+    "matched_efficiency": {
+      "evidence_source": "synthetic_fixture",
+      "truth_tables": [
+        "fixed_2_adaptive_1",
+        "fixed_2_adaptive_2_zero_savings"
+      ],
+      "empirical_policy_claim_eligible": false,
+      "paper_reference_configuration_met": false
+    },
+    "independent_validity": {
+      "evidence_source": "synthetic_fixture",
+      "rater_count": 3,
+      "declared_human_consensus_item_count": 0,
+      "development_agent_is_human_gold": false,
+      "paper_reference_configuration_met": false,
+      "empirical_validity_claim_eligible": false
     }
   },
   "reviewed_task_reuse": {
@@ -237,6 +310,7 @@
   },
   "development_act_accounting": {
     "batch_new_act_starts": 4,
+    "batch18_new_act_starts": 0,
     "components": {
       "reviewed_bbh_reuse": 1,
       "clean_head_v2": 1,
@@ -252,11 +326,15 @@
       "partial_query_routes_supported_subset_and_preserves_task_qualified_gaps",
       "reviewed_generated_task_exact_reuse_with_pre_act_acceptance",
       "clean_head_real_evidence_changes_next_aspect_in_one_completed_two_round_run",
-      "rule_vqa_aggregate_planner_pipeline_completed_for_two_n1_rounds"
+      "rule_vqa_aggregate_planner_pipeline_completed_for_two_n1_rounds",
+      "offline_finite_query_sufficiency_contract_replays_cached_real_evidence",
+      "answer_scope_fail_closed_limitations_are_wired_into_feedback_source",
+      "public_experimental_taskproposal_v2_completed_real_taskgen_expert_acceptance_with_zero_act",
+      "matched_efficiency_and_independent_validity_protocols_have_synthetic_functional_smokes"
     ],
     "not_supported": [
       "broad_click_bell_property_generalization",
-      "query_conditioned_evidence_sufficiency",
+      "live_query_conditioned_evidence_sufficiency_and_stopping",
       "adaptive_sampling_savings",
       "paper_benchmark_conclusion_consistency",
       "proposal_derived_successspec_v2_live_act",
@@ -268,20 +346,22 @@
   "next_gaps_ranked": [
     {
       "rank": 1,
-      "gap": "query_conditioned_evidence_sufficiency",
-      "minimum_next_step": "decouple_candidate_universe_required_coverage_budget_cap_and_test_query_quantifiers_with_cached_evidence",
-      "initial_act_budget": 0
+      "gap": "single_hash_bound_query_evidence_stop_answer_comparison_chain",
+      "minimum_next_step": "bind_query_checkpoint_full_routed_suite_budget_unsupported_axes_candidate_evidence_p1_stop_p4_answer_and_p3_comparison_then_replay_v4",
+      "initial_act_budget": 0,
+      "followup_act_budget": "1_to_2"
     },
     {
       "rank": 2,
-      "gap": "public_proposal_to_successspec_v2",
-      "minimum_next_step": "proposal_derived_scene_and_oracle_bounded_success_semantics_with_positive_negative_fixtures",
-      "initial_act_budget": 0
+      "gap": "official_experimental_dual_channel_runtime",
+      "minimum_next_step": "compute_official_and_compiled_experimental_outcomes_as_separately_named_authorities_on_cached_telemetry_before_one_act",
+      "initial_act_budget": 0,
+      "followup_act_budget": 1
     },
     {
       "rank": 3,
       "gap": "adaptive_vs_fixed_efficiency_and_conclusion_consistency",
-      "minimum_next_step": "preregister_same_query_seed_checkpoint_max_budget_and_sufficiency_contract_then_run_n1_before_n3"
+      "minimum_next_step": "run_a_real_matched_n1_pair_whose_stopping_and_conclusion_are_derived_from_the_same_p1_assessment_before_scaling_to_five_trials_and_ten_agent_runs"
     },
     {
       "rank": 4,

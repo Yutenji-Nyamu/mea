@@ -10,6 +10,7 @@ from mea.proposal_agent import (
     build_proposal_prompt,
 )
 from mea.capability_adapter import resolve_capability_contract
+from mea.taskgen.success_spec import experimental_bbh_success_spec_v2
 
 
 class FakeProvider:
@@ -38,6 +39,195 @@ def _catalog(root: Path) -> dict:
 
 
 class ProposalAgentTests(unittest.TestCase):
+    @staticmethod
+    def _experimental_bbh_bundle() -> dict:
+        return {
+            "schema_version": 1,
+            "task_proposal": {
+                "schema_version": 2,
+                "proposal_id": "object_appearance.query_purple_experimental",
+                "task_name": "beat_block_hammer",
+                "aspect_id": "object_appearance.color",
+                "intent": (
+                    "evaluate a purple block under a separately labeled bounded "
+                    "experimental success threshold"
+                ),
+                "capability_id": "object_appearance.color",
+                "reuse_first": True,
+                "changes": {
+                    "block": {
+                        "position_mode": "official_random",
+                        "yaw_mode": "official_random",
+                        "scale": 1.0,
+                        "color": [0.25, 0.25, 0.75],
+                    }
+                },
+                "preserve_success_semantics": False,
+                "success_spec": experimental_bbh_success_spec_v2(
+                    thresholds_m=(0.025, 0.025)
+                ),
+            },
+            "tool_proposal": {
+                "schema_version": 2,
+                "proposal_id": (
+                    "object_appearance.query_purple_experimental.tool"
+                ),
+                "task_name": "beat_block_hammer",
+                "aspect_id": "object_appearance.color",
+                "evaluation_goal": (
+                    "measure contact and visible behavior without relabeling "
+                    "experimental success as official"
+                ),
+                "metric": "hammer_block_contact_ever",
+                "question": "Did strict hammer-block contact occur?",
+                "vqa_phenomenon_ids": [
+                    "block_visibly_displaced",
+                    "run_local.beat_block_hammer.object_appearance_color."
+                    "query_observation",
+                ],
+                "vqa_question_specs": [
+                    {
+                        "id": (
+                            "run_local.beat_block_hammer.object_appearance_color."
+                            "query_observation"
+                        ),
+                        "question_type": "visible_state_change",
+                        "target_role": "task_target",
+                        "question": (
+                            "Does the rollout visibly show the robot making "
+                            "task-relevant progress under the query-generated "
+                            "variation?"
+                        ),
+                        "visual_scope": "rollout_change",
+                        "numeric_authority": "no_numeric_oracle",
+                    }
+                ],
+                "reuse_first": True,
+            },
+        }
+
+    def test_explicit_bbh_capability_mode_emits_v2_scene_and_success_contract(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = BoundTaskPlanSession.from_catalog(
+                _catalog(root), "beat_block_hammer", max_rounds=1
+            ).target
+            provider = FakeProvider(self._experimental_bbh_bundle())
+            result = BoundedProposalAgent(
+                provider, model="fake-model"
+            ).propose(
+                (
+                    "How does the ACT policy behave on a novel block appearance "
+                    "when evaluated with a bounded 2.5 cm experimental tolerance?"
+                ),
+                target=target,
+                aspect_id="object_appearance.color",
+                base_template_id="object_appearance.color_blue",
+                capability_mode="experimental_success_bounded",
+            )
+
+            task = result["task_proposal"]
+            self.assertEqual(task["schema_version"], 2)
+            self.assertFalse(task["preserve_success_semantics"])
+            self.assertEqual(
+                task["changes"]["block"]["color"], [0.25, 0.25, 0.75]
+            )
+            comparison = result["success_semantics_comparison"]
+            self.assertEqual(comparison["selected_track"], "experimental")
+            self.assertEqual(
+                comparison["official"]["execution_authority"],
+                "official_check_success",
+            )
+            self.assertIsNone(comparison["official"]["result"])
+            self.assertEqual(
+                comparison["experimental"]["execution_authority"],
+                "compiled_success_spec_experimental_bounded",
+            )
+            self.assertIsNone(comparison["experimental"]["result"])
+            self.assertFalse(
+                comparison["experimental"]["act_runtime_eligible"]
+            )
+            self.assertNotEqual(
+                comparison["official"]["success_spec"],
+                comparison["experimental"]["success_spec"],
+            )
+            prompt = provider.calls[0][0]
+            self.assertIn("TaskProposal v2", prompt)
+            self.assertIn(
+                "compiled_success_spec_experimental_bounded", prompt
+            )
+            self.assertIn(
+                "never describe the experimental predicate as official success",
+                prompt,
+            )
+
+    def test_v2_is_rejected_without_explicit_experimental_capability_mode(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = BoundTaskPlanSession.from_catalog(
+                _catalog(root), "beat_block_hammer", max_rounds=1
+            ).target
+            with self.assertRaisesRegex(
+                ProposalAgentError,
+                "TaskProposal v2 is disabled without the explicit experimental",
+            ):
+                BoundedProposalAgent(
+                    FakeProvider(self._experimental_bbh_bundle()),
+                    model="fake-model",
+                ).propose(
+                    "Does block appearance affect this checkpoint?",
+                    target=target,
+                    aspect_id="object_appearance.color",
+                    base_template_id="object_appearance.color_blue",
+                    capability_mode="registered_reuse",
+                )
+
+    def test_experimental_mode_rejects_scene_and_schema_expansion(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = BoundTaskPlanSession.from_catalog(
+                _catalog(root), "beat_block_hammer", max_rounds=1
+            ).target
+            extra_scene_field = self._experimental_bbh_bundle()
+            extra_scene_field["task_proposal"]["changes"]["block"]["mass"] = 1.0
+            v1_success = self._experimental_bbh_bundle()
+            v1_success["task_proposal"]["schema_version"] = 1
+            v1_success["task_proposal"]["preserve_success_semantics"] = True
+            del v1_success["task_proposal"]["success_spec"]
+            cases = (
+                (extra_scene_field, "changes.block fields must be exactly"),
+                (v1_success, "requires TaskProposal v2"),
+            )
+            for value, message in cases:
+                with self.subTest(message=message):
+                    with self.assertRaisesRegex(ProposalAgentError, message):
+                        BoundedProposalAgent(
+                            FakeProvider(value), model="fake-model"
+                        ).propose(
+                            "Use the bounded experimental criterion.",
+                            target=target,
+                            aspect_id="object_appearance.color",
+                            base_template_id="object_appearance.color_blue",
+                            capability_mode="experimental_success_bounded",
+                        )
+
+    def test_experimental_success_mode_is_rejected_outside_bbh_color_codegen(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = BoundTaskPlanSession.from_catalog(
+                _catalog(root), "click_bell", max_rounds=1
+            ).target
+            with self.assertRaisesRegex(
+                ProposalAgentError,
+                "capability-gated to beat_block_hammer/object_appearance.color",
+            ):
+                build_proposal_prompt(
+                    "Use an experimental success criterion.",
+                    target,
+                    "object_position",
+                    capability_mode="experimental_success_bounded",
+                )
+
     def test_v3_can_propose_a_new_typed_metric_inside_bound_task(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

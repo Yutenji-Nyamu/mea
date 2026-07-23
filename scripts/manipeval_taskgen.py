@@ -52,8 +52,10 @@ from mea.taskgen import (
 )
 from mea.taskgen.resolver import TaskResolutionError, resolve_task_proposal
 from mea.taskgen.production_acceptance import (
+    ProductionTaskAcceptanceError,
     record_production_task_acceptance,
     require_production_task_acceptance,
+    require_task_artifact_act_runtime_eligible,
 )
 from mea.taskgen.reflection import protected_hashes
 from mea.taskgen.reviewed_registry import (
@@ -180,9 +182,12 @@ def task_artifact_summary(bundle: Mapping[str, Any]) -> dict[str, Any]:
         "success_origin": bundle.get("success_method", {}).get("origin"),
         "success_semantics_preserved": bool(semantics.get("preserved")),
         "success_official_equivalent": not experimental,
-        "success_act_eligible": True,
+        "success_compiler_eligible": True,
+        "success_act_eligible": not experimental,
         "success_execution_scope": (
-            "experimental_bounded_act" if experimental else "official_equivalent"
+            "experimental_bounded_probe_only"
+            if experimental
+            else "official_equivalent"
         ),
     }
 
@@ -362,6 +367,9 @@ def prepare_planner_capability_binding(
             ),
             changes=(proposal["changes"] if proposal is not None else taskgen["changes"]),
             generation_mode=taskgen["generation_mode"],
+            preserve_success_semantics=not (
+                proposal is not None and proposal["schema_version"] == 2
+            ),
         )
     except ValueError as exc:
         raise RuntimeError(f"planner capability cannot build VariantSpec: {exc}") from exc
@@ -2091,6 +2099,14 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--run-act", action="store_true")
     parser.add_argument(
+        "--accept-task-only",
+        action="store_true",
+        help=(
+            "Run the expert TaskGen gate and persist production Task acceptance "
+            "without starting ACT."
+        ),
+    )
+    parser.add_argument(
         "--registration-identity-json",
         help="Parent Agent registration identity propagated to child/episode artifacts.",
     )
@@ -2109,6 +2125,10 @@ def main() -> None:
         raise SystemExit(
             "--success-spec-fixture requires a fresh beat_block_hammer force_codegen run"
         )
+    if args.accept_task_only and args.run_act:
+        raise SystemExit("--accept-task-only cannot be combined with --run-act")
+    if args.accept_task_only and not args.expert:
+        raise SystemExit("--accept-task-only requires --expert")
     repo_root = args.repo_root.expanduser().resolve()
     registration_identity: dict[str, Any] | None = None
     if args.registration_identity_json is not None:
@@ -2131,6 +2151,11 @@ def main() -> None:
             )
         except (json.JSONDecodeError, ProposalError) as exc:
             raise SystemExit(f"invalid --task-proposal-json: {exc}") from exc
+        if args.run_act and task_proposal.get("schema_version") == 2:
+            raise SystemExit(
+                "experimental TaskProposal v2 is 0-ACT only: main ACT outcome "
+                "labeling does not yet separate official and experimental success"
+            )
 
     reviewed_task_registry = (
         args.reviewed_task_registry.expanduser().resolve()
@@ -2413,27 +2438,47 @@ def main() -> None:
             registration_identity=registration_identity,
         )
 
-    requested_execution_backend = (
-        (
-            "both"
-            if args.expert and args.run_act
-            else "act"
-            if args.run_act
-            else "expert"
-            if args.expert
-            else "setup_probe"
+    manifest_task_proposal = manifest.get("task_proposal")
+    if (
+        args.run_act
+        and isinstance(manifest_task_proposal, Mapping)
+        and manifest_task_proposal.get("schema_version") == 2
+    ):
+        raise SystemExit(
+            "experimental TaskProposal v2 is 0-ACT only: main ACT outcome "
+            "labeling does not yet separate official and experimental success"
         )
-        if manifest.get("mode") == "official"
-        else (
-            "expert+act"
-            if args.expert and args.run_act
-            else "expert_gate+act"
-            if args.run_act
-            else "expert"
-            if args.expert
-            else "setup_probe"
+
+    if args.run_act:
+        try:
+            require_task_artifact_act_runtime_eligible(run_dir, manifest)
+        except ProductionTaskAcceptanceError as exc:
+            raise SystemExit(f"TaskGen ACT runtime gate failed: {exc}") from exc
+
+    if args.accept_task_only:
+        requested_execution_backend = "expert+task_acceptance_no_act"
+    else:
+        requested_execution_backend = (
+            (
+                "both"
+                if args.expert and args.run_act
+                else "act"
+                if args.run_act
+                else "expert"
+                if args.expert
+                else "setup_probe"
+            )
+            if manifest.get("mode") == "official"
+            else (
+                "expert+act"
+                if args.expert and args.run_act
+                else "expert_gate+act"
+                if args.run_act
+                else "expert"
+                if args.expert
+                else "setup_probe"
+            )
         )
-    )
     update_manifest(
         run_dir,
         requested_execution_backend=requested_execution_backend,
@@ -2547,6 +2592,58 @@ def main() -> None:
             write_json(run_dir / "validation/scene.json", scene)
             update_manifest(run_dir, scene_validation=scene)
 
+        if args.accept_task_only:
+            manifest = json.loads(
+                (run_dir / "manifest.json").read_text(encoding="utf-8")
+            )
+            effective_task_resolution = task_resolution
+            task_resolution_path = run_dir / "generation/task_resolution.json"
+            if effective_task_resolution is None and task_resolution_path.is_file():
+                effective_task_resolution = json.loads(
+                    task_resolution_path.read_text(encoding="utf-8")
+                )
+            task_acceptance = record_production_task_acceptance(
+                run_dir,
+                manifest,
+                scene=scene,
+                position_samples=None,
+                task_resolution=effective_task_resolution,
+                require_expert=True,
+            )
+            bundle = json.loads(
+                (
+                    run_dir / "generation/task_artifact_bundle.json"
+                ).read_text(encoding="utf-8")
+            )
+            semantics = bundle.get("success_semantics")
+            act_runtime_eligible = not (
+                isinstance(semantics, Mapping)
+                and semantics.get("act_runtime_eligible") is False
+            )
+            update_manifest(
+                run_dir,
+                task_generation_acceptance={
+                    "status": task_acceptance["status"],
+                    "scope": "task_generation_only_no_act",
+                    "artifact": (
+                        "validation/task_generation_attempts/"
+                        "task_generation_attempt_summary.json"
+                    ),
+                    "act_rollouts_started_before_acceptance": task_acceptance[
+                        "runtime"
+                    ]["act_rollouts_started"],
+                    "act_runtime_eligible": act_runtime_eligible,
+                },
+            )
+            manifest = json.loads(
+                (run_dir / "manifest.json").read_text(encoding="utf-8")
+            )
+            require_production_task_acceptance(
+                run_dir,
+                manifest,
+                task_resolution=effective_task_resolution,
+            )
+
         if args.run_act:
             if manifest["task_name"] == "beat_block_hammer":
                 position_samples = collect_position_samples(
@@ -2621,6 +2718,7 @@ def main() -> None:
                 run_dir,
                 manifest,
                 task_resolution=effective_task_resolution,
+                for_act=True,
             )
             act = run_act(
                 repo_root,
@@ -2713,11 +2811,24 @@ def main() -> None:
                     bind_registration_to_episode_metadata(
                         run_dir, registration_identity
                     )
-                updates["trusted_tool_evaluation"] = evaluate_run_telemetry(
-                    repo_root,
-                    run_dir,
-                    manifest,
-                )
+                if (
+                    isinstance(manifest.get("task_proposal"), Mapping)
+                    and manifest["task_proposal"].get("schema_version") == 2
+                ):
+                    updates["trusted_tool_evaluation"] = {
+                        "status": "skipped",
+                        "reason": (
+                            "experimental check_success cannot enter the current "
+                            "official_check_success telemetry label"
+                        ),
+                        "act_runtime_eligible": False,
+                    }
+                else:
+                    updates["trusted_tool_evaluation"] = evaluate_run_telemetry(
+                        repo_root,
+                        run_dir,
+                        manifest,
+                    )
             update_manifest(run_dir, **updates)
     except Exception as exc:
         update_manifest(

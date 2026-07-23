@@ -21,7 +21,12 @@ from typing import Any, Mapping
 
 from mea.retrieval import KnowledgeRetriever, TaskRetriever
 from mea.taskgen.artifacts import write_task_artifact_bundle
-from mea.taskgen.capabilities import CapabilityError, build_variant_spec
+from mea.taskgen.capabilities import (
+    EXPERIMENTAL_SUCCESS_PRESERVE_MARKER,
+    CapabilityError,
+    build_variant_spec,
+    validate_variant_spec_envelope,
+)
 from mea.taskgen.success_spec import (
     SuccessSpecRepairError,
     compile_success_spec,
@@ -261,6 +266,16 @@ _validate_legacy_variant_spec = validate_variant_spec
 def validate_variant_spec(spec: dict[str, Any], task_name: str) -> dict[str, Any]:
     """Wrap task-specific BBH changes in the trusted VariantSpec v2 envelope."""
 
+    if spec.get("schema_version") == 2:
+        try:
+            normalized = validate_variant_spec_envelope(spec)
+        except CapabilityError as exc:
+            raise TaskGenError(str(exc)) from exc
+        if normalized["task_name"] != task_name:
+            raise TaskGenError(
+                "VariantSpec task_name differs from the bound TaskGen task"
+            )
+        return normalized
     legacy = _validate_legacy_variant_spec(spec, task_name)
     requested_capability = str(spec.get("capability_id") or "").strip()
     scale = legacy["changes"]["block"]["scale"]
@@ -640,6 +655,10 @@ class TaskGenPrototype:
                     )
             if variant_id is None:
                 variant_id = validated_task_proposal["proposal_id"]
+        proposal_preserves_success = not (
+            validated_task_proposal is not None
+            and validated_task_proposal["schema_version"] == 2
+        )
 
         trusted_spec: dict[str, Any] | None = None
         if trusted_variant_spec is not None:
@@ -652,6 +671,14 @@ class TaskGenPrototype:
                 raise TaskGenError(
                     "trusted VariantSpec variant_id differs from planner identity"
                 )
+            if (
+                EXPERIMENTAL_SUCCESS_PRESERVE_MARKER
+                in trusted_spec.get("preserve", [])
+                and proposal_preserves_success
+            ):
+                raise TaskGenError(
+                    "experimental SuccessSpec VariantSpec requires TaskProposal v2"
+                )
         elif validated_task_proposal is not None:
             try:
                 trusted_spec = build_variant_spec(
@@ -661,19 +688,31 @@ class TaskGenPrototype:
                     intent=validated_task_proposal["intent"],
                     changes=validated_task_proposal["changes"],
                     generation_mode=mode,
+                    preserve_success_semantics=proposal_preserves_success,
                 )
             except CapabilityError as exc:
                 raise TaskGenError(str(exc)) from exc
         if validated_task_proposal is not None and trusted_spec is not None:
+            expected_preserve = build_variant_spec(
+                task_name=task_name,
+                variant_id=validated_task_proposal["proposal_id"],
+                capability_id=validated_task_proposal["capability_id"],
+                intent=validated_task_proposal["intent"],
+                changes=validated_task_proposal["changes"],
+                generation_mode=mode,
+                preserve_success_semantics=proposal_preserves_success,
+            )["preserve"]
             if (
                 trusted_spec["variant_id"]
                 != validated_task_proposal["proposal_id"]
                 or trusted_spec["capability_id"]
                 != validated_task_proposal["capability_id"]
                 or trusted_spec["changes"] != validated_task_proposal["changes"]
+                or trusted_spec["preserve"] != expected_preserve
             ):
                 raise TaskGenError(
-                    "trusted VariantSpec differs from TaskProposal identity or changes"
+                    "trusted VariantSpec differs from TaskProposal identity, changes, "
+                    "or success-preservation contract"
                 )
 
         run_id = run_id or make_run_id()
@@ -755,6 +794,7 @@ class TaskGenPrototype:
                 intent=spec["intent"],
                 changes=spec["changes"],
                 generation_mode=spec["generation_mode"],
+                preserve_success_semantics=proposal_preserves_success,
             )
         if spec["generation_mode"] != mode:
             try:
@@ -765,6 +805,7 @@ class TaskGenPrototype:
                     intent=spec["intent"],
                     changes=spec["changes"],
                     generation_mode=mode,
+                    preserve_success_semantics=proposal_preserves_success,
                 )
             except CapabilityError as exc:
                 raise TaskGenError(str(exc)) from exc
@@ -831,11 +872,19 @@ class TaskGenPrototype:
                     else True
                 ),
                 "official_equivalent": success_validation["official_equivalent"],
-                "act_eligible": success_validation["act_eligible"],
+                "compiler_eligible": success_validation["act_eligible"],
+                "act_runtime_eligible": bool(
+                    success_validation["act_eligible"]
+                    and not success_validation["experimental_bounded"]
+                ),
                 "experimental_bounded": success_validation[
                     "experimental_bounded"
                 ],
-                "execution_scope": success_validation["execution_scope"],
+                "execution_scope": (
+                    "experimental_bounded_probe_only"
+                    if success_validation["experimental_bounded"]
+                    else success_validation["execution_scope"]
+                ),
                 "generated_by_model": False,
                 "compiler": success_validation["compiler"],
             }
@@ -975,12 +1024,22 @@ class TaskGenPrototype:
             "success_official_equivalent": validation.get(
                 "success_spec", {}
             ).get("official_equivalent", True),
-            "success_act_eligible": validation.get("success_spec", {}).get(
-                "act_eligible", True
+            "success_compiler_eligible": validation.get(
+                "success_spec", {}
+            ).get("act_eligible", True),
+            "success_act_eligible": bool(
+                validation.get("success_spec", {}).get("act_eligible", True)
+                and not validation.get("success_spec", {}).get(
+                    "experimental_bounded", False
+                )
             ),
             "success_execution_scope": validation.get(
                 "success_spec", {}
-            ).get("execution_scope", "official_equivalent"),
+            ).get("execution_scope", "official_equivalent")
+            if not validation.get("success_spec", {}).get(
+                "experimental_bounded", False
+            )
+            else "experimental_bounded_probe_only",
         }
         _write_json(run_dir / "manifest.json", manifest)
         return manifest

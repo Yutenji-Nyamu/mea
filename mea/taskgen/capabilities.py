@@ -15,6 +15,9 @@ class CapabilityError(ValueError):
     """Raised when a task capability or VariantSpec envelope is invalid."""
 
 
+EXPERIMENTAL_SUCCESS_PRESERVE_MARKER = "compiled_experimental_success_spec"
+
+
 TASK_CAPABILITIES: dict[str, dict[str, dict[str, Any]]] = {
     "beat_block_hammer": {
         "object_appearance.color": {
@@ -165,6 +168,7 @@ def build_variant_spec(
     intent: str,
     changes: Mapping[str, Any],
     generation_mode: str | None = None,
+    preserve_success_semantics: bool = True,
 ) -> dict[str, Any]:
     """Inject trusted capability fields around task-validated changes."""
 
@@ -231,6 +235,30 @@ def build_variant_spec(
         raise CapabilityError(
             f"generation mode {resolved_mode!r} is not allowed by {capability_id!r}"
         )
+    preserve = deepcopy(capability["preserve"])
+    if not preserve_success_semantics:
+        if not (
+            task_name == "beat_block_hammer"
+            and capability_id == "object_appearance.color"
+            and resolved_mode == "force_codegen"
+        ):
+            raise CapabilityError(
+                "replacement SuccessSpec VariantSpec is capability-gated to "
+                "beat_block_hammer/object_appearance.color force_codegen"
+            )
+        if "check_success" not in preserve:
+            raise CapabilityError(
+                "experimental SuccessSpec capability lacks official check_success "
+                "preservation marker"
+            )
+        preserve = [
+            (
+                EXPERIMENTAL_SUCCESS_PRESERVE_MARKER
+                if item == "check_success"
+                else item
+            )
+            for item in preserve
+        ]
     return {
         "schema_version": 2,
         "task_name": str(task_name),
@@ -240,7 +268,7 @@ def build_variant_spec(
         "controlled_axis": capability["controlled_axis"],
         "generation_mode": resolved_mode,
         "changes": deepcopy(dict(changes)),
-        "preserve": deepcopy(capability["preserve"]),
+        "preserve": preserve,
     }
 
 
@@ -262,6 +290,11 @@ def validate_variant_spec_envelope(spec: Mapping[str, Any]) -> dict[str, Any]:
         )
     if spec.get("schema_version") != 2:
         raise CapabilityError("VariantSpec schema_version must be 2")
+    raw_preserve = spec.get("preserve")
+    experimental_success = (
+        isinstance(raw_preserve, list)
+        and EXPERIMENTAL_SUCCESS_PRESERVE_MARKER in raw_preserve
+    )
     expected = build_variant_spec(
         task_name=str(spec.get("task_name")),
         variant_id=str(spec.get("variant_id") or ""),
@@ -269,6 +302,7 @@ def validate_variant_spec_envelope(spec: Mapping[str, Any]) -> dict[str, Any]:
         intent=str(spec.get("intent") or ""),
         changes=spec.get("changes") if isinstance(spec.get("changes"), Mapping) else {},
         generation_mode=str(spec.get("generation_mode") or ""),
+        preserve_success_semantics=not experimental_success,
     )
     if dict(spec) != expected:
         raise CapabilityError(

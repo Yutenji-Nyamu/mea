@@ -1,0 +1,588 @@
+{
+  "schema_version": 1,
+  "mode": "synthetic_functional_demonstration",
+  "preregistration": {
+    "schema_version": 1,
+    "protocol": "matched_fixed_adaptive_efficiency_v1",
+    "study_id": "synthetic_matched_protocol_smoke",
+    "matched_fields": [
+      "query",
+      "checkpoint",
+      "candidate_suite",
+      "seeds",
+      "max_budget",
+      "sufficiency_contract"
+    ],
+    "arms": {
+      "fixed": {
+        "strategy": "fixed_predeclared_v1",
+        "query": "Does the policy generalize across the frozen candidate suite?",
+        "query_sha256": "9bc7ba0552aa489092b6864d54de9934a7f04802a0a039c8f0fc5aff58a2a1c4",
+        "checkpoint": {
+          "checkpoint_id": "synthetic_act_checkpoint",
+          "artifact_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "candidate_suite": [
+          "position_left",
+          "instance_base0"
+        ],
+        "seeds": [
+          100502
+        ],
+        "max_budget": {
+          "act_episode_starts": 2,
+          "expert_starts": 2,
+          "probe_starts": 2,
+          "provider_retries": 4,
+          "wall_seconds": 120.0
+        },
+        "sufficiency_contract": {
+          "schema_version": 1,
+          "claim_type": "existential",
+          "candidate_universe": [
+            "position_left",
+            "instance_base0"
+          ],
+          "required_coverage": {
+            "candidate_ids": [
+              "position_left",
+              "instance_base0"
+            ],
+            "minimum_evaluated": 2,
+            "minimum_per_group": null
+          },
+          "round_budget": 2,
+          "comparison_groups": null
+        },
+        "sufficiency_contract_sha256": "46f98d4f0d05b10cf235219f2e37b0fcc583d151288521f06f0f82b0ce0be021"
+      },
+      "adaptive": {
+        "strategy": "adaptive_query_sufficiency_v1",
+        "query": "Does the policy generalize across the frozen candidate suite?",
+        "query_sha256": "9bc7ba0552aa489092b6864d54de9934a7f04802a0a039c8f0fc5aff58a2a1c4",
+        "checkpoint": {
+          "checkpoint_id": "synthetic_act_checkpoint",
+          "artifact_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "candidate_suite": [
+          "position_left",
+          "instance_base0"
+        ],
+        "seeds": [
+          100502
+        ],
+        "max_budget": {
+          "act_episode_starts": 2,
+          "expert_starts": 2,
+          "probe_starts": 2,
+          "provider_retries": 4,
+          "wall_seconds": 120.0
+        },
+        "sufficiency_contract": {
+          "schema_version": 1,
+          "claim_type": "existential",
+          "candidate_universe": [
+            "position_left",
+            "instance_base0"
+          ],
+          "required_coverage": {
+            "candidate_ids": [
+              "position_left",
+              "instance_base0"
+            ],
+            "minimum_evaluated": 2,
+            "minimum_per_group": null
+          },
+          "round_budget": 2,
+          "comparison_groups": null
+        },
+        "sufficiency_contract_sha256": "46f98d4f0d05b10cf235219f2e37b0fcc583d151288521f06f0f82b0ce0be021"
+      }
+    },
+    "preregistration_sha256": "87061f61af3edd1aae368de7c2b2e47ce0b6f49a7609e73e5148eebca217c379"
+  },
+  "scenarios": {
+    "adaptive_one_vs_fixed_two": {
+      "schema_version": 1,
+      "protocol": "matched_fixed_adaptive_efficiency_v1",
+      "study_id": "synthetic_matched_protocol_smoke",
+      "mode": "artifact_only_no_execution",
+      "calls_started_by_comparison": {
+        "provider": 0,
+        "simulator": 0,
+        "expert": 0,
+        "probe": 0,
+        "act": 0
+      },
+      "preregistration_sha256": "87061f61af3edd1aae368de7c2b2e47ce0b6f49a7609e73e5148eebca217c379",
+      "matched_identity": {
+        "query": "Does the policy generalize across the frozen candidate suite?",
+        "checkpoint": {
+          "checkpoint_id": "synthetic_act_checkpoint",
+          "artifact_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "candidate_suite": [
+          "position_left",
+          "instance_base0"
+        ],
+        "seeds": [
+          100502
+        ],
+        "max_budget": {
+          "act_episode_starts": 2,
+          "expert_starts": 2,
+          "probe_starts": 2,
+          "provider_retries": 4,
+          "wall_seconds": 120.0
+        },
+        "sufficiency_contract": {
+          "schema_version": 1,
+          "claim_type": "existential",
+          "candidate_universe": [
+            "position_left",
+            "instance_base0"
+          ],
+          "required_coverage": {
+            "candidate_ids": [
+              "position_left",
+              "instance_base0"
+            ],
+            "minimum_evaluated": 2,
+            "minimum_per_group": null
+          },
+          "round_budget": 2,
+          "comparison_groups": null
+        }
+      },
+      "sufficiency_contract_sha256": "46f98d4f0d05b10cf235219f2e37b0fcc583d151288521f06f0f82b0ce0be021",
+      "evidence_source": "synthetic_fixture",
+      "arms": {
+        "fixed": {
+          "strategy": "fixed_predeclared_v1",
+          "preregistration_sha256": "87061f61af3edd1aae368de7c2b2e47ce0b6f49a7609e73e5148eebca217c379",
+          "status": "completed",
+          "evidence_source": "synthetic_fixture",
+          "observations": [
+            {
+              "candidate_id": "position_left",
+              "seed": 100502,
+              "evidence": {
+                "synthetic_success": true
+              }
+            },
+            {
+              "candidate_id": "instance_base0",
+              "seed": 100502,
+              "evidence": {
+                "synthetic_success": true
+              }
+            }
+          ],
+          "resource_usage": {
+            "act_episode_starts": 2,
+            "completed_policy_trials": 2,
+            "policy_steps": 20,
+            "expert_starts": 2,
+            "probe_starts": 2,
+            "provider_logical_calls": 6,
+            "provider_transport_attempts": 7,
+            "wall_seconds": 20.0,
+            "provider_retries": 1
+          },
+          "stopping": {
+            "reason": "fixed_suite_complete",
+            "sufficiency_met": true
+          },
+          "conclusion": {
+            "query_sha256": "9bc7ba0552aa489092b6864d54de9934a7f04802a0a039c8f0fc5aff58a2a1c4",
+            "conclusion_key": "supported_frozen_suite_smoke",
+            "verdict": "supported_in_tested_scope",
+            "answer": "Synthetic evidence supports only the fixture conclusion.",
+            "limitations": [
+              "Synthetic fixture; no policy rollout was executed."
+            ]
+          }
+        },
+        "adaptive": {
+          "strategy": "adaptive_query_sufficiency_v1",
+          "preregistration_sha256": "87061f61af3edd1aae368de7c2b2e47ce0b6f49a7609e73e5148eebca217c379",
+          "status": "completed",
+          "evidence_source": "synthetic_fixture",
+          "observations": [
+            {
+              "candidate_id": "position_left",
+              "seed": 100502,
+              "evidence": {
+                "synthetic_success": true
+              }
+            }
+          ],
+          "resource_usage": {
+            "act_episode_starts": 1,
+            "completed_policy_trials": 1,
+            "policy_steps": 10,
+            "expert_starts": 1,
+            "probe_starts": 1,
+            "provider_logical_calls": 3,
+            "provider_transport_attempts": 4,
+            "wall_seconds": 11.0,
+            "provider_retries": 1
+          },
+          "stopping": {
+            "reason": "sufficiency_reached",
+            "sufficiency_met": true
+          },
+          "conclusion": {
+            "query_sha256": "9bc7ba0552aa489092b6864d54de9934a7f04802a0a039c8f0fc5aff58a2a1c4",
+            "conclusion_key": "supported_frozen_suite_smoke",
+            "verdict": "supported_in_tested_scope",
+            "answer": "Synthetic evidence supports only the fixture conclusion.",
+            "limitations": [
+              "Synthetic fixture; no policy rollout was executed."
+            ]
+          }
+        }
+      },
+      "resource_comparison": {
+        "act_episode_starts": {
+          "fixed": 2,
+          "adaptive": 1,
+          "fixed_minus_adaptive": 1
+        },
+        "completed_policy_trials": {
+          "fixed": 2,
+          "adaptive": 1,
+          "fixed_minus_adaptive": 1
+        },
+        "policy_steps": {
+          "fixed": 20,
+          "adaptive": 10,
+          "fixed_minus_adaptive": 10
+        },
+        "expert_starts": {
+          "fixed": 2,
+          "adaptive": 1,
+          "fixed_minus_adaptive": 1
+        },
+        "probe_starts": {
+          "fixed": 2,
+          "adaptive": 1,
+          "fixed_minus_adaptive": 1
+        },
+        "provider_logical_calls": {
+          "fixed": 6,
+          "adaptive": 3,
+          "fixed_minus_adaptive": 3
+        },
+        "provider_transport_attempts": {
+          "fixed": 7,
+          "adaptive": 4,
+          "fixed_minus_adaptive": 3
+        },
+        "provider_retries": {
+          "fixed": 1,
+          "adaptive": 1,
+          "fixed_minus_adaptive": 0
+        },
+        "wall_seconds": {
+          "fixed": 20.0,
+          "adaptive": 11.0,
+          "fixed_minus_adaptive": 9.0
+        }
+      },
+      "original_query_conclusion": {
+        "comparison_fields": [
+          "conclusion_key",
+          "verdict"
+        ],
+        "agrees": true,
+        "fixed": {
+          "conclusion_key": "supported_frozen_suite_smoke",
+          "verdict": "supported_in_tested_scope"
+        },
+        "adaptive": {
+          "conclusion_key": "supported_frozen_suite_smoke",
+          "verdict": "supported_in_tested_scope"
+        }
+      },
+      "act_start_savings": 1,
+      "adaptive_used_fewer_act_episode_starts": true,
+      "zero_act_savings": false,
+      "efficiency_pattern_passed": true,
+      "empirical_policy_claim_eligible": false,
+      "empirical_policy_claim_ineligible_reason": "synthetic_fixture",
+      "paper_table_eligible": false,
+      "paper_reference_configuration": {
+        "constructed_task_trials_per_task": 5,
+        "agent_runs": 10,
+        "source": "paper_appendix_A.1.1_and_tables_2_5"
+      },
+      "paper_reference_configuration_met": false,
+      "resource_semantics": {
+        "act_episode_starts": "episode start attempts, including attempts that may not complete",
+        "completed_policy_trials": "completed policy episodes",
+        "evaluation_samples": "unique frozen candidate-by-seed observations; derived separately",
+        "policy_steps": "recorded ACT inference steps",
+        "paper_reported_sample_count": "not inferred from episode starts, completed trials, or policy steps"
+      },
+      "evaluation_samples": {
+        "fixed": 2,
+        "adaptive": 1
+      },
+      "paper_reported_sample_count": null,
+      "limitations": [
+        "Synthetic fixtures validate protocol logic only; they are not policy-performance or sampling-efficiency evidence.",
+        "A resource saving is not conclusion-preserving unless the original Query conclusion agrees.",
+        "Starts and provider retries are reported separately from successful completions.",
+        "This pair does not satisfy the paper target of five trials per constructed task and ten agent runs.",
+        "Paper sample count is not silently equated with ACT episode starts or policy steps.",
+        "This minimal pair is not a paper-table reproduction."
+      ]
+    },
+    "adaptive_two_vs_fixed_two_zero_savings": {
+      "schema_version": 1,
+      "protocol": "matched_fixed_adaptive_efficiency_v1",
+      "study_id": "synthetic_matched_protocol_smoke",
+      "mode": "artifact_only_no_execution",
+      "calls_started_by_comparison": {
+        "provider": 0,
+        "simulator": 0,
+        "expert": 0,
+        "probe": 0,
+        "act": 0
+      },
+      "preregistration_sha256": "87061f61af3edd1aae368de7c2b2e47ce0b6f49a7609e73e5148eebca217c379",
+      "matched_identity": {
+        "query": "Does the policy generalize across the frozen candidate suite?",
+        "checkpoint": {
+          "checkpoint_id": "synthetic_act_checkpoint",
+          "artifact_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "candidate_suite": [
+          "position_left",
+          "instance_base0"
+        ],
+        "seeds": [
+          100502
+        ],
+        "max_budget": {
+          "act_episode_starts": 2,
+          "expert_starts": 2,
+          "probe_starts": 2,
+          "provider_retries": 4,
+          "wall_seconds": 120.0
+        },
+        "sufficiency_contract": {
+          "schema_version": 1,
+          "claim_type": "existential",
+          "candidate_universe": [
+            "position_left",
+            "instance_base0"
+          ],
+          "required_coverage": {
+            "candidate_ids": [
+              "position_left",
+              "instance_base0"
+            ],
+            "minimum_evaluated": 2,
+            "minimum_per_group": null
+          },
+          "round_budget": 2,
+          "comparison_groups": null
+        }
+      },
+      "sufficiency_contract_sha256": "46f98d4f0d05b10cf235219f2e37b0fcc583d151288521f06f0f82b0ce0be021",
+      "evidence_source": "synthetic_fixture",
+      "arms": {
+        "fixed": {
+          "strategy": "fixed_predeclared_v1",
+          "preregistration_sha256": "87061f61af3edd1aae368de7c2b2e47ce0b6f49a7609e73e5148eebca217c379",
+          "status": "completed",
+          "evidence_source": "synthetic_fixture",
+          "observations": [
+            {
+              "candidate_id": "position_left",
+              "seed": 100502,
+              "evidence": {
+                "synthetic_success": true
+              }
+            },
+            {
+              "candidate_id": "instance_base0",
+              "seed": 100502,
+              "evidence": {
+                "synthetic_success": true
+              }
+            }
+          ],
+          "resource_usage": {
+            "act_episode_starts": 2,
+            "completed_policy_trials": 2,
+            "policy_steps": 20,
+            "expert_starts": 2,
+            "probe_starts": 2,
+            "provider_logical_calls": 6,
+            "provider_transport_attempts": 7,
+            "wall_seconds": 20.0,
+            "provider_retries": 1
+          },
+          "stopping": {
+            "reason": "fixed_suite_complete",
+            "sufficiency_met": true
+          },
+          "conclusion": {
+            "query_sha256": "9bc7ba0552aa489092b6864d54de9934a7f04802a0a039c8f0fc5aff58a2a1c4",
+            "conclusion_key": "supported_frozen_suite_smoke",
+            "verdict": "supported_in_tested_scope",
+            "answer": "Synthetic evidence supports only the fixture conclusion.",
+            "limitations": [
+              "Synthetic fixture; no policy rollout was executed."
+            ]
+          }
+        },
+        "adaptive": {
+          "strategy": "adaptive_query_sufficiency_v1",
+          "preregistration_sha256": "87061f61af3edd1aae368de7c2b2e47ce0b6f49a7609e73e5148eebca217c379",
+          "status": "completed",
+          "evidence_source": "synthetic_fixture",
+          "observations": [
+            {
+              "candidate_id": "position_left",
+              "seed": 100502,
+              "evidence": {
+                "synthetic_success": true
+              }
+            },
+            {
+              "candidate_id": "instance_base0",
+              "seed": 100502,
+              "evidence": {
+                "synthetic_success": true
+              }
+            }
+          ],
+          "resource_usage": {
+            "act_episode_starts": 2,
+            "completed_policy_trials": 2,
+            "policy_steps": 20,
+            "expert_starts": 2,
+            "probe_starts": 2,
+            "provider_logical_calls": 6,
+            "provider_transport_attempts": 7,
+            "wall_seconds": 21.0,
+            "provider_retries": 1
+          },
+          "stopping": {
+            "reason": "sufficiency_reached",
+            "sufficiency_met": true
+          },
+          "conclusion": {
+            "query_sha256": "9bc7ba0552aa489092b6864d54de9934a7f04802a0a039c8f0fc5aff58a2a1c4",
+            "conclusion_key": "supported_frozen_suite_smoke",
+            "verdict": "supported_in_tested_scope",
+            "answer": "Synthetic evidence supports only the fixture conclusion.",
+            "limitations": [
+              "Synthetic fixture; no policy rollout was executed."
+            ]
+          }
+        }
+      },
+      "resource_comparison": {
+        "act_episode_starts": {
+          "fixed": 2,
+          "adaptive": 2,
+          "fixed_minus_adaptive": 0
+        },
+        "completed_policy_trials": {
+          "fixed": 2,
+          "adaptive": 2,
+          "fixed_minus_adaptive": 0
+        },
+        "policy_steps": {
+          "fixed": 20,
+          "adaptive": 20,
+          "fixed_minus_adaptive": 0
+        },
+        "expert_starts": {
+          "fixed": 2,
+          "adaptive": 2,
+          "fixed_minus_adaptive": 0
+        },
+        "probe_starts": {
+          "fixed": 2,
+          "adaptive": 2,
+          "fixed_minus_adaptive": 0
+        },
+        "provider_logical_calls": {
+          "fixed": 6,
+          "adaptive": 6,
+          "fixed_minus_adaptive": 0
+        },
+        "provider_transport_attempts": {
+          "fixed": 7,
+          "adaptive": 7,
+          "fixed_minus_adaptive": 0
+        },
+        "provider_retries": {
+          "fixed": 1,
+          "adaptive": 1,
+          "fixed_minus_adaptive": 0
+        },
+        "wall_seconds": {
+          "fixed": 20.0,
+          "adaptive": 21.0,
+          "fixed_minus_adaptive": -1.0
+        }
+      },
+      "original_query_conclusion": {
+        "comparison_fields": [
+          "conclusion_key",
+          "verdict"
+        ],
+        "agrees": true,
+        "fixed": {
+          "conclusion_key": "supported_frozen_suite_smoke",
+          "verdict": "supported_in_tested_scope"
+        },
+        "adaptive": {
+          "conclusion_key": "supported_frozen_suite_smoke",
+          "verdict": "supported_in_tested_scope"
+        }
+      },
+      "act_start_savings": 0,
+      "adaptive_used_fewer_act_episode_starts": false,
+      "zero_act_savings": true,
+      "efficiency_pattern_passed": false,
+      "empirical_policy_claim_eligible": false,
+      "empirical_policy_claim_ineligible_reason": "synthetic_fixture",
+      "paper_table_eligible": false,
+      "paper_reference_configuration": {
+        "constructed_task_trials_per_task": 5,
+        "agent_runs": 10,
+        "source": "paper_appendix_A.1.1_and_tables_2_5"
+      },
+      "paper_reference_configuration_met": false,
+      "resource_semantics": {
+        "act_episode_starts": "episode start attempts, including attempts that may not complete",
+        "completed_policy_trials": "completed policy episodes",
+        "evaluation_samples": "unique frozen candidate-by-seed observations; derived separately",
+        "policy_steps": "recorded ACT inference steps",
+        "paper_reported_sample_count": "not inferred from episode starts, completed trials, or policy steps"
+      },
+      "evaluation_samples": {
+        "fixed": 2,
+        "adaptive": 2
+      },
+      "paper_reported_sample_count": null,
+      "limitations": [
+        "Synthetic fixtures validate protocol logic only; they are not policy-performance or sampling-efficiency evidence.",
+        "A resource saving is not conclusion-preserving unless the original Query conclusion agrees.",
+        "Starts and provider retries are reported separately from successful completions.",
+        "This pair does not satisfy the paper target of five trials per constructed task and ten agent runs.",
+        "Paper sample count is not silently equated with ACT episode starts or policy steps.",
+        "This minimal pair is not a paper-table reproduction."
+      ]
+    }
+  },
+  "empirical_policy_claim_eligible": false
+}

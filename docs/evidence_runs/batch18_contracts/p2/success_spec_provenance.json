@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "source": "task_proposal_v2",
+  "task_proposal_id": "object_appearance.color.query_generated_1",
+  "preserve_success_semantics": false,
+  "official_equivalent": false,
+  "compiler_eligible": true,
+  "act_runtime_eligible": false,
+  "experimental_bounded": true,
+  "execution_scope": "experimental_bounded_probe_only",
+  "generated_by_model": false,
+  "compiler": "restricted_success_spec_v2"
+}

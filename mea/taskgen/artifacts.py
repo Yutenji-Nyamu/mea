@@ -312,6 +312,17 @@ def write_task_artifact_bundle(
                 "generated_from_spec": True,
                 "success_spec": "generation/success_spec.json",
                 "success_spec_sha256": success_spec_sha256,
+                **(
+                    {
+                        "act_runtime_eligible": False,
+                        "runtime_blocker": (
+                            "main ACT outcome labeling still maps check_success "
+                            "to official policy success"
+                        ),
+                    }
+                    if success_spec_report["experimental_bounded"]
+                    else {}
+                ),
             }
             if compiled_success
             else {
@@ -336,7 +347,10 @@ def write_task_artifact_bundle(
                     if success_spec_report["official_equivalent"]
                     else (
                         "Its semantics are an explicitly non-equivalent, "
-                        "bounded experimental ACT predicate."
+                        "bounded experimental predicate accepted only for "
+                        "compile/probe/TaskGen acceptance. Main ACT is disabled "
+                        "until official and experimental outcomes are labeled "
+                        "separately at runtime."
                     )
                 )
                 if compiled_success
@@ -396,23 +410,36 @@ def validate_task_artifact_bundle(value: Mapping[str, Any]) -> dict[str, Any]:
             "compiled_success_spec_official_equivalent": True,
             "compiled_success_spec_experimental_bounded": False,
         }.get(compiled_authority)
+        expected_semantics_fields = {
+            "preserved",
+            "authority",
+            "generated_by_model",
+            "generated_from_spec",
+            "success_spec",
+            "success_spec_sha256",
+        }
+        if compiled_authority == "compiled_success_spec_experimental_bounded":
+            expected_semantics_fields.update(
+                {"act_runtime_eligible", "runtime_blocker"}
+            )
         if (
             not success.get("symbol_declared")
             or not isinstance(semantics, Mapping)
-            or set(semantics)
-            != {
-                "preserved",
-                "authority",
-                "generated_by_model",
-                "generated_from_spec",
-                "success_spec",
-                "success_spec_sha256",
-            }
+            or set(semantics) != expected_semantics_fields
             or expected_preserved is None
             or semantics.get("preserved") is not expected_preserved
             or semantics.get("generated_by_model") is not False
             or semantics.get("generated_from_spec") is not True
             or semantics.get("success_spec") != "generation/success_spec.json"
+            or (
+                compiled_authority
+                == "compiled_success_spec_experimental_bounded"
+                and (
+                    semantics.get("act_runtime_eligible") is not False
+                    or not isinstance(semantics.get("runtime_blocker"), str)
+                    or not semantics["runtime_blocker"].strip()
+                )
+            )
             or not isinstance(semantics.get("success_spec_sha256"), str)
             or len(semantics["success_spec_sha256"]) != 64
             or any(

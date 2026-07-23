@@ -558,6 +558,43 @@ def _require_current_artifact_contract(
         )
 
 
+def _require_bundle_act_runtime_eligible(bundle: Mapping[str, Any]) -> None:
+    """Fail closed when the final executable bundle explicitly forbids ACT.
+
+    The TaskArtifactBundle is reconstructed from the current executable files
+    before this check.  Manifest/TaskProposal copies are therefore descriptive
+    metadata only and cannot make an experimental SuccessSpec ACT-eligible.
+    """
+
+    semantics = bundle.get("success_semantics")
+    if not isinstance(semantics, Mapping):
+        raise ProductionTaskAcceptanceError(
+            "TaskArtifactBundle success semantics are missing"
+        )
+    if semantics.get("act_runtime_eligible") is False:
+        blocker = semantics.get("runtime_blocker")
+        detail = (
+            str(blocker).strip()
+            if isinstance(blocker, str) and blocker.strip()
+            else "the final success semantics are probe-only"
+        )
+        raise ProductionTaskAcceptanceError(
+            f"TaskArtifactBundle forbids ACT runtime execution: {detail}"
+        )
+
+
+def require_task_artifact_act_runtime_eligible(
+    run_dir: str | Path,
+    manifest: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Validate the final TaskArtifactBundle and authorize ACT from it alone."""
+
+    root = Path(run_dir).expanduser().resolve()
+    _, bundle, _ = _validate_current_candidate(root, manifest)
+    _require_bundle_act_runtime_eligible(bundle)
+    return bundle
+
+
 def validate_production_task_acceptance(
     summary: Mapping[str, Any],
     *,
@@ -707,6 +744,7 @@ def require_production_task_acceptance(
     manifest: Mapping[str, Any],
     *,
     task_resolution: Mapping[str, Any] | None = None,
+    for_act: bool = False,
 ) -> dict[str, Any]:
     """Load and verify the acceptance barrier immediately before ACT launch."""
 
@@ -720,8 +758,10 @@ def require_production_task_acceptance(
         ),
         expected_identity=identity,
     )
-    _, _, contract = _validate_current_candidate(root, manifest)
+    _, bundle, contract = _validate_current_candidate(root, manifest)
     _require_current_artifact_contract(summary, contract)
+    if for_act:
+        _require_bundle_act_runtime_eligible(bundle)
     return summary
 
 
@@ -729,5 +769,6 @@ __all__ = [
     "ProductionTaskAcceptanceError",
     "record_production_task_acceptance",
     "require_production_task_acceptance",
+    "require_task_artifact_act_runtime_eligible",
     "validate_production_task_acceptance",
 ]

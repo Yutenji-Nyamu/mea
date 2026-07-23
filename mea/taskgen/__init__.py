@@ -39,6 +39,7 @@ from .click_bell import (
     validate_click_bell_variant_hint,
 )
 from .capabilities import (
+    EXPERIMENTAL_SUCCESS_PRESERVE_MARKER,
     TASK_CAPABILITIES,
     CapabilityError,
     build_variant_spec,
@@ -111,6 +112,7 @@ __all__ = [
     "create_click_bell_variant_run",
     "validate_click_bell_variant_hint",
     "TASK_CAPABILITIES",
+    "EXPERIMENTAL_SUCCESS_PRESERVE_MARKER",
     "CapabilityError",
     "build_variant_spec",
     "capability_card",

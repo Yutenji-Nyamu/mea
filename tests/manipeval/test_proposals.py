@@ -114,6 +114,32 @@ class TaskProposalSuccessSpecTests(unittest.TestCase):
             ):
                 validate_task_proposal(proposal)
 
+    def test_v2_core_validator_rejects_non_appearance_cli_bypass(self):
+        scale = _proposal(schema_version=2)
+        scale.update(
+            {
+                "proposal_id": "object_scale.experimental_success",
+                "aspect_id": "object_scale",
+                "capability_id": "object_scale.bounded",
+                "changes": {
+                    "block": {
+                        "position_mode": "official_random",
+                        "yaw_mode": "official_random",
+                        "scale": 1.2,
+                        "color": [1.0, 0.0, 0.0],
+                    }
+                },
+            }
+        )
+        mismatched = _proposal(schema_version=2)
+        mismatched["aspect_id"] = "object_scale"
+        for name, proposal in (("scale", scale), ("mismatched", mismatched)):
+            with self.subTest(name=name), self.assertRaisesRegex(
+                ProposalError,
+                "capability-gated to beat_block_hammer/object_appearance.color",
+            ):
+                validate_task_proposal(proposal)
+
 
 if __name__ == "__main__":
     unittest.main()

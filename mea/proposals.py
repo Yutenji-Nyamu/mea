@@ -114,6 +114,14 @@ def validate_task_proposal(
     capability_id = _text(
         proposal.get("capability_id"), "TaskProposal.capability_id"
     )
+    if schema_version == 2 and (
+        aspect_id != "object_appearance.color"
+        or capability_id != "object_appearance.color"
+    ):
+        raise ProposalError(
+            "TaskProposal v2 is capability-gated to "
+            "beat_block_hammer/object_appearance.color"
+        )
     official_passthrough = capability_id == "task_execution.official_passthrough"
     try:
         capability = (

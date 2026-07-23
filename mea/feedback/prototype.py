@@ -9,6 +9,12 @@ from typing import Any
 
 from mea.taskgen import extract_json_response
 
+from .answer_scope import (
+    build_answer_scope,
+    project_answer_scope,
+    validate_answer_scope_projection,
+)
+
 
 class FeedbackAgentError(RuntimeError):
     """Raised when final feedback violates the structured output contract."""
@@ -185,6 +191,9 @@ def apply_deterministic_consistency_guard(
         "deterministic_correction": deterministic_correction,
     }
     validate_feedback(feedback, evidence)
+    scope = build_answer_scope(evidence)
+    feedback = project_answer_scope(feedback, scope)
+    validate_answer_scope_projection(feedback, scope)
     return feedback
 
 
@@ -192,6 +201,7 @@ def _feedback_prompt(repo_root: Path, evidence: dict[str, Any]) -> str:
     instructions = (repo_root / "mea/feedback/README.Agent.md").read_text(
         encoding="utf-8"
     )
+    answer_scope = build_answer_scope(evidence)
     return f"""你是 MEA 的最终 Feedback Agent。请基于证据回答用户，不要补充未经测试的结论。
 
 EVIDENCE INTERPRETATION CONTRACT:
@@ -205,12 +215,17 @@ EVIDENCE INTERPRETATION CONTRACT:
    simulator Tool 结论，并建议复查或追加测试；不要替视觉或数值一方消除冲突。
 5. `history_retrieval` 只用于保持 planning decomposition 一致。历史 policy outcome
    不是本次 evaluation evidence，禁止与本次 Aggregate 合并或据此声称本次成功。
+6. `ANSWER SCOPE` 是 deterministic validator 从证据投影的硬边界。回答必须与其
+   N/seeds、未测试候选、unsupported capability、冲突和停止原因一致。
 
 AGENT RULES:
 {instructions}
 
 EVIDENCE BUNDLE:
 {json.dumps(evidence, ensure_ascii=False, indent=2)}
+
+ANSWER SCOPE:
+{json.dumps(answer_scope, ensure_ascii=False, indent=2)}
 
 返回严格 JSON，不要输出 Markdown：
 {{
@@ -339,6 +354,9 @@ complete the task.
         feedback["provider_metadata"] = dict(
             getattr(self.provider, "last_metadata", {})
         )
+        answer_scope = build_answer_scope(evidence)
+        feedback = project_answer_scope(feedback, answer_scope)
+        validate_answer_scope_projection(feedback, answer_scope)
         (output_dir / "feedback.json").write_text(
             json.dumps(feedback, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",

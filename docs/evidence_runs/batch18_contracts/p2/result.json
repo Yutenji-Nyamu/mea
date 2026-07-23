@@ -1,0 +1,339 @@
+{
+  "schema_version": 1,
+  "status": "task_materialized_and_accepted_no_act_tool_routed",
+  "evaluation_target": {
+    "schema_version": 1,
+    "binding_mode": "single_task_single_checkpoint",
+    "task_name": "beat_block_hammer",
+    "task_family": "tool_use_contact",
+    "task_profile": "generated",
+    "planner_kind": "bounded_bbh_v1",
+    "policy": {
+      "name": "ACT",
+      "checkpoint_setting": "demo_clean",
+      "expert_data_num": 50,
+      "language_conditioned": false
+    },
+    "checkpoint": {
+      "policy_name": "ACT",
+      "checkpoint_setting": "demo_clean",
+      "expert_data_num": 50,
+      "checkpoint_id": "act-beat_block_hammer/demo_clean-50",
+      "ready": true
+    },
+    "max_rounds": 1,
+    "aspects": [
+      {
+        "aspect_id": "object_appearance.color",
+        "description": "先隔离用户指定的蓝色外观变化。",
+        "template_ids": [
+          "object_appearance.color_blue"
+        ],
+        "taskgen_capability_id": "object_appearance.color",
+        "taskgen_route": "force_codegen",
+        "default_metric": "hammer_block_contact_ever"
+      },
+      {
+        "aspect_id": "object_position",
+        "description": "保持蓝色与任务逻辑不变，检查官方位置和朝向采样。",
+        "template_ids": [
+          "object_position.official_random"
+        ],
+        "taskgen_capability_id": "object_appearance.color",
+        "taskgen_route": "reuse",
+        "default_metric": "hammer_block_contact_ever"
+      },
+      {
+        "aspect_id": "performance.pickup_to_contact_timing",
+        "description": "量化锤子首次抬升到首次严格物理接触的经过时间。",
+        "template_ids": [
+          "performance.pickup_to_contact_timing"
+        ],
+        "taskgen_capability_id": "object_appearance.color",
+        "taskgen_route": "reuse",
+        "default_metric": "pickup_to_first_contact_time"
+      },
+      {
+        "aspect_id": "object_scale",
+        "description": "测试同一红色目标物在 1.2 倍有界尺度变化下的泛化。",
+        "template_ids": [
+          "object_scale.bounded_1_2"
+        ],
+        "taskgen_capability_id": "object_scale.bounded",
+        "taskgen_route": "force_codegen",
+        "default_metric": "hammer_block_contact_ever"
+      },
+      {
+        "aspect_id": "safety.hammer_left_camera_contact",
+        "description": "在官方任务上测量 hammer-left_camera 物理接触这一精确、受限的 unintended-contact proxy；不把它泛化为完整安全性。",
+        "template_ids": [
+          "safety.hammer_left_camera_contact.official"
+        ],
+        "taskgen_capability_id": "task_execution.official_passthrough",
+        "taskgen_route": "official",
+        "default_metric": "hammer_left_camera_contact_count"
+      }
+    ]
+  },
+  "proposal_bundle": {
+    "schema_version": 1,
+    "task_proposal": {
+      "schema_version": 2,
+      "proposal_id": "object_appearance.color.query_generated_1",
+      "task_name": "beat_block_hammer",
+      "aspect_id": "object_appearance.color",
+      "intent": "evaluate a query-relevant bounded variation",
+      "capability_id": "object_appearance.color",
+      "reuse_first": true,
+      "changes": {
+        "block": {
+          "position_mode": "official_random",
+          "yaw_mode": "official_random",
+          "scale": 1.0,
+          "color": [
+            0.25,
+            0.25,
+            0.75
+          ]
+        }
+      },
+      "preserve_success_semantics": false,
+      "success_spec": {
+        "schema_version": 2,
+        "task_name": "beat_block_hammer",
+        "envelope_id": "bbh.experimental_bounded_act",
+        "logic": "all",
+        "predicates": [
+          {
+            "predicate": "planar_axis_distance",
+            "left": {
+              "actor": "hammer",
+              "functional_point_id": 0
+            },
+            "right": {
+              "actor": "block",
+              "functional_point_id": 1
+            },
+            "axes": [
+              0,
+              1
+            ],
+            "thresholds_m": [
+              0.025,
+              0.025
+            ],
+            "comparison": "strict_lt"
+          },
+          {
+            "predicate": "physical_contact",
+            "actors": [
+              "hammer",
+              "block"
+            ]
+          }
+        ]
+      }
+    },
+    "tool_proposal": {
+      "schema_version": 3,
+      "proposal_id": "object_appearance.color.query_metric_1.tool",
+      "task_name": "beat_block_hammer",
+      "aspect_id": "object_appearance.color",
+      "evaluation_goal": "measure experimental near-contact behavior separately from official task outcome",
+      "metric": "hammer_block_functional_xy_min_distance",
+      "question": "What was the minimum XY distance between the hammer and block functional points?",
+      "vqa_phenomenon_ids": [
+        "hammer_visibly_lifted",
+        "run_local.beat_block_hammer.object_appearance_color.query_observation"
+      ],
+      "vqa_question_specs": [
+        {
+          "question_type": "visible_state_change",
+          "target_role": "manipulated_tool",
+          "question": "Does the rollout visibly show the hammer being lifted under the query-generated variation?",
+          "visual_scope": "rollout_change",
+          "numeric_authority": "simulator_pickup_threshold_is_authoritative",
+          "id": "run_local.beat_block_hammer.object_appearance_color.query_observation"
+        }
+      ],
+      "reuse_first": true,
+      "metric_spec": {
+        "schema_version": 1,
+        "operation": "minimum_distance",
+        "left_signal": "hammer_functional_position",
+        "right_signal": "block_functional_position",
+        "dimensions": [
+          "x",
+          "y"
+        ],
+        "unit": "m",
+        "null_semantics": "null_if_no_finite_sample"
+      }
+    },
+    "tool_route_preview": {
+      "schema_version": 1,
+      "status": "resolved",
+      "matching_policy": "strict_exact_metric_id",
+      "requested_route": "auto",
+      "resolved_route": "typed_metric_spec_compile",
+      "task_name": "beat_block_hammer",
+      "metric": "hammer_block_functional_xy_min_distance",
+      "exact_match": true,
+      "matched_registry": "typed_metric_spec_v1",
+      "reference_tool": null,
+      "provider_required": false,
+      "reason": "validated typed MetricSpec can be compiled and differentially gated",
+      "catalog_snapshot_sha256": "9a96d76b3abf11b311b5aba11d8b4fe248af72fa2b0f1f83c3740cd85ac2ba72"
+    },
+    "success_semantics_comparison": {
+      "schema_version": 1,
+      "selected_track": "experimental",
+      "official": {
+        "execution_authority": "official_check_success",
+        "success_spec": {
+          "schema_version": 2,
+          "task_name": "beat_block_hammer",
+          "logic": "all",
+          "predicates": [
+            {
+              "predicate": "planar_axis_distance",
+              "left": {
+                "actor": "hammer",
+                "functional_point_id": 0
+              },
+              "right": {
+                "actor": "block",
+                "functional_point_id": 1
+              },
+              "axes": [
+                0,
+                1
+              ],
+              "thresholds_m": [
+                0.02,
+                0.02
+              ],
+              "comparison": "strict_lt"
+            },
+            {
+              "predicate": "physical_contact",
+              "actors": [
+                "hammer",
+                "block"
+              ]
+            }
+          ],
+          "envelope_id": "bbh.official_capability"
+        },
+        "result": null,
+        "result_status": "not_measured_by_proposal"
+      },
+      "experimental": {
+        "execution_authority": "compiled_success_spec_experimental_bounded",
+        "success_spec": {
+          "schema_version": 2,
+          "task_name": "beat_block_hammer",
+          "envelope_id": "bbh.experimental_bounded_act",
+          "logic": "all",
+          "predicates": [
+            {
+              "predicate": "planar_axis_distance",
+              "left": {
+                "actor": "hammer",
+                "functional_point_id": 0
+              },
+              "right": {
+                "actor": "block",
+                "functional_point_id": 1
+              },
+              "axes": [
+                0,
+                1
+              ],
+              "thresholds_m": [
+                0.025,
+                0.025
+              ],
+              "comparison": "strict_lt"
+            },
+            {
+              "predicate": "physical_contact",
+              "actors": [
+                "hammer",
+                "block"
+              ]
+            }
+          ]
+        },
+        "result": null,
+        "result_status": "pending_materialization_or_probe",
+        "act_runtime_eligible": false,
+        "runtime_blocker": "main ACT is disabled until official and experimental outcomes have distinct runtime labels"
+      },
+      "reporting_contract": "Keep official and experimental outcomes as separate channels. Both remain null in this 0-ACT release; null means unmeasured, and the experimental channel is never official policy success."
+    }
+  },
+  "taskgen": {
+    "returncode": 0,
+    "run_id": "run_20260723_batch18_p2_experimental_bbh_v2_final",
+    "route": "force_codegen",
+    "act_rollouts_started": 0,
+    "production_acceptance": {
+      "status": "accepted",
+      "scope": "task_generation_only_no_act",
+      "artifact": "validation/task_generation_attempts/task_generation_attempt_summary.json",
+      "act_rollouts_started_before_acceptance": 0,
+      "act_runtime_eligible": false
+    },
+    "act_runtime_eligible": false,
+    "log": "mea/validation_runs/batch18_p2_experimental_bbh_v2_final/taskgen.log"
+  },
+  "tool": {
+    "schema_version": 1,
+    "status": "validated_and_routed_not_executed",
+    "tool_request": {
+      "schema_version": 2,
+      "task_name": "beat_block_hammer",
+      "metric": "hammer_block_functional_xy_min_distance",
+      "question": "What was the minimum XY distance between the hammer and block functional points?",
+      "metric_spec": {
+        "schema_version": 1,
+        "operation": "minimum_distance",
+        "left_signal": "hammer_functional_position",
+        "right_signal": "block_functional_position",
+        "dimensions": [
+          "x",
+          "y"
+        ],
+        "unit": "m",
+        "null_semantics": "null_if_no_finite_sample"
+      }
+    },
+    "route_preview": {
+      "schema_version": 1,
+      "status": "resolved",
+      "matching_policy": "strict_exact_metric_id",
+      "requested_route": "auto",
+      "resolved_route": "typed_metric_spec_compile",
+      "task_name": "beat_block_hammer",
+      "metric": "hammer_block_functional_xy_min_distance",
+      "exact_match": true,
+      "matched_registry": "typed_metric_spec_v1",
+      "reference_tool": null,
+      "provider_required": false,
+      "reason": "validated typed MetricSpec can be compiled and differentially gated",
+      "catalog_snapshot_sha256": "9a96d76b3abf11b311b5aba11d8b4fe248af72fa2b0f1f83c3740cd85ac2ba72"
+    },
+    "materialized": false,
+    "act_rollouts_started": 0
+  },
+  "limitations": {
+    "act_rollouts_started": 0,
+    "experimental_v2_act_runtime_eligible": false,
+    "taskgen_acceptance_only": true,
+    "policy_performance_evidence": false,
+    "development_validation_only": false,
+    "tool_execution_status": "not_executed",
+    "tool_execution_blocker": "dual-label runtime is required before experimental SuccessSpec evaluation"
+  }
+}

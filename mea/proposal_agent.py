@@ -9,6 +9,7 @@ therefore cannot be changed by the model.
 from __future__ import annotations
 
 import json
+import math
 from copy import deepcopy
 from typing import Any, Mapping
 
@@ -20,7 +21,12 @@ from mea.proposals import (
     validate_task_proposal,
     validate_tool_proposal,
 )
-from mea.taskgen import extract_json_response
+from mea.taskgen import (
+    default_bbh_success_spec_v2,
+    experimental_bbh_success_spec_v2,
+    extract_json_response,
+    success_spec_validation_report,
+)
 from mea.taskgen.click_bell import validate_click_bell_variant_hint
 from mea.toolgen import route_tool_request
 
@@ -30,6 +36,7 @@ class ProposalAgentError(RuntimeError):
 
 
 _BUNDLE_KEYS = {"schema_version", "task_proposal", "tool_proposal"}
+_EXPERIMENTAL_SUCCESS_MODE = "experimental_success_bounded"
 
 _TYPED_IDENTIFIERS_BY_TASK: dict[str, dict[str, list[Any]]] = {
     "beat_block_hammer": {
@@ -104,7 +111,11 @@ def _proposal_card(
         contracts[0],
     )
     mode = capability_mode or proposal_capability_mode(task_name, aspect_id)
-    if mode not in {"novel_bounded", "registered_reuse"}:
+    if mode not in {
+        "novel_bounded",
+        "registered_reuse",
+        _EXPERIMENTAL_SUCCESS_MODE,
+    }:
         raise ProposalAgentError(f"unsupported proposal capability mode: {mode!r}")
     if mode == "novel_bounded" and not (
         task_name == "click_bell" and aspect_id == "object_position"
@@ -112,7 +123,37 @@ def _proposal_card(
         raise ProposalAgentError(
             "novel bounded changes are not implemented for this task/aspect"
         )
-    if mode == "novel_bounded":
+    if mode == _EXPERIMENTAL_SUCCESS_MODE:
+        if not (
+            task_name == "beat_block_hammer"
+            and aspect_id == "object_appearance.color"
+            and first["taskgen"]["capability_id"] == "object_appearance.color"
+            and first["taskgen"]["generation_mode"] == "force_codegen"
+        ):
+            raise ProposalAgentError(
+                "experimental SuccessSpec proposals are capability-gated to "
+                "beat_block_hammer/object_appearance.color force_codegen"
+            )
+        change_contract = {
+            "block": {
+                "position_mode": "official_random",
+                "yaw_mode": "official_random",
+                "scale": 1.0,
+                "color": (
+                    "exactly three finite numbers in [0,1]; the complete changes "
+                    "object must not equal a registered template"
+                ),
+            }
+        }
+        example_changes = {
+            "block": {
+                "position_mode": "official_random",
+                "yaw_mode": "official_random",
+                "scale": 1.0,
+                "color": [0.25, 0.25, 0.75],
+            }
+        }
+    elif mode == "novel_bounded":
         change_contract = {
             "bell": {
                 "position_mode": "fixed",
@@ -137,6 +178,12 @@ def _proposal_card(
         for phenomenon_id in contract["vqa"]["phenomenon_ids"]:
             if phenomenon_id not in vqa_candidates:
                 vqa_candidates.append(phenomenon_id)
+    if mode == _EXPERIMENTAL_SUCCESS_MODE:
+        # The scene color is query-generated, so the registered blue-specific
+        # visual predicate would be semantically wrong for most proposals.
+        vqa_candidates = [
+            item for item in vqa_candidates if item != "block_color_blue"
+        ]
     reference_question = deepcopy(QUESTION_CATALOG[vqa_candidates[0]])
     reference_question.update(
         {
@@ -156,10 +203,15 @@ def _proposal_card(
             task_name, {"trace_signals": [], "contact_actor_pairs": []}
         )
     )
+    experimental_success = experimental_bbh_success_spec_v2(
+        thresholds_m=(0.025, 0.025)
+    )
     registered_example = {
         "schema_version": 1,
         "task_proposal": {
-            "schema_version": 1,
+            "schema_version": (
+                2 if mode == _EXPERIMENTAL_SUCCESS_MODE else 1
+            ),
             "proposal_id": f"{aspect_id}.query_generated_1",
             "task_name": task_name,
             "aspect_id": aspect_id,
@@ -167,7 +219,14 @@ def _proposal_card(
             "capability_id": first["taskgen"]["capability_id"],
             "reuse_first": True,
             "changes": example_changes,
-            "preserve_success_semantics": True,
+            "preserve_success_semantics": (
+                mode != _EXPERIMENTAL_SUCCESS_MODE
+            ),
+            **(
+                {"success_spec": experimental_success}
+                if mode == _EXPERIMENTAL_SUCCESS_MODE
+                else {}
+            ),
         },
         "tool_proposal": {
             "schema_version": 2,
@@ -238,11 +297,54 @@ def _proposal_card(
         "taskgen": {
             "capability_id": first["taskgen"]["capability_id"],
             "reuse_first": True,
-            "preserve_success_semantics": True,
+            "preserve_success_semantics": (
+                mode != _EXPERIMENTAL_SUCCESS_MODE
+            ),
             "change_contract": change_contract,
             "registered_changes_to_avoid": [
                 contract["taskgen"]["changes"] for contract in contracts
             ],
+            "success_semantics": (
+                {
+                    "proposal_schema_version": 2,
+                    "selected_track": "experimental",
+                    "execution_authority": (
+                        "compiled_success_spec_experimental_bounded"
+                    ),
+                    "official_reference": {
+                        "track": "official",
+                        "execution_authority": "official_check_success",
+                        "success_spec": default_bbh_success_spec_v2(),
+                    },
+                    "experimental_contract": {
+                        "track": "experimental",
+                        "official_equivalent": False,
+                        "compile_probe_acceptance_eligible": True,
+                        "act_runtime_eligible": False,
+                        "runtime_blocker": (
+                            "main ACT currently labels generated check_success as "
+                            "official policy success"
+                        ),
+                        "allowed_example": experimental_success,
+                        "degrees_of_freedom": (
+                            "only the two planar thresholds inside the trusted "
+                            "experimental envelope"
+                        ),
+                    },
+                    "reporting_contract": (
+                        "official and experimental outcomes are separate labeled "
+                        "channels; an experimental outcome must never be reported "
+                        "as official policy success"
+                    ),
+                }
+                if mode == _EXPERIMENTAL_SUCCESS_MODE
+                else {
+                    "proposal_schema_version": 1,
+                    "selected_track": "official",
+                    "execution_authority": "official_check_success",
+                    "preserve_success_semantics": True,
+                }
+            ),
         },
         "toolgen": {
             "metric_candidates": sorted(
@@ -345,17 +447,35 @@ def build_proposal_prompt(
         if planning_context is not None
         else "not supplied; use only the bound target and capability card"
     )
-    variation_instruction = (
-        "Propose one new bounded task variation that is not exactly equal to a "
-        "registered change."
-        if card["proposal_capability_mode"] == "novel_bounded"
-        else "Reuse exactly the registered task changes; only author the intent and "
-        "smallest useful Tool/VQA assignment."
-    )
+    if card["proposal_capability_mode"] == _EXPERIMENTAL_SUCCESS_MODE:
+        variation_instruction = (
+            "Propose one new bounded BBH appearance variation and TaskProposal v2. "
+            "Copy the trusted experimental SuccessSpec structure exactly; only its "
+            "two planar thresholds may vary inside the stated envelope. Keep the "
+            "official result and experimental result as separately labeled tracks, "
+            "and never describe the experimental predicate as official success."
+        )
+        success_instruction = (
+            "The runtime capability gate explicitly permits the bounded experimental "
+            "SuccessSpec shown in the card; no other success-semantics change is "
+            "permitted."
+        )
+    elif card["proposal_capability_mode"] == "novel_bounded":
+        variation_instruction = (
+            "Propose one new bounded task variation that is not exactly equal to a "
+            "registered change."
+        )
+        success_instruction = "Do not change success semantics."
+    else:
+        variation_instruction = (
+            "Reuse exactly the registered task changes; only author the intent and "
+            "smallest useful Tool/VQA assignment."
+        )
+        success_instruction = "Do not change success semantics."
     return f"""You are the bounded TaskGen/ToolGen Proposal Agent for MEA.
 The policy evaluation is already bound to one task and checkpoint.  Do not
-change task, policy, checkpoint, aspect, success semantics, or executable
-fields.  {variation_instruction} Then assign either one listed Rule metric or,
+change task, policy, checkpoint, aspect, or executable fields.
+{success_instruction}  {variation_instruction} Then assign either one listed Rule metric or,
 when the query needs a new measurement, ToolProposal v3 with one bounded
 typed_metric_spec_v1 and a new metric id.  Select the smallest useful subset
 of the listed VQA phenomena.  TaskGen and ToolGen independently
@@ -471,6 +591,63 @@ def _validate_typed_metric_identifiers(
             )
 
 
+def _validate_experimental_bbh_scene_changes(
+    changes: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Validate the sole scene envelope paired with public SuccessSpec v2."""
+
+    if set(changes) != {"block"} or not isinstance(changes.get("block"), Mapping):
+        raise ProposalError(
+            "experimental BBH scene changes must contain exactly changes.block"
+        )
+    block = dict(changes["block"])
+    expected = {"position_mode", "yaw_mode", "scale", "color"}
+    if set(block) != expected:
+        raise ProposalError(
+            f"experimental BBH changes.block fields must be exactly {sorted(expected)}"
+        )
+    if (
+        block["position_mode"] != "official_random"
+        or block["yaw_mode"] != "official_random"
+    ):
+        raise ProposalError(
+            "experimental BBH appearance preserves official position/yaw sampling"
+        )
+    scale = block["scale"]
+    if (
+        isinstance(scale, bool)
+        or not isinstance(scale, (int, float))
+        or not math.isfinite(float(scale))
+        or abs(float(scale) - 1.0) > 1e-12
+    ):
+        raise ProposalError(
+            "experimental BBH appearance preserves official block scale 1.0"
+        )
+    color = block["color"]
+    if not isinstance(color, (list, tuple)) or len(color) != 3:
+        raise ProposalError(
+            "experimental BBH block.color must contain exactly three channels"
+        )
+    if any(
+        isinstance(channel, bool)
+        or not isinstance(channel, (int, float))
+        or not math.isfinite(float(channel))
+        or not 0.0 <= float(channel) <= 1.0
+        for channel in color
+    ):
+        raise ProposalError(
+            "experimental BBH block.color channels must be finite numbers in [0,1]"
+        )
+    return {
+        "block": {
+            "position_mode": "official_random",
+            "yaw_mode": "official_random",
+            "scale": 1.0,
+            "color": [float(channel) for channel in color],
+        }
+    }
+
+
 def validate_proposal_bundle(
     value: Mapping[str, Any],
     *,
@@ -531,6 +708,39 @@ def validate_proposal_bundle(
     if any(item not in QUESTION_CATALOG for item in selected_catalog_ids):
         raise ProposalError("ToolProposal selected an unregistered VQA phenomenon")
     registered_changes = card["taskgen"]["registered_changes_to_avoid"]
+    experimental_mode = (
+        card["proposal_capability_mode"] == _EXPERIMENTAL_SUCCESS_MODE
+    )
+    if experimental_mode:
+        if (
+            task["schema_version"] != 2
+            or task["preserve_success_semantics"] is not False
+        ):
+            raise ProposalError(
+                "experimental SuccessSpec mode requires TaskProposal v2 with "
+                "preserve_success_semantics=false"
+            )
+        report = success_spec_validation_report(task["success_spec"])
+        if (
+            report["official_equivalent"]
+            or not report["act_eligible"]
+            or not report["experimental_bounded"]
+        ):
+            raise ProposalError(
+                "experimental SuccessSpec mode requires the non-official bounded "
+                "ACT envelope"
+            )
+        task["changes"] = _validate_experimental_bbh_scene_changes(
+            task["changes"]
+        )
+    elif (
+        task["schema_version"] != 1
+        or task["preserve_success_semantics"] is not True
+    ):
+        raise ProposalError(
+            "TaskProposal v2 is disabled without the explicit experimental "
+            "SuccessSpec capability mode"
+        )
     if require_novel_changes and task["changes"] in registered_changes:
         raise ProposalError("TaskProposal repeated an exact registered template")
     if (
@@ -547,12 +757,42 @@ def validate_proposal_bundle(
             raise ProposalError(f"invalid click_bell position proposal: {exc}") from exc
     if routed["route_decision"]["status"] != "resolved":
         raise ProposalError("ToolProposal cannot be resolved by ToolGen")
-    return {
+    result = {
         "schema_version": 1,
         "task_proposal": task,
         "tool_proposal": tool,
         "tool_route_preview": routed["route_decision"],
     }
+    if experimental_mode:
+        result["success_semantics_comparison"] = {
+            "schema_version": 1,
+            "selected_track": "experimental",
+            "official": {
+                "execution_authority": "official_check_success",
+                "success_spec": default_bbh_success_spec_v2(),
+                "result": None,
+                "result_status": "not_measured_by_proposal",
+            },
+            "experimental": {
+                "execution_authority": (
+                    "compiled_success_spec_experimental_bounded"
+                ),
+                "success_spec": deepcopy(task["success_spec"]),
+                "result": None,
+                "result_status": "pending_materialization_or_probe",
+                "act_runtime_eligible": False,
+                "runtime_blocker": (
+                    "main ACT is disabled until official and experimental "
+                    "outcomes have distinct runtime labels"
+                ),
+            },
+            "reporting_contract": (
+                "Keep official and experimental outcomes as separate channels. "
+                "Both remain null in this 0-ACT release; null means unmeasured, "
+                "and the experimental channel is never official policy success."
+            ),
+        }
+    return result
 
 
 class BoundedProposalAgent:
@@ -582,6 +822,11 @@ class BoundedProposalAgent:
         )
         if mode == "registered_reuse":
             require_novel_changes = False
+        elif mode == _EXPERIMENTAL_SUCCESS_MODE:
+            # The public agent may reach the non-official success path only
+            # through this explicit runtime-owned mode.  It must also produce a
+            # new scene variation rather than relabel a registered official run.
+            require_novel_changes = True
         prompt = build_proposal_prompt(
             user_query,
             target,

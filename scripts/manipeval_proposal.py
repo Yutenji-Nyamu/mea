@@ -42,9 +42,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--vision-model")
     parser.add_argument("--base-url")
     parser.add_argument(
+        "--experimental-bbh-success-spec",
+        action="store_true",
+        help=(
+            "Explicitly enable the bounded BBH appearance + experimental "
+            "SuccessSpec v2 capability. Other task/aspect pairs fail closed."
+        ),
+    )
+    parser.add_argument(
         "--materialize",
         action="store_true",
-        help="Run TaskGen setup/render probe only; never starts ACT.",
+        help=(
+            "Run TaskGen materialization, expert probe, and production Task "
+            "acceptance; never starts ACT."
+        ),
     )
     return parser.parse_args()
 
@@ -85,12 +96,17 @@ def main() -> None:
         vision_model=models["vision"],
         timeout=180.0,
     )
-    agent = BoundedProposalAgent(provider, model=models["planner"])
+    agent = BoundedProposalAgent(provider, model=models["taskgen"])
     bundle = agent.propose(
         args.request,
         target=session.target,
         aspect_id=args.aspect_id,
         require_novel_changes=True,
+        capability_mode=(
+            "experimental_success_bounded"
+            if args.experimental_bbh_success_spec
+            else None
+        ),
     )
     (output / "proposal_prompt.md").write_text(
         agent.last_prompt or "", encoding="utf-8"
@@ -147,7 +163,8 @@ def main() -> None:
             str(args.seed),
             "--num-episodes",
             "1",
-            "--probe",
+            "--expert",
+            "--accept-task-only",
         ]
         if args.base_url:
             command.extend(["--base-url", args.base_url])
@@ -165,16 +182,44 @@ def main() -> None:
             "run_id": run_id,
             "route": route,
             "act_rollouts_started": 0,
+            "production_acceptance": None,
+            "act_runtime_eligible": (
+                False
+                if task.get("schema_version") == 2
+                else None
+            ),
             "log": str((output / "taskgen.log").relative_to(root)).replace("\\", "/"),
         }
-        _write_json(output / "taskgen_result.json", taskgen_result)
         if process.returncode != 0:
+            _write_json(output / "taskgen_result.json", taskgen_result)
             raise SystemExit(process.returncode)
+        child_manifest_path = (
+            root / "mea/generated_tasks" / run_id / "manifest.json"
+        )
+        child_manifest = json.loads(
+            child_manifest_path.read_text(encoding="utf-8")
+        )
+        acceptance = child_manifest.get("task_generation_acceptance")
+        if (
+            not isinstance(acceptance, dict)
+            or acceptance.get("status") != "accepted"
+            or acceptance.get("scope") != "task_generation_only_no_act"
+            or acceptance.get("act_rollouts_started_before_acceptance") != 0
+        ):
+            raise SystemExit(
+                "TaskGen subprocess returned success without a valid 0-ACT "
+                "production acceptance record"
+            )
+        taskgen_result["production_acceptance"] = acceptance
+        taskgen_result["act_runtime_eligible"] = acceptance.get(
+            "act_runtime_eligible"
+        )
+        _write_json(output / "taskgen_result.json", taskgen_result)
 
     result = {
         "schema_version": 1,
         "status": (
-            "task_materialized_tool_routed"
+            "task_materialized_and_accepted_no_act_tool_routed"
             if taskgen_result
             else "task_and_tool_proposed"
         ),
@@ -184,8 +229,21 @@ def main() -> None:
         "tool": tool_resolution,
         "limitations": {
             "act_rollouts_started": 0,
-            "development_validation_only": True,
-            "tool_execution_deferred_to_agent_rollout": True,
+            "experimental_v2_act_runtime_eligible": (
+                False
+                if bundle["task_proposal"]["schema_version"] == 2
+                else None
+            ),
+            "taskgen_acceptance_only": bool(taskgen_result),
+            "policy_performance_evidence": False,
+            "development_validation_only": not bool(taskgen_result),
+            "tool_execution_status": "not_executed",
+            "tool_execution_blocker": (
+                "dual-label runtime is required before experimental "
+                "SuccessSpec evaluation"
+                if bundle["task_proposal"]["schema_version"] == 2
+                else "the proposal command routes but does not execute tools"
+            ),
         },
     }
     _write_json(output / "result.json", result)

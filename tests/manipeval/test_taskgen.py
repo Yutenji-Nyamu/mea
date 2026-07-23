@@ -12,6 +12,10 @@ from mea.taskgen import (
     validate_variant_spec,
 )
 from mea.taskgen.success_spec import experimental_bbh_success_spec_v2
+from mea.proposal_agent import BoundedProposalAgent
+from mea.taskgen.production_acceptance import (
+    record_production_task_acceptance,
+)
 
 
 BLUE_METHOD = '''
@@ -107,7 +111,158 @@ class RedProposalProvider(FakeProvider):
         self.responses[0] = json.dumps(red, ensure_ascii=False)
 
 
+class PublicExperimentalProposalProvider:
+    """Deterministic public Proposal -> TaskGen provider fixture."""
+
+    def __init__(self):
+        changes = {
+            "block": {
+                "position_mode": "official_random",
+                "yaw_mode": "official_random",
+                "scale": 1.0,
+                "color": [0.25, 0.25, 0.75],
+            }
+        }
+        proposal = {
+            "schema_version": 1,
+            "task_proposal": {
+                "schema_version": 2,
+                "proposal_id": "object_appearance.public_v2_fixture",
+                "task_name": "beat_block_hammer",
+                "aspect_id": "object_appearance.color",
+                "intent": (
+                    "generate a purple scene and a separately labeled bounded "
+                    "experimental success predicate"
+                ),
+                "capability_id": "object_appearance.color",
+                "reuse_first": True,
+                "changes": changes,
+                "preserve_success_semantics": False,
+                "success_spec": experimental_bbh_success_spec_v2(
+                    thresholds_m=(0.025, 0.025)
+                ),
+            },
+            "tool_proposal": {
+                "schema_version": 1,
+                "proposal_id": "object_appearance.public_v2_fixture.tool",
+                "task_name": "beat_block_hammer",
+                "aspect_id": "object_appearance.color",
+                "evaluation_goal": (
+                    "measure contact without treating experimental success as "
+                    "official policy success"
+                ),
+                "metric": "hammer_block_contact_ever",
+                "question": "Did strict hammer-block contact occur?",
+                "vqa_phenomenon_ids": ["block_visibly_displaced"],
+                "reuse_first": True,
+            },
+        }
+        variant = json.loads(json.dumps(SPEC))
+        variant["changes"] = changes
+        method = BLUE_METHOD.replace(
+            "color=(0.0, 0.2, 1.0)",
+            "color=(0.25, 0.25, 0.75)",
+        )
+        self.responses = [
+            json.dumps(proposal, ensure_ascii=False),
+            json.dumps(variant, ensure_ascii=False),
+            json.dumps(
+                {
+                    "selected_tasks": [
+                        "beat_block_hammer",
+                        "blocks_ranking_rgb",
+                    ],
+                    "reasoning": (
+                        "Use the canonical behavior and bounded RGB construction."
+                    ),
+                }
+            ),
+            f"```python\n{method}\n```",
+        ]
+        self.last_metadata = {"model": "deterministic-fixture"}
+
+    def text(self, prompt, **kwargs):
+        return self.responses.pop(0)
+
+
 class TaskGenPrototypeTests(unittest.TestCase):
+    def test_public_proposal_v2_materializes_and_reaches_zero_act_acceptance(self):
+        repo_root = Path(__file__).resolve().parents[2]
+        run_id = "run_unittest_public_proposal_success_v2"
+        run_dir = repo_root / "mea/generated_tasks" / run_id
+        if run_dir.exists():
+            shutil.rmtree(run_dir)
+        provider = PublicExperimentalProposalProvider()
+        target = {
+            "task_name": "beat_block_hammer",
+            "aspects": [{"aspect_id": "object_appearance.color"}],
+        }
+        try:
+            bundle = BoundedProposalAgent(
+                provider, model="deterministic-fixture"
+            ).propose(
+                (
+                    "How does this policy behave on a novel block appearance "
+                    "under a bounded experimental 2.5 cm criterion?"
+                ),
+                target=target,
+                aspect_id="object_appearance.color",
+                base_template_id="object_appearance.color_blue",
+                capability_mode="experimental_success_bounded",
+            )
+            manifest = TaskGenPrototype(
+                repo_root, provider, model="deterministic-fixture"
+            ).generate(
+                "materialize the public bounded experimental proposal fixture",
+                run_id=run_id,
+                task_proposal=bundle["task_proposal"],
+            )
+            acceptance = record_production_task_acceptance(
+                run_dir,
+                manifest,
+                scene={
+                    "setup_success": True,
+                    "render_success": True,
+                    "rule_check": {"passed": True},
+                    "expert": {"passed": True},
+                },
+                position_samples={"passed": True},
+                require_expert=True,
+            )
+
+            self.assertEqual(acceptance["status"], "accepted")
+            self.assertEqual(
+                acceptance["runtime"]["act_rollouts_started"], 0
+            )
+            self.assertFalse(
+                manifest["task_artifact_summary"][
+                    "success_official_equivalent"
+                ]
+            )
+            self.assertEqual(
+                manifest["task_artifact_summary"]["success_execution_scope"],
+                "experimental_bounded_probe_only",
+            )
+            comparison = bundle["success_semantics_comparison"]
+            self.assertEqual(
+                comparison["official"]["result_status"],
+                "not_measured_by_proposal",
+            )
+            self.assertEqual(
+                comparison["experimental"]["result_status"],
+                "pending_materialization_or_probe",
+            )
+            persisted = json.loads(
+                (
+                    run_dir / "generation/task_proposal.json"
+                ).read_text(encoding="utf-8")
+            )
+            self.assertEqual(persisted["schema_version"], 2)
+            self.assertFalse(persisted["preserve_success_semantics"])
+        finally:
+            if run_dir.exists():
+                shutil.rmtree(run_dir)
+
     def test_v1_proposal_cannot_smuggle_experimental_success_candidate(self):
         proposal = {
             "schema_version": 1,
@@ -158,6 +313,7 @@ class TaskGenPrototypeTests(unittest.TestCase):
             intent=proposal["intent"],
             changes=proposal["changes"],
             generation_mode="force_codegen",
+            preserve_success_semantics=False,
         )
         try:
             manifest = TaskGenPrototype(
@@ -185,8 +341,13 @@ class TaskGenPrototypeTests(unittest.TestCase):
             self.assertEqual(provenance["source"], "task_proposal_v2")
             self.assertFalse(provenance["preserve_success_semantics"])
             self.assertFalse(provenance["official_equivalent"])
-            self.assertTrue(provenance["act_eligible"])
+            self.assertTrue(provenance["compiler_eligible"])
+            self.assertFalse(provenance["act_runtime_eligible"])
             self.assertTrue(provenance["experimental_bounded"])
+            self.assertEqual(
+                provenance["execution_scope"],
+                "experimental_bounded_probe_only",
+            )
             self.assertFalse(provenance["generated_by_model"])
 
             bundle = json.loads(
@@ -213,9 +374,19 @@ class TaskGenPrototypeTests(unittest.TestCase):
             self.assertFalse(
                 manifest["task_artifact_summary"]["success_semantics_preserved"]
             )
+            self.assertNotIn("check_success", trusted["preserve"])
+            self.assertIn(
+                "compiled_experimental_success_spec", trusted["preserve"]
+            )
             self.assertEqual(
                 manifest["task_artifact_summary"]["success_execution_scope"],
-                "experimental_bounded_act",
+                "experimental_bounded_probe_only",
+            )
+            self.assertFalse(
+                manifest["task_artifact_summary"]["success_act_eligible"]
+            )
+            self.assertTrue(
+                manifest["task_artifact_summary"]["success_compiler_eligible"]
             )
         finally:
             if run_dir.exists():

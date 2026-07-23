@@ -69,6 +69,15 @@ from .adaptive_step import (
     AdaptiveStepError,
     validate_plan_step_proposal,
 )
+from .query_contract import (
+    CLAIM_TYPES,
+    OUTCOMES,
+    QuerySufficiencyError,
+    assess_query_sufficiency,
+    build_query_sufficiency_contract,
+    infer_claim_type,
+    validate_query_sufficiency_contract,
+)
 
 __all__ = [
     "BLUE_TASK_INSTRUCTION",
@@ -122,4 +131,11 @@ __all__ = [
     "AdaptivePlanStepAgent",
     "AdaptiveStepError",
     "validate_plan_step_proposal",
+    "CLAIM_TYPES",
+    "OUTCOMES",
+    "QuerySufficiencyError",
+    "assess_query_sufficiency",
+    "build_query_sufficiency_contract",
+    "infer_claim_type",
+    "validate_query_sufficiency_contract",
 ]

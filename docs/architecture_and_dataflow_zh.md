@@ -1135,3 +1135,64 @@ v4 证明真实 Evidence 能改变下一 aspect，但 hard cap=2 仍在 `right_f
 `drill_down position`，`1` 产生 `switch instance`。它与 v4 一起证明 branch sensitivity，但不证明停止
 充分性。下一批应先用缓存 evidence 建立量词解析、required coverage 和 stop-reason 的确定性合同，再决定
 是否支付新的 ACT。
+
+## 18. 2026-07-23：P1–P5 合同后的真实边界
+
+本批把上一节的 sufficiency gap 实现为独立、确定性的 Query contract，但尚未把它接入 live
+`manipeval_agent.py`。当前实际关系是：
+
+```text
+v4 cached ACT evidence
+→ explicit CandidateEvidence
+→ QuerySufficiencyContract
+→ offline assessment: inconclusive / continue
+→ AnswerScope
+   ├── N=2, seed=[100502]
+   ├── untested=[right_fixed, base1]
+   ├── unsupported=[color, gloss, texture, mass, scale]
+   └── required limitation: current answer is interim
+```
+
+完整 frozen suite 有 4 个候选，合同预算为 3；已有两轮后只剩一轮。candidate universe 没有为了适配预算
+而被缩小，因此若下一轮仍是 pass，系统必须以 `budget_exhausted` 和剩余候选结束，而不能写
+`evidence_sufficient`。有限域 universal claim 只有在观察到确定失败时可被一个反例提前 refute。
+
+P2 的真实 TaskGen 路径则是另一条 0-ACT 链：
+
+```text
+public bounded Proposal v2
+→ BBH color scene code + bounded SuccessSpec
+→ static / fixture / differential validation
+→ render + visual gate
+→ simulator probe + expert solvability
+→ production Task acceptance
+→ ACT runtime blocked
+```
+
+该 run 使用 3 次 provider、2 次 simulator probe、1 次 expert probe、0 次 ACT。生成的 experimental
+`check_success()` 要求 hammer/block 功能点 XY 误差各 `<0.025m` 且二者发生物理接触。它已经证明
+scene 与成功判据可共同生成、编译和验收，但 official/experimental outcome 尚未形成双通道 runtime，
+所以不能进入策略性能报告。fresh/resume ACT 的最终 authority 是重建后的
+`TaskArtifactBundle.success_semantics.act_runtime_eligible`；manifest 中缺失或陈旧的 TaskProposal
+副本不能把 experimental bundle 变成可执行。
+
+P3 matched-efficiency 与 P5 independent-validity 当前只有 protocol/harness：
+
+- P3 冻结 Query、checkpoint hash、candidate suite、seed、预算和 sufficiency contract，并分开记录各种
+  资源；发布的 `2:1`、`2:2` 都是 synthetic truth table；
+- P5 支持 rater role、agreement、majority/senior tie-break、四条件 accuracy/AUROC；发布数据仍是
+  synthetic proxy，没有 4 名真实 annotator。
+
+因此下一架构目标不是继续添加平行模块，而是闭合一条身份一致的主链：
+
+```text
+hash(Query + checkpoint + full routed suite + budget + unsupported axes)
+→ live Aggregate → CandidateEvidence
+→ P1 stop verdict
+→ P4 AnswerScope / final answer
+→ P3 fixed/adaptive conclusion comparison
+```
+
+之后才增加 official/experimental 双通道 ACT、真实 matched pilot 和独立人工有效性。详细证据与命令见
+[本批开发记录](development_log_20260723_query_contract_taskgen_validity_zh.md) 和
+[compact bundle](evidence_runs/batch18_contracts/)。

@@ -1,0 +1,57 @@
+{
+  "schema_version": 2,
+  "proposal_id": "object_appearance.color.query_generated_1",
+  "task_name": "beat_block_hammer",
+  "aspect_id": "object_appearance.color",
+  "intent": "evaluate a query-relevant bounded variation",
+  "capability_id": "object_appearance.color",
+  "reuse_first": true,
+  "changes": {
+    "block": {
+      "position_mode": "official_random",
+      "yaw_mode": "official_random",
+      "scale": 1.0,
+      "color": [
+        0.25,
+        0.25,
+        0.75
+      ]
+    }
+  },
+  "preserve_success_semantics": false,
+  "success_spec": {
+    "schema_version": 2,
+    "task_name": "beat_block_hammer",
+    "envelope_id": "bbh.experimental_bounded_act",
+    "logic": "all",
+    "predicates": [
+      {
+        "predicate": "planar_axis_distance",
+        "left": {
+          "actor": "hammer",
+          "functional_point_id": 0
+        },
+        "right": {
+          "actor": "block",
+          "functional_point_id": 1
+        },
+        "axes": [
+          0,
+          1
+        ],
+        "thresholds_m": [
+          0.025,
+          0.025
+        ],
+        "comparison": "strict_lt"
+      },
+      {
+        "predicate": "physical_contact",
+        "actors": [
+          "hammer",
+          "block"
+        ]
+      }
+    ]
+  }
+}

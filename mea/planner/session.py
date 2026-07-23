@@ -23,6 +23,10 @@ from .catalog import catalog_task, validate_act_catalog
 from .context import build_planning_context
 from .evidence_policy import assess_conditional_transition
 from .adaptive_step import validate_plan_step_proposal
+from .query_contract import (
+    assess_query_sufficiency as assess_query_contract,
+    validate_query_sufficiency_contract,
+)
 
 
 class PlanSessionError(ValueError):
@@ -259,6 +263,40 @@ class BoundTaskPlanSession:
         if unknown:
             raise PlanSessionError(f"plan selected unsupported aspects: {unknown}")
         return selected
+
+    def assess_query_sufficiency(
+        self,
+        contract: Mapping[str, Any],
+        candidate_evidence: list[Mapping[str, Any]],
+        *,
+        completed_rounds: int | None = None,
+    ) -> dict[str, Any]:
+        """Assess query truth conditions inside this session's frozen variants.
+
+        The method is intentionally independent from ``navigation_options``:
+        evidence may make a quantified query answerable before every routed
+        aspect is covered, while an ambiguous diagnostic query may remain
+        unanswered after its rollout budget ends.
+        """
+
+        normalized = validate_query_sufficiency_contract(contract)
+        known_templates = set(self.template_to_aspect)
+        unknown = sorted(
+            set(normalized["candidate_universe"]) - known_templates
+        )
+        if unknown:
+            raise PlanSessionError(
+                f"query candidate universe leaves the bound task: {unknown}"
+            )
+        if normalized["round_budget"] > self.target["max_rounds"]:
+            raise PlanSessionError(
+                "query sufficiency contract exceeds the bound round budget"
+            )
+        return assess_query_contract(
+            normalized,
+            candidate_evidence,
+            completed_rounds=completed_rounds,
+        )
 
     def _normalize_plan(self, plan: Mapping[str, Any]) -> dict[str, Any]:
         if not isinstance(plan, Mapping):

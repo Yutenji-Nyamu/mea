@@ -1,0 +1,15 @@
+{
+  "returncode": 0,
+  "run_id": "run_20260723_batch18_p2_experimental_bbh_v2_final",
+  "route": "force_codegen",
+  "act_rollouts_started": 0,
+  "production_acceptance": {
+    "status": "accepted",
+    "scope": "task_generation_only_no_act",
+    "artifact": "validation/task_generation_attempts/task_generation_attempt_summary.json",
+    "act_rollouts_started_before_acceptance": 0,
+    "act_runtime_eligible": false
+  },
+  "act_runtime_eligible": false,
+  "log": "mea/validation_runs/batch18_p2_experimental_bbh_v2_final/taskgen.log"
+}

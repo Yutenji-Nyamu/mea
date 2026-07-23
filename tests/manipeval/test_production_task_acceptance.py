@@ -11,6 +11,7 @@ from mea.taskgen.production_acceptance import (
     _validate_runtime_variant_spec,
     record_production_task_acceptance,
     require_production_task_acceptance,
+    require_task_artifact_act_runtime_eligible,
 )
 from mea.taskgen.capabilities import build_variant_spec
 
@@ -198,6 +199,34 @@ class ProductionTaskAcceptanceTests(unittest.TestCase):
             ProductionTaskAcceptanceError, "artifact contract changed"
         ):
             require_production_task_acceptance(self.run_dir, self.manifest)
+
+    @patch("mea.taskgen.production_acceptance._validate_current_candidate")
+    def test_final_bundle_forbids_act_despite_stale_or_missing_manifest_copy(
+        self, validate_candidate
+    ):
+        validate_candidate.return_value = (
+            {"task_name": "demo"},
+            {
+                "success_semantics": {
+                    "act_runtime_eligible": False,
+                    "runtime_blocker": "experimental success is probe-only",
+                }
+            },
+            {},
+        )
+        manifests = (
+            {},
+            {"task_proposal": {"schema_version": 1}},
+        )
+        for manifest in manifests:
+            with self.subTest(manifest=manifest), self.assertRaisesRegex(
+                ProductionTaskAcceptanceError,
+                "TaskArtifactBundle forbids ACT runtime execution",
+            ):
+                require_task_artifact_act_runtime_eligible(
+                    self.run_dir,
+                    manifest,
+                )
 
     @patch("mea.taskgen.production_acceptance._verify_bound_artifacts")
     @patch("mea.taskgen.production_acceptance.validate_task_artifact_bundle")
