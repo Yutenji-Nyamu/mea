@@ -87,6 +87,16 @@ from .claim_first import (
     validate_open_query_evidence,
     validate_open_query_plan_proposal,
 )
+from .claim_first_runtime import (
+    CONTROL_TEMPLATE_BY_TASK,
+    ClaimFirstRuntimeController,
+    ClaimFirstRuntimeError,
+    build_claim_first_evidence_record,
+    build_control_anchor_proposal,
+    control_template_id,
+    render_query_answer,
+    resolve_semantic_proposal,
+)
 
 __all__ = [
     "BLUE_TASK_INSTRUCTION",
@@ -154,4 +164,12 @@ __all__ = [
     "validate_open_query_capabilities",
     "validate_open_query_evidence",
     "validate_open_query_plan_proposal",
+    "CONTROL_TEMPLATE_BY_TASK",
+    "ClaimFirstRuntimeController",
+    "ClaimFirstRuntimeError",
+    "build_claim_first_evidence_record",
+    "build_control_anchor_proposal",
+    "control_template_id",
+    "render_query_answer",
+    "resolve_semantic_proposal",
 ]

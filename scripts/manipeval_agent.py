@@ -35,6 +35,8 @@ from mea.history import EvaluationHistoryDB
 from mea.planner import (
     AdaptivePlanStepAgent,
     BoundTaskPlanSession,
+    ClaimFirstOpenQueryAgent,
+    ClaimFirstRuntimeController,
     ClickBellAdaptivePlanAgent,
     ClickBellFixedSuitePlanAgent,
     ClickBellPositionPlanAgent,
@@ -42,7 +44,10 @@ from mea.planner import (
     OfficialTaskPlanAgent,
     PlanAgentPrototype,
     build_act_catalog,
+    build_control_anchor_proposal,
     make_evaluation_id,
+    project_open_query_capabilities,
+    render_query_answer,
     route_to_planner_proposal,
 )
 from mea.proposals import (
@@ -2544,6 +2549,27 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--open-query-planner",
+        choices=["catalog_step_v1", "claim_first_v1"],
+        default="catalog_step_v1",
+        help=(
+            "catalog_step_v1 preserves the existing public adaptive planner. "
+            "claim_first_v1 first executes a runtime-owned official-scene "
+            "control, then lets ClaimFirstOpenQueryAgent discover one semantic "
+            "next experiment from automatically bound evidence. Requires "
+            "--auto-route and dynamic planning."
+        ),
+    )
+    parser.add_argument(
+        "--query-sufficiency-contract",
+        type=Path,
+        help=(
+            "Optional preregistered QuerySufficiencyContract JSON for "
+            "claim_first_v1. Comparative Queries require this explicit "
+            "two-group contract."
+        ),
+    )
+    parser.add_argument(
         "--generated-rounds",
         type=int,
         choices=[1, 2, 3, 4, 5],
@@ -2688,6 +2714,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    claim_first_mode = args.open_query_planner == "claim_first_v1"
     if args.num_episodes <= 0:
         raise SystemExit("--num-episodes must be positive")
     if args.inject_tool_exception_once and not (
@@ -2709,6 +2736,19 @@ def main() -> None:
         )
     if args.proposal_mode != "catalog" and not args.auto_route:
         raise SystemExit("--proposal-mode novel_first_round requires --auto-route")
+    if claim_first_mode and not args.auto_route:
+        raise SystemExit("claim_first_v1 requires --auto-route")
+    if claim_first_mode and args.planning_policy != "dynamic_evidence_v1":
+        raise SystemExit("claim_first_v1 requires --planning-policy dynamic_evidence_v1")
+    if claim_first_mode and args.proposal_mode != "catalog":
+        raise SystemExit(
+            "claim_first_v1 resolves its semantic proposal after evidence; "
+            "do not also select a predeclared --proposal-mode"
+        )
+    if args.query_sufficiency_contract is not None and not claim_first_mode:
+        raise SystemExit(
+            "--query-sufficiency-contract requires --open-query-planner claim_first_v1"
+        )
     registered_values = (
         args.evidence_manifest,
         args.command_plan,
@@ -2734,6 +2774,18 @@ def main() -> None:
     if args.registered_strategy is not None and args.evaluation_id is None:
         raise SystemExit("registered execution requires an explicit --evaluation-id")
     repo_root = args.repo_root.expanduser().resolve()
+    query_sufficiency_contract: dict[str, Any] | None = None
+    if args.query_sufficiency_contract is not None:
+        contract_path = args.query_sufficiency_contract.expanduser().resolve()
+        try:
+            loaded_contract = json.loads(contract_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise SystemExit(
+                f"cannot read --query-sufficiency-contract: {exc}"
+            ) from exc
+        if not isinstance(loaded_contract, dict):
+            raise SystemExit("--query-sufficiency-contract must contain a JSON object")
+        query_sufficiency_contract = loaded_contract
     args.evaluation_id = args.evaluation_id or make_evaluation_id()
     pre_round_ledger_root = (
         repo_root / "mea/evaluation_runs/.runtime_ledgers" / args.evaluation_id
@@ -3067,6 +3119,26 @@ def main() -> None:
     }
     if validated_proposal is not None:
         planner_kwargs["validated_proposal"] = validated_proposal
+    claim_first_pre_session: BoundTaskPlanSession | None = None
+    if claim_first_mode:
+        if global_catalog is None:
+            raise RuntimeError("claim-first runtime requires the trusted ACT catalog")
+        requested_round_budget = (
+            args.generated_rounds if bounded_click_bell else None
+        )
+        if requested_round_budget is not None and requested_round_budget < 2:
+            raise SystemExit(
+                "claim_first_v1 requires at least two rounds: control plus candidate"
+            )
+        claim_first_pre_session = BoundTaskPlanSession.from_catalog(
+            global_catalog,
+            args.task_name,
+            max_rounds=requested_round_budget,
+        )
+        planner_kwargs["validated_proposal"] = build_control_anchor_proposal(
+            claim_first_pre_session.target,
+            args.request,
+        )
     planning_ledger_context = {
         "schema_version": 1,
         "evaluation_id": args.evaluation_id,
@@ -3116,6 +3188,9 @@ def main() -> None:
     planning_context: dict[str, Any] | None = None
     proposal_agent: BoundedProposalAgent | None = None
     adaptive_step_agent: AdaptivePlanStepAgent | None = None
+    claim_first_controller: ClaimFirstRuntimeController | None = None
+    claim_first_agent: ClaimFirstOpenQueryAgent | None = None
+    claim_first_capabilities: dict[str, Any] | None = None
     if global_catalog is not None:
         initial_failure_stage = "initial_plan_session_validation"
         try:
@@ -3140,7 +3215,39 @@ def main() -> None:
             plan = bound_plan_session.normalize_plan(plan)
             planning_context = bound_plan_session.planning_context(repo_root)
             write_json(evaluation_dir / "plan/planning_context.json", planning_context)
-            if should_enable_adaptive_plan_step(
+            if claim_first_mode:
+                claim_first_capabilities = project_open_query_capabilities(
+                    planning_context
+                )
+                claim_first_controller = ClaimFirstRuntimeController(
+                    args.request,
+                    bound_plan_session.target,
+                    query_contract=query_sufficiency_contract,
+                )
+                assert provider is not None
+                claim_first_agent = ClaimFirstOpenQueryAgent(
+                    provider,
+                    model=models["planner"],
+                )
+                write_json(
+                    evaluation_dir / "plan/claim_first_capabilities.json",
+                    claim_first_capabilities,
+                )
+                write_json(
+                    evaluation_dir / "plan/query_sufficiency_contract.json",
+                    claim_first_controller.query_contract,
+                )
+                manifest.setdefault("planner", {}).update(
+                    {
+                        "public_planner": "ClaimFirstOpenQueryAgent",
+                        "control_anchor_owned_by_runtime": True,
+                        "control_template_id": (
+                            claim_first_controller.control_template
+                        ),
+                        "catalog_navigation_was_model_visible": False,
+                    }
+                )
+            elif should_enable_adaptive_plan_step(
                 fixed_click_bell=fixed_click_bell,
                 legacy_click_bell=legacy_click_bell,
                 registered_strategy=args.registered_strategy,
@@ -3310,6 +3417,13 @@ def main() -> None:
         telemetry_profile=args.telemetry_profile,
         execution_backend=execution_backend,
         planning_policy=planning_policy,
+        open_query_planner=args.open_query_planner,
+        query_sufficiency_contract_path=(
+            "plan/query_sufficiency_contract.json" if claim_first_mode else None
+        ),
+        claim_first_capabilities_path=(
+            "plan/claim_first_capabilities.json" if claim_first_mode else None
+        ),
         candidate_suite_sha256=(
             canonical_sha256(candidate_suite) if candidate_suite else None
         ),
@@ -3388,6 +3502,8 @@ def main() -> None:
     assert provider is not None
 
     round_runs: list[dict[str, Any]] = []
+    claim_first_runtime_state: dict[str, Any] | None = None
+    claim_first_query_answer: dict[str, Any] | None = None
     active_failure_stage = "round_execution"
     try:
         executed_rounds = 0
@@ -3463,6 +3579,92 @@ def main() -> None:
                 }
             )
             executed_rounds += 1
+
+            if claim_first_controller is not None:
+                active_failure_stage = (
+                    f"claim_first_evidence_after_round_{executed_rounds}"
+                )
+                claim_first_runtime_state = claim_first_controller.observe(
+                    [item["round_plan"] for item in round_runs],
+                    [item["round_summary"] for item in round_runs],
+                    [item["round_provenance"] for item in round_runs],
+                )
+                claim_first_dir = evaluation_dir / "plan/claim_first_runtime"
+                write_json(
+                    claim_first_dir
+                    / f"evidence_after_round_{executed_rounds:02d}.json",
+                    claim_first_runtime_state,
+                )
+                assessment = claim_first_runtime_state["assessment"]
+                if assessment["should_stop"]:
+                    claim_first_query_answer = claim_first_runtime_state[
+                        "query_answer"
+                    ]
+                    decision = {
+                        "schema_version": 3,
+                        "action": "stop",
+                        "transition": "stop",
+                        "next_aspect_id": None,
+                        "next_template_id": None,
+                        "observation_summary": assessment["rationale"],
+                        "decision_reason": (
+                            "claim_first_query_sufficiency_contract"
+                        ),
+                        "answered_query": bool(
+                            claim_first_query_answer["answered"]
+                        ),
+                        "plan_step_source": (
+                            "deterministic_query_sufficiency_contract"
+                        ),
+                        "round_budget_before_decision": assessment[
+                            "budget_remaining"
+                        ],
+                        "evidence_assessment": assessment,
+                        "next_round": None,
+                    }
+                    plan.setdefault("round_decisions", []).append(decision)
+                    plan["planning_state"] = (
+                        f"stopped_after_round_{executed_rounds}_"
+                        f"{assessment['stop_reason']}"
+                    )
+                    write_json(
+                        evaluation_dir
+                        / f"plan/decision_after_{round_plan['round_id']}.json",
+                        decision,
+                    )
+                    write_json(
+                        claim_first_dir / "query_answer.json",
+                        claim_first_query_answer,
+                    )
+                    write_json(
+                        evaluation_dir / "plan/evaluation_plan.json",
+                        plan,
+                    )
+                    if bound_plan_session is not None:
+                        write_json(
+                            evaluation_dir / "plan/bound_task_session.json",
+                            bound_plan_session.snapshot(
+                                args.request,
+                                plan,
+                                [item["round_summary"] for item in round_runs],
+                            ),
+                        )
+                    update_manifest(
+                        evaluation_dir,
+                        status=plan["planning_state"],
+                        plan=plan,
+                        claim_first_stop={
+                            "stop_reason": assessment["stop_reason"],
+                            "evidence_sufficient": assessment[
+                                "evidence_sufficient"
+                            ],
+                            "answered_query": claim_first_query_answer["answered"],
+                            "answer_path": (
+                                "plan/claim_first_runtime/query_answer.json"
+                            ),
+                        },
+                    )
+                    break
 
             if (
                 args.max_agent_rounds is not None
@@ -3559,7 +3761,121 @@ def main() -> None:
                 and adaptive_step_agent is not None
                 and planning_context is not None
             )
-            if dynamic_step_session:
+            claim_first_step_session = (
+                bound_plan_session is not None
+                and claim_first_controller is not None
+                and claim_first_agent is not None
+                and claim_first_capabilities is not None
+                and claim_first_runtime_state is not None
+            )
+            if claim_first_step_session:
+                active_failure_stage = (
+                    f"claim_first_decision_after_round_{executed_rounds}"
+                )
+                try:
+                    with runtime_ledger_context(decision_ledger, decision_context):
+                        semantic_bundle = claim_first_agent.propose(
+                            args.request,
+                            capabilities=claim_first_capabilities,
+                            evidence_history=claim_first_runtime_state[
+                                "open_query_evidence_history"
+                            ],
+                        )
+                        bound_semantic_step = (
+                            claim_first_controller.bind_semantic_step(
+                                semantic_bundle,
+                                claim_first_runtime_state,
+                                executed_template_ids=[
+                                    str(item["round_plan"]["template_id"])
+                                    for item in round_runs
+                                ],
+                            )
+                        )
+                finally:
+                    record_runtime_ledger_stage(
+                        repo_root,
+                        evaluation_dir,
+                        runtime_ledgers,
+                        ledger_path=decision_ledger,
+                        context=decision_context,
+                        stage=f"decision_after_{round_plan['round_id']}",
+                    )
+                step_dir = (
+                    evaluation_dir
+                    / "plan/claim_first_steps"
+                    / f"after_round_{executed_rounds:02d}"
+                )
+                step_dir.mkdir(parents=True, exist_ok=True)
+                (step_dir / "prompt.md").write_text(
+                    claim_first_agent.last_prompt or "",
+                    encoding="utf-8",
+                )
+                for index, response in enumerate(
+                    claim_first_agent.last_responses,
+                    start=1,
+                ):
+                    (step_dir / f"response_{index}.txt").write_text(
+                        response + "\n",
+                        encoding="utf-8",
+                    )
+                write_json(step_dir / "semantic_proposal_bundle.json", semantic_bundle)
+                write_json(step_dir / "bound_semantic_step.json", bound_semantic_step)
+                plan_step = bound_semantic_step["plan_step"]
+                materialize = getattr(planner, "materialize_plan_step", None)
+                if not callable(materialize):
+                    raise RuntimeError(
+                        "bound task planner cannot materialize claim-first PlanStep"
+                    )
+                materialized_round = materialize(
+                    plan_step["template_id"],
+                    len(plan_before_decision["rounds"]) + 1,
+                    args.request,
+                )
+                plan, decision, runtime_directive = (
+                    bound_plan_session.apply_plan_step(
+                        plan_before_decision,
+                        observation_history,
+                        plan_step,
+                        materialized_round=materialized_round,
+                        source="provider_claim_first_open_query",
+                    )
+                )
+                decision["semantic_proposal"] = deepcopy(
+                    semantic_bundle["proposal"]
+                )
+                decision["semantic_resolution"] = deepcopy(
+                    bound_semantic_step["resolution"]
+                )
+                write_json(
+                    evaluation_dir
+                    / f"plan/runtime_directive_after_{round_plan['round_id']}.json",
+                    {
+                        "schema_version": 1,
+                        "owner": "BoundTaskPlanSession",
+                        "adapter_role": (
+                            "claim_first_discover_resolve_materialize_and_adjudicate"
+                        ),
+                        **runtime_directive,
+                    },
+                )
+                update_manifest(
+                    evaluation_dir,
+                    last_claim_first_step={
+                        "status": "transition_applied",
+                        "after_round": executed_rounds,
+                        "action": plan_step["action"],
+                        "semantic_sub_aspect": (
+                            semantic_bundle["proposal"]["sub_aspect"]
+                        ),
+                        "resolved_template_id": plan_step["template_id"],
+                        "artifact_path": (
+                            f"plan/claim_first_steps/"
+                            f"after_round_{executed_rounds:02d}/"
+                            "bound_semantic_step.json"
+                        ),
+                    },
+                )
+            elif dynamic_step_session:
                 active_failure_stage = (
                     f"adaptive_decision_after_round_{executed_rounds}"
                 )
@@ -3816,6 +4132,50 @@ def main() -> None:
             round_runs,
             evaluation_aggregate,
         )
+        if claim_first_runtime_state is not None:
+            if claim_first_query_answer is None:
+                externally_stopped_assessment = {
+                    **claim_first_runtime_state["assessment"],
+                    "should_stop": True,
+                    "stop_reason": "external_hard_round_cap",
+                    "evidence_sufficient": False,
+                    "claim_verdict": "inconclusive",
+                    "rationale": (
+                        "An external execution cap stopped the run before the "
+                        "query-sufficiency contract was satisfied."
+                    ),
+                }
+                claim_first_query_answer = render_query_answer(
+                    args.request,
+                    externally_stopped_assessment,
+                    claim_first_runtime_state["records"],
+                    baseline_valid=bool(
+                        claim_first_runtime_state["control_passed"]
+                    ),
+                )
+                write_json(
+                    evaluation_dir
+                    / "plan/claim_first_runtime/query_answer.json",
+                    claim_first_query_answer,
+                )
+            evidence["claim_first_runtime"] = {
+                "schema_version": 1,
+                "query_contract": claim_first_runtime_state["query_contract"],
+                "assessment": claim_first_runtime_state["assessment"],
+                "query_answer": claim_first_query_answer,
+                "records": claim_first_runtime_state["records"],
+                "artifacts": {
+                    "query_answer": (
+                        f"mea/evaluation_runs/{evaluation_id}/plan/"
+                        "claim_first_runtime/query_answer.json"
+                    ),
+                    "latest_evidence": (
+                        f"mea/evaluation_runs/{evaluation_id}/plan/"
+                        "claim_first_runtime/"
+                        f"evidence_after_round_{executed_rounds:02d}.json"
+                    ),
+                },
+            }
         write_json(evaluation_dir / "summary/evidence_bundle.json", evidence)
         update_manifest(
             evaluation_dir,
