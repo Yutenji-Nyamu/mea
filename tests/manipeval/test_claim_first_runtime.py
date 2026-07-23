@@ -124,14 +124,14 @@ def bind_provenance(plan, observed):
     return provenance
 
 
-def semantic_bundle():
+def semantic_bundle(sub_aspect="object_position.left_fixed"):
     return {
         "schema_version": 1,
         "source": "cached_test_proposal",
         "proposal": {
             "schema_version": 1,
             "action": "continue",
-            "sub_aspect": "object_position.left_fixed",
+            "sub_aspect": sub_aspect,
             "hypothesis": "The left fixed position may expose a weakness.",
             "requested_perturbation": {
                 "description": "Place the bell at the safe left position.",
@@ -187,6 +187,46 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         )
         self.assertFalse(
             bound["resolution"]["catalog_was_model_visible"]
+        )
+
+    def test_exact_aspect_uses_hidden_runtime_order_then_next_variant(self):
+        controller = ClaimFirstRuntimeController(
+            "Where does this policy first expose a weakness?",
+            target(),
+        )
+        control = round_plan(
+            1, "performance.completion_time_stability.official"
+        )
+        observed = summary(control, 1.0)
+        provenance = bind_provenance(control, observed)
+        state = controller.observe([control], [observed], [provenance])
+
+        first = controller.bind_semantic_step(
+            semantic_bundle("object_position"),
+            state,
+            executed_template_ids=[control["template_id"]],
+        )
+        self.assertEqual(
+            first["resolution"]["resolution"],
+            "exact_aspect_runtime_order",
+        )
+        self.assertTrue(first["resolution"]["hidden"])
+        self.assertEqual(
+            first["plan_step"]["template_id"],
+            "object_position.left_fixed",
+        )
+
+        second = controller.bind_semantic_step(
+            semantic_bundle("object_position"),
+            state,
+            executed_template_ids=[
+                control["template_id"],
+                "object_position.left_fixed",
+            ],
+        )
+        self.assertEqual(
+            second["plan_step"]["template_id"],
+            "object_position.right_fixed",
         )
 
     def test_failed_control_stops_before_property_attribution(self):

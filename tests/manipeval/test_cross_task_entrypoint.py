@@ -141,6 +141,69 @@ class CrossTaskEntrypointTests(unittest.TestCase):
             plan = json.loads(process.stdout)
             self.assertEqual(plan["task_name"], "click_bell")
 
+    def test_bound_claim_first_plan_only_is_providerless_control_plan(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            schema_dir = root / "mea/toolkit/schemas"
+            schema_dir.mkdir(parents=True)
+            shutil.copy2(
+                REPO_ROOT / "mea/toolkit/schemas/click_bell.json",
+                schema_dir / "click_bell.json",
+            )
+            checkpoint_dir = (
+                root / "policy/ACT/act_ckpt/act-click_bell/demo_clean-50"
+            )
+            checkpoint_dir.mkdir(parents=True)
+            (checkpoint_dir / "policy_last.ckpt").write_bytes(b"checkpoint")
+            (checkpoint_dir / "dataset_stats.pkl").write_bytes(b"stats")
+            environment = dict(os.environ)
+            environment.pop("UIUI_API_KEY", None)
+            process = subprocess.run(
+                [
+                    sys.executable,
+                    str(REPO_ROOT / "scripts/manipeval_agent.py"),
+                    "--repo-root",
+                    str(root),
+                    "--request",
+                    "Where does this policy first expose a weakness?",
+                    "--open-query-planner",
+                    "claim_first_v1",
+                    "--bound-task-name",
+                    "click_bell",
+                    "--generated-rounds",
+                    "2",
+                    "--evaluation-id",
+                    "eval_claim_first_bound_plan_only",
+                    "--plan-only",
+                    "--no-history",
+                ],
+                cwd=REPO_ROOT,
+                env=environment,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+            self.assertEqual(process.returncode, 0, process.stderr)
+            plan = json.loads(process.stdout)
+            self.assertEqual(plan["task_name"], "click_bell")
+            self.assertEqual(
+                plan["rounds"][0]["template_id"],
+                "performance.completion_time_stability.official",
+            )
+            manifest = json.loads(
+                (
+                    root
+                    / "mea/evaluation_runs/eval_claim_first_bound_plan_only/"
+                    "manifest.json"
+                ).read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                manifest["planner"]["public_planner"],
+                "ClaimFirstOpenQueryAgent",
+            )
+            self.assertFalse(manifest["planner"]["provider_called"])
+
     def test_official_task_run_records_no_codegen(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

@@ -181,11 +181,12 @@ def resolve_semantic_proposal(
     executed_template_ids: Sequence[str],
     control_template: str,
 ) -> dict[str, Any]:
-    """Resolve one semantic proposal to a unique unexecuted trusted template.
+    """Resolve one semantic proposal to an unexecuted trusted template.
 
-    Exact aspect identity wins.  Otherwise a deterministic lexical score over
-    the semantic request and runtime-private aspect descriptions is used.  A
-    tie or zero score fails closed; there is no first-item fallback.
+    The Plan Agent chooses a semantic sub-aspect, not a hidden left/right or
+    instance id.  An exact aspect therefore materializes the first remaining
+    template in the preregistered runtime order.  Lexical ambiguity *across*
+    aspects still fails closed.
     """
 
     normalized = validate_open_query_plan_proposal(proposal, has_evidence=True)
@@ -194,64 +195,89 @@ def resolve_semantic_proposal(
             "the query contract, not the model, owns claim-first stopping"
         )
     executed = {str(item) for item in executed_template_ids}
-    candidates: list[dict[str, Any]] = []
     proposal_aspect = str(normalized["sub_aspect"])
     proposal_tokens = _semantic_tokens(normalized)
+    eligible_aspects: list[dict[str, Any]] = []
     for aspect in target.get("aspects", []):
         if not isinstance(aspect, Mapping):
             continue
         aspect_id = str(aspect.get("aspect_id") or "")
+        templates = [
+            str(raw_template)
+            for raw_template in aspect.get("template_ids", [])
+            if str(raw_template) != control_template
+            and str(raw_template) not in executed
+        ]
+        if not templates:
+            continue
         aspect_tokens = _semantic_tokens(
             {
                 "aspect_id": aspect_id,
                 "description": aspect.get("description"),
+                "templates": templates,
             }
         )
-        exact = proposal_aspect == aspect_id
-        for raw_template in aspect.get("template_ids", []):
-            template_id = str(raw_template)
-            if template_id == control_template or template_id in executed:
-                continue
-            template_tokens = aspect_tokens | _semantic_tokens(template_id)
-            overlap = sorted(proposal_tokens & template_tokens)
-            exact_template = proposal_aspect == template_id
-            score = (
-                (2000 if exact_template else 1000 if exact else 0)
-                + len(overlap)
-            )
-            candidates.append(
-                {
-                    "aspect_id": aspect_id,
-                    "template_id": template_id,
-                    "score": score,
-                    "matched_tokens": overlap,
-                }
-            )
-    if not candidates:
+        eligible_aspects.append(
+            {
+                "aspect_id": aspect_id,
+                "template_ids": templates,
+                "score": len(proposal_tokens & aspect_tokens),
+                "matched_tokens": sorted(proposal_tokens & aspect_tokens),
+            }
+        )
+    if not eligible_aspects:
         raise ClaimFirstRuntimeError(
             "no unexecuted non-control template remains in the bound task"
         )
-    candidates.sort(key=lambda item: (-int(item["score"]), item["template_id"]))
-    best = candidates[0]
-    tied = [item for item in candidates if item["score"] == best["score"]]
-    if int(best["score"]) <= 0 or len(tied) != 1:
+
+    for aspect in eligible_aspects:
+        if proposal_aspect in aspect["template_ids"]:
+            chosen = proposal_aspect
+            resolution = "exact_template"
+            break
+    else:
+        exact_aspects = [
+            aspect
+            for aspect in eligible_aspects
+            if proposal_aspect == aspect["aspect_id"]
+        ]
+        if exact_aspects:
+            aspect = exact_aspects[0]
+            chosen = aspect["template_ids"][0]
+            resolution = "exact_aspect_runtime_order"
+        else:
+            best_score = max(int(aspect["score"]) for aspect in eligible_aspects)
+            tied = [
+                aspect
+                for aspect in eligible_aspects
+                if int(aspect["score"]) == best_score
+            ]
+            if best_score <= 0 or len(tied) != 1:
+                raise ClaimFirstRuntimeError(
+                    "semantic proposal does not resolve uniquely across trusted "
+                    "aspects; top candidates="
+                    f"{[(item['aspect_id'], item['score']) for item in tied]}"
+                )
+            aspect = tied[0]
+            chosen = aspect["template_ids"][0]
+            resolution = "unique_lexical_aspect_runtime_order"
+    selected = next(
+        aspect
+        for aspect in eligible_aspects
+        if chosen in aspect["template_ids"]
+    )
+    if not chosen:
         raise ClaimFirstRuntimeError(
-            "semantic proposal does not resolve uniquely to one trusted "
-            f"template; top candidates={[(item['template_id'], item['score']) for item in tied]}"
+            "semantic proposal did not select a remaining trusted template"
         )
     return {
         "schema_version": 1,
         "semantic_sub_aspect": proposal_aspect,
-        "resolved_aspect_id": best["aspect_id"],
-        "resolved_template_id": best["template_id"],
-        "resolution": (
-            "exact_template"
-            if best["score"] >= 2000
-            else "exact_aspect"
-            if best["score"] >= 1000
-            else "unique_lexical"
-        ),
-        "matched_tokens": best["matched_tokens"],
+        "resolved_aspect_id": selected["aspect_id"],
+        "resolved_template_id": chosen,
+        "resolution": resolution,
+        "hidden": True,
+        "matched_tokens": selected["matched_tokens"],
         "catalog_was_model_visible": False,
     }
 

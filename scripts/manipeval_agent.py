@@ -2715,6 +2715,12 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     claim_first_mode = args.open_query_planner == "claim_first_v1"
+    claim_first_bound_plan_only = bool(
+        claim_first_mode
+        and args.plan_only
+        and args.bound_task_name is not None
+        and not args.auto_route
+    )
     if args.num_episodes <= 0:
         raise SystemExit("--num-episodes must be positive")
     if args.inject_tool_exception_once and not (
@@ -2728,7 +2734,11 @@ def main() -> None:
         raise SystemExit(
             "--auto-route resolves a trusted task module; do not pass --task-module"
         )
-    if args.bound_task_name is not None and not args.auto_route:
+    if (
+        args.bound_task_name is not None
+        and not args.auto_route
+        and not claim_first_bound_plan_only
+    ):
         raise SystemExit("--bound-task-name requires --auto-route")
     if args.bound_requested_aspect_ids is not None and args.bound_task_name is None:
         raise SystemExit(
@@ -2736,8 +2746,18 @@ def main() -> None:
         )
     if args.proposal_mode != "catalog" and not args.auto_route:
         raise SystemExit("--proposal-mode novel_first_round requires --auto-route")
-    if claim_first_mode and not args.auto_route:
-        raise SystemExit("claim_first_v1 requires --auto-route")
+    if claim_first_mode and not (
+        args.auto_route or claim_first_bound_plan_only
+    ):
+        raise SystemExit(
+            "claim_first_v1 requires --auto-route, or --plan-only with "
+            "--bound-task-name"
+        )
+    if claim_first_bound_plan_only and args.bound_requested_aspect_ids is not None:
+        raise SystemExit(
+            "providerless claim-first plan-only owns the control anchor; "
+            "do not predeclare aspect ids"
+        )
     if claim_first_mode and args.planning_policy != "dynamic_evidence_v1":
         raise SystemExit("claim_first_v1 requires --planning-policy dynamic_evidence_v1")
     if claim_first_mode and args.proposal_mode != "catalog":
@@ -2866,6 +2886,25 @@ def main() -> None:
     routed_task_profile: str | None = (
         "adaptive_properties" if registered_execution is not None else None
     )
+
+    if claim_first_bound_plan_only:
+        global_catalog = build_act_catalog(repo_root)
+        ready_tasks = [
+            str(task["task_name"])
+            for task in global_catalog.get("tasks", [])
+        ]
+        assert args.bound_task_name is not None
+        if args.bound_task_name not in ready_tasks:
+            raise SystemExit(
+                f"bound task is not ACT-ready: {args.bound_task_name!r}"
+            )
+        args.task_name = args.bound_task_name
+        args.task_profile = (
+            "adaptive_properties"
+            if args.task_name == "click_bell"
+            else "official"
+        )
+        routed_task_profile = args.task_profile
 
     if args.auto_route:
         provider = OpenAICompatibleProvider(
@@ -3012,7 +3051,7 @@ def main() -> None:
         or adaptive_click_bell
         or fixed_click_bell
         or not args.plan_only
-    ):
+    ) and not claim_first_bound_plan_only:
         provider = OpenAICompatibleProvider(
             base_url=args.base_url,
             text_model=models["planner"],
@@ -3020,14 +3059,16 @@ def main() -> None:
             timeout=180.0,
         )
     if args.task_name == "beat_block_hammer":
-        assert provider is not None
+        if provider is None and not claim_first_bound_plan_only:
+            raise RuntimeError("beat_block_hammer planner provider was not initialized")
         planner = PlanAgentPrototype(
             repo_root,
             provider,
             model=models["planner"],
         )
     elif adaptive_click_bell:
-        assert provider is not None
+        if provider is None and not claim_first_bound_plan_only:
+            raise RuntimeError("click_bell planner provider was not initialized")
         planner = ClickBellAdaptivePlanAgent(
             repo_root,
             provider,
@@ -3224,11 +3265,12 @@ def main() -> None:
                     bound_plan_session.target,
                     query_contract=query_sufficiency_contract,
                 )
-                assert provider is not None
-                claim_first_agent = ClaimFirstOpenQueryAgent(
-                    provider,
-                    model=models["planner"],
-                )
+                if not args.plan_only:
+                    assert provider is not None
+                    claim_first_agent = ClaimFirstOpenQueryAgent(
+                        provider,
+                        model=models["planner"],
+                    )
                 write_json(
                     evaluation_dir / "plan/claim_first_capabilities.json",
                     claim_first_capabilities,
