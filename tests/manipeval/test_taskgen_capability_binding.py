@@ -348,7 +348,7 @@ class TaskGenCapabilityBindingTests(unittest.TestCase):
                     max_reflections=1,
                 )
 
-    def test_main_agent_blocks_experimental_v2_until_label_is_end_to_end(self):
+    def test_main_agent_propagates_experimental_v2_to_taskgen(self):
         contract = resolve_capability_contract(
             "beat_block_hammer", "object_appearance.color_blue"
         )
@@ -398,19 +398,22 @@ class TaskGenCapabilityBindingTests(unittest.TestCase):
         round_plan = materialize_round_proposals(
             base_round, task_proposal, tool_proposal
         )
-        with self.assertRaisesRegex(
-            ValueError, "generated_check_success authority"
-        ):
-            build_taskgen_command(
-                Path("/repo"),
-                "eval_experimental_labeled",
-                round_plan,
-                text_model="text",
-                vision_model="vision",
-                base_url=None,
-                gpu=0,
-                max_reflections=1,
-            )
+        command, _ = build_taskgen_command(
+            Path("/repo"),
+            "eval_experimental_labeled",
+            round_plan,
+            text_model="text",
+            vision_model="vision",
+            base_url=None,
+            gpu=0,
+            max_reflections=1,
+        )
+        encoded = command[command.index("--task-proposal-json") + 1]
+        self.assertEqual(json.loads(encoded), task_proposal)
+        self.assertEqual(
+            command[command.index("--variant-id") + 1],
+            task_proposal["proposal_id"],
+        )
 
     def test_novel_task_proposal_uses_contract_as_envelope(self):
         contract = resolve_capability_contract(

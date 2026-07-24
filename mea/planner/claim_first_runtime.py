@@ -405,6 +405,20 @@ def build_claim_first_evidence_record(
         )
     )
     refs = _round_artifact_refs(round_summary, round_provenance)
+    observations = round_summary.get("observations")
+    policy_outcome = (
+        observations.get("policy_outcome")
+        if isinstance(observations, Mapping)
+        and isinstance(observations.get("policy_outcome"), Mapping)
+        else {
+            "metric": "official_check_success",
+            "authority": "official_check_success",
+            "binding": None,
+            "value": None,
+            "official_equivalent": True,
+            "execution_scope": "legacy_unspecified_official",
+        }
+    )
     strength = packet["evidence_strength"]
     success_rate = packet["policy"]["success_rate"]
     if strength == "conflicting":
@@ -450,9 +464,16 @@ def build_claim_first_evidence_record(
         )
     if success_rate is None:
         limitations.append("Policy success was not reported for this round.")
+    if policy_outcome.get("official_equivalent") is False:
+        limitations.append(
+            "This round is judged by the bounded generated_check_success "
+            "predicate and is not an official RoboTwin success result."
+        )
     summary_text = (
         f"EvidencePacket strength={strength}; policy_success_rate="
         f"{success_rate}; Rule metric={packet['rule']['metric']}; "
+        f"outcome_metric={policy_outcome.get('metric')}; "
+        f"outcome_authority={policy_outcome.get('authority')}; "
         f"VQA status={packet['vqa']['status']}."
     )
     open_query = validate_open_query_evidence(
@@ -497,6 +518,7 @@ def build_claim_first_evidence_record(
         "template_id": str(round_plan.get("template_id") or ""),
         "open_query_evidence": open_query,
         "candidate_evidence": candidate,
+        "evaluation_outcome": deepcopy(dict(policy_outcome)),
         "evidence_packet": packet,
         "evidence_refs": refs,
         "binding_sha256": canonical_sha256(binding_payload),
@@ -562,6 +584,21 @@ def render_query_answer(
         for ref in record.get("evidence_refs", [])
         if isinstance(ref, Mapping)
     ]
+    outcome_authorities = [
+        deepcopy(record["evaluation_outcome"])
+        for record in records
+        if isinstance(record.get("evaluation_outcome"), Mapping)
+    ]
+    non_official = [
+        item
+        for item in outcome_authorities
+        if item.get("official_equivalent") is False
+    ]
+    if non_official:
+        limitations.append(
+            "At least one candidate verdict uses generated_check_success; "
+            "it must not be interpreted as official benchmark success."
+        )
     return {
         "schema_version": 1,
         "original_query": query,
@@ -576,6 +613,7 @@ def render_query_answer(
         "untested_candidate_ids": untested,
         "limitations": list(dict.fromkeys(limitations)),
         "evidence_refs": refs,
+        "evaluation_outcomes": outcome_authorities,
         "evidence_binding_sha256": canonical_sha256(
             [record.get("binding_sha256") for record in records]
         ),
@@ -686,7 +724,14 @@ class ClaimFirstRuntimeController:
                 "claim-first property attribution requires the control template first"
             )
         control_packet = records[0]["evidence_packet"]
+        control_outcome = records[0]["evaluation_outcome"]
+        control_authority_valid = bool(
+            control_outcome.get("metric") == "official_check_success"
+            and control_outcome.get("official_equivalent") is not False
+        )
         baseline_valid = bool(
+            control_authority_valid
+            and
             control_packet["evidence_strength"] == "sufficient"
             and control_packet["policy"]["success_rate"] is not None
             and float(control_packet["policy"]["success_rate"]) >= 1.0
@@ -704,6 +749,9 @@ class ClaimFirstRuntimeController:
         )
         if not baseline_valid:
             reason = (
+                "control_baseline_non_official_outcome"
+                if not control_authority_valid
+                else
                 "control_baseline_pipeline_invalid"
                 if control_packet["evidence_strength"] != "sufficient"
                 else "control_baseline_policy_failed"
@@ -787,6 +835,10 @@ class ClaimFirstRuntimeController:
         return {
             "schema_version": 1,
             "semantic_proposal_bundle": deepcopy(dict(proposal_bundle)),
+            "semantic_needs": {
+                "task_need": deepcopy(proposal["task_need"]),
+                "tool_need": deepcopy(proposal["tool_need"]),
+            },
             "resolution": resolution,
             "plan_step": {
                 "schema_version": 1,

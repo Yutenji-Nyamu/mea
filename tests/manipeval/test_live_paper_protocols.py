@@ -25,7 +25,10 @@ from mea.live_paper_protocols import (
 )
 from mea.prospective_error_ledger import (
     ProspectiveOperationLedger,
+    ProspectiveLedgerError,
+    build_paper_error_study_v2,
     initialize_ledger,
+    summarize_paper_error_study_v2,
 )
 from mea.taskgen.prototype import (
     TaskGenError,
@@ -310,6 +313,202 @@ class ClickBellEfficiencyTests(unittest.TestCase):
                     repo_root=root,
                 )
 
+    def test_universal_mode_stops_after_one_failure_and_preserves_query_verdict(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            prereg = self.prereg(root, "position_universal_3to4act")
+            fixed = [
+                bound_attempt(
+                    root,
+                    prereg,
+                    "fixed",
+                    "fixed_independent_run",
+                    candidate,
+                    index,
+                    success,
+                )
+                for index, (candidate, success) in enumerate(
+                    (
+                        ("object_position.left_fixed", False),
+                        ("object_position.right_fixed", True),
+                    )
+                )
+            ]
+            adaptive = [
+                bound_attempt(
+                    root,
+                    prereg,
+                    "adaptive",
+                    "adaptive_independent_run",
+                    "object_position.left_fixed",
+                    2,
+                    False,
+                )
+            ]
+
+            result = evaluate_click_bell_efficiency(
+                prereg,
+                arm(prereg, "fixed", fixed, "fixed_suite_complete"),
+                arm(prereg, "adaptive", adaptive, "query_sufficient"),
+                repo_root=root,
+            )
+
+            self.assertEqual(
+                result["conclusions"]["fixed"]["claim_verdict"], "refuted"
+            )
+            self.assertEqual(
+                result["conclusions"]["adaptive"]["claim_verdict"], "refuted"
+            )
+            self.assertTrue(result["original_query_conclusion_agrees"])
+            self.assertEqual(
+                result["resource_measurement"]["act_episode_start_saving"], 1
+            )
+            self.assertTrue(result["toy_efficiency_evidence_passed"])
+
+    def test_universal_mode_requires_full_coverage_when_all_observed_pass(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            prereg = self.prereg(root, "position_universal_3to4act")
+            fixed = [
+                bound_attempt(
+                    root,
+                    prereg,
+                    "fixed",
+                    "fixed_independent_run",
+                    candidate,
+                    index,
+                    True,
+                )
+                for index, candidate in enumerate(
+                    (
+                        "object_position.left_fixed",
+                        "object_position.right_fixed",
+                    )
+                )
+            ]
+            adaptive_one = [
+                bound_attempt(
+                    root,
+                    prereg,
+                    "adaptive",
+                    "adaptive_independent_run",
+                    "object_position.left_fixed",
+                    2,
+                    True,
+                )
+            ]
+            with self.assertRaisesRegex(
+                LivePaperProtocolError, "universal truth condition"
+            ):
+                evaluate_click_bell_efficiency(
+                    prereg,
+                    arm(prereg, "fixed", fixed, "fixed_suite_complete"),
+                    arm(
+                        prereg,
+                        "adaptive",
+                        adaptive_one,
+                        "query_sufficient",
+                    ),
+                    repo_root=root,
+                )
+
+
+class ProspectivePaperErrorStudyTests(unittest.TestCase):
+    @staticmethod
+    def study():
+        return build_paper_error_study_v2(
+            study_id="paper_error_smoke",
+            frozen_at_utc="2026-07-24T00:00:00Z",
+            operations=[
+                {
+                    "operation_id": "plan_01",
+                    "run_id": "run_01",
+                    "category": "plan_agent",
+                    "paper_error_definition_id": "wrong_subaspect",
+                },
+                {
+                    "operation_id": "task_01",
+                    "run_id": "run_01",
+                    "category": "taskgen",
+                    "paper_error_definition_id": "invalid_task_program",
+                },
+                {
+                    "operation_id": "other_01",
+                    "run_id": "run_01",
+                    "category": "other",
+                    "paper_error_definition_id": "unclassified_semantic_error",
+                },
+            ],
+        )
+
+    def test_rate_is_withheld_until_frozen_roster_is_semantically_terminal(self):
+        result = summarize_paper_error_study_v2(
+            self.study(),
+            [
+                {
+                    "operation_id": "plan_01",
+                    "status": "passed",
+                    "evidence_ref": "runs/plan.json",
+                    "observed_error_definition_id": None,
+                },
+                {
+                    "operation_id": "task_01",
+                    "status": "infrastructure_error",
+                    "evidence_ref": "runs/task.log",
+                    "observed_error_definition_id": None,
+                },
+            ],
+        )
+        self.assertIsNone(result["prospective_error_rate"])
+        self.assertFalse(result["evidence_complete"])
+        self.assertEqual(result["totals"]["not_started"], 1)
+        self.assertEqual(result["totals"]["infrastructure_errors"], 1)
+
+    def test_only_frozen_semantic_errors_enter_the_numerator(self):
+        result = summarize_paper_error_study_v2(
+            self.study(),
+            [
+                {
+                    "operation_id": "plan_01",
+                    "status": "passed",
+                    "evidence_ref": "runs/plan.json",
+                    "observed_error_definition_id": None,
+                },
+                {
+                    "operation_id": "task_01",
+                    "status": "paper_defined_error",
+                    "evidence_ref": "runs/task.json",
+                    "observed_error_definition_id": "invalid_task_program",
+                },
+                {
+                    "operation_id": "other_01",
+                    "status": "passed",
+                    "evidence_ref": "runs/other.json",
+                    "observed_error_definition_id": None,
+                },
+            ],
+        )
+        self.assertTrue(result["evidence_complete"])
+        self.assertAlmostEqual(result["prospective_error_rate"], 1 / 3)
+        self.assertEqual(result["paper_defined_error_numerator"], 1)
+        self.assertFalse(result["paper_fig6_eligible"])
+
+    def test_exception_label_cannot_impersonate_a_paper_defined_error(self):
+        with self.assertRaisesRegex(
+            ProspectiveLedgerError, "does not match the frozen definition"
+        ):
+            summarize_paper_error_study_v2(
+                self.study(),
+                [
+                    {
+                        "operation_id": "task_01",
+                        "status": "paper_defined_error",
+                        "evidence_ref": "runs/task.log",
+                        "observed_error_definition_id": "RuntimeError",
+                    }
+                ],
+            )
+
 
 class ExactSeedRankingTests(unittest.TestCase):
     def prereg(self, root):
@@ -556,7 +755,12 @@ class Table3AndProxyTests(unittest.TestCase):
         for frozen in prereg["cells"]:
             expected = frozen["expected_stage_receipts"]
             task_sha = write_bytes(
-                root, expected["codegen"]["artifact_ref"], b"def load_actors(self):\n    pass\n"
+                root,
+                expected["codegen"]["artifact_ref"],
+                (
+                    b"def load_actors(self):\n    pass\n\n"
+                    b"def check_success(self):\n    return False\n"
+                ),
             )
             static_sha = write_json(
                 root, expected["compile"]["receipt_ref"], {"passed": True}
@@ -574,6 +778,9 @@ class Table3AndProxyTests(unittest.TestCase):
             stages = {
                 "codegen": {
                     "generated_by_provider": True,
+                    "scene_generated_by_model": True,
+                    "checker_generated_by_model": True,
+                    "module_switches": frozen["module_switches"],
                     "artifact_ref": expected["codegen"]["artifact_ref"],
                     "artifact_sha256": task_sha,
                 },
@@ -606,6 +813,12 @@ class Table3AndProxyTests(unittest.TestCase):
                     "proposal_id": frozen["proposal_id"],
                     "condition": frozen["condition"],
                     "stages": stages,
+                    "blind_proxy_review": {
+                        "annotator_kind": "development_agent_proxy",
+                        "blind_to_condition": True,
+                        "passed": True,
+                        "human_reviewer_count": 0,
+                    },
                 }
             )
         return {
@@ -658,6 +871,7 @@ class Table3AndProxyTests(unittest.TestCase):
                 all(value == 1.0 for value in result["success_rates"].values())
             )
             self.assertEqual(result["act_rollouts_started"], 0)
+            self.assertEqual(result["human_reviewer_count"], 0)
 
             runner_path = root / prereg["cells"][0]["runner_ref"]
             runner_path.write_text("tampered", encoding="utf-8")
@@ -667,6 +881,25 @@ class Table3AndProxyTests(unittest.TestCase):
                 validate_table3_codegen_preregistration(
                     prereg, repo_root=root, require_materialized=True
                 )
+
+    def test_table3_rejects_scene_only_codegen_without_generated_checker(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            prereg = build_table3_codegen_preregistration(
+                study_id="table3_missing_checker",
+                created_at_utc="2026-07-24T00:00:00Z",
+                artifact_root_ref="artifacts/table3_missing_checker",
+                text_model="frozen-text-model",
+                vision_model="frozen-vision-model",
+            )
+            materialize_table3_codegen_preregistration(root, prereg)
+            runs = self.table3_runs(root, prereg)
+            first = runs["cells"][0]
+            first["stages"]["codegen"]["checker_generated_by_model"] = False
+            with self.assertRaisesRegex(
+                LivePaperProtocolError, "model-generated scene and checker"
+            ):
+                evaluate_table3_codegen(prereg, runs, repo_root=root)
 
     def test_ablation_switch_schema_is_exact(self):
         self.assertEqual(
@@ -694,8 +927,44 @@ class Table3AndProxyTests(unittest.TestCase):
         result = validate_proxy_gold_manifest(root, manifest)
         self.assertEqual(result["query_count"], 20)
         self.assertEqual(result["clip_slot_count"], 8)
-        self.assertEqual(result["materialized_clip_count"], 2)
+        self.assertEqual(result["materialized_clip_count"], 1)
+        self.assertEqual(result["source_label_audited_count"], 1)
         self.assertFalse(result["ready_for_proxy_smoke"])
+
+    def test_proxy_manifest_rejects_a_negative_clip_from_positive_source(self):
+        root = Path(__file__).resolve().parents[2]
+        path = (
+            root
+            / "configs"
+            / "manipeval_paper_evidence"
+            / "plan_vqa_development_proxy_v1.json"
+        )
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        negative = next(
+            item
+            for item in manifest["clip_slots"]
+            if item["clip_id"] == "clean_negative"
+        )
+        negative.update(
+            {
+                "materialized": True,
+                "source_or_recipe_ref": (
+                    "docs/evidence_runs/"
+                    "eval_20260723_batch17_clean_head_click_live_n1_v4/"
+                    "assets/round_1_act.mp4"
+                ),
+                "source_label_ref": (
+                    "docs/evidence_runs/"
+                    "eval_20260723_batch17_clean_head_click_live_n1_v4/"
+                    "data/round_1.json"
+                ),
+                "source_phenomenon_id": "bell_visibly_pressed",
+            }
+        )
+        with self.assertRaisesRegex(
+            LivePaperProtocolError, "label/polarity conflicts"
+        ):
+            validate_proxy_gold_manifest(root, manifest)
 
 
 class ProspectiveLedgerTests(unittest.TestCase):

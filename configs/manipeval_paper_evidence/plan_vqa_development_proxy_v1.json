@@ -14,7 +14,9 @@
       "proxy_gold_observed": true,
       "label_source": "development_agent_proxy",
       "materialized": true,
-      "source_or_recipe_ref": "docs/evidence_runs/eval_20260723_batch17_clean_head_click_live_n1_v4/assets/round_2_act.mp4"
+      "source_or_recipe_ref": "docs/evidence_runs/eval_20260723_batch17_clean_head_click_live_n1_v4/assets/round_2_act.mp4",
+      "source_label_ref": "docs/evidence_runs/eval_20260723_batch17_clean_head_click_live_n1_v4/data/round_2.json",
+      "source_phenomenon_id": "bell_visibly_pressed"
     },
     {
       "clip_id": "clean_negative",
@@ -22,8 +24,10 @@
       "polarity": "negative",
       "proxy_gold_observed": false,
       "label_source": "development_agent_proxy",
-      "materialized": true,
-      "source_or_recipe_ref": "docs/evidence_runs/eval_20260723_batch17_clean_head_click_live_n1_v4/assets/round_1_act.mp4"
+      "materialized": false,
+      "source_or_recipe_ref": "planned:independent_clean_failure_clip_required",
+      "source_label_ref": null,
+      "source_phenomenon_id": null
     },
     {
       "clip_id": "scene_clutter_positive",
@@ -32,7 +36,9 @@
       "proxy_gold_observed": true,
       "label_source": "development_agent_proxy",
       "materialized": false,
-      "source_or_recipe_ref": "planned:clean_positive_plus_frozen_clutter_transform"
+      "source_or_recipe_ref": "planned:clean_positive_plus_frozen_clutter_transform",
+      "source_label_ref": null,
+      "source_phenomenon_id": null
     },
     {
       "clip_id": "scene_clutter_negative",
@@ -41,7 +47,9 @@
       "proxy_gold_observed": false,
       "label_source": "development_agent_proxy",
       "materialized": false,
-      "source_or_recipe_ref": "planned:clean_negative_plus_frozen_clutter_transform"
+      "source_or_recipe_ref": "planned:clean_negative_plus_frozen_clutter_transform",
+      "source_label_ref": null,
+      "source_phenomenon_id": null
     },
     {
       "clip_id": "background_texture_positive",
@@ -50,7 +58,9 @@
       "proxy_gold_observed": true,
       "label_source": "development_agent_proxy",
       "materialized": false,
-      "source_or_recipe_ref": "planned:clean_positive_plus_frozen_texture_transform"
+      "source_or_recipe_ref": "planned:clean_positive_plus_frozen_texture_transform",
+      "source_label_ref": null,
+      "source_phenomenon_id": null
     },
     {
       "clip_id": "background_texture_negative",
@@ -59,7 +69,9 @@
       "proxy_gold_observed": false,
       "label_source": "development_agent_proxy",
       "materialized": false,
-      "source_or_recipe_ref": "planned:clean_negative_plus_frozen_texture_transform"
+      "source_or_recipe_ref": "planned:clean_negative_plus_frozen_texture_transform",
+      "source_label_ref": null,
+      "source_phenomenon_id": null
     },
     {
       "clip_id": "lighting_positive",
@@ -68,7 +80,9 @@
       "proxy_gold_observed": true,
       "label_source": "development_agent_proxy",
       "materialized": false,
-      "source_or_recipe_ref": "planned:clean_positive_plus_frozen_lighting_transform"
+      "source_or_recipe_ref": "planned:clean_positive_plus_frozen_lighting_transform",
+      "source_label_ref": null,
+      "source_phenomenon_id": null
     },
     {
       "clip_id": "lighting_negative",
@@ -77,12 +91,14 @@
       "proxy_gold_observed": false,
       "label_source": "development_agent_proxy",
       "materialized": false,
-      "source_or_recipe_ref": "planned:clean_negative_plus_frozen_lighting_transform"
+      "source_or_recipe_ref": "planned:clean_negative_plus_frozen_lighting_transform",
+      "source_label_ref": null,
+      "source_phenomenon_id": null
     }
   ],
   "limitations": [
     "Development-agent proxy labels are not independent human gold.",
-    "Only the two clean clip slots are currently materialized.",
+    "Only one clean positive clip is currently materialized and source-audited; the prior clean negative candidate was removed because its source receipt was positive.",
     "This manifest is an entry point, not Tables 6-8 evidence."
   ]
 }

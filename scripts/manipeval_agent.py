@@ -162,6 +162,7 @@ def apply_bounded_round_proposal(
     round_plan: dict[str, Any],
     evaluation_dir: Path,
     round_number: int,
+    semantic_proposal: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Author and persist one bounded Task/Tool Proposal for a materialized round."""
 
@@ -181,7 +182,44 @@ def apply_bounded_round_proposal(
     )
     template_id = str(round_plan.get("template_id") or "")
     task_name = bound_task_name
-    mode = proposal_capability_mode(task_name, aspect_id)
+    task_need = (
+        semantic_proposal.get("task_need")
+        if isinstance(semantic_proposal, dict)
+        else None
+    )
+    tool_need = (
+        semantic_proposal.get("tool_need")
+        if isinstance(semantic_proposal, dict)
+        else None
+    )
+    taskgen_requested = bool(
+        isinstance(task_need, dict) and task_need.get("required") is True
+    )
+    generated_success_requested = bool(
+        taskgen_requested
+        and task_name == "beat_block_hammer"
+        and aspect_id == "object_appearance.color"
+    )
+    new_tool_requested = bool(
+        isinstance(tool_need, dict) and tool_need.get("required") is True
+    )
+    mode = proposal_capability_mode(
+        task_name,
+        aspect_id,
+        experimental_success=generated_success_requested,
+    )
+    proposal_context = deepcopy(planning_context)
+    if semantic_proposal is not None:
+        proposal_context["upstream_semantic_plan_proposal"] = deepcopy(
+            semantic_proposal
+        )
+        proposal_context["semantic_need_binding"] = {
+            "taskgen_required": taskgen_requested,
+            "generated_success_requested": generated_success_requested,
+            "toolgen_required": new_tool_requested,
+            "taskgen_capability_mode": mode,
+            "toolgen_requires_new_typed_metric": new_tool_requested,
+        }
     proposal_dir = (
         evaluation_dir / "plan/bounded_proposal" / f"round_{round_number:02d}"
     )
@@ -194,8 +232,9 @@ def apply_bounded_round_proposal(
             aspect_id=aspect_id,
             base_template_id=template_id,
             capability_mode=mode,
-            planning_context=planning_context,
+            planning_context=proposal_context,
             require_novel_changes=(mode == "novel_bounded"),
+            require_new_tool=new_tool_requested,
         )
         write_json(proposal_dir / "proposal_candidate_bundle.json", bundle)
         materialized = materialize_round_proposals(
@@ -246,6 +285,14 @@ def apply_bounded_round_proposal(
         "bounded_repairs": deepcopy(
             getattr(proposal_agent, "last_repairs", [])
         ),
+        "semantic_plan_proposal": deepcopy(semantic_proposal),
+        "semantic_need_binding": {
+            "taskgen_required": taskgen_requested,
+            "generated_success_requested": generated_success_requested,
+            "toolgen_required": new_tool_requested,
+            "taskgen_capability_mode": mode,
+            "toolgen_requires_new_typed_metric": new_tool_requested,
+        },
     }
     write_json(proposal_dir / "proposal_bundle.json", artifact)
     # Preserve the batch-12 first-round artifact path for existing readers.
@@ -737,14 +784,6 @@ def build_taskgen_command(
             )
         except ProposalError as exc:
             raise ValueError(f"invalid TaskProposal before TaskGen: {exc}") from exc
-        if normalized_task_proposal["schema_version"] == 2:
-            raise ValueError(
-                "experimental TaskProposal v2 is disabled in the end-to-end "
-                "Agent until generated_check_success authority is propagated "
-                "through round evidence, Aggregate, Planner, and Feedback; use "
-                "the standalone TaskGen ACT path, which preserves the distinct "
-                "runtime outcome label"
-            )
         variant_hint = normalized_task_proposal["changes"]
     task_module = round_plan.get("task_module")
     route = (
@@ -1407,10 +1446,24 @@ def summarize_round(
     ]
     policy_success = read_policy_success(child_dir / "evaluation/_result.txt")
     trusted_tools = compact_trusted_tools(child_manifest)
+    trusted_tool_evaluation = child_manifest.get("trusted_tool_evaluation") or {}
+    task_artifact_summary = child_manifest.get("task_artifact_summary") or {}
     is_official = round_plan.get("route") == "official"
     execution_backend = round_execution_backend(round_plan)
     uses_act = execution_backend in {"act", "both"}
     uses_expert = execution_backend in {"expert", "both"}
+    policy_outcome = {
+        "metric": trusted_tool_evaluation.get("outcome_metric"),
+        "authority": trusted_tool_evaluation.get("outcome_authority"),
+        "binding": deepcopy(trusted_tool_evaluation.get("outcome_binding")),
+        "value": policy_success if uses_act else None,
+        "official_equivalent": bool(
+            task_artifact_summary.get("success_official_equivalent", True)
+        ),
+        "execution_scope": task_artifact_summary.get(
+            "success_execution_scope", "official_equivalent"
+        ),
+    }
     if uses_act:
         actual_seeds = [int(value) for value in act.get("actual_seeds", [])]
     else:
@@ -1515,6 +1568,9 @@ def summarize_round(
         "template_id": round_plan.get("template_id"),
         "capability_id": round_plan.get("capability_id"),
         "capability_contract": round_plan.get("capability_contract"),
+        "semantic_need_execution": deepcopy(
+            round_plan.get("semantic_need_execution")
+        ),
         "required_gate_status": required_gate_status,
         "sub_aspect": round_plan["sub_aspect"],
         "task_instruction": round_plan["task_instruction"],
@@ -1543,6 +1599,10 @@ def summarize_round(
             ),
             "act_pipeline_status": bool(act.get("passed")) if uses_act else None,
             "policy_success": policy_success if uses_act else None,
+            "policy_outcome": policy_outcome,
+            "semantic_need_execution": deepcopy(
+                round_plan.get("semantic_need_execution")
+            ),
             "position_samples": positions.get("samples", []),
             "position_metrics": position_metrics,
             "controlled_axis": positions.get("controlled_axis"),
@@ -3312,6 +3372,13 @@ def main() -> None:
                 adaptive_step_agent = AdaptivePlanStepAgent(
                     provider, model=models["planner"]
                 )
+            if args.proposal_mode != "catalog" or (
+                claim_first_mode and not args.plan_only
+            ):
+                assert provider is not None
+                proposal_agent = BoundedProposalAgent(
+                    provider, model=models["taskgen"]
+                )
             if args.proposal_mode != "catalog":
                 first_round = plan["rounds"][0]
                 first_aspect = str(first_round["task_proposal"]["aspect_id"])
@@ -3323,10 +3390,6 @@ def main() -> None:
                         "novel_first_round currently supports the bounded "
                         "click_bell object_position capability only"
                     )
-                assert provider is not None
-                proposal_agent = BoundedProposalAgent(
-                    provider, model=models["taskgen"]
-                )
                 initial_failure_stage = "initial_bounded_proposal"
                 proposal_context = {
                     "schema_version": 1,
@@ -3887,6 +3950,134 @@ def main() -> None:
                     len(plan_before_decision["rounds"]) + 1,
                     args.request,
                 )
+                semantic_proposal = semantic_bundle["proposal"]
+                semantic_generation_required = bool(
+                    semantic_proposal["task_need"]["required"]
+                    or semantic_proposal["tool_need"]["required"]
+                )
+                if semantic_generation_required:
+                    active_failure_stage = (
+                        f"semantic_task_tool_generation_after_round_"
+                        f"{executed_rounds}"
+                    )
+                    if proposal_agent is None or planning_context is None:
+                        raise RuntimeError(
+                            "claim-first semantic task/tool needs require the "
+                            "bounded Proposal Agent"
+                        )
+                    next_round_number = len(plan_before_decision["rounds"]) + 1
+                    semantic_proposal_context = {
+                        "schema_version": 1,
+                        "evaluation_id": evaluation_id,
+                        "logical_round_id": (
+                            f"semantic_task_tool_round_{next_round_number}"
+                        ),
+                        "round_attempt_index": 1,
+                        "child_run_id": "bounded_proposal_agent",
+                    }
+                    semantic_proposal_ledger = (
+                        evaluation_dir
+                        / "runtime"
+                        / f"semantic_task_tool_round_{next_round_number:02d}"
+                        / "call_starts.jsonl"
+                    )
+                    try:
+                        with runtime_ledger_context(
+                            semantic_proposal_ledger,
+                            semantic_proposal_context,
+                        ):
+                            (
+                                materialized_round,
+                                semantic_execution_bundle,
+                            ) = apply_bounded_round_proposal(
+                                proposal_agent=proposal_agent,
+                                user_query=args.request,
+                                target=bound_plan_session.target,
+                                planning_context=planning_context,
+                                round_plan=materialized_round,
+                                evaluation_dir=evaluation_dir,
+                                round_number=next_round_number,
+                                semantic_proposal=semantic_proposal,
+                            )
+                    finally:
+                        record_runtime_ledger_stage(
+                            repo_root,
+                            evaluation_dir,
+                            runtime_ledgers,
+                            ledger_path=semantic_proposal_ledger,
+                            context=semantic_proposal_context,
+                            stage=(
+                                f"semantic_task_tool_round_"
+                                f"{next_round_number}"
+                            ),
+                        )
+                    bound_semantic_step["execution_binding"] = {
+                        "schema_version": 1,
+                        "proposal_bundle_path": (
+                            f"plan/bounded_proposal/round_"
+                            f"{next_round_number:02d}/proposal_bundle.json"
+                        ),
+                        "task_proposal_id": materialized_round[
+                            "task_proposal"
+                        ]["proposal_id"],
+                        "task_proposal_schema_version": materialized_round[
+                            "task_proposal"
+                        ]["schema_version"],
+                        "tool_proposal_id": materialized_round[
+                            "tool_proposal"
+                        ]["proposal_id"],
+                        "tool_proposal_schema_version": materialized_round[
+                            "tool_proposal"
+                        ]["schema_version"],
+                        "semantic_need_binding": semantic_execution_bundle[
+                            "semantic_need_binding"
+                        ],
+                    }
+                    materialized_round["semantic_need_execution"] = {
+                        "schema_version": 1,
+                        "candidate_slot_id": plan_step["template_id"],
+                        "realization_id": materialized_round[
+                            "task_proposal"
+                        ]["proposal_id"],
+                        "task": {
+                            "requested": bool(
+                                semantic_proposal["task_need"]["required"]
+                            ),
+                            "description": semantic_proposal["task_need"][
+                                "description"
+                            ],
+                            "route": (
+                                "task_proposal_v2"
+                                if materialized_round["task_proposal"][
+                                    "schema_version"
+                                ]
+                                == 2
+                                else "bounded_task_proposal_v1"
+                            ),
+                            "status": "selected",
+                        },
+                        "tool": {
+                            "requested": bool(
+                                semantic_proposal["tool_need"]["required"]
+                            ),
+                            "description": semantic_proposal["tool_need"][
+                                "description"
+                            ],
+                            "route": (
+                                "typed_metric_spec_compile"
+                                if materialized_round["tool_proposal"][
+                                    "schema_version"
+                                ]
+                                == 3
+                                else "registered_tool_reuse"
+                            ),
+                            "status": "selected",
+                        },
+                    }
+                    write_json(
+                        step_dir / "bound_semantic_step.json",
+                        bound_semantic_step,
+                    )
                 plan, decision, runtime_directive = (
                     bound_plan_session.apply_plan_step(
                         plan_before_decision,

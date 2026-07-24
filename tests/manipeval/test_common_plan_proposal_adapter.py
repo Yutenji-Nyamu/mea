@@ -171,6 +171,7 @@ class FakeRegisteredProposalAgent:
         capability_mode,
         planning_context,
         require_novel_changes,
+        require_new_tool,
     ):
         del user_query, aspect_id, planning_context
         self.last_prompt = f"registered proposal for {target['task_name']}"
@@ -186,6 +187,7 @@ class FakeRegisteredProposalAgent:
         self.last_responses = [json.dumps({"task_proposal": task})]
         self.capability_mode = capability_mode
         self.require_novel_changes = require_novel_changes
+        self.require_new_tool = require_new_tool
         return {
             "schema_version": 1,
             "task_proposal": task,

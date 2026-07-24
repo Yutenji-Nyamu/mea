@@ -118,6 +118,7 @@ class FakeProposalAgent:
         capability_mode,
         planning_context,
         require_novel_changes,
+        require_new_tool,
     ):
         call_number = len(self.calls) + 1
         self.calls.append(
@@ -129,6 +130,7 @@ class FakeProposalAgent:
                 "capability_mode": capability_mode,
                 "planning_context": deepcopy(planning_context),
                 "require_novel_changes": require_novel_changes,
+                "require_new_tool": require_new_tool,
             }
         )
         self.last_prompt = f"prompt for round {call_number}"

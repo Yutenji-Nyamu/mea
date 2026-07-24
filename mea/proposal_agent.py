@@ -77,9 +77,24 @@ def _target_aspect(target: Mapping[str, Any], aspect_id: str) -> dict[str, Any]:
     )
 
 
-def proposal_capability_mode(task_name: str, aspect_id: str) -> str:
+def proposal_capability_mode(
+    task_name: str,
+    aspect_id: str,
+    *,
+    experimental_success: bool = False,
+) -> str:
     """Return the honest proposal mode for one currently supported axis."""
 
+    if experimental_success:
+        if (
+            task_name == "beat_block_hammer"
+            and aspect_id == "object_appearance.color"
+        ):
+            return _EXPERIMENTAL_SUCCESS_MODE
+        raise ProposalAgentError(
+            "semantic TaskGen requested generated success semantics outside "
+            "the sole bounded BBH appearance envelope"
+        )
     if task_name == "click_bell" and aspect_id == "object_position":
         return "novel_bounded"
     return "registered_reuse"
@@ -429,6 +444,7 @@ def build_proposal_prompt(
     base_template_id: str | None = None,
     capability_mode: str | None = None,
     planning_context: Mapping[str, Any] | None = None,
+    require_new_tool: bool = False,
 ) -> str:
     query = str(user_query).strip()
     if not query:
@@ -469,10 +485,20 @@ def build_proposal_prompt(
             "smallest useful Tool/VQA assignment."
         )
         success_instruction = "Do not change success semantics."
+    tool_instruction = (
+        "The upstream semantic Plan explicitly requires a new observable. "
+        "You MUST use ToolProposal v3 with a new metric id and one bounded "
+        "typed_metric_spec_v1; selecting a listed metric is invalid."
+        if require_new_tool
+        else (
+            "Use ToolProposal v3 only when the query genuinely needs a new "
+            "typed measurement."
+        )
+    )
     return f"""You are the bounded TaskGen/ToolGen Proposal Agent for MEA.
 The policy evaluation is already bound to one task and checkpoint.  Do not
 change task, policy, checkpoint, aspect, or executable fields.
-{success_instruction}  {variation_instruction} Then assign either one listed Rule metric or,
+{success_instruction}  {variation_instruction} {tool_instruction} Then assign either one listed Rule metric or,
 when the query needs a new measurement, ToolProposal v3 with one bounded
 typed_metric_spec_v1 and a new metric id.  Select the smallest useful subset
 of the listed VQA phenomena.  TaskGen and ToolGen independently
@@ -653,6 +679,7 @@ def validate_proposal_bundle(
     require_novel_changes: bool = True,
     base_template_id: str | None = None,
     capability_mode: str | None = None,
+    require_new_tool: bool = False,
 ) -> dict[str, Any]:
     if not isinstance(value, Mapping) or set(value) != _BUNDLE_KEYS:
         raise ProposalError(
@@ -688,6 +715,11 @@ def validate_proposal_bundle(
         and routed["route_decision"]["resolved_route"]
         == "typed_metric_spec_compile"
     )
+    if require_new_tool and not typed_metric:
+        raise ProposalError(
+            "semantic tool_need requires ToolProposal v3 with a bounded "
+            "typed MetricSpec"
+        )
     if (
         tool["metric"] not in card["toolgen"]["metric_candidates"]
         and not typed_metric
@@ -811,6 +843,7 @@ class BoundedProposalAgent:
         base_template_id: str | None = None,
         capability_mode: str | None = None,
         planning_context: Mapping[str, Any] | None = None,
+        require_new_tool: bool = False,
     ) -> dict[str, Any]:
         mode = capability_mode or proposal_capability_mode(
             str(target.get("task_name") or ""), aspect_id
@@ -829,6 +862,7 @@ class BoundedProposalAgent:
             base_template_id=base_template_id,
             capability_mode=mode,
             planning_context=planning_context,
+            require_new_tool=require_new_tool,
         )
         self.last_prompt = prompt
         self.last_responses = []
@@ -866,6 +900,7 @@ class BoundedProposalAgent:
                         require_novel_changes=require_novel_changes,
                         base_template_id=base_template_id,
                         capability_mode=mode,
+                        require_new_tool=require_new_tool,
                     )
                 except ProposalError as exc:
                     tool = raw.get("tool_proposal")
@@ -895,6 +930,7 @@ class BoundedProposalAgent:
                         require_novel_changes=require_novel_changes,
                         base_template_id=base_template_id,
                         capability_mode=mode,
+                        require_new_tool=require_new_tool,
                     )
                     trace.update(
                         {

@@ -28,7 +28,9 @@ from mea.live_paper_protocols import (
 from mea.prospective_error_ledger import (
     ProspectiveLedgerError,
     ProspectiveOperationLedger,
+    build_paper_error_study_v2,
     initialize_ledger,
+    summarize_paper_error_study_v2,
 )
 
 
@@ -69,7 +71,15 @@ def main() -> None:
 
     efficiency_pre = sub.add_parser("efficiency-preregister")
     efficiency_pre.add_argument("--study-id", required=True)
-    efficiency_pre.add_argument("--mode", choices=("smoke_3act", "toy_5to7act"), required=True)
+    efficiency_pre.add_argument(
+        "--mode",
+        choices=(
+            "smoke_3act",
+            "toy_5to7act",
+            "position_universal_3to4act",
+        ),
+        required=True,
+    )
     efficiency_pre.add_argument("--checkpoint-id", required=True)
     efficiency_pre.add_argument("--checkpoint-sha256", required=True)
     efficiency_pre.add_argument("--seed", type=int, required=True)
@@ -132,6 +142,17 @@ def main() -> None:
     ledger_summary = sub.add_parser("ledger-summary")
     ledger_summary.add_argument("--directory", type=Path, required=True)
     ledger_summary.add_argument("--output", type=Path, required=True)
+
+    paper_error_build = sub.add_parser("paper-error-build")
+    paper_error_build.add_argument("--study-id", required=True)
+    paper_error_build.add_argument("--frozen-at-utc", required=True)
+    paper_error_build.add_argument("--operations", type=Path, required=True)
+    paper_error_build.add_argument("--output", type=Path, required=True)
+
+    paper_error_finalize = sub.add_parser("paper-error-finalize")
+    paper_error_finalize.add_argument("--study", type=Path, required=True)
+    paper_error_finalize.add_argument("--latest-statuses", type=Path, required=True)
+    paper_error_finalize.add_argument("--output", type=Path, required=True)
 
     args = parser.parse_args()
     try:
@@ -211,8 +232,22 @@ def main() -> None:
                 evidence_ref=args.evidence_ref,
                 error_class=args.error_class,
             )
-        else:
+        elif args.command == "ledger-summary":
             output = ProspectiveOperationLedger(args.directory).summarize()
+            _write(args.output, output)
+        elif args.command == "paper-error-build":
+            operations = _read(args.operations).get("operations")
+            output = build_paper_error_study_v2(
+                study_id=args.study_id,
+                frozen_at_utc=args.frozen_at_utc,
+                operations=operations or [],
+            )
+            _write(args.output, output)
+        else:
+            statuses = _read(args.latest_statuses).get("latest_statuses")
+            output = summarize_paper_error_study_v2(
+                _read(args.study), statuses or []
+            )
             _write(args.output, output)
         print(json.dumps(output, ensure_ascii=False, indent=2))
     except (

@@ -73,12 +73,28 @@ def round_plan(round_number, template_id):
     }
 
 
-def summary(plan, success_rate, *, pipeline_passed=True):
+def summary(
+    plan,
+    success_rate,
+    *,
+    pipeline_passed=True,
+    policy_outcome=None,
+):
+    if policy_outcome is None:
+        policy_outcome = {
+            "metric": "official_check_success",
+            "authority": "official_check_success",
+            "binding": None,
+            "value": success_rate,
+            "official_equivalent": True,
+            "execution_scope": "official_equivalent",
+        }
     return {
         "round_id": plan["round_id"],
         "pipeline_passed": pipeline_passed,
         "observations": {
             "policy_success": success_rate,
+            "policy_outcome": policy_outcome,
             "aggregate": {
                 "status": "passed",
                 "input_issues": [],
@@ -266,6 +282,12 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         self.assertFalse(
             bound["resolution"]["catalog_was_model_visible"]
         )
+        self.assertTrue(
+            bound["semantic_needs"]["task_need"]["required"]
+        )
+        self.assertTrue(
+            bound["semantic_needs"]["tool_need"]["required"]
+        )
 
     def test_exact_aspect_uses_hidden_runtime_order_then_next_variant(self):
         controller = ClaimFirstRuntimeController(
@@ -334,6 +356,82 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
                 state,
                 executed_template_ids=[control["template_id"]],
             )
+
+    def test_generated_checker_cannot_authorize_the_official_control(self):
+        controller = ClaimFirstRuntimeController(
+            "Where does this policy first expose a weakness?",
+            target(),
+        )
+        control = round_plan(
+            1, "performance.completion_time_stability.official"
+        )
+        observed = summary(
+            control,
+            1.0,
+            policy_outcome={
+                "metric": "generated_check_success",
+                "authority": "compiled_success_spec_experimental_bounded",
+                "binding": {"success_spec_sha256": "a" * 64},
+                "value": 1.0,
+                "official_equivalent": False,
+                "execution_scope": "experimental_bounded",
+            },
+        )
+        provenance = bind_provenance(control, observed)
+
+        state = controller.observe([control], [observed], [provenance])
+
+        self.assertFalse(state["control_passed"])
+        self.assertEqual(
+            state["assessment"]["stop_reason"],
+            "control_baseline_non_official_outcome",
+        )
+        self.assertFalse(state["query_answer"]["answered"])
+
+    def test_generated_candidate_checker_stays_explicit_in_query_answer(self):
+        controller = ClaimFirstRuntimeController(
+            "Where does this policy first expose a weakness?",
+            target(),
+        )
+        control = round_plan(
+            1, "performance.completion_time_stability.official"
+        )
+        candidate = round_plan(2, "object_position.left_fixed")
+        control_summary = summary(control, 1.0)
+        candidate_summary = summary(
+            candidate,
+            0.0,
+            policy_outcome={
+                "metric": "generated_check_success",
+                "authority": "compiled_success_spec_experimental_bounded",
+                "binding": {"success_spec_sha256": "b" * 64},
+                "value": 0.0,
+                "official_equivalent": False,
+                "execution_scope": "experimental_bounded",
+            },
+        )
+
+        state = controller.observe(
+            [control, candidate],
+            [control_summary, candidate_summary],
+            [
+                bind_provenance(control, control_summary),
+                bind_provenance(candidate, candidate_summary),
+            ],
+        )
+
+        self.assertTrue(state["query_answer"]["answered"])
+        self.assertEqual(
+            state["query_answer"]["evaluation_outcomes"][1]["metric"],
+            "generated_check_success",
+        )
+        self.assertTrue(
+            any(
+                "must not be interpreted as official benchmark success"
+                in item
+                for item in state["query_answer"]["limitations"]
+            )
+        )
 
     def test_diagnostic_failure_stops_by_sufficiency_not_hard_cap(self):
         controller = ClaimFirstRuntimeController(

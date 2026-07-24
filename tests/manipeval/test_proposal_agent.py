@@ -326,6 +326,108 @@ class ProposalAgentTests(unittest.TestCase):
                     capability_mode="registered_reuse",
                 )
 
+    def test_required_new_tool_rejects_registered_metric_and_accepts_typed_v3(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = BoundTaskPlanSession.from_catalog(
+                _catalog(root), "beat_block_hammer", max_rounds=1
+            ).target
+            contract = resolve_capability_contract(
+                "beat_block_hammer", "object_appearance.color_blue"
+            )
+            registered = {
+                "schema_version": 1,
+                "task_proposal": {
+                    "schema_version": 1,
+                    "proposal_id": "object_appearance.color_blue.reuse",
+                    "task_name": "beat_block_hammer",
+                    "aspect_id": "object_appearance.color",
+                    "intent": "reuse the registered blue appearance",
+                    "capability_id": contract["taskgen"]["capability_id"],
+                    "reuse_first": True,
+                    "changes": contract["taskgen"]["changes"],
+                    "preserve_success_semantics": True,
+                },
+                "tool_proposal": {
+                    "schema_version": 1,
+                    "proposal_id": "registered.contact.tool",
+                    "task_name": "beat_block_hammer",
+                    "aspect_id": "object_appearance.color",
+                    "evaluation_goal": "reuse registered contact evidence",
+                    "metric": "hammer_block_contact_ever",
+                    "question": "Did strict hammer-block contact occur?",
+                    "vqa_phenomenon_ids": ["block_visibly_displaced"],
+                    "reuse_first": True,
+                },
+            }
+            with self.assertRaisesRegex(
+                ProposalAgentError, "requires ToolProposal v3"
+            ):
+                BoundedProposalAgent(
+                    FakeProvider(registered), model="fake-model"
+                ).propose(
+                    "Invent the smallest bounded observable needed by this query.",
+                    target=target,
+                    aspect_id="object_appearance.color",
+                    base_template_id="object_appearance.color_blue",
+                    capability_mode="registered_reuse",
+                    require_new_tool=True,
+                )
+
+            typed = json.loads(json.dumps(registered))
+            typed["tool_proposal"] = {
+                "schema_version": 3,
+                "proposal_id": "query_contact_count.tool",
+                "task_name": "beat_block_hammer",
+                "aspect_id": "object_appearance.color",
+                "evaluation_goal": "count strict task contacts",
+                "metric": "query_hammer_block_contact_count",
+                "question": "How many strict task contacts occurred?",
+                "vqa_phenomenon_ids": [
+                    "block_visibly_displaced",
+                    "run_local.bbh.contact_count.required",
+                ],
+                "vqa_question_specs": [
+                    {
+                        "id": "run_local.bbh.contact_count.required",
+                        "question_type": "visible_state_change",
+                        "target_role": "task_target",
+                        "question": "Does the rollout visibly show task contact?",
+                        "visual_scope": "rollout_change",
+                        "numeric_authority": (
+                            "official_check_success_is_authoritative"
+                        ),
+                    }
+                ],
+                "reuse_first": True,
+                "metric_spec": {
+                    "schema_version": 1,
+                    "operation": "event_count",
+                    "event": {
+                        "event_type": "contact_interval",
+                        "actors": ["020_hammer", "box"],
+                        "physical_only": True,
+                    },
+                    "unit": "count",
+                    "null_semantics": "zero_if_absent",
+                },
+            }
+            result = BoundedProposalAgent(
+                FakeProvider(typed), model="fake-model"
+            ).propose(
+                "Invent the smallest bounded observable needed by this query.",
+                target=target,
+                aspect_id="object_appearance.color",
+                base_template_id="object_appearance.color_blue",
+                capability_mode="registered_reuse",
+                require_new_tool=True,
+            )
+            self.assertEqual(result["tool_proposal"]["schema_version"], 3)
+            self.assertEqual(
+                result["tool_route_preview"]["resolved_route"],
+                "typed_metric_spec_compile",
+            )
+
     def test_safety_prompt_uses_precise_left_camera_metric_example(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

@@ -161,6 +161,7 @@ def run_efficiency(root: Path, prereg_path: Path, output_root: Path) -> None:
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
     from mea.live_paper_protocols import evaluate_click_bell_efficiency
+    from mea.planner.query_contract import assess_query_sufficiency
 
     prereg = read_json(prereg_path)
     output_root.mkdir(parents=True, exist_ok=True)
@@ -169,6 +170,7 @@ def run_efficiency(root: Path, prereg_path: Path, output_root: Path) -> None:
         arm_run_id = f"{prereg['study_id']}_{arm}_live"
         attempts: list[dict[str, Any]] = []
         observed: dict[str, bool | None] = {}
+        query_assessment: dict[str, Any] | None = None
         schedule = prereg["execution_schedule"][arm]
         for ordinal, binding in enumerate(schedule, start=1):
             if arm == "adaptive" and ordinal > prereg["adaptive_contract"]["max_episode_starts"]:
@@ -184,6 +186,24 @@ def run_efficiency(root: Path, prereg_path: Path, output_root: Path) -> None:
             attempts.append(attempt)
             observed[binding["candidate_id"]] = success
             if arm == "adaptive" and len(attempts) >= prereg["adaptive_contract"]["min_episode_starts"]:
+                if prereg.get("query_sufficiency_contract") is not None:
+                    query_assessment = assess_query_sufficiency(
+                        prereg["query_sufficiency_contract"],
+                        [
+                            {
+                                "candidate_id": candidate_id,
+                                "outcome": "pass" if outcome is True else "fail",
+                                "score": 1.0 if outcome is True else 0.0,
+                                "diagnosis": None,
+                            }
+                            for candidate_id, outcome in observed.items()
+                            if isinstance(outcome, bool)
+                        ],
+                        completed_rounds=len(attempts),
+                    )
+                    if query_assessment["evidence_sufficient"]:
+                        break
+                    continue
                 paired_failure = any(
                     left in observed
                     and right in observed
@@ -204,22 +224,35 @@ def run_efficiency(root: Path, prereg_path: Path, output_root: Path) -> None:
         if arm == "fixed":
             stop_reason = "fixed_suite_complete"
         else:
-            position_pair_observed = {
-                "object_position.left_fixed",
-                "object_position.right_fixed",
-            }.issubset(observed)
-            position_failure = any(
-                observed.get(candidate) is False
-                for candidate in (
+            if prereg.get("query_sufficiency_contract") is not None:
+                if query_assessment is None:
+                    query_assessment = assess_query_sufficiency(
+                        prereg["query_sufficiency_contract"],
+                        [],
+                        completed_rounds=len(attempts),
+                    )
+                stop_reason = (
+                    "query_sufficient"
+                    if query_assessment["evidence_sufficient"]
+                    else "budget_exhausted"
+                )
+            else:
+                position_pair_observed = {
                     "object_position.left_fixed",
                     "object_position.right_fixed",
+                }.issubset(observed)
+                position_failure = any(
+                    observed.get(candidate) is False
+                    for candidate in (
+                        "object_position.left_fixed",
+                        "object_position.right_fixed",
+                    )
                 )
-            )
-            stop_reason = (
-                "query_sufficient"
-                if position_pair_observed and position_failure
-                else "budget_exhausted"
-            )
+                stop_reason = (
+                    "query_sufficient"
+                    if position_pair_observed and position_failure
+                    else "budget_exhausted"
+                )
         result = {
             "schema_version": 1,
             "protocol": f"{prereg['protocol']}_arm",

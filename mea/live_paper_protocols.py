@@ -7,6 +7,7 @@ provider, simulator, expert, probe, or policy rollout.
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import math
@@ -16,6 +17,10 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from mea.paper_claim_demo import evaluate_policy_ranking
+from mea.planner.query_contract import (
+    assess_query_sufficiency,
+    build_query_sufficiency_contract,
+)
 from mea.taskgen.click_bell import compile_click_bell_overlay
 
 
@@ -84,19 +89,51 @@ _EFFICIENCY_AXIS_PAIRS = {
 _EFFICIENCY_MODES = {
     "smoke_3act": {
         "fixed_candidates": _EFFICIENCY_AXIS_PAIRS["object_position"],
+        "adaptive_candidates": _EFFICIENCY_AXIS_PAIRS["object_position"],
         "adaptive_min": 1,
         "adaptive_max": 1,
         "total_min": 3,
         "total_max": 3,
         "claim_scope": "three_act_mechanism_smoke_not_dense_reference",
+        "query": (
+            "Does at least one of the two frozen click_bell position "
+            "candidates fail?"
+        ),
+        "query_sufficient_rule": "at_least_one_completed_failure",
     },
     "toy_5to7act": {
         "fixed_candidates": _CANDIDATE_IDS,
+        "adaptive_candidates": _CANDIDATE_IDS,
         "adaptive_min": 2,
         "adaptive_max": 3,
         "total_min": 6,
         "total_max": 7,
         "claim_scope": "independent_live_toy_not_paper_tables_1_2",
+        "query": (
+            "Does at least one of the four frozen click_bell candidates fail, "
+            "and which paired position/instance axis is directly contrasted?"
+        ),
+        "query_sufficient_rule": (
+            "completed_failure_with_its_frozen_axis_pair_observed"
+        ),
+    },
+    "position_universal_3to4act": {
+        "fixed_candidates": _EFFICIENCY_AXIS_PAIRS["object_position"],
+        "adaptive_candidates": _EFFICIENCY_AXIS_PAIRS["object_position"],
+        "adaptive_min": 1,
+        "adaptive_max": 2,
+        "total_min": 3,
+        "total_max": 4,
+        "claim_scope": (
+            "independent_live_finite_position_universal_toy_not_paper_tables_1_2"
+        ),
+        "query": (
+            "Does this ACT checkpoint succeed on every candidate in the "
+            "preregistered two-position click_bell domain?"
+        ),
+        "query_sufficient_rule": (
+            "finite_universal_refuted_by_one_failure_or_supported_by_full_coverage"
+        ),
     },
 }
 
@@ -579,9 +616,20 @@ def build_click_bell_efficiency_preregistration(
                 checkpoint=resolved_checkpoint,
                 artifact_root_ref=resolved_artifact_root,
             )
-            for candidate_id in _CANDIDATE_IDS
+            for candidate_id in spec["adaptive_candidates"]
         ],
     }
+    query_contract = (
+        build_query_sufficiency_contract(
+            spec["query"],
+            candidate_universe=spec["adaptive_candidates"],
+            required_candidate_ids=spec["adaptive_candidates"],
+            round_budget=spec["adaptive_max"],
+            claim_type="universal",
+        )
+        if mode == "position_universal_3to4act"
+        else None
+    )
     body = {
         "schema_version": 1,
         "protocol": EFFICIENCY_PROTOCOL,
@@ -591,10 +639,8 @@ def build_click_bell_efficiency_preregistration(
         "evidence_requirement": "independent_live_rollout_only",
         "mode": mode,
         "claim_scope": spec["claim_scope"],
-        "query": (
-            "Does at least one of the four frozen click_bell candidates fail, "
-            "and which paired position/instance axis is directly contrasted?"
-        ),
+        "query": spec["query"],
+        "query_sufficiency_contract": query_contract,
         "checkpoint": resolved_checkpoint,
         "seed": _integer(seed, field="seed"),
         "candidate_universe": candidates,
@@ -603,14 +649,10 @@ def build_click_bell_efficiency_preregistration(
             "stop_reason": "fixed_suite_complete",
         },
         "adaptive_contract": {
-            "candidate_ids": list(_CANDIDATE_IDS),
+            "candidate_ids": list(spec["adaptive_candidates"]),
             "min_episode_starts": spec["adaptive_min"],
             "max_episode_starts": spec["adaptive_max"],
-            "query_sufficient_rule": (
-                "at_least_one_completed_failure"
-                if mode == "smoke_3act"
-                else "completed_failure_with_its_frozen_axis_pair_observed"
-            ),
+            "query_sufficient_rule": spec["query_sufficient_rule"],
             "allowed_stop_reasons": ["query_sufficient", "budget_exhausted"],
         },
         "total_episode_start_contract": {
@@ -625,7 +667,11 @@ def build_click_bell_efficiency_preregistration(
                 "inconclusive",
             ],
             "axis_rule": "paired_binary_score_difference",
-            "comparison_fields": ["overall_verdict", "weakness_axes"],
+            "comparison_fields": (
+                ["claim_verdict"]
+                if mode == "position_universal_3to4act"
+                else ["overall_verdict", "weakness_axes"]
+            ),
         },
         "provenance_contract": {
             "forbidden_designs": [
@@ -1086,6 +1132,33 @@ def _efficiency_arm(
         contract = prereg["adaptive_contract"]
         if not contract["min_episode_starts"] <= len(attempts) <= contract["max_episode_starts"]:
             raise LivePaperProtocolError("adaptive arm start count violates frozen budget")
+        if prereg["mode"] == "position_universal_3to4act":
+            query_assessment = _efficiency_query_assessment(prereg, attempts)
+            if row["stop_reason"] == "query_sufficient":
+                if query_assessment["evidence_sufficient"] is not True:
+                    raise LivePaperProtocolError(
+                        "query_sufficient does not satisfy the frozen universal "
+                        "truth condition"
+                    )
+            elif row["stop_reason"] == "budget_exhausted":
+                if (
+                    len(attempts) != contract["max_episode_starts"]
+                    or query_assessment["evidence_sufficient"] is True
+                ):
+                    raise LivePaperProtocolError(
+                        "budget_exhausted does not match universal query evidence"
+                    )
+            else:
+                raise LivePaperProtocolError("invalid adaptive stop reason")
+            return {
+                "arm": arm,
+                "arm_run_id": arm_run_id,
+                "wall_seconds": sum(item["wall_seconds"] for item in attempts),
+                "policy_steps": sum(item["policy_steps"] or 0 for item in attempts),
+                "stop_reason": row["stop_reason"],
+                "attempts": attempts,
+                "query_assessment": query_assessment,
+            }
         has_failure = any(
             item["status"] == "completed" and item["success"] is False
             for item in attempts
@@ -1135,7 +1208,37 @@ def _efficiency_arm(
     }
 
 
-def _efficiency_conclusion(arm: Mapping[str, Any]) -> dict[str, Any]:
+def _efficiency_query_assessment(
+    prereg: Mapping[str, Any],
+    attempts: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    contract = prereg.get("query_sufficiency_contract")
+    if not isinstance(contract, Mapping):
+        raise LivePaperProtocolError(
+            "universal efficiency mode has no query-sufficiency contract"
+        )
+    evidence = [
+        {
+            "candidate_id": item["candidate_id"],
+            "outcome": "pass" if item["success"] is True else "fail",
+            "score": 1.0 if item["success"] is True else 0.0,
+            "diagnosis": None,
+        }
+        for item in attempts
+        if item["status"] == "completed"
+    ]
+    return assess_query_sufficiency(
+        contract,
+        evidence,
+        completed_rounds=len(attempts),
+    )
+
+
+def _efficiency_conclusion(
+    arm: Mapping[str, Any],
+    *,
+    prereg: Mapping[str, Any],
+) -> dict[str, Any]:
     scores = {
         item["candidate_id"]: item["success"]
         for item in arm["attempts"]
@@ -1152,12 +1255,27 @@ def _efficiency_conclusion(arm: Mapping[str, Any]) -> dict[str, Any]:
     for axis, (left, right) in _EFFICIENCY_AXIS_PAIRS.items():
         if left in scores and right in scores and scores[left] != scores[right]:
             axes.append(axis)
-    return {
+    result = {
         "overall_verdict": verdict,
         "weakness_axes": axes,
         "observed_failure_candidates": failures,
         "tested_candidates": sorted(scores),
     }
+    if prereg["mode"] == "position_universal_3to4act":
+        assessment = (
+            deepcopy(dict(arm["query_assessment"]))
+            if isinstance(arm.get("query_assessment"), Mapping)
+            else _efficiency_query_assessment(prereg, arm["attempts"])
+        )
+        result.update(
+            {
+                "claim_type": "universal",
+                "claim_verdict": assessment["claim_verdict"],
+                "evidence_sufficient": assessment["evidence_sufficient"],
+                "query_assessment": assessment,
+            }
+        )
+    return result
 
 
 def evaluate_click_bell_efficiency(
@@ -1190,8 +1308,8 @@ def evaluate_click_bell_efficiency(
     if not budget["minimum"] <= total_starts <= budget["maximum"]:
         raise LivePaperProtocolError("pair violates frozen total ACT-start budget")
     conclusions = {
-        "fixed": _efficiency_conclusion(fixed),
-        "adaptive": _efficiency_conclusion(adaptive),
+        "fixed": _efficiency_conclusion(fixed, prereg=prereg),
+        "adaptive": _efficiency_conclusion(adaptive, prereg=prereg),
     }
     fields = prereg["conclusion_contract"]["comparison_fields"]
     agrees = all(conclusions["fixed"][field] == conclusions["adaptive"][field] for field in fields)
@@ -1204,7 +1322,8 @@ def evaluate_click_bell_efficiency(
         for item in arm["attempts"]
     )
     eligible_toy = (
-        prereg["mode"] == "toy_5to7act"
+        prereg["mode"]
+        in {"toy_5to7act", "position_universal_3to4act"}
         and technical_errors == 0
         and agrees
         and act_saving > 0
@@ -1241,6 +1360,7 @@ def evaluate_click_bell_efficiency(
         "limitations": [
             "The three-ACT mode is a mechanism smoke, not a dense reference.",
             "The five-to-seven-ACT mode is one task, one checkpoint, and one seed.",
+            "The three-to-four-ACT universal mode covers only two frozen positions.",
             "Policy steps are the shared simulator-sample proxy for this toy.",
             "This protocol does not reproduce the paper trial or agent-run counts.",
         ],
@@ -2293,6 +2413,17 @@ def evaluate_table3_codegen(
         codegen = _object(stages["codegen"], field=f"{cell_id}.codegen")
         if codegen.get("generated_by_provider") is not True:
             raise LivePaperProtocolError(f"{cell_id} is proposal-only, not real codegen")
+        if (
+            codegen.get("scene_generated_by_model") is not True
+            or codegen.get("checker_generated_by_model") is not True
+        ):
+            raise LivePaperProtocolError(
+                f"{cell_id} must contain model-generated scene and checker code"
+            )
+        if codegen.get("module_switches") != frozen["module_switches"]:
+            raise LivePaperProtocolError(
+                f"{cell_id} codegen switches differ from preregistration"
+            )
         codegen_ref = _relative_ref(
             codegen.get("artifact_ref"), field=f"{cell_id}.codegen.artifact_ref"
         )
@@ -2309,6 +2440,35 @@ def evaluate_table3_codegen(
             field=f"{cell_id}.codegen.artifact_sha256",
         ):
             raise LivePaperProtocolError(f"{cell_id} codegen artifact hash mismatch")
+        try:
+            tree = ast.parse(codegen_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, SyntaxError) as exc:
+            raise LivePaperProtocolError(
+                f"{cell_id} generated task code cannot be parsed: {exc}"
+            ) from exc
+        defined_functions = {
+            node.name
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        }
+        missing_functions = {"load_actors", "check_success"} - defined_functions
+        if missing_functions:
+            raise LivePaperProtocolError(
+                f"{cell_id} generated task code is missing "
+                f"{sorted(missing_functions)}"
+            )
+        review = _object(
+            cell.get("blind_proxy_review"), field=f"{cell_id}.blind_proxy_review"
+        )
+        if (
+            review.get("annotator_kind") != "development_agent_proxy"
+            or review.get("blind_to_condition") is not True
+            or not isinstance(review.get("passed"), bool)
+            or review.get("human_reviewer_count") != 0
+        ):
+            raise LivePaperProtocolError(
+                f"{cell_id} requires a condition-blind development proxy review"
+            )
         stage_pass = [True]
         for stage_name in ("compile", "render", "simulator", "oracle"):
             stage = _object(stages[stage_name], field=f"{cell_id}.{stage_name}")
@@ -2346,7 +2506,8 @@ def evaluate_table3_codegen(
                 "cell_id": cell_id,
                 "proposal_id": frozen["proposal_id"],
                 "condition": frozen["condition"],
-                "success": all(stage_pass),
+                "success": all(stage_pass) and review["passed"],
+                "blind_proxy_review_passed": review["passed"],
             }
         )
     rates = {
@@ -2360,11 +2521,17 @@ def evaluate_table3_codegen(
         "preregistration_sha256": prereg["preregistration_sha256"],
         "cell_count": 25,
         "provider_generation_count": 25,
+        "development_proxy_review_count": 25,
+        "human_reviewer_count": 0,
         "act_rollouts_started": 0,
         "rows": rows,
         "success_rates": rates,
         "paper_table3_eligible": False,
         "claim_scope": prereg["claim_scope"],
+        "limitations": [
+            "The review is a condition-blind development-agent proxy, not independent human gold.",
+            "A five-proposal micro-ablation is not the paper-scale Table 3 experiment.",
+        ],
     }
 
 
@@ -2400,6 +2567,7 @@ def validate_proxy_gold_manifest(repo_root: str | Path, value: Any) -> dict[str,
     expected = {(condition, polarity) for condition in PAPER_VQA_CONDITIONS for polarity in ("positive", "negative")}
     observed: set[tuple[str, str]] = set()
     materialized = 0
+    source_label_audited = 0
     for index, clip in enumerate(clips):
         clip = _object(clip, field=f"clip_slots[{index}]")
         pair = (clip.get("condition"), clip.get("polarity"))
@@ -2422,6 +2590,55 @@ def validate_proxy_gold_manifest(repo_root: str | Path, value: Any) -> dict[str,
                 raise LivePaperProtocolError(
                     "materialized clip ref is missing or outside repository"
                 )
+            source_label_ref = _relative_ref(
+                clip.get("source_label_ref"), field="source_label_ref"
+            )
+            source_label_path = _bound_path(
+                root, source_label_ref, field="source_label_ref"
+            )
+            try:
+                source_label = json.loads(
+                    source_label_path.read_text(encoding="utf-8")
+                )
+            except (OSError, json.JSONDecodeError) as exc:
+                raise LivePaperProtocolError(
+                    f"cannot read source label receipt: {exc}"
+                ) from exc
+            phenomenon_id = _text(
+                clip.get("source_phenomenon_id"),
+                field="source_phenomenon_id",
+            )
+            phenomena = (
+                (source_label.get("vqa") or {}).get("phenomena")
+                if isinstance(source_label, Mapping)
+                else None
+            )
+            matches = [
+                item
+                for item in phenomena or []
+                if isinstance(item, Mapping)
+                and item.get("id") == phenomenon_id
+                and isinstance(item.get("observed"), bool)
+            ]
+            if len(matches) != 1:
+                raise LivePaperProtocolError(
+                    "source label receipt has no unique boolean phenomenon"
+                )
+            observed_label = matches[0]["observed"]
+            expected_label = clip["proxy_gold_observed"]
+            expected_polarity = "positive" if observed_label else "negative"
+            if observed_label is not expected_label or clip["polarity"] != expected_polarity:
+                raise LivePaperProtocolError(
+                    "materialized clip label/polarity conflicts with its source receipt"
+                )
+            source_label_audited += 1
+        elif (
+            clip.get("source_label_ref") is not None
+            or clip.get("source_phenomenon_id") is not None
+        ):
+            raise LivePaperProtocolError(
+                "unmaterialized clip slots cannot claim a source label receipt"
+            )
         materialized += int(is_materialized)
     if observed != expected or len(clips) != 8:
         raise LivePaperProtocolError("clip slots must contain exactly 8 entries")
@@ -2431,6 +2648,7 @@ def validate_proxy_gold_manifest(repo_root: str | Path, value: Any) -> dict[str,
         "query_count": len(cases),
         "clip_slot_count": len(clips),
         "materialized_clip_count": materialized,
+        "source_label_audited_count": source_label_audited,
         "conditions": list(PAPER_VQA_CONDITIONS),
         "annotation_scope": "development_agent_proxy_not_human_gold",
         "human_reviewer_count": 0,
