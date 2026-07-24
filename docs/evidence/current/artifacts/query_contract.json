@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "claim_type": "diagnostic",
+  "candidate_universe": [
+    "robustness.distractor_avoidance.lookalike"
+  ],
+  "required_coverage": {
+    "candidate_ids": [
+      "robustness.distractor_avoidance.lookalike"
+    ],
+    "minimum_evaluated": 1,
+    "minimum_per_group": null
+  },
+  "round_budget": 1,
+  "comparison_groups": null
+}

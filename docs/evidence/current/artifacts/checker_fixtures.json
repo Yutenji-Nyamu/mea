@@ -1,0 +1,64 @@
+[
+  {
+    "calls": [
+      true
+    ],
+    "expected": true,
+    "fixture": "target_contact",
+    "observed": true,
+    "passed": true,
+    "validation_only": true
+  },
+  {
+    "calls": [
+      true,
+      true
+    ],
+    "expected": true,
+    "fixture": "target_contact_latched",
+    "observed": true,
+    "passed": true,
+    "validation_only": true
+  },
+  {
+    "calls": [
+      false,
+      false
+    ],
+    "expected": false,
+    "fixture": "distractor_contact_latched",
+    "observed": false,
+    "passed": true,
+    "validation_only": true
+  },
+  {
+    "calls": [
+      false
+    ],
+    "expected": false,
+    "fixture": "no_contact",
+    "observed": false,
+    "passed": true,
+    "validation_only": true
+  },
+  {
+    "calls": [
+      false
+    ],
+    "expected": false,
+    "fixture": "misaligned_target_contact",
+    "observed": false,
+    "passed": true,
+    "validation_only": true
+  },
+  {
+    "calls": [
+      true
+    ],
+    "expected": true,
+    "fixture": "z_offset_target_contact",
+    "observed": true,
+    "passed": true,
+    "validation_only": true
+  }
+]

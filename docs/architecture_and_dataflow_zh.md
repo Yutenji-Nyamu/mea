@@ -9,7 +9,7 @@
   → TaskProposal / ToolProposal
   → TaskGen（检索或生成 scene + check_success）
   → render + 一次局部 visual repair + expert/fixture gate
-  → ACT/DP3 rollout
+  → policy rollout（当前生产主链为 ACT；DP3 只用于 ranking pilot）
   → Rule Tool / VQA
   → Aggregate
   → evidence-conditioned next plan 或 evidence-sufficient stop
@@ -23,7 +23,7 @@
 | 编排 | `scripts/manipeval_agent.py` | 创建 evaluation，逐轮调用下述阶段，写出紧凑 run bundle |
 | 路由与规划 | `mea/planner/global_query.py`、`claim_first.py`、`query_contract.py` | 从 Query 和已有证据选择下一测试；不预写 aspect 顺序 |
 | TaskGen | `mea/taskgen/`、`scripts/manipeval_taskgen.py` | retrieve-first；必要时生成 scene 与实验 checker；渲染、fixture 与 expert 验证 |
-| Policy | `policy/ACT/eval_mea.sh` 及 policy adapter | 在明确 task、checkpoint、seed 下产生 rollout、video 与 telemetry |
+| Policy | `policy/ACT/eval_mea.sh` 及 paper experiment adapter | ACT 主链在明确 task、checkpoint、seed 下产生 rollout、video 与 telemetry；DP3 不伪装成生产主链 |
 | ToolGen/VQA | `mea/toolgen/`、`mea/execution_vqa/` | retrieve-first；生成并验证缺失 metric；对 rollout 产生可追踪 observation |
 | Aggregate/Answer | `mea/toolkit/aggregate.py`、`mea/feedback/` | 汇总样本，决定证据是否充分，回答 Query |
 
@@ -61,13 +61,16 @@ manifest.json
 各轮 proposal、artifact 相对路径、结果和限制。普通开发运行不再生成多层
 receipt/ledger/provenance hash；正式 preregistration 实验可在实验目录额外冻结 hash。
 
-Git 只发布一个最近运行的紧凑索引 `docs/evidence/current/`。raw bundle 留在服务器，
-历史结果压成 `docs/evidence/history.jsonl`，避免重复提交视频和图片。
+Git 只发布一个最近运行的紧凑证据包 `docs/evidence/current/`：保留 Query/Proposal、
+模型生成代码、两张 render、两个短 rollout、关键 Tool/Aggregate 和最终回答。完整 raw
+bundle 留在服务器，历史结果压成 `docs/evidence/history.jsonl`，避免重复提交大体积
+telemetry、VQA montage 和开发日志。
 
 ## 当前范围
 
-- 生产评估以 ACT 为主，DP3 用于最小双 policy pilot。
-- 当前有少量 RoboTwin task/checkpoint；新增任务优先复用 official task、TaskSchema 和
+- 生产评估以 ACT 为主，DP3 只用于 BBH 最小双 policy pilot。
+- ACT official 入口覆盖 `beat_block_hammer`、`click_bell`、`adjust_bottle`、
+  `grab_roller`；新增任务优先复用 official task、TaskSchema 和
   通用 recorder/tool，不复制整套 planner。
 - generated checker 是实验评价语义，必须与 RoboTwin official success 分开报告。
 - N=1/2 的 smoke 只能证明机制跑通，不能声称论文规模的泛化、效率或 ranking。

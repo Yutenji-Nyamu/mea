@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "original_query": "Can this ACT policy avoid a physically similar distractor and strike only the intended block when performing beat_block_hammer?",
+  "answered": true,
+  "stop_reason": "evidence_sufficient",
+  "claim_type": "diagnostic",
+  "claim_verdict": "no_failure_observed",
+  "answer": "For the finite registered candidate domain, the Query verdict is no_failure_observed.",
+  "tested_candidate_ids": [
+    "robustness.distractor_avoidance.lookalike"
+  ],
+  "untested_candidate_ids": [],
+  "limitations": [
+    "This is a finite-domain stopping prototype, not a statistical generalization guarantee.",
+    "Diagnosis strings are trusted upstream evidence labels; this contract does not independently infer or validate causality.",
+    "This answer is limited to the bound task, checkpoint, variants, and recorded seeds.",
+    "A finite-domain N-small result is not a broad generalization guarantee.",
+    "At least one candidate verdict uses generated_check_success; it must not be interpreted as official benchmark success."
+  ],
+  "evidence_refs": [
+    {
+      "kind": "child_manifest",
+      "path": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_1/manifest.json"
+    },
+    {
+      "kind": "execution_vqa_result",
+      "path": "mea/evaluation_runs/eval_20260724_batch22_distractor_live_n1_v7/execution/round_1/execution_vqa/execution_vqa.json"
+    },
+    {
+      "kind": "child_manifest",
+      "path": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/manifest.json"
+    },
+    {
+      "kind": "execution_vqa_result",
+      "path": "mea/evaluation_runs/eval_20260724_batch22_distractor_live_n1_v7/execution/round_2/execution_vqa/execution_vqa.json"
+    }
+  ],
+  "evaluation_outcomes": [
+    {
+      "metric": "official_check_success",
+      "authority": "official_check_success",
+      "binding": null,
+      "value": 1.0,
+      "official_equivalent": true,
+      "execution_scope": "official_equivalent"
+    },
+    {
+      "metric": "bbh_target_without_distractor_success",
+      "authority": "llm_generated_python_ast_validated",
+      "binding": {
+        "metric": "bbh_target_without_distractor_success",
+        "authority": "llm_generated_python_ast_validated",
+        "module_sha256": "deac1c5415f37cecef828ecf5b63d3610111ca3f41150afd0055c6fe1474ee44",
+        "task_module": "mea.generated_tasks.run_20260724_batch22_distractor_live_n1_v7_round_2.task"
+      },
+      "value": 1.0,
+      "official_equivalent": false,
+      "execution_scope": "provider_generated_checker"
+    }
+  ]
+}

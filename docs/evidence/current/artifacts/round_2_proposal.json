@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "task_proposal": {
+    "schema_version": 1,
+    "proposal_id": "robustness.distractor_avoidance.query_generated_1",
+    "task_name": "beat_block_hammer",
+    "aspect_id": "robustness.distractor_avoidance",
+    "intent": "evaluate a query-relevant bounded variation",
+    "capability_id": "robustness.distractor_avoidance",
+    "reuse_first": true,
+    "changes": {
+      "distractor": {
+        "scene": {
+          "target_name": "box",
+          "distractor_name": "distractor_box",
+          "target_color": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "distractor_color": [
+            0.85,
+            0.05,
+            0.05
+          ],
+          "half_size_m": [
+            0.025,
+            0.025,
+            0.025
+          ],
+          "distractor_offset_xy_m": [
+            0.1,
+            0.0
+          ]
+        },
+        "success": {
+          "target_alignment_thresholds_m": [
+            0.025,
+            0.025
+          ],
+          "require_target_contact": true,
+          "forbid_distractor_contact": true,
+          "latch_distractor_contact": true
+        }
+      }
+    },
+    "preserve_success_semantics": false
+  },
+  "tool_proposal": {
+    "schema_version": 1,
+    "proposal_id": "robustness.distractor_avoidance.query_generated_1.tool",
+    "task_name": "beat_block_hammer",
+    "aspect_id": "robustness.distractor_avoidance",
+    "evaluation_goal": "use the generated checker outcome for the same ACT episode",
+    "metric": "bbh_target_without_distractor_success",
+    "question": "Did the policy hit the intended target without striking the lookalike distractor under the generated checker?",
+    "vqa_phenomenon_ids": [
+      "target_block_visible",
+      "lookalike_distractor_visible",
+      "distractor_not_struck"
+    ],
+    "reuse_first": true
+  },
+  "tool_route_preview": {
+    "status": "resolved",
+    "resolved_route": "bound_child_trusted_checker",
+    "provider_required": false,
+    "provider_called": false
+  },
+  "proposal_capability_mode": "provider_scene_checker_codegen",
+  "base_template_id": "robustness.distractor_avoidance.lookalike",
+  "round_number": 2,
+  "attempt_count": 1,
+  "provider_or_validation_errors": [],
+  "bounded_repairs": [],
+  "semantic_plan_proposal": {
+    "schema_version": 1,
+    "action": "continue",
+    "sub_aspect": "robustness.distractor_avoidance_block_color",
+    "hypothesis": "If the block's color is altered to a visually similar shade as the hammer, the policy will still avoid striking a distractor and successfully hit the intended block.",
+    "requested_perturbation": {
+      "description": "Change the block's color to a visually similar shade as the hammer while keeping all other factors constant.",
+      "controlled_changes": [
+        "block color"
+      ],
+      "preserve": [
+        "task identity",
+        "policy checkpoint"
+      ]
+    },
+    "task_need": {
+      "required": true,
+      "description": "TaskGen must modify the block's color to a visually similar shade as the hammer and ensure the success contract remains valid."
+    },
+    "tool_need": {
+      "required": true,
+      "description": "ToolGen must retrieve or generate a rule-based metric to verify whether the hammer strikes the intended block and avoids the distractor.",
+      "reuse_first": true
+    },
+    "rationale": "Testing robustness to distractor appearance is critical to determine if the policy can generalize to scenarios where the distractor closely resembles the target block, addressing a key uncertainty in the original Query."
+  },
+  "semantic_need_binding": {
+    "taskgen_required": true,
+    "generated_success_requested": false,
+    "toolgen_required": false,
+    "taskgen_capability_mode": "provider_scene_checker_codegen",
+    "toolgen_requires_new_typed_metric": false
+  }
+}

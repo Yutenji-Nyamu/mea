@@ -1,0 +1,1030 @@
+{
+  "aggregation_policy": {
+    "group_dimensions": [
+      "seed",
+      "round_id",
+      "variant",
+      "policy_name"
+    ],
+    "invalid_values_enter_numeric_statistics": false,
+    "missing_values_enter_numeric_statistics": false,
+    "numeric_standard_deviation": "population",
+    "role_isolation": "strict"
+  },
+  "episode_result_count": 1,
+  "input_issues": [],
+  "metrics": [
+    {
+      "cohorts": [
+        {
+          "groups": {
+            "policy_name": [
+              {
+                "passed_summary": {
+                  "episode_result_count": 1,
+                  "quality": {
+                    "invalid": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "missing": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "valid": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 1
+                    }
+                  },
+                  "statistics": {
+                    "false_count": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "false_rate": {
+                      "denominator": 1,
+                      "numerator": 0,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 0.0
+                    },
+                    "true_count": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 1
+                    },
+                    "true_rate": {
+                      "denominator": 1,
+                      "numerator": 1,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 1.0
+                    }
+                  },
+                  "unit": null,
+                  "value_kind": "boolean"
+                },
+                "summary": {
+                  "episode_result_count": 1,
+                  "quality": {
+                    "invalid": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "missing": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "valid": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 1
+                    }
+                  },
+                  "statistics": {
+                    "false_count": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "false_rate": {
+                      "denominator": 1,
+                      "numerator": 0,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 0.0
+                    },
+                    "true_count": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 1
+                    },
+                    "true_rate": {
+                      "denominator": 1,
+                      "numerator": 1,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 1.0
+                    }
+                  },
+                  "unit": null,
+                  "value_kind": "boolean"
+                },
+                "value": "ACT"
+              }
+            ],
+            "round_id": [
+              {
+                "passed_summary": {
+                  "episode_result_count": 1,
+                  "quality": {
+                    "invalid": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "missing": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "valid": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 1
+                    }
+                  },
+                  "statistics": {
+                    "false_count": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "false_rate": {
+                      "denominator": 1,
+                      "numerator": 0,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 0.0
+                    },
+                    "true_count": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 1
+                    },
+                    "true_rate": {
+                      "denominator": 1,
+                      "numerator": 1,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 1.0
+                    }
+                  },
+                  "unit": null,
+                  "value_kind": "boolean"
+                },
+                "summary": {
+                  "episode_result_count": 1,
+                  "quality": {
+                    "invalid": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "missing": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "valid": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 1
+                    }
+                  },
+                  "statistics": {
+                    "false_count": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "false_rate": {
+                      "denominator": 1,
+                      "numerator": 0,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 0.0
+                    },
+                    "true_count": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 1
+                    },
+                    "true_rate": {
+                      "denominator": 1,
+                      "numerator": 1,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 1.0
+                    }
+                  },
+                  "unit": null,
+                  "value_kind": "boolean"
+                },
+                "value": "round_2"
+              }
+            ],
+            "seed": [
+              {
+                "passed_summary": {
+                  "episode_result_count": 1,
+                  "quality": {
+                    "invalid": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "missing": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "valid": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 1
+                    }
+                  },
+                  "statistics": {
+                    "false_count": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "false_rate": {
+                      "denominator": 1,
+                      "numerator": 0,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 0.0
+                    },
+                    "true_count": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 1
+                    },
+                    "true_rate": {
+                      "denominator": 1,
+                      "numerator": 1,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 1.0
+                    }
+                  },
+                  "unit": null,
+                  "value_kind": "boolean"
+                },
+                "summary": {
+                  "episode_result_count": 1,
+                  "quality": {
+                    "invalid": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "missing": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "valid": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 1
+                    }
+                  },
+                  "statistics": {
+                    "false_count": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "false_rate": {
+                      "denominator": 1,
+                      "numerator": 0,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 0.0
+                    },
+                    "true_count": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 1
+                    },
+                    "true_rate": {
+                      "denominator": 1,
+                      "numerator": 1,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 1.0
+                    }
+                  },
+                  "unit": null,
+                  "value_kind": "boolean"
+                },
+                "value": 100600
+              }
+            ],
+            "variant": [
+              {
+                "passed_summary": {
+                  "episode_result_count": 1,
+                  "quality": {
+                    "invalid": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "missing": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "valid": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 1
+                    }
+                  },
+                  "statistics": {
+                    "false_count": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "false_rate": {
+                      "denominator": 1,
+                      "numerator": 0,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 0.0
+                    },
+                    "true_count": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 1
+                    },
+                    "true_rate": {
+                      "denominator": 1,
+                      "numerator": 1,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 1.0
+                    }
+                  },
+                  "unit": null,
+                  "value_kind": "boolean"
+                },
+                "summary": {
+                  "episode_result_count": 1,
+                  "quality": {
+                    "invalid": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "missing": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "valid": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 1
+                    }
+                  },
+                  "statistics": {
+                    "false_count": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "false_rate": {
+                      "denominator": 1,
+                      "numerator": 0,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 0.0
+                    },
+                    "true_count": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 1
+                    },
+                    "true_rate": {
+                      "denominator": 1,
+                      "numerator": 1,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                          "evidence_steps": [
+                            7021
+                          ],
+                          "policy_name": "ACT",
+                          "role": "policy_under_evaluation",
+                          "round_id": "round_2",
+                          "seed": 100600,
+                          "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                          "value": true,
+                          "variant": "robustness.distractor_avoidance.lookalike"
+                        }
+                      ],
+                      "value": 1.0
+                    }
+                  },
+                  "unit": null,
+                  "value_kind": "boolean"
+                },
+                "value": "robustness.distractor_avoidance.lookalike"
+              }
+            ]
+          },
+          "passed_summary": {
+            "episode_result_count": 1,
+            "quality": {
+              "invalid": {
+                "provenance": [],
+                "value": 0
+              },
+              "missing": {
+                "provenance": [],
+                "value": 0
+              },
+              "valid": {
+                "provenance": [
+                  {
+                    "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                    "evidence_steps": [
+                      7021
+                    ],
+                    "policy_name": "ACT",
+                    "role": "policy_under_evaluation",
+                    "round_id": "round_2",
+                    "seed": 100600,
+                    "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                    "value": true,
+                    "variant": "robustness.distractor_avoidance.lookalike"
+                  }
+                ],
+                "value": 1
+              }
+            },
+            "statistics": {
+              "false_count": {
+                "provenance": [],
+                "value": 0
+              },
+              "false_rate": {
+                "denominator": 1,
+                "numerator": 0,
+                "provenance": [
+                  {
+                    "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                    "evidence_steps": [
+                      7021
+                    ],
+                    "policy_name": "ACT",
+                    "role": "policy_under_evaluation",
+                    "round_id": "round_2",
+                    "seed": 100600,
+                    "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                    "value": true,
+                    "variant": "robustness.distractor_avoidance.lookalike"
+                  }
+                ],
+                "value": 0.0
+              },
+              "true_count": {
+                "provenance": [
+                  {
+                    "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                    "evidence_steps": [
+                      7021
+                    ],
+                    "policy_name": "ACT",
+                    "role": "policy_under_evaluation",
+                    "round_id": "round_2",
+                    "seed": 100600,
+                    "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                    "value": true,
+                    "variant": "robustness.distractor_avoidance.lookalike"
+                  }
+                ],
+                "value": 1
+              },
+              "true_rate": {
+                "denominator": 1,
+                "numerator": 1,
+                "provenance": [
+                  {
+                    "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                    "evidence_steps": [
+                      7021
+                    ],
+                    "policy_name": "ACT",
+                    "role": "policy_under_evaluation",
+                    "round_id": "round_2",
+                    "seed": 100600,
+                    "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                    "value": true,
+                    "variant": "robustness.distractor_avoidance.lookalike"
+                  }
+                ],
+                "value": 1.0
+              }
+            },
+            "unit": null,
+            "value_kind": "boolean"
+          },
+          "policy_names": [
+            "ACT"
+          ],
+          "role": "policy_under_evaluation",
+          "summary": {
+            "episode_result_count": 1,
+            "quality": {
+              "invalid": {
+                "provenance": [],
+                "value": 0
+              },
+              "missing": {
+                "provenance": [],
+                "value": 0
+              },
+              "valid": {
+                "provenance": [
+                  {
+                    "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                    "evidence_steps": [
+                      7021
+                    ],
+                    "policy_name": "ACT",
+                    "role": "policy_under_evaluation",
+                    "round_id": "round_2",
+                    "seed": 100600,
+                    "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                    "value": true,
+                    "variant": "robustness.distractor_avoidance.lookalike"
+                  }
+                ],
+                "value": 1
+              }
+            },
+            "statistics": {
+              "false_count": {
+                "provenance": [],
+                "value": 0
+              },
+              "false_rate": {
+                "denominator": 1,
+                "numerator": 0,
+                "provenance": [
+                  {
+                    "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                    "evidence_steps": [
+                      7021
+                    ],
+                    "policy_name": "ACT",
+                    "role": "policy_under_evaluation",
+                    "round_id": "round_2",
+                    "seed": 100600,
+                    "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                    "value": true,
+                    "variant": "robustness.distractor_avoidance.lookalike"
+                  }
+                ],
+                "value": 0.0
+              },
+              "true_count": {
+                "provenance": [
+                  {
+                    "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                    "evidence_steps": [
+                      7021
+                    ],
+                    "policy_name": "ACT",
+                    "role": "policy_under_evaluation",
+                    "round_id": "round_2",
+                    "seed": 100600,
+                    "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                    "value": true,
+                    "variant": "robustness.distractor_avoidance.lookalike"
+                  }
+                ],
+                "value": 1
+              },
+              "true_rate": {
+                "denominator": 1,
+                "numerator": 1,
+                "provenance": [
+                  {
+                    "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+                    "evidence_steps": [
+                      7021
+                    ],
+                    "policy_name": "ACT",
+                    "role": "policy_under_evaluation",
+                    "round_id": "round_2",
+                    "seed": 100600,
+                    "source_artifact": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/bbh_distractor_checker_execution.json",
+                    "value": true,
+                    "variant": "robustness.distractor_avoidance.lookalike"
+                  }
+                ],
+                "value": 1.0
+              }
+            },
+            "unit": null,
+            "value_kind": "boolean"
+          }
+        }
+      ],
+      "metric": "bbh_target_without_distractor_success",
+      "tools": [
+        "bbh_target_without_distractor_success"
+      ],
+      "unit": null,
+      "value_kind": "boolean"
+    }
+  ],
+  "schema_version": 1,
+  "source_count": 1,
+  "status": "passed",
+  "unique_episode_count": 1
+}

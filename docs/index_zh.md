@@ -9,6 +9,6 @@
 - [当前证据](evidence/current/README.md)：最近一次可审计运行的紧凑索引。
 - [历史索引](evidence/history.jsonl)：旧批次只保留结论、边界和 Git revision。
 
-原始视频、telemetry、provider 请求/响应及 checkpoint 体积较大，只保存在 canonical
-AutoDL。Git 中的 current manifest 给出服务器相对路径和摘要；旧开发日志与重复 evidence
-bundle 可通过 Git 历史恢复。
+Git 的 current bundle 只保留最近一次运行的短视频、render、生成代码、关键
+provider 输出和结论。完整 telemetry/VQA bundle、其他 provider 中间结果与 checkpoint
+只保存在 canonical AutoDL；旧开发日志与重复 evidence bundle 可通过 Git 历史恢复。

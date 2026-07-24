@@ -2,4 +2,5 @@
 {"batch":"batch18","date":"2026-07-23","result":"QueryContract, AnswerScope and scene+checker acceptance smokes","boundary":"mostly cached or proxy evidence; no live unified closure"}
 {"batch":"batch19","date":"2026-07-23","result":"open-query, ToolGen, efficiency and validity protocols became executable","boundary":"component paths and post-hoc evidence; not a unified paper result"}
 {"batch":"batch20","date":"2026-07-23","result":"provider-written target+distractor scene/checker and exact Tool reuse","boundary":"TaskGen and ToolGen evidence remained separate"}
-{"batch":"batch21","date":"2026-07-24","revision":"dd350f6","result":"two-round ClaimFirst live chain and fixed2/adaptive1 efficiency toy","boundary":"one task/seed; budget-exhausted; paper-scale ineligible","current":"evidence/current/manifest.json"}
+{"batch":"batch21","date":"2026-07-24","revision":"dd350f6","result":"two-round ClaimFirst live chain and fixed2/adaptive1 efficiency toy","boundary":"one task/seed; budget-exhausted; paper-scale ineligible"}
+{"batch":"batch22","date":"2026-07-24","revision":"68e938e","result":"official control -> provider-written distractor scene+checker -> ACT -> bound Tool/Aggregate -> evidence-sufficient answer","boundary":"one task/seed/candidate; N=2; generated checker is not official benchmark success","current":"evidence/current/manifest.json"}

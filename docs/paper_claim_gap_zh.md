@@ -1,32 +1,34 @@
 # 论文 claim、当前证据与主要 gap
 
-判断依据为论文 Abstract、Figs. 2–6、Tables 1–9 与 Appendix。这里区分“接口存在”、
-“机制真实跑通”和“达到论文实验规模”。
+判断依据为论文 Abstract、Figs. 2–6、Tables 1–9 与 Appendix。状态严格区分“接口存在”、
+“小规模真实闭环”和“达到论文实验规模”。
 
-| 论文 claim | 当前项目 | 主要缺口 |
+| 论文 claim | 当前项目 | 判断与首要 gap |
 | --- | --- | --- |
-| 开放 Query 驱动多轮评估；evidence 动态细化；充分后停止 | ClaimFirst 两轮 live 主链已跑通，证据会改变下一轮 | 候选域仍有界；最近运行因预算而非充分性停止；需让 ClaimFirst 成为唯一默认 Planner |
-| TaskGen 检索/生成 scene 与 `check_success()`，render 后自检修复 | scene、实验 checker、render、fixture/expert gate 与 ACT 均有真实案例 | model-written scene+checker 与统一主链仍未完全合一；需允许多种语义等价代码，而非复制 reference AST |
-| ToolGen retrieve/generate/validate/register/reuse | 新 XY metric 在真实 episode 得到非空值并进入 Aggregate；另有 exact reuse 案例 | “非空测量→影响 Planner→下一 Query 复用”仍分散在不同运行 |
-| Rule/VQA→Aggregate→Planner→解释性回答 | 在少量 RoboTwin task、ACT、N=1/2 范围内基本跑通 | 需要更多任务和不同 evidence pattern，而不是继续增加框架层 |
-| 显著减少 samples/time，同时与完整 benchmark 结论可比 | fixed 2 / adaptive 1 的 universal toy 得到相同 `refuted` | 单 task/seed 的简单反例；需非平凡 fixed 3–4 vs adaptive 1–3，随后 N=3 |
-| 少样本保持 ACT/DP/DP3/RDT/π0 相对排名 | ACT/DP3 有初步接入/资产准备 | 尚无同 task、同 seed 的有效双 policy ranking；本阶段只做 ACT/DP3 pilot |
-| RAG、visual self-check、README.Agent 提升生成成功率 | 对应开关和路径存在 | 缺少 matched unseen proposals、真实 codegen/render/oracle 的 Table 3 消融 |
-| Plan 与机器人研究者 sub-aspect 标注一致 | 有 development-agent proxy | 缺独立人工 gold、多人一致性及论文规模 |
-| VQA 在 clean/clutter/texture/lighting 下保持 accuracy/AUROC | 有缓存图像扰动 proxy | 需真实 simulator 条件、正负 clips、人工 gold 与至少多个 VLM |
-| 约 5% 系统错误率及 Plan/TaskGen/ToolGen/simulator 分布 | 有小分母 prospective smoke | 固定分母过小，不能与 Fig. 6 比较 |
+| 开放 Query 驱动多轮评估；evidence 决定下一步；充分后停止 | ClaimFirst 已是默认自动路由；v7 中 official control 的证据触发 distractor Proposal，第二轮后由 QueryContract 以 `evidence_sufficient` 停止 | **受限闭环完成一例**。本 Query 已明确 distractor，候选域只有一个；尚未证明从宽泛 Query 自主发现未知弱点 |
+| TaskGen 对同一 Proposal 生成 scene 与 `check_success()`，render 后诊断/修复并裁决 rollout | v7 由 provider 编写 target+distractor scene 与 checker；非 restricted compiler；6/6 fixtures、render/visual/expert gate 和一次 ACT 均通过 | **论文式最小案例完成**。仍只有 BBH 一个生成式 variation，缺跨 task/多 proposal 成功率 |
+| ToolGen retrieve/generate/validate/register/reuse | v7 直接复用与生成 checker 绑定的 Tool，裁决同一真实 episode，进入 Aggregate 并影响最终停止/回答 | **同轮闭环完成**。缺“新 Query 诱发新 metric → 持久注册 → 第二个 Query exact reuse”的同一案例 |
+| Rule/VQA → Aggregate → Planner → 可解释回答 | BBH/click_bell、ACT、N=1/2 范围内跑通；Answer 强制列 N、候选域、冲突与限制 | **基本实现，范围小** |
+| 显著减少 samples/time，同时得到与完整 benchmark 可比结论 | 只有 fixed2/adaptive1 的单 seed toy/proxy | **论文最重要的科学证据仍缺失**；需预先冻结非平凡 dense reference，并真实比较 rollout 与 wall time |
+| 少样本保持 ACT、DP、DP3、RDT、π0 相对排名 | 服务器有 ACT 多任务 checkpoint；官方 DP3 公共 checkpoint 仅 BBH；已有 adapter/protocol smoke | **未复现**。当前只做 ACT/DP3 同 task、同 seed 的双 policy pair-order pilot，不声称 Table 9 或 Spearman |
+| RAG、visual self-check、README.Agent 提升生成成功率 | 三个开关及真实 codegen/render/oracle 路径存在 | **没有真实增益数据**；需 matched unseen proposals，而不是“开关能运行” |
+| Plan 与机器人研究者的 sub-aspect 标注一致 | 只有 development-agent proxy | **缺独立人工 gold、多人一致性与论文规模** |
+| VQA 在 clean/clutter/texture/lighting 下保持 accuracy/AUROC | 有缓存图像扰动和少量真实 VQA 路径 | **缺真实 simulator 四条件、正负 clips、独立 gold 和多 VLM** |
+| 约 5% 系统错误率及 Plan/TaskGen/ToolGen/simulator 分布 | 已能前瞻记录 operation 状态 | **固定分母太小**，不能与 Fig. 6 比较 |
+| 多任务、不同 policy 与 RoboTwin/LIBERO 一致性 | ACT official 入口覆盖 BBH、click_bell、adjust_bottle、grab_roller；生成式主链集中在前两者 | **只扩了执行面，没有方法证据面**；RDT、π0、LIBERO 按当前范围后置 |
 
-## 当前优先级
+## 当前最值得做的批次
 
-1. **统一 Fig. 2–5 主链（1–3 ACT）**：ClaimFirst 默认化；model-written scene+checker；
-   新 Tool 在同一运行中测量、影响下一 plan，并在后续 Query exact reuse。
-2. **扩大到少量任务（低成本）**：优先下载已有 ACT/DP3 checkpoint，为 3–5 个 official
-   RoboTwin task 增加 TaskSchema/通用 telemetry 支持；不复制 task-specific planner。
-3. **非平凡效率 toy（5–7 ACT）**：冻结候选 universe、fixed 顺序、adaptive stop 和 seeds，
-   比较 verdict、rollout 数及 wall time。
-4. **ACT/DP3 双 policy pilot**：同 task、同 seeds 各少量 rollout；若 tie 或失败则报告
-   inconclusive，不冒充 Table 9。
-5. **低 ACT validity**：真实 Table 3 小消融；先建立可交给人的 Plan/VQA 标注包。
+1. **真实效率 toy（6 ACT 左右）**：预注册 4 个 BBH/click_bell 候选；fixed 全跑 4，
+   adaptive 最多 2。只有结论一致且 rollout、wall time 都更少才记为正结果，否则报告未复现。
+2. **跨 Query Tool reuse（0–1 ACT）**：第一个 Query 生成并持久注册 metric；第二个 Query
+   exact lookup，要求 `provider_called=false`，并让该值改变停止或回答。
+3. **ACT/DP3 pair-order（6 rollouts）**：BBH 上两个 policy 各跑相同 3 seeds。只能回答
+   二者顺序是否稳定；两 policy 不能计算或宣称论文的多 policy ranking。
+4. **Table 3 小消融（0 ACT）**：5 个冻结 unseen proposals，比较 complete、−RAG、
+   −visual、−README.Agent 的 codegen→compile→render→oracle 成功率。
+5. **独立有效性包**：先冻结 20–30 Query 和四类正负 clips；当前 development-agent 标注
+   只用于发现协议问题，正式表格等待独立机器人研究者与多 VLM。
 
-多任务大模型、RDT、π0、LIBERO 和论文规模重复暂缓。项目的目标是逐项提供论文 claim 的
-直接证据，不再增加与 claim 无关的安全封装、ledger、fallback 或平行 planner。
+项目后续只增加直接支撑这些 claim 的证据，不再恢复平行 planner、中央 recovery、
+receipt/ledger 或多层 registry 封装。

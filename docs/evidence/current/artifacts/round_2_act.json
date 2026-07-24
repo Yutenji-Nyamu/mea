@@ -1,0 +1,68 @@
+{
+  "command": [
+    "env",
+    "PYTHON_BIN=/root/autodl-tmp/conda/envs/RoboTwin/bin/python",
+    "bash",
+    "policy/ACT/eval_mea.sh",
+    "beat_block_hammer",
+    "demo_clean",
+    "demo_clean",
+    "50",
+    "0",
+    "0",
+    "1",
+    "mea.generated_tasks.run_20260724_batch22_distractor_live_n1_v7_round_2.task",
+    "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/overlay.yml",
+    "100600",
+    "/root/autodl-tmp/mea/mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act",
+    "balanced_v1"
+  ],
+  "started_at": "2026-07-24T17:13:40.311908+08:00",
+  "finished_at": "2026-07-24T17:14:51.357080+08:00",
+  "returncode": 0,
+  "task_name": "beat_block_hammer",
+  "task_config": "demo_clean",
+  "checkpoint_setting": "demo_clean",
+  "expert_data_num": 50,
+  "policy_seed": 0,
+  "num_episodes": 1,
+  "actual_seeds": [
+    100600
+  ],
+  "checkpoint": {
+    "directory": "policy/ACT/act_ckpt/act-beat_block_hammer/demo_clean-50",
+    "required_files": [
+      "policy/ACT/act_ckpt/act-beat_block_hammer/demo_clean-50/policy_last.ckpt",
+      "policy/ACT/act_ckpt/act-beat_block_hammer/demo_clean-50/dataset_stats.pkl"
+    ],
+    "preflight_passed": true
+  },
+  "execution_receipt": null,
+  "source_eval_dir": "/root/autodl-tmp/mea/eval_result/beat_block_hammer/ACT/demo_clean/demo_clean/2026-07-24 17:13:45",
+  "copied_artifacts": [
+    "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/episode0.mp4",
+    "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/_result.txt"
+  ],
+  "copied_video_count": 1,
+  "telemetry_root": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act",
+  "telemetry_episode_count": 1,
+  "video_associations": [
+    {
+      "episode_dir": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+      "video": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/evaluation/telemetry/act/episode_000_seed_100600/video.mp4",
+      "episode_index": 0
+    }
+  ],
+  "episode_index_alignment": {
+    "passed": true,
+    "video_indices": [
+      0
+    ],
+    "telemetry_indices": [
+      0
+    ],
+    "issues": []
+  },
+  "previous_attempt_archive": null,
+  "passed": true
+}

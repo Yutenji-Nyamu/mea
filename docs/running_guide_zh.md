@@ -64,7 +64,8 @@ query
 → answer
 ```
 
-Git 中不再复制 raw 视频、telemetry 或 provider 响应。需要发布新结果时，用新运行替换
+Git 只复制当前运行的两个短 rollout、render、生成代码、关键 provider 输出和结论；
+完整 telemetry/VQA bundle 留在服务器。需要发布新结果时，用新运行替换
 `docs/evidence/current/`，并在 `docs/evidence/history.jsonl` 追加一行旧结果摘要。
 
 ## 5. 测试原则

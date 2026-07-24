@@ -1,0 +1,344 @@
+{
+  "schema_version": 1,
+  "recorder_schema_version": 2,
+  "task_name": "beat_block_hammer",
+  "task_module": "mea.generated_tasks.run_20260724_batch22_distractor_live_n1_v7_round_2.task",
+  "task_config": "demo_clean",
+  "checkpoint_setting": "demo_clean",
+  "policy_name": "ACT",
+  "seed": 100600,
+  "episode_index": 0,
+  "success": true,
+  "policy_steps": 99,
+  "physics_steps": 7021,
+  "physics_timestep_seconds": 0.004,
+  "simulation_duration_seconds": 28.084,
+  "wall_duration_seconds": 34.90174698829651,
+  "policy_state_rows": 101,
+  "semantic_trace_rows": 7022,
+  "dynamics_trace_rows": 1406,
+  "telemetry_profile_id": "balanced_v1",
+  "telemetry_profile_sha256": "f13e1b86e74d1f203bd9a889191203b4a1ff87d339e557aac864c027f715024c",
+  "telemetry": {
+    "profile_id": "balanced_v1",
+    "profile_sha256": "f13e1b86e74d1f203bd9a889191203b4a1ff87d339e557aac864c027f715024c",
+    "profile_artifact": "telemetry_profile.json",
+    "streams": {
+      "policy_state": {
+        "artifact": "states.csv",
+        "sampling": "policy_boundary",
+        "rows": 101
+      },
+      "semantic_trace": {
+        "artifact": "semantic_trace.npz",
+        "sampling": "physics_period",
+        "every_physics_steps": 1,
+        "rows": 7022,
+        "arrays": {
+          "block_functional_position": {
+            "shape": [
+              7022,
+              3
+            ],
+            "dtype": "float32"
+          },
+          "block_position": {
+            "shape": [
+              7022,
+              3
+            ],
+            "dtype": "float32"
+          },
+          "hammer_functional_position": {
+            "shape": [
+              7022,
+              3
+            ],
+            "dtype": "float32"
+          },
+          "hammer_position": {
+            "shape": [
+              7022,
+              3
+            ],
+            "dtype": "float32"
+          },
+          "left_tcp_position": {
+            "shape": [
+              7022,
+              3
+            ],
+            "dtype": "float32"
+          },
+          "physics_step": {
+            "shape": [
+              7022
+            ],
+            "dtype": "float64"
+          },
+          "policy_step": {
+            "shape": [
+              7022
+            ],
+            "dtype": "float64"
+          },
+          "right_tcp_position": {
+            "shape": [
+              7022,
+              3
+            ],
+            "dtype": "float32"
+          },
+          "simulation_time_seconds": {
+            "shape": [
+              7022
+            ],
+            "dtype": "float64"
+          },
+          "success": {
+            "shape": [
+              7022
+            ],
+            "dtype": "bool"
+          }
+        }
+      },
+      "contact_events": {
+        "artifact": "events.jsonl",
+        "sampling": "physics_period",
+        "every_physics_steps": 1,
+        "mode": "interval_summary",
+        "rows": 7
+      },
+      "dynamics_trace": {
+        "artifact": "dynamics_trace.npz",
+        "sampling": "physics_period",
+        "every_physics_steps": 5,
+        "force_initial_sample": true,
+        "force_final_sample": true,
+        "rows": 1406,
+        "arrays": {
+          "actor.block.angular_velocity": {
+            "shape": [
+              1406,
+              3
+            ],
+            "dtype": "float32"
+          },
+          "actor.block.functional.0.position": {
+            "shape": [
+              1406,
+              3
+            ],
+            "dtype": "float32"
+          },
+          "actor.block.functional.0.quaternion": {
+            "shape": [
+              1406,
+              4
+            ],
+            "dtype": "float32"
+          },
+          "actor.block.functional.1.position": {
+            "shape": [
+              1406,
+              3
+            ],
+            "dtype": "float32"
+          },
+          "actor.block.functional.1.quaternion": {
+            "shape": [
+              1406,
+              4
+            ],
+            "dtype": "float32"
+          },
+          "actor.block.linear_velocity": {
+            "shape": [
+              1406,
+              3
+            ],
+            "dtype": "float32"
+          },
+          "actor.block.position": {
+            "shape": [
+              1406,
+              3
+            ],
+            "dtype": "float32"
+          },
+          "actor.block.quaternion": {
+            "shape": [
+              1406,
+              4
+            ],
+            "dtype": "float32"
+          },
+          "actor.hammer.angular_velocity": {
+            "shape": [
+              1406,
+              3
+            ],
+            "dtype": "float32"
+          },
+          "actor.hammer.contact.0.position": {
+            "shape": [
+              1406,
+              3
+            ],
+            "dtype": "float32"
+          },
+          "actor.hammer.contact.0.quaternion": {
+            "shape": [
+              1406,
+              4
+            ],
+            "dtype": "float32"
+          },
+          "actor.hammer.functional.0.position": {
+            "shape": [
+              1406,
+              3
+            ],
+            "dtype": "float32"
+          },
+          "actor.hammer.functional.0.quaternion": {
+            "shape": [
+              1406,
+              4
+            ],
+            "dtype": "float32"
+          },
+          "actor.hammer.linear_velocity": {
+            "shape": [
+              1406,
+              3
+            ],
+            "dtype": "float32"
+          },
+          "actor.hammer.position": {
+            "shape": [
+              1406,
+              3
+            ],
+            "dtype": "float32"
+          },
+          "actor.hammer.quaternion": {
+            "shape": [
+              1406,
+              4
+            ],
+            "dtype": "float32"
+          },
+          "physics_step": {
+            "shape": [
+              1406
+            ],
+            "dtype": "int64"
+          },
+          "policy_step": {
+            "shape": [
+              1406
+            ],
+            "dtype": "int64"
+          },
+          "robot.left.ee_pose": {
+            "shape": [
+              1406,
+              7
+            ],
+            "dtype": "float32"
+          },
+          "robot.left.gripper": {
+            "shape": [
+              1406
+            ],
+            "dtype": "float32"
+          },
+          "robot.left.qpos": {
+            "shape": [
+              1406,
+              38
+            ],
+            "dtype": "float32"
+          },
+          "robot.left.qvel": {
+            "shape": [
+              1406,
+              38
+            ],
+            "dtype": "float32"
+          },
+          "robot.left.tcp_pose": {
+            "shape": [
+              1406,
+              7
+            ],
+            "dtype": "float32"
+          },
+          "robot.right.ee_pose": {
+            "shape": [
+              1406,
+              7
+            ],
+            "dtype": "float32"
+          },
+          "robot.right.gripper": {
+            "shape": [
+              1406
+            ],
+            "dtype": "float32"
+          },
+          "robot.right.qpos": {
+            "shape": [
+              1406,
+              38
+            ],
+            "dtype": "float32"
+          },
+          "robot.right.qvel": {
+            "shape": [
+              1406,
+              38
+            ],
+            "dtype": "float32"
+          },
+          "robot.right.tcp_pose": {
+            "shape": [
+              1406,
+              7
+            ],
+            "dtype": "float32"
+          },
+          "simulation_time_seconds": {
+            "shape": [
+              1406
+            ],
+            "dtype": "float64"
+          },
+          "success": {
+            "shape": [
+              1406
+            ],
+            "dtype": "bool"
+          }
+        }
+      }
+    }
+  },
+  "contact_interval_count": 6,
+  "error": null,
+  "artifacts": {
+    "policy_states": "states.csv",
+    "semantic_trace": "semantic_trace.npz",
+    "dynamics_trace": "dynamics_trace.npz",
+    "events": "events.jsonl",
+    "task_schema": "schema.json",
+    "telemetry_profile": "telemetry_profile.json",
+    "video": "video.mp4"
+  },
+  "video_alignment": {
+    "policy_frame_rate_hz": 10,
+    "frame_semantics": "pre-action; contact in policy step k lies between adjacent frames"
+  }
+}
