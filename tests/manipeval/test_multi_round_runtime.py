@@ -96,6 +96,46 @@ class MultiRoundRuntimeTests(unittest.TestCase):
                 (run_dir / "validation/position_samples.json").is_file()
             )
 
+    def test_act_only_position_samples_do_not_require_expert_evidence(self):
+        first_scene = {
+            "block_pose": {
+                "position": [0.12, 0.02, 0.76],
+                "quaternion": [1.0, 0.0, 0.0, 0.0],
+            },
+            "rule_check": {"passed": True},
+            "image": "first.png",
+        }
+        second_scene = {
+            "block_pose": {
+                "position": [-0.16, 0.11, 0.76],
+                "quaternion": [1.0, 0.0, 0.0, 0.0],
+            },
+            "rule_check": {"passed": True},
+            "image": "second.png",
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            run_dir = root / "run"
+            run_dir.mkdir()
+            with patch(
+                "scripts.manipeval_taskgen.run_probe",
+                return_value=second_scene,
+            ) as mocked_probe:
+                result = collect_position_samples(
+                    root,
+                    run_dir,
+                    {"task_name": "beat_block_hammer", "task_module": "fake"},
+                    start_seed=100002,
+                    num_episodes=2,
+                    first_scene=first_scene,
+                    require_expert=False,
+                )
+            self.assertTrue(result["passed"])
+            self.assertFalse(result["expert_required"])
+            self.assertIsNone(result["samples"][0]["expert_passed"])
+            self.assertIsNone(result["samples"][1]["expert_passed"])
+            self.assertFalse(mocked_probe.call_args.kwargs["expert"])
+
     def test_execute_round_routes_planned_tool_before_summary(self):
         tool_evaluation = {
             "schema_version": 1,

@@ -289,6 +289,27 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             bound["semantic_needs"]["tool_need"]["required"]
         )
 
+    def test_auxiliary_vqa_conflict_does_not_override_official_control_success(self):
+        controller = ClaimFirstRuntimeController(
+            "Where does this policy first expose a weakness?",
+            target(),
+        )
+        control = round_plan(
+            1, "performance.completion_time_stability.official"
+        )
+        observed = summary(control, 1.0)
+        observed["observations"]["execution_vqa"]["evidence_conflict"] = True
+        provenance = bind_provenance(control, observed)
+
+        state = controller.observe([control], [observed], [provenance])
+
+        self.assertTrue(state["control_passed"])
+        self.assertFalse(state["assessment"]["should_stop"])
+        self.assertEqual(
+            state["records"][0]["evidence_packet"]["evidence_strength"],
+            "conflicting",
+        )
+
     def test_exact_aspect_uses_hidden_runtime_order_then_next_variant(self):
         controller = ClaimFirstRuntimeController(
             "Where does this policy first expose a weakness?",

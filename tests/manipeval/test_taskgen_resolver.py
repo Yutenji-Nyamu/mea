@@ -1,8 +1,12 @@
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
 from mea.capability_adapter import resolve_capability_contract
 from mea.proposals import task_proposal_from_contract
 from mea.taskgen.resolver import TaskResolutionError, resolve_task_proposal
+from mea.taskgen.reviewed_registry import ReviewedTaskRegistryError
+from scripts.manipeval_taskgen import reviewed_task_lookup_with_fallback
 
 
 class TaskGenResolverTests(unittest.TestCase):
@@ -101,6 +105,25 @@ class TaskGenResolverTests(unittest.TestCase):
         self.assertEqual(decision["materialization"], "generate")
         self.assertTrue(decision["provider_required"])
         self.assertTrue(decision["reviewed_lookup_attempted"])
+
+    def test_invalid_registry_is_audited_and_falls_back_to_generation(self):
+        with patch(
+            "scripts.manipeval_taskgen.find_reviewed_task",
+            side_effect=ReviewedTaskRegistryError("invalid layout"),
+        ):
+            match, issue = reviewed_task_lookup_with_fallback(
+                Path("/registry"),
+                {"schema_version": 1},
+                repo_root=Path("/repo"),
+            )
+
+        self.assertIsNone(match)
+        self.assertEqual(
+            issue["status"],
+            "invalid_registry_fallback_to_generation",
+        )
+        self.assertEqual(issue["error_type"], "ReviewedTaskRegistryError")
+        self.assertIn("invalid layout", issue["message"])
 
     def test_non_exact_or_unapproved_reviewed_match_fails_closed(self):
         contract, proposal = self.proposal(

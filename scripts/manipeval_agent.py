@@ -2654,7 +2654,15 @@ def parse_args() -> argparse.Namespace:
             "expert; both evaluates ACT and keeps expert as validation."
         ),
     )
-    parser.add_argument("--start-seed", type=int, default=100000)
+    parser.add_argument(
+        "--start-seed",
+        type=int,
+        default=None,
+        help=(
+            "override trusted task seeds; omitted keeps the BBH catalog "
+            "defaults and each other planner's existing default"
+        ),
+    )
     parser.add_argument("--num-episodes", type=int, default=1)
     parser.add_argument(
         "--telemetry-profile",
@@ -3125,6 +3133,8 @@ def main() -> None:
             repo_root,
             provider,
             model=models["planner"],
+            start_seed=args.start_seed,
+            num_episodes=args.num_episodes,
         )
     elif adaptive_click_bell:
         if provider is None and not claim_first_bound_plan_only:
@@ -3133,7 +3143,9 @@ def main() -> None:
             repo_root,
             provider,
             model=models["planner"],
-            start_seed=args.start_seed,
+            start_seed=(
+                args.start_seed if args.start_seed is not None else 100401
+            ),
             num_episodes=args.num_episodes,
             telemetry_profile=args.telemetry_profile,
             max_rounds=args.generated_rounds,
@@ -3144,7 +3156,9 @@ def main() -> None:
             repo_root,
             provider,
             model=models["planner"],
-            start_seed=args.start_seed,
+            start_seed=(
+                args.start_seed if args.start_seed is not None else 100401
+            ),
             num_episodes=args.num_episodes,
             telemetry_profile=args.telemetry_profile,
             max_rounds=args.generated_rounds,
@@ -3152,7 +3166,9 @@ def main() -> None:
     elif legacy_click_bell:
         planner = ClickBellPositionPlanAgent(
             repo_root,
-            start_seed=args.start_seed,
+            start_seed=(
+                args.start_seed if args.start_seed is not None else 100401
+            ),
             num_episodes=args.num_episodes,
             telemetry_profile=args.telemetry_profile,
             max_rounds=args.generated_rounds,
@@ -3162,7 +3178,9 @@ def main() -> None:
             repo_root,
             task_name=args.task_name,
             task_module=args.task_module,
-            start_seed=args.start_seed,
+            start_seed=(
+                args.start_seed if args.start_seed is not None else 100000
+            ),
             num_episodes=args.num_episodes,
             telemetry_profile=args.telemetry_profile,
             execution_backend=execution_backend,

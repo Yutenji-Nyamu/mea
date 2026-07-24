@@ -280,8 +280,10 @@ ACT 都失败这一 policy 结果必须与成功的 expert controls 和完整 pi
 - 功能优先于扩大实验。新通路先用静态测试、`0-ACT` prepare/audit 或一个真实 rollout 验证；
   只有身份和失败处理稳定后才按 `1 → 3 → 5` 扩大。论文的 10 次完整 repetition 不作为日常
   开发默认值。
-- 当前只评 ACT。不得为了“表格更完整”擅自接入第二种 policy；official expert 只做 seed/
-  solvability gate，不能替代 ACT checkpoint 验证。
+- 默认先评 ACT；只有用户明确指定第二种 policy 时才扩展，而且必须使用真实匹配 checkpoint、
+  相同 task/seed/semantics 和独立 rollout。当前获准的最小边界是 ACT+DP；DP checkpoint 或环境
+  未就绪时保持 readiness blocked，不得用 DP3 代替 DP，也不得为了“表格更完整”擅自扩到
+  DP3/RDT/π0。official expert 只做 seed/solvability gate，不能替代任何 policy checkpoint 验证。
 - 每个 evaluation 在首轮前固定一个 task、一个 ACT checkpoint 与最大轮预算。模型可在受信
   sub-aspect/variant 内提 proposal，但不得切 task/policy/checkpoint，也不得直接提供可执行路径、
   seed 或 gate；跨任务评估必须拆成独立 child evaluation。

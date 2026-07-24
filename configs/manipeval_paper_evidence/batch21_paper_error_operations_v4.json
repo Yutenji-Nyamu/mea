@@ -1,0 +1,34 @@
+{
+  "operations": [
+    {
+      "operation_id": "batch21v4_plan_semantic_need",
+      "run_id": "eval_20260724_batch21_semantic_needs_live_n1_v4",
+    "category": "plan_agent",
+    "paper_error_definition_id": "semantic_need_missing_or_misbound"
+    },
+    {
+      "operation_id": "batch21v4_taskgen_scene_checker",
+      "run_id": "eval_20260724_batch21_semantic_needs_live_n1_v4",
+    "category": "taskgen",
+    "paper_error_definition_id": "generated_scene_checker_contract_invalid"
+    },
+    {
+      "operation_id": "batch21v4_toolgen_metric",
+      "run_id": "eval_20260724_batch21_semantic_needs_live_n1_v4",
+    "category": "toolgen",
+    "paper_error_definition_id": "generated_metric_oracle_or_registry_invalid"
+    },
+    {
+      "operation_id": "batch21v4_simulator_rollout",
+      "run_id": "eval_20260724_batch21_semantic_needs_live_n1_v4",
+    "category": "simulator",
+    "paper_error_definition_id": "rollout_receipt_contract_invalid"
+    },
+    {
+      "operation_id": "batch21v4_answer_scope",
+      "run_id": "eval_20260724_batch21_semantic_needs_live_n1_v4",
+    "category": "other",
+    "paper_error_definition_id": "answer_exceeds_evidence_scope"
+    }
+  ]
+}

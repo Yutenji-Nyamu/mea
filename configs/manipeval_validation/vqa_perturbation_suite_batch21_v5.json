@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "suite_id": "batch21_contact_visibility_proxy_v1",
+  "cases": [
+    {
+      "id": "batch21_v3_contact_negative",
+      "source_artifact": "mea/evaluation_runs/eval_20260724_batch21_semantic_needs_live_n1_v3/execution/round_1/execution_vqa/execution_vqa.json",
+      "phenomenon_id": "hammer_avoids_unintended_collision",
+      "gold_observed": false,
+      "label_source": "simulator_proxy",
+      "transform_seed": 7211
+    },
+    {
+      "id": "batch21_v4_no_contact_positive",
+      "source_artifact": "mea/evaluation_runs/eval_20260724_batch21_semantic_needs_live_n1_v4/execution/round_1/execution_vqa/execution_vqa.json",
+      "phenomenon_id": "hammer_avoids_unintended_collision",
+      "gold_observed": true,
+      "label_source": "simulator_proxy",
+      "transform_seed": 7212
+    },
+    {
+      "id": "batch21_v5_no_contact_positive",
+      "source_artifact": "mea/evaluation_runs/eval_20260724_batch21_semantic_needs_live_n1_v5/execution/round_1/execution_vqa/execution_vqa.json",
+      "phenomenon_id": "hammer_avoids_unintended_collision",
+      "gold_observed": true,
+      "label_source": "simulator_proxy",
+      "transform_seed": 7213
+    },
+    {
+      "id": "batch21_click_right_success_positive",
+      "source_artifact": "mea/evaluation_runs/eval_20260717_click_bell_adaptive_live_2/execution/round_2/execution_vqa/execution_vqa.json",
+      "phenomenon_id": "bell_visibly_pressed",
+      "gold_observed": true,
+      "label_source": "simulator_proxy",
+      "transform_seed": 7214
+    },
+    {
+      "id": "batch21_adjust_bottle_success_positive",
+      "source_artifact": "mea/evaluation_runs/eval_20260716_adjust_bottle_generic_act_vqa_1/execution/round_1/execution_vqa/execution_vqa.json",
+      "phenomenon_id": "bottle_visibly_repositioned",
+      "gold_observed": true,
+      "label_source": "simulator_proxy",
+      "transform_seed": 7215
+    }
+  ]
+}

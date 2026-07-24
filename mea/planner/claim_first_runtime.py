@@ -729,11 +729,14 @@ class ClaimFirstRuntimeController:
             control_outcome.get("metric") == "official_check_success"
             and control_outcome.get("official_equivalent") is not False
         )
+        control_pipeline_valid = bool(
+            control_packet["pipeline"]["passed"]
+            and control_packet["policy"]["reported"]
+            and control_packet["policy"]["success_rate"] is not None
+        )
         baseline_valid = bool(
             control_authority_valid
-            and
-            control_packet["evidence_strength"] == "sufficient"
-            and control_packet["policy"]["success_rate"] is not None
+            and control_pipeline_valid
             and float(control_packet["policy"]["success_rate"]) >= 1.0
         )
         candidate_records = records[1:]
@@ -753,7 +756,7 @@ class ClaimFirstRuntimeController:
                 if not control_authority_valid
                 else
                 "control_baseline_pipeline_invalid"
-                if control_packet["evidence_strength"] != "sufficient"
+                if not control_pipeline_valid
                 else "control_baseline_policy_failed"
             )
             assessment = {

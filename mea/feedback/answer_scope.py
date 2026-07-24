@@ -28,6 +28,7 @@ _TERMINATIONS = {
     "evidence_sufficient",
     "budget_exhausted",
     "continue",
+    "control_not_passed",
     "pipeline_invalid",
     "unknown",
 }
@@ -253,9 +254,20 @@ def _termination(evidence: Mapping[str, Any]) -> tuple[str, str | None]:
             reason == "continue"
             and sufficient is False
             and should_stop is False
+        ) or (
+            isinstance(reason, str)
+            and reason.startswith("control_baseline_")
+            and sufficient is False
+            and should_stop is True
         )
         if valid_query_stop:
-            return str(reason), str(verdict) if verdict is not None else None
+            termination = (
+                "control_not_passed"
+                if isinstance(reason, str)
+                and reason.startswith("control_baseline_")
+                else str(reason)
+            )
+            return termination, str(verdict) if verdict is not None else None
         raise AnswerScopeError(
             "query sufficiency assessment has an inconsistent stop verdict"
         )
@@ -329,6 +341,10 @@ def _canonical_limitations(
         "continue": (
             "The query-sufficiency contract requires more evidence; the current "
             "answer is interim."
+        ),
+        "control_not_passed": (
+            "The unchanged-scene control did not pass, so no property "
+            "attribution or novel-variant conclusion is authorized."
         ),
         "pipeline_invalid": (
             "The evaluation pipeline is invalid, so it cannot support a policy "

@@ -117,6 +117,15 @@ class AnswerScopeTests(unittest.TestCase):
             exhausted["required_limitations"][-1]["text"],
         )
 
+    def test_control_stop_is_inconclusive_but_valid_answer_scope(self):
+        scope = build_answer_scope(evidence("control_baseline_policy_failed"))
+        self.assertEqual(scope["termination"], "control_not_passed")
+        self.assertEqual(scope["claim_verdict"], "inconclusive")
+        self.assertIn(
+            "no property attribution",
+            scope["required_limitations"][-1]["text"],
+        )
+
     def test_claim_first_runtime_assessment_reaches_final_scope(self):
         value = {
             "total_episodes": 2,

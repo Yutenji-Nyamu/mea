@@ -69,6 +69,34 @@ from mea.taskgen.reviewed_registry import (
 )
 
 
+def reviewed_task_lookup_with_fallback(
+    registry_root: Path,
+    query: dict[str, Any],
+    *,
+    repo_root: Path,
+) -> tuple[dict[str, Any] | None, dict[str, str] | None]:
+    """Never reuse an invalid registry entry; audit and generate instead."""
+
+    try:
+        return (
+            find_reviewed_task(
+                registry_root,
+                query,
+                repo_root=repo_root,
+            ),
+            None,
+        )
+    except ReviewedTaskRegistryError as exc:
+        return (
+            None,
+            {
+                "status": "invalid_registry_fallback_to_generation",
+                "error_type": type(exc).__name__,
+                "message": str(exc),
+            },
+        )
+
+
 _REGISTRATION_KEYS = {
     "schema_version",
     "registration_id",
@@ -855,8 +883,9 @@ def collect_position_samples(
     start_seed: int,
     num_episodes: int,
     first_scene: dict[str, Any] | None,
+    require_expert: bool = True,
 ) -> dict[str, Any]:
-    """Collect simulator-native block poses for every evaluation seed."""
+    """Collect simulator-native block poses without inventing expert evidence."""
 
     sample_root = run_dir / "validation/position_samples"
     samples: list[dict[str, Any]] = []
@@ -870,7 +899,7 @@ def collect_position_samples(
                 run_dir,
                 manifest,
                 seed=seed,
-                expert=True,
+                expert=require_expert,
                 scene_json=sample_root / f"seed_{seed}.json",
                 image=sample_root / f"seed_{seed}.png",
                 log_path=sample_root / f"seed_{seed}.log",
@@ -885,7 +914,11 @@ def collect_position_samples(
                 "block_position": [float(value) for value in position],
                 "block_quaternion": scene.get("block_pose", {}).get("quaternion"),
                 "rule_passed": bool(scene.get("rule_check", {}).get("passed")),
-                "expert_passed": bool(scene.get("expert", {}).get("passed")),
+                "expert_passed": (
+                    bool(scene.get("expert", {}).get("passed"))
+                    if require_expert
+                    else None
+                ),
                 "image": scene.get("image"),
             }
         )
@@ -899,6 +932,7 @@ def collect_position_samples(
     result = {
         "start_seed": start_seed,
         "num_episodes": num_episodes,
+        "expert_required": require_expert,
         "samples": samples,
         "metrics": {
             "unique_xy_count": len(unique_xy),
@@ -907,7 +941,11 @@ def collect_position_samples(
             "position_varied": len(unique_xy) > 1,
         },
         "passed": len(samples) == num_episodes
-        and all(item["rule_passed"] and item["expert_passed"] for item in samples),
+        and all(
+            item["rule_passed"]
+            and (not require_expert or item["expert_passed"])
+            for item in samples
+        ),
     }
     write_json(run_dir / "validation/position_samples.json", result)
     return result
@@ -2243,6 +2281,7 @@ def main() -> None:
     trusted_variant_spec: dict[str, Any] | None = None
     task_resolution: dict[str, Any] | None = None
     reviewed_task_match: dict[str, Any] | None = None
+    reviewed_lookup_issue: dict[str, str] | None = None
     if args.capability_contract_json is not None:
         try:
             raw_contract = json.loads(args.capability_contract_json)
@@ -2283,11 +2322,16 @@ def main() -> None:
             # reviewed-artifact lookup boundary; persistent reviewed task
             # materialization remains a separate admission concern.
             def reviewed_lookup(query: dict[str, Any]) -> dict[str, Any] | None:
-                nonlocal reviewed_task_match
+                nonlocal reviewed_task_match, reviewed_lookup_issue
                 if reviewed_task_registry is None:
                     return None
-                reviewed_task_match = find_reviewed_task(
-                    reviewed_task_registry, query, repo_root=repo_root
+                (
+                    reviewed_task_match,
+                    reviewed_lookup_issue,
+                ) = reviewed_task_lookup_with_fallback(
+                    reviewed_task_registry,
+                    query,
+                    repo_root=repo_root,
                 )
                 return reviewed_task_match
 
@@ -2298,6 +2342,11 @@ def main() -> None:
                     reviewed_lookup if reviewed_task_registry is not None else None
                 ),
             )
+            if reviewed_lookup_issue is not None:
+                task_resolution = {
+                    **task_resolution,
+                    "reviewed_lookup_issue": reviewed_lookup_issue,
+                }
         except (TaskResolutionError, ReviewedTaskRegistryError) as exc:
             raise SystemExit(f"TaskGen reuse-first resolution failed: {exc}") from exc
         materializable_route = task_resolution["resolved_route"] == args.mode or (
@@ -2462,6 +2511,9 @@ def main() -> None:
                 "reviewed_lookup_attempted": task_resolution[
                     "reviewed_lookup_attempted"
                 ],
+                "reviewed_lookup_issue": task_resolution.get(
+                    "reviewed_lookup_issue"
+                ),
             },
         )
         manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
@@ -2720,6 +2772,9 @@ def main() -> None:
                     start_seed=args.seed,
                     num_episodes=args.num_episodes,
                     first_scene=scene,
+                    require_expert=bool(
+                        args.expert or manifest.get("mode") != "official"
+                    ),
                 )
             elif (
                 manifest.get("generation_kind") == "bounded_variant_overlay"

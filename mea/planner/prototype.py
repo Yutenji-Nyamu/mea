@@ -217,7 +217,31 @@ def _validate_template_ids(value: Any) -> list[str]:
     return list(value)
 
 
-def _materialize_round(template_id: str, round_number: int) -> dict[str, Any]:
+def _validated_execution_seeds(value: Any) -> list[int] | None:
+    if value is None:
+        return None
+    if (
+        not isinstance(value, list)
+        or not value
+        or any(
+            isinstance(seed, bool) or not isinstance(seed, int) or seed < 0
+            for seed in value
+        )
+        or len(value) != len(set(value))
+    ):
+        raise PlanAgentError(
+            "execution_seed_override must be a non-empty unique "
+            "non-negative integer list"
+        )
+    return list(value)
+
+
+def _materialize_round(
+    template_id: str,
+    round_number: int,
+    *,
+    execution_seeds: list[int] | None = None,
+) -> dict[str, Any]:
     if template_id not in SUB_ASPECT_CATALOG:
         raise PlanAgentError(f"未注册的 sub-aspect template: {template_id}")
     if round_number < 1 or round_number > MAX_ROUNDS:
@@ -235,7 +259,10 @@ def _materialize_round(template_id: str, round_number: int) -> dict[str, Any]:
         or taskgen_route(contract) != template["route"]
     ):
         raise PlanAgentError("BBH planner template 与 capability adapter 不一致")
-    seeds = list(template["seeds"])
+    seeds = (
+        _validated_execution_seeds(execution_seeds)
+        or list(template["seeds"])
+    )
     return attach_round_proposals({
         "round_id": f"round_{round_number}",
         "template_id": template_id,
@@ -277,9 +304,14 @@ def _materialize_verification_round(
     *,
     template_id: str,
     trigger: str,
+    execution_seeds: list[int] | None = None,
 ) -> dict[str, Any]:
     round_number = len(current_plan["rounds"]) + 1
-    result = _materialize_round(template_id, round_number)
+    result = _materialize_round(
+        template_id,
+        round_number,
+        execution_seeds=execution_seeds,
+    )
     result["route"] = "reuse"
     result["execution"]["seeds"] = [_verification_seed(current_plan["rounds"])]
     result["execution"]["num_episodes"] = 1
@@ -334,6 +366,9 @@ def _validate_current_plan(plan: Any) -> dict[str, Any]:
     ):
         raise PlanAgentError(f"max_rounds 必须在 [1, {MAX_ROUNDS}]")
     requested = _validate_template_ids(plan.get("requested_template_ids"))
+    execution_seeds = _validated_execution_seeds(
+        plan.get("execution_seed_override")
+    )
     rounds = plan.get("rounds")
     if not isinstance(rounds, list) or not rounds or len(rounds) > max_rounds:
         raise PlanAgentError("current_plan.rounds 数量不能超过 max_rounds")
@@ -350,7 +385,11 @@ def _validate_current_plan(plan: Any) -> dict[str, Any]:
         if verification_of is None:
             if template_id in executed:
                 raise PlanAgentError("同一 template 只能由受限 verification 重复")
-            expected = _materialize_round(template_id, number)
+            expected = _materialize_round(
+                template_id,
+                number,
+                execution_seeds=execution_seeds,
+            )
             executed.append(template_id)
         else:
             if number == 1 or verification_of != template_id:
@@ -366,6 +405,7 @@ def _validate_current_plan(plan: Any) -> dict[str, Any]:
                 {"rounds": validated_rounds},
                 template_id=verification_of,
                 trigger=trigger,
+                execution_seeds=execution_seeds,
             )
             verification_counts[verification_of] = (
                 verification_counts.get(verification_of, 0) + 1
@@ -380,7 +420,11 @@ def _validate_current_plan(plan: Any) -> dict[str, Any]:
     return plan
 
 
-def validate_evaluation_plan(proposal: dict[str, Any]) -> dict[str, Any]:
+def validate_evaluation_plan(
+    proposal: dict[str, Any],
+    *,
+    execution_seeds: list[int] | None = None,
+) -> dict[str, Any]:
     """Validate a small model proposal and inject a trusted first round."""
 
     if not isinstance(proposal, dict):
@@ -399,7 +443,8 @@ def validate_evaluation_plan(proposal: dict[str, Any]) -> dict[str, Any]:
     if first_template not in requested:
         raise PlanAgentError("first_template_id 必须来自 requested_template_ids")
 
-    return {
+    normalized_execution_seeds = _validated_execution_seeds(execution_seeds)
+    result = {
         "schema_version": 5,
         "task_name": "beat_block_hammer",
         "policy": dict(EXPECTED_POLICY),
@@ -407,11 +452,20 @@ def validate_evaluation_plan(proposal: dict[str, Any]) -> dict[str, Any]:
             proposal.get("evaluation_goal"), "evaluation_goal"
         ),
         "requested_template_ids": requested,
-        "rounds": [_materialize_round(first_template, 1)],
+        "rounds": [
+            _materialize_round(
+                first_template,
+                1,
+                execution_seeds=normalized_execution_seeds,
+            )
+        ],
         "round_decisions": [],
         "max_rounds": MAX_ROUNDS,
         "planning_state": "awaiting_round_1_observation",
     }
+    if normalized_execution_seeds is not None:
+        result["execution_seed_override"] = normalized_execution_seeds
+    return result
 
 
 def _validate_observation_history(
@@ -442,6 +496,9 @@ def validate_next_round_decision(
     """Validate one generic bounded decision and materialize its next round."""
 
     current = _validate_current_plan(current_plan)
+    execution_seeds = _validated_execution_seeds(
+        current.get("execution_seed_override")
+    )
     history = _validate_observation_history(current, observation_history)
     if not isinstance(decision, dict):
         raise PlanAgentError("NextRoundDecision 必须是 JSON object")
@@ -474,7 +531,11 @@ def validate_next_round_decision(
             raise PlanAgentError(
                 "continue 只能选择尚未执行且由用户请求的 template"
             )
-        next_round = _materialize_round(next_template_id, len(current["rounds"]) + 1)
+        next_round = _materialize_round(
+            next_template_id,
+            len(current["rounds"]) + 1,
+            execution_seeds=execution_seeds,
+        )
     else:
         verification_of = assessment["verification_of"]
         if next_template_id != verification_of:
@@ -483,6 +544,7 @@ def validate_next_round_decision(
             current,
             template_id=verification_of,
             trigger=assessment["state"],
+            execution_seeds=execution_seeds,
         )
 
     return {
@@ -650,10 +712,36 @@ DETERMINISTIC EVIDENCE ASSESSMENT:
 class PlanAgentPrototype:
     """Select catalog templates and adapt for at most three rounds."""
 
-    def __init__(self, repo_root: str | Path, provider: Any, *, model: str):
+    def __init__(
+        self,
+        repo_root: str | Path,
+        provider: Any,
+        *,
+        model: str,
+        start_seed: int | None = None,
+        num_episodes: int = 1,
+    ):
         self.repo_root = Path(repo_root).expanduser().resolve()
         self.provider = provider
         self.model = model
+        if start_seed is None:
+            self.execution_seeds = None
+        else:
+            if (
+                isinstance(start_seed, bool)
+                or not isinstance(start_seed, int)
+                or start_seed < 0
+            ):
+                raise PlanAgentError("start_seed must be a non-negative integer")
+            if (
+                isinstance(num_episodes, bool)
+                or not isinstance(num_episodes, int)
+                or num_episodes <= 0
+            ):
+                raise PlanAgentError("num_episodes must be a positive integer")
+            self.execution_seeds = [
+                start_seed + index for index in range(num_episodes)
+            ]
 
     def materialize_plan_step(
         self, template_id: str, round_number: int, user_request: str
@@ -661,7 +749,11 @@ class PlanAgentPrototype:
         """Materialize a generic PlanStepProposal through the trusted BBH catalog."""
 
         _require_string(user_request, "user_request")
-        return _materialize_round(template_id, round_number)
+        return _materialize_round(
+            template_id,
+            round_number,
+            execution_seeds=self.execution_seeds,
+        )
 
     def plan(
         self,
@@ -711,7 +803,10 @@ class PlanAgentPrototype:
         errors: list[str] = []
         provider_called = validated_proposal is None
         plan = (
-            validate_evaluation_plan(deepcopy(validated_proposal))
+            validate_evaluation_plan(
+                deepcopy(validated_proposal),
+                execution_seeds=self.execution_seeds,
+            )
             if validated_proposal is not None
             else None
         )
@@ -749,7 +844,10 @@ class PlanAgentPrototype:
                     response + "\n", encoding="utf-8"
                 )
                 try:
-                    plan = validate_evaluation_plan(extract_json_response(response))
+                    plan = validate_evaluation_plan(
+                        extract_json_response(response),
+                        execution_seeds=self.execution_seeds,
+                    )
                     break
                 except PlanAgentError as exc:
                     errors.append(str(exc))

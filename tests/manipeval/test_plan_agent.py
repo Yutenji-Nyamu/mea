@@ -157,6 +157,30 @@ class NeverCalledProvider:
 
 
 class PlanAgentPrototypeTests(unittest.TestCase):
+    def test_runtime_seed_override_is_bound_across_base_rounds(self):
+        plan = validate_evaluation_plan(
+            PROPOSAL,
+            execution_seeds=[100600],
+        )
+        self.assertEqual(
+            plan["execution_seed_override"],
+            [100600],
+        )
+        self.assertEqual(
+            plan["rounds"][0]["execution"]["seeds"],
+            [100600],
+        )
+
+        accepted = validate_next_round_decision(
+            decision("continue", REQUESTED[1]),
+            plan,
+            [observation("round_1")],
+        )
+        self.assertEqual(
+            accepted["next_round"]["execution"]["seeds"],
+            [100600],
+        )
+
     def test_open_query_scale_template_materializes_bounded_codegen_contract(self):
         proposal = deepcopy(PROPOSAL)
         proposal["evaluation_goal"] = "evaluate bounded target-object scale"
