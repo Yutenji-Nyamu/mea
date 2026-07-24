@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "snapshot_date": "2026-07-23",
+  "snapshot_date": "2026-07-24",
   "project_stage": "limited_functional_prototype",
   "paper_reproduction_status": "functional_subset_only_not_paper_scale",
   "scope": {
     "primary_policy": "ACT",
     "policy_pilots": [
       "ACT",
-      "DP3"
+      "DP_readiness_only"
     ],
     "task_families": [
       "beat_block_hammer",
@@ -23,9 +23,19 @@
       "live_three_round_evidence_conditioned_planning",
       "live_generated_checker_act",
       "two_policy_exact_seed_n1_tie",
-      "development_agent_proxy"
+      "development_agent_proxy",
+      "live_claim_first_two_round_semantic_task_tool_closure",
+      "independent_live_universal_efficiency_toy",
+      "prospective_fixed_denominator_error_smoke"
     ],
-    "paper_table_eligible": false
+    "paper_table_eligible": false,
+    "deferred_by_user_scope": [
+      "DP3",
+      "RDT",
+      "pi0",
+      "LIBERO",
+      "large_scale_policy_ranking"
+    ]
   },
   "source_revision": {
     "canonical_repo": "/root/autodl-tmp/mea",
@@ -80,6 +90,148 @@
       "live_restart_validation": false,
       "reason": "v4 completed without whole-round recovery or restart"
     }
+  },
+  "batch21_claim_closure": {
+    "canonical_repo": "/root/autodl-tmp/mea",
+    "validation": {
+      "location": "canonical_autodl_only",
+      "full_suite": {
+        "command": "python -m unittest discover -s tests -p 'test_*.py'",
+        "passed": 683,
+        "failed": 0,
+        "elapsed_seconds": 55.395,
+        "environment": "RoboTwin"
+      },
+      "windows_role": "small_file_staging_and_process_local_password_ssh_only"
+    },
+    "claim_first_live": {
+      "evaluation_id": "eval_20260724_batch21_semantic_needs_live_n1_v5",
+      "status": "completed",
+      "query": "Can this beat_block_hammer ACT policy succeed on at least one bounded novel block appearance under an explicit experimental success predicate, and what new telemetry observable is needed to judge it?",
+      "policy": "ACT",
+      "checkpoint": "act-beat_block_hammer/demo_clean-50",
+      "seed": 100600,
+      "act_rollouts": 2,
+      "round_1": {
+        "role": "runtime_owned_official_control",
+        "outcome": "official_check_success",
+        "policy_success": true
+      },
+      "round_2": {
+        "planner_semantic_sub_aspect": "generalization.novel_block_appearance_contact_success",
+        "resolved_candidate": "object_appearance.color_blue",
+        "task_proposal_schema_version": 2,
+        "tool_proposal_schema_version": 3,
+        "scene_origin": "generated_code",
+        "success_origin": "compiled_success_spec",
+        "success_outcome": "generated_check_success",
+        "official_equivalent": false,
+        "expert_solvable": true,
+        "policy_success": false,
+        "new_metric": "hammer_block_functional_xy_min_distance",
+        "new_metric_route": "typed_metric_spec_compile",
+        "new_metric_policy_value_m": 0.0891936011374465,
+        "tool_entered_aggregate": true
+      },
+      "answer_scope": {
+        "sample_count": 2,
+        "termination": "budget_exhausted",
+        "claim_verdict": "inconclusive",
+        "untested_candidates": [
+          "performance.pickup_to_contact_timing"
+        ]
+      },
+      "claim_boundary": "one control plus one query-generated bounded appearance; the checker is compiled from a bounded SuccessSpec and is not official benchmark semantics; N=2 is not generalization evidence"
+    },
+    "independent_efficiency_toy": {
+      "study_id": "batch21_position_universal_n1",
+      "comparison_design": "independent_live_arms",
+      "claim_type": "universal",
+      "candidate_universe": [
+        "object_position.left_fixed",
+        "object_position.right_fixed"
+      ],
+      "fixed_act_rollouts": 2,
+      "adaptive_act_rollouts": 1,
+      "fixed_claim_verdict": "refuted",
+      "adaptive_claim_verdict": "refuted",
+      "original_query_conclusion_agrees": true,
+      "act_rollout_saving": 1,
+      "wall_second_saving": 58.15088292583823,
+      "policy_step_saving": 70,
+      "toy_efficiency_evidence_passed": true,
+      "paper_tables_1_2_eligible": false,
+      "claim_boundary": "two-position one-seed universal falsification toy; not a dense benchmark or paper-scale statistics"
+    },
+    "taskgen_toolgen_component_evidence": {
+      "provider_generated_distractor_run": "run_20260723_batch20_bbh_distractor_live_v1",
+      "provider_generated_scene_and_checker": true,
+      "restricted_success_spec_compiler_used": false,
+      "checker_fixture_passes": 3,
+      "act_rollouts": 1,
+      "checker_policy_outcome": false,
+      "query_induced_metric": "active_tcp_precontact_peak_jerk",
+      "first_route": "provider_generate_validate_register",
+      "second_route": "exact_query_registry_reuse",
+      "reuse_provider_called": false,
+      "live_metric_value": null,
+      "live_metric_null_reason": "no_target_contact_event",
+      "claim_boundary": "provider-written scene/checker and lifecycle reuse exist in a bounded component path, while the measured new metric in the unified v5 path has not yet been reused across a second Query"
+    },
+    "plan_proxy": {
+      "run_id": "query_validation_batch21_claim_closure_n5",
+      "case_count": 5,
+      "model": "gpt-5.6-luna",
+      "aspect_micro_f1": 1.0,
+      "annotation_source": "development_agent_proxy",
+      "human_reviewer_count": 0,
+      "paper_table_eligible": false
+    },
+    "vqa_proxy": {
+      "run_id": "validation_vqa_proxy_batch21_contact_n3_v1",
+      "source_clip_count": 3,
+      "derived_case_count": 12,
+      "conditions": [
+        "clean",
+        "scene_clutter_image_proxy",
+        "background_texture_image_proxy",
+        "lighting_image_proxy"
+      ],
+      "model": "gpt-5.6-luna",
+      "accuracy_strict": 1.0,
+      "auroc": 1.0,
+      "label_source": "simulator_proxy",
+      "human_metrics": null,
+      "paper_table_eligible": false,
+      "claim_boundary": "one negative and two positive cached contact-visibility montages; three non-clean conditions are image transforms rather than simulator perturbations, and v4/v5 positives are duplicate visual content"
+    },
+    "prospective_error_smoke": {
+      "study_id": "batch21_semantic_live_v5",
+      "frozen_operations": 5,
+      "passed": 5,
+      "paper_defined_errors": 0,
+      "prospective_error_rate": 0.0,
+      "paper_fig6_eligible": false,
+      "claim_boundary": "tiny project-defined five-operation roster, not the paper denominator or approximately five-percent result"
+    },
+    "act_dp_readiness": {
+      "protocol": "act_dp_exact_seed_n3_readiness_v1",
+      "matched_seeds": [
+        100600,
+        100601,
+        100602
+      ],
+      "act_ready": true,
+      "dp_checkpoint_present": false,
+      "dp_environment_present": false,
+      "status": "blocked_missing_prerequisites",
+      "rollouts_started": 0,
+      "downloads_started": 0,
+      "training_started": 0,
+      "dp3_substitution_forbidden": true,
+      "paper_table9_eligible": false
+    },
+    "readme_modified": false
   },
   "batch19_claim_evidence": {
     "compact_bundle": "docs/evidence_runs/batch19_claim_evidence",
