@@ -145,9 +145,19 @@ def validate_task_proposal(
         )
     if proposal.get("reuse_first") is not True:
         raise ProposalError("TaskProposal.reuse_first must be true")
-    if schema_version == 1 and proposal.get("preserve_success_semantics") is not True:
+    provider_scene_checker = (
+        schema_version == 1
+        and task_name == "beat_block_hammer"
+        and capability_id == "robustness.distractor_avoidance"
+        and aspect_id == "robustness.distractor_avoidance"
+    )
+    expected_preserve = not provider_scene_checker
+    if schema_version == 1 and proposal.get(
+        "preserve_success_semantics"
+    ) is not expected_preserve:
         raise ProposalError(
-            "TaskProposal.preserve_success_semantics must be true"
+            "TaskProposal.preserve_success_semantics must be false only for "
+            "the BBH provider scene+checker capability"
         )
     if schema_version == 2:
         if official_passthrough:
@@ -350,7 +360,9 @@ def task_proposal_from_contract(
         "capability_id": taskgen.get("capability_id"),
         "reuse_first": True,
         "changes": deepcopy(dict(taskgen.get("changes") or {})),
-        "preserve_success_semantics": True,
+        "preserve_success_semantics": (
+            taskgen.get("operation") != "provider_scene_checker_codegen"
+        ),
     }
     return validate_task_proposal(
         proposal, expected_task_name=str(contract.get("task_name"))

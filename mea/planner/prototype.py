@@ -49,6 +49,13 @@ SAFETY_TASK_INSTRUCTION = (
     "left_camera 的严格物理接触次数；这是一个受限 unintended-contact proxy，"
     "不是完整安全结论。Rule Tool 负责事件计数，VQA 只提供可见碰撞证据。"
 )
+DISTRACTOR_TASK_INSTRUCTION = (
+    "Generate a BeatBlockHammer scene containing the official target block "
+    "and one same-size physical look-alike distractor. Replace check_success() "
+    "so the rollout succeeds only after target alignment/contact and fails "
+    "after any distractor contact. Validate the generated scene and checker "
+    "before running one ACT episode."
+)
 REQUIRED_GATES = ["ast", "render", "rule", "vision", "expert", "act"]
 REQUIRED_OBSERVATIONS = [
     "scene_alignment",
@@ -84,6 +91,27 @@ def _scaled_red_variant() -> dict[str, Any]:
             "yaw_mode": "official_random",
             "scale": 1.2,
             "color": [1.0, 0.0, 0.0],
+        }
+    }
+
+
+def _lookalike_distractor_variant() -> dict[str, Any]:
+    return {
+        "distractor": {
+            "scene": {
+                "target_name": "box",
+                "distractor_name": "distractor_box",
+                "target_color": [1.0, 0.0, 0.0],
+                "distractor_color": [0.85, 0.05, 0.05],
+                "half_size_m": [0.025, 0.025, 0.025],
+                "distractor_offset_xy_m": [0.10, 0.0],
+            },
+            "success": {
+                "target_alignment_thresholds_m": [0.025, 0.025],
+                "require_target_contact": True,
+                "forbid_distractor_contact": True,
+                "latch_distractor_contact": True,
+            },
         }
     }
 
@@ -142,6 +170,18 @@ SUB_ASPECT_CATALOG: dict[str, dict[str, Any]] = {
         "variant_hint": {},
         "seeds": [100000],
         "tool_metric": "hammer_left_camera_contact_count",
+    },
+    "robustness.distractor_avoidance.lookalike": {
+        "sub_aspect": "robustness.distractor_avoidance",
+        "rationale": (
+            "Test whether the policy strikes the intended block without "
+            "contacting a physically similar nearby distractor."
+        ),
+        "task_instruction": DISTRACTOR_TASK_INSTRUCTION,
+        "route": "provider_scene_checker_codegen",
+        "variant_hint": _lookalike_distractor_variant(),
+        "seeds": [100000],
+        "tool_metric": "bbh_target_without_distractor_success",
     },
 }
 

@@ -302,6 +302,171 @@ class MultiRoundRuntimeTests(unittest.TestCase):
             self.assertEqual(failed_summary["taskgen_returncode"], 7)
             skipped_tool.assert_not_called()
 
+    def test_provider_checker_is_reused_as_same_metric_planned_tool(self):
+        metric = "bbh_target_without_distractor_success"
+        round_plan = {
+            "round_id": "round_2",
+            "template_id": "robustness.distractor_avoidance.lookalike",
+            "sub_aspect": "robustness.distractor_avoidance",
+            "task_instruction": "hit the target without touching the distractor",
+            "task_name": "beat_block_hammer",
+            "route": "provider_scene_checker_codegen",
+            "execution": {
+                "seeds": [100000],
+                "num_episodes": 1,
+            },
+            "tool_request": {
+                "schema_version": 1,
+                "task_name": "beat_block_hammer",
+                "metric": metric,
+                "question": "Did ACT hit only the intended target?",
+            },
+        }
+        task_module = "mea.generated_tasks.run_distractor_round_2.task"
+        module_sha256 = "a" * 64
+        checker_result = {
+            "tool": metric,
+            "value": True,
+            "unit": None,
+            "passed": True,
+            "evidence_steps": [73],
+            "details": {
+                "authority": "llm_generated_python_ast_validated",
+                "official_success": False,
+                "task_module": task_module,
+                "module_sha256": module_sha256,
+                "latched_eval_success": True,
+            },
+        }
+        child_manifest = {
+            "run_id": "run_distractor_round_2",
+            "status": "completed",
+            "task_name": "beat_block_hammer",
+            "task_module": task_module,
+            "generation_kind": "provider_scene_checker_codegen",
+            "candidate_module_sha256": module_sha256,
+            "scene_validation": {
+                "rule_check": {"passed": True},
+                "expert": {"passed": True},
+            },
+            "vision_validation": {"passed": True},
+            "act_evaluation": {"passed": True, "actual_seeds": [100000]},
+            "position_samples": {"passed": True, "samples": [], "metrics": {}},
+            "task_artifact_summary": {
+                "success_official_equivalent": False,
+                "success_execution_scope": "provider_generated_checker",
+            },
+            "trusted_tool_evaluation": {
+                "artifact": (
+                    "mea/generated_tasks/run_distractor_round_2/"
+                    "evaluation/bbh_distractor_checker_execution.json"
+                ),
+                "aggregate_artifact": (
+                    "mea/generated_tasks/run_distractor_round_2/"
+                    "evaluation/bbh_distractor_checker_aggregate.json"
+                ),
+                "episode_count": 1,
+                "outcome_metric": metric,
+                "outcome_authority": "llm_generated_python_ast_validated",
+                "outcome_binding": {
+                    "metric": metric,
+                    "authority": "llm_generated_python_ast_validated",
+                    "module_sha256": module_sha256,
+                    "task_module": task_module,
+                },
+                "tool_retrieval": {
+                    "route": "bound_llm_generated_checker",
+                    "generated_new_tool": False,
+                },
+                "episodes": [
+                    {
+                        "episode_dir": "evaluation/telemetry/act/episode_000",
+                        "policy_name": "ACT",
+                        "role": "policy_under_evaluation",
+                        "seed": 100000,
+                        "result": checker_result,
+                    }
+                ],
+            },
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            repo_root = Path(temporary)
+            evaluation_dir = repo_root / "mea/evaluation_runs/eval_distractor"
+            evaluation_dir.mkdir(parents=True)
+            (evaluation_dir / "manifest.json").write_text(
+                json.dumps({"status": "planned"}), encoding="utf-8"
+            )
+            child_dir = (
+                repo_root / "mea/generated_tasks/run_distractor_round_2"
+            )
+            (child_dir / "evaluation").mkdir(parents=True)
+            (child_dir / "manifest.json").write_text(
+                json.dumps(child_manifest), encoding="utf-8"
+            )
+            (child_dir / "evaluation/_result.txt").write_text(
+                "1\n", encoding="utf-8"
+            )
+            with (
+                patch("scripts.manipeval_agent.run_logged", return_value=0),
+                patch(
+                    "scripts.manipeval_agent.execute_tool_request"
+                ) as duplicate_toolgen,
+                patch(
+                    "scripts.manipeval_agent.run_round_execution_vqa",
+                    return_value={
+                        "status": "passed",
+                        "evidence_conflict": False,
+                    },
+                ),
+            ):
+                (
+                    _,
+                    _,
+                    summary,
+                    tool_evaluation,
+                    returncode,
+                ) = execute_round(
+                    repo_root,
+                    evaluation_dir,
+                    "eval_distractor",
+                    round_plan,
+                    text_model="text",
+                    vision_model="vision",
+                    base_url=None,
+                    gpu=0,
+                    max_reflections=1,
+                    provider=object(),
+                    toolgen_model="tool-model",
+                )
+
+            self.assertEqual(returncode, 0)
+            duplicate_toolgen.assert_not_called()
+            self.assertEqual(
+                tool_evaluation["route"], "bound_child_trusted_checker"
+            )
+            self.assertFalse(
+                tool_evaluation["route_decision"]["provider_called"]
+            )
+            self.assertEqual(
+                tool_evaluation["episodes"][0]["result"]["value"], True
+            )
+            self.assertTrue(summary["pipeline_passed"])
+            aggregate = json.loads(
+                (
+                    evaluation_dir
+                    / "execution/round_2/aggregate_result.json"
+                ).read_text(encoding="utf-8")
+            )
+            self.assertEqual(aggregate["unique_episode_count"], 1)
+            self.assertEqual(aggregate["episode_result_count"], 1)
+            self.assertEqual(aggregate["metrics"][0]["metric"], metric)
+            self.assertTrue(
+                (
+                    evaluation_dir
+                    / "execution/round_2/planned_tool/tool_execution.json"
+                ).is_file()
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

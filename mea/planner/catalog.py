@@ -26,15 +26,24 @@ class ACTCatalogError(ValueError):
     """Raised when a trusted ACT catalog is missing or has been changed."""
 
 
-ACT_ROUTE_TASKS = ("beat_block_hammer", "click_bell")
+ACT_ROUTE_TASKS = (
+    "beat_block_hammer",
+    "click_bell",
+    "adjust_bottle",
+    "grab_roller",
+)
 
 _TASK_PROFILE = {
     "beat_block_hammer": "generated",
     "click_bell": "adaptive_properties",
+    "adjust_bottle": "official",
+    "grab_roller": "official",
 }
 _PLANNER_KIND = {
     "beat_block_hammer": "bounded_bbh_v1",
     "click_bell": "model_click_bell_adaptive_v1",
+    "adjust_bottle": "deterministic_official_task",
+    "grab_roller": "deterministic_official_task",
 }
 def _canonical_json(value: Any) -> str:
     return json.dumps(
@@ -120,14 +129,42 @@ def _click_aspects() -> list[dict[str, Any]]:
     return result
 
 
+def _generic_official_aspects(task_name: str) -> list[dict[str, Any]]:
+    template_id = "task_execution.official_baseline"
+    contract = resolve_capability_contract(task_name, template_id)
+    return [
+        {
+            "aspect_id": template_id,
+            "description": (
+                "Run the unchanged RoboTwin task and judge it with the "
+                "official success predicate."
+            ),
+            "template_ids": [template_id],
+            "taskgen_capability_id": contract["taskgen"]["capability_id"],
+            "taskgen_route": taskgen_route(contract),
+            "default_metric": contract["tool"]["metric"],
+        }
+    ]
+
+
 def _trusted_task_entry(task_name: str, task_family: str) -> dict[str, Any]:
-    aspects = _bbh_aspects() if task_name == "beat_block_hammer" else _click_aspects()
+    aspects = (
+        _bbh_aspects()
+        if task_name == "beat_block_hammer"
+        else _click_aspects()
+        if task_name == "click_bell"
+        else _generic_official_aspects(task_name)
+    )
     return {
         "task_name": task_name,
         "task_family": task_family,
         "task_profile": _TASK_PROFILE[task_name],
         "planner_kind": _PLANNER_KIND[task_name],
-        "max_rounds": MAX_ROUNDS,
+        "max_rounds": (
+            MAX_ROUNDS
+            if task_name in {"beat_block_hammer", "click_bell"}
+            else 1
+        ),
         "checkpoint": {
             "policy_name": "ACT",
             "checkpoint_setting": "demo_clean",

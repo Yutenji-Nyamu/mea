@@ -55,6 +55,87 @@ def write_json(root, ref, value):
     )
 
 
+def proxy_gold_fixture(root):
+    query_manifest_ref = "fixtures/proxy/query_manifest.json"
+    write_json(
+        root,
+        query_manifest_ref,
+        {
+            "cases": [
+                {
+                    "case_id": f"query_{index:02d}",
+                    "query": f"development proxy query {index:02d}",
+                    "annotation": {
+                        "source": "development_agent_proxy",
+                        "paper_eligible": False,
+                        "human_votes": [],
+                    },
+                }
+                for index in range(20)
+            ]
+        },
+    )
+
+    positive_clip_ref = "fixtures/proxy/clips/clean_positive.mp4"
+    positive_label_ref = "fixtures/proxy/labels/clean_positive.json"
+    write_bytes(root, positive_clip_ref, b"materialized positive clip fixture")
+    write_json(
+        root,
+        positive_label_ref,
+        {
+            "vqa": {
+                "phenomena": [
+                    {
+                        "id": "bell_visibly_pressed",
+                        "observed": True,
+                    }
+                ]
+            }
+        },
+    )
+
+    clip_slots = []
+    for condition in (
+        "clean",
+        "scene_clutter",
+        "background_texture",
+        "lighting",
+    ):
+        for polarity in ("positive", "negative"):
+            materialized = condition == "clean" and polarity == "positive"
+            clip_slots.append(
+                {
+                    "clip_id": f"{condition}_{polarity}",
+                    "condition": condition,
+                    "polarity": polarity,
+                    "proxy_gold_observed": polarity == "positive",
+                    "label_source": "development_agent_proxy",
+                    "materialized": materialized,
+                    "source_or_recipe_ref": (
+                        positive_clip_ref
+                        if materialized
+                        else f"fixtures/proxy/recipes/{condition}_{polarity}.json"
+                    ),
+                    "source_label_ref": (
+                        positive_label_ref if materialized else None
+                    ),
+                    "source_phenomenon_id": (
+                        "bell_visibly_pressed" if materialized else None
+                    ),
+                }
+            )
+
+    return {
+        "schema_version": 1,
+        "protocol": "plan_vqa_development_proxy_manifest_v1",
+        "annotator_kind": "development_agent_proxy",
+        "human_reviewer_count": 0,
+        "paper_eligible": False,
+        "query_manifest_ref": query_manifest_ref,
+        "clip_slots": clip_slots,
+    }
+
+
 def bound_attempt(root, prereg, arm_name, arm_run_id, candidate, index, success):
     command = next(
         row
@@ -916,55 +997,42 @@ class Table3AndProxyTests(unittest.TestCase):
             validate_taskgen_ablation_switches({"rag": False})
 
     def test_checked_proxy_manifest_stays_non_human_and_partial(self):
-        root = Path(__file__).resolve().parents[2]
-        path = (
-            root
-            / "configs"
-            / "manipeval_paper_evidence"
-            / "plan_vqa_development_proxy_v1.json"
-        )
-        manifest = json.loads(path.read_text(encoding="utf-8"))
-        result = validate_proxy_gold_manifest(root, manifest)
-        self.assertEqual(result["query_count"], 20)
-        self.assertEqual(result["clip_slot_count"], 8)
-        self.assertEqual(result["materialized_clip_count"], 1)
-        self.assertEqual(result["source_label_audited_count"], 1)
-        self.assertFalse(result["ready_for_proxy_smoke"])
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            manifest = proxy_gold_fixture(root)
+            result = validate_proxy_gold_manifest(root, manifest)
+            self.assertEqual(result["query_count"], 20)
+            self.assertEqual(result["clip_slot_count"], 8)
+            self.assertEqual(result["materialized_clip_count"], 1)
+            self.assertEqual(result["source_label_audited_count"], 1)
+            self.assertFalse(result["ready_for_proxy_smoke"])
 
     def test_proxy_manifest_rejects_a_negative_clip_from_positive_source(self):
-        root = Path(__file__).resolve().parents[2]
-        path = (
-            root
-            / "configs"
-            / "manipeval_paper_evidence"
-            / "plan_vqa_development_proxy_v1.json"
-        )
-        manifest = json.loads(path.read_text(encoding="utf-8"))
-        negative = next(
-            item
-            for item in manifest["clip_slots"]
-            if item["clip_id"] == "clean_negative"
-        )
-        negative.update(
-            {
-                "materialized": True,
-                "source_or_recipe_ref": (
-                    "docs/evidence_runs/"
-                    "eval_20260723_batch17_clean_head_click_live_n1_v4/"
-                    "assets/round_1_act.mp4"
-                ),
-                "source_label_ref": (
-                    "docs/evidence_runs/"
-                    "eval_20260723_batch17_clean_head_click_live_n1_v4/"
-                    "data/round_1.json"
-                ),
-                "source_phenomenon_id": "bell_visibly_pressed",
-            }
-        )
-        with self.assertRaisesRegex(
-            LivePaperProtocolError, "label/polarity conflicts"
-        ):
-            validate_proxy_gold_manifest(root, manifest)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            manifest = proxy_gold_fixture(root)
+            positive = next(
+                item
+                for item in manifest["clip_slots"]
+                if item["clip_id"] == "clean_positive"
+            )
+            negative = next(
+                item
+                for item in manifest["clip_slots"]
+                if item["clip_id"] == "clean_negative"
+            )
+            negative.update(
+                {
+                    "materialized": True,
+                    "source_or_recipe_ref": positive["source_or_recipe_ref"],
+                    "source_label_ref": positive["source_label_ref"],
+                    "source_phenomenon_id": positive["source_phenomenon_id"],
+                }
+            )
+            with self.assertRaisesRegex(
+                LivePaperProtocolError, "label/polarity conflicts"
+            ):
+                validate_proxy_gold_manifest(root, manifest)
 
 
 class ProspectiveLedgerTests(unittest.TestCase):

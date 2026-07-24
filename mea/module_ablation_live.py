@@ -15,7 +15,6 @@ from typing import Any, Mapping, Sequence
 
 from mea.module_ablation_execution import _validate_execution_schedule
 from mea.module_ablation_protocol import _canonical_sha256
-from mea.runtime_ledger import runtime_ledger_context, summarize_runtime_ledger
 
 
 class LiveModuleAblationError(RuntimeError):
@@ -147,32 +146,22 @@ def generate_live_module_ablation(
         )
     output = _safe_new_directory(root, Path(output_dir))
     rows: list[dict[str, Any]] = []
-    for index, item in enumerate(selected, start=1):
+    for item in selected:
         item_dir = output / "items" / item["schedule_item_id"]
         item_dir.mkdir(parents=True, exist_ok=False)
         prompt = _prompt(item)
         prompt_path = item_dir / "prompt.txt"
         prompt_path.write_text(prompt + "\n", encoding="utf-8")
-        context = {
-            "schema_version": 1,
-            "evaluation_id": f"ablation_{schedule['study_id']}",
-            "logical_round_id": item["schedule_item_id"],
-            "round_attempt_index": 1,
-            "child_run_id": f"candidate_{index:02d}",
-        }
-        ledger_path = item_dir / "call_starts.jsonl"
-        with runtime_ledger_context(ledger_path, context):
-            response = provider.text(
-                prompt,
-                model=model,
-                max_tokens=900,
-                temperature=0.0,
-            )
+        response = provider.text(
+            prompt,
+            model=model,
+            max_tokens=900,
+            temperature=0.0,
+        )
         if not isinstance(response, str) or not response.strip():
             raise LiveModuleAblationError("provider returned an empty candidate")
         response_path = item_dir / "candidate.txt"
         response_path.write_text(response.strip() + "\n", encoding="utf-8")
-        ledger = summarize_runtime_ledger(ledger_path, expected_context=context)
         manifest = {
             "schema_version": 1,
             "kind": "table3_live_candidate_v1",
@@ -186,7 +175,7 @@ def generate_live_module_ablation(
             "applied_module_switches": item["module_switches"],
             "prompt_sha256": _file_sha256(prompt_path),
             "candidate_sha256": _file_sha256(response_path),
-            "runtime_call_ledger": ledger,
+            "provider_calls": 1,
             "provider_metadata": dict(getattr(provider, "last_metadata", {})),
             "review_status": "awaiting_development_agent_proxy",
             "success": None,

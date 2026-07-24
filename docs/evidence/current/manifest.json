@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "evaluation_id": "eval_20260724_batch21_semantic_needs_live_n1_v5",
+  "source_revision": "dd350f6",
+  "server_run_root": "mea/evaluation_runs/eval_20260724_batch21_semantic_needs_live_n1_v5",
+  "query": {
+    "text": "这个 ACT 策略对被操作物体属性的泛化能力如何，最先在哪里暴露弱点？",
+    "contract": "plan/query_contract.json"
+  },
+  "policy": {
+    "name": "ACT",
+    "task": "beat_block_hammer",
+    "seed": 100600,
+    "rollouts": 2
+  },
+  "rounds": [
+    {
+      "round": 1,
+      "proposal": "official control",
+      "generated_artifacts": [],
+      "render": "assets/round_1_scene.png",
+      "rollout": "assets/round_1_act.mp4",
+      "telemetry": "execution/round_1/episode.json",
+      "evaluation": "plan/evidence_after_round_01.json",
+      "success": true
+    },
+    {
+      "round": 2,
+      "proposal": "plan/claim_first_steps/after_round_01/bound_semantic_step.json",
+      "generated_artifacts": [
+        "code/round_2_task.py",
+        "../generated_tasks/run_20260724_batch21_semantic_needs_live_n1_v5_round_2/check_success.py"
+      ],
+      "render": "assets/round_2_scene.png",
+      "rollout": "assets/round_2_act.mp4",
+      "telemetry": "../generated_tasks/run_20260724_batch21_semantic_needs_live_n1_v5_round_2/evaluation/telemetry/act/episode_000_seed_100600/episode.json",
+      "evaluation": "execution/round_2/planned_tool/tool_execution.json",
+      "metric": {
+        "name": "hammer_block_functional_xy_min_distance",
+        "value_m": 0.0891936011374465
+      },
+      "success": false
+    }
+  ],
+  "aggregate": "summary/aggregate_result.json",
+  "answer": "plan/claim_first_runtime/query_answer.json",
+  "report": "evaluation_report.md",
+  "termination": "budget_exhausted",
+  "verdict": "inconclusive",
+  "limitations": [
+    "one task and one seed",
+    "N=2 total rollouts",
+    "untested timing candidate",
+    "round 2 checker used bounded experimental semantics",
+    "not eligible for paper tables"
+  ]
+}

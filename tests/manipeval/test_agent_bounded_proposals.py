@@ -16,12 +16,9 @@ from mea.proposals import (
     tool_proposal_from_contract,
 )
 from mea.proposal_agent import ProposalAgentError
-from mea.runtime_ledger import record_act_batch_start, runtime_ledger_context
 from scripts.manipeval_agent import (
     apply_bounded_round_proposal,
     persist_adaptive_step_selection,
-    record_round_attempt_ledgers,
-    record_runtime_ledger_stage,
 )
 
 
@@ -278,87 +275,6 @@ class AgentBoundedProposalIntegrationTests(unittest.TestCase):
             (proposal_dir / "response_1.txt").read_text(encoding="utf-8"),
             "malformed first response\n",
         )
-
-    def test_runtime_stage_upsert_is_idempotent_and_updates_manifest(self):
-        self.evaluation_dir.mkdir(parents=True, exist_ok=True)
-        (self.evaluation_dir / "manifest.json").write_text("{}", encoding="utf-8")
-        ledger = self.evaluation_dir / "runtime/test/call_starts.jsonl"
-        context = {
-            "schema_version": 1,
-            "evaluation_id": "eval_test",
-            "logical_round_id": "bounded_proposal_round_1",
-            "round_attempt_index": 1,
-            "child_run_id": "bounded_proposal_agent",
-        }
-        with runtime_ledger_context(ledger, context):
-            record_act_batch_start(
-                task_name="click_bell",
-                policy_name="ACT",
-                start_seed=100401,
-                num_rollouts=1,
-            )
-
-        summaries = []
-        for _ in range(2):
-            record_runtime_ledger_stage(
-                self.root,
-                self.evaluation_dir,
-                summaries,
-                ledger_path=ledger,
-                context=context,
-                stage="bounded_proposal_round_1",
-            )
-
-        manifest = json.loads(
-            (self.evaluation_dir / "manifest.json").read_text(encoding="utf-8")
-        )
-        self.assertEqual(len(summaries), 1)
-        self.assertEqual(manifest["runtime_totals"]["act_rollouts_started"], 1)
-        self.assertEqual(manifest["runtime_totals"]["ledger_count"], 1)
-
-    def test_all_round_attempt_ledgers_are_counted_after_recovery(self):
-        self.evaluation_dir.mkdir(parents=True, exist_ok=True)
-        (self.evaluation_dir / "manifest.json").write_text("{}", encoding="utf-8")
-        for attempt in (1, 2):
-            ledger = (
-                self.evaluation_dir
-                / f"runtime/round_1/attempt_{attempt:02d}/call_starts.jsonl"
-            )
-            suffix = "" if attempt == 1 else "_attempt_02"
-            context = {
-                "schema_version": 1,
-                "evaluation_id": "eval_test",
-                "logical_round_id": "round_1",
-                "round_attempt_index": attempt,
-                "child_run_id": f"run_test_round_1{suffix}",
-            }
-            with runtime_ledger_context(ledger, context):
-                record_act_batch_start(
-                    task_name="click_bell",
-                    policy_name="ACT",
-                    start_seed=100400 + attempt,
-                    num_rollouts=1,
-                )
-
-        summaries = []
-        recorded = record_round_attempt_ledgers(
-            self.root,
-            self.evaluation_dir,
-            summaries,
-            evaluation_id="eval_test",
-            round_id="round_1",
-        )
-
-        manifest = json.loads(
-            (self.evaluation_dir / "manifest.json").read_text(encoding="utf-8")
-        )
-        self.assertEqual(len(recorded), 2)
-        self.assertEqual(
-            [item["stage"] for item in summaries],
-            ["round_1_attempt_01", "round_1_attempt_02"],
-        )
-        self.assertEqual(manifest["runtime_totals"]["act_rollouts_started"], 2)
-        self.assertEqual(manifest["runtime_totals"]["ledger_count"], 2)
 
     def test_round_one_keeps_novel_first_round_compatibility_artifacts(self):
         agent = FakeProposalAgent()

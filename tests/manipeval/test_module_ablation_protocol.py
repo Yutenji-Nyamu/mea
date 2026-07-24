@@ -384,7 +384,10 @@ class ModuleAblationProtocolTests(unittest.TestCase):
                 prepare_module_ablation_schedule(root, config())
 
     def test_cli_resolves_relative_output_from_repo_and_hides_tracebacks(self):
-        script = Path(__file__).resolve().parents[2] / "scripts/manipeval_module_ablation.py"
+        script = (
+            Path(__file__).resolve().parents[2]
+            / "experiments/paper/manipeval_module_ablation.py"
+        )
         with tempfile.TemporaryDirectory() as temporary, tempfile.TemporaryDirectory() as cwd:
             root = Path(temporary)
             config_path = root / "config.json"

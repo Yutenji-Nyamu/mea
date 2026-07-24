@@ -136,6 +136,87 @@ def validate_click_bell_vision_observation(value: Any) -> dict[str, Any]:
     return result
 
 
+def validate_bbh_distractor_vision_observation(
+    value: Any,
+) -> dict[str, Any]:
+    """Validate only proposal-derived visual facts for the distractor scene.
+
+    Actor identity, exact offset, contacts, and success remain simulator/fixture
+    authorities.  The vision model only establishes that both intended objects
+    are visible and that the initial scene is visually plausible.
+    """
+
+    if not isinstance(value, dict):
+        raise VisualReflectionError(
+            "BBH distractor vision observation must be an object"
+        )
+    for field in (
+        "aligned",
+        "target_visible",
+        "lookalike_distractor_visible",
+        "scene_physically_plausible",
+    ):
+        if not isinstance(value.get(field), bool):
+            raise VisualReflectionError(
+                f"BBH distractor vision {field} must be a JSON boolean"
+            )
+    unexpected = value.get("unexpected_changes")
+    if not isinstance(unexpected, list):
+        unexpected = [str(unexpected)] if unexpected else []
+    suggestions = value.get("suggestions")
+    if not isinstance(suggestions, list):
+        suggestions = [str(suggestions)] if suggestions else []
+    confidence = value.get("confidence")
+    if (
+        isinstance(confidence, bool)
+        or not isinstance(confidence, (int, float))
+        or not math.isfinite(float(confidence))
+        or not 0.0 <= float(confidence) <= 1.0
+    ):
+        raise VisualReflectionError(
+            "BBH distractor vision confidence must be finite and within [0, 1]"
+        )
+    result = {
+        "aligned": value["aligned"],
+        "target_actor": str(value.get("target_actor") or "block"),
+        "target_visible": value["target_visible"],
+        "lookalike_distractor_visible": value[
+            "lookalike_distractor_visible"
+        ],
+        "scene_physically_plausible": value["scene_physically_plausible"],
+        "unexpected_changes": [str(item) for item in unexpected],
+        "diagnosis": str(value.get("diagnosis") or "").strip(),
+        "suggestions": [str(item) for item in suggestions],
+        "confidence": float(confidence),
+        "authority_boundary": {
+            "visual": [
+                "target_visible",
+                "lookalike_distractor_visible",
+                "scene_physically_plausible",
+            ],
+            "simulator_or_fixture": [
+                "actor_identity",
+                "distractor_offset",
+                "contact_latches",
+                "success",
+            ],
+        },
+    }
+    result["passed"] = bool(
+        result["aligned"]
+        and result["target_visible"]
+        and result["lookalike_distractor_visible"]
+        and result["scene_physically_plausible"]
+        and not result["unexpected_changes"]
+    )
+    if not result["diagnosis"] and not result["passed"]:
+        result["diagnosis"] = (
+            "The proposal-derived target/distractor scene failed one or more "
+            "visual visibility or plausibility checks."
+        )
+    return result
+
+
 def execute_reflection_loop(
     *,
     max_repairs: int,

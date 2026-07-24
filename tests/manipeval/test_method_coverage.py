@@ -77,7 +77,7 @@ class MethodCoverageTests(unittest.TestCase):
         self.assertEqual(
             by_id["taxonomy_unsupported_boundary"]["status"], "implemented"
         )
-        self.assertEqual(by_id["stage_recovery_resume"]["status"], "implemented")
+        self.assertEqual(by_id["protocol_resume"]["status"], "implemented")
         self.assertEqual(by_id["proposal_every_round"]["status"], "implemented")
         self.assertEqual(by_id["complete_task_codegen"]["status"], "implemented")
 

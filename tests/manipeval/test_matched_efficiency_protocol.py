@@ -231,7 +231,7 @@ class MatchedEfficiencyProtocolTests(unittest.TestCase):
             compare_matched_results(prereg, fixed, adaptive)
 
     def test_cli_writes_both_synthetic_scenarios(self):
-        from scripts import manipeval_matched_efficiency as cli
+        from experiments.paper import manipeval_matched_efficiency as cli
 
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "summary.json"

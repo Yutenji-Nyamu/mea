@@ -15,6 +15,7 @@ from .reflection import (
     inject_oversized_block_fixture,
     inject_wrong_color_fixture,
     repair_generated_method,
+    validate_bbh_distractor_vision_observation,
     validate_click_bell_vision_observation,
     validate_vision_observation,
 )
@@ -85,6 +86,7 @@ from .attempts import (
 )
 from .bbh_distractor import (
     BBHDistractorTaskGenError,
+    bbh_distractor_proposal_from_task_proposal,
     bbh_distractor_rollout_execution,
     build_bbh_distractor_module,
     default_bbh_distractor_proposal,
@@ -109,6 +111,7 @@ __all__ = [
     "inject_oversized_block_fixture",
     "inject_wrong_color_fixture",
     "repair_generated_method",
+    "validate_bbh_distractor_vision_observation",
     "validate_click_bell_vision_observation",
     "validate_vision_observation",
     "SceneCheckSpecError",
@@ -161,6 +164,7 @@ __all__ = [
     "run_bounded_task_generation",
     "task_generation_recovery_action",
     "BBHDistractorTaskGenError",
+    "bbh_distractor_proposal_from_task_proposal",
     "bbh_distractor_rollout_execution",
     "build_bbh_distractor_module",
     "default_bbh_distractor_proposal",

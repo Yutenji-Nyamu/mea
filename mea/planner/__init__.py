@@ -47,12 +47,20 @@ from .catalog import (
     catalog_task,
     validate_act_catalog,
 )
+from .catalog_plan import (
+    CATALOG_PLAN_TASKS,
+    EXPERIMENT_ONLY_PLANNER_MODES,
+    CatalogPlanAgent,
+    CatalogPlanError,
+    PlanMaterializer,
+)
 from .global_query import (
     GlobalQueryRouter,
     GlobalRouteError,
     build_global_route_prompt,
     route_to_bbh_proposal,
     route_to_click_proposal,
+    route_to_official_proposal,
     route_to_planner_proposal,
     validate_route_selection,
 )
@@ -134,11 +142,17 @@ __all__ = [
     "build_act_catalog",
     "catalog_task",
     "validate_act_catalog",
+    "CATALOG_PLAN_TASKS",
+    "EXPERIMENT_ONLY_PLANNER_MODES",
+    "CatalogPlanAgent",
+    "CatalogPlanError",
+    "PlanMaterializer",
     "GlobalQueryRouter",
     "GlobalRouteError",
     "build_global_route_prompt",
     "route_to_bbh_proposal",
     "route_to_click_proposal",
+    "route_to_official_proposal",
     "route_to_planner_proposal",
     "validate_route_selection",
     "BoundTaskPlanSession",

@@ -118,44 +118,72 @@ def build_scene_check_spec(
         proposal_id = str(task_proposal.get("proposal_id") or "").strip() or None
         source = "task_proposal"
         if task_proposal.get("preserve_success_semantics") is False:
-            try:
-                success_report = success_spec_validation_report(
-                    task_proposal.get("success_spec")
-                )
-            except SuccessSpecError as exc:
-                raise SceneCheckSpecError(
-                    f"TaskProposal replacement SuccessSpec is invalid: {exc}"
-                ) from exc
             if (
-                not success_report["act_eligible"]
-                or not success_report["experimental_bounded"]
+                task_name == "beat_block_hammer"
+                and task_proposal.get("capability_id")
+                == "robustness.distractor_avoidance"
+                and task_proposal.get("aspect_id")
+                == "robustness.distractor_avoidance"
             ):
-                raise SceneCheckSpecError(
-                    "SceneCheckSpec only accepts experimental bounded ACT semantics"
-                )
-            success_semantics = "experimental_bounded_success_spec"
+                success_semantics = "provider_generated_python"
+            else:
+                try:
+                    success_report = success_spec_validation_report(
+                        task_proposal.get("success_spec")
+                    )
+                except SuccessSpecError as exc:
+                    raise SceneCheckSpecError(
+                        f"TaskProposal replacement SuccessSpec is invalid: {exc}"
+                    ) from exc
+                if (
+                    not success_report["act_eligible"]
+                    or not success_report["experimental_bounded"]
+                ):
+                    raise SceneCheckSpecError(
+                        "SceneCheckSpec only accepts experimental bounded "
+                        "ACT semantics"
+                    )
+                success_semantics = "experimental_bounded_success_spec"
 
     if task_name == "beat_block_hammer":
         target_actor = "block"
-        visual_checks = [
-            "target_actor_visible",
-            "requested_appearance_is_plausible",
-            "no_obvious_unrequested_scene_change",
-        ]
-        simulator_authorities = [
-            "simulator_actor_identity",
-            "simulator_rule_check",
-            (
-                "compiled_success_spec"
-                if success_semantics == "experimental_bounded_success_spec"
-                else "official_check_success"
-            ),
-        ]
-        repair_policy = {
-            "mode": "regenerate_scene_code",
-            "handler": "regenerate_load_actors",
-            "max_repairs_supported": 5,
-        }
+        if success_semantics == "provider_generated_python":
+            visual_checks = [
+                "target_actor_visible",
+                "lookalike_distractor_visible",
+                "scene_is_physically_plausible",
+            ]
+            simulator_authorities = [
+                "simulator_actor_identity",
+                "simulator_rule_check",
+                "provider_checker_semantic_fixtures",
+                "expert_solvability",
+            ]
+            repair_policy = {
+                "mode": "regenerate_scene_checker_code",
+                "handler": "regenerate_scene_and_checker",
+                "max_repairs_supported": 1,
+            }
+        else:
+            visual_checks = [
+                "target_actor_visible",
+                "requested_appearance_is_plausible",
+                "no_obvious_unrequested_scene_change",
+            ]
+            simulator_authorities = [
+                "simulator_actor_identity",
+                "simulator_rule_check",
+                (
+                    "compiled_success_spec"
+                    if success_semantics == "experimental_bounded_success_spec"
+                    else "official_check_success"
+                ),
+            ]
+            repair_policy = {
+                "mode": "regenerate_scene_code",
+                "handler": "regenerate_load_actors",
+                "max_repairs_supported": 5,
+            }
     elif task_name == "click_bell":
         target_actor = "bell"
         visual_checks = [
@@ -243,6 +271,7 @@ def validate_scene_check_spec(value: Mapping[str, Any]) -> dict[str, Any]:
     if result.get("success_semantics") not in {
         "official_check_success",
         "experimental_bounded_success_spec",
+        "provider_generated_python",
     }:
         raise SceneCheckSpecError("SceneCheckSpec success semantics are unsupported")
     if result["success_semantics"] == "experimental_bounded_success_spec" and (
@@ -253,6 +282,17 @@ def validate_scene_check_spec(value: Mapping[str, Any]) -> dict[str, Any]:
     ):
         raise SceneCheckSpecError(
             "experimental SceneCheckSpec lacks bounded proposal authority"
+        )
+    if result["success_semantics"] == "provider_generated_python" and (
+        result["task_name"] != "beat_block_hammer"
+        or result["aspect_id"] != "robustness.distractor_avoidance"
+        or result["source"] != "task_proposal"
+        or not result.get("proposal_sha256")
+        or "provider_checker_semantic_fixtures"
+        not in result["simulator_authorities"]
+    ):
+        raise SceneCheckSpecError(
+            "provider checker SceneCheckSpec lacks proposal/fixture authority"
         )
     policy = result.get("repair_policy")
     if not isinstance(policy, Mapping) or set(policy) != {
@@ -271,6 +311,15 @@ def validate_scene_check_spec(value: Mapping[str, Any]) -> dict[str, Any]:
             or not 1 <= policy["max_repairs_supported"] <= 5
         ):
             raise SceneCheckSpecError("scene-code repair policy is invalid")
+    elif policy["mode"] == "regenerate_scene_checker_code":
+        if (
+            policy["handler"] != "regenerate_scene_and_checker"
+            or policy["max_repairs_supported"] != 1
+            or result["success_semantics"] != "provider_generated_python"
+        ):
+            raise SceneCheckSpecError(
+                "provider scene+checker repair policy is invalid"
+            )
     else:
         raise SceneCheckSpecError("unsupported repair policy")
     return result

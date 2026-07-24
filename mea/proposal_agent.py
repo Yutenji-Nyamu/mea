@@ -37,6 +37,7 @@ class ProposalAgentError(RuntimeError):
 
 _BUNDLE_KEYS = {"schema_version", "task_proposal", "tool_proposal"}
 _EXPERIMENTAL_SUCCESS_MODE = "experimental_success_bounded"
+_PROVIDER_SCENE_CHECKER_MODE = "provider_scene_checker_codegen"
 
 _TYPED_IDENTIFIERS_BY_TASK: dict[str, dict[str, list[Any]]] = {
     "beat_block_hammer": {
@@ -95,6 +96,11 @@ def proposal_capability_mode(
             "semantic TaskGen requested generated success semantics outside "
             "the sole bounded BBH appearance envelope"
         )
+    if (
+        task_name == "beat_block_hammer"
+        and aspect_id == "robustness.distractor_avoidance"
+    ):
+        return _PROVIDER_SCENE_CHECKER_MODE
     if task_name == "click_bell" and aspect_id == "object_position":
         return "novel_bounded"
     return "registered_reuse"
@@ -130,6 +136,7 @@ def _proposal_card(
         "novel_bounded",
         "registered_reuse",
         _EXPERIMENTAL_SUCCESS_MODE,
+        _PROVIDER_SCENE_CHECKER_MODE,
     }:
         raise ProposalAgentError(f"unsupported proposal capability mode: {mode!r}")
     if mode == "novel_bounded" and not (
@@ -168,6 +175,25 @@ def _proposal_card(
                 "color": [0.25, 0.25, 0.75],
             }
         }
+    elif mode == _PROVIDER_SCENE_CHECKER_MODE:
+        if not (
+            task_name == "beat_block_hammer"
+            and aspect_id == "robustness.distractor_avoidance"
+            and first["taskgen"]["operation"]
+            == "provider_scene_checker_codegen"
+            and first["taskgen"]["generation_mode"]
+            == "provider_scene_checker_codegen"
+        ):
+            raise ProposalAgentError(
+                "provider scene+checker proposals are capability-gated to "
+                "beat_block_hammer/robustness.distractor_avoidance"
+            )
+        change_contract = {
+            "mode": "registered_provider_codegen_contract",
+            "allowed_change_roots": first["taskgen"]["allowed_change_roots"],
+            "required_changes": first["taskgen"]["changes"],
+        }
+        example_changes = deepcopy(first["taskgen"]["changes"])
     elif mode == "novel_bounded":
         change_contract = {
             "bell": {
@@ -235,7 +261,11 @@ def _proposal_card(
             "reuse_first": True,
             "changes": example_changes,
             "preserve_success_semantics": (
-                mode != _EXPERIMENTAL_SUCCESS_MODE
+                mode
+                not in {
+                    _EXPERIMENTAL_SUCCESS_MODE,
+                    _PROVIDER_SCENE_CHECKER_MODE,
+                }
             ),
             **(
                 {"success_spec": experimental_success}
@@ -259,8 +289,26 @@ def _proposal_card(
             "reuse_first": True,
         },
     }
+    if mode == _PROVIDER_SCENE_CHECKER_MODE:
+        registered_example["tool_proposal"] = {
+            "schema_version": 1,
+            "proposal_id": f"{aspect_id}.query_generated_1.tool",
+            "task_name": task_name,
+            "aspect_id": aspect_id,
+            "evaluation_goal": (
+                "use the generated checker outcome for the same ACT episode"
+            ),
+            "metric": first["tool"]["metric"],
+            "question": (
+                "Did the policy hit the intended target without striking the "
+                "lookalike distractor under the generated checker?"
+            ),
+            "vqa_phenomenon_ids": vqa_candidates,
+            "reuse_first": True,
+        }
     typed_example = deepcopy(registered_example)
-    typed_example["tool_proposal"].update(
+    if mode != _PROVIDER_SCENE_CHECKER_MODE:
+        typed_example["tool_proposal"].update(
         {
             "schema_version": 3,
             "proposal_id": f"{aspect_id}.query_metric_1.tool",
@@ -280,7 +328,7 @@ def _proposal_card(
                 "null_semantics": "null_if_no_finite_sample",
             },
         }
-    )
+        )
     if (
         task_name == "beat_block_hammer"
         and aspect_id == "safety.hammer_left_camera_contact"
@@ -313,7 +361,11 @@ def _proposal_card(
             "capability_id": first["taskgen"]["capability_id"],
             "reuse_first": True,
             "preserve_success_semantics": (
-                mode != _EXPERIMENTAL_SUCCESS_MODE
+                mode
+                not in {
+                    _EXPERIMENTAL_SUCCESS_MODE,
+                    _PROVIDER_SCENE_CHECKER_MODE,
+                }
             ),
             "change_contract": change_contract,
             "registered_changes_to_avoid": [
@@ -352,6 +404,21 @@ def _proposal_card(
                 if mode == _EXPERIMENTAL_SUCCESS_MODE
                 else {
                     "proposal_schema_version": 1,
+                    "selected_track": "provider_generated_checker",
+                    "execution_authority": (
+                        "llm_generated_python_ast_validated"
+                    ),
+                    "preserve_success_semantics": False,
+                    "official_equivalent": False,
+                    "outcome_label": "generated_check_success",
+                    "reporting_contract": (
+                        "The generated checker outcome stays separate from "
+                        "RoboTwin official success."
+                    ),
+                }
+                if mode == _PROVIDER_SCENE_CHECKER_MODE
+                else {
+                    "proposal_schema_version": 1,
                     "selected_track": "official",
                     "execution_authority": "official_check_success",
                     "preserve_success_semantics": True,
@@ -363,7 +430,7 @@ def _proposal_card(
                 {contract["tool"]["metric"] for contract in contracts}
             ),
             "typed_metric_spec_v1": {
-                "optional": True,
+                "optional": mode != _PROVIDER_SCENE_CHECKER_MODE,
                 "proposal_schema_version": 3,
                 "metric_id": (
                     "new lower_snake_case id that does not collide with a "
@@ -473,6 +540,16 @@ def build_proposal_prompt(
             "SuccessSpec shown in the card; no other success-semantics change is "
             "permitted."
         )
+    elif card["proposal_capability_mode"] == _PROVIDER_SCENE_CHECKER_MODE:
+        variation_instruction = (
+            "Reuse exactly the registered distractor scene/checker semantic "
+            "contract. Set TaskProposal.preserve_success_semantics=false "
+            "because TaskGen will write a non-official checker."
+        )
+        success_instruction = (
+            "The generated checker must remain explicitly non-official and "
+            "must judge target success while rejecting distractor contact."
+        )
     elif card["proposal_capability_mode"] == "novel_bounded":
         variation_instruction = (
             "Propose one new bounded task variation that is not exactly equal to a "
@@ -486,6 +563,12 @@ def build_proposal_prompt(
         )
         success_instruction = "Do not change success semantics."
     tool_instruction = (
+        "Use ToolProposal v1 with the exact registered "
+        "bbh_target_without_distractor_success metric. The executed generated "
+        "checker supplies this same-round ToolResult; do not request a second "
+        "typed metric."
+        if card["proposal_capability_mode"] == _PROVIDER_SCENE_CHECKER_MODE
+        else
         "The upstream semantic Plan explicitly requires a new observable. "
         "You MUST use ToolProposal v3 with a new metric id and one bounded "
         "typed_metric_spec_v1; selecting a listed metric is invalid."
@@ -709,12 +792,32 @@ def validate_proposal_bundle(
     if task["capability_id"] != card["taskgen"]["capability_id"]:
         raise ProposalError("TaskProposal changed the selected capability")
     proposed_tool_request = tool_request_from_proposal(tool)
-    routed = route_tool_request(proposed_tool_request)
-    typed_metric = (
-        tool["schema_version"] == 3
-        and routed["route_decision"]["resolved_route"]
-        == "typed_metric_spec_compile"
+    provider_scene_checker_mode = (
+        card["proposal_capability_mode"] == _PROVIDER_SCENE_CHECKER_MODE
     )
+    if provider_scene_checker_mode:
+        expected_metric = card["toolgen"]["metric_candidates"]
+        if tool["schema_version"] != 1 or expected_metric != [tool["metric"]]:
+            raise ProposalError(
+                "provider scene+checker mode requires ToolProposal v1 with "
+                "the exact bound checker metric"
+            )
+        routed = {
+            "route_decision": {
+                "status": "resolved",
+                "resolved_route": "bound_child_trusted_checker",
+                "provider_required": False,
+                "provider_called": False,
+            }
+        }
+        typed_metric = False
+    else:
+        routed = route_tool_request(proposed_tool_request)
+        typed_metric = (
+            tool["schema_version"] == 3
+            and routed["route_decision"]["resolved_route"]
+            == "typed_metric_spec_compile"
+        )
     if require_new_tool and not typed_metric:
         raise ProposalError(
             "semantic tool_need requires ToolProposal v3 with a bounded "
@@ -740,7 +843,18 @@ def validate_proposal_bundle(
     experimental_mode = (
         card["proposal_capability_mode"] == _EXPERIMENTAL_SUCCESS_MODE
     )
-    if experimental_mode:
+    if provider_scene_checker_mode:
+        if (
+            task["schema_version"] != 1
+            or task["preserve_success_semantics"] is not False
+            or task["changes"]
+            != card["taskgen"]["change_contract"]["required_changes"]
+        ):
+            raise ProposalError(
+                "provider scene+checker mode requires the exact registered "
+                "distractor contract and preserve_success_semantics=false"
+            )
+    elif experimental_mode:
         if (
             task["schema_version"] != 2
             or task["preserve_success_semantics"] is not False
@@ -855,6 +969,8 @@ class BoundedProposalAgent:
             # through this explicit runtime-owned mode.  It must also produce a
             # new scene variation rather than relabel a registered official run.
             require_novel_changes = True
+        elif mode == _PROVIDER_SCENE_CHECKER_MODE:
+            require_novel_changes = False
         prompt = build_proposal_prompt(
             user_query,
             target,

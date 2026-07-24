@@ -16,6 +16,7 @@ class CapabilityError(ValueError):
 
 
 EXPERIMENTAL_SUCCESS_PRESERVE_MARKER = "compiled_experimental_success_spec"
+PROVIDER_SUCCESS_PRESERVE_MARKER = "provider_generated_check_success"
 
 
 TASK_CAPABILITIES: dict[str, dict[str, dict[str, Any]]] = {
@@ -47,6 +48,21 @@ TASK_CAPABILITIES: dict[str, dict[str, dict[str, Any]]] = {
                 "official_block_color",
                 "play_once",
                 "check_success_semantics",
+                "checkpoint",
+            ],
+        },
+        "robustness.distractor_avoidance": {
+            "controlled_axis": "robustness.distractor_avoidance",
+            "allowed_change_roots": ["distractor"],
+            "generation_mode": "provider_scene_checker_codegen",
+            "allowed_generation_modes": ["provider_scene_checker_codegen"],
+            "default_metric": "bbh_target_without_distractor_success",
+            "preserve": [
+                "official_hammer_asset",
+                "official_target_pose_sampling",
+                "official_target_size",
+                "play_once",
+                "check_success",
                 "checkpoint",
             ],
         },
@@ -237,23 +253,35 @@ def build_variant_spec(
         )
     preserve = deepcopy(capability["preserve"])
     if not preserve_success_semantics:
-        if not (
+        experimental_spec = (
             task_name == "beat_block_hammer"
             and capability_id == "object_appearance.color"
             and resolved_mode == "force_codegen"
-        ):
+        )
+        provider_checker = (
+            task_name == "beat_block_hammer"
+            and capability_id == "robustness.distractor_avoidance"
+            and resolved_mode == "provider_scene_checker_codegen"
+        )
+        if not (experimental_spec or provider_checker):
             raise CapabilityError(
-                "replacement SuccessSpec VariantSpec is capability-gated to "
-                "beat_block_hammer/object_appearance.color force_codegen"
+                "replacement SuccessSpec is capability-gated to "
+                "beat_block_hammer/object_appearance.color; provider-written "
+                "replacement semantics are separately gated to "
+                "beat_block_hammer/robustness.distractor_avoidance"
             )
         if "check_success" not in preserve:
             raise CapabilityError(
-                "experimental SuccessSpec capability lacks official check_success "
-                "preservation marker"
+                "replacement-success capability lacks a check_success marker"
             )
+        replacement_marker = (
+            PROVIDER_SUCCESS_PRESERVE_MARKER
+            if provider_checker
+            else EXPERIMENTAL_SUCCESS_PRESERVE_MARKER
+        )
         preserve = [
             (
-                EXPERIMENTAL_SUCCESS_PRESERVE_MARKER
+                replacement_marker
                 if item == "check_success"
                 else item
             )
@@ -295,6 +323,14 @@ def validate_variant_spec_envelope(spec: Mapping[str, Any]) -> dict[str, Any]:
         isinstance(raw_preserve, list)
         and EXPERIMENTAL_SUCCESS_PRESERVE_MARKER in raw_preserve
     )
+    provider_success = (
+        isinstance(raw_preserve, list)
+        and PROVIDER_SUCCESS_PRESERVE_MARKER in raw_preserve
+    )
+    if experimental_success and provider_success:
+        raise CapabilityError(
+            "VariantSpec cannot bind two replacement-success authorities"
+        )
     expected = build_variant_spec(
         task_name=str(spec.get("task_name")),
         variant_id=str(spec.get("variant_id") or ""),
@@ -302,7 +338,9 @@ def validate_variant_spec_envelope(spec: Mapping[str, Any]) -> dict[str, Any]:
         intent=str(spec.get("intent") or ""),
         changes=spec.get("changes") if isinstance(spec.get("changes"), Mapping) else {},
         generation_mode=str(spec.get("generation_mode") or ""),
-        preserve_success_semantics=not experimental_success,
+        preserve_success_semantics=not (
+            experimental_success or provider_success
+        ),
     )
     if dict(spec) != expected:
         raise CapabilityError(

@@ -10,6 +10,7 @@ from mea.planner import (
     build_global_route_prompt,
     route_to_bbh_proposal,
     route_to_click_proposal,
+    route_to_official_proposal,
     route_to_planner_proposal,
     validate_route_selection,
 )
@@ -19,6 +20,8 @@ def make_ready_repo(root: Path, *task_names: str) -> None:
     families = {
         "beat_block_hammer": "tool_use_contact",
         "click_bell": "press_contact",
+        "adjust_bottle": "object_reposition",
+        "grab_roller": "dual_arm_lift",
     }
     for task_name in task_names:
         schema = root / f"mea/toolkit/schemas/{task_name}.json"
@@ -62,6 +65,19 @@ def bbh_route() -> dict:
     }
 
 
+def official_route(task_name: str) -> dict:
+    return {
+        "schema_version": 2,
+        "decision": "route",
+        "task_name": task_name,
+        "task_profile": "official",
+        "evaluation_goal": f"evaluate the unchanged {task_name} task",
+        "requested_aspect_ids": ["task_execution.official_baseline"],
+        "first_aspect_id": "task_execution.official_baseline",
+        "unsupported_capabilities": [],
+    }
+
+
 class FakeProvider:
     def __init__(self, responses: list[str]):
         self.responses = list(responses)
@@ -94,7 +110,23 @@ class GlobalQueryRouterTests(unittest.TestCase):
                             "policy_weights_missing",
                             "task_schema_missing",
                         ],
-                    }
+                    },
+                    {
+                        "task_name": "adjust_bottle",
+                        "missing_requirements": [
+                            "dataset_stats_missing",
+                            "policy_weights_missing",
+                            "task_schema_missing",
+                        ],
+                    },
+                    {
+                        "task_name": "grab_roller",
+                        "missing_requirements": [
+                            "dataset_stats_missing",
+                            "policy_weights_missing",
+                            "task_schema_missing",
+                        ],
+                    },
                 ],
             )
             with self.assertRaisesRegex(GlobalRouteError, "not ACT-ready"):
@@ -174,6 +206,36 @@ class GlobalQueryRouterTests(unittest.TestCase):
                 scene["requested_aspect_ids"],
                 ["scene_background_texture", "scene_lighting"],
             )
+
+    def test_generic_official_tasks_route_to_one_baseline_round(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            make_ready_repo(root, "adjust_bottle", "grab_roller")
+            catalog = build_act_catalog(root)
+
+            self.assertEqual(
+                [task["task_name"] for task in catalog["tasks"]],
+                ["adjust_bottle", "grab_roller"],
+            )
+            for task_name in ("adjust_bottle", "grab_roller"):
+                routed = route_to_official_proposal(
+                    official_route(task_name),
+                    catalog,
+                )
+                self.assertEqual(routed["task_name"], task_name)
+                self.assertEqual(
+                    routed["requested_aspect_ids"],
+                    ["task_execution.official_baseline"],
+                )
+                dispatched = route_to_planner_proposal(
+                    official_route(task_name),
+                    catalog,
+                )
+                self.assertEqual(
+                    dispatched["planner_kind"],
+                    "deterministic_official_task",
+                )
+                self.assertEqual(dispatched["proposal"], routed)
 
     def test_extra_fields_and_catalog_violations_are_rejected(self):
         with tempfile.TemporaryDirectory() as directory:

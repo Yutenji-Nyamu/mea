@@ -6,13 +6,12 @@ import argparse
 import hashlib
 import json
 import re
-import shutil
 import subprocess
 import sys
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -35,16 +34,15 @@ from mea.history import EvaluationHistoryDB
 from mea.planner import (
     AdaptivePlanStepAgent,
     BoundTaskPlanSession,
+    CatalogPlanAgent,
     ClaimFirstOpenQueryAgent,
     ClaimFirstRuntimeController,
-    ClickBellAdaptivePlanAgent,
     ClickBellFixedSuitePlanAgent,
     ClickBellPositionPlanAgent,
     GlobalQueryRouter,
-    OfficialTaskPlanAgent,
-    PlanAgentPrototype,
     build_act_catalog,
     build_control_anchor_proposal,
+    control_template_id,
     make_evaluation_id,
     project_open_query_capabilities,
     render_query_answer,
@@ -67,20 +65,7 @@ from mea.providers import (
     available_model_profiles,
     resolve_model_profile,
 )
-from mea.recovery import (
-    BoundedRecoveryError,
-    UnexpectedToolExecutionError,
-    run_bounded_tool_recovery,
-)
-from mea.round_recovery import (
-    StageFailure,
-    WholeRoundRecoveryError,
-    run_stage_aware_round_recovery,
-)
-from mea.round_provenance import bind_round_provenance
-from mea.runtime_ledger import runtime_ledger_context, summarize_runtime_ledger
 from mea.toolgen import (
-    ToolOrchestrationError,
     execute_tool_request,
     route_tool_request,
 )
@@ -116,6 +101,25 @@ def should_enable_adaptive_plan_step(
         and not legacy_click_bell
         and registered_strategy != "fixed_predeclared_v1"
     )
+
+
+def supports_claim_first_runtime(
+    catalog: dict[str, Any],
+    task_name: str,
+) -> bool:
+    """Return whether a routed task has a control plus a candidate experiment."""
+
+    target = BoundTaskPlanSession.from_catalog(catalog, task_name).target
+    if int(target.get("max_rounds") or 0) < 2:
+        return False
+    control = control_template_id(target)
+    templates = {
+        str(template_id)
+        for aspect in target.get("aspects", [])
+        if isinstance(aspect, dict)
+        for template_id in aspect.get("template_ids", [])
+    }
+    return bool(templates - {control})
 
 
 def initialize_registered_dynamic_runtime(
@@ -200,13 +204,17 @@ def apply_bounded_round_proposal(
         and task_name == "beat_block_hammer"
         and aspect_id == "object_appearance.color"
     )
-    new_tool_requested = bool(
+    semantic_tool_requested = bool(
         isinstance(tool_need, dict) and tool_need.get("required") is True
     )
     mode = proposal_capability_mode(
         task_name,
         aspect_id,
         experimental_success=generated_success_requested,
+    )
+    new_tool_requested = bool(
+        semantic_tool_requested
+        and mode != "provider_scene_checker_codegen"
     )
     proposal_context = deepcopy(planning_context)
     if semantic_proposal is not None:
@@ -219,6 +227,10 @@ def apply_bounded_round_proposal(
             "toolgen_required": new_tool_requested,
             "taskgen_capability_mode": mode,
             "toolgen_requires_new_typed_metric": new_tool_requested,
+            "tool_satisfied_by_task_checker": bool(
+                semantic_tool_requested
+                and mode == "provider_scene_checker_codegen"
+            ),
         }
     proposal_dir = (
         evaluation_dir / "plan/bounded_proposal" / f"round_{round_number:02d}"
@@ -366,30 +378,6 @@ def adjudicate_bounded_transition(
     return updated, canonical, directive
 
 
-def directory_tree_sha256(root: Path) -> str:
-    """Hash immutable Tool inputs without depending on filesystem mtimes."""
-
-    resolved = root.expanduser().resolve()
-    if not resolved.is_dir():
-        raise RuntimeError(f"telemetry directory does not exist: {resolved}")
-    digest = hashlib.sha256()
-    files = sorted(
-        (path for path in resolved.rglob("*") if path.is_file()),
-        key=lambda path: path.relative_to(resolved).as_posix(),
-    )
-    if not files:
-        raise RuntimeError(f"telemetry directory is empty: {resolved}")
-    for path in files:
-        relative = path.relative_to(resolved).as_posix().encode("utf-8")
-        digest.update(len(relative).to_bytes(8, "big"))
-        digest.update(relative)
-        digest.update(path.stat().st_size.to_bytes(8, "big"))
-        with path.open("rb") as handle:
-            for block in iter(lambda: handle.read(1024 * 1024), b""):
-                digest.update(block)
-    return digest.hexdigest()
-
-
 def update_manifest(evaluation_dir: Path, **updates: Any) -> dict[str, Any]:
     path = evaluation_dir / "manifest.json"
     manifest = json.loads(path.read_text(encoding="utf-8"))
@@ -432,128 +420,6 @@ def persist_adaptive_step_selection(
         navigation_options,
     )
     return str(step_dir.relative_to(evaluation_dir)).replace("\\", "/")
-
-
-def adopt_pre_round_ledgers(
-    repo_root: Path,
-    evaluation_dir: Path,
-    ledgers: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    """Move crash-survivable pre-evaluation ledgers into the final evaluation."""
-
-    adopted: list[dict[str, Any]] = []
-    for item in ledgers:
-        source = Path(item["path"])
-        destination = evaluation_dir / "runtime/pre_round" / f"{item['name']}.jsonl"
-        if source.is_file():
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            if destination.exists():
-                raise RuntimeError(f"pre-round runtime ledger already exists: {destination}")
-            shutil.move(str(source), destination)
-        summary = summarize_runtime_ledger(
-            destination if destination.is_file() else source,
-            expected_context=item["context"],
-        )
-        summary["stage"] = item["name"]
-        summary["artifact"] = (
-            str(destination.relative_to(repo_root)).replace("\\", "/")
-            if destination.is_file()
-            else None
-        )
-        adopted.append(summary)
-    return adopted
-
-
-def aggregate_runtime_ledger_summaries(
-    ledgers: list[dict[str, Any]],
-) -> dict[str, Any]:
-    """Aggregate exact call starts without treating retries as new calls."""
-
-    return {
-        "schema_version": 1,
-        "provider_calls_started": sum(
-            int(item.get("provider_calls_started") or 0) for item in ledgers
-        ),
-        "provider_transport_attempts_started": sum(
-            int(item.get("provider_transport_attempts_started") or 0)
-            for item in ledgers
-        ),
-        "act_batches_started": sum(
-            int(item.get("act_batches_started") or 0) for item in ledgers
-        ),
-        "act_rollouts_started": sum(
-            int(item.get("act_rollouts_started") or 0) for item in ledgers
-        ),
-        "ledger_count": sum(bool(item.get("artifact")) for item in ledgers),
-        "call_start_accounting": "pre-external-call append-and-fsync",
-    }
-
-
-def record_runtime_ledger_stage(
-    repo_root: Path,
-    evaluation_dir: Path,
-    ledgers: list[dict[str, Any]],
-    *,
-    ledger_path: Path,
-    context: dict[str, Any],
-    stage: str,
-) -> dict[str, Any]:
-    """Upsert one crash-survivable provider/ACT ledger into the manifest."""
-
-    summary = summarize_runtime_ledger(ledger_path, expected_context=context)
-    summary["stage"] = stage
-    summary["artifact"] = (
-        str(ledger_path.relative_to(repo_root)).replace("\\", "/")
-        if ledger_path.is_file()
-        else None
-    )
-    ledgers[:] = [item for item in ledgers if item.get("stage") != stage]
-    ledgers.append(summary)
-    if (evaluation_dir / "manifest.json").is_file():
-        update_manifest(
-            evaluation_dir,
-            runtime_ledgers=ledgers,
-            runtime_totals=aggregate_runtime_ledger_summaries(ledgers),
-        )
-    return summary
-
-
-def record_round_attempt_ledgers(
-    repo_root: Path,
-    evaluation_dir: Path,
-    ledgers: list[dict[str, Any]],
-    *,
-    evaluation_id: str,
-    round_id: str,
-) -> list[dict[str, Any]]:
-    """Account every durable whole-round attempt, including failed attempts."""
-
-    recorded: list[dict[str, Any]] = []
-    runtime_root = evaluation_dir / "runtime" / round_id
-    for ledger_path in sorted(runtime_root.glob("attempt_*/call_starts.jsonl")):
-        match = re.fullmatch(r"attempt_(\d+)", ledger_path.parent.name)
-        if match is None:
-            continue
-        attempt_index = int(match.group(1))
-        suffix = "" if attempt_index == 1 else f"_attempt_{attempt_index:02d}"
-        context = {
-            "schema_version": 1,
-            "evaluation_id": evaluation_id,
-            "logical_round_id": round_id,
-            "round_attempt_index": attempt_index,
-            "child_run_id": child_run_id(evaluation_id, round_id) + suffix,
-        }
-        recorded.append(
-            record_runtime_ledger_stage(
-                repo_root,
-                evaluation_dir,
-                ledgers,
-                ledger_path=ledger_path,
-                context=context,
-                stage=f"{round_id}_attempt_{attempt_index:02d}",
-            )
-        )
-    return recorded
 
 
 def write_global_route_trace(
@@ -874,6 +740,10 @@ def build_taskgen_command(
             command.append("--expert")
         if execution_backend in {"act", "both"}:
             command.append("--run-act")
+    elif route == "provider_scene_checker_codegen":
+        # The proposal-derived visual contract checks that both intended
+        # blocks are visible before the expert and ACT gates.
+        command.extend(["--expert", "--vision-check", "--run-act"])
     else:
         # The bounded generated-task prototype keeps its original expert
         # solvability gate before the ACT policy rollout.
@@ -927,12 +797,21 @@ def read_policy_success(result_path: Path) -> float | None:
     return None
 
 
+def _episode_tool_results(episode: Mapping[str, Any]) -> list[dict[str, Any]]:
+    raw_results = episode.get("tool_results")
+    if not isinstance(raw_results, list):
+        direct_result = episode.get("result")
+        raw_results = [direct_result] if isinstance(direct_result, dict) else []
+    return [result for result in raw_results if isinstance(result, dict)]
+
+
 def compact_trusted_tools(child_manifest: dict[str, Any]) -> list[dict[str, Any]]:
     """Keep the numerical Toolkit evidence small enough for planner/feedback use."""
 
     evaluation = child_manifest.get("trusted_tool_evaluation") or {}
     episodes = []
     for episode in evaluation.get("episodes", []):
+        raw_results = _episode_tool_results(episode)
         episodes.append(
             {
                 "episode_dir": episode.get("episode_dir"),
@@ -948,11 +827,149 @@ def compact_trusted_tools(child_manifest: dict[str, Any]) -> list[dict[str, Any]
                         "evidence_steps": result.get("evidence_steps", []),
                         "details": result.get("details", {}),
                     }
-                    for result in episode.get("tool_results", [])
+                    for result in raw_results
                 ],
             }
         )
     return episodes
+
+
+def reuse_bound_child_checker_tool(
+    repo_root: Path,
+    child_manifest: dict[str, Any],
+    output_dir: Path,
+    tool_request: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Expose an already-bound provider checker as the planned Tool evidence.
+
+    A provider-written task checker is executed by the simulator and projected
+    into ``trusted_tool_evaluation`` before the parent round starts ToolGen.
+    When the route-free ToolProposal asks for that exact same metric, generating
+    or routing a second Tool would duplicate one policy episode and can fail on
+    an intentionally run-bound metric.  Typed MetricSpec requests remain on the
+    normal ToolGen path because equal names alone do not prove equal semantics.
+    """
+
+    trusted = child_manifest.get("trusted_tool_evaluation")
+    if (
+        child_manifest.get("generation_kind") != "provider_scene_checker_codegen"
+        or not isinstance(trusted, Mapping)
+        or tool_request.get("schema_version") != 1
+        or "metric_spec" in tool_request
+        or trusted.get("outcome_metric") != tool_request.get("metric")
+    ):
+        return None
+
+    metric = str(tool_request["metric"])
+    episodes = trusted.get("episodes")
+    retrieval = trusted.get("tool_retrieval")
+    binding = trusted.get("outcome_binding")
+    source_artifact = trusted.get("artifact")
+    if (
+        tool_request.get("task_name") != child_manifest.get("task_name")
+        or trusted.get("outcome_authority")
+        != "llm_generated_python_ast_validated"
+        or not isinstance(retrieval, Mapping)
+        or retrieval.get("route") != "bound_llm_generated_checker"
+        or not isinstance(binding, Mapping)
+        or binding.get("metric") != metric
+        or binding.get("authority") != "llm_generated_python_ast_validated"
+        or binding.get("task_module") != child_manifest.get("task_module")
+        or binding.get("module_sha256")
+        != child_manifest.get("candidate_module_sha256")
+        or not isinstance(source_artifact, str)
+        or not source_artifact.strip()
+        or not isinstance(episodes, list)
+        or not episodes
+        or trusted.get("episode_count") != len(episodes)
+    ):
+        raise RuntimeError(
+            "provider checker metric matched the ToolProposal but its trusted "
+            "execution binding is incomplete"
+        )
+    for episode in episodes:
+        if not isinstance(episode, Mapping):
+            raise RuntimeError("provider checker Tool episode must be an object")
+        results = _episode_tool_results(episode)
+        if len(results) != 1:
+            raise RuntimeError(
+                "provider checker Tool episode must contain exactly one result"
+            )
+        result = results[0]
+        details = result.get("details")
+        if (
+            result.get("tool") != metric
+            or not isinstance(result.get("value"), bool)
+            or not isinstance(result.get("passed"), bool)
+            or result.get("passed") != result.get("value")
+            or episode.get("role") != "policy_under_evaluation"
+            or not isinstance(details, Mapping)
+            or details.get("authority") != "llm_generated_python_ast_validated"
+            or details.get("task_module") != child_manifest.get("task_module")
+            or details.get("module_sha256") != binding.get("module_sha256")
+        ):
+            raise RuntimeError(
+                "provider checker ToolResult does not match its task/module authority"
+            )
+
+    output_dir.mkdir(parents=True, exist_ok=False)
+    tool_execution_path = output_dir / "tool_execution.json"
+    request_path = output_dir / "tool_request.json"
+    route_path = output_dir / "route_decision.json"
+    route_decision = {
+        "schema_version": 1,
+        "status": "resolved",
+        "matching_policy": "exact_bound_child_metric",
+        "requested_route": "auto",
+        "resolved_route": "bound_child_trusted_checker",
+        "task_name": tool_request.get("task_name"),
+        "metric": metric,
+        "exact_match": True,
+        "matched_registry": "child_task_checker",
+        "reference_tool": metric,
+        "provider_required": False,
+        "provider_called": False,
+        "reason": (
+            "the executed provider-written task checker already produced this "
+            "exact metric for the same bound ACT episode"
+        ),
+    }
+    def relative(path: Path) -> str:
+        return path.relative_to(repo_root).as_posix()
+
+    evaluation = {
+        "schema_version": 1,
+        "status": "passed",
+        "requested_route": "auto",
+        "route": "bound_child_trusted_checker",
+        "reference_tool": metric,
+        "tool_request": deepcopy(tool_request),
+        "route_decision": route_decision,
+        "source": {
+            "scope": "bound_child_task_checker",
+            "artifact": source_artifact,
+            "aggregate_artifact": trusted.get("aggregate_artifact"),
+            "authority": trusted.get("outcome_authority"),
+        },
+        "episodes": deepcopy(episodes),
+        "validation": {
+            "status": "passed",
+            "provider_called": False,
+            "exact_metric_match": True,
+            "episode_count": len(episodes),
+            "authority": trusted.get("outcome_authority"),
+        },
+        "artifacts": {
+            "tool_request": relative(request_path),
+            "route_decision": relative(route_path),
+            "tool_execution": relative(tool_execution_path),
+            "source_execution": trusted.get("artifact"),
+        },
+    }
+    write_json(request_path, tool_request)
+    write_json(route_path, route_decision)
+    write_json(tool_execution_path, evaluation)
+    return evaluation
 
 
 def compact_tool_evaluation(
@@ -1003,7 +1020,8 @@ def _aggregate_sources(
     trusted_tools = {
         result.get("tool")
         for episode in trusted.get("episodes", [])
-        for result in episode.get("tool_results", [])
+        if isinstance(episode, Mapping)
+        for result in _episode_tool_results(episode)
         if result.get("tool")
     }
     if trusted.get("episodes"):
@@ -1411,6 +1429,23 @@ def compact_execution_vqa(
     }
 
 
+def taskgen_ast_gate_passed(static_validation: Mapping[str, Any]) -> bool:
+    """Accept either legacy TaskGen AST output or provider scene+checker AST."""
+
+    legacy = static_validation.get("load_actors_ast") or {}
+    if isinstance(legacy, Mapping) and legacy.get("valid") is True:
+        return True
+    provider = static_validation.get("provider_scene_checker") or {}
+    return bool(
+        isinstance(provider, Mapping)
+        and provider.get("valid") is True
+        and provider.get("model_written_python") is True
+        and provider.get("restricted_success_spec_compiler_used") is False
+        and isinstance(provider.get("ast_policy"), str)
+        and provider["ast_policy"].strip()
+    )
+
+
 def summarize_round(
     round_plan: dict[str, Any],
     child_manifest: dict[str, Any],
@@ -1480,7 +1515,7 @@ def summarize_round(
             )
             == "passed"
         ),
-        "ast": bool((static.get("load_actors_ast") or {}).get("valid")),
+        "ast": taskgen_ast_gate_passed(static),
         "render": bool(scene.get("render_success")),
         "rule": bool((scene.get("rule_check") or {}).get("passed")),
         "scene_variant": bool(positions.get("passed")),
@@ -1652,8 +1687,6 @@ def execute_round(
     reviewed_task_registry: Path | None = None,
     reviewed_tool_registry: Path | None = None,
     reviewed_vqa_registry: Path | None = None,
-    tool_recovery_max_restarts: int = 1,
-    inject_tool_exception_once: bool = False,
     registration_identity: dict[str, Any] | None = None,
     round_attempt_index: int = 1,
 ) -> tuple[dict[str, Any], Path, dict[str, Any], dict[str, Any], int,]:
@@ -1714,7 +1747,6 @@ def execute_round(
             "status": child_manifest.get("status"),
         },
     )
-    recovery_summary: dict[str, Any] | None = None
     if (
         child_manifest.get("status")
         in {
@@ -1729,77 +1761,28 @@ def execute_round(
         }
         if reviewed_tool_registry is not None:
             tool_kwargs["reviewed_registry_dir"] = reviewed_tool_registry
-        telemetry_dir = child_dir / "evaluation/telemetry"
-        injected = False
-
-        def execute_tool_attempt(
-            attempt_dir: Path, attempt_index: int
-        ) -> dict[str, Any]:
-            nonlocal injected
-            output_dir = (
-                execution_dir / "planned_tool"
-                if attempt_index == 1
-                else execution_dir / f"planned_tool_retry_{attempt_index - 1:02d}"
-            )
-            write_json(
-                attempt_dir / "tool_output.json",
-                {"output_dir": str(output_dir.relative_to(repo_root))},
-            )
-            if inject_tool_exception_once and not injected:
-                injected = True
-                raise UnexpectedToolExecutionError(
-                    "development fault injection before Tool analysis"
-                )
-            try:
-                proposed_request = (
-                    tool_request_from_proposal(round_plan["tool_proposal"])
-                    if round_plan.get("tool_proposal") is not None
-                    else round_plan["tool_request"]
-                )
-                if round_plan.get("task_proposal") is not None:
-                    tool_kwargs["task_proposal"] = round_plan["task_proposal"]
-                return execute_tool_request(
-                    repo_root,
-                    child_dir,
-                    output_dir,
-                    proposed_request,
-                    **tool_kwargs,
-                )
-            except ToolOrchestrationError:
-                # Contract, routing, validation, and semantic input failures are
-                # terminal. Retrying them would hide a real evaluation error.
-                raise
-            except Exception as exc:
-                # Only exceptions outside the expected Tool contract are
-                # classified as restartable runtime failures.
-                raise UnexpectedToolExecutionError(
-                    f"{type(exc).__name__}: {exc}"
-                ) from exc
-
-        recovery = run_bounded_tool_recovery(
-            execution_dir / "tool_recovery",
-            logical_round_id=round_id,
-            execute=execute_tool_attempt,
-            telemetry_sha256=lambda: directory_tree_sha256(telemetry_dir),
-            max_restarts=tool_recovery_max_restarts,
+        proposed_request = (
+            tool_request_from_proposal(round_plan["tool_proposal"])
+            if round_plan.get("tool_proposal") is not None
+            else round_plan["tool_request"]
         )
-        recovery_summary = {
-            key: recovery.get(key)
-            for key in (
-                "status",
-                "attempt_count",
-                "restarts_used",
-                "same_telemetry_reused",
-                "telemetry_sha256",
-                "failure_class",
-                "action",
-                "recovery_scope",
-                "additional_act_rollouts_started_by_recovery",
-                "policy_or_simulator_restarted",
-                "provider_or_registry_work_may_repeat",
+        if round_plan.get("task_proposal") is not None:
+            tool_kwargs["task_proposal"] = round_plan["task_proposal"]
+        planned_tool_dir = execution_dir / "planned_tool"
+        tool_evaluation = reuse_bound_child_checker_tool(
+            repo_root,
+            child_manifest,
+            planned_tool_dir,
+            proposed_request,
+        )
+        if tool_evaluation is None:
+            tool_evaluation = execute_tool_request(
+                repo_root,
+                child_dir,
+                planned_tool_dir,
+                proposed_request,
+                **tool_kwargs,
             )
-        }
-        tool_evaluation = recovery["result"]
     else:
         skip_reason = (
             f"child TaskGen exited with code {returncode}"
@@ -1861,12 +1844,11 @@ def execute_round(
     round_summary["execution_artifact_dir"] = str(
         execution_dir.relative_to(repo_root)
     ).replace("\\", "/")
-    round_summary.setdefault("observations", {})["tool_recovery"] = recovery_summary
     write_json(evaluation_dir / "summary" / f"{round_id}.json", round_summary)
     return child_manifest, child_dir, round_summary, tool_evaluation, returncode
 
 
-def execute_round_stage_aware(
+def execute_round_once(
     repo_root: Path,
     evaluation_dir: Path,
     evaluation_id: str,
@@ -1883,260 +1865,28 @@ def execute_round_stage_aware(
     reviewed_task_registry: Path | None = None,
     reviewed_tool_registry: Path | None = None,
     reviewed_vqa_registry: Path | None = None,
-    tool_recovery_max_restarts: int = 0,
-    round_recovery_max_restarts: int = 1,
-    inject_tool_exception_once: bool = False,
     registration_identity: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], Path, dict[str, Any], dict[str, Any], int]:
-    """Run one logical Agent round under the paper's whole-round controller.
+    """Execute one paper-aligned round with no central restart controller."""
 
-    Existing local TaskGen and ToolGen repair loops stay inside their stages.
-    Only an exhausted, explicitly typed unexpected Tool-execution exception is
-    promoted to a whole-round restart.  Each retry gets a new child run id and
-    append-only execution directory, so failed ACT evidence is never silently
-    overwritten or reused as if it belonged to the replacement round.
-    """
-
-    round_id = str(round_plan["round_id"])
-    attempt_results: dict[
-        int, tuple[dict[str, Any], Path, dict[str, Any], dict[str, Any], int]
-    ] = {}
-
-    def taskgen_provider_called(child: dict[str, Any]) -> bool:
-        """Return whether the materialized TaskGen stage used a provider.
-
-        Generated BBH manifests record a non-empty ``provider.calls`` map;
-        bounded click_bell manifests record ``called=false`` but their later
-        visual self-check still invokes the vision provider.  Counting both
-        avoids attributing a restarted round only to ToolGen.
-        """
-
-        provider_record = child.get("provider")
-        if isinstance(provider_record, dict):
-            explicit = provider_record.get("called")
-            if isinstance(explicit, bool) and explicit:
-                return True
-            calls = provider_record.get("calls")
-            if isinstance(calls, dict) and bool(calls):
-                return True
-        return bool(
-            child.get("visual_self_reflection")
-            or child.get("vision_validation")
-        )
-
-    def runtime_for_child(attempt_index: int) -> dict[str, Any]:
-        suffix = "" if attempt_index == 1 else f"_attempt_{attempt_index:02d}"
-        run_id = child_run_id(evaluation_id, round_id) + suffix
-        manifest_path = repo_root / "mea/generated_tasks" / run_id / "manifest.json"
-        child: dict[str, Any] = {}
-        if manifest_path.is_file():
-            try:
-                loaded = json.loads(manifest_path.read_text(encoding="utf-8"))
-                child = loaded if isinstance(loaded, dict) else {}
-            except (OSError, json.JSONDecodeError):
-                child = {}
-        act = child.get("act_evaluation")
-        actual = act.get("actual_seeds") if isinstance(act, dict) else []
-        act_count = len(actual) if isinstance(actual, list) else 0
-        return {
-            "provider_called": taskgen_provider_called(child),
-            "simulator_called": bool(
-                child.get("scene_validation")
-                or child.get("act_evaluation")
-                or child.get("expert_evaluation")
-            ),
-            "act_rollouts_started": act_count,
-        }
-
-    def execute_attempt(attempt_dir: Path, attempt_index: int) -> dict[str, Any]:
-        del attempt_dir  # The controller owns its trace; Agent paths are canonical.
-        suffix = "" if attempt_index == 1 else f"_attempt_{attempt_index:02d}"
-        attempt_child_run_id = child_run_id(evaluation_id, round_id) + suffix
-        ledger_path = (
-            evaluation_dir
-            / "runtime"
-            / round_id
-            / f"attempt_{attempt_index:02d}"
-            / "call_starts.jsonl"
-        )
-        ledger_context = {
-            "schema_version": 1,
-            "evaluation_id": evaluation_id,
-            "logical_round_id": round_id,
-            "round_attempt_index": attempt_index,
-            "child_run_id": attempt_child_run_id,
-        }
-        try:
-            with runtime_ledger_context(ledger_path, ledger_context):
-                result = execute_round(
-                    repo_root,
-                    evaluation_dir,
-                    evaluation_id,
-                    round_plan,
-                    text_model=text_model,
-                    vision_model=vision_model,
-                    base_url=base_url,
-                    gpu=gpu,
-                    max_reflections=max_reflections,
-                    provider=provider,
-                    toolgen_model=toolgen_model,
-                    telemetry_profile=telemetry_profile,
-                    reviewed_task_registry=reviewed_task_registry,
-                    reviewed_tool_registry=reviewed_tool_registry,
-                    reviewed_vqa_registry=reviewed_vqa_registry,
-                    tool_recovery_max_restarts=tool_recovery_max_restarts,
-                    inject_tool_exception_once=(
-                        inject_tool_exception_once and attempt_index == 1
-                    ),
-                    registration_identity=registration_identity,
-                    round_attempt_index=attempt_index,
-                )
-        except BoundedRecoveryError as exc:
-            execution_dir = evaluation_dir / "execution" / round_id
-            if attempt_index > 1:
-                execution_dir = execution_dir / f"round_attempt_{attempt_index:02d}"
-            recovery_path = execution_dir / "tool_recovery/recovery_summary.json"
-            recovery: dict[str, Any] = {}
-            if recovery_path.is_file():
-                loaded = json.loads(recovery_path.read_text(encoding="utf-8"))
-                recovery = loaded if isinstance(loaded, dict) else {}
-            if recovery.get("failure_class") != "unexpected_tool_execution_exception":
-                raise
-            runtime = runtime_for_child(attempt_index)
-            ledger_summary = summarize_runtime_ledger(
-                ledger_path, expected_context=ledger_context
-            )
-            runtime.update(
-                {
-                    "provider_calls_started": ledger_summary[
-                        "provider_calls_started"
-                    ],
-                    "provider_transport_attempts_started": ledger_summary[
-                        "provider_transport_attempts_started"
-                    ],
-                    "act_batches_started": ledger_summary["act_batches_started"],
-                    "act_rollouts_started": ledger_summary["act_rollouts_started"],
-                    "call_start_ledger": str(ledger_path.relative_to(repo_root)).replace(
-                        "\\", "/"
-                    ),
-                }
-            )
-            raise StageFailure(
-                "tool_execution",
-                "unexpected_exception",
-                str(exc),
-                runtime=runtime,
-                details={
-                    "tool_recovery_summary": str(
-                        recovery_path.relative_to(repo_root)
-                    ).replace("\\", "/"),
-                    "failed_child_run_id": child_run_id(evaluation_id, round_id)
-                    + (
-                        ""
-                        if attempt_index == 1
-                        else f"_attempt_{attempt_index:02d}"
-                    ),
-                },
-            ) from exc
-        attempt_results[attempt_index] = result
-        child_manifest, _child_dir, _summary, tool_evaluation, _returncode = result
-        ledger_summary = summarize_runtime_ledger(
-            ledger_path, expected_context=ledger_context
-        )
-        ledger_summary["artifact"] = (
-            str(ledger_path.relative_to(repo_root)).replace("\\", "/")
-            if ledger_path.is_file()
-            else None
-        )
-        _summary.setdefault("observations", {})["runtime_call_ledger"] = ledger_summary
-        route = tool_evaluation.get("route_decision") or {}
-        runtime = runtime_for_child(attempt_index)
-        execution_vqa = (
-            (_summary.get("observations") or {}).get("execution_vqa") or {}
-        )
-        ledger_recorded = ledger_path.is_file()
-        runtime.update(
-            {
-                "provider_called": (
-                    ledger_summary["provider_called"]
-                    if ledger_recorded
-                    else bool(
-                        runtime["provider_called"]
-                        or route.get("provider_called")
-                        or execution_vqa.get("model_requested")
-                    )
-                ),
-                "provider_calls_started": ledger_summary["provider_calls_started"],
-                "provider_transport_attempts_started": ledger_summary[
-                    "provider_transport_attempts_started"
-                ],
-                "act_batches_started": ledger_summary["act_batches_started"],
-                "act_rollouts_started": (
-                    ledger_summary["act_rollouts_started"]
-                    if ledger_recorded
-                    else runtime["act_rollouts_started"]
-                ),
-                "call_start_ledger": ledger_summary["artifact"],
-            }
-        )
-        return {
-            "status": "completed",
-            "attempt_index": attempt_index,
-            "child_run_id": child_manifest.get("run_id"),
-            "execution_artifact_dir": _summary.get("execution_artifact_dir"),
-            "pipeline_passed": bool(_summary.get("pipeline_passed")),
-            "runtime": runtime,
-        }
-
-    round_identity = {
-        "evaluation_id": evaluation_id,
-        "round_plan": round_plan,
-        "text_model": text_model,
-        "vision_model": vision_model,
-        "toolgen_model": toolgen_model,
-        "telemetry_profile": telemetry_profile,
-        "reviewed_task_registry": (
-            str(reviewed_task_registry) if reviewed_task_registry is not None else None
-        ),
-        "reviewed_tool_registry": (
-            str(reviewed_tool_registry) if reviewed_tool_registry is not None else None
-        ),
-        "reviewed_vqa_registry": (
-            str(reviewed_vqa_registry) if reviewed_vqa_registry is not None else None
-        ),
-        "registration_identity": registration_identity,
-    }
-    recovery = run_stage_aware_round_recovery(
-        evaluation_dir / "execution" / round_id / "whole_round_recovery",
-        logical_round_id=round_id,
-        round_identity=round_identity,
-        execute_round=execute_attempt,
-        max_restarts=round_recovery_max_restarts,
+    return execute_round(
+        repo_root,
+        evaluation_dir,
+        evaluation_id,
+        round_plan,
+        text_model=text_model,
+        vision_model=vision_model,
+        base_url=base_url,
+        gpu=gpu,
+        max_reflections=max_reflections,
+        provider=provider,
+        toolgen_model=toolgen_model,
+        telemetry_profile=telemetry_profile,
+        reviewed_task_registry=reviewed_task_registry,
+        reviewed_tool_registry=reviewed_tool_registry,
+        reviewed_vqa_registry=reviewed_vqa_registry,
+        registration_identity=registration_identity,
     )
-    final_attempt = int(recovery["attempts"][-1]["attempt_index"])
-    if final_attempt not in attempt_results:
-        raise WholeRoundRecoveryError(
-            "round recovery completed without a materialized Agent result",
-            summary=recovery,
-        )
-    result = attempt_results[final_attempt]
-    result[2].setdefault("observations", {})["whole_round_recovery"] = {
-        key: recovery.get(key)
-        for key in (
-            "status",
-            "recovery_scope",
-            "attempt_count",
-            "restarts_used",
-            "whole_round_restarted",
-            "policy_or_simulator_restarted",
-            "additional_round_attempts_started_by_recovery",
-            "additional_act_rollouts_started_by_recovery",
-            "runtime",
-            "attempts",
-        )
-    }
-    write_json(evaluation_dir / "summary" / f"{round_id}.json", result[2])
-    return result
 
 
 def _round_evidence(
@@ -2216,6 +1966,22 @@ def _round_evidence(
             execution_vqa_artifact = str(round_execution / "execution_vqa_skipped.json")
         elif execution_vqa_observation.get("status") == "failed":
             execution_vqa_artifact = str(round_execution / "execution_vqa_error.json")
+    requested_seeds = [
+        int(value) for value in round_plan["execution"].get("seeds", [])
+    ]
+    requested_num_episodes = int(
+        round_plan["execution"].get("num_episodes", len(requested_seeds))
+    )
+    actual_policy_seeds = (
+        [
+            int(value)
+            for value in (
+                round_summary["observations"].get("actual_seeds") or []
+            )
+        ]
+        if round_execution_backend(round_plan) in {"act", "both"}
+        else []
+    )
     return {
         "round_id": round_plan["round_id"],
         "child_run_id": child_manifest.get("run_id"),
@@ -2228,12 +1994,11 @@ def _round_evidence(
         "sub_aspect": round_plan["sub_aspect"],
         "task_instruction": round_plan["task_instruction"],
         "route": round_plan["route"],
-        "seeds": (
-            round_summary["observations"].get("actual_seeds")
-            or round_plan["execution"]["seeds"]
-        ),
-        "requested_seeds": round_plan["execution"]["seeds"],
-        "num_episodes": round_plan["execution"]["num_episodes"],
+        "seeds": actual_policy_seeds,
+        "actual_seeds": actual_policy_seeds,
+        "requested_seeds": requested_seeds,
+        "num_episodes": len(actual_policy_seeds),
+        "requested_num_episodes": requested_num_episodes,
         "task_retrieval": {
             "catalog_size": retrieval.get("catalog_size"),
             "selected_tasks": retrieval.get("selected_tasks", []),
@@ -2299,7 +2064,6 @@ def _round_evidence(
             "execution_vqa_montage": execution_vqa_artifacts.get("montage"),
             "execution_vqa_selection": execution_vqa_artifacts.get("selection"),
             "child_manifest": str(child_relative / "manifest.json"),
-            "round_provenance": round_summary.get("provenance", {}).get("path"),
         },
     }
 
@@ -2325,6 +2089,9 @@ def build_evidence_bundle(
         for item in round_runs
     ]
     total_episodes = sum(item["num_episodes"] for item in rounds)
+    requested_total_episodes = sum(
+        item["requested_num_episodes"] for item in rounds
+    )
     weighted_success = 0.0
     measured_episodes = 0
     for item in rounds:
@@ -2486,6 +2253,7 @@ def build_evidence_bundle(
             ),
         },
         "total_episodes": total_episodes,
+        "requested_total_episodes": requested_total_episodes,
         "history_retrieval": history_retrieval,
         "global_query_route": (
             {
@@ -2611,13 +2379,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--open-query-planner",
         choices=["catalog_step_v1", "claim_first_v1"],
-        default="catalog_step_v1",
+        default=None,
         help=(
-            "catalog_step_v1 preserves the existing public adaptive planner. "
-            "claim_first_v1 first executes a runtime-owned official-scene "
+            "For --auto-route, claim_first_v1 is the production default: it "
+            "first executes a "
+            "runtime-owned official-scene "
             "control, then lets ClaimFirstOpenQueryAgent discover one semantic "
             "next experiment from automatically bound evidence. Requires "
-            "--auto-route and dynamic planning."
+            "--auto-route and dynamic planning. catalog_step_v1 is retained "
+            "only as a paper-ablation baseline."
         ),
     )
     parser.add_argument(
@@ -2728,34 +2498,6 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--tool-recovery-max-restarts",
-        type=int,
-        choices=[0, 1],
-        default=0,
-        help=(
-            "Legacy local Tool-substage retry budget. The paper-aligned default "
-            "is 0 so unexpected Tool execution is handled by whole-round recovery."
-        ),
-    )
-    parser.add_argument(
-        "--round-recovery-max-restarts",
-        type=int,
-        choices=[0, 1],
-        default=1,
-        help=(
-            "Restart the whole evaluation round once only after an explicitly "
-            "typed unexpected Tool-execution exception."
-        ),
-    )
-    parser.add_argument(
-        "--inject-tool-exception-once",
-        action="store_true",
-        help=(
-            "Development-only unexpected Tool-execution fault. With the "
-            "paper-aligned defaults it restarts the whole round and ACT once."
-        ),
-    )
-    parser.add_argument(
         "--no-history",
         action="store_true",
         help="Disable cross-evaluation planning retrieval and indexing.",
@@ -2782,6 +2524,11 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    requested_open_query_planner = args.open_query_planner
+    if args.open_query_planner is None:
+        args.open_query_planner = (
+            "claim_first_v1" if args.auto_route else "catalog_step_v1"
+        )
     claim_first_mode = args.open_query_planner == "claim_first_v1"
     claim_first_bound_plan_only = bool(
         claim_first_mode
@@ -2791,13 +2538,6 @@ def main() -> None:
     )
     if args.num_episodes <= 0:
         raise SystemExit("--num-episodes must be positive")
-    if args.inject_tool_exception_once and not (
-        args.tool_recovery_max_restarts == 1
-        or args.round_recovery_max_restarts == 1
-    ):
-        raise SystemExit(
-            "--inject-tool-exception-once requires a Tool-substage or whole-round restart"
-        )
     if args.auto_route and args.task_module is not None:
         raise SystemExit(
             "--auto-route resolves a trusted task module; do not pass --task-module"
@@ -2852,13 +2592,6 @@ def main() -> None:
         )
     if args.registered_strategy is not None and args.auto_route:
         raise SystemExit("registered execution forbids live --auto-route")
-    if args.registered_strategy is not None and (
-        args.tool_recovery_max_restarts != 0
-        or args.round_recovery_max_restarts != 0
-    ):
-        raise SystemExit(
-            "registered execution requires both recovery restart budgets to be 0"
-        )
     if args.registered_strategy is not None and args.evaluation_id is None:
         raise SystemExit("registered execution requires an explicit --evaluation-id")
     repo_root = args.repo_root.expanduser().resolve()
@@ -2875,10 +2608,6 @@ def main() -> None:
             raise SystemExit("--query-sufficiency-contract must contain a JSON object")
         query_sufficiency_contract = loaded_contract
     args.evaluation_id = args.evaluation_id or make_evaluation_id()
-    pre_round_ledger_root = (
-        repo_root / "mea/evaluation_runs/.runtime_ledgers" / args.evaluation_id
-    )
-    pre_round_ledgers: list[dict[str, Any]] = []
     registered_execution: dict[str, Any] | None = None
     if args.registered_strategy is not None:
         try:
@@ -3029,25 +2758,9 @@ def main() -> None:
             bound_requested_aspect_ids=args.bound_requested_aspect_ids,
             planning_contexts=global_planning_contexts,
         )
-        global_ledger_context = {
-            "schema_version": 1,
-            "evaluation_id": args.evaluation_id,
-            "logical_round_id": "global_query_route",
-            "round_attempt_index": 1,
-            "child_run_id": "global_query_router",
-        }
-        global_ledger_path = pre_round_ledger_root / "global_query_route.jsonl"
-        with runtime_ledger_context(global_ledger_path, global_ledger_context):
-            global_route_result = global_router.route(
-                args.request,
-                history_context=global_history_context,
-            )
-        pre_round_ledgers.append(
-            {
-                "name": "global_query_route",
-                "path": global_ledger_path,
-                "context": global_ledger_context,
-            }
+        global_route_result = global_router.route(
+            args.request,
+            history_context=global_history_context,
         )
         selection = global_route_result["selection"]
         if selection["decision"] == "unsupported":
@@ -3059,17 +2772,6 @@ def main() -> None:
                 route_result=global_route_result,
                 router=global_router,
                 history_retrieval=global_history_retrieval,
-            )
-            unsupported_dir = repo_root / "mea/evaluation_runs" / args.evaluation_id
-            pre_round_runtime = adopt_pre_round_ledgers(
-                repo_root, unsupported_dir, pre_round_ledgers
-            )
-            unsupported = update_manifest(
-                unsupported_dir,
-                runtime_ledgers=pre_round_runtime,
-                runtime_totals=aggregate_runtime_ledger_summaries(
-                    pre_round_runtime
-                ),
             )
             print(json.dumps(unsupported, ensure_ascii=False, indent=2))
             return
@@ -3086,6 +2788,23 @@ def main() -> None:
             else "official"
         )
         validated_proposal = routed["proposal"]
+        if claim_first_mode and not supports_claim_first_runtime(
+            global_catalog,
+            args.task_name,
+        ):
+            if requested_open_query_planner is not None:
+                raise SystemExit(
+                    "claim_first_v1 requires a control plus at least one "
+                    f"candidate experiment; {args.task_name!r} currently "
+                    "exposes only one-round official execution"
+                )
+            global_route_result["planner_resolution"] = {
+                "requested": "claim_first_v1",
+                "executed": "catalog_step_v1",
+                "reason": "task_has_only_one_round_official_execution",
+            }
+            args.open_query_planner = "catalog_step_v1"
+            claim_first_mode = False
 
     legacy_click_bell = args.task_profile == "position_lr"
     adaptive_click_bell = args.task_profile == "adaptive_properties"
@@ -3126,31 +2845,7 @@ def main() -> None:
             vision_model=models["vision"],
             timeout=180.0,
         )
-    if args.task_name == "beat_block_hammer":
-        if provider is None and not claim_first_bound_plan_only:
-            raise RuntimeError("beat_block_hammer planner provider was not initialized")
-        planner = PlanAgentPrototype(
-            repo_root,
-            provider,
-            model=models["planner"],
-            start_seed=args.start_seed,
-            num_episodes=args.num_episodes,
-        )
-    elif adaptive_click_bell:
-        if provider is None and not claim_first_bound_plan_only:
-            raise RuntimeError("click_bell planner provider was not initialized")
-        planner = ClickBellAdaptivePlanAgent(
-            repo_root,
-            provider,
-            model=models["planner"],
-            start_seed=(
-                args.start_seed if args.start_seed is not None else 100401
-            ),
-            num_episodes=args.num_episodes,
-            telemetry_profile=args.telemetry_profile,
-            max_rounds=args.generated_rounds,
-        )
-    elif fixed_click_bell:
+    if fixed_click_bell:
         assert provider is not None
         planner = ClickBellFixedSuitePlanAgent(
             repo_root,
@@ -3174,16 +2869,18 @@ def main() -> None:
             max_rounds=args.generated_rounds,
         )
     else:
-        planner = OfficialTaskPlanAgent(
+        planner = CatalogPlanAgent(
             repo_root,
             task_name=args.task_name,
+            provider=provider,
+            model=models["planner"],
             task_module=args.task_module,
-            start_seed=(
-                args.start_seed if args.start_seed is not None else 100000
-            ),
+            start_seed=args.start_seed,
             num_episodes=args.num_episodes,
             telemetry_profile=args.telemetry_profile,
+            max_rounds=args.generated_rounds,
             execution_backend=execution_backend,
+            task_profile=args.task_profile,
         )
     history_database = None
     history_context: list[dict[str, Any]] = []
@@ -3258,28 +2955,9 @@ def main() -> None:
             claim_first_pre_session.target,
             args.request,
         )
-    planning_ledger_context = {
-        "schema_version": 1,
-        "evaluation_id": args.evaluation_id,
-        "logical_round_id": "initial_plan",
-        "round_attempt_index": 1,
-        "child_run_id": "task_planner",
-    }
-    planning_ledger_path = pre_round_ledger_root / "initial_plan.jsonl"
-    with runtime_ledger_context(planning_ledger_path, planning_ledger_context):
-        manifest = planner.plan(args.request, **planner_kwargs)
-    pre_round_ledgers.append(
-        {
-            "name": "initial_plan",
-            "path": planning_ledger_path,
-            "context": planning_ledger_context,
-        }
-    )
+    manifest = planner.plan(args.request, **planner_kwargs)
     evaluation_id = manifest["evaluation_id"]
     evaluation_dir = repo_root / "mea/evaluation_runs" / evaluation_id
-    pre_round_runtime = adopt_pre_round_ledgers(
-        repo_root, evaluation_dir, pre_round_ledgers
-    )
     if (
         global_catalog is not None
         and global_route_result is not None
@@ -3297,8 +2975,6 @@ def main() -> None:
             global_query_route_path="plan/global_query_route.json",
             global_act_catalog_path="plan/global_act_catalog.json",
             global_route_selection=global_route_result["selection"],
-            runtime_ledgers=pre_round_runtime,
-            runtime_totals=aggregate_runtime_ledger_summaries(pre_round_runtime),
         )
     plan = manifest["plan"]
     bound_plan_session: BoundTaskPlanSession | None = None
@@ -3409,39 +3085,15 @@ def main() -> None:
                         "click_bell object_position capability only"
                     )
                 initial_failure_stage = "initial_bounded_proposal"
-                proposal_context = {
-                    "schema_version": 1,
-                    "evaluation_id": args.evaluation_id,
-                    "logical_round_id": "bounded_proposal_round_1",
-                    "round_attempt_index": 1,
-                    "child_run_id": "bounded_proposal_agent",
-                }
-                proposal_ledger = (
-                    evaluation_dir
-                    / "runtime/pre_round/bounded_proposal_round_01.jsonl"
+                plan["rounds"][0], proposal_bundle = apply_bounded_round_proposal(
+                    proposal_agent=proposal_agent,
+                    user_query=args.request,
+                    target=bound_plan_session.target,
+                    planning_context=planning_context,
+                    round_plan=first_round,
+                    evaluation_dir=evaluation_dir,
+                    round_number=1,
                 )
-                try:
-                    with runtime_ledger_context(proposal_ledger, proposal_context):
-                        plan["rounds"][0], proposal_bundle = (
-                            apply_bounded_round_proposal(
-                                proposal_agent=proposal_agent,
-                                user_query=args.request,
-                                target=bound_plan_session.target,
-                                planning_context=planning_context,
-                                round_plan=first_round,
-                                evaluation_dir=evaluation_dir,
-                                round_number=1,
-                            )
-                        )
-                finally:
-                    record_runtime_ledger_stage(
-                        repo_root,
-                        evaluation_dir,
-                        pre_round_runtime,
-                        ledger_path=proposal_ledger,
-                        context=proposal_context,
-                        stage="bounded_proposal_round_1",
-                    )
                 plan = bound_plan_session.normalize_plan(plan)
                 manifest.setdefault("planner", {}).update(
                     {
@@ -3588,23 +3240,6 @@ def main() -> None:
             if reviewed_vqa_registry is not None
             else None
         ),
-        tool_recovery={
-            "schema_version": 1,
-            "max_restarts": args.tool_recovery_max_restarts,
-            "eligible_failure": "unexpected_tool_execution_exception",
-            "reuses_recorded_telemetry": True,
-            "restarts_policy_or_simulator": False,
-            "development_fault_injection": bool(args.inject_tool_exception_once),
-        },
-        whole_round_recovery={
-            "schema_version": 1,
-            "max_restarts": args.round_recovery_max_restarts,
-            "eligible_failure": "tool_execution/unexpected_exception",
-            "reuses_recorded_telemetry": False,
-            "restarts_policy_or_simulator": True,
-            "policy_or_simulator_failures_are_not_retried": True,
-            "development_fault_injection": bool(args.inject_tool_exception_once),
-        },
         registration_identity=registration_identity,
         evidence_manifest=(
             str(args.evidence_manifest) if registration_identity is not None else None
@@ -3615,8 +3250,6 @@ def main() -> None:
         registered_route=(
             str(args.registered_route) if registration_identity is not None else None
         ),
-        runtime_ledgers=pre_round_runtime,
-        runtime_totals=aggregate_runtime_ledger_summaries(pre_round_runtime),
         max_agent_rounds=args.max_agent_rounds,
         bound_task_name=(
             evaluation_target["task_name"] if evaluation_target is not None else None
@@ -3629,7 +3262,6 @@ def main() -> None:
         evaluation_target=evaluation_target,
         plan_session_path=bound_plan_session_path,
     )
-    runtime_ledgers = list(pre_round_runtime)
 
     if args.plan_only:
         update_manifest(evaluation_dir, status="planned_only")
@@ -3647,62 +3279,29 @@ def main() -> None:
         while executed_rounds < len(plan["rounds"]):
             active_failure_stage = f"round_{executed_rounds + 1}_execution"
             round_plan = plan["rounds"][executed_rounds]
-            try:
-                (
-                    child_manifest,
-                    child_dir,
-                    round_summary,
-                    tool_evaluation,
-                    returncode,
-                ) = execute_round_stage_aware(
-                    repo_root,
-                    evaluation_dir,
-                    evaluation_id,
-                    round_plan,
-                    text_model=models["taskgen"],
-                    vision_model=models["vision"],
-                    base_url=args.base_url,
-                    gpu=args.gpu,
-                    max_reflections=args.max_reflections,
-                    provider=provider,
-                    toolgen_model=models["toolgen"],
-                    telemetry_profile=args.telemetry_profile,
-                    reviewed_task_registry=reviewed_task_registry,
-                    reviewed_tool_registry=reviewed_tool_registry,
-                    reviewed_vqa_registry=reviewed_vqa_registry,
-                    tool_recovery_max_restarts=args.tool_recovery_max_restarts,
-                    round_recovery_max_restarts=args.round_recovery_max_restarts,
-                    inject_tool_exception_once=args.inject_tool_exception_once,
-                    registration_identity=registration_identity,
-                )
-            finally:
-                record_round_attempt_ledgers(
-                    repo_root,
-                    evaluation_dir,
-                    runtime_ledgers,
-                    evaluation_id=evaluation_id,
-                    round_id=str(round_plan["round_id"]),
-                )
-            runtime_ledger_artifact = (
-                (round_summary.get("observations") or {})
-                .get("runtime_call_ledger", {})
-                .get("artifact")
-            )
-            round_summary, round_provenance = bind_round_provenance(
+            (
+                child_manifest,
+                child_dir,
+                round_summary,
+                tool_evaluation,
+                returncode,
+            ) = execute_round_once(
                 repo_root,
                 evaluation_dir,
-                round_plan=round_plan,
-                child_dir=child_dir,
-                round_summary=round_summary,
-                ledger_paths=(
-                    [repo_root / runtime_ledger_artifact]
-                    if runtime_ledger_artifact
-                    else []
-                ),
-            )
-            write_json(
-                evaluation_dir / "summary" / f"{round_plan['round_id']}.json",
-                round_summary,
+                evaluation_id,
+                round_plan,
+                text_model=models["taskgen"],
+                vision_model=models["vision"],
+                base_url=args.base_url,
+                gpu=args.gpu,
+                max_reflections=args.max_reflections,
+                provider=provider,
+                toolgen_model=models["toolgen"],
+                telemetry_profile=args.telemetry_profile,
+                reviewed_task_registry=reviewed_task_registry,
+                reviewed_tool_registry=reviewed_tool_registry,
+                reviewed_vqa_registry=reviewed_vqa_registry,
+                registration_identity=registration_identity,
             )
             round_runs.append(
                 {
@@ -3711,7 +3310,6 @@ def main() -> None:
                     "child_dir": child_dir,
                     "round_summary": round_summary,
                     "tool_evaluation": tool_evaluation,
-                    "round_provenance": round_provenance,
                     "returncode": returncode,
                 }
             )
@@ -3724,7 +3322,6 @@ def main() -> None:
                 claim_first_runtime_state = claim_first_controller.observe(
                     [item["round_plan"] for item in round_runs],
                     [item["round_summary"] for item in round_runs],
-                    [item["round_provenance"] for item in round_runs],
                 )
                 claim_first_dir = evaluation_dir / "plan/claim_first_runtime"
                 write_json(
@@ -3876,19 +3473,6 @@ def main() -> None:
                 )
                 break
 
-            decision_context = {
-                "schema_version": 1,
-                "evaluation_id": evaluation_id,
-                "logical_round_id": f"decision_after_{round_plan['round_id']}",
-                "round_attempt_index": 1,
-                "child_run_id": "task_planner",
-            }
-            decision_ledger = (
-                evaluation_dir
-                / "runtime"
-                / f"decision_after_{round_plan['round_id']}"
-                / "call_starts.jsonl"
-            )
             plan_before_decision = plan
             observation_history = [
                 item["round_summary"] for item in round_runs
@@ -3909,34 +3493,21 @@ def main() -> None:
                 active_failure_stage = (
                     f"claim_first_decision_after_round_{executed_rounds}"
                 )
-                try:
-                    with runtime_ledger_context(decision_ledger, decision_context):
-                        semantic_bundle = claim_first_agent.propose(
-                            args.request,
-                            capabilities=claim_first_capabilities,
-                            evidence_history=claim_first_runtime_state[
-                                "open_query_evidence_history"
-                            ],
-                        )
-                        bound_semantic_step = (
-                            claim_first_controller.bind_semantic_step(
-                                semantic_bundle,
-                                claim_first_runtime_state,
-                                executed_template_ids=[
-                                    str(item["round_plan"]["template_id"])
-                                    for item in round_runs
-                                ],
-                            )
-                        )
-                finally:
-                    record_runtime_ledger_stage(
-                        repo_root,
-                        evaluation_dir,
-                        runtime_ledgers,
-                        ledger_path=decision_ledger,
-                        context=decision_context,
-                        stage=f"decision_after_{round_plan['round_id']}",
-                    )
+                semantic_bundle = claim_first_agent.propose(
+                    args.request,
+                    capabilities=claim_first_capabilities,
+                    evidence_history=claim_first_runtime_state[
+                        "open_query_evidence_history"
+                    ],
+                )
+                bound_semantic_step = claim_first_controller.bind_semantic_step(
+                    semantic_bundle,
+                    claim_first_runtime_state,
+                    executed_template_ids=[
+                        str(item["round_plan"]["template_id"])
+                        for item in round_runs
+                    ],
+                )
                 step_dir = (
                     evaluation_dir
                     / "plan/claim_first_steps"
@@ -3984,51 +3555,19 @@ def main() -> None:
                             "bounded Proposal Agent"
                         )
                     next_round_number = len(plan_before_decision["rounds"]) + 1
-                    semantic_proposal_context = {
-                        "schema_version": 1,
-                        "evaluation_id": evaluation_id,
-                        "logical_round_id": (
-                            f"semantic_task_tool_round_{next_round_number}"
-                        ),
-                        "round_attempt_index": 1,
-                        "child_run_id": "bounded_proposal_agent",
-                    }
-                    semantic_proposal_ledger = (
-                        evaluation_dir
-                        / "runtime"
-                        / f"semantic_task_tool_round_{next_round_number:02d}"
-                        / "call_starts.jsonl"
+                    (
+                        materialized_round,
+                        semantic_execution_bundle,
+                    ) = apply_bounded_round_proposal(
+                        proposal_agent=proposal_agent,
+                        user_query=args.request,
+                        target=bound_plan_session.target,
+                        planning_context=planning_context,
+                        round_plan=materialized_round,
+                        evaluation_dir=evaluation_dir,
+                        round_number=next_round_number,
+                        semantic_proposal=semantic_proposal,
                     )
-                    try:
-                        with runtime_ledger_context(
-                            semantic_proposal_ledger,
-                            semantic_proposal_context,
-                        ):
-                            (
-                                materialized_round,
-                                semantic_execution_bundle,
-                            ) = apply_bounded_round_proposal(
-                                proposal_agent=proposal_agent,
-                                user_query=args.request,
-                                target=bound_plan_session.target,
-                                planning_context=planning_context,
-                                round_plan=materialized_round,
-                                evaluation_dir=evaluation_dir,
-                                round_number=next_round_number,
-                                semantic_proposal=semantic_proposal,
-                            )
-                    finally:
-                        record_runtime_ledger_stage(
-                            repo_root,
-                            evaluation_dir,
-                            runtime_ledgers,
-                            ledger_path=semantic_proposal_ledger,
-                            context=semantic_proposal_context,
-                            stage=(
-                                f"semantic_task_tool_round_"
-                                f"{next_round_number}"
-                            ),
-                        )
                     bound_semantic_step["execution_binding"] = {
                         "schema_version": 1,
                         "proposal_bundle_path": (
@@ -4144,31 +3683,20 @@ def main() -> None:
                 active_failure_stage = (
                     f"adaptive_decision_after_round_{executed_rounds}"
                 )
-                try:
-                    with runtime_ledger_context(decision_ledger, decision_context):
-                        navigation_options = bound_plan_session.navigation_options(
-                            plan_before_decision,
-                            observation_history,
-                            allowed_template_ids=(
-                                registered_execution["expected_candidate_suite"]
-                                if registered_execution is not None
-                                else None
-                            ),
-                        )
-                        step_bundle = adaptive_step_agent.propose(
-                            args.request,
-                            navigation_options=navigation_options,
-                            planning_context=planning_context,
-                        )
-                finally:
-                    record_runtime_ledger_stage(
-                        repo_root,
-                        evaluation_dir,
-                        runtime_ledgers,
-                        ledger_path=decision_ledger,
-                        context=decision_context,
-                        stage=f"decision_after_{round_plan['round_id']}",
-                    )
+                navigation_options = bound_plan_session.navigation_options(
+                    plan_before_decision,
+                    observation_history,
+                    allowed_template_ids=(
+                        registered_execution["expected_candidate_suite"]
+                        if registered_execution is not None
+                        else None
+                    ),
+                )
+                step_bundle = adaptive_step_agent.propose(
+                    args.request,
+                    navigation_options=navigation_options,
+                    planning_context=planning_context,
+                )
                 plan_step = step_bundle["proposal"]
                 step_path = persist_adaptive_step_selection(
                     evaluation_dir,
@@ -4211,47 +3739,17 @@ def main() -> None:
                                 "bounded_each_round proposal state was not initialized"
                             )
                         next_round_number = len(plan_before_decision["rounds"]) + 1
-                        proposal_context = {
-                            "schema_version": 1,
-                            "evaluation_id": evaluation_id,
-                            "logical_round_id": (
-                                f"bounded_proposal_round_{next_round_number}"
-                            ),
-                            "round_attempt_index": 1,
-                            "child_run_id": "bounded_proposal_agent",
-                        }
-                        proposal_ledger = (
-                            evaluation_dir
-                            / "runtime"
-                            / f"bounded_proposal_round_{next_round_number:02d}"
-                            / "call_starts.jsonl"
-                        )
-                        try:
-                            with runtime_ledger_context(
-                                proposal_ledger, proposal_context
-                            ):
-                                materialized_round, _proposal_artifact = (
-                                    apply_bounded_round_proposal(
-                                        proposal_agent=proposal_agent,
-                                        user_query=args.request,
-                                        target=bound_plan_session.target,
-                                        planning_context=planning_context,
-                                        round_plan=materialized_round,
-                                        evaluation_dir=evaluation_dir,
-                                        round_number=next_round_number,
-                                    )
-                                )
-                        finally:
-                            record_runtime_ledger_stage(
-                                repo_root,
-                                evaluation_dir,
-                                runtime_ledgers,
-                                ledger_path=proposal_ledger,
-                                context=proposal_context,
-                                stage=(
-                                    f"bounded_proposal_round_{next_round_number}"
-                                ),
+                        materialized_round, _proposal_artifact = (
+                            apply_bounded_round_proposal(
+                                proposal_agent=proposal_agent,
+                                user_query=args.request,
+                                target=bound_plan_session.target,
+                                planning_context=planning_context,
+                                round_plan=materialized_round,
+                                evaluation_dir=evaluation_dir,
+                                round_number=next_round_number,
                             )
+                        )
                 active_failure_stage = (
                     f"plan_transition_after_round_{executed_rounds}"
                 )
@@ -4273,23 +3771,12 @@ def main() -> None:
                     },
                 )
             else:
-                try:
-                    with runtime_ledger_context(decision_ledger, decision_context):
-                        candidate_plan, candidate_decision = planner.decide_next_round(
-                            evaluation_id=evaluation_id,
-                            user_request=args.request,
-                            current_plan=plan_before_decision,
-                            observation_history=observation_history,
-                        )
-                finally:
-                    record_runtime_ledger_stage(
-                        repo_root,
-                        evaluation_dir,
-                        runtime_ledgers,
-                        ledger_path=decision_ledger,
-                        context=decision_context,
-                        stage=f"decision_after_{round_plan['round_id']}",
-                    )
+                candidate_plan, candidate_decision = planner.decide_next_round(
+                    evaluation_id=evaluation_id,
+                    user_request=args.request,
+                    current_plan=plan_before_decision,
+                    observation_history=observation_history,
+                )
                 common_adaptive_session = (
                     bound_plan_session is not None
                     and not fixed_click_bell
@@ -4450,34 +3937,15 @@ def main() -> None:
             evidence_path="summary/evidence_bundle.json",
             summary=summary,
         )
-        feedback_context = {
-            "schema_version": 1,
-            "evaluation_id": evaluation_id,
-            "logical_round_id": "final_feedback",
-            "round_attempt_index": 1,
-            "child_run_id": "feedback_agent",
-        }
-        feedback_ledger = evaluation_dir / "runtime/final_feedback/call_starts.jsonl"
         active_failure_stage = "final_feedback"
-        try:
-            with runtime_ledger_context(feedback_ledger, feedback_context):
-                feedback = FeedbackAgent(
-                    repo_root,
-                    provider,
-                    model=models["feedback"],
-                ).generate(
-                    evidence,
-                    output_dir=evaluation_dir / "feedback",
-                )
-        finally:
-            record_runtime_ledger_stage(
-                repo_root,
-                evaluation_dir,
-                runtime_ledgers,
-                ledger_path=feedback_ledger,
-                context=feedback_context,
-                stage="final_feedback",
-            )
+        feedback = FeedbackAgent(
+            repo_root,
+            provider,
+            model=models["feedback"],
+        ).generate(
+            evidence,
+            output_dir=evaluation_dir / "feedback",
+        )
         report_path = evaluation_dir / "evaluation_report.md"
         report_path.write_text(
             render_evaluation_report(evidence, feedback),
@@ -4496,8 +3964,6 @@ def main() -> None:
             child_run_ids=[item["child_manifest"].get("run_id") for item in round_runs],
             summary=summary,
             feedback=feedback,
-            runtime_ledgers=runtime_ledgers,
-            runtime_totals=aggregate_runtime_ledger_summaries(runtime_ledgers),
         )
         compact_evidence_report = write_evidence_report(
             repo_root,

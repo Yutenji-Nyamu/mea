@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from mea.planner import OfficialTaskPlanAgent
+from mea.planner import OfficialTaskPlanAgent, build_act_catalog
 from mea.taskgen import create_official_task_run
 from scripts.manipeval_agent import (
     build_evidence_bundle,
@@ -16,6 +16,8 @@ from scripts.manipeval_agent import (
     finish_unsupported_global_route,
     run_round_execution_vqa,
     summarize_round,
+    supports_claim_first_runtime,
+    taskgen_ast_gate_passed,
 )
 from scripts.manipeval_taskgen import (
     run_act,
@@ -63,6 +65,76 @@ def official_round(execution_backend: str | None = None) -> dict:
 
 
 class CrossTaskEntrypointTests(unittest.TestCase):
+    def test_ast_gate_accepts_valid_provider_scene_checker_codegen(self):
+        self.assertTrue(
+            taskgen_ast_gate_passed(
+                {
+                    "provider_scene_checker": {
+                        "valid": True,
+                        "ast_policy": (
+                            "bbh_distractor_safe_ast_semantic_fixtures_v2"
+                        ),
+                        "model_written_python": True,
+                        "restricted_success_spec_compiler_used": False,
+                    }
+                }
+            )
+        )
+        self.assertTrue(
+            taskgen_ast_gate_passed(
+                {"load_actors_ast": {"valid": True}}
+            )
+        )
+        self.assertFalse(
+            taskgen_ast_gate_passed(
+                {
+                    "provider_scene_checker": {
+                        "valid": True,
+                        "ast_policy": "fixture",
+                        "model_written_python": True,
+                        "restricted_success_spec_compiler_used": True,
+                    }
+                }
+            )
+        )
+
+    def test_claim_first_runtime_requires_control_and_candidate(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            schema_dir = root / "mea/toolkit/schemas"
+            schema_dir.mkdir(parents=True)
+            for task_name in (
+                "beat_block_hammer",
+                "click_bell",
+                "adjust_bottle",
+                "grab_roller",
+            ):
+                shutil.copy2(
+                    REPO_ROOT / f"mea/toolkit/schemas/{task_name}.json",
+                    schema_dir / f"{task_name}.json",
+                )
+                checkpoint_dir = (
+                    root
+                    / "policy/ACT/act_ckpt"
+                    / f"act-{task_name}/demo_clean-50"
+                )
+                checkpoint_dir.mkdir(parents=True, exist_ok=True)
+                (checkpoint_dir / "dataset_stats.pkl").write_bytes(b"stats")
+                (checkpoint_dir / "policy_last.ckpt").write_bytes(b"checkpoint")
+            catalog = build_act_catalog(root)
+            self.assertTrue(
+                supports_claim_first_runtime(catalog, "beat_block_hammer")
+            )
+            self.assertTrue(
+                supports_claim_first_runtime(catalog, "click_bell")
+            )
+            self.assertFalse(
+                supports_claim_first_runtime(catalog, "adjust_bottle")
+            )
+            self.assertFalse(
+                supports_claim_first_runtime(catalog, "grab_roller")
+            )
+
     def test_auto_route_rejects_task_module_override_before_provider_setup(self):
         with tempfile.TemporaryDirectory() as temporary:
             environment = dict(os.environ)
@@ -293,6 +365,50 @@ class CrossTaskEntrypointTests(unittest.TestCase):
                 self.assertEqual(plan["policy"]["name"], "ACT")
                 if backend == "both":
                     self.assertIn("expert", round_plan["execution"]["gates"])
+
+    def test_official_planner_accepts_validated_control_proposal(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            schema_dir = root / "mea/toolkit/schemas"
+            schema_dir.mkdir(parents=True)
+            shutil.copy2(
+                REPO_ROOT / "mea/toolkit/schemas/adjust_bottle.json",
+                schema_dir / "adjust_bottle.json",
+            )
+            planner = OfficialTaskPlanAgent(
+                root,
+                task_name="adjust_bottle",
+                execution_backend="act",
+            )
+            proposal = {
+                "schema_version": 1,
+                "task_name": "adjust_bottle",
+                "evaluation_goal": (
+                    "establish_clean_control_before_claim_first_attribution"
+                ),
+                "requested_aspect_ids": [
+                    "task_execution.official_baseline"
+                ],
+                "first_aspect_id": "task_execution.official_baseline",
+            }
+            manifest = planner.plan(
+                "evaluate adjust_bottle",
+                evaluation_id="eval_adjust_bottle_control",
+                validated_proposal=proposal,
+            )
+
+            self.assertEqual(
+                manifest["plan"]["evaluation_goal"],
+                proposal["evaluation_goal"],
+            )
+            self.assertEqual(
+                manifest["planner"]["proposal_source"],
+                "validated_route_or_control",
+            )
+            self.assertEqual(
+                manifest["plan"]["rounds"][0]["template_id"],
+                "task_execution.official_baseline",
+            )
 
     def test_official_command_uses_expert_probe_without_act_or_codegen_vqa(self):
         command, _ = build_taskgen_command(

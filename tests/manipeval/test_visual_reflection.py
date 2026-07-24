@@ -4,7 +4,9 @@ import unittest
 from pathlib import Path
 
 from mea.taskgen import (
+    VisualReflectionError,
     execute_reflection_loop,
+    validate_bbh_distractor_vision_observation,
     validate_vision_observation,
 )
 from mea.taskgen.reflection import _repair_prompt
@@ -45,6 +47,29 @@ class CaptureVisionProvider:
 
 
 class VisualReflectionTests(unittest.TestCase):
+    def test_distractor_vision_contract_rejects_string_bool_and_nonfinite_confidence(
+        self,
+    ):
+        valid = {
+            "aligned": True,
+            "target_visible": True,
+            "lookalike_distractor_visible": True,
+            "scene_physically_plausible": True,
+            "unexpected_changes": [],
+            "confidence": 0.9,
+        }
+        malformed_bool = dict(valid)
+        malformed_bool["lookalike_distractor_visible"] = "false"
+        with self.assertRaisesRegex(VisualReflectionError, "JSON boolean"):
+            validate_bbh_distractor_vision_observation(malformed_bool)
+
+        malformed_confidence = dict(valid)
+        malformed_confidence["confidence"] = float("nan")
+        with self.assertRaisesRegex(VisualReflectionError, "finite"):
+            validate_bbh_distractor_vision_observation(
+                malformed_confidence
+            )
+
     def test_failed_observation_triggers_one_repair_then_passes(self):
         state = {"repaired": False}
 

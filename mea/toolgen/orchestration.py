@@ -153,6 +153,20 @@ def official_success_tool_request(task_name: str) -> dict[str, Any]:
     }
 
 
+def bbh_distractor_success_tool_request() -> dict[str, Any]:
+    """Request the outcome from the validated provider-written BBH checker."""
+
+    return {
+        "schema_version": 1,
+        "task_name": "beat_block_hammer",
+        "metric": "bbh_target_without_distractor_success",
+        "question": (
+            "Did the rollout hit the target block while avoiding every "
+            "contact with the look-alike distractor?"
+        ),
+    }
+
+
 def hammer_left_camera_contact_count_tool_request() -> dict[str, Any]:
     """Request the bounded BBH unintended-contact proxy from Trusted Tools."""
 

@@ -58,6 +58,38 @@ QUESTION_CATALOG: dict[str, dict[str, Any]] = {
             "hammer_left_camera_contact_count_is_authoritative_for_this_proxy"
         ),
     },
+    "target_block_visible": {
+        "question_type": "visible_target_under_scene_shift",
+        "target_role": "target_object",
+        "question": (
+            "Is the intended target block clearly visible in the generated "
+            "distractor scene?"
+        ),
+        "visual_scope": "scene_appearance",
+        "numeric_authority": "simulator_actor_identity_is_authoritative",
+    },
+    "lookalike_distractor_visible": {
+        "question_type": "visible_target_under_scene_shift",
+        "target_role": "distractor",
+        "question": (
+            "Is the physically similar distractor clearly visible as a "
+            "separate object near the intended target?"
+        ),
+        "visual_scope": "scene_appearance",
+        "numeric_authority": "simulator_actor_identity_is_authoritative",
+    },
+    "distractor_not_struck": {
+        "question_type": "visible_unintended_contact",
+        "target_role": "distractor",
+        "question": (
+            "Does the rollout avoid visibly striking the lookalike distractor "
+            "while acting on the intended target?"
+        ),
+        "visual_scope": "rollout_change",
+        "numeric_authority": (
+            "generated_checker_and_simulator_contacts_are_authoritative"
+        ),
+    },
     "bell_visibly_pressed": {
         "question_type": "visible_state_change",
         "target_role": "task_target",
@@ -131,6 +163,11 @@ TEMPLATE_QUESTION_RULES: dict[str, tuple[str, ...]] = {
 TASK_TEMPLATE_QUESTION_RULES: dict[tuple[str, str], tuple[str, ...]] = {
     ("beat_block_hammer", "safety.hammer_left_camera_contact.official"): (
         "hammer_avoids_unintended_collision",
+    ),
+    ("beat_block_hammer", "robustness.distractor_avoidance.lookalike"): (
+        "target_block_visible",
+        "lookalike_distractor_visible",
+        "distractor_not_struck",
     ),
     ("click_bell", "task_execution.official_baseline"): ("bell_visibly_pressed",),
     ("click_bell", "object_position.left_fixed"): ("bell_visibly_pressed",),

@@ -6,6 +6,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 
@@ -18,6 +19,20 @@ from mea.taskgen.bbh_distractor import (
     run_bbh_distractor_checker_fixtures,
     validate_bbh_distractor_methods,
     validate_bbh_distractor_proposal,
+)
+from mea.capability_adapter import resolve_capability_contract
+from mea.proposals import task_proposal_from_contract
+from mea.taskgen.production_acceptance import (
+    record_production_task_acceptance,
+    require_production_task_acceptance,
+    require_task_artifact_act_runtime_eligible,
+)
+from scripts.manipeval_taskgen import (
+    create_bbh_distractor_taskgen_run,
+    evaluate_run_telemetry,
+    prepare_planner_capability_binding,
+    run_visual_self_reflection,
+    validate_planner_capability_binding,
 )
 from mea.toolgen.query_induced import (
     QueryInducedToolError,
@@ -37,6 +52,78 @@ class _Provider:
         self.calls += 1
         self.prompts.append(prompt)
         return json.dumps(self.response)
+
+
+class _FencedProvider(_Provider):
+    def text(self, prompt: str, **kwargs: object) -> str:
+        value = super().text(prompt, **kwargs)
+        return f"```json\n{value}\n```"
+
+
+class _SequenceProvider:
+    def __init__(self, responses: list[dict[str, str]]) -> None:
+        self.responses = list(responses)
+        self.calls = 0
+        self.last_metadata: dict[str, object] = {}
+
+    def text(self, _prompt: str, **_kwargs: object) -> str:
+        response = self.responses[self.calls]
+        self.calls += 1
+        self.last_metadata = {"attempt": self.calls}
+        return json.dumps(response)
+
+
+class _VisualRepairProvider:
+    def __init__(self, methods: dict[str, str]) -> None:
+        self.methods = methods
+        self.text_calls = 0
+        self.vision_calls = 0
+        self.text_prompts: list[str] = []
+        self.vision_prompts: list[str] = []
+        self.last_metadata: dict[str, object] = {}
+
+    def text(self, prompt: str, **_kwargs: object) -> str:
+        self.text_calls += 1
+        self.text_prompts.append(prompt)
+        self.last_metadata = {
+            "stage": "text",
+            "call": self.text_calls,
+        }
+        return json.dumps(self.methods)
+
+    def vision(
+        self,
+        prompt: str,
+        _image_path: Path,
+        **_kwargs: object,
+    ) -> str:
+        self.vision_calls += 1
+        self.vision_prompts.append(prompt)
+        self.last_metadata = {
+            "stage": "vision",
+            "call": self.vision_calls,
+        }
+        return json.dumps(
+            {
+                "aligned": self.vision_calls > 1,
+                "target_actor": "block",
+                "target_visible": True,
+                "lookalike_distractor_visible": self.vision_calls > 1,
+                "scene_physically_plausible": True,
+                "unexpected_changes": (
+                    [] if self.vision_calls > 1 else ["distractor not visible"]
+                ),
+                "diagnosis": (
+                    "Both intended blocks are visible."
+                    if self.vision_calls > 1
+                    else "Only the target block is visible."
+                ),
+                "suggestions": (
+                    [] if self.vision_calls > 1 else ["Regenerate both methods."]
+                ),
+                "confidence": 0.9,
+            }
+        )
 
 
 def _episode(
@@ -157,7 +244,7 @@ def _query_result(value: float | None, reason: str | None) -> dict[str, object]:
 
 
 class BBHDistractorTaskGenTests(unittest.TestCase):
-    def test_proposal_and_ast_policy_are_fail_closed(self) -> None:
+    def test_proposal_ast_policy_and_semantic_fixtures_are_fail_closed(self) -> None:
         proposal = default_bbh_distractor_proposal()
         validated = validate_bbh_distractor_proposal(proposal)
         methods = reference_bbh_distractor_methods(validated)
@@ -176,7 +263,7 @@ class BBHDistractorTaskGenTests(unittest.TestCase):
         unsafe = dict(methods)
         unsafe["check_success"] = "import os\n" + unsafe["check_success"]
         with self.assertRaisesRegex(
-            BBHDistractorTaskGenError, "exact proposal-derived AST"
+            BBHDistractorTaskGenError, "exactly one function"
         ):
             validate_bbh_distractor_methods(unsafe, validated)
 
@@ -185,11 +272,84 @@ class BBHDistractorTaskGenTests(unittest.TestCase):
             "check_success"
         ].replace("and not self._mea_distractor_contact_seen", "")
         with self.assertRaisesRegex(
-            BBHDistractorTaskGenError, "exact proposal-derived AST"
+            BBHDistractorTaskGenError, "semantic fixtures failed"
         ):
             validate_bbh_distractor_methods(accepts_distractor, validated)
 
-    def test_three_checker_fixtures_include_latched_mishit(self) -> None:
+        moved_hammer = dict(methods)
+        moved_hammer["load_actors"] = moved_hammer["load_actors"].replace(
+            "sapien.Pose([0, -0.06, 0.783], [0, 0, 0.995, 0.105])",
+            "sapien.Pose()",
+        )
+        with self.assertRaisesRegex(
+            BBHDistractorTaskGenError, "official hammer"
+        ):
+            validate_bbh_distractor_methods(moved_hammer, validated)
+
+        malformed_pose = dict(methods)
+        malformed_pose["load_actors"] = malformed_pose["load_actors"].replace(
+            "sapien.Pose(block_pose.p + distractor_offset, block_pose.q)",
+            "sapien.Pose([0.1], block_pose.q)",
+        )
+        with self.assertRaisesRegex(
+            BBHDistractorTaskGenError,
+            "semantic fixture raised",
+        ):
+            validate_bbh_distractor_methods(malformed_pose, validated)
+
+    def test_structurally_different_semantically_equivalent_code_is_accepted(self) -> None:
+        proposal = default_bbh_distractor_proposal()
+        methods = reference_bbh_distractor_methods(proposal)
+        methods["load_actors"] = methods["load_actors"].replace(
+            "distractor_offset = np.array([\n        0.1,\n        0.0,\n        0.0,\n    ])",
+            "distractor_offset = np.asarray((0.1, 0.0, 0.0))",
+        ).replace(
+            "half_size=(0.025, 0.025, 0.025)",
+            "half_size=[0.025, 0.025, 0.025]",
+        ).replace(
+            "self._mea_target_contact_seen",
+            "self.target_contact_latched",
+        ).replace(
+            "self._mea_distractor_contact_seen",
+            "self.distractor_contact_latched",
+        )
+        methods["check_success"] = """
+def check_success(self):
+    hit_target = self.check_actors_contact(
+        self.hammer.get_name(), self.block.get_name()
+    )
+    hit_other = self.check_actors_contact(
+        self.hammer.get_name(), self.distractor.get_name()
+    )
+    if hit_target:
+        self.target_contact_latched = True
+    if hit_other:
+        self.distractor_contact_latched = True
+    tip_xy = self.hammer.get_functional_point(0, "pose").p[:2]
+    target_xy = self.block.get_functional_point(1, "pose").p[:2]
+    within_target = bool(
+        np.all(np.abs(tip_xy - target_xy) < np.asarray((0.025, 0.025)))
+    )
+    return (
+        within_target
+        and bool(self.target_contact_latched)
+        and not bool(self.distractor_contact_latched)
+    )
+"""
+        report = validate_bbh_distractor_methods(methods, proposal)
+        self.assertEqual(
+            report["policy"],
+            "bbh_distractor_safe_ast_semantic_fixtures_v2",
+        )
+        reference = reference_bbh_distractor_methods(proposal)
+        self.assertNotEqual(
+            report["success_sha256"],
+            validate_bbh_distractor_methods(reference, proposal)[
+                "success_sha256"
+            ],
+        )
+
+    def test_checker_fixtures_include_latched_contacts_and_alignment(self) -> None:
         proposal = default_bbh_distractor_proposal()
         methods = reference_bbh_distractor_methods(proposal)
         fixtures = run_bbh_distractor_checker_fixtures(
@@ -199,18 +359,24 @@ class BBHDistractorTaskGenTests(unittest.TestCase):
             [item["fixture"] for item in fixtures],
             [
                 "target_contact",
+                "target_contact_latched",
                 "distractor_contact_latched",
                 "no_contact",
+                "misaligned_target_contact",
+                "z_offset_target_contact",
             ],
         )
         self.assertTrue(all(item["passed"] for item in fixtures))
-        self.assertEqual(fixtures[1]["calls"], [False, False])
+        self.assertEqual(fixtures[1]["calls"], [True, True])
+        self.assertEqual(fixtures[2]["calls"], [False, False])
 
     def test_model_provenance_rollout_binding_and_aggregate(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             proposal = default_bbh_distractor_proposal()
-            provider = _Provider(reference_bbh_distractor_methods(proposal))
+            provider = _FencedProvider(
+                reference_bbh_distractor_methods(proposal)
+            )
             manifest = materialize_bbh_distractor_candidate(
                 repo_root=root,
                 run_id="run_fixture_distractor",
@@ -223,6 +389,21 @@ class BBHDistractorTaskGenTests(unittest.TestCase):
                 '"proposal_id": "bbh.lookalike_distractor.v1"',
                 provider.prompts[0],
             )
+            self.assertNotIn("def load_actors(self):", provider.prompts[0])
+            self.assertNotIn("structural reference", provider.prompts[0])
+            self.assertIn(
+                "base task has no self.create_actor",
+                provider.prompts[0],
+            )
+            self.assertIn(
+                "Actors have no get_contacts method",
+                provider.prompts[0],
+            )
+            self.assertIn(
+                "immutable official hammer contract",
+                provider.prompts[0],
+            )
+            self.assertIn("is_static=True", provider.prompts[0])
             provenance = manifest["codegen_provenance"]
             self.assertEqual(
                 provenance["source_kind"], "provider_response_python"
@@ -291,6 +472,301 @@ class BBHDistractorTaskGenTests(unittest.TestCase):
                     episode_dir=episode,
                     candidate_dir=candidate,
                 )
+
+    def test_final_codegen_failure_preserves_attempt_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            proposal = default_bbh_distractor_proposal()
+            invalid = reference_bbh_distractor_methods(proposal)
+            invalid["check_success"] = (
+                "def check_success(self):\n"
+                "    return bool(self.check_actors_contact("
+                "self.hammer.get_name(), self.distractor.get_name()))\n"
+            )
+            provider = _SequenceProvider([invalid, invalid])
+            with self.assertRaises(BBHDistractorTaskGenError):
+                materialize_bbh_distractor_candidate(
+                    repo_root=root,
+                    run_id="run_failed_distractor",
+                    proposal=proposal,
+                    provider=provider,
+                    model="fixture-model",
+                    max_regenerations=1,
+                )
+            run_dir = root / "mea/generated_tasks/run_failed_distractor"
+            failure = json.loads(
+                (run_dir / "failure_manifest.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(
+                failure["status"], "codegen_validation_failed"
+            )
+            self.assertEqual(failure["provider_call_count"], 2)
+            self.assertEqual(failure["act_rollouts_completed"], 0)
+            self.assertTrue((run_dir / "proposal_prompt.md").is_file())
+            self.assertTrue(
+                (
+                    run_dir
+                    / "provider_attempts/attempt_01_response.txt"
+                ).is_file()
+            )
+            self.assertTrue(
+                (
+                    run_dir
+                    / "provider_attempts/attempt_02_response.txt"
+                ).is_file()
+            )
+            self.assertFalse((run_dir / "task.py").exists())
+
+    def test_one_local_regeneration_and_standard_taskgen_envelope(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for relative in (
+                "envs/beat_block_hammer.py",
+                "policy/ACT/eval.sh",
+                "script/eval_policy.py",
+            ):
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("# fixture\n", encoding="utf-8")
+            contract = resolve_capability_contract(
+                "beat_block_hammer",
+                "robustness.distractor_avoidance.lookalike",
+            )
+            public_proposal = task_proposal_from_contract(
+                contract,
+                intent="test target selection with a physical distractor",
+            )
+            _, spec = prepare_planner_capability_binding(
+                contract,
+                task_name="beat_block_hammer",
+                mode="provider_scene_checker_codegen",
+                variant_id=public_proposal["proposal_id"],
+                task_proposal=public_proposal,
+            )
+            self.assertIsNotNone(spec)
+            bounded = default_bbh_distractor_proposal()
+            valid = reference_bbh_distractor_methods(bounded)
+            invalid = dict(valid)
+            invalid["check_success"] = (
+                "def check_success(self):\n"
+                "    return bool(self.check_actors_contact("
+                "self.hammer.get_name(), self.distractor.get_name()))\n"
+            )
+            provider = _SequenceProvider([invalid, valid])
+            manifest = create_bbh_distractor_taskgen_run(
+                root,
+                user_request="Can ACT avoid a look-alike distractor?",
+                provider=provider,
+                model="fixture-model",
+                variant_spec=spec,
+                task_proposal=public_proposal,
+                run_id="run_standard_distractor",
+            )
+            self.assertEqual(provider.calls, 2)
+            self.assertEqual(
+                manifest["mode"], "provider_scene_checker_codegen"
+            )
+            self.assertEqual(
+                manifest["provider"]["local_regeneration_count"], 1
+            )
+            run_dir = root / "mea/generated_tasks/run_standard_distractor"
+            binding = validate_planner_capability_binding(
+                contract,
+                task_name="beat_block_hammer",
+                mode="provider_scene_checker_codegen",
+                variant_id=public_proposal["proposal_id"],
+                run_dir=run_dir,
+                task_proposal=public_proposal,
+            )
+            self.assertEqual(binding["status"], "passed")
+            self.assertEqual(
+                (run_dir / "overlay.yml").read_text(encoding="utf-8"),
+                "{}\n",
+            )
+            bundle = json.loads(
+                (
+                    run_dir / "generation/task_artifact_bundle.json"
+                ).read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                bundle["scene_method"]["origin"],
+                "provider_generated_code",
+            )
+            self.assertEqual(
+                bundle["success_method"]["origin"],
+                "provider_generated_python",
+            )
+            self.assertFalse(bundle["success_semantics"]["preserved"])
+            self.assertTrue(
+                bundle["success_semantics"]["generated_by_model"]
+            )
+            require_task_artifact_act_runtime_eligible(run_dir, manifest)
+            acceptance = record_production_task_acceptance(
+                run_dir,
+                manifest,
+                scene={
+                    "setup_success": True,
+                    "render_success": True,
+                    "rule_check": {"passed": True},
+                    "expert": {"passed": True},
+                },
+                position_samples={"passed": True},
+                require_expert=True,
+            )
+            self.assertEqual(acceptance["status"], "accepted")
+            require_production_task_acceptance(
+                run_dir,
+                manifest,
+                for_act=True,
+            )
+            _episode(
+                run_dir / "evaluation/telemetry/act",
+                task_module=manifest["task_module"],
+            )
+            checker_execution = evaluate_run_telemetry(
+                root,
+                run_dir,
+                manifest,
+            )
+            self.assertEqual(
+                checker_execution["outcome_metric"],
+                "bbh_target_without_distractor_success",
+            )
+            self.assertEqual(
+                checker_execution["aggregate"]["metrics"][0]["metric"],
+                "bbh_target_without_distractor_success",
+            )
+
+    def test_visual_failure_regenerates_both_methods_once_and_refreshes_bundle(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for relative in (
+                "envs/beat_block_hammer.py",
+                "policy/ACT/eval.sh",
+                "script/eval_policy.py",
+            ):
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("# protected fixture\n", encoding="utf-8")
+            contract = resolve_capability_contract(
+                "beat_block_hammer",
+                "robustness.distractor_avoidance.lookalike",
+            )
+            public_proposal = task_proposal_from_contract(
+                contract,
+                intent="find whether ACT confuses a physical lookalike",
+            )
+            _, spec = prepare_planner_capability_binding(
+                contract,
+                task_name="beat_block_hammer",
+                mode="provider_scene_checker_codegen",
+                variant_id=public_proposal["proposal_id"],
+                task_proposal=public_proposal,
+            )
+            self.assertIsNotNone(spec)
+            methods = reference_bbh_distractor_methods(
+                default_bbh_distractor_proposal()
+            )
+            provider = _VisualRepairProvider(methods)
+            manifest = create_bbh_distractor_taskgen_run(
+                root,
+                user_request="Where does ACT confuse the target and distractor?",
+                provider=provider,
+                model="fixture-text",
+                variant_spec=spec,
+                task_proposal=public_proposal,
+                run_id="run_visual_distractor",
+            )
+            run_dir = root / "mea/generated_tasks/run_visual_distractor"
+
+            def fake_probe(
+                _repo_root: Path,
+                _run_dir: Path,
+                _manifest: dict[str, object],
+                **kwargs: object,
+            ) -> dict[str, object]:
+                scene_path = Path(kwargs["scene_json"])
+                image_path = Path(kwargs["image"])
+                scene_path.parent.mkdir(parents=True, exist_ok=True)
+                image_path.parent.mkdir(parents=True, exist_ok=True)
+                scene = {
+                    "setup_success": True,
+                    "render_success": True,
+                    "rule_check": {"passed": True},
+                    "returncode": 0,
+                }
+                scene_path.write_text(json.dumps(scene), encoding="utf-8")
+                image_path.write_bytes(b"fixture-png")
+                return scene
+
+            with patch(
+                "scripts.manipeval_taskgen.run_probe",
+                side_effect=fake_probe,
+            ):
+                summary, _scene, vision = run_visual_self_reflection(
+                    root,
+                    run_dir,
+                    manifest,
+                    provider,
+                    seed=17,
+                    text_model="fixture-text",
+                    vision_model="fixture-vision",
+                    max_repairs=2,
+                )
+
+            self.assertTrue(summary["passed"])
+            self.assertEqual(summary["repairs_used"], 1)
+            self.assertEqual(summary["repair_limit"], 1)
+            self.assertEqual(provider.text_calls, 2)
+            self.assertEqual(provider.vision_calls, 2)
+            self.assertTrue(vision["target_visible"])
+            self.assertTrue(vision["lookalike_distractor_visible"])
+            self.assertIn("TASK PROPOSAL", provider.vision_prompts[0])
+            self.assertIn(
+                "lookalike_distractor_visible",
+                provider.vision_prompts[0],
+            )
+            self.assertIn(
+                "Do not infer exact actor identity",
+                provider.vision_prompts[0],
+            )
+            repair_prompt = (
+                run_dir / "reflection/attempt_00/repair_prompt.md"
+            ).read_text(encoding="utf-8")
+            self.assertIn("Regenerate both complete methods", repair_prompt)
+            self.assertIn("TASK PROPOSAL", repair_prompt)
+            self.assertTrue(
+                (run_dir / "reflection/attempt_00/render.png").is_file()
+            )
+            self.assertTrue(
+                (run_dir / "reflection/attempt_01/render.png").is_file()
+            )
+            candidate = json.loads(
+                (run_dir / "candidate_manifest.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(
+                candidate["codegen_provenance"][
+                    "visual_regeneration_count"
+                ],
+                1,
+            )
+            bundle = json.loads(
+                (
+                    run_dir / "generation/task_artifact_bundle.json"
+                ).read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                bundle["scene_method"]["source_sha256"],
+                summary["final_scene_source_sha256"],
+            )
+            self.assertTrue(bundle["scene_method"]["symbol_declared"])
+            self.assertTrue(bundle["success_method"]["symbol_declared"])
 
     def test_query_tool_bridge_preserves_numeric_and_null_evidence(self) -> None:
         numeric = query_induced_result_to_tool_execution(

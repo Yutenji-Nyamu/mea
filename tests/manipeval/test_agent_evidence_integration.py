@@ -5,13 +5,90 @@ from pathlib import Path
 from unittest.mock import patch
 
 from mea.toolkit import aggregate_tool_executions
+from mea.feedback.answer_scope import build_answer_scope
 from scripts.manipeval_agent import (
+    build_evidence_bundle,
     compact_aggregate_result,
     run_round_execution_vqa,
 )
 
 
 class AgentEvidenceIntegrationTests(unittest.TestCase):
+    def test_taskgen_failure_does_not_count_requested_act_episode_as_evidence(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            repo_root = Path(temporary)
+            evaluation_id = "eval_taskgen_failed_before_act"
+            child_dir = repo_root / "mea/generated_tasks/failed_round"
+            child_dir.mkdir(parents=True)
+            round_plan = {
+                "round_id": "round_1",
+                "template_id": "performance.control",
+                "sub_aspect": "performance.control",
+                "task_instruction": "Run the control.",
+                "route": "official",
+                "execution": {
+                    "backend": "act",
+                    "seeds": [17],
+                    "num_episodes": 1,
+                },
+            }
+            round_summary = {
+                "round_id": "round_1",
+                "pipeline_passed": False,
+                "observations": {
+                    "execution_backend": "ACT",
+                    "requested_seeds": [17],
+                    "actual_seeds": [],
+                    "scene_alignment": False,
+                    "observed_color": None,
+                    "expert_solvable": None,
+                    "act_pipeline_status": False,
+                    "policy_success": None,
+                    "position_samples": [],
+                    "position_metrics": {},
+                    "aggregate": None,
+                    "execution_vqa": {
+                        "status": "failed",
+                        "artifacts": {},
+                    },
+                },
+            }
+            evidence = build_evidence_bundle(
+                repo_root,
+                evaluation_id,
+                "Does the policy pass the control?",
+                {
+                    "max_rounds": 1,
+                    "planning_state": "stopped_after_round_1",
+                    "round_decisions": [],
+                    "requested_template_ids": ["performance.control"],
+                    "requested_aspect_ids": ["performance.control"],
+                },
+                [
+                    {
+                        "round_plan": round_plan,
+                        "child_manifest": {"run_id": "failed_round"},
+                        "child_dir": child_dir,
+                        "round_summary": round_summary,
+                        "tool_evaluation": {"artifacts": {}},
+                    }
+                ],
+            )
+
+            observed_round = evidence["rounds"][0]
+            self.assertEqual(observed_round["requested_seeds"], [17])
+            self.assertEqual(observed_round["requested_num_episodes"], 1)
+            self.assertEqual(observed_round["actual_seeds"], [])
+            self.assertEqual(observed_round["seeds"], [])
+            self.assertEqual(observed_round["num_episodes"], 0)
+            self.assertEqual(evidence["requested_total_episodes"], 1)
+            self.assertEqual(evidence["total_episodes"], 0)
+
+            scope = build_answer_scope(evidence)
+            self.assertEqual(scope["sample_count"], 0)
+            self.assertEqual(scope["seeds"], [])
+            self.assertEqual(scope["termination"], "pipeline_invalid")
+
     def test_compact_aggregate_preserves_group_statistics(self):
         aggregate = aggregate_tool_executions(
             [

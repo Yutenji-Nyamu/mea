@@ -155,7 +155,7 @@ class IndependentValidityTests(unittest.TestCase):
             validate_independent_validity_study(mismatch)
 
     def test_cli_outputs_synthetic_study_and_summary(self):
-        from scripts import manipeval_independent_validity as cli
+        from experiments.paper import manipeval_independent_validity as cli
 
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "validity.json"

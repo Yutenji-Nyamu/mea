@@ -190,7 +190,10 @@ def resolve_task_proposal(
             "reviewed_lookup_attempted": False,
             "reviewed_registration": None,
         }
-    if operation != "force_codegen":  # pragma: no cover - validated contract.
+    if operation not in {
+        "force_codegen",
+        "provider_scene_checker_codegen",
+    }:  # pragma: no cover - validated contract.
         raise TaskResolutionError(f"unsupported TaskGen operation: {operation!r}")
 
     query = {
@@ -216,11 +219,11 @@ def resolve_task_proposal(
         }
     return {
         **base,
-        "resolved_route": "force_codegen",
-        "materialization": "generate",
-        "reason": (
-            "no exact approved reusable task artifact matched"
-            if find_reviewed is not None
+            "resolved_route": requested_route,
+            "materialization": "generate",
+            "reason": (
+                "no exact approved reusable task artifact matched"
+                if find_reviewed is not None
             else "reviewed task lookup is not configured; generate under the trusted contract"
         ),
         "provider_required": True,

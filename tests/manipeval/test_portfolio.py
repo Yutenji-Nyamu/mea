@@ -11,12 +11,6 @@ from mea.portfolio import (
     build_reused_portfolio,
     render_portfolio_report,
 )
-from mea.runtime_ledger import (
-    record_act_batch_start,
-    record_provider_transport_start,
-    runtime_ledger_context,
-    summarize_runtime_ledger,
-)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -68,48 +62,7 @@ def make_child(
         "actual_seeds": [seed],
         "pipeline_passed": pipeline_passed,
         "policy_success": policy_success,
-        "whole_round_recovery": {
-            "runtime": {
-                "provider_called": True,
-                "simulator_called": True,
-                "act_rollouts_started": max(act_starts, 1),
-            }
-        },
     }
-    runtime_ledgers = None
-    if act_starts:
-        runtime_ledgers = []
-        for attempt in range(1, act_starts + 1):
-            context = {
-                "schema_version": 1,
-                "evaluation_id": evaluation_id,
-                "logical_round_id": "round_1",
-                "round_attempt_index": attempt,
-                "child_run_id": f"run_{evaluation_id}_round_1_attempt_{attempt}",
-            }
-            ledger = (
-                evaluation
-                / f"runtime/round_1/attempt_{attempt:02d}/call_starts.jsonl"
-            )
-            with runtime_ledger_context(ledger, context):
-                record_provider_transport_start(
-                    logical_call_id=f"{attempt:032x}",
-                    transport_attempt=1,
-                    modality="text",
-                    model="fake-model",
-                )
-                record_act_batch_start(
-                    task_name=task_name,
-                    policy_name="ACT",
-                    start_seed=seed,
-                    num_rollouts=1,
-                )
-            if attempt == act_starts:
-                summary = summarize_runtime_ledger(
-                    ledger, expected_context=context
-                )
-                summary["artifact"] = ledger.relative_to(root).as_posix()
-                round_observations["runtime_call_ledger"] = summary
     evidence = {
         "schema_version": 2,
         "evaluation_id": evaluation_id,
@@ -155,8 +108,11 @@ def make_child(
             "rounds": [{"round_id": "round_1"}],
         },
     }
-    if runtime_ledgers is not None:
-        manifest["runtime_ledgers"] = runtime_ledgers
+    if act_starts:
+        manifest["run_manifest"] = {
+            "act_rollouts_started": act_starts,
+            "provider_calls_started": act_starts,
+        }
     write_json(evaluation / "manifest.json", manifest)
     write_json(evaluation / "summary/evidence_bundle.json", evidence)
     write_json(evaluation / "feedback/feedback.json", feedback)
@@ -192,9 +148,6 @@ class PortfolioTests(unittest.TestCase):
             self.assertEqual(argv[argv.index("--num-episodes") + 1], "1")
             self.assertEqual(argv[argv.index("--generated-rounds") + 1], "1")
             self.assertEqual(argv[argv.index("--max-agent-rounds") + 1], "1")
-            self.assertEqual(
-                argv[argv.index("--round-recovery-max-restarts") + 1], "0"
-            )
             self.assertEqual(
                 child["expected_postconditions"]["act_rollouts_started"], 1
             )
@@ -308,7 +261,7 @@ class PortfolioTests(unittest.TestCase):
                     },
                 )
 
-    def test_call_start_ledgers_count_recovered_start_separately(self):
+    def test_run_manifest_can_declare_interrupted_starts(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             make_child(
@@ -341,7 +294,7 @@ class PortfolioTests(unittest.TestCase):
         historical = result["historical_child_runtime"]
         self.assertEqual(historical["act_rollouts_started"], 3)
         self.assertEqual(historical["completed_act_episodes"], 2)
-        self.assertTrue(historical["started_count_exact"])
+        self.assertFalse(historical["started_count_exact"])
 
     def test_reuse_rejects_duplicate_children_and_artifact_escape(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -385,7 +338,7 @@ class PortfolioTests(unittest.TestCase):
                 )
 
     def test_cli_reuse_writes_summary_and_report(self):
-        script = REPO_ROOT / "scripts/manipeval_portfolio.py"
+        script = REPO_ROOT / "experiments/paper/manipeval_portfolio.py"
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             make_child(

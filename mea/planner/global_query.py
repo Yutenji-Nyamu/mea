@@ -652,6 +652,37 @@ def route_to_bbh_proposal(
     }
 
 
+def route_to_official_proposal(
+    selection: Mapping[str, Any], catalog: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Translate a generic schema-backed route to the official planner."""
+
+    route = validate_route_selection(selection, catalog)
+    if route["decision"] != "route":
+        raise GlobalRouteError("selection is not an executable official evaluation")
+    task = catalog_task(catalog, route["task_name"])
+    if task["task_profile"] != "official":
+        raise GlobalRouteError(
+            f"selection is not a generic official task: {route['task_name']!r}"
+        )
+    expected_aspects = ["task_execution.official_baseline"]
+    if (
+        route["requested_aspect_ids"] != expected_aspects
+        or route["first_aspect_id"] != expected_aspects[0]
+    ):
+        raise GlobalRouteError(
+            "generic official task must select only "
+            "task_execution.official_baseline"
+        )
+    return {
+        "schema_version": 1,
+        "task_name": route["task_name"],
+        "evaluation_goal": route["evaluation_goal"],
+        "requested_aspect_ids": expected_aspects,
+        "first_aspect_id": expected_aspects[0],
+    }
+
+
 def route_to_planner_proposal(
     selection: Mapping[str, Any], catalog: Mapping[str, Any]
 ) -> dict[str, Any]:
@@ -663,11 +694,12 @@ def route_to_planner_proposal(
             "unsupported selection has no executable planner proposal"
         )
     task = catalog_task(catalog, route["task_name"])
-    proposal = (
-        route_to_click_proposal(route, catalog)
-        if route["task_name"] == "click_bell"
-        else route_to_bbh_proposal(route, catalog)
-    )
+    if route["task_name"] == "click_bell":
+        proposal = route_to_click_proposal(route, catalog)
+    elif route["task_name"] == "beat_block_hammer":
+        proposal = route_to_bbh_proposal(route, catalog)
+    else:
+        proposal = route_to_official_proposal(route, catalog)
     return {
         "schema_version": 1,
         "task_name": route["task_name"],
@@ -683,6 +715,7 @@ __all__ = [
     "build_global_route_prompt",
     "route_to_bbh_proposal",
     "route_to_click_proposal",
+    "route_to_official_proposal",
     "route_to_planner_proposal",
     "validate_route_selection",
 ]

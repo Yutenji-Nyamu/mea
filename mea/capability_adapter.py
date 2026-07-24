@@ -44,6 +44,7 @@ _VQA_KEYS = {"phenomenon_ids"}
 
 _OPERATIONS = {
     "force_codegen",
+    "provider_scene_checker_codegen",
     "bounded_variant_overlay",
     "reuse_variant",
     "official_passthrough",
@@ -60,6 +61,7 @@ _CHANGE_ROOT_SCOPES = {
     "block": "object",
     "bell": "object",
     "domain_randomization": "scene",
+    "distractor": "scene",
 }
 _CONTROLLED_AXIS_SCOPES = {
     "object_appearance": "object",
@@ -67,6 +69,7 @@ _CONTROLLED_AXIS_SCOPES = {
     "object_instance": "object",
     "object_scale": "object",
     "robustness.scene_clutter": "scene",
+    "robustness.distractor_avoidance": "scene",
     "scene_background_texture": "scene",
     "scene_lighting": "scene",
 }
@@ -135,6 +138,24 @@ _SCALED_RED_BLOCK = {
         "yaw_mode": "official_random",
         "scale": 1.2,
         "color": [1.0, 0.0, 0.0],
+    }
+}
+_LOOKALIKE_DISTRACTOR = {
+    "distractor": {
+        "scene": {
+            "target_name": "box",
+            "distractor_name": "distractor_box",
+            "target_color": [1.0, 0.0, 0.0],
+            "distractor_color": [0.85, 0.05, 0.05],
+            "half_size_m": [0.025, 0.025, 0.025],
+            "distractor_offset_xy_m": [0.10, 0.0],
+        },
+        "success": {
+            "target_alignment_thresholds_m": [0.025, 0.025],
+            "require_target_contact": True,
+            "forbid_distractor_contact": True,
+            "latch_distractor_contact": True,
+        },
     }
 }
 
@@ -288,6 +309,38 @@ def _bbh_contracts() -> list[dict[str, Any]]:
             metric="hammer_left_camera_contact_count",
             required_gates=_OFFICIAL_ACT_GATES,
             phenomenon_ids=["hammer_avoids_unintended_collision"],
+        ),
+        _contract(
+            task_name="beat_block_hammer",
+            template_id="robustness.distractor_avoidance.lookalike",
+            aspect_id="robustness.distractor_avoidance",
+            target_role="scene",
+            operation="provider_scene_checker_codegen",
+            capability_id="robustness.distractor_avoidance",
+            task_variant_id="robustness.distractor_avoidance.lookalike",
+            controlled_axis="robustness.distractor_avoidance",
+            change_scope="scene",
+            generation_mode="provider_scene_checker_codegen",
+            allowed_change_roots=["distractor"],
+            changes=_LOOKALIKE_DISTRACTOR,
+            request_factory_id="bbh_distractor_success_tool_request",
+            metric="bbh_target_without_distractor_success",
+            required_gates=[
+                "variant_spec",
+                "ast",
+                "render",
+                "rule",
+                "scene_variant",
+                "expert",
+                "act",
+                "toolkit",
+                "aggregate",
+            ],
+            phenomenon_ids=[
+                "target_block_visible",
+                "lookalike_distractor_visible",
+                "distractor_not_struck",
+            ],
         ),
     ]
 
@@ -488,8 +541,47 @@ def _click_contracts() -> list[dict[str, Any]]:
     return result
 
 
+def _generic_official_contracts() -> list[dict[str, Any]]:
+    """Expose unchanged official execution for schema-backed ACT tasks.
+
+    These tasks do not yet claim generated variants.  Registering only the
+    official baseline lets the public router and ClaimFirst control reuse the
+    common TaskGen/ToolGen boundary without inventing unsupported aspects.
+    """
+
+    phenomenon_by_task = {
+        "adjust_bottle": ["bottle_visibly_repositioned"],
+        "grab_roller": ["roller_visibly_lifted"],
+    }
+    return [
+        _contract(
+            task_name=task_name,
+            template_id="task_execution.official_baseline",
+            aspect_id="task_execution.official_baseline",
+            target_role="task_target",
+            operation="official_passthrough",
+            capability_id="task_execution.official_passthrough",
+            task_variant_id=None,
+            controlled_axis=None,
+            change_scope=None,
+            generation_mode=None,
+            allowed_change_roots=[],
+            changes={},
+            request_factory_id="official_success_tool_request",
+            metric="official_check_success",
+            phenomenon_ids=phenomenon_ids,
+            required_gates=_OFFICIAL_ACT_GATES,
+        )
+        for task_name, phenomenon_ids in phenomenon_by_task.items()
+    ]
+
+
 _CONTRACTS: dict[tuple[str, str], dict[str, Any]] = {}
-for _item in [*_bbh_contracts(), *_click_contracts()]:
+for _item in [
+    *_bbh_contracts(),
+    *_click_contracts(),
+    *_generic_official_contracts(),
+]:
     _identity = (_item["task_name"], _item["template_id"])
     if _identity in _CONTRACTS:
         raise RuntimeError(f"duplicate capability adapter identity: {_identity!r}")
@@ -581,6 +673,7 @@ def _validate_structure(value: Mapping[str, Any]) -> dict[str, Any]:
         raise CapabilityAdapterError(f"unsupported taskgen operation: {operation!r}")
     expected_generation_mode = {
         "force_codegen": "force_codegen",
+        "provider_scene_checker_codegen": "provider_scene_checker_codegen",
         "bounded_variant_overlay": "bounded_variant_overlay",
         "reuse_variant": "reuse",
         "official_passthrough": None,
@@ -735,6 +828,7 @@ def build_contract_tool_request(contract: Mapping[str, Any]) -> dict[str, Any]:
     from .toolgen import (
         bell_active_tcp_min_xy_error_tool_request,
         contact_tool_request,
+        bbh_distractor_success_tool_request,
         hammer_left_camera_contact_count_tool_request,
         official_success_tool_request,
         pickup_to_contact_tool_request,
@@ -746,6 +840,8 @@ def build_contract_tool_request(contract: Mapping[str, Any]) -> dict[str, Any]:
     task_name = trusted["task_name"]
     if factory_id == "contact_tool_request":
         request = contact_tool_request()
+    elif factory_id == "bbh_distractor_success_tool_request":
+        request = bbh_distractor_success_tool_request()
     elif factory_id == "pickup_to_contact_tool_request":
         request = pickup_to_contact_tool_request()
     elif factory_id == "bell_active_tcp_min_xy_error_tool_request":
@@ -777,6 +873,7 @@ def taskgen_route(contract: Mapping[str, Any]) -> str:
     operation = validate_capability_contract(contract)["taskgen"]["operation"]
     return {
         "force_codegen": "force_codegen",
+        "provider_scene_checker_codegen": "provider_scene_checker_codegen",
         "bounded_variant_overlay": "reuse",
         "reuse_variant": "reuse",
         "official_passthrough": "official",

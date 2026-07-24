@@ -10,6 +10,7 @@ from .prototype import (
 from .orchestration import (
     ToolOrchestrationError,
     bell_active_tcp_min_xy_error_tool_request,
+    bbh_distractor_success_tool_request,
     contact_tool_request,
     contact_tool_spec,
     execute_tool_request,
@@ -67,6 +68,7 @@ __all__ = [
     "validate_generated_tool",
     "ToolOrchestrationError",
     "bell_active_tcp_min_xy_error_tool_request",
+    "bbh_distractor_success_tool_request",
     "ToolRouterError",
     "RunLocalRegistryError",
     "ReviewedRegistryError",

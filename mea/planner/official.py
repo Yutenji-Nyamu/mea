@@ -20,6 +20,13 @@ OFFICIAL_TEMPLATE_ID = "task_execution.official_baseline"
 OFFICIAL_GATES = ["render", "rule"]
 OFFICIAL_POST_EXECUTION_GATES = ["toolkit", "planned_tool", "aggregate"]
 EXECUTION_BACKENDS = {"expert", "act", "both"}
+_OFFICIAL_PROPOSAL_KEYS = {
+    "schema_version",
+    "task_name",
+    "evaluation_goal",
+    "requested_aspect_ids",
+    "first_aspect_id",
+}
 
 
 def _write_json(path: Path, value: Any) -> None:
@@ -40,6 +47,39 @@ def _git_head(repo_root: Path) -> str | None:
         check=False,
     )
     return process.stdout.strip() if process.returncode == 0 else None
+
+
+def _validate_official_proposal(
+    value: dict[str, Any],
+    *,
+    task_name: str,
+) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) != _OFFICIAL_PROPOSAL_KEYS:
+        raise PlanAgentError(
+            "official validated_proposal fields must be exactly "
+            f"{sorted(_OFFICIAL_PROPOSAL_KEYS)}"
+        )
+    proposal = deepcopy(value)
+    if proposal.get("schema_version") != 1:
+        raise PlanAgentError("official validated_proposal schema_version must be 1")
+    if proposal.get("task_name") != task_name:
+        raise PlanAgentError("official validated_proposal cannot switch task_name")
+    goal = proposal.get("evaluation_goal")
+    if not isinstance(goal, str) or not goal.strip():
+        raise PlanAgentError(
+            "official validated_proposal evaluation_goal must be non-empty"
+        )
+    expected = [OFFICIAL_TEMPLATE_ID]
+    if (
+        proposal.get("requested_aspect_ids") != expected
+        or proposal.get("first_aspect_id") != OFFICIAL_TEMPLATE_ID
+    ):
+        raise PlanAgentError(
+            "official validated_proposal must select only "
+            "task_execution.official_baseline"
+        )
+    proposal["evaluation_goal"] = goal.strip()
+    return proposal
 
 
 class OfficialTaskPlanAgent:
@@ -127,6 +167,7 @@ class OfficialTaskPlanAgent:
         evaluation_id: str | None = None,
         history_context: list[dict[str, Any]] | None = None,
         history_metadata: dict[str, Any] | None = None,
+        validated_proposal: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         request = str(user_request).strip()
         if not request:
@@ -134,6 +175,14 @@ class OfficialTaskPlanAgent:
         resolved_id = evaluation_id or make_evaluation_id()
         if not re.fullmatch(r"eval_[A-Za-z0-9_]+", resolved_id):
             raise PlanAgentError("evaluation_id must begin with 'eval_'")
+        proposal = (
+            _validate_official_proposal(
+                validated_proposal,
+                task_name=self.task_name,
+            )
+            if validated_proposal is not None
+            else None
+        )
         evaluation_dir = self.repo_root / "mea/evaluation_runs" / resolved_id
         if evaluation_dir.exists():
             raise PlanAgentError(f"evaluation directory already exists: {evaluation_dir}")
@@ -166,7 +215,11 @@ class OfficialTaskPlanAgent:
                 ),
                 "language_conditioned": False,
             },
-            "evaluation_goal": "validate_schema_backed_official_task_execution",
+            "evaluation_goal": (
+                proposal["evaluation_goal"]
+                if proposal is not None
+                else "validate_schema_backed_official_task_execution"
+            ),
             "requested_template_ids": [OFFICIAL_TEMPLATE_ID],
             "rounds": [self._round(request)],
             "round_decisions": [],
@@ -184,6 +237,11 @@ class OfficialTaskPlanAgent:
                 "kind": "deterministic_official_task",
                 "model_requested": None,
                 "provider_called": False,
+                "proposal_source": (
+                    "validated_route_or_control"
+                    if proposal is not None
+                    else "deterministic_default"
+                ),
             },
             "plan_path": "plan/evaluation_plan.json",
             "history_retrieval_path": "plan/history_retrieval.json",

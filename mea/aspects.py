@@ -62,6 +62,14 @@ _ASPECT_ONTOLOGY: dict[str, dict[str, Any]] = {
             "clutter.target_selection",
         ],
     },
+    "robustness.distractor_avoidance": {
+        "semantic_scope": "scene",
+        "aliases": [
+            "scene.distractor_avoidance",
+            "distractor_avoidance",
+            "robustness.lookalike_distractor",
+        ],
+    },
     "scene_background_texture": {
         "semantic_scope": "scene",
         "aliases": ["scene.background_texture", "background_texture"],

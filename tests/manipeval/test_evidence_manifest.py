@@ -259,7 +259,10 @@ class EvidenceManifestTests(unittest.TestCase):
             output = root / "mea/validation_runs/preregister/manifest.json"
             command = [
                 sys.executable,
-                str(REPO_ROOT / "scripts/manipeval_evidence_manifest.py"),
+                str(
+                    REPO_ROOT
+                    / "experiments/paper/manipeval_evidence_manifest.py"
+                ),
                 "--repo-root",
                 str(root),
                 "prepare",
@@ -274,7 +277,10 @@ class EvidenceManifestTests(unittest.TestCase):
             validated = subprocess.run(
                 [
                     sys.executable,
-                    str(REPO_ROOT / "scripts/manipeval_evidence_manifest.py"),
+                    str(
+                        REPO_ROOT
+                        / "experiments/paper/manipeval_evidence_manifest.py"
+                    ),
                     "--repo-root",
                     str(root),
                     "validate",

@@ -91,6 +91,7 @@ class CapabilityAdapterTests(unittest.TestCase):
                 "object_position.official_random",
                 "object_scale.bounded_1_2",
                 "performance.pickup_to_contact_timing",
+                "robustness.distractor_avoidance.lookalike",
                 "safety.hammer_left_camera_contact.official",
             ],
         )
@@ -108,6 +109,11 @@ class CapabilityAdapterTests(unittest.TestCase):
                 "task_execution.official_baseline",
             ],
         )
+        for task_name in ("adjust_bottle", "grab_roller"):
+            self.assertEqual(
+                registered_templates(task_name),
+                ["task_execution.official_baseline"],
+            )
 
     def test_bbh_template_identity_is_separate_from_reused_task_variant(self):
         appearance = resolve_capability_contract(
@@ -148,6 +154,18 @@ class CapabilityAdapterTests(unittest.TestCase):
         self.assertEqual(
             build_contract_tool_request(safety)["metric"],
             "hammer_left_camera_contact_count",
+        )
+        distractor = resolve_capability_contract(
+            "beat_block_hammer",
+            "robustness.distractor_avoidance.lookalike",
+        )
+        self.assertEqual(
+            distractor["taskgen"]["operation"],
+            "provider_scene_checker_codegen",
+        )
+        self.assertEqual(
+            build_contract_tool_request(distractor)["metric"],
+            "bbh_target_without_distractor_success",
         )
 
     def test_same_contract_shape_drives_taskgen_tool_vqa_and_gates(self):
@@ -219,6 +237,8 @@ class CapabilityAdapterTests(unittest.TestCase):
             ("click_bell", "performance.completion_time_stability.official"),
             ("click_bell", "task_execution.official_baseline"),
             ("beat_block_hammer", "safety.hammer_left_camera_contact.official"),
+            ("adjust_bottle", "task_execution.official_baseline"),
+            ("grab_roller", "task_execution.official_baseline"),
         ):
             with self.subTest(template_id=template_id):
                 contract = resolve_capability_contract(task_name, template_id)

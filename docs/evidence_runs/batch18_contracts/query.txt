@@ -1,1 +1,0 @@
-How well does the click_bell ACT policy generalize across properties of the operated bell?

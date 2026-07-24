@@ -16,7 +16,11 @@ from mea.taskgen import (
     build_variant_spec,
     validate_variant_spec_envelope,
 )
-from mea.proposals import materialize_round_proposals, task_proposal_from_contract
+from mea.proposals import (
+    materialize_round_proposals,
+    task_proposal_from_contract,
+    tool_proposal_from_contract,
+)
 from mea.taskgen.success_spec import experimental_bbh_success_spec_v2
 from scripts.manipeval_agent import (
     build_taskgen_command,
@@ -30,6 +34,56 @@ from scripts.manipeval_taskgen import (
 
 
 class TaskGenCapabilityBindingTests(unittest.TestCase):
+    def test_provider_scene_checker_command_enables_proposal_visual_gate(self):
+        contract = resolve_capability_contract(
+            "beat_block_hammer",
+            "robustness.distractor_avoidance.lookalike",
+        )
+        proposal = task_proposal_from_contract(
+            contract,
+            intent="test target selection with a physical distractor",
+        )
+        tool_proposal = tool_proposal_from_contract(
+            contract,
+            evaluation_goal="measure target-only success",
+        )
+        plan = {
+            "round_id": "round_1",
+            "task_name": "beat_block_hammer",
+            "task_instruction": "Can ACT avoid a lookalike distractor?",
+            "template_id": contract["template_id"],
+            "capability_id": contract["taskgen"]["capability_id"],
+            "task_variant_id": contract["taskgen"]["task_variant_id"],
+            "capability_contract": contract,
+            "sub_aspect": contract["aspect"]["aspect_id"],
+            "aspect_id": contract["aspect"]["aspect_id"],
+            "route": taskgen_route(contract),
+            "variant_hint": contract["taskgen"]["changes"],
+            "task_proposal": proposal,
+            "tool_proposal": tool_proposal,
+            "execution": {
+                "backend": "act",
+                "seeds": [17],
+                "num_episodes": 1,
+                "gates": contract["required_gates"],
+            },
+            "tool_request": build_contract_tool_request(contract),
+            "vqa_phenomenon_ids": contract["vqa"]["phenomenon_ids"],
+        }
+        command, _ = build_taskgen_command(
+            Path("/repo"),
+            "eval_provider_visual",
+            plan,
+            text_model="text",
+            vision_model="vision",
+            base_url=None,
+            gpu=0,
+            max_reflections=2,
+        )
+        self.assertIn("--expert", command)
+        self.assertIn("--vision-check", command)
+        self.assertIn("--run-act", command)
+
     def test_v2_success_replacement_has_a_distinct_preserve_contract(self):
         kwargs = {
             "task_name": "beat_block_hammer",

@@ -1,6 +1,0 @@
-mea:
-  enabled: true
-  bell:
-    position_mode: official_random
-    instance_mode: fixed
-    bell_id: 0

@@ -446,6 +446,81 @@ class ProposalAgentTests(unittest.TestCase):
             self.assertIn('"left_camera"', prompt)
             self.assertIn('"null_semantics": "zero_if_absent"', prompt)
 
+    def test_distractor_prompt_materializes_registered_visual_contract(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = BoundTaskPlanSession.from_catalog(
+                _catalog(root), "beat_block_hammer", max_rounds=2
+            ).target
+            prompt = build_proposal_prompt(
+                "Can the policy avoid a physically similar distractor?",
+                target,
+                "robustness.distractor_avoidance",
+                base_template_id="robustness.distractor_avoidance.lookalike",
+                capability_mode="provider_scene_checker_codegen",
+            )
+            self.assertIn("target_block_visible", prompt)
+            self.assertIn("lookalike_distractor_visible", prompt)
+            self.assertIn("distractor_not_struck", prompt)
+            self.assertIn("preserve_success_semantics=false", prompt)
+            self.assertIn("bbh_target_without_distractor_success", prompt)
+
+    def test_distractor_provider_mode_accepts_exact_nonofficial_checker(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = BoundTaskPlanSession.from_catalog(
+                _catalog(root), "beat_block_hammer", max_rounds=2
+            ).target
+            contract = resolve_capability_contract(
+                "beat_block_hammer",
+                "robustness.distractor_avoidance.lookalike",
+            )
+            value = {
+                "schema_version": 1,
+                "task_proposal": {
+                    "schema_version": 1,
+                    "proposal_id": "robustness.distractor_avoidance.generated",
+                    "task_name": "beat_block_hammer",
+                    "aspect_id": "robustness.distractor_avoidance",
+                    "intent": "generate a lookalike distractor and checker",
+                    "capability_id": "robustness.distractor_avoidance",
+                    "reuse_first": True,
+                    "changes": contract["taskgen"]["changes"],
+                    "preserve_success_semantics": False,
+                },
+                "tool_proposal": {
+                    "schema_version": 1,
+                    "proposal_id": (
+                        "robustness.distractor_avoidance.generated.tool"
+                    ),
+                    "task_name": "beat_block_hammer",
+                    "aspect_id": "robustness.distractor_avoidance",
+                    "evaluation_goal": "judge target success without distractor hit",
+                    "metric": "bbh_target_without_distractor_success",
+                    "question": "Did the generated checker pass?",
+                    "vqa_phenomenon_ids": contract["vqa"]["phenomenon_ids"],
+                    "reuse_first": True,
+                },
+            }
+            result = BoundedProposalAgent(
+                FakeProvider(value), model="fake-model"
+            ).propose(
+                "Can ACT avoid a physically similar distractor?",
+                target=target,
+                aspect_id="robustness.distractor_avoidance",
+                base_template_id=(
+                    "robustness.distractor_avoidance.lookalike"
+                ),
+                require_new_tool=False,
+            )
+            self.assertFalse(
+                result["task_proposal"]["preserve_success_semantics"]
+            )
+            self.assertEqual(
+                result["tool_route_preview"]["resolved_route"],
+                "bound_child_trusted_checker",
+            )
+
     def test_open_query_produces_unlisted_task_and_tool_proposals(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

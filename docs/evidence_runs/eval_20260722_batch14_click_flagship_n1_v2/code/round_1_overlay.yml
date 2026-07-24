@@ -1,7 +1,0 @@
-mea:
-  enabled: true
-  bell:
-    position_mode: fixed
-    xy:
-    - -0.14
-    - -0.12

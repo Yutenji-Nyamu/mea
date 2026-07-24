@@ -305,6 +305,21 @@ class ExecutionVQAQueryTests(unittest.TestCase):
                 proposed_phenomenon_ids=["invented_visual_claim"],
             )
 
+    def test_distractor_template_uses_its_three_visual_questions(self):
+        query = build_execution_vqa_query(
+            task_name="beat_block_hammer",
+            template_id="robustness.distractor_avoidance.lookalike",
+            sub_aspect="robustness.distractor_avoidance",
+        )
+        self.assertEqual(
+            query["phenomenon_ids"],
+            [
+                "target_block_visible",
+                "lookalike_distractor_visible",
+                "distractor_not_struck",
+            ],
+        )
+
     def test_run_local_question_is_self_contained_and_revalidates(self):
         spec = run_local_question()
         query = build_execution_vqa_query(

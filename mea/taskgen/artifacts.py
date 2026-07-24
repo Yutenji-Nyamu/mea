@@ -22,8 +22,17 @@ class TaskArtifactBundleError(RuntimeError):
     """Raised when a materialized TaskGen run cannot be described honestly."""
 
 
-SCENE_ORIGINS = {"generated_code", "bounded_overlay_wrapper", "official_reuse"}
-SUCCESS_ORIGINS = {"compiled_success_spec", "official_reuse"}
+SCENE_ORIGINS = {
+    "generated_code",
+    "provider_generated_code",
+    "bounded_overlay_wrapper",
+    "official_reuse",
+}
+SUCCESS_ORIGINS = {
+    "compiled_success_spec",
+    "provider_generated_python",
+    "official_reuse",
+}
 
 
 def _canonical_sha256(value: Any) -> str:
@@ -162,6 +171,8 @@ def _route_bindings(manifest: Mapping[str, Any]) -> tuple[str, str, str]:
     task_module = str(manifest.get("task_module") or "")
     generation_kind = str(manifest.get("generation_kind") or "")
     mode = str(manifest.get("mode") or "")
+    if generation_kind == "provider_scene_checker_codegen":
+        return "provider_generated_code", task_module, task_module
     if generation_kind == "official_passthrough" or mode == "official":
         return "official_reuse", task_module, task_module
     if generation_kind == "bounded_variant_overlay" or mode == "reuse":
@@ -208,8 +219,17 @@ def write_task_artifact_bundle(
                 "generated check_success has no SuccessSpec provenance"
             )
     compiled_success = scene_origin == "generated_code" and success_spec_path.is_file()
-    success_module = task_module if compiled_success else official_success_module
-    success_origin = "compiled_success_spec" if compiled_success else "official_reuse"
+    provider_success = scene_origin == "provider_generated_code"
+    success_module = (
+        task_module if (compiled_success or provider_success) else official_success_module
+    )
+    success_origin = (
+        "provider_generated_python"
+        if provider_success
+        else "compiled_success_spec"
+        if compiled_success
+        else "official_reuse"
+    )
     success_spec_sha256 = None
     success_spec_report: dict[str, Any] | None = None
     if compiled_success:
@@ -302,6 +322,17 @@ def write_task_artifact_bundle(
         ),
         "success_semantics": (
             {
+                "preserved": False,
+                "authority": "llm_generated_python_ast_validated",
+                "generated_by_model": True,
+                "generated_from_spec": False,
+                "validation": "validation/bbh_distractor_static.json",
+                "act_runtime_eligible": True,
+                "outcome_label": "bbh_target_without_distractor_success",
+            }
+            if provider_success
+            else
+            {
                 "preserved": bool(success_spec_report["official_equivalent"]),
                 "authority": (
                     "compiled_success_spec_official_equivalent"
@@ -337,6 +368,13 @@ def write_task_artifact_bundle(
         "boundary": (
             "TaskArtifactBundle binds executable scene and success methods. "
             + (
+                (
+                    "Both methods are provider-written Python accepted by the "
+                    "bounded AST policy and executable scene/checker fixtures. "
+                    "The checker is explicitly non-official."
+                )
+                if provider_success
+                else
                 "The success method was compiled from a restricted, validated "
                 "SuccessSpec; it was not arbitrary model-written Python. "
                 + (
@@ -400,6 +438,24 @@ def validate_task_artifact_bundle(value: Mapping[str, Any]) -> dict[str, Any]:
             "generated_by_model": False,
         }:
             raise TaskArtifactBundleError("official success semantics were not preserved")
+    elif success.get("origin") == "provider_generated_python":
+        if (
+            not success.get("symbol_declared")
+            or not isinstance(semantics, Mapping)
+            or semantics
+            != {
+                "preserved": False,
+                "authority": "llm_generated_python_ast_validated",
+                "generated_by_model": True,
+                "generated_from_spec": False,
+                "validation": "validation/bbh_distractor_static.json",
+                "act_runtime_eligible": True,
+                "outcome_label": "bbh_target_without_distractor_success",
+            }
+        ):
+            raise TaskArtifactBundleError(
+                "provider-generated checker lacks its AST/fixture authority"
+            )
     else:
         compiled_authority = (
             semantics.get("authority") if isinstance(semantics, Mapping) else None

@@ -3,9 +3,10 @@ import unittest
 from mea.planner.claim_first_runtime import (
     ClaimFirstRuntimeController,
     ClaimFirstRuntimeError,
+    build_control_anchor_proposal,
+    control_template_id,
     resolve_semantic_proposal,
 )
-from mea.round_provenance import canonical_sha256
 
 
 def target():
@@ -91,6 +92,10 @@ def summary(
         }
     return {
         "round_id": plan["round_id"],
+        "taskgen_run_id": f"claim_first_{plan['round_id']}",
+        "execution_artifact_dir": (
+            f"mea/evaluations/claim_first/execution/{plan['round_id']}"
+        ),
         "pipeline_passed": pipeline_passed,
         "observations": {
             "policy_success": success_rate,
@@ -117,43 +122,22 @@ def summary(
                 ],
             },
             "planned_tool": {
+                "status": "passed",
                 "route_decision": {"metric": "time_to_success"},
                 "episodes": [],
             },
-            "execution_vqa": {"evidence_conflict": False},
+            "execution_vqa": {
+                "status": "passed",
+                "evidence_conflict": False,
+                "artifacts": {
+                    "result": (
+                        "mea/evaluations/claim_first/execution/"
+                        f"{plan['round_id']}/execution_vqa/execution_vqa.json"
+                    )
+                },
+            },
         },
     }
-
-
-def bind_provenance(plan, observed):
-    binding = {
-        "round_id": plan["round_id"],
-        "round_plan_sha256": canonical_sha256(plan),
-        "artifacts": [
-            {
-                "kind": "child_manifest",
-                "path": f"runs/{plan['round_id']}/manifest.json",
-                "sha256": "a" * 64,
-                "size_bytes": 10,
-            },
-            {
-                "kind": "round_aggregate",
-                "path": f"runs/{plan['round_id']}/aggregate.json",
-                "sha256": "b" * 64,
-                "size_bytes": 10,
-            },
-        ],
-    }
-    provenance = {
-        "binding": binding,
-        "binding_sha256": canonical_sha256(binding),
-    }
-    observed["provenance"] = {
-        "path": f"runs/{plan['round_id']}/provenance.json",
-        "sha256": "c" * 64,
-        "binding_sha256": provenance["binding_sha256"],
-    }
-    return provenance
 
 
 def semantic_bundle(sub_aspect="object_position.left_fixed"):
@@ -185,6 +169,36 @@ def semantic_bundle(sub_aspect="object_position.left_fixed"):
 
 
 class ClaimFirstRuntimeTests(unittest.TestCase):
+    def test_generic_official_tasks_have_claim_first_control_anchors(self):
+        for task_name in ("adjust_bottle", "grab_roller"):
+            generic_target = {
+                "task_name": task_name,
+                "max_rounds": 1,
+                "policy": {"policy_name": "ACT"},
+                "aspects": [
+                    {
+                        "aspect_id": "task_execution.official_baseline",
+                        "description": "Unchanged official task.",
+                        "template_ids": [
+                            "task_execution.official_baseline"
+                        ],
+                    }
+                ],
+            }
+            self.assertEqual(
+                control_template_id(generic_target),
+                "task_execution.official_baseline",
+            )
+            proposal = build_control_anchor_proposal(
+                generic_target,
+                f"Does {task_name} pass its clean control?",
+            )
+            self.assertEqual(proposal["task_name"], task_name)
+            self.assertEqual(
+                proposal["requested_aspect_ids"],
+                ["task_execution.official_baseline"],
+            )
+
     def test_routed_aspects_bound_query_candidate_universe(self):
         controller = ClaimFirstRuntimeController(
             "Can it succeed on at least one bell-property variation?",
@@ -256,9 +270,8 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             1, "performance.completion_time_stability.official"
         )
         observed = summary(control, 1.0)
-        provenance = bind_provenance(control, observed)
 
-        state = controller.observe([control], [observed], [provenance])
+        state = controller.observe([control], [observed])
 
         self.assertTrue(state["control_passed"])
         self.assertFalse(state["assessment"]["should_stop"])
@@ -268,8 +281,14 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         refs = state["records"][0]["evidence_refs"]
         self.assertEqual(
             {item["kind"] for item in refs},
-            {"round_provenance", "child_manifest", "round_aggregate"},
+            {
+                "child_manifest",
+                "round_aggregate",
+                "tool_execution",
+                "execution_vqa_result",
+            },
         )
+        self.assertTrue(all("sha256" not in item for item in refs))
         bound = controller.bind_semantic_step(
             semantic_bundle(),
             state,
@@ -299,9 +318,8 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         )
         observed = summary(control, 1.0)
         observed["observations"]["execution_vqa"]["evidence_conflict"] = True
-        provenance = bind_provenance(control, observed)
 
-        state = controller.observe([control], [observed], [provenance])
+        state = controller.observe([control], [observed])
 
         self.assertTrue(state["control_passed"])
         self.assertFalse(state["assessment"]["should_stop"])
@@ -319,8 +337,7 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             1, "performance.completion_time_stability.official"
         )
         observed = summary(control, 1.0)
-        provenance = bind_provenance(control, observed)
-        state = controller.observe([control], [observed], [provenance])
+        state = controller.observe([control], [observed])
 
         first = controller.bind_semantic_step(
             semantic_bundle("object_position"),
@@ -359,9 +376,8 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             1, "performance.completion_time_stability.official"
         )
         observed = summary(control, 0.0)
-        provenance = bind_provenance(control, observed)
 
-        state = controller.observe([control], [observed], [provenance])
+        state = controller.observe([control], [observed])
 
         self.assertTrue(state["assessment"]["should_stop"])
         self.assertEqual(
@@ -398,9 +414,8 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
                 "execution_scope": "experimental_bounded",
             },
         )
-        provenance = bind_provenance(control, observed)
 
-        state = controller.observe([control], [observed], [provenance])
+        state = controller.observe([control], [observed])
 
         self.assertFalse(state["control_passed"])
         self.assertEqual(
@@ -435,10 +450,6 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         state = controller.observe(
             [control, candidate],
             [control_summary, candidate_summary],
-            [
-                bind_provenance(control, control_summary),
-                bind_provenance(candidate, candidate_summary),
-            ],
         )
 
         self.assertTrue(state["query_answer"]["answered"])
@@ -465,13 +476,10 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         candidate = round_plan(2, "object_position.left_fixed")
         control_summary = summary(control, 1.0)
         candidate_summary = summary(candidate, 0.0)
-        control_provenance = bind_provenance(control, control_summary)
-        candidate_provenance = bind_provenance(candidate, candidate_summary)
 
         state = controller.observe(
             [control, candidate],
             [control_summary, candidate_summary],
-            [control_provenance, candidate_provenance],
         )
 
         self.assertTrue(state["assessment"]["evidence_sufficient"])

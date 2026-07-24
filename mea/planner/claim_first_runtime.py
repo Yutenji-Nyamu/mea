@@ -9,7 +9,7 @@ The bridge has four explicit responsibilities:
 
 * run one unchanged official-scene control before property attribution;
 * derive OpenQueryEvidence and finite-domain candidate evidence directly from
-  the runtime-owned EvidencePacket and round-provenance sidecar;
+  the runtime-owned EvidencePacket and lightweight artifact paths;
 * apply the query-sufficiency contract before accepting a model-authored stop;
 * resolve a semantic sub-aspect to one still-legal trusted template only after
   the model has made its claim-first proposal.
@@ -25,8 +25,6 @@ import json
 import re
 from copy import deepcopy
 from typing import Any, Mapping, Sequence
-
-from mea.round_provenance import canonical_sha256
 
 from .claim_first import (
     ClaimFirstPlanError,
@@ -52,6 +50,8 @@ CONTROL_TEMPLATE_BY_TASK = {
     # clean-control gate used here.
     "beat_block_hammer": "safety.hammer_left_camera_contact.official",
     "click_bell": "performance.completion_time_stability.official",
+    "adjust_bottle": "task_execution.official_baseline",
+    "grab_roller": "task_execution.official_baseline",
 }
 
 _SEMANTIC_STOPWORDS = {
@@ -150,6 +150,17 @@ def build_control_anchor_proposal(
             "requested_template_ids": [template_id],
             "first_template_id": template_id,
             "max_rounds": int(target["max_rounds"]),
+        }
+    if task_name in {"adjust_bottle", "grab_roller"}:
+        return {
+            "schema_version": 1,
+            "task_name": task_name,
+            "evaluation_goal": (
+                "establish_clean_control_before_claim_first_attribution: "
+                + query
+            ),
+            "requested_aspect_ids": ["task_execution.official_baseline"],
+            "first_aspect_id": "task_execution.official_baseline",
         }
     raise ClaimFirstRuntimeError(
         f"claim-first control proposal is not supported for {task_name!r}"
@@ -327,84 +338,81 @@ def resolve_semantic_proposal(
 
 def _round_artifact_refs(
     round_summary: Mapping[str, Any],
-    round_provenance: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
-    pointer = round_summary.get("provenance")
-    if not isinstance(pointer, Mapping):
-        raise ClaimFirstRuntimeError(
-            "claim-first evidence requires a round provenance pointer"
-        )
-    binding = round_provenance.get("binding")
-    if not isinstance(binding, Mapping):
-        raise ClaimFirstRuntimeError(
-            "claim-first evidence requires a round provenance binding"
-        )
-    if pointer.get("binding_sha256") != round_provenance.get("binding_sha256"):
-        raise ClaimFirstRuntimeError(
-            "round provenance pointer and binding sha256 disagree"
-        )
-    if binding.get("round_id") != round_summary.get("round_id"):
-        raise ClaimFirstRuntimeError(
-            "round provenance binding does not match the round summary"
-        )
-    refs = [
-        {
-            "kind": "round_provenance",
-            "path": _nonempty_text(pointer.get("path"), "provenance.path"),
-            "sha256": _nonempty_text(pointer.get("sha256"), "provenance.sha256"),
-        }
-    ]
-    for raw in binding.get("artifacts", []):
-        if not isinstance(raw, Mapping):
-            raise ClaimFirstRuntimeError("provenance artifact ref must be an object")
-        kind = str(raw.get("kind") or "")
-        if kind not in {
-            "act_metadata",
-            "act_result",
-            "child_manifest",
-            "execution_vqa_result",
-            "round_aggregate",
-            "tool_execution",
-        }:
-            continue
+    """Project the small set of artifacts needed to inspect one round.
+
+    These are navigation pointers, not integrity claims.  Experimental
+    preregistration may hash a bundle separately without making the normal
+    ClaimFirst runtime depend on a provenance subsystem.
+    """
+
+    refs: list[dict[str, Any]] = []
+    child_run_id = str(round_summary.get("taskgen_run_id") or "").strip()
+    if child_run_id:
         refs.append(
             {
-                "kind": kind,
-                "path": _nonempty_text(raw.get("path"), f"{kind}.path"),
-                "sha256": _nonempty_text(raw.get("sha256"), f"{kind}.sha256"),
+                "kind": "child_manifest",
+                "path": f"mea/generated_tasks/{child_run_id}/manifest.json",
             }
         )
-    if not any(item["kind"] == "child_manifest" for item in refs):
-        raise ClaimFirstRuntimeError(
-            "round provenance has no child_manifest evidence ref"
+
+    execution_dir = str(
+        round_summary.get("execution_artifact_dir") or ""
+    ).strip().rstrip("/\\")
+    observations = round_summary.get("observations")
+    observations = observations if isinstance(observations, Mapping) else {}
+    if execution_dir and isinstance(observations.get("aggregate"), Mapping):
+        refs.append(
+            {
+                "kind": "round_aggregate",
+                "path": f"{execution_dir}/aggregate_result.json",
+            }
         )
+    planned_tool = observations.get("planned_tool")
+    if (
+        execution_dir
+        and isinstance(planned_tool, Mapping)
+        and planned_tool.get("status") != "skipped"
+    ):
+        refs.append(
+            {
+                "kind": "tool_execution",
+                "path": f"{execution_dir}/planned_tool/tool_execution.json",
+            }
+        )
+    execution_vqa = observations.get("execution_vqa")
+    if isinstance(execution_vqa, Mapping):
+        artifacts = execution_vqa.get("artifacts")
+        result_path = (
+            str(artifacts.get("result") or "").strip()
+            if isinstance(artifacts, Mapping)
+            else ""
+        )
+        if result_path:
+            refs.append(
+                {
+                    "kind": "execution_vqa_result",
+                    "path": result_path,
+                }
+            )
     return refs
 
 
 def build_claim_first_evidence_record(
     round_plan: Mapping[str, Any],
     round_summary: Mapping[str, Any],
-    round_provenance: Mapping[str, Any],
 ) -> dict[str, Any]:
     """Derive compact semantic/query evidence from one completed runtime round."""
 
     if round_plan.get("round_id") != round_summary.get("round_id"):
         raise ClaimFirstRuntimeError("round plan and summary ids disagree")
-    binding = round_provenance.get("binding")
-    if (
-        not isinstance(binding, Mapping)
-        or binding.get("round_plan_sha256") != canonical_sha256(round_plan)
-    ):
-        raise ClaimFirstRuntimeError(
-            "round provenance is not bound to the supplied round plan"
-        )
     packet = validate_evidence_packet(
         build_evidence_packet(
             {"rounds": [deepcopy(dict(round_plan))], "max_rounds": 1},
             [deepcopy(dict(round_summary))],
         )
     )
-    refs = _round_artifact_refs(round_summary, round_provenance)
+    refs = _round_artifact_refs(round_summary)
     observations = round_summary.get("observations")
     policy_outcome = (
         observations.get("policy_outcome")
@@ -506,12 +514,6 @@ def build_claim_first_evidence_record(
         ),
         "diagnosis": diagnosis,
     }
-    binding_payload = {
-        "round_id": round_plan["round_id"],
-        "template_id": round_plan.get("template_id"),
-        "evidence_packet": packet,
-        "evidence_refs": refs,
-    }
     return {
         "schema_version": 1,
         "round_id": str(round_plan["round_id"]),
@@ -521,7 +523,6 @@ def build_claim_first_evidence_record(
         "evaluation_outcome": deepcopy(dict(policy_outcome)),
         "evidence_packet": packet,
         "evidence_refs": refs,
-        "binding_sha256": canonical_sha256(binding_payload),
     }
 
 
@@ -614,9 +615,6 @@ def render_query_answer(
         "limitations": list(dict.fromkeys(limitations)),
         "evidence_refs": refs,
         "evaluation_outcomes": outcome_authorities,
-        "evidence_binding_sha256": canonical_sha256(
-            [record.get("binding_sha256") for record in records]
-        ),
     }
 
 
@@ -700,24 +698,16 @@ class ClaimFirstRuntimeController:
         self,
         round_plans: Sequence[Mapping[str, Any]],
         round_summaries: Sequence[Mapping[str, Any]],
-        round_provenances: Sequence[Mapping[str, Any]],
     ) -> dict[str, Any]:
         """Normalize all completed rounds and decide whether execution stops."""
 
-        if not (
-            len(round_plans)
-            == len(round_summaries)
-            == len(round_provenances)
-            and round_plans
-        ):
+        if not (len(round_plans) == len(round_summaries) and round_plans):
             raise ClaimFirstRuntimeError(
-                "completed plans, summaries, and provenance must be non-empty and aligned"
+                "completed plans and summaries must be non-empty and aligned"
             )
         records = [
-            build_claim_first_evidence_record(plan, summary, provenance)
-            for plan, summary, provenance in zip(
-                round_plans, round_summaries, round_provenances
-            )
+            build_claim_first_evidence_record(plan, summary)
+            for plan, summary in zip(round_plans, round_summaries)
         ]
         if records[0]["template_id"] != self.control_template:
             raise ClaimFirstRuntimeError(

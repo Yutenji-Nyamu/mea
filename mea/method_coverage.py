@@ -391,16 +391,10 @@ CLAIMS: tuple[ClaimSpec, ...] = (
     ),
     ClaimSpec(
         14,
-        "stage_recovery_resume",
-        "Stage-aware recovery and resumable evaluation protocol",
+        "protocol_resume",
+        "Resumable evaluation protocol",
         "App. A.3.4",
         (
-            CodeRequirement(
-                "stage_recovery",
-                "symbol",
-                "mea/round_recovery.py",
-                "run_stage_aware_round_recovery",
-            ),
             CodeRequirement(
                 "protocol_runner",
                 "symbol",

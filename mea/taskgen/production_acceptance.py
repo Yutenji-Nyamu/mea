@@ -39,6 +39,12 @@ from .scene_checks import SceneCheckSpecError, validate_scene_check_spec
 from .capabilities import CapabilityError, validate_variant_spec_envelope
 from .success_spec import SuccessSpecError, success_spec_validation_report
 from .reviewed_registry import RUNTIME_DEPENDENCY_PATHS
+from .bbh_distractor import (
+    BBHDistractorTaskGenError,
+    validate_bbh_distractor_manifest,
+    validate_bbh_distractor_methods,
+    validate_bbh_distractor_proposal,
+)
 
 
 class ProductionTaskAcceptanceError(RuntimeError):
@@ -437,7 +443,10 @@ def _verify_bound_artifacts(
     try:
         expected_overlay = (
             {}
-            if manifest.get("mode") == "official"
+            if manifest.get("mode") in {
+                "official",
+                "provider_scene_checker_codegen",
+            }
             else compile_overlay(dict(spec))
             if spec.get("task_name") == "beat_block_hammer"
             else compile_click_bell_overlay(spec.get("changes"))
@@ -452,7 +461,47 @@ def _verify_bound_artifacts(
     scene_binding = bundle.get("scene_method")
     if not isinstance(scene_binding, Mapping):
         raise ProductionTaskAcceptanceError("scene method binding is missing")
-    if scene_binding.get("origin") == "generated_code":
+    if scene_binding.get("origin") == "provider_generated_code":
+        try:
+            candidate = validate_bbh_distractor_manifest(
+                _read_json(
+                    run_dir / "candidate_manifest.json",
+                    label="BBH distractor candidate manifest",
+                )
+            )
+            proposal = validate_bbh_distractor_proposal(
+                _read_json(
+                    run_dir / "generation/bbh_distractor_proposal.json",
+                    label="BBH distractor proposal",
+                )
+            )
+            response = _read_json(
+                run_dir / "generation/provider_response.json",
+                label="BBH distractor provider response",
+            )
+            validation = validate_bbh_distractor_methods(response, proposal)
+        except (
+            BBHDistractorTaskGenError,
+            OSError,
+            UnicodeError,
+            ValueError,
+        ) as exc:
+            raise ProductionTaskAcceptanceError(
+                f"provider scene+checker validation failed: {exc}"
+            ) from exc
+        if (
+            candidate.get("task_module") != manifest.get("task_module")
+            or _file_sha256(run_dir / "task.py")
+            != candidate.get("module_sha256")
+            or validation.get("scene_sha256")
+            != candidate.get("scene_method_sha256")
+            or validation.get("success_sha256")
+            != candidate.get("success_method_sha256")
+        ):
+            raise ProductionTaskAcceptanceError(
+                "provider scene+checker artifacts differ from static validation"
+            )
+    elif scene_binding.get("origin") == "generated_code":
         source = scene_binding.get("source")
         if not isinstance(source, str):
             raise ProductionTaskAcceptanceError("generated scene source is missing")
@@ -488,6 +537,18 @@ def _verify_bound_artifacts(
     success_binding = bundle.get("success_method")
     if not isinstance(success_binding, Mapping):
         raise ProductionTaskAcceptanceError("success method binding is missing")
+    if success_binding.get("origin") == "provider_generated_python":
+        if (
+            semantics.get("authority")
+            != "llm_generated_python_ast_validated"
+            or semantics.get("preserved") is not False
+            or semantics.get("generated_by_model") is not True
+            or semantics.get("act_runtime_eligible") is not True
+        ):
+            raise ProductionTaskAcceptanceError(
+                "provider-written checker authority is incomplete"
+            )
+        return
     if success_binding.get("origin") != "compiled_success_spec":
         return
     success_spec = _read_json(

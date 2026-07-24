@@ -27,8 +27,6 @@ from mea.planner.catalog import (
     validate_act_catalog,
 )
 from mea.providers.model_profiles import available_model_profiles
-from mea.round_provenance import RoundProvenanceError, verify_round_provenance
-from mea.runtime_ledger import RuntimeLedgerError, summarize_runtime_ledger
 
 
 PROTOCOL = "mea_cross_task_portfolio_v1"
@@ -200,15 +198,6 @@ def _historical_provider_called(
             "provider_called"
         ) is True:
             return True
-        observations = raw_round.get("observations")
-        recovery = (
-            observations.get("whole_round_recovery")
-            if isinstance(observations, Mapping)
-            else None
-        )
-        runtime = recovery.get("runtime") if isinstance(recovery, Mapping) else None
-        if isinstance(runtime, Mapping) and runtime.get("provider_called") is True:
-            return True
     return False
 
 
@@ -342,65 +331,6 @@ def _validate_outcomes(
     }
 
 
-_LEDGER_CORE_FIELDS = (
-    "schema_version",
-    "context",
-    "provider_called",
-    "provider_calls_started",
-    "provider_transport_attempts_started",
-    "act_batches_started",
-    "act_rollouts_started",
-    "by_modality",
-    "logical_calls",
-    "ledger_sha256",
-)
-
-
-def _validate_ledger_summary(
-    root: Path,
-    evaluation_dir: Path,
-    summary: Mapping[str, Any],
-    *,
-    field: str,
-) -> tuple[Path | None, dict[str, Any]]:
-    artifact = summary.get("artifact") or summary.get("call_start_ledger")
-    if artifact is None:
-        for name in (
-            "provider_calls_started",
-            "provider_transport_attempts_started",
-            "act_batches_started",
-            "act_rollouts_started",
-        ):
-            if summary.get(name) not in {None, 0}:
-                raise PortfolioError(f"{field} claims calls without a ledger artifact")
-        if summary.get("provider_called") not in {None, False}:
-            raise PortfolioError(f"{field} claims provider use without a ledger artifact")
-        return None, {
-            "provider_calls_started": 0,
-            "provider_transport_attempts_started": 0,
-            "act_batches_started": 0,
-            "act_rollouts_started": 0,
-        }
-    path = _artifact_path(
-        root,
-        evaluation_dir,
-        artifact,
-        default="unused",
-        field=f"{field}.artifact",
-    )
-    context = summary.get("context")
-    if not isinstance(context, Mapping):
-        raise PortfolioError(f"{field}.context must be an object")
-    try:
-        actual = summarize_runtime_ledger(path, expected_context=context)
-    except (OSError, RuntimeLedgerError) as exc:
-        raise PortfolioError(f"{field} is not a valid runtime ledger: {exc}") from exc
-    for name in _LEDGER_CORE_FIELDS:
-        if name not in summary or summary.get(name) != actual.get(name):
-            raise PortfolioError(f"{field}.{name} conflicts with its ledger")
-    return path, actual
-
-
 def _validated_runtime(
     root: Path,
     evaluation_dir: Path,
@@ -411,222 +341,63 @@ def _validated_runtime(
     evaluation_id: str,
     completed_act_episodes: int,
 ) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
-    rounds = evidence.get("rounds") or []
-    manifest_ledgers = manifest.get("runtime_ledgers")
-    round_summaries = [
-        (raw_round.get("observations") or {}).get("runtime_call_ledger")
-        if isinstance(raw_round, Mapping)
-        else None
-        for raw_round in rounds
-    ]
-    has_ledger_contract = manifest_ledgers is not None or any(
-        value is not None for value in round_summaries
-    )
-
-
-    if not has_ledger_contract:
+    del root, evaluation_dir, evaluation_id
+    declared = manifest.get("run_manifest")
+    if isinstance(declared, Mapping):
+        raw_act_starts = declared.get("act_rollouts_started")
+        raw_provider_calls = declared.get("provider_calls_started")
+        act_starts = (
+            int(raw_act_starts)
+            if isinstance(raw_act_starts, int)
+            and not isinstance(raw_act_starts, bool)
+            and raw_act_starts >= completed_act_episodes
+            else completed_act_episodes
+        )
+        provider_calls = (
+            int(raw_provider_calls)
+            if isinstance(raw_provider_calls, int)
+            and not isinstance(raw_provider_calls, bool)
+            and raw_provider_calls >= 0
+            else None
+        )
         return (
             {
-                "accounting_mode": "legacy_completed_seed_fallback",
-                "provider_called": _historical_provider_called(
-                    manifest, evidence, feedback
+                "accounting_mode": "run_manifest_declaration",
+                "provider_called": (
+                    provider_calls > 0
+                    if provider_calls is not None
+                    else _historical_provider_called(manifest, evidence, feedback)
                 ),
-                "provider_calls_started": None,
+                "provider_calls_started": provider_calls,
                 "provider_transport_attempts_started": None,
-                "act_rollouts_started": completed_act_episodes,
+                "act_rollouts_started": act_starts,
                 "completed_act_episodes": completed_act_episodes,
                 "started_count_exact": False,
                 "limitation": (
-                    "legacy child has no call-start ledger; ACT starts fall back to "
-                    "completed episode seeds and can undercount crashed attempts"
+                    "run manifest counters are descriptive and are not backed by "
+                    "per-call ledger files"
                 ),
             },
             {},
         )
-    if not isinstance(manifest_ledgers, list) or any(
-        not isinstance(item, Mapping) for item in manifest_ledgers
-    ):
-        raise PortfolioError(
-            f"{evaluation_id} has an incomplete manifest runtime-ledger contract"
-        )
-    if len(round_summaries) != len(rounds) or any(
-        not isinstance(item, Mapping) for item in round_summaries
-    ):
-        raise PortfolioError(
-            f"{evaluation_id} has incomplete per-round runtime-ledger evidence"
-        )
-
-    refs: dict[str, dict[str, Any]] = {}
-    summaries_by_path: dict[Path, dict[str, Any]] = {}
-
-    def bind(summary: Mapping[str, Any], *, field: str) -> None:
-        path, actual = _validate_ledger_summary(
-            root, evaluation_dir, summary, field=field
-        )
-        if path is None:
-            return
-        if path in summaries_by_path and summaries_by_path[path] != actual:
-            raise PortfolioError(f"{field} duplicates a ledger with conflicting summary")
-        summaries_by_path[path] = actual
-
-    for index, summary in enumerate(manifest_ledgers):
-        bind(summary, field=f"{evaluation_id}.manifest.runtime_ledgers[{index}]")
-    for index, summary in enumerate(round_summaries):
-        bind(summary, field=f"{evaluation_id}.rounds[{index}].runtime_call_ledger")
-
-    # Recovery can create an earlier attempt that is absent from the final round
-    # summary.  Every attempt ledger lives at this fixed Agent-owned path, so audit
-    # all of them and count starts rather than only successful seed completions.
-    for index, raw_round in enumerate(rounds):
-        round_id = _text(raw_round.get("round_id"), field=f"rounds[{index}].round_id")
-        attempt_root = evaluation_dir / "runtime" / round_id
-        for path in sorted(attempt_root.glob("attempt_*/call_starts.jsonl")):
-            _assert_no_symlink(root, path, field=f"{evaluation_id} attempt ledger")
-            try:
-                actual = summarize_runtime_ledger(path)
-            except (OSError, RuntimeLedgerError) as exc:
-                raise PortfolioError(
-                    f"{evaluation_id} attempt ledger is invalid: {exc}"
-                ) from exc
-            context = actual.get("context") or {}
-            if (
-                context.get("evaluation_id") != evaluation_id
-                or context.get("logical_round_id") != round_id
-            ):
-                raise PortfolioError(
-                    f"{evaluation_id} attempt ledger context is inconsistent"
-                )
-            summaries_by_path[path.resolve()] = actual
-
-        recovery = (raw_round.get("observations") or {}).get(
-            "whole_round_recovery"
-        )
-        if isinstance(recovery, Mapping):
-            declared_runtime = recovery.get("runtime")
-            if isinstance(declared_runtime, Mapping):
-                round_act_starts = sum(
-                    value["act_rollouts_started"]
-                    for path, value in summaries_by_path.items()
-                    if path.is_relative_to(attempt_root.resolve())
-                )
-                if declared_runtime.get("act_rollouts_started") != round_act_starts:
-                    raise PortfolioError(
-                        f"{evaluation_id} recovery ACT starts conflict with attempt ledgers"
-                    )
-
-    provider_calls = sum(
-        item["provider_calls_started"] for item in summaries_by_path.values()
-    )
-    provider_attempts = sum(
-        item["provider_transport_attempts_started"]
-        for item in summaries_by_path.values()
-    )
-    act_starts = sum(item["act_rollouts_started"] for item in summaries_by_path.values())
-    if act_starts < completed_act_episodes:
-        raise PortfolioError(
-            f"{evaluation_id} call-start ledgers undercount completed ACT episodes"
-        )
-    for index, (path, _summary) in enumerate(
-        sorted(summaries_by_path.items(), key=lambda item: item[0].as_posix())
-    ):
-        resolved, data = _read_regular_file(
-            root, path, field=f"{evaluation_id} runtime ledger {index}"
-        )
-        refs[f"runtime_ledger_{index + 1}"] = _ref(root, resolved, data)
     return (
         {
-            "accounting_mode": "validated_call_start_ledgers",
-            "provider_called": provider_calls > 0,
-            "provider_calls_started": provider_calls,
-            "provider_transport_attempts_started": provider_attempts,
-            "act_rollouts_started": act_starts,
+            "accounting_mode": "completed_episode_fallback",
+            "provider_called": _historical_provider_called(
+                manifest, evidence, feedback
+            ),
+            "provider_calls_started": None,
+            "provider_transport_attempts_started": None,
+            "act_rollouts_started": completed_act_episodes,
             "completed_act_episodes": completed_act_episodes,
-            "started_count_exact": True,
-            "limitation": None,
+            "started_count_exact": False,
+            "limitation": (
+                "No run manifest counters are available; ACT starts fall back "
+                "to completed episode seeds and can undercount interrupted runs."
+            ),
         },
-        refs,
+        {},
     )
-
-
-def _validate_round_provenance(
-    root: Path,
-    evaluation_dir: Path,
-    manifest: Mapping[str, Any],
-    evidence: Mapping[str, Any],
-    *,
-    evaluation_id: str,
-) -> dict[str, dict[str, Any]]:
-    rounds = evidence.get("rounds") or []
-    pointers = [
-        (raw_round.get("artifacts") or {}).get("round_provenance")
-        if isinstance(raw_round, Mapping)
-        else None
-        for raw_round in rounds
-    ]
-    if not any(pointer is not None for pointer in pointers):
-        return {}
-    if any(not isinstance(pointer, str) or not pointer for pointer in pointers):
-        raise PortfolioError(
-            f"{evaluation_id} has an incomplete round-provenance contract"
-        )
-    plan = manifest.get("plan")
-    planned_rounds = plan.get("rounds") if isinstance(plan, Mapping) else None
-    if not isinstance(planned_rounds, list):
-        raise PortfolioError(
-            f"{evaluation_id} cannot verify provenance without manifest.plan.rounds"
-        )
-    plan_by_id = {
-        item.get("round_id"): item
-        for item in planned_rounds
-        if isinstance(item, Mapping) and isinstance(item.get("round_id"), str)
-    }
-    refs: dict[str, dict[str, Any]] = {}
-    for index, (raw_round, pointer) in enumerate(zip(rounds, pointers)):
-        round_id = _text(
-            raw_round.get("round_id"),
-            field=f"{evaluation_id}.rounds[{index}].round_id",
-        )
-        round_plan = plan_by_id.get(round_id)
-        if not isinstance(round_plan, Mapping):
-            raise PortfolioError(
-                f"{evaluation_id} provenance has no matching round plan for {round_id}"
-            )
-        summary_path, summary_bytes = _read_regular_file(
-            root,
-            evaluation_dir / "summary" / f"{round_id}.json",
-            field=f"{evaluation_id} {round_id} summary",
-        )
-        summary = _json_object(
-            summary_bytes, field=f"{evaluation_id} {round_id} summary"
-        )
-        provenance_path = _artifact_path(
-            root,
-            evaluation_dir,
-            pointer,
-            default="unused",
-            field=f"{evaluation_id}.{round_id}.round_provenance",
-        )
-        try:
-            verify_round_provenance(
-                root,
-                provenance_path,
-                round_plan=round_plan,
-                round_summary=summary,
-            )
-        except (OSError, RoundProvenanceError) as exc:
-            raise PortfolioError(
-                f"{evaluation_id} {round_id} provenance verification failed: {exc}"
-            ) from exc
-        provenance_resolved, provenance_bytes = _read_regular_file(
-            root,
-            provenance_path,
-            field=f"{evaluation_id} {round_id} provenance",
-        )
-        refs[f"{round_id}_summary"] = _ref(root, summary_path, summary_bytes)
-        refs[f"{round_id}_provenance"] = _ref(
-            root, provenance_resolved, provenance_bytes
-        )
-    return refs
 
 
 def _checkpoint_contract(
@@ -754,13 +525,6 @@ def _load_child(root: Path, task_name: str, evaluation_id: str) -> dict[str, Any
         evaluation_id=evaluation_id,
         completed_act_episodes=int(outcomes["completed_act_episodes"]),
     )
-    provenance_refs = _validate_round_provenance(
-        root,
-        evaluation_dir,
-        manifest,
-        evidence,
-        evaluation_id=evaluation_id,
-    )
     checkpoint = _checkpoint_contract(
         manifest, task_name=task_name, evaluation_id=evaluation_id
     )
@@ -768,7 +532,6 @@ def _load_child(root: Path, task_name: str, evaluation_id: str) -> dict[str, Any
         name: _ref(root, path, data) for name, (path, data) in loaded.items()
     }
     artifacts.update(runtime_refs)
-    artifacts.update(provenance_refs)
     manifest_plan = manifest.get("plan")
     planned_aspects = (
         deepcopy(manifest_plan.get("requested_aspect_ids"))
@@ -1032,10 +795,6 @@ def build_portfolio_command_plan(
             profile,
             "--gpu",
             str(gpu),
-            "--tool-recovery-max-restarts",
-            "0",
-            "--round-recovery-max-restarts",
-            "0",
             "--no-history",
         ]
         if task_name == "click_bell":
@@ -1056,8 +815,6 @@ def build_portfolio_command_plan(
                     "act_rollouts_started": 1,
                     "execution_backend": "ACT",
                     "task_name": task_name,
-                    "tool_recovery_restarts": 0,
-                    "whole_round_restarts": 0,
                 },
             }
         )

@@ -511,7 +511,10 @@ class DispatchAndCliTest(unittest.TestCase):
     def test_cli_requires_input_and_writes_result(self) -> None:
         manifest = SmallEfficiencyTest().manifest()
         repo_root = Path(__file__).resolve().parents[2]
-        script = repo_root / "scripts" / "manipeval_paper_claim_demo.py"
+        script = (
+            repo_root
+            / "experiments/paper/manipeval_paper_claim_demo.py"
+        )
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             input_path = root / "input.json"
