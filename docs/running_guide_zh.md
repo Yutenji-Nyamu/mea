@@ -78,7 +78,9 @@ Git 只复制 current manifest 收录的短 rollout、render、生成代码、�
   `development_agent_proxy` review；proxy 不能写成 human gold。
 
 协议结果保留 preregistration、逐 cell/seed 结果和一个最终 JSON；不要把这些 dispatcher
-接回生产 Agent。LIBERO smoke 也属于独立实验 adapter，不混入 RoboTwin 或 Table 9。
+接回生产 Agent。LIBERO smoke 也属于独立 environment/policy feasibility smoke，不混入 RoboTwin 或 Table 9。
+LIBERO 的固定环境、official control 与 MEA 迁移协议见
+[LIBERO / SmolVLA 复现与 MEA 接入](libero_smolvla_reproduction_zh.md)。
 
 ## 6. 测试原则
 
