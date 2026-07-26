@@ -1264,6 +1264,21 @@ class ClickBellGeneratedTests(unittest.TestCase):
             with self.subTest(update=update), self.assertRaises(Exception):
                 validate_click_bell_vision_observation({**base, **update})
 
+    def test_click_bell_vqa_abstains_on_low_confidence(self):
+        result = validate_click_bell_vision_observation(
+            {
+                "aligned": True,
+                "target_actor": "bell",
+                "bell_visible": True,
+                "unexpected_changes": [],
+                "diagnosis": "visible but uncertain",
+                "suggestions": [],
+                "confidence": 0.2,
+            }
+        )
+        self.assertFalse(result["passed"])
+        self.assertIn("vision_confidence_below_0.5", result["issues"])
+
     def test_failed_first_round_preserves_unexecuted_right_template(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "protocol": "table3_scene_checker_codegen_ablation_pilot_v2_result",
+  "study_id": "batch23_table3_scene_checker_pilot_v5",
+  "preregistration_sha256": "3f82f454a8c012da546c0b1e2b113495e989e1bf1f08ba92cc81c9fbd83605db",
+  "cell_count": 10,
+  "provider_generation_count": 10,
+  "development_proxy_review_count": 10,
+  "human_reviewer_count": 0,
+  "act_rollouts_started": 0,
+  "rows": [
+    {
+      "cell_id": "u01_bbh_red_distractor_x__complete",
+      "proposal_id": "u01_bbh_red_distractor_x",
+      "condition": "complete",
+      "success": true,
+      "execution_status": "completed",
+      "blind_proxy_review_passed": true,
+      "proxy_review_blind_to_condition": false
+    },
+    {
+      "cell_id": "u01_bbh_red_distractor_x__base",
+      "proposal_id": "u01_bbh_red_distractor_x",
+      "condition": "base",
+      "success": false,
+      "execution_status": "failed",
+      "blind_proxy_review_passed": false
+    },
+    {
+      "cell_id": "u01_bbh_red_distractor_x__no_rag",
+      "proposal_id": "u01_bbh_red_distractor_x",
+      "condition": "no_rag",
+      "success": false,
+      "execution_status": "failed",
+      "blind_proxy_review_passed": false
+    },
+    {
+      "cell_id": "u01_bbh_red_distractor_x__no_visual_self_check",
+      "proposal_id": "u01_bbh_red_distractor_x",
+      "condition": "no_visual_self_check",
+      "success": true,
+      "execution_status": "completed",
+      "blind_proxy_review_passed": true,
+      "proxy_review_blind_to_condition": false
+    },
+    {
+      "cell_id": "u01_bbh_red_distractor_x__no_readme_agent",
+      "proposal_id": "u01_bbh_red_distractor_x",
+      "condition": "no_readme_agent",
+      "success": true,
+      "execution_status": "completed",
+      "blind_proxy_review_passed": true,
+      "proxy_review_blind_to_condition": false
+    },
+    {
+      "cell_id": "u02_bbh_blue_distractor_y__complete",
+      "proposal_id": "u02_bbh_blue_distractor_y",
+      "condition": "complete",
+      "success": true,
+      "execution_status": "completed",
+      "blind_proxy_review_passed": true,
+      "proxy_review_blind_to_condition": false
+    },
+    {
+      "cell_id": "u02_bbh_blue_distractor_y__base",
+      "proposal_id": "u02_bbh_blue_distractor_y",
+      "condition": "base",
+      "success": false,
+      "execution_status": "failed",
+      "blind_proxy_review_passed": false
+    },
+    {
+      "cell_id": "u02_bbh_blue_distractor_y__no_rag",
+      "proposal_id": "u02_bbh_blue_distractor_y",
+      "condition": "no_rag",
+      "success": false,
+      "execution_status": "failed",
+      "blind_proxy_review_passed": false
+    },
+    {
+      "cell_id": "u02_bbh_blue_distractor_y__no_visual_self_check",
+      "proposal_id": "u02_bbh_blue_distractor_y",
+      "condition": "no_visual_self_check",
+      "success": true,
+      "execution_status": "completed",
+      "blind_proxy_review_passed": true,
+      "proxy_review_blind_to_condition": false
+    },
+    {
+      "cell_id": "u02_bbh_blue_distractor_y__no_readme_agent",
+      "proposal_id": "u02_bbh_blue_distractor_y",
+      "condition": "no_readme_agent",
+      "success": true,
+      "execution_status": "completed",
+      "blind_proxy_review_passed": true,
+      "proxy_review_blind_to_condition": false
+    }
+  ],
+  "success_rates": {
+    "complete": 1.0,
+    "base": 0.0,
+    "no_rag": 0.0,
+    "no_visual_self_check": 1.0,
+    "no_readme_agent": 1.0
+  },
+  "paper_table3_eligible": false,
+  "claim_scope": "two_unseen_distractor_proposals_per_condition_micro_ablation_not_table3",
+  "limitations": [
+    "The review is a disclosed, non-blind development-agent proxy, not independent human gold.",
+    "A two-proposal micro-ablation is not the paper-scale Table 3 experiment."
+  ]
+}

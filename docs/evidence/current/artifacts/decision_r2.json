@@ -1,0 +1,412 @@
+{
+  "schema_version": 3,
+  "action": "continue",
+  "transition": "switch_aspect",
+  "next_aspect_id": "robustness.distractor_avoidance",
+  "next_template_id": "robustness.distractor_avoidance.lookalike",
+  "observation_summary": "Testing distractor avoidance is critical to understanding the policy's robustness in scenarios with additional objects, which could expose weaknesses in focus or precision.",
+  "decision_reason": "provider_authored_plan_step",
+  "answered_query": false,
+  "plan_step_source": "provider_claim_first_open_query",
+  "plan_step_proposal": {
+    "schema_version": 1,
+    "action": "propose",
+    "aspect_id": "robustness.distractor_avoidance",
+    "template_id": "robustness.distractor_avoidance.lookalike",
+    "rationale": "Testing distractor avoidance is critical to understanding the policy's robustness in scenarios with additional objects, which could expose weaknesses in focus or precision.",
+    "answered_query": false
+  },
+  "round_budget_before_decision": 1,
+  "evidence_assessment": {
+    "schema_version": 1,
+    "task_name": "beat_block_hammer",
+    "checkpoint_id": "act-beat_block_hammer/demo_clean-50",
+    "current_aspect_id": "object_scale",
+    "round_budget_remaining": 1,
+    "evidence_state": "sufficient",
+    "evidence_packet": {
+      "schema_version": 1,
+      "round_id": "round_2",
+      "template_id": "object_scale.bounded_1_2",
+      "pipeline": {
+        "passed": true,
+        "failure_stage": null
+      },
+      "policy": {
+        "success_rate": 1.0,
+        "reported": true
+      },
+      "rule": {
+        "metric": "query_right_tcp_target_xy_distance",
+        "expected_policy_episodes": 1,
+        "aggregate_status": "passed",
+        "input_issue_count": 0,
+        "valid": 1,
+        "missing": 0,
+        "invalid": 0,
+        "semantic_missing": 0,
+        "semantic_missing_reasons": [],
+        "observed_policy_episodes": 1,
+        "complete": true,
+        "reasons": []
+      },
+      "vqa": {
+        "required": true,
+        "status": "passed",
+        "evidence_conflict": false
+      },
+      "evidence_strength": "sufficient",
+      "reason_codes": []
+    },
+    "initial_required_aspect_ids": [
+      "safety.hammer_left_camera_contact"
+    ],
+    "covered_aspect_ids": [
+      "object_scale",
+      "safety.hammer_left_camera_contact"
+    ],
+    "uncovered_initial_required_aspect_ids": [],
+    "discoverable_aspect_ids": [
+      "object_appearance.color",
+      "object_position",
+      "performance.pickup_to_contact_timing",
+      "robustness.distractor_avoidance"
+    ],
+    "available_steps": {
+      "refine": [],
+      "propose": [
+        {
+          "aspect_id": "object_appearance.color",
+          "template_ids": [
+            "object_appearance.color_blue"
+          ],
+          "initially_required": false
+        },
+        {
+          "aspect_id": "object_position",
+          "template_ids": [
+            "object_position.official_random"
+          ],
+          "initially_required": false
+        },
+        {
+          "aspect_id": "performance.pickup_to_contact_timing",
+          "template_ids": [
+            "performance.pickup_to_contact_timing"
+          ],
+          "initially_required": false
+        },
+        {
+          "aspect_id": "robustness.distractor_avoidance",
+          "template_ids": [
+            "robustness.distractor_avoidance.lookalike"
+          ],
+          "initially_required": false
+        }
+      ],
+      "stop": true
+    },
+    "stop_requires_answered_query": true,
+    "forced_stop": false,
+    "fallback_step": {
+      "schema_version": 1,
+      "action": "stop",
+      "aspect_id": null,
+      "template_id": null,
+      "rationale": "The initially required query aspects are covered; provider failure must not spend rollout budget on an unrequested discovery.",
+      "answered_query": true
+    }
+  },
+  "next_round": {
+    "round_id": "round_3",
+    "template_id": "robustness.distractor_avoidance.lookalike",
+    "capability_id": "robustness.distractor_avoidance",
+    "task_variant_id": "robustness.distractor_avoidance.query_generated_1",
+    "capability_contract": {
+      "schema_version": 1,
+      "task_name": "beat_block_hammer",
+      "template_id": "robustness.distractor_avoidance.lookalike",
+      "aspect": {
+        "aspect_id": "robustness.distractor_avoidance",
+        "semantic_scope": "scene",
+        "target_role": "scene"
+      },
+      "taskgen": {
+        "operation": "provider_scene_checker_codegen",
+        "capability_id": "robustness.distractor_avoidance",
+        "task_variant_id": "robustness.distractor_avoidance.lookalike",
+        "controlled_axis": "robustness.distractor_avoidance",
+        "change_scope": "scene",
+        "generation_mode": "provider_scene_checker_codegen",
+        "allowed_change_roots": [
+          "distractor"
+        ],
+        "changes": {
+          "distractor": {
+            "scene": {
+              "target_name": "box",
+              "distractor_name": "distractor_box",
+              "target_color": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "distractor_color": [
+                0.85,
+                0.05,
+                0.05
+              ],
+              "half_size_m": [
+                0.025,
+                0.025,
+                0.025
+              ],
+              "distractor_offset_xy_m": [
+                0.1,
+                0.0
+              ]
+            },
+            "success": {
+              "target_alignment_thresholds_m": [
+                0.025,
+                0.025
+              ],
+              "require_target_contact": true,
+              "forbid_distractor_contact": true,
+              "latch_distractor_contact": true
+            }
+          }
+        }
+      },
+      "tool": {
+        "request_factory_id": "bbh_distractor_success_tool_request",
+        "metric": "bbh_target_without_distractor_success"
+      },
+      "vqa": {
+        "phenomenon_ids": [
+          "target_block_visible",
+          "lookalike_distractor_visible",
+          "distractor_not_struck"
+        ]
+      },
+      "required_gates": [
+        "variant_spec",
+        "ast",
+        "render",
+        "rule",
+        "scene_variant",
+        "expert",
+        "act",
+        "toolkit",
+        "aggregate"
+      ]
+    },
+    "sub_aspect": "robustness.distractor_avoidance",
+    "rationale": "Test whether the policy strikes the intended block without contacting a physically similar nearby distractor.",
+    "task_instruction": "Generate a BeatBlockHammer scene containing the official target block and one same-size physical look-alike distractor. Replace check_success() so the rollout succeeds only after target alignment/contact and fails after any distractor contact. Validate the generated scene and checker before running one ACT episode. Query-generated bounded variation: evaluate a query-relevant bounded variation",
+    "route": "provider_scene_checker_codegen",
+    "variant_hint": {
+      "distractor": {
+        "scene": {
+          "target_name": "box",
+          "distractor_name": "distractor_box",
+          "target_color": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "distractor_color": [
+            0.85,
+            0.05,
+            0.05
+          ],
+          "half_size_m": [
+            0.025,
+            0.025,
+            0.025
+          ],
+          "distractor_offset_xy_m": [
+            0.1,
+            0.0
+          ]
+        },
+        "success": {
+          "target_alignment_thresholds_m": [
+            0.025,
+            0.025
+          ],
+          "require_target_contact": true,
+          "forbid_distractor_contact": true,
+          "latch_distractor_contact": true
+        }
+      }
+    },
+    "execution": {
+      "backend": "act",
+      "seeds": [
+        100600
+      ],
+      "num_episodes": 1,
+      "gates": [
+        "variant_spec",
+        "ast",
+        "render",
+        "rule",
+        "scene_variant",
+        "expert",
+        "act",
+        "toolkit",
+        "aggregate"
+      ]
+    },
+    "observations": [
+      "scene_alignment",
+      "observed_color",
+      "expert_solvable",
+      "act_pipeline_status",
+      "policy_success"
+    ],
+    "tool_request": {
+      "schema_version": 1,
+      "task_name": "beat_block_hammer",
+      "metric": "bbh_target_without_distractor_success",
+      "question": "Did the policy hit the intended target without striking the lookalike distractor under the generated checker?"
+    },
+    "vqa_phenomenon_ids": [
+      "target_block_visible",
+      "lookalike_distractor_visible",
+      "distractor_not_struck"
+    ],
+    "task_proposal": {
+      "schema_version": 1,
+      "proposal_id": "robustness.distractor_avoidance.query_generated_1",
+      "task_name": "beat_block_hammer",
+      "aspect_id": "robustness.distractor_avoidance",
+      "intent": "evaluate a query-relevant bounded variation",
+      "capability_id": "robustness.distractor_avoidance",
+      "reuse_first": true,
+      "changes": {
+        "distractor": {
+          "scene": {
+            "target_name": "box",
+            "distractor_name": "distractor_box",
+            "target_color": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "distractor_color": [
+              0.85,
+              0.05,
+              0.05
+            ],
+            "half_size_m": [
+              0.025,
+              0.025,
+              0.025
+            ],
+            "distractor_offset_xy_m": [
+              0.1,
+              0.0
+            ]
+          },
+          "success": {
+            "target_alignment_thresholds_m": [
+              0.025,
+              0.025
+            ],
+            "require_target_contact": true,
+            "forbid_distractor_contact": true,
+            "latch_distractor_contact": true
+          }
+        }
+      },
+      "preserve_success_semantics": false
+    },
+    "tool_proposal": {
+      "schema_version": 1,
+      "proposal_id": "robustness.distractor_avoidance.query_generated_1.tool",
+      "task_name": "beat_block_hammer",
+      "aspect_id": "robustness.distractor_avoidance",
+      "evaluation_goal": "use the generated checker outcome for the same ACT episode",
+      "metric": "bbh_target_without_distractor_success",
+      "question": "Did the policy hit the intended target without striking the lookalike distractor under the generated checker?",
+      "vqa_phenomenon_ids": [
+        "target_block_visible",
+        "lookalike_distractor_visible",
+        "distractor_not_struck"
+      ],
+      "reuse_first": true
+    },
+    "task_name": "beat_block_hammer",
+    "aspect_id": "robustness.distractor_avoidance",
+    "proposal_materialization": {
+      "schema_version": 1,
+      "mode": "query_generated_bounded_variation",
+      "base_template_id": "robustness.distractor_avoidance.lookalike",
+      "capability_contract_is_authority_envelope": true,
+      "task_proposal_is_round_variation_authority": true
+    },
+    "semantic_need_execution": {
+      "schema_version": 1,
+      "candidate_slot_id": "robustness.distractor_avoidance.lookalike",
+      "realization_id": "robustness.distractor_avoidance.query_generated_1",
+      "task": {
+        "requested": true,
+        "description": "TaskGen must generate a scene with a distractor object near the block and ensure success-check criteria remain valid.",
+        "route": "bounded_task_proposal_v1",
+        "status": "selected"
+      },
+      "tool": {
+        "requested": true,
+        "description": "ToolGen must retrieve or generate metrics to measure unintended interactions with the distractor object.",
+        "route": "registered_tool_reuse",
+        "status": "selected"
+      }
+    }
+  },
+  "semantic_proposal": {
+    "schema_version": 1,
+    "action": "continue",
+    "sub_aspect": "robustness.distractor_avoidance",
+    "hypothesis": "Introducing a distractor object near the block will reveal whether the policy can maintain focus on the target object without unintended interactions.",
+    "requested_perturbation": {
+      "description": "One bounded, diagnostic perturbation.",
+      "controlled_changes": [
+        "add a distractor object near the block with random appearance and position"
+      ],
+      "preserve": [
+        "task identity",
+        "policy checkpoint"
+      ]
+    },
+    "task_need": {
+      "required": true,
+      "description": "TaskGen must generate a scene with a distractor object near the block and ensure success-check criteria remain valid."
+    },
+    "tool_need": {
+      "required": true,
+      "description": "ToolGen must retrieve or generate metrics to measure unintended interactions with the distractor object.",
+      "reuse_first": true
+    },
+    "rationale": "Testing distractor avoidance is critical to understanding the policy's robustness in scenarios with additional objects, which could expose weaknesses in focus or precision."
+  },
+  "semantic_resolution": {
+    "schema_version": 1,
+    "semantic_sub_aspect": "robustness.distractor_avoidance",
+    "resolved_aspect_id": "robustness.distractor_avoidance",
+    "resolved_template_id": "robustness.distractor_avoidance.lookalike",
+    "resolution": "exact_aspect_runtime_order",
+    "hidden": true,
+    "matched_tokens": [
+      "avoidance",
+      "block",
+      "description",
+      "distractor",
+      "robustness",
+      "whether",
+      "without"
+    ],
+    "catalog_was_model_visible": false
+  }
+}

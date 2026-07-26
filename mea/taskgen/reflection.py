@@ -23,6 +23,9 @@ class VisualReflectionError(RuntimeError):
     """Raised when visual self-reflection exhausts its repair budget."""
 
 
+VISUAL_MIN_CONFIDENCE = 0.5
+
+
 def _sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
@@ -65,11 +68,12 @@ def validate_vision_observation(
     suggestions = value.get("suggestions")
     if not isinstance(suggestions, list):
         suggestions = [str(suggestions)] if suggestions else []
-    confidence = value.get("confidence", 0.0)
-    try:
-        confidence = float(confidence)
-    except (TypeError, ValueError):
-        confidence = 0.0
+    confidence = value.get("confidence")
+    if isinstance(confidence, bool) or not isinstance(confidence, (int, float)):
+        raise VisualReflectionError("Vision confidence must be numeric")
+    confidence = float(confidence)
+    if not math.isfinite(confidence) or not 0.0 <= confidence <= 1.0:
+        raise VisualReflectionError("Vision confidence must be finite and within [0, 1]")
     result = {
         "aligned": bool(value.get("aligned")),
         "target_actor": str(value.get("target_actor") or "block"),
@@ -79,10 +83,18 @@ def validate_vision_observation(
         "unexpected_changes": [str(item) for item in unexpected],
         "diagnosis": str(value.get("diagnosis") or "").strip(),
         "suggestions": [str(item) for item in suggestions],
-        "confidence": max(0.0, min(1.0, confidence)),
+        "confidence": confidence,
     }
     result["passed"] = bool(
-        result["aligned"] and color_matches and not result["unexpected_changes"]
+        result["aligned"]
+        and color_matches
+        and not result["unexpected_changes"]
+        and result["confidence"] >= VISUAL_MIN_CONFIDENCE
+    )
+    result["issues"] = (
+        [f"vision_confidence_below_{VISUAL_MIN_CONFIDENCE:g}"]
+        if result["confidence"] < VISUAL_MIN_CONFIDENCE
+        else []
     )
     if not result["diagnosis"] and not result["passed"]:
         result["diagnosis"] = (
@@ -130,6 +142,12 @@ def validate_click_bell_vision_observation(value: Any) -> dict[str, Any]:
         result["aligned"]
         and result["bell_visible"]
         and not result["unexpected_changes"]
+        and result["confidence"] >= VISUAL_MIN_CONFIDENCE
+    )
+    result["issues"] = (
+        [f"vision_confidence_below_{VISUAL_MIN_CONFIDENCE:g}"]
+        if result["confidence"] < VISUAL_MIN_CONFIDENCE
+        else []
     )
     if not result["diagnosis"] and not result["passed"]:
         result["diagnosis"] = "Bell visibility or scene plausibility check failed."
@@ -208,7 +226,15 @@ def validate_bbh_distractor_vision_observation(
         and result["lookalike_distractor_visible"]
         and result["scene_physically_plausible"]
         and not result["unexpected_changes"]
+        and result["confidence"] >= VISUAL_MIN_CONFIDENCE
     )
+    if result["confidence"] < VISUAL_MIN_CONFIDENCE:
+        result["issues"] = [
+            "vision_confidence_below_"
+            f"{VISUAL_MIN_CONFIDENCE:g}"
+        ]
+    else:
+        result["issues"] = []
     if not result["diagnosis"] and not result["passed"]:
         result["diagnosis"] = (
             "The proposal-derived target/distractor scene failed one or more "

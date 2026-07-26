@@ -1,0 +1,21 @@
+{
+  "task_name": "beat_block_hammer",
+  "intent": "evaluate_a_query_relevant_bounded_variation",
+  "generation_mode": "force_codegen",
+  "changes": {
+    "block": {
+      "position_mode": "official_random",
+      "yaw_mode": "official_random",
+      "scale": 1.2,
+      "color": [1.0, 0.0, 0.0]
+    }
+  },
+  "preserve": [
+    "official_position_sampling",
+    "official_yaw_sampling",
+    "official_block_color",
+    "play_once",
+    "check_success_semantics",
+    "checkpoint"
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "task_name": "beat_block_hammer",
+  "task_module": "envs.beat_block_hammer",
+  "source": "envs/beat_block_hammer.py",
+  "task_schema": "mea/toolkit/schemas/beat_block_hammer.json",
+  "code_generation_performed": false
+}

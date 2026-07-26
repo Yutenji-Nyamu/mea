@@ -1,11 +1,7 @@
 from __future__ import annotations
 
 import json
-import subprocess
-import sys
-import tempfile
 import unittest
-from pathlib import Path
 
 from mea.paper_claim_demo import (
     CODEGEN_ABLATION_PROTOCOL,
@@ -507,40 +503,6 @@ class DispatchAndCliTest(unittest.TestCase):
             evaluate_paper_claim_manifest(manifest)["claim_status"],
             "post_hoc_cached_counterfactual_protocol_demo",
         )
-
-    def test_cli_requires_input_and_writes_result(self) -> None:
-        manifest = SmallEfficiencyTest().manifest()
-        repo_root = Path(__file__).resolve().parents[2]
-        script = (
-            repo_root
-            / "experiments/paper/manipeval_paper_claim_demo.py"
-        )
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            input_path = root / "input.json"
-            output_path = root / "output.json"
-            input_path.write_text(json.dumps(manifest), encoding="utf-8")
-            completed = subprocess.run(
-                [
-                    sys.executable,
-                    str(script),
-                    "--input",
-                    str(input_path),
-                    "--output",
-                    str(output_path),
-                ],
-                cwd=repo_root,
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(completed.returncode, 0, completed.stderr)
-            result = json.loads(output_path.read_text(encoding="utf-8"))
-            self.assertEqual(
-                result["claim_status"],
-                "post_hoc_cached_counterfactual_protocol_demo",
-            )
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "annotator_kind": "development_agent_proxy",
+  "human_reviewer_count": 0,
+  "paper_eligible": false,
+  "reviews": [
+    {
+      "cell_id": "u01_bbh_red_distractor_x__complete",
+      "passed": true,
+      "blind_to_condition": false,
+      "notes": "Rendered target and similar distractor are distinct, separated, and compatible with the generated target-contact/no-distractor-contact checker."
+    },
+    {
+      "cell_id": "u01_bbh_red_distractor_x__no_rag",
+      "passed": false,
+      "blind_to_condition": false,
+      "notes": "Generation failed before a render eligible for proxy review."
+    },
+    {
+      "cell_id": "u01_bbh_red_distractor_x__no_visual_self_check",
+      "passed": true,
+      "blind_to_condition": false,
+      "notes": "Rendered target and distractor are distinct and non-overlapping; fixtures confirm the generated contact-latch checker."
+    },
+    {
+      "cell_id": "u01_bbh_red_distractor_x__no_readme_agent",
+      "passed": true,
+      "blind_to_condition": false,
+      "notes": "Scene geometry is visually plausible and the generated checker matches the target-hit without distractor-hit proposal."
+    },
+    {
+      "cell_id": "u01_bbh_red_distractor_x__base",
+      "passed": false,
+      "blind_to_condition": false,
+      "notes": "Generation failed before a render eligible for proxy review."
+    },
+    {
+      "cell_id": "u02_bbh_blue_distractor_y__complete",
+      "passed": true,
+      "blind_to_condition": false,
+      "notes": "Rendered blue target and similar distractor are separated along the requested axis and the generated checker matches the proposal."
+    },
+    {
+      "cell_id": "u02_bbh_blue_distractor_y__no_rag",
+      "passed": false,
+      "blind_to_condition": false,
+      "notes": "Generation failed before a render eligible for proxy review."
+    },
+    {
+      "cell_id": "u02_bbh_blue_distractor_y__no_visual_self_check",
+      "passed": true,
+      "blind_to_condition": false,
+      "notes": "Rendered target and distractor are visually distinct and non-overlapping; semantic fixtures passed."
+    },
+    {
+      "cell_id": "u02_bbh_blue_distractor_y__no_readme_agent",
+      "passed": true,
+      "blind_to_condition": false,
+      "notes": "Scene and generated contact/alignment checker are consistent with the bounded target-versus-distractor proposal."
+    },
+    {
+      "cell_id": "u02_bbh_blue_distractor_y__base",
+      "passed": false,
+      "blind_to_condition": false,
+      "notes": "Generation failed before a render eligible for proxy review."
+    }
+  ]
+}

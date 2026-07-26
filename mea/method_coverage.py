@@ -391,26 +391,6 @@ CLAIMS: tuple[ClaimSpec, ...] = (
     ),
     ClaimSpec(
         14,
-        "protocol_resume",
-        "Resumable evaluation protocol",
-        "App. A.3.4",
-        (
-            CodeRequirement(
-                "protocol_runner",
-                "symbol",
-                "scripts/manipeval_protocol.py",
-                "run_protocol",
-            ),
-            CodeRequirement(
-                "resume_cli",
-                "text",
-                "scripts/manipeval_protocol.py",
-                value="--resume-run",
-            ),
-        ),
-    ),
-    ClaimSpec(
-        15,
         "live_run_local_vqa",
         "Run-local Dynamic Execution VQA on rollout keyframes",
         "App. A.3.5",
@@ -440,7 +420,7 @@ CLAIMS: tuple[ClaimSpec, ...] = (
         ),
     ),
     ClaimSpec(
-        16,
+        15,
         "matched_fixed_adaptive_protocol",
         "Matched ACT fixed versus adaptive protocol",
         "Tables 1-2 mechanism evidence",

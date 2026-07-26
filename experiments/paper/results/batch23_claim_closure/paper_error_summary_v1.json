@@ -1,0 +1,80 @@
+{
+  "schema_version": 2,
+  "protocol": "prospective_paper_defined_error_study_v2_summary",
+  "study_id": "batch23_semantic_artifact_audit_v1",
+  "study_sha256": "413263bb723830575a2b986135adebc3e2d3be0d12e5d448db46574ce0838883",
+  "frozen_denominator_operations": 10,
+  "semantic_terminal_operations": 10,
+  "paper_defined_error_numerator": 0,
+  "prospective_error_rate": 0.0,
+  "evidence_complete": true,
+  "totals": {
+    "planned": 10,
+    "not_started": 0,
+    "in_flight": 0,
+    "passed": 10,
+    "paper_defined_errors": 0,
+    "infrastructure_errors": 0,
+    "aborted_upstream": 0
+  },
+  "categories": {
+    "plan_agent": {
+      "planned": 2,
+      "not_started": 0,
+      "in_flight": 0,
+      "passed": 2,
+      "paper_defined_errors": 0,
+      "infrastructure_errors": 0,
+      "aborted_upstream": 0
+    },
+    "taskgen": {
+      "planned": 2,
+      "not_started": 0,
+      "in_flight": 0,
+      "passed": 2,
+      "paper_defined_errors": 0,
+      "infrastructure_errors": 0,
+      "aborted_upstream": 0
+    },
+    "toolgen": {
+      "planned": 2,
+      "not_started": 0,
+      "in_flight": 0,
+      "passed": 2,
+      "paper_defined_errors": 0,
+      "infrastructure_errors": 0,
+      "aborted_upstream": 0
+    },
+    "simulator": {
+      "planned": 2,
+      "not_started": 0,
+      "in_flight": 0,
+      "passed": 2,
+      "paper_defined_errors": 0,
+      "infrastructure_errors": 0,
+      "aborted_upstream": 0
+    },
+    "other": {
+      "planned": 2,
+      "not_started": 0,
+      "in_flight": 0,
+      "passed": 2,
+      "paper_defined_errors": 0,
+      "infrastructure_errors": 0,
+      "aborted_upstream": 0
+    }
+  },
+  "paper_error_distribution": {
+    "plan_agent": null,
+    "taskgen": null,
+    "toolgen": null,
+    "simulator": null,
+    "other": null
+  },
+  "paper_fig6_eligible": false,
+  "limitations": [
+    "This pilot uses a small project-defined operation roster.",
+    "Infrastructure errors and upstream aborts never enter the semantic error numerator.",
+    "A rate is withheld until every frozen operation has a semantic terminal status."
+  ]
+}

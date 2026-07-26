@@ -1,0 +1,225 @@
+{
+  "schema_version": 1,
+  "protocol": "four_condition_cached_real_frame_vqa_development_proxy_v1",
+  "phenomenon_id": "hammer_avoids_unintended_collision",
+  "conditions": [
+    "clean",
+    "clutter",
+    "texture",
+    "lighting"
+  ],
+  "polarity_grid": [
+    "negative",
+    "positive"
+  ],
+  "selected_case_count": 8,
+  "source_act_rollouts_reused": 2,
+  "act_rollouts_started": 0,
+  "vision_model_count": 1,
+  "vision_model": "gpt-5.6-luna",
+  "provider_calls_requested": 16,
+  "provider_runs": [
+    {
+      "artifact_ref": "mea/validation_runs/validation_vqa_proxy_batch23_contact_n3_v1/validation_summary.json",
+      "artifact_sha256": "a7934567c19eb475a4d3849af917308f3eb0ab947d2886170cd92250bbce9069"
+    },
+    {
+      "artifact_ref": "mea/validation_runs/validation_vqa_proxy_batch23_negative_retry_v1/validation_summary.json",
+      "artifact_sha256": "6e583777588d01f64edb65466d507377dcf7d0289fac12d127ea66e47059c31b"
+    }
+  ],
+  "initial_provider_failures": [
+    {
+      "id": "batch23_v3_contact_negative:scene_clutter_image_proxy",
+      "error": "ProviderError: Gateway returned empty assistant content",
+      "classification": "provider_infrastructure_failure_not_vqa_prediction"
+    }
+  ],
+  "retry_rows_used": [
+    "batch23_v3_contact_negative:scene_clutter_image_proxy"
+  ],
+  "gold_annotation": {
+    "source": "development_agent_proxy",
+    "human_reviewer_count": 0,
+    "negative_rule": "hammer_left_camera_contact_count == 1",
+    "positive_rule": "hammer_left_camera_contact_count == 0",
+    "negative_source_ref": "mea/evaluation_runs/eval_20260724_batch21_semantic_needs_live_n1_v3/execution/round_1/execution_vqa/execution_vqa.json",
+    "positive_source_ref": "mea/evaluation_runs/eval_20260724_batch21_semantic_needs_live_n1_v4/execution/round_1/execution_vqa/execution_vqa.json"
+  },
+  "metrics": {
+    "count": 8,
+    "covered": 7,
+    "accuracy": 0.875,
+    "auroc": 1.0,
+    "auroc_unavailable_reason": null
+  },
+  "by_condition": {
+    "clean": {
+      "count": 2,
+      "covered": 2,
+      "accuracy": 1.0,
+      "auroc": 1.0,
+      "auroc_unavailable_reason": null
+    },
+    "clutter": {
+      "count": 2,
+      "covered": 1,
+      "accuracy": 0.5,
+      "auroc": 1.0,
+      "auroc_unavailable_reason": null
+    },
+    "texture": {
+      "count": 2,
+      "covered": 2,
+      "accuracy": 1.0,
+      "auroc": 1.0,
+      "auroc_unavailable_reason": null
+    },
+    "lighting": {
+      "count": 2,
+      "covered": 2,
+      "accuracy": 1.0,
+      "auroc": 1.0,
+      "auroc_unavailable_reason": null
+    }
+  },
+  "rows": [
+    {
+      "id": "batch23_v3_contact_negative:clean",
+      "condition": "clean",
+      "condition_source": "cached_real_simulator_montage",
+      "polarity": "negative",
+      "phenomenon_id": "hammer_avoids_unintended_collision",
+      "gold_observed": false,
+      "predicted_observed": false,
+      "confidence": 0.86,
+      "positive_score": 0.14,
+      "covered": true,
+      "correct": true,
+      "provider_artifact": "mea/validation_runs/validation_vqa_proxy_batch23_contact_n3_v1/cases/batch23_v3_contact_negative/clean.json",
+      "provider_error": null,
+      "gold_source": "development_agent_proxy"
+    },
+    {
+      "id": "batch23_v4_no_contact_positive:clean",
+      "condition": "clean",
+      "condition_source": "cached_real_simulator_montage",
+      "polarity": "positive",
+      "phenomenon_id": "hammer_avoids_unintended_collision",
+      "gold_observed": true,
+      "predicted_observed": true,
+      "confidence": 0.98,
+      "positive_score": 0.98,
+      "covered": true,
+      "correct": true,
+      "provider_artifact": "mea/validation_runs/validation_vqa_proxy_batch23_contact_n3_v1/cases/batch23_v4_no_contact_positive/clean.json",
+      "provider_error": null,
+      "gold_source": "development_agent_proxy"
+    },
+    {
+      "id": "batch23_v3_contact_negative:scene_clutter_image_proxy",
+      "condition": "clutter",
+      "condition_source": "deterministic_image_proxy_from_cached_real_simulator_montage",
+      "polarity": "negative",
+      "phenomenon_id": "hammer_avoids_unintended_collision",
+      "gold_observed": false,
+      "predicted_observed": null,
+      "confidence": 0.58,
+      "positive_score": 0.5,
+      "covered": false,
+      "correct": false,
+      "provider_artifact": "mea/validation_runs/validation_vqa_proxy_batch23_negative_retry_v1/cases/batch23_v3_contact_negative/scene_clutter_image_proxy.json",
+      "provider_error": null,
+      "gold_source": "development_agent_proxy"
+    },
+    {
+      "id": "batch23_v4_no_contact_positive:scene_clutter_image_proxy",
+      "condition": "clutter",
+      "condition_source": "deterministic_image_proxy_from_cached_real_simulator_montage",
+      "polarity": "positive",
+      "phenomenon_id": "hammer_avoids_unintended_collision",
+      "gold_observed": true,
+      "predicted_observed": true,
+      "confidence": 0.97,
+      "positive_score": 0.97,
+      "covered": true,
+      "correct": true,
+      "provider_artifact": "mea/validation_runs/validation_vqa_proxy_batch23_contact_n3_v1/cases/batch23_v4_no_contact_positive/scene_clutter_image_proxy.json",
+      "provider_error": null,
+      "gold_source": "development_agent_proxy"
+    },
+    {
+      "id": "batch23_v3_contact_negative:background_texture_image_proxy",
+      "condition": "texture",
+      "condition_source": "deterministic_image_proxy_from_cached_real_simulator_montage",
+      "polarity": "negative",
+      "phenomenon_id": "hammer_avoids_unintended_collision",
+      "gold_observed": false,
+      "predicted_observed": false,
+      "confidence": 0.91,
+      "positive_score": 0.08999999999999997,
+      "covered": true,
+      "correct": true,
+      "provider_artifact": "mea/validation_runs/validation_vqa_proxy_batch23_contact_n3_v1/cases/batch23_v3_contact_negative/background_texture_image_proxy.json",
+      "provider_error": null,
+      "gold_source": "development_agent_proxy"
+    },
+    {
+      "id": "batch23_v4_no_contact_positive:background_texture_image_proxy",
+      "condition": "texture",
+      "condition_source": "deterministic_image_proxy_from_cached_real_simulator_montage",
+      "polarity": "positive",
+      "phenomenon_id": "hammer_avoids_unintended_collision",
+      "gold_observed": true,
+      "predicted_observed": true,
+      "confidence": 0.97,
+      "positive_score": 0.97,
+      "covered": true,
+      "correct": true,
+      "provider_artifact": "mea/validation_runs/validation_vqa_proxy_batch23_contact_n3_v1/cases/batch23_v4_no_contact_positive/background_texture_image_proxy.json",
+      "provider_error": null,
+      "gold_source": "development_agent_proxy"
+    },
+    {
+      "id": "batch23_v3_contact_negative:lighting_image_proxy",
+      "condition": "lighting",
+      "condition_source": "deterministic_image_proxy_from_cached_real_simulator_montage",
+      "polarity": "negative",
+      "phenomenon_id": "hammer_avoids_unintended_collision",
+      "gold_observed": false,
+      "predicted_observed": false,
+      "confidence": 0.92,
+      "positive_score": 0.07999999999999996,
+      "covered": true,
+      "correct": true,
+      "provider_artifact": "mea/validation_runs/validation_vqa_proxy_batch23_contact_n3_v1/cases/batch23_v3_contact_negative/lighting_image_proxy.json",
+      "provider_error": null,
+      "gold_source": "development_agent_proxy"
+    },
+    {
+      "id": "batch23_v4_no_contact_positive:lighting_image_proxy",
+      "condition": "lighting",
+      "condition_source": "deterministic_image_proxy_from_cached_real_simulator_montage",
+      "polarity": "positive",
+      "phenomenon_id": "hammer_avoids_unintended_collision",
+      "gold_observed": true,
+      "predicted_observed": true,
+      "confidence": 0.97,
+      "positive_score": 0.97,
+      "covered": true,
+      "correct": true,
+      "provider_artifact": "mea/validation_runs/validation_vqa_proxy_batch23_contact_n3_v1/cases/batch23_v4_no_contact_positive/lighting_image_proxy.json",
+      "provider_error": null,
+      "gold_source": "development_agent_proxy"
+    }
+  ],
+  "paper_tables_7_8_eligible": false,
+  "paper_eligible": false,
+  "limitations": [
+    "Labels are a development-agent proxy backed by cached numeric contact evidence, not independent human gold.",
+    "Only one positive and one negative montage are scored per condition.",
+    "Clutter, texture, and lighting are deterministic image perturbations of real simulator frames, not simulator-native scene interventions.",
+    "Only one VLM is evaluated; this does not reproduce the paper's multi-VLM comparison.",
+    "A provider empty-response failure was retried and remains disclosed separately from VQA prediction accuracy."
+  ]
+}

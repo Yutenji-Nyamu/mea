@@ -594,6 +594,11 @@ class _FixtureActor:
             [0.0, 0.0, 0.0] if position is None else position,
             dtype=float,
         )
+        # SAPIEN actors expose their current pose directly.  Provider-written
+        # checkers may use this public API instead of RoboTwin functional
+        # points; the semantic fixtures should not reject that equivalent
+        # implementation merely because the fixture omitted the attribute.
+        self.pose = _FixturePose(self._position)
         self.mass: float | None = None
 
     def get_name(self) -> str:
@@ -745,6 +750,14 @@ def _run_scene_semantic_fixture(
             raise BBHDistractorTaskGenError(
                 f"load_actors scene fixture rejected {name} color"
             )
+    if (
+        not isinstance(getattr(task, "block", None), _FixtureActor)
+        or task.block.get_name() != scene["target_name"]
+    ):
+        raise BBHDistractorTaskGenError(
+            "load_actors must preserve self.block as the official target "
+            "interface used by inherited play_once()"
+        )
     target_pose = boxes[scene["target_name"]].get("pose")
     distractor_pose = boxes[scene["distractor_name"]].get("pose")
     observed_offset = np.asarray(distractor_pose.p) - np.asarray(target_pose.p)
@@ -760,6 +773,11 @@ def _run_scene_semantic_fixture(
         for name, value in vars(task).items()
         if isinstance(value, bool) and value is False
     )
+    actor_aliases = {
+        name: value.get_name()
+        for name, value in vars(task).items()
+        if isinstance(value, _FixtureActor)
+    }
     if len(contact_latches) < 2:
         raise BBHDistractorTaskGenError(
             "load_actors scene fixture rejected contact initialization"
@@ -774,6 +792,7 @@ def _run_scene_semantic_fixture(
         "box_count": len(created_boxes),
         "offset_xy_m": observed_offset[:2].tolist(),
         "contact_latches": contact_latches,
+        "actor_aliases": actor_aliases,
     }
 
 
@@ -782,6 +801,7 @@ def _run_checker_semantic_fixtures(
     proposal: Mapping[str, Any],
     *,
     contact_latches: list[str],
+    actor_aliases: Mapping[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     validated = validate_bbh_distractor_proposal(proposal)
     namespace: dict[str, Any] = {"np": np, "abs": abs, "bool": bool}
@@ -807,11 +827,24 @@ def _run_checker_semantic_fixtures(
             self.distractor = _FixtureActor(
                 "distractor_box", [0.1, 0.0, 0.0]
             )
+            actors_by_name = {
+                actor.get_name(): actor
+                for actor in (self.hammer, self.block, self.distractor)
+            }
+            for alias, actor_name in dict(actor_aliases or {}).items():
+                actor = actors_by_name.get(actor_name)
+                if actor is not None:
+                    setattr(self, alias, actor)
             for name in contact_latches:
                 setattr(self, name, False)
             self.contacts = contacts
 
         def check_actors_contact(self, left: str, right: str) -> bool:
+            if not isinstance(left, str) or not isinstance(right, str):
+                raise ValueError(
+                    "check_actors_contact requires actor-name strings from "
+                    "actor.get_name(), not actor objects"
+                )
             return frozenset((left, right)) in self.contacts
 
     target = frozenset(("020_hammer", "box"))
@@ -914,6 +947,7 @@ def validate_bbh_distractor_methods(
             str(methods["check_success"]),
             proposal,
             contact_latches=list(scene_fixture["contact_latches"]),
+            actor_aliases=scene_fixture["actor_aliases"],
         )
     except BBHDistractorTaskGenError:
         raise
@@ -975,52 +1009,112 @@ def _provider_object(response: str) -> dict[str, Any]:
     return value
 
 
-def _prompt(proposal: Mapping[str, Any]) -> str:
-    return (
-        "You are the bounded RoboTwin BeatBlockHammer TaskGen code agent.\n"
-        "The same immutable proposal must produce both scene construction and "
-        "a replacement success checker.\n\n"
-        "PROPOSAL:\n"
-        + json.dumps(proposal, ensure_ascii=False, sort_keys=True, indent=2)
-        + "\n\nReturn one strict JSON object with exactly two string fields: "
-        "load_actors and check_success. Each string contains one complete "
-        "Python method. Do not use imports, files, network, processes, dunder "
-        "attributes, dynamic execution, super(), or extra helpers. Preserve "
-        "the official hammer and random target pose, add a static same-size "
-        "distractor at the declared offset, and latch any distractor contact. "
-        "The immutable official hammer contract is "
-        "create_actor(scene=self, pose=sapien.Pose([0, -0.06, 0.783], "
-        "[0, 0, 0.995, 0.105]), modelname=\"020_hammer\", convex=True, "
-        "model_id=0), followed by self.hammer.set_mass(0.001). "
-        "Sample the target with rand_pose(xlim=[-0.25, 0.25], "
-        "ylim=[-0.05, 0.15], zlim=[0.76], qpos=[1, 0, 0, 0], "
-        "rotate_rand=True, rotate_lim=[0, 0, 0.5]). Pass "
-        "is_static=True when creating both boxes. Call "
-        "self.add_prohibit_area(self.hammer, padding=0.10), then call "
-        "self.prohibited_area.append([pose.p[0] - 0.05, pose.p[1] - 0.05, "
-        "pose.p[0] + 0.05, pose.p[1] + 0.05]) once for the target pose and "
-        "once for the distractor pose; do not invent a prohibit_regions "
-        "attribute. Choose two public contact-latch attribute names, "
-        "initialize both to false, and reuse those names in check_success. "
-        "Success requires target "
-        "alignment/contact and no distractor contact. Use only np.array, "
-        "np.asarray, np.sum, np.all, np.any, np.abs, sapien.Pose, "
-        "create_actor, create_box, the global rand_pose function, and the "
-        "listed task/actor methods needed for those requirements. The base "
-        "task has no self.create_actor, self.create_box, self.rand_pose, or "
-        "self._get_random_pose methods; call create_actor(...), "
-        "create_box(...), and rand_pose(...) directly as global functions. "
-        "Actors have no get_contacts method. Detect contact only with "
-        "self.check_actors_contact(self.hammer.get_name(), "
-        "self.block.get_name()) and the equivalent call for "
-        "self.distractor. Read alignment only from "
-        "self.hammer.get_functional_point(0, \"pose\").p and "
-        "self.block.get_functional_point(1, \"pose\").p; compare only their "
-        "first two coordinates against np.array([0.025, 0.025]). "
-        "Equivalent implementation structure "
-        "is allowed; the result is checked with scene and success fixtures. "
-        "Do not return Markdown."
+def _ablation_switches(
+    value: Mapping[str, Any] | None,
+) -> dict[str, bool]:
+    switches = (
+        {"rag": True, "visual_self_check": True, "readme_agent": True}
+        if value is None
+        else dict(value)
     )
+    expected = {"rag", "visual_self_check", "readme_agent"}
+    if set(switches) != expected or any(
+        not isinstance(switches[key], bool) for key in expected
+    ):
+        raise BBHDistractorTaskGenError(
+            "ablation switches must be exactly rag, visual_self_check, "
+            "and readme_agent booleans"
+        )
+    return {key: switches[key] for key in sorted(expected)}
+
+
+def _prompt(
+    proposal: Mapping[str, Any],
+    *,
+    repo_root: Path,
+    ablation_switches: Mapping[str, Any] | None,
+) -> tuple[str, dict[str, Any]]:
+    switches = _ablation_switches(ablation_switches)
+    sections = [
+        (
+            "Generate one RoboTwin BeatBlockHammer candidate from the immutable "
+            "proposal below. The same candidate must define the scene and its "
+            "replacement success checker.\n\nPROPOSAL:\n"
+            + json.dumps(proposal, ensure_ascii=False, sort_keys=True, indent=2)
+            + "\n\nOUTPUT CONTRACT:\nReturn one strict JSON object with exactly "
+            "two string fields, load_actors and check_success. Each field must "
+            "contain one complete Python method. The target and a same-size "
+            "physical look-alike distractor must both exist. Success requires "
+            "target alignment/contact and no distractor contact. Do not return "
+            "Markdown."
+        )
+    ]
+    readme_path = repo_root / "mea/taskgen/README.Agent.md"
+    if not readme_path.is_file():
+        readme_path = Path(__file__).with_name("README.Agent.md")
+    if switches["readme_agent"]:
+        sections.append(
+            "README.AGENT CONTEXT:\n"
+            + readme_path.read_text(encoding="utf-8").strip()
+        )
+    if switches["rag"]:
+        sections.append(
+            "RETRIEVED ROBOTWIN API AND TASK CONTEXT:\n"
+            "Do not use imports, files, network, processes, dunder attributes, "
+            "dynamic execution, super(), or extra helpers. Preserve the official "
+            "hammer and random target pose, add a static same-size distractor at "
+            "the declared offset, and latch any distractor contact. "
+            "The immutable official hammer contract is "
+            "create_actor(scene=self, pose=sapien.Pose([0, -0.06, 0.783], "
+            "[0, 0, 0.995, 0.105]), modelname=\"020_hammer\", convex=True, "
+            "model_id=0), followed by self.hammer.set_mass(0.001). "
+            "Sample the target with rand_pose(xlim=[-0.25, 0.25], "
+            "ylim=[-0.05, 0.15], zlim=[0.76], qpos=[1, 0, 0, 0], "
+            "rotate_rand=True, rotate_lim=[0, 0, 0.5]). Pass "
+            "is_static=True when creating both boxes. "
+            "Assign the target actor to self.block because inherited "
+            "play_once() reads self.block; additional aliases are allowed. "
+            "Assign the distractor to a stable public attribute such as "
+            "self.distractor for use by check_success. "
+            "self.add_prohibit_area(self.hammer, padding=0.10), then call "
+            "self.prohibited_area.append([pose.p[0] - 0.05, pose.p[1] - 0.05, "
+            "pose.p[0] + 0.05, pose.p[1] + 0.05]) once for the target pose and "
+            "once for the distractor pose; do not invent a prohibit_regions "
+            "attribute. Choose two public contact-latch attribute names, "
+            "initialize both to false, and reuse those names in check_success. "
+            "Use only np.array, np.asarray, np.sum, np.all, np.any, np.abs, "
+            "sapien.Pose, create_actor, create_box, the global rand_pose "
+            "function, and the listed task/actor methods. The base task has no "
+            "self.create_actor, self.create_box, self.rand_pose, or "
+            "self._get_random_pose methods; call the global functions directly. "
+            "Actors have no get_contacts method. Detect contact only with "
+            "self.check_actors_contact(self.hammer.get_name(), "
+            "self.block.get_name()) and the analogous call using "
+            "self.distractor.get_name(); pass actor-name strings, never actor "
+            "objects. Read "
+            "alignment with "
+            "self.hammer.get_functional_point(0, \"pose\").p and the target "
+            "actor's get_functional_point(1, \"pose\").p, compare their first "
+            "two coordinates against "
+            "np.array([0.025, 0.025]). Equivalent structure is allowed; scene "
+            "and checker semantics are validated by fixtures."
+        )
+    prompt = "\n\n".join(sections).strip() + "\n"
+    return prompt, {
+        "switches": switches,
+        "components": {
+            "core_contract": True,
+            "rag_context": switches["rag"],
+            "readme_agent_context": switches["readme_agent"],
+            "visual_self_check": switches["visual_self_check"],
+        },
+        "readme_agent_ref": (
+            "mea/taskgen/README.Agent.md"
+            if switches["readme_agent"]
+            else None
+        ),
+        "prompt_sha256": _text_sha256(prompt),
+    }
 
 
 def run_bbh_distractor_checker_fixtures(
@@ -1038,6 +1132,7 @@ def run_bbh_distractor_checker_fixtures(
         contact_latches=list(
             validation["scene_fixture"]["contact_latches"]
         ),
+        actor_aliases=validation["scene_fixture"]["actor_aliases"],
     )
 
 
@@ -1049,6 +1144,7 @@ def materialize_bbh_distractor_candidate(
     provider: TextProvider,
     model: str,
     max_regenerations: int = 1,
+    ablation_switches: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Materialize one provider-written candidate with one local regeneration."""
 
@@ -1069,7 +1165,11 @@ def materialize_bbh_distractor_candidate(
             "max_regenerations must be 0 or 1"
         )
     validated = validate_bbh_distractor_proposal(proposal)
-    prompt = _prompt(validated)
+    prompt, prompt_context = _prompt(
+        validated,
+        repo_root=root,
+        ablation_switches=ablation_switches,
+    )
     attempts: list[dict[str, Any]] = []
     response = ""
     methods: dict[str, Any] | None = None
@@ -1220,6 +1320,10 @@ def materialize_bbh_distractor_candidate(
             "local_regeneration_limit": max_regenerations,
             "restricted_success_spec_compiler_used": False,
             "ast_policy": validation["policy"],
+            "taskgen_ablation_switches": prompt_context["switches"],
+            "prompt_components": prompt_context["components"],
+            "prompt_sha256": prompt_context["prompt_sha256"],
+            "readme_agent_ref": prompt_context["readme_agent_ref"],
         },
         "checker_contract": {
             "metric": "bbh_target_without_distractor_success",

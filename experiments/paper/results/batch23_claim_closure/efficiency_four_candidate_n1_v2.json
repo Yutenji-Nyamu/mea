@@ -1,0 +1,330 @@
+{
+  "schema_version": 1,
+  "protocol": "click_bell_independent_live_efficiency_v1_result",
+  "study_id": "batch23_click_bell_four_universal_n1_v2",
+  "preregistration_sha256": "f0b8e0ab7f7551e137781123bb329735cf494f7ee751b13dca87e242b03443d5",
+  "comparison_design": "independent_live_arms",
+  "cached_prefix_used": false,
+  "mode": "four_candidate_universal_5to8act",
+  "claim_scope": "independent_live_four_candidate_universal_toy_not_paper_tables_1_2",
+  "arms": {
+    "fixed": {
+      "arm": "fixed",
+      "arm_run_id": "batch23_click_bell_four_universal_n1_v2_fixed_live",
+      "wall_seconds": 277.72405645623803,
+      "policy_steps": 605,
+      "stop_reason": "fixed_suite_complete",
+      "attempts": [
+        {
+          "attempt_id": "fixed_attempt_01",
+          "candidate_id": "object_position.left_fixed",
+          "seed": 100404,
+          "evidence_source": "live_policy_rollout",
+          "receipt_ref": "mea/protocol_runs/batch23_click_bell_four_universal_n1_v2/preregistration_artifacts/live_runs/fixed/object_position.left_fixed/rollout_receipt.json",
+          "receipt_sha256": "436e75e7edcabfbb403cde4f4994c93a3f9d098d3e044b141b2c57309c4ad795",
+          "variant_id": "click_bell.object_position.left_fixed",
+          "started_at_utc": "2026-07-26T04:03:32.427108Z",
+          "ended_at_utc": "2026-07-26T04:05:19.720403Z",
+          "wall_seconds": 107.29327058419585,
+          "status": "completed",
+          "success": false,
+          "policy_steps": 400
+        },
+        {
+          "attempt_id": "fixed_attempt_02",
+          "candidate_id": "object_position.right_fixed",
+          "seed": 100404,
+          "evidence_source": "live_policy_rollout",
+          "receipt_ref": "mea/protocol_runs/batch23_click_bell_four_universal_n1_v2/preregistration_artifacts/live_runs/fixed/object_position.right_fixed/rollout_receipt.json",
+          "receipt_sha256": "c217aec1acad2f885b6e057dbbe894a331a89e1215c8de75ada35e76e2697d9e",
+          "variant_id": "click_bell.object_position.right_fixed",
+          "started_at_utc": "2026-07-26T04:05:19.722257Z",
+          "ended_at_utc": "2026-07-26T04:06:17.064012Z",
+          "wall_seconds": 57.34171347692609,
+          "status": "completed",
+          "success": true,
+          "policy_steps": 70
+        },
+        {
+          "attempt_id": "fixed_attempt_03",
+          "candidate_id": "object_instance.base0",
+          "seed": 100404,
+          "evidence_source": "live_policy_rollout",
+          "receipt_ref": "mea/protocol_runs/batch23_click_bell_four_universal_n1_v2/preregistration_artifacts/live_runs/fixed/object_instance.base0/rollout_receipt.json",
+          "receipt_sha256": "e0d610cff5ab4b5d585162d77086cf8fa2680b59973436c7e6b9bf6ff31bd10d",
+          "variant_id": "click_bell.object_instance.base0",
+          "started_at_utc": "2026-07-26T04:06:17.065836Z",
+          "ended_at_utc": "2026-07-26T04:07:13.414234Z",
+          "wall_seconds": 56.34835768863559,
+          "status": "completed",
+          "success": true,
+          "policy_steps": 67
+        },
+        {
+          "attempt_id": "fixed_attempt_04",
+          "candidate_id": "object_instance.base1",
+          "seed": 100404,
+          "evidence_source": "live_policy_rollout",
+          "receipt_ref": "mea/protocol_runs/batch23_click_bell_four_universal_n1_v2/preregistration_artifacts/live_runs/fixed/object_instance.base1/rollout_receipt.json",
+          "receipt_sha256": "25b9d008ddff17d4274848d4a3f9b46b5b94fa44300de6ed7fabdd773bbeed42",
+          "variant_id": "click_bell.object_instance.base1",
+          "started_at_utc": "2026-07-26T04:07:13.416028Z",
+          "ended_at_utc": "2026-07-26T04:08:10.156783Z",
+          "wall_seconds": 56.7407147064805,
+          "status": "completed",
+          "success": true,
+          "policy_steps": 68
+        }
+      ]
+    },
+    "adaptive": {
+      "arm": "adaptive",
+      "arm_run_id": "batch23_click_bell_four_universal_n1_v2_adaptive_live",
+      "wall_seconds": 107.72224425524473,
+      "policy_steps": 400,
+      "stop_reason": "query_sufficient",
+      "attempts": [
+        {
+          "attempt_id": "adaptive_attempt_01",
+          "candidate_id": "object_position.left_fixed",
+          "seed": 100404,
+          "evidence_source": "live_policy_rollout",
+          "receipt_ref": "mea/protocol_runs/batch23_click_bell_four_universal_n1_v2/preregistration_artifacts/live_runs/adaptive/object_position.left_fixed/rollout_receipt.json",
+          "receipt_sha256": "0fb279b2cf321384839c07f02e6962c3ee573f336ec5aa48bf02b58f5e0a000d",
+          "variant_id": "click_bell.object_position.left_fixed",
+          "started_at_utc": "2026-07-26T04:08:10.159476Z",
+          "ended_at_utc": "2026-07-26T04:09:57.881766Z",
+          "wall_seconds": 107.72224425524473,
+          "status": "completed",
+          "success": false,
+          "policy_steps": 400
+        }
+      ],
+      "query_assessment": {
+        "schema_version": 1,
+        "contract": {
+          "schema_version": 1,
+          "claim_type": "universal",
+          "candidate_universe": [
+            "object_position.left_fixed",
+            "object_position.right_fixed",
+            "object_instance.base0",
+            "object_instance.base1"
+          ],
+          "required_coverage": {
+            "candidate_ids": [
+              "object_position.left_fixed",
+              "object_position.right_fixed",
+              "object_instance.base0",
+              "object_instance.base1"
+            ],
+            "minimum_evaluated": 4,
+            "minimum_per_group": null
+          },
+          "round_budget": 4,
+          "comparison_groups": null
+        },
+        "should_stop": true,
+        "stop_reason": "evidence_sufficient",
+        "claim_verdict": "refuted",
+        "evidence_sufficient": true,
+        "completed_rounds": 1,
+        "round_budget": 4,
+        "budget_remaining": 3,
+        "observed_candidate_ids": [
+          "object_position.left_fixed"
+        ],
+        "decisive_candidate_ids": [
+          "object_position.left_fixed"
+        ],
+        "conflict_candidate_ids": [],
+        "unknown_candidate_ids": [],
+        "untested_required_candidate_ids": [
+          "object_position.right_fixed",
+          "object_instance.base0",
+          "object_instance.base1"
+        ],
+        "untested_candidate_ids": [
+          "object_position.right_fixed",
+          "object_instance.base0",
+          "object_instance.base1"
+        ],
+        "recommended_candidate_ids": [],
+        "rationale": "A definitive failing candidate falsifies the universal claim.",
+        "statistics": {},
+        "limitations": [
+          "This is a finite-domain stopping prototype, not a statistical generalization guarantee."
+        ]
+      }
+    }
+  },
+  "conclusions": {
+    "fixed": {
+      "overall_verdict": "weakness_observed",
+      "weakness_axes": [
+        "object_position"
+      ],
+      "observed_failure_candidates": [
+        "object_position.left_fixed"
+      ],
+      "tested_candidates": [
+        "object_instance.base0",
+        "object_instance.base1",
+        "object_position.left_fixed",
+        "object_position.right_fixed"
+      ],
+      "claim_type": "universal",
+      "claim_verdict": "refuted",
+      "evidence_sufficient": true,
+      "query_assessment": {
+        "schema_version": 1,
+        "contract": {
+          "schema_version": 1,
+          "claim_type": "universal",
+          "candidate_universe": [
+            "object_position.left_fixed",
+            "object_position.right_fixed",
+            "object_instance.base0",
+            "object_instance.base1"
+          ],
+          "required_coverage": {
+            "candidate_ids": [
+              "object_position.left_fixed",
+              "object_position.right_fixed",
+              "object_instance.base0",
+              "object_instance.base1"
+            ],
+            "minimum_evaluated": 4,
+            "minimum_per_group": null
+          },
+          "round_budget": 4,
+          "comparison_groups": null
+        },
+        "should_stop": true,
+        "stop_reason": "evidence_sufficient",
+        "claim_verdict": "refuted",
+        "evidence_sufficient": true,
+        "completed_rounds": 4,
+        "round_budget": 4,
+        "budget_remaining": 0,
+        "observed_candidate_ids": [
+          "object_position.left_fixed",
+          "object_position.right_fixed",
+          "object_instance.base0",
+          "object_instance.base1"
+        ],
+        "decisive_candidate_ids": [
+          "object_position.left_fixed",
+          "object_position.right_fixed",
+          "object_instance.base0",
+          "object_instance.base1"
+        ],
+        "conflict_candidate_ids": [],
+        "unknown_candidate_ids": [],
+        "untested_required_candidate_ids": [],
+        "untested_candidate_ids": [],
+        "recommended_candidate_ids": [],
+        "rationale": "A definitive failing candidate falsifies the universal claim.",
+        "statistics": {},
+        "limitations": [
+          "This is a finite-domain stopping prototype, not a statistical generalization guarantee."
+        ]
+      }
+    },
+    "adaptive": {
+      "overall_verdict": "weakness_observed",
+      "weakness_axes": [],
+      "observed_failure_candidates": [
+        "object_position.left_fixed"
+      ],
+      "tested_candidates": [
+        "object_position.left_fixed"
+      ],
+      "claim_type": "universal",
+      "claim_verdict": "refuted",
+      "evidence_sufficient": true,
+      "query_assessment": {
+        "schema_version": 1,
+        "contract": {
+          "schema_version": 1,
+          "claim_type": "universal",
+          "candidate_universe": [
+            "object_position.left_fixed",
+            "object_position.right_fixed",
+            "object_instance.base0",
+            "object_instance.base1"
+          ],
+          "required_coverage": {
+            "candidate_ids": [
+              "object_position.left_fixed",
+              "object_position.right_fixed",
+              "object_instance.base0",
+              "object_instance.base1"
+            ],
+            "minimum_evaluated": 4,
+            "minimum_per_group": null
+          },
+          "round_budget": 4,
+          "comparison_groups": null
+        },
+        "should_stop": true,
+        "stop_reason": "evidence_sufficient",
+        "claim_verdict": "refuted",
+        "evidence_sufficient": true,
+        "completed_rounds": 1,
+        "round_budget": 4,
+        "budget_remaining": 3,
+        "observed_candidate_ids": [
+          "object_position.left_fixed"
+        ],
+        "decisive_candidate_ids": [
+          "object_position.left_fixed"
+        ],
+        "conflict_candidate_ids": [],
+        "unknown_candidate_ids": [],
+        "untested_required_candidate_ids": [
+          "object_position.right_fixed",
+          "object_instance.base0",
+          "object_instance.base1"
+        ],
+        "untested_candidate_ids": [
+          "object_position.right_fixed",
+          "object_instance.base0",
+          "object_instance.base1"
+        ],
+        "recommended_candidate_ids": [],
+        "rationale": "A definitive failing candidate falsifies the universal claim.",
+        "statistics": {},
+        "limitations": [
+          "This is a finite-domain stopping prototype, not a statistical generalization guarantee."
+        ]
+      }
+    }
+  },
+  "conclusion_comparison_fields": [
+    "claim_verdict"
+  ],
+  "original_query_conclusion_agrees": true,
+  "resource_measurement": {
+    "fixed_act_episode_starts": 4,
+    "adaptive_act_episode_starts": 1,
+    "act_episode_start_saving": 3,
+    "fixed_wall_seconds": 277.72405645623803,
+    "adaptive_wall_seconds": 107.72224425524473,
+    "measured_wall_second_saving": 170.0018122009933,
+    "fixed_policy_steps": 605,
+    "adaptive_policy_steps": 400,
+    "policy_step_saving": 205,
+    "technical_runtime_errors": 0
+  },
+  "toy_efficiency_evidence_passed": true,
+  "paper_tables_1_2_eligible": false,
+  "limitations": [
+    "The three-ACT mode is a mechanism smoke, not a dense reference.",
+    "The five-to-seven-ACT mode is one task, one checkpoint, and one seed.",
+    "The three-to-four-ACT universal mode covers only two frozen positions.",
+    "The five-to-eight-ACT universal mode covers four frozen candidates on one task and seed.",
+    "Policy steps are the shared simulator-sample proxy for this toy.",
+    "This protocol does not reproduce the paper trial or agent-run counts."
+  ]
+}

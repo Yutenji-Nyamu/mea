@@ -5,7 +5,11 @@ from mea.paired import (
     PairedProtocolError,
     build_paired_summary,
     build_seed_manifest,
+    build_shared_eligibility_manifest,
+    capture_scene_signature,
+    shared_eligibility_sha256,
     validate_seed_manifest,
+    validate_shared_eligibility_manifest,
 )
 
 
@@ -70,6 +74,76 @@ class SeedManifestTests(unittest.TestCase):
                 manifest,
                 expected_task_name="adjust_bottle",
             )
+
+
+class SharedEligibilityTests(unittest.TestCase):
+    class Pose:
+        p = [0.123456789, -0.2, 0.76]
+        q = [1.0, 0.0, 0.0, 0.0]
+
+    class Actor:
+        def __init__(self, name):
+            self.name = name
+
+        def get_name(self):
+            return self.name
+
+        def get_pose(self):
+            return SharedEligibilityTests.Pose()
+
+    class Task:
+        def __init__(self):
+            self.block = SharedEligibilityTests.Actor("box")
+            self.hammer = SharedEligibilityTests.Actor("020_hammer")
+
+    def test_scene_and_instruction_form_one_normalized_shared_contract(self):
+        signature = capture_scene_signature(self.Task())
+        self.assertEqual(
+            [row["attribute"] for row in signature["actors"]],
+            ["block", "hammer"],
+        )
+        self.assertEqual(
+            signature["actors"][0]["position"][0],
+            0.123457,
+        )
+        manifest = build_shared_eligibility_manifest(
+            task_name="beat_block_hammer",
+            task_module="envs.beat_block_hammer",
+            task_config="demo_clean",
+            seed=101,
+            instruction_type="unseen",
+            exact_instruction="Use the hammer to hit the red block.",
+            scene_signature=signature,
+        )
+        self.assertEqual(
+            validate_shared_eligibility_manifest(
+                manifest,
+                expected_task_name="beat_block_hammer",
+                expected_task_module="envs.beat_block_hammer",
+                expected_task_config="demo_clean",
+                expected_seed=101,
+            ),
+            manifest,
+        )
+        self.assertEqual(len(shared_eligibility_sha256(manifest)), 64)
+
+    def test_failed_or_mutated_expert_contract_is_rejected(self):
+        signature = capture_scene_signature(self.Task())
+        manifest = build_shared_eligibility_manifest(
+            task_name="beat_block_hammer",
+            task_module="envs.beat_block_hammer",
+            task_config="demo_clean",
+            seed=101,
+            instruction_type="unseen",
+            exact_instruction="Use the hammer to hit the red block.",
+            scene_signature=signature,
+        )
+        manifest["expert_outcome"]["check_success"] = False
+        with self.assertRaisesRegex(
+            PairedProtocolError,
+            "does not prove expert success",
+        ):
+            validate_shared_eligibility_manifest(manifest)
 
 
 class PairedSummaryTests(unittest.TestCase):

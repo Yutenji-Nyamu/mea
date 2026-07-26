@@ -3,6 +3,7 @@ import unittest
 from mea.planner.claim_first_runtime import (
     ClaimFirstRuntimeController,
     ClaimFirstRuntimeError,
+    build_claim_first_evidence_record,
     build_control_anchor_proposal,
     control_template_id,
     resolve_semantic_proposal,
@@ -219,6 +220,77 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             "robustness.scene_clutter.official_table",
             controller.query_contract["candidate_universe"],
         )
+
+    def test_unbound_open_query_keeps_all_non_control_candidates(self):
+        controller = ClaimFirstRuntimeController(
+            "Where does this policy first expose a weakness?",
+            target(),
+        )
+
+        self.assertEqual(
+            set(controller.query_contract["candidate_universe"]),
+            {
+                "object_position.left_fixed",
+                "object_position.right_fixed",
+                "object_instance.base0",
+                "object_instance.base1",
+                "robustness.scene_clutter.official_table",
+            },
+        )
+        self.assertNotIn(
+            "performance.completion_time_stability.official",
+            controller.query_contract["candidate_universe"],
+        )
+
+    def test_tool_value_and_reuse_route_reach_next_planner_evidence(self):
+        plan = round_plan(
+            1,
+            "performance.completion_time_stability.official",
+        )
+        observed = summary(plan, 1.0)
+        observed["observations"]["planned_tool"] = {
+            "status": "passed",
+            "route": "run_local_reuse",
+            "reference_tool": "precontact_jerk_peak",
+            "route_decision": {
+                "resolved_route": "run_local_reuse",
+                "provider_called": False,
+            },
+            "episodes": [
+                {
+                    "result": {
+                        "tool": "precontact_jerk_peak",
+                        "value": 0.031,
+                        "unit": "m/s^3",
+                        "passed": False,
+                        "details": {"reason": None},
+                    }
+                }
+            ],
+        }
+
+        record = build_claim_first_evidence_record(plan, observed)
+
+        self.assertEqual(
+            record["planned_tool_evidence"],
+            [
+                {
+                    "metric": "precontact_jerk_peak",
+                    "value": 0.031,
+                    "unit": "m/s^3",
+                    "passed": False,
+                    "route": "run_local_reuse",
+                    "provider_called": False,
+                    "null_reason": None,
+                }
+            ],
+        )
+        evidence_summary = record["open_query_evidence"][
+            "evidence_summary"
+        ]
+        self.assertIn("precontact_jerk_peak", evidence_summary)
+        self.assertIn('"value": 0.031', evidence_summary)
+        self.assertIn('"provider_called": false', evidence_summary)
 
     def test_explicit_change_intent_outranks_preserved_scene_tokens(self):
         proposal = semantic_bundle("bell_property.object_instance_transfer")[

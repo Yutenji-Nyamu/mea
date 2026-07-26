@@ -30,7 +30,7 @@ class LivePaperProtocolError(ValueError):
 
 EFFICIENCY_PROTOCOL = "click_bell_independent_live_efficiency_v1"
 RANKING_PROTOCOL = "act_dp3_exact_seed_pair_v1"
-TABLE3_PROTOCOL = "table3_real_codegen_ablation_v1"
+TABLE3_PROTOCOL = "table3_scene_checker_codegen_ablation_pilot_v2"
 PROXY_PROTOCOL = "plan_vqa_development_proxy_manifest_v1"
 
 CLICK_BELL_CANDIDATES = (
@@ -135,6 +135,29 @@ _EFFICIENCY_MODES = {
             "finite_universal_refuted_by_one_failure_or_supported_by_full_coverage"
         ),
     },
+    "four_candidate_universal_5to8act": {
+        "fixed_candidates": _CANDIDATE_IDS,
+        "adaptive_candidates": _CANDIDATE_IDS,
+        "adaptive_min": 1,
+        "adaptive_max": 4,
+        "total_min": 5,
+        "total_max": 8,
+        "claim_scope": (
+            "independent_live_four_candidate_universal_toy_not_paper_"
+            "tables_1_2"
+        ),
+        "query": (
+            "Does this ACT checkpoint succeed on every candidate in the "
+            "preregistered four-candidate click_bell domain?"
+        ),
+        "query_sufficient_rule": (
+            "finite_universal_refuted_by_one_failure_or_supported_by_full_coverage"
+        ),
+    },
+}
+_UNIVERSAL_EFFICIENCY_MODES = {
+    "position_universal_3to4act",
+    "four_candidate_universal_5to8act",
 }
 
 TABLE3_CONDITIONS = (
@@ -146,67 +169,55 @@ TABLE3_CONDITIONS = (
 )
 TABLE3_PROPOSALS = (
     {
-        "proposal_id": "u01_bbh_blue_block",
+        "proposal_id": "u01_bbh_red_distractor_x",
         "task_name": "beat_block_hammer",
-        "prompt": "Use a blue target block while preserving official pose, yaw, and scale.",
+        "prompt": (
+            "Generate a target block and a same-size red look-alike distractor "
+            "0.10 m away on x; success must reject every distractor contact."
+        ),
         "changes": {
-            "block": {
-                "position_mode": "official_random",
-                "yaw_mode": "official_random",
-                "scale": 1.0,
-                "color": [0.0, 0.2, 1.0],
+            "distractor": {
+                "scene": {
+                    "target_name": "box",
+                    "distractor_name": "distractor_box",
+                    "target_color": [1.0, 0.0, 0.0],
+                    "distractor_color": [0.85, 0.05, 0.05],
+                    "half_size_m": [0.025, 0.025, 0.025],
+                    "distractor_offset_xy_m": [0.10, 0.0]
+                },
+                "success": {
+                    "target_alignment_thresholds_m": [0.025, 0.025],
+                    "require_target_contact": True,
+                    "forbid_distractor_contact": True,
+                    "latch_distractor_contact": True
+                }
             }
         },
     },
     {
-        "proposal_id": "u02_bbh_green_block",
+        "proposal_id": "u02_bbh_blue_distractor_y",
         "task_name": "beat_block_hammer",
-        "prompt": "Use a green target block while preserving official pose, yaw, and scale.",
+        "prompt": (
+            "Generate a blue target block and a same-size blue look-alike "
+            "distractor 0.10 m away on y; success must reject every distractor "
+            "contact."
+        ),
         "changes": {
-            "block": {
-                "position_mode": "official_random",
-                "yaw_mode": "official_random",
-                "scale": 1.0,
-                "color": [0.1, 0.8, 0.2],
-            }
-        },
-    },
-    {
-        "proposal_id": "u03_bbh_yellow_block",
-        "task_name": "beat_block_hammer",
-        "prompt": "Use a yellow target block while preserving official pose, yaw, and scale.",
-        "changes": {
-            "block": {
-                "position_mode": "official_random",
-                "yaw_mode": "official_random",
-                "scale": 1.0,
-                "color": [0.9, 0.8, 0.1],
-            }
-        },
-    },
-    {
-        "proposal_id": "u04_bbh_scale_0_8",
-        "task_name": "beat_block_hammer",
-        "prompt": "Use a 0.8-scale target block while preserving official pose, yaw, and color.",
-        "changes": {
-            "block": {
-                "position_mode": "official_random",
-                "yaw_mode": "official_random",
-                "scale": 0.8,
-                "color": [0.0, 0.0, 1.0],
-            }
-        },
-    },
-    {
-        "proposal_id": "u05_bbh_scale_1_2",
-        "task_name": "beat_block_hammer",
-        "prompt": "Use a 1.2-scale target block while preserving official pose, yaw, and color.",
-        "changes": {
-            "block": {
-                "position_mode": "official_random",
-                "yaw_mode": "official_random",
-                "scale": 1.2,
-                "color": [0.0, 0.0, 1.0],
+            "distractor": {
+                "scene": {
+                    "target_name": "box",
+                    "distractor_name": "distractor_box",
+                    "target_color": [0.0, 0.2, 1.0],
+                    "distractor_color": [0.1, 0.3, 0.9],
+                    "half_size_m": [0.025, 0.025, 0.025],
+                    "distractor_offset_xy_m": [0.0, 0.10]
+                },
+                "success": {
+                    "target_alignment_thresholds_m": [0.025, 0.025],
+                    "require_target_contact": True,
+                    "forbid_distractor_contact": True,
+                    "latch_distractor_contact": True
+                }
             }
         },
     },
@@ -627,7 +638,7 @@ def build_click_bell_efficiency_preregistration(
             round_budget=spec["adaptive_max"],
             claim_type="universal",
         )
-        if mode == "position_universal_3to4act"
+        if mode in _UNIVERSAL_EFFICIENCY_MODES
         else None
     )
     body = {
@@ -669,7 +680,7 @@ def build_click_bell_efficiency_preregistration(
             "axis_rule": "paired_binary_score_difference",
             "comparison_fields": (
                 ["claim_verdict"]
-                if mode == "position_universal_3to4act"
+                if mode in _UNIVERSAL_EFFICIENCY_MODES
                 else ["overall_verdict", "weakness_axes"]
             ),
         },
@@ -1132,7 +1143,7 @@ def _efficiency_arm(
         contract = prereg["adaptive_contract"]
         if not contract["min_episode_starts"] <= len(attempts) <= contract["max_episode_starts"]:
             raise LivePaperProtocolError("adaptive arm start count violates frozen budget")
-        if prereg["mode"] == "position_universal_3to4act":
+        if prereg["mode"] in _UNIVERSAL_EFFICIENCY_MODES:
             query_assessment = _efficiency_query_assessment(prereg, attempts)
             if row["stop_reason"] == "query_sufficient":
                 if query_assessment["evidence_sufficient"] is not True:
@@ -1261,7 +1272,7 @@ def _efficiency_conclusion(
         "observed_failure_candidates": failures,
         "tested_candidates": sorted(scores),
     }
-    if prereg["mode"] == "position_universal_3to4act":
+    if prereg["mode"] in _UNIVERSAL_EFFICIENCY_MODES:
         assessment = (
             deepcopy(dict(arm["query_assessment"]))
             if isinstance(arm.get("query_assessment"), Mapping)
@@ -1323,7 +1334,11 @@ def evaluate_click_bell_efficiency(
     )
     eligible_toy = (
         prereg["mode"]
-        in {"toy_5to7act", "position_universal_3to4act"}
+        in {
+            "toy_5to7act",
+            "position_universal_3to4act",
+            "four_candidate_universal_5to8act",
+        }
         and technical_errors == 0
         and agrees
         and act_saving > 0
@@ -1361,6 +1376,7 @@ def evaluate_click_bell_efficiency(
             "The three-ACT mode is a mechanism smoke, not a dense reference.",
             "The five-to-seven-ACT mode is one task, one checkpoint, and one seed.",
             "The three-to-four-ACT universal mode covers only two frozen positions.",
+            "The five-to-eight-ACT universal mode covers four frozen candidates on one task and seed.",
             "Policy steps are the shared simulator-sample proxy for this toy.",
             "This protocol does not reproduce the paper trial or agent-run counts.",
         ],
@@ -2077,45 +2093,66 @@ def evaluate_exact_seed_ranking(
     return ranking
 
 
-def _table3_success_spec() -> dict[str, Any]:
+def _table3_task_proposal(proposal: Mapping[str, Any]) -> dict[str, Any]:
     return {
-        "schema_version": 2,
+        "schema_version": 1,
+        "proposal_id": proposal["proposal_id"],
         "task_name": "beat_block_hammer",
-        "envelope_id": "bbh.experimental_bounded_act",
-        "logic": "all",
-        "predicates": [
-            {
-                "predicate": "planar_axis_distance",
-                "left": {"actor": "hammer", "functional_point_id": 0},
-                "right": {"actor": "block", "functional_point_id": 1},
-                "axes": [0, 1],
-                "thresholds_m": [0.025, 0.025],
-                "comparison": "strict_lt",
-            },
-            {
-                "predicate": "physical_contact",
-                "actors": ["hammer", "block"],
-            },
-        ],
+        "aspect_id": "robustness.distractor_avoidance",
+        "intent": proposal["prompt"],
+        "capability_id": "robustness.distractor_avoidance",
+        "reuse_first": True,
+        "changes": deepcopy(proposal["changes"]),
+        "preserve_success_semantics": False,
     }
 
 
-def _table3_task_proposal(proposal: Mapping[str, Any]) -> dict[str, Any]:
-    changes = deepcopy(proposal["changes"])
-    is_scale = float(changes["block"]["scale"]) != 1.0
+def _table3_capability_contract(
+    proposal: Mapping[str, Any],
+) -> dict[str, Any]:
+    del proposal
+    changes = deepcopy(TABLE3_PROPOSALS[0]["changes"])
     return {
-        "schema_version": 2,
-        "proposal_id": proposal["proposal_id"],
+        "schema_version": 1,
         "task_name": "beat_block_hammer",
-        "aspect_id": "object_scale" if is_scale else "object_appearance.color",
-        "intent": proposal["prompt"],
-        "capability_id": "object_scale" if is_scale else "object_appearance.color",
-        # TaskProposal schema remains reuse-first; the preregistered runner's
-        # explicit ``force_codegen`` mode supplies the ablation override.
-        "reuse_first": True,
-        "changes": changes,
-        "preserve_success_semantics": False,
-        "success_spec": _table3_success_spec(),
+        "template_id": "robustness.distractor_avoidance.lookalike",
+        "aspect": {
+            "aspect_id": "robustness.distractor_avoidance",
+            "semantic_scope": "scene",
+            "target_role": "scene",
+        },
+        "taskgen": {
+            "operation": "provider_scene_checker_codegen",
+            "capability_id": "robustness.distractor_avoidance",
+            "task_variant_id": "robustness.distractor_avoidance.lookalike",
+            "controlled_axis": "robustness.distractor_avoidance",
+            "change_scope": "scene",
+            "generation_mode": "provider_scene_checker_codegen",
+            "allowed_change_roots": ["distractor"],
+            "changes": changes,
+        },
+        "tool": {
+            "request_factory_id": "bbh_distractor_success_tool_request",
+            "metric": "bbh_target_without_distractor_success",
+        },
+        "vqa": {
+            "phenomenon_ids": [
+                "target_block_visible",
+                "lookalike_distractor_visible",
+                "distractor_not_struck",
+            ]
+        },
+        "required_gates": [
+            "variant_spec",
+            "ast",
+            "render",
+            "rule",
+            "scene_variant",
+            "expert",
+            "act",
+            "toolkit",
+            "aggregate",
+        ],
     }
 
 
@@ -2138,6 +2175,7 @@ def _table3_runner(
     run_id = f"run_{run_token}_{cell_id}"
     switches = deepcopy(TABLE3_SWITCHES[condition])
     task_proposal = _table3_task_proposal(proposal)
+    capability_contract = _table3_capability_contract(proposal)
     argv = [
         ROBOTWIN_PYTHON,
         "scripts/manipeval_taskgen.py",
@@ -2150,7 +2188,17 @@ def _table3_runner(
         "--task-name",
         "beat_block_hammer",
         "--mode",
-        "force_codegen",
+        "provider_scene_checker_codegen",
+        "--variant-id",
+        proposal["proposal_id"],
+        "--variant-hint-json",
+        json.dumps(
+            proposal["changes"], ensure_ascii=False, sort_keys=True
+        ),
+        "--capability-contract-json",
+        json.dumps(
+            capability_contract, ensure_ascii=False, sort_keys=True
+        ),
         "--task-proposal-json",
         json.dumps(task_proposal, ensure_ascii=False, sort_keys=True),
         "--taskgen-ablation-json",
@@ -2178,19 +2226,20 @@ def _table3_runner(
             "artifact_ref": f"{run_root}/task.py",
             "manifest_ref": f"{run_root}/manifest.json",
         },
-        "compile": {"receipt_ref": f"{run_root}/validation/static.json"},
+        "compile": {
+            "receipt_ref": (
+                f"{run_root}/validation/bbh_distractor_static.json"
+            )
+        },
         "render": {"receipt_ref": f"{run_root}/validation/scene.json"},
         "simulator": {"receipt_ref": f"{run_root}/validation/scene.json"},
         "oracle": {
-            "receipt_ref": (
-                f"{run_root}/validation/task_generation_attempts/"
-                "task_generation_attempt_summary.json"
-            )
+            "receipt_ref": f"{run_root}/validation/checker_fixtures.json"
         },
     }
     runner = {
         "schema_version": 1,
-        "kind": "table3_real_taskgen_cell_runner_v1",
+        "kind": "table3_scene_checker_codegen_cell_runner_v2",
         "study_id": study_id,
         "cell_id": cell_id,
         "proposal_id": proposal["proposal_id"],
@@ -2292,10 +2341,13 @@ def build_table3_codegen_preregistration(
             "runner": "scripts/manipeval_taskgen.py",
             "taskgen_ablation_switch_argument": "--taskgen-ablation-json",
             "one_command_per_cell": True,
-            "provider_generation_calls": 25,
-            "simulator_acceptance_calls": 25,
+            "provider_generation_calls": len(cells),
+            "simulator_acceptance_calls": len(cells),
         },
-        "claim_scope": "five_unseen_proposals_per_condition_micro_ablation_not_table3",
+        "claim_scope": (
+            "two_unseen_distractor_proposals_per_condition_micro_ablation_"
+            "not_table3"
+        ),
     }
     return _seal(body, hash_field="preregistration_sha256")
 
@@ -2396,10 +2448,25 @@ def evaluate_table3_codegen(
         raise LivePaperProtocolError("unsupported Table 3 result")
     if result.get("preregistration_sha256") != prereg["preregistration_sha256"]:
         raise LivePaperProtocolError("Table 3 result is not bound to preregistration")
-    raw_cells = _items(result.get("cells"), field="cells", minimum=25)
+    expected_cell_count = len(prereg["cells"])
+    raw_cells = _items(
+        result.get("cells"),
+        field="cells",
+        minimum=expected_cell_count,
+    )
     expected = {cell["cell_id"]: cell for cell in prereg["cells"]}
-    if len(raw_cells) != 25 or {cell.get("cell_id") for cell in raw_cells if isinstance(cell, Mapping)} != set(expected):
-        raise LivePaperProtocolError("Table 3 requires the exact 5x5 cell grid")
+    if (
+        len(raw_cells) != expected_cell_count
+        or {
+            cell.get("cell_id")
+            for cell in raw_cells
+            if isinstance(cell, Mapping)
+        }
+        != set(expected)
+    ):
+        raise LivePaperProtocolError(
+            "Table 3 pilot requires the exact preregistered cell grid"
+        )
     rows: list[dict[str, Any]] = []
     for raw in raw_cells:
         cell = _object(raw, field="cell")
@@ -2407,6 +2474,99 @@ def evaluate_table3_codegen(
         frozen = expected[cell_id]
         if cell.get("proposal_id") != frozen["proposal_id"] or cell.get("condition") != frozen["condition"]:
             raise LivePaperProtocolError(f"cell identity differs from preregistration: {cell_id}")
+        execution = _object(
+            cell.get("execution"), field=f"{cell_id}.execution"
+        )
+        execution_status = execution.get("status")
+        if execution_status not in {"completed", "failed"}:
+            raise LivePaperProtocolError(
+                f"{cell_id}.execution.status must be completed or failed"
+            )
+        returncode = _integer(
+            execution.get("returncode"),
+            field=f"{cell_id}.execution.returncode",
+            minimum=0,
+        )
+        log_ref = _relative_ref(
+            execution.get("log_ref"), field=f"{cell_id}.execution.log_ref"
+        )
+        log_path = _bound_path(
+            root, log_ref, field=f"{cell_id}.execution.log_ref"
+        )
+        if _file_sha256(log_path) != _sha256(
+            execution.get("log_sha256"),
+            field=f"{cell_id}.execution.log_sha256",
+        ):
+            raise LivePaperProtocolError(
+                f"{cell_id} execution log hash mismatch"
+            )
+        review = _object(
+            cell.get("blind_proxy_review"),
+            field=f"{cell_id}.blind_proxy_review",
+        )
+        if (
+            review.get("annotator_kind") != "development_agent_proxy"
+            or not isinstance(review.get("blind_to_condition"), bool)
+            or not isinstance(review.get("passed"), bool)
+            or review.get("human_reviewer_count") != 0
+            or not isinstance(review.get("notes", ""), str)
+        ):
+            raise LivePaperProtocolError(
+                f"{cell_id} requires a disclosed development proxy review"
+            )
+        if execution_status == "failed":
+            if returncode == 0 and execution.get("manifest_status") not in {
+                "failed",
+                "codegen_validation_failed",
+            }:
+                raise LivePaperProtocolError(
+                    f"{cell_id} failed execution lacks a failure receipt"
+                )
+            if review["passed"] is not False:
+                raise LivePaperProtocolError(
+                    f"{cell_id} failed generation cannot pass proxy review"
+                )
+            rows.append(
+                {
+                    "cell_id": cell_id,
+                    "proposal_id": frozen["proposal_id"],
+                    "condition": frozen["condition"],
+                    "success": False,
+                    "execution_status": "failed",
+                    "blind_proxy_review_passed": False,
+                }
+            )
+            continue
+        if returncode != 0:
+            raise LivePaperProtocolError(
+                f"{cell_id} completed execution has nonzero returncode"
+            )
+        manifest_ref = _relative_ref(
+            execution.get("manifest_ref"),
+            field=f"{cell_id}.execution.manifest_ref",
+        )
+        expected_manifest_ref = frozen["expected_stage_receipts"]["codegen"][
+            "manifest_ref"
+        ]
+        if (
+            manifest_ref != expected_manifest_ref
+            or execution.get("manifest_status") != "completed_without_act"
+        ):
+            raise LivePaperProtocolError(
+                f"{cell_id} completed manifest binding mismatch"
+            )
+        manifest_path = _bound_path(
+            root,
+            manifest_ref,
+            field=f"{cell_id}.execution.manifest_ref",
+        )
+        if _file_sha256(manifest_path) != _sha256(
+            execution.get("manifest_sha256"),
+            field=f"{cell_id}.execution.manifest_sha256",
+        ):
+            raise LivePaperProtocolError(
+                f"{cell_id} manifest hash mismatch"
+            )
         stages = _object(cell.get("stages"), field=f"{cell_id}.stages")
         if set(stages) != set(prereg["required_downstream_stages"]):
             raise LivePaperProtocolError(f"{cell_id} is missing downstream stages")
@@ -2457,18 +2617,6 @@ def evaluate_table3_codegen(
                 f"{cell_id} generated task code is missing "
                 f"{sorted(missing_functions)}"
             )
-        review = _object(
-            cell.get("blind_proxy_review"), field=f"{cell_id}.blind_proxy_review"
-        )
-        if (
-            review.get("annotator_kind") != "development_agent_proxy"
-            or review.get("blind_to_condition") is not True
-            or not isinstance(review.get("passed"), bool)
-            or review.get("human_reviewer_count") != 0
-        ):
-            raise LivePaperProtocolError(
-                f"{cell_id} requires a condition-blind development proxy review"
-            )
         stage_pass = [True]
         for stage_name in ("compile", "render", "simulator", "oracle"):
             stage = _object(stages[stage_name], field=f"{cell_id}.{stage_name}")
@@ -2507,11 +2655,32 @@ def evaluate_table3_codegen(
                 "proposal_id": frozen["proposal_id"],
                 "condition": frozen["condition"],
                 "success": all(stage_pass) and review["passed"],
+                "execution_status": "completed",
                 "blind_proxy_review_passed": review["passed"],
+                "proxy_review_blind_to_condition": review[
+                    "blind_to_condition"
+                ],
             }
         )
+    proxy_review_blind = all(
+        row.get("proxy_review_blind_to_condition") is True
+        for row in rows
+        if row["execution_status"] == "completed"
+    )
+    review_scope = (
+        "The review is a condition-blind development-agent proxy, not independent human gold."
+        if proxy_review_blind
+        else "The review is a disclosed, non-blind development-agent proxy, not independent human gold."
+    )
     rates = {
-        condition: sum(row["success"] for row in rows if row["condition"] == condition) / 5.0
+        condition: (
+            sum(
+                row["success"]
+                for row in rows
+                if row["condition"] == condition
+            )
+            / len(prereg["unseen_proposals"])
+        )
         for condition in TABLE3_CONDITIONS
     }
     return {
@@ -2519,9 +2688,9 @@ def evaluate_table3_codegen(
         "protocol": f"{TABLE3_PROTOCOL}_result",
         "study_id": prereg["study_id"],
         "preregistration_sha256": prereg["preregistration_sha256"],
-        "cell_count": 25,
-        "provider_generation_count": 25,
-        "development_proxy_review_count": 25,
+        "cell_count": expected_cell_count,
+        "provider_generation_count": expected_cell_count,
+        "development_proxy_review_count": expected_cell_count,
         "human_reviewer_count": 0,
         "act_rollouts_started": 0,
         "rows": rows,
@@ -2529,8 +2698,8 @@ def evaluate_table3_codegen(
         "paper_table3_eligible": False,
         "claim_scope": prereg["claim_scope"],
         "limitations": [
-            "The review is a condition-blind development-agent proxy, not independent human gold.",
-            "A five-proposal micro-ablation is not the paper-scale Table 3 experiment.",
+            review_scope,
+            "A two-proposal micro-ablation is not the paper-scale Table 3 experiment.",
         ],
     }
 

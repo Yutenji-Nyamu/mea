@@ -1,15 +1,15 @@
 {
-  "schema_version": 2,
-  "evaluation_id": "eval_20260724_batch22_distractor_live_n1_v7",
-  "live_base_revision": "96ae36a7d58e318f31a56576c017637c02810c4e",
-  "released_revision": "68e938e0290014157c1076b91474959cd4fa7b9e",
-  "source_note": "The live episodes ran from the pre-commit working tree derived from live_base_revision; the released code and zero-ACT summary replay are at released_revision.",
-  "server_run_root": "mea/evaluation_runs/eval_20260724_batch22_distractor_live_n1_v7",
-  "server_generated_task_root": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2",
+  "schema_version": 3,
+  "evaluation_id": "eval_20260726_batch23_open_query_live_n1_v5",
+  "live_base_revision": "e164f9fa12f80be342ae4013a9ebf7018c1fa765",
+  "source_note": "The live evaluation ran from the working tree derived from live_base_revision, including the fenced-provider-JSON adapter fix later released with this evidence.",
+  "server_run_root": "mea/evaluation_runs/eval_20260726_batch23_open_query_live_n1_v5",
   "query": {
-    "text": "Can this ACT policy avoid a physically similar distractor and strike only the intended block when performing beat_block_hammer?",
+    "text": "这个ACT策略最先在哪种被操作物体或场景变化上暴露弱点？",
+    "claim_type": "diagnostic",
     "contract": "artifacts/query_contract.json",
-    "claim_type": "universal"
+    "candidate_count": 5,
+    "candidate_round_budget": 2
   },
   "policy": {
     "name": "ACT",
@@ -18,68 +18,91 @@
     "actual_seeds": [
       100600
     ],
-    "actual_rollouts": 2
+    "actual_rollouts": 3
   },
   "rounds": [
     {
       "round": 1,
-      "role": "official_control",
-      "task_module": "envs.beat_block_hammer",
-      "scene": "artifacts/round_1_scene.png",
-      "rollout": "artifacts/round_1_act.mp4",
-      "act_metadata": "artifacts/round_1_act.json",
-      "episode": "artifacts/round_1_episode.json",
+      "role": "runtime_owned_official_control",
+      "proposal": "artifacts/r1_task_proposal.json",
+      "scene": "artifacts/r1_scene.png",
+      "rollout": "artifacts/r1_video.mp4",
+      "episode": "artifacts/r1_episode.json",
       "authority": "official_check_success",
       "success": true,
-      "wall_duration_seconds": 30.880019187927246
+      "wall_duration_seconds": 32.34830331802368,
+      "next_decision": "artifacts/decision_r1.json"
     },
     {
       "round": 2,
-      "role": "lookalike_distractor_candidate",
-      "proposal": "artifacts/round_2_proposal.json",
-      "generation_prompt": "artifacts/taskgen_prompt.md",
-      "provider_response": "artifacts/provider_response.json",
-      "generated_task": "artifacts/task.py",
-      "checker_fixtures": "artifacts/checker_fixtures.json",
+      "candidate_id": "object_scale.bounded_1_2",
+      "selection_owner": "claim_first_planner_after_round_1_evidence",
+      "proposal": "artifacts/r2_task_proposal.json",
+      "generation_prompt": "artifacts/r2_code_prompt.md",
+      "generated_task": "artifacts/r2_task.py",
+      "scene": "artifacts/r2_scene.png",
+      "rollout": "artifacts/r2_video.mp4",
+      "episode": "artifacts/r2_episode.json",
+      "authority": "compiled_success_spec_official_equivalent",
+      "success": true,
+      "wall_duration_seconds": 44.43215608596802,
+      "generated_tool": "artifacts/r2_tool.py",
+      "tool_execution": "artifacts/r2_tool_execution.json",
+      "tool_metric": "query_right_tcp_target_xy_distance",
+      "tool_value": 0.02450702767965987,
+      "tool_unit": "m",
+      "next_decision": "artifacts/decision_r2.json"
+    },
+    {
+      "round": 3,
+      "candidate_id": "robustness.distractor_avoidance.lookalike",
+      "selection_owner": "claim_first_planner_after_round_2_evidence",
+      "proposal": "artifacts/r3_task_proposal.json",
+      "bounded_proposal": "artifacts/r3_bounded_proposal.json",
+      "generation_prompt": "artifacts/r3_code_prompt.md",
+      "provider_response": "artifacts/r3_provider_response.json",
+      "generated_task": "artifacts/r3_task.py",
+      "checker_fixtures": "artifacts/r3_checker_fixtures.json",
       "fixture_pass_count": 6,
       "fixture_count": 6,
       "generated_by_model": true,
       "restricted_success_spec_compiler_used": false,
-      "scene": "artifacts/round_2_scene.png",
-      "rollout": "artifacts/round_2_act.mp4",
-      "act_metadata": "artifacts/round_2_act.json",
-      "episode": "artifacts/round_2_episode.json",
-      "tool_execution": "artifacts/tool_execution.json",
-      "aggregate": "artifacts/aggregate_result.json",
+      "scene": "artifacts/r3_scene.png",
+      "rollout": "artifacts/r3_video.mp4",
+      "episode": "artifacts/r3_episode.json",
+      "checker_execution": "artifacts/r3_checker_execution.json",
+      "checker_aggregate": "artifacts/r3_checker_aggregate.json",
       "metric": "bbh_target_without_distractor_success",
       "authority": "llm_generated_python_ast_validated",
       "generated_checker_success": true,
       "official_success": false,
-      "same_round_tool_reuse": true,
-      "tool_provider_called": false,
-      "unique_episode_count": 1,
-      "wall_duration_seconds": 34.90174698829651
+      "semantic_disagreement_with_official_success": true,
+      "wall_duration_seconds": 35.841134548187256,
+      "next_decision": "artifacts/decision_r3.json"
     }
   ],
   "answer": "artifacts/query_answer.json",
-  "feedback": "artifacts/feedback.md",
-  "termination": "evidence_sufficient",
-  "verdict": "no_failure_observed",
-  "summary_replay": {
-    "reason": "provider_scene_checker_ast_gate_mapping_fix",
-    "source_revision": "68e938e0290014157c1076b91474959cd4fa7b9e",
-    "additional_act_rollouts": 0,
-    "reused_actual_act_rollouts": 2,
-    "original_status": "completed_with_pipeline_failure",
-    "raw_backup": "replay_before_ast_gate_fix"
-  },
+  "feedback": "artifacts/feedback.json",
+  "termination": "budget_exhausted",
+  "evidence_sufficient": false,
+  "answered": false,
+  "claim_verdict": "inconclusive",
+  "tested_candidate_ids": [
+    "object_scale.bounded_1_2",
+    "robustness.distractor_avoidance.lookalike"
+  ],
+  "untested_candidate_ids": [
+    "object_appearance.color_blue",
+    "object_position.official_random",
+    "performance.pickup_to_contact_timing"
+  ],
   "limitations": [
-    "one RoboTwin task",
-    "one seed",
-    "N=2 total policy episodes",
-    "one registered distractor candidate",
-    "the candidate verdict uses a generated experimental checker and is not official benchmark success",
-    "finite-contract sufficiency is not statistical generalization",
+    "one RoboTwin task and one seed",
+    "N=3 total policy episodes",
+    "three of five finite-domain candidates remain untested",
+    "the distractor verdict uses a generated experimental checker and is not official benchmark success",
+    "the generated experimental checker returned true while official success was false; the run did not classify this semantic disagreement as evidence_conflict",
+    "budget exhaustion is not evidence sufficiency",
     "not eligible for the paper's efficiency, ranking, human-validity, or VQA-robustness tables"
   ]
 }

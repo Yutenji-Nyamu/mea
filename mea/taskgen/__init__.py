@@ -49,11 +49,6 @@ from .capabilities import (
     load_legacy_variant_spec,
     validate_variant_spec_envelope,
 )
-from .acceptance import (
-    DEFAULT_ACCEPTANCE_RUNS,
-    TaskGenAcceptanceError,
-    build_cached_taskgen_acceptance,
-)
 from .success_spec import (
     DEFAULT_BBH_SUCCESS_SPEC,
     SUCCESS_SPEC_V2_DEVELOPMENT_ENVELOPE,
@@ -134,9 +129,6 @@ __all__ = [
     "get_capability",
     "load_legacy_variant_spec",
     "validate_variant_spec_envelope",
-    "DEFAULT_ACCEPTANCE_RUNS",
-    "TaskGenAcceptanceError",
-    "build_cached_taskgen_acceptance",
     "DEFAULT_BBH_SUCCESS_SPEC",
     "SUCCESS_SPEC_V2_DEVELOPMENT_ENVELOPE",
     "SUCCESS_SPEC_V2_EXPERIMENTAL_ACT_ENVELOPE",

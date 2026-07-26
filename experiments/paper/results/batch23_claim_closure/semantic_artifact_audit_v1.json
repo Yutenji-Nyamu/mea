@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "protocol": "prospective_semantic_artifact_audit_v1",
+  "study_ref": "mea/protocol_runs/batch23_claim_closure/paper_error_study_v1.json",
+  "study_sha256": "413263bb723830575a2b986135adebc3e2d3be0d12e5d448db46574ce0838883",
+  "operation_count": 10,
+  "passed_count": 10,
+  "paper_defined_error_count": 0,
+  "operations": [
+    {
+      "operation_id": "batch23_plan_route_artifact_audit",
+      "passed": true,
+      "evidence_ref": "mea/evaluation_runs/eval_20260726_batch23_open_query_live_n1_v3/plan/global_query_route.json",
+      "details": {
+        "resolved_task": "beat_block_hammer",
+        "router_scope": "task_and_checkpoint_only"
+      }
+    },
+    {
+      "operation_id": "batch23_plan_candidate_domain_audit",
+      "passed": true,
+      "evidence_ref": "mea/evaluation_runs/eval_20260726_batch23_open_query_live_n1_v3/plan/query_sufficiency_contract.json",
+      "details": {
+        "candidate_count": 5,
+        "candidate_domain_source": "all_non_control_bound_task_capabilities"
+      }
+    },
+    {
+      "operation_id": "batch23_taskgen_visual_repair_audit",
+      "passed": true,
+      "evidence_ref": "mea/generated_tasks/run_20260726_paper_visual_wrong_color_repair_accept_v1/reflection/summary.json",
+      "details": {
+        "repairs_used": 1,
+        "final_attempt": 1,
+        "final_accepted": "accepted",
+        "intentional_wrong_color_initial_failure_excluded_from_error_numerator": true
+      }
+    },
+    {
+      "operation_id": "batch23_taskgen_scene_checker_audit",
+      "passed": true,
+      "evidence_ref": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/manifest.json",
+      "details": {
+        "mode": "provider_scene_checker_codegen",
+        "model_written_python": true,
+        "fixture_count": 6,
+        "fixture_pass_count": 6
+      }
+    },
+    {
+      "operation_id": "batch23_toolgen_live_value_audit",
+      "passed": true,
+      "evidence_ref": "mea/evaluation_runs/eval_20260724_batch22_distractor_live_n1_v7/execution/round_1/planned_tool/tool_execution.json",
+      "details": {
+        "route": "reuse",
+        "episode_count": 1,
+        "value": 0,
+        "unit": "count"
+      }
+    },
+    {
+      "operation_id": "batch23_toolgen_route_audit",
+      "passed": true,
+      "evidence_ref": "mea/evaluation_runs/eval_20260724_batch22_distractor_live_n1_v7/execution/round_1/planned_tool/route_decision.json",
+      "details": {
+        "route": "reuse",
+        "exact_match": true,
+        "matched_registry": "trusted_tool_catalog"
+      }
+    },
+    {
+      "operation_id": "batch23_simulator_round1_receipt_audit",
+      "passed": true,
+      "evidence_ref": "mea/evaluation_runs/eval_20260726_batch23_open_query_live_n1_v3/execution/round_1/child_run.json",
+      "details": {
+        "child_manifest_ref": "mea/generated_tasks/run_20260726_batch23_open_query_live_n1_v3_round_1/manifest.json",
+        "act_returncode": 0,
+        "telemetry_episode_count": 1,
+        "video_count": 1,
+        "parent_open_query_final_status": "failed",
+        "parent_failure_is_later_round_and_not_this_receipt": true
+      }
+    },
+    {
+      "operation_id": "batch23_simulator_round2_receipt_audit",
+      "passed": true,
+      "evidence_ref": "mea/evaluation_runs/eval_20260726_batch23_open_query_live_n1_v3/execution/round_2/child_run.json",
+      "details": {
+        "child_manifest_ref": "mea/generated_tasks/run_20260726_batch23_open_query_live_n1_v3_round_2/manifest.json",
+        "act_returncode": 0,
+        "telemetry_episode_count": 1,
+        "video_count": 1,
+        "parent_open_query_final_status": "failed",
+        "parent_failure_is_later_round_and_not_this_receipt": true
+      }
+    },
+    {
+      "operation_id": "batch23_answer_scope_audit",
+      "passed": true,
+      "evidence_ref": "mea/evaluation_runs/eval_20260724_batch22_distractor_live_n1_v7/manifest.json",
+      "details": {
+        "sample_count": 2,
+        "seeds": [
+          100600
+        ],
+        "termination": "evidence_sufficient",
+        "required_limitation_count": 2
+      }
+    },
+    {
+      "operation_id": "batch23_vqa_binary_grid_audit",
+      "passed": true,
+      "evidence_ref": "mea/protocol_runs/batch23_claim_closure/vqa_proxy_result_v1.json",
+      "details": {
+        "selected_case_count": 8,
+        "covered": 7,
+        "abstentions_are_scored_as_vqa_outcomes_not_system_errors": true,
+        "initial_provider_failure_count": 1
+      }
+    }
+  ],
+  "paper_fig6_eligible": false,
+  "paper_eligible": false,
+  "limitations": [
+    "The denominator was frozen before these artifact-audit operations, not before the underlying live runs.",
+    "This is a prospective semantic audit pilot, not the paper-scale system-operation denominator.",
+    "The intentional wrong-color injection is excluded; only the final bounded repair operation is classified."
+  ]
+}

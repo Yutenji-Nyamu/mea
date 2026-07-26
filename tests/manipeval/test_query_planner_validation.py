@@ -26,7 +26,7 @@ def case(index, *, supported=True, task="click_bell", aspects=None):
         "setting": "single_task",
         "task_name": task,
         "task_profile": "adaptive_properties",
-        "paper_category": "generalization_object",
+        "paper_category": "generalization",
         "gold_sub_aspect_ids": aspects,
         "acceptable_first_sub_aspect_ids": aspects,
         "capability_status": "supported" if supported else "unsupported",
@@ -54,7 +54,7 @@ class QueryPlannerValidationTests(unittest.TestCase):
     def test_budget_is_agile_and_requires_proxy_review(self):
         self.assertEqual(
             summarize_query_dataset(dataset())["paper_category_counts"],
-            {"generalization_object": 20},
+            {"generalization": 20},
         )
         selected = validate_live_query_budget(dataset(), 5)
         self.assertEqual(

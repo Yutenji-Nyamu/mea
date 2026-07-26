@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "protocol": "query_induced_tool_planner_counterfactual_v1",
+  "query": "Before target contact, does the active TCP show abrupt jerk or oscillation?",
+  "actual_live_metric": "tcp_jerk_peak_l2_pre_contact",
+  "actual_live_value": 58.14487919739201,
+  "actual_live_passed": false,
+  "actual_route": "exact_query_registry_reuse",
+  "actual_action": "continue",
+  "actual_sub_aspect": "tcp_dynamics.pre_contact_oscillation",
+  "counterfactual": "same real round evidence with only the query-induced Tool measurement omitted",
+  "counterfactual_action": "continue",
+  "counterfactual_sub_aspect": "tcp_motion_stability",
+  "branch_changed": true,
+  "act_rollouts_added": 0,
+  "paper_claim_scope": "provider planner counterfactual on cached real evidence; not a replicated causal effect estimate"
+}

@@ -9,6 +9,7 @@ from mea.live_paper_protocols import (
     EFFICIENCY_PROTOCOL,
     RANKING_PROTOCOL,
     TABLE3_CONDITIONS,
+    TABLE3_PROTOCOL,
     LivePaperProtocolError,
     build_click_bell_efficiency_preregistration,
     build_ranking_preregistration,
@@ -493,6 +494,61 @@ class ClickBellEfficiencyTests(unittest.TestCase):
                     repo_root=root,
                 )
 
+    def test_four_candidate_universal_keeps_verdict_and_saves_three(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            prereg = self.prereg(
+                root, "four_candidate_universal_5to8act"
+            )
+            outcomes = (
+                ("object_position.left_fixed", False),
+                ("object_position.right_fixed", True),
+                ("object_instance.base0", True),
+                ("object_instance.base1", False),
+            )
+            fixed = [
+                bound_attempt(
+                    root,
+                    prereg,
+                    "fixed",
+                    "fixed_independent_run",
+                    candidate,
+                    index,
+                    success,
+                )
+                for index, (candidate, success) in enumerate(outcomes)
+            ]
+            adaptive = [
+                bound_attempt(
+                    root,
+                    prereg,
+                    "adaptive",
+                    "adaptive_independent_run",
+                    outcomes[0][0],
+                    5,
+                    outcomes[0][1],
+                )
+            ]
+            result = evaluate_click_bell_efficiency(
+                prereg,
+                arm(prereg, "fixed", fixed, "fixed_suite_complete"),
+                arm(prereg, "adaptive", adaptive, "query_sufficient"),
+                repo_root=root,
+            )
+            self.assertEqual(
+                result["conclusions"]["fixed"]["claim_verdict"],
+                "refuted",
+            )
+            self.assertEqual(
+                result["conclusions"]["adaptive"]["claim_verdict"],
+                "refuted",
+            )
+            self.assertEqual(
+                result["resource_measurement"]["act_episode_start_saving"],
+                3,
+            )
+            self.assertTrue(result["toy_efficiency_evidence_passed"])
+
 
 class ProspectivePaperErrorStudyTests(unittest.TestCase):
     @staticmethod
@@ -835,6 +891,13 @@ class Table3AndProxyTests(unittest.TestCase):
         cells = []
         for frozen in prereg["cells"]:
             expected = frozen["expected_stage_receipts"]
+            log_ref = f"artifacts/table3_logs/{frozen['cell_id']}.log"
+            log_sha = write_bytes(root, log_ref, b"completed\n")
+            manifest_sha = write_json(
+                root,
+                expected["codegen"]["manifest_ref"],
+                {"status": "completed_without_act"},
+            )
             task_sha = write_bytes(
                 root,
                 expected["codegen"]["artifact_ref"],
@@ -893,23 +956,36 @@ class Table3AndProxyTests(unittest.TestCase):
                     "cell_id": frozen["cell_id"],
                     "proposal_id": frozen["proposal_id"],
                     "condition": frozen["condition"],
+                    "execution": {
+                        "status": "completed",
+                        "returncode": 0,
+                        "started_at_utc": "2026-07-24T00:00:00Z",
+                        "ended_at_utc": "2026-07-24T00:01:00Z",
+                        "wall_seconds": 60.0,
+                        "log_ref": log_ref,
+                        "log_sha256": log_sha,
+                        "manifest_ref": expected["codegen"]["manifest_ref"],
+                        "manifest_sha256": manifest_sha,
+                        "manifest_status": "completed_without_act",
+                    },
                     "stages": stages,
                     "blind_proxy_review": {
                         "annotator_kind": "development_agent_proxy",
                         "blind_to_condition": True,
                         "passed": True,
                         "human_reviewer_count": 0,
+                        "notes": "fixture review",
                     },
                 }
             )
         return {
             "schema_version": 1,
-            "protocol": "table3_real_codegen_ablation_v1_runs",
+            "protocol": f"{TABLE3_PROTOCOL}_runs",
             "preregistration_sha256": prereg["preregistration_sha256"],
             "cells": cells,
         }
 
-    def test_table3_materializes_25_executable_real_taskgen_cells(self):
+    def test_table3_materializes_ten_scene_checker_codegen_cells(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             prereg = build_table3_codegen_preregistration(
@@ -920,7 +996,7 @@ class Table3AndProxyTests(unittest.TestCase):
                 vision_model="frozen-vision-model",
             )
             materialize_table3_codegen_preregistration(root, prereg)
-            self.assertEqual(len(prereg["cells"]), 25)
+            self.assertEqual(len(prereg["cells"]), 10)
             self.assertEqual(
                 {cell["condition"] for cell in prereg["cells"]},
                 set(TABLE3_CONDITIONS),
@@ -931,7 +1007,12 @@ class Table3AndProxyTests(unittest.TestCase):
                     "--taskgen-ablation-json", runner["argv"]
                 )
                 mode_index = runner["argv"].index("--mode")
-                self.assertEqual(runner["argv"][mode_index + 1], "force_codegen")
+                self.assertEqual(
+                    runner["argv"][mode_index + 1],
+                    "provider_scene_checker_codegen",
+                )
+                self.assertIn("--capability-contract-json", runner["argv"])
+                self.assertIn("--variant-hint-json", runner["argv"])
                 proposal_index = runner["argv"].index(
                     "--task-proposal-json"
                 )
@@ -947,12 +1028,27 @@ class Table3AndProxyTests(unittest.TestCase):
             result = evaluate_table3_codegen(
                 prereg, runs, repo_root=root
             )
-            self.assertEqual(result["provider_generation_count"], 25)
+            self.assertEqual(result["provider_generation_count"], 10)
             self.assertTrue(
                 all(value == 1.0 for value in result["success_rates"].values())
             )
             self.assertEqual(result["act_rollouts_started"], 0)
             self.assertEqual(result["human_reviewer_count"], 0)
+            self.assertIn(
+                "condition-blind development-agent proxy",
+                result["limitations"][0],
+            )
+
+            runs["cells"][0]["blind_proxy_review"][
+                "blind_to_condition"
+            ] = False
+            non_blind_result = evaluate_table3_codegen(
+                prereg, runs, repo_root=root
+            )
+            self.assertIn(
+                "non-blind development-agent proxy",
+                non_blind_result["limitations"][0],
+            )
 
             runner_path = root / prereg["cells"][0]["runner_ref"]
             runner_path.write_text("tampered", encoding="utf-8")

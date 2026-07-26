@@ -35,6 +35,7 @@ from mea.taskgen import (
     TaskArtifactBundleError,
     TaskGenPrototype,
     VisualReflectionError,
+    extract_json_response,
     execute_reflection_loop,
     inject_oversized_block_fixture,
     inject_wrong_color_fixture,
@@ -255,6 +256,7 @@ def create_bbh_distractor_taskgen_run(
     task_proposal: Mapping[str, Any],
     run_id: str | None = None,
     telemetry_profile: str = "balanced_v1",
+    ablation_switches: Mapping[str, bool] | None = None,
 ) -> dict[str, Any]:
     """Adapt provider-written BBH scene+checker code to the normal run envelope."""
 
@@ -287,6 +289,7 @@ def create_bbh_distractor_taskgen_run(
         provider=provider,
         model=model,
         max_regenerations=1,
+        ablation_switches=ablation_switches,
     )
     run_dir = repo_root / "mea/generated_tasks" / resolved_run_id
     for child in ("generation", "validation", "evidence", "evaluation"):
@@ -307,7 +310,7 @@ def create_bbh_distractor_taskgen_run(
                 f"candidate artifact is missing: {source_name}"
             )
         shutil.move(str(source), str(destination))
-    provider_response = json.loads(
+    provider_response = extract_json_response(
         (run_dir / "generation/provider_response.txt").read_text(
             encoding="utf-8"
         )
@@ -385,6 +388,12 @@ def create_bbh_distractor_taskgen_run(
                 "codegen_provenance"
             ]["local_regeneration_count"],
         },
+        "taskgen_ablation_switches": candidate["codegen_provenance"][
+            "taskgen_ablation_switches"
+        ],
+        "taskgen_prompt_components": candidate["codegen_provenance"][
+            "prompt_components"
+        ],
         "variant_spec_authority": "planner_capability_contract",
         "task_proposal": proposal,
         "task_proposal_path": "generation/task_proposal.json",
@@ -1375,6 +1384,13 @@ def regenerate_bbh_distractor_scene_checker(
         "be visibly present in a physically plausible initial scene. Preserve "
         "the proposal's actor names, bounded distractor offset, target-contact "
         "requirement, and latched no-distractor-contact success semantics. "
+        "Preserve the inherited RoboTwin interface: assign the official target "
+        "actor to self.block, assign the lookalike to self.distractor, and read "
+        "alignment from self.hammer.get_functional_point(0, \"pose\").p and "
+        "self.block.get_functional_point(1, \"pose\").p. Detect contacts via "
+        "self.check_actors_contact(self.hammer.get_name(), "
+        "self.block.get_name()) and the analogous distractor call; the method "
+        "requires actor-name strings, not actor objects. "
         "Exact actor identity, offset, and contact behavior are checked by "
         "simulator/semantic fixtures, not RGB. Do not use imports, files, "
         "network, processes, dunder access, dynamic execution, super(), or "
@@ -1580,7 +1596,7 @@ PROPOSAL-DERIVED SCENE CHECK SPEC:
   "unexpected_changes": [],
   "diagnosis": "目标铃是否可见以及场景是否存在明显异常",
   "suggestions": [],
-  "confidence": 0.0
+  "confidence": 0.8
 }}
 """
     elif is_provider_distractor:
@@ -1619,7 +1635,7 @@ Return JSON only:
   "unexpected_changes": [],
   "diagnosis": "Whether both intended blocks are visible and the scene is plausible.",
   "suggestions": [],
-  "confidence": 0.0
+  "confidence": 0.8
 }}
 """
     else:
@@ -1649,7 +1665,7 @@ half_size 是 ({expected_half_size:.6f}, {expected_half_size:.6f}, {expected_hal
   "unexpected_changes": [],
   "diagnosis": "场景与需求是否一致，以及不一致的具体原因",
   "suggestions": ["若不一致，给出只修改 load_actors() 的具体建议"],
-  "confidence": 0.0
+  "confidence": 0.8
 }}
 """
     prompt_path.parent.mkdir(parents=True, exist_ok=True)
@@ -2761,9 +2777,13 @@ def main() -> None:
             )
         except (json.JSONDecodeError, TaskGenError) as exc:
             raise SystemExit(f"invalid --taskgen-ablation-json: {exc}") from exc
-        if args.mode != "force_codegen" or args.resume_run:
+        if (
+            args.mode
+            not in {"force_codegen", "provider_scene_checker_codegen"}
+            or args.resume_run
+        ):
             raise SystemExit(
-                "--taskgen-ablation-json requires a fresh force_codegen run"
+                "--taskgen-ablation-json requires a fresh codegen run"
             )
         if args.vision_check != taskgen_ablation["visual_self_check"]:
             raise SystemExit(
@@ -3011,6 +3031,7 @@ def main() -> None:
                 task_proposal=task_proposal,
                 run_id=args.run_id,
                 telemetry_profile=args.telemetry_profile,
+                ablation_switches=taskgen_ablation,
             )
         else:
             prototype = TaskGenPrototype(repo_root, provider, model=args.text_model)
@@ -3476,11 +3497,12 @@ def main() -> None:
                     bind_registration_to_episode_metadata(
                         run_dir, registration_identity
                     )
-                updates["trusted_tool_evaluation"] = evaluate_run_telemetry(
-                    repo_root,
-                    run_dir,
-                    manifest,
-                )
+                if not args.accept_task_only:
+                    updates["trusted_tool_evaluation"] = evaluate_run_telemetry(
+                        repo_root,
+                        run_dir,
+                        manifest,
+                    )
             update_manifest(run_dir, **updates)
     except Exception as exc:
         update_manifest(

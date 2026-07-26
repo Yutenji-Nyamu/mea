@@ -1,0 +1,104 @@
+{
+  "answer": "当前评估无法确定 ACT 策略最先在哪种被操作物体或场景变化上暴露弱点。",
+  "evaluation_scope": "测试了 'object_scale.bounded_1_2' 和 'robustness.distractor_avoidance.lookalike' 两个候选变化，使用种子 100600，共 3 个 episode。",
+  "findings": [
+    "在 'object_scale.bounded_1_2' 和 'robustness.distractor_avoidance.lookalike' 场景中，ACT 策略均表现为成功完成任务。",
+    "未发现证据冲突，所有测试均通过了相关验证。",
+    "未测试的候选变化包括 'object_appearance.color_blue'、'object_position.official_random' 和 'performance.pickup_to_contact_timing'。"
+  ],
+  "limitations": [
+    "证据仅包含 3 个 episode，无法提供广泛的泛化保证。",
+    "评估因预算耗尽而停止，未覆盖所有候选变化。",
+    "部分评估结果基于生成的成功检查器，不能视为官方基准成功结果。",
+    "Evidence contains N=3 policy episodes at seeds [100600].",
+    "Untested candidates remain: ['object_appearance.color_blue', 'object_position.official_random', 'performance.pickup_to_contact_timing'].",
+    "The run stopped because its round budget was exhausted before the query-sufficiency contract was satisfied."
+  ],
+  "recommended_next_step": "建议优先测试未覆盖的候选变化，例如 'object_appearance.color_blue'，以进一步评估策略的弱点。",
+  "consistency_validation": {
+    "passed": true,
+    "attempts_used": 1,
+    "rejected_responses": 0,
+    "errors": [],
+    "deterministic_correction": false
+  },
+  "evidence_policy": {
+    "aggregate_source": "deterministic_aggregate",
+    "aggregate_status": "passed",
+    "episode_math_by_feedback_agent": false,
+    "numeric_simulator_tools_authoritative": true,
+    "execution_vqa_is_visual_only": true,
+    "evidence_conflict": false
+  },
+  "provider_metadata": {
+    "id": "chatcmpl-E5krO3K3rWraON8nk0IhP6js6onfS",
+    "model": "gpt-4o-2024-11-20",
+    "finish_reason": "stop",
+    "usage": {
+      "completion_tokens": 296,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 7,
+        "engine_ttft_ms": 4606,
+        "engine_ttlt_ms": 6752,
+        "pre_inference_ms": 406,
+        "service_tbt_ms": 7,
+        "service_ttft_ms": 5388,
+        "service_ttlt_ms": 7528,
+        "total_duration_ms": 7159,
+        "user_visible_ttft_ms": 4982
+      },
+      "prompt_tokens": 101480,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 101776
+    },
+    "retry_count": 0
+  },
+  "answer_scope": {
+    "schema_version": 1,
+    "sample_count": 3,
+    "seeds": [
+      100600
+    ],
+    "tested_candidate_ids": [
+      "object_scale.bounded_1_2",
+      "robustness.distractor_avoidance.lookalike"
+    ],
+    "untested_candidate_ids": [
+      "object_appearance.color_blue",
+      "object_position.official_random",
+      "performance.pickup_to_contact_timing"
+    ],
+    "unsupported_capabilities": [],
+    "evidence_conflict": false,
+    "termination": "budget_exhausted",
+    "claim_verdict": "inconclusive",
+    "required_limitations": [
+      {
+        "code": "sample_count_and_seeds",
+        "text": "Evidence contains N=3 policy episodes at seeds [100600]."
+      },
+      {
+        "code": "untested_candidates",
+        "text": "Untested candidates remain: ['object_appearance.color_blue', 'object_position.official_random', 'performance.pickup_to_contact_timing']."
+      },
+      {
+        "code": "termination_budget_exhausted",
+        "text": "The run stopped because its round budget was exhausted before the query-sufficiency contract was satisfied."
+      }
+    ]
+  },
+  "limitation_codes": [
+    "sample_count_and_seeds",
+    "untested_candidates",
+    "termination_budget_exhausted"
+  ]
+}

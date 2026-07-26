@@ -27,7 +27,14 @@ from mea.execution_receipt import (
     validate_frozen_candidate_source,
     validate_imported_task_binding,
 )
-from mea.paired import PROTOCOL_ID, load_seed_manifest
+from mea.paired import (
+    PROTOCOL_ID,
+    build_shared_eligibility_manifest,
+    capture_scene_signature,
+    load_seed_manifest,
+    load_shared_eligibility_manifest,
+    shared_eligibility_sha256,
+)
 
 current_file_path = os.path.abspath(__file__)
 parent_directory = os.path.dirname(current_file_path)
@@ -109,8 +116,6 @@ def main(usr_args):
     save_dir = None
     video_save_dir = None
     video_size = None
-
-    get_model = eval_function_decorator(policy_name, "get_model")
 
     with open(f"./task_config/{task_config}.yml", "r", encoding="utf-8") as f:
         args = yaml.load(f.read(), Loader=yaml.FullLoader)
@@ -241,6 +246,15 @@ def main(usr_args):
             )
         exact_seeds = list(exact_manifest["seeds"])
 
+    if (
+        usr_args.get("shared_eligibility_output")
+        and usr_args.get("shared_eligibility_manifest")
+    ):
+        raise ValueError(
+            "shared_eligibility_output and shared_eligibility_manifest "
+            "are mutually exclusive"
+        )
+
     st_seed = int(
         exact_seeds[0]
         if exact_seeds is not None
@@ -285,6 +299,45 @@ def main(usr_args):
             verify_checkpoint_files=False,
         )
 
+    if usr_args.get("shared_eligibility_output"):
+        if exact_seeds is None or len(exact_seeds) != 1:
+            raise ValueError(
+                "shared eligibility probe requires one exact seed manifest"
+            )
+        run_shared_eligibility_probe(
+            TASK_ENV,
+            args,
+            seed=exact_seeds[0],
+            task_module=usr_args.get("task_module")
+            or f"envs.{task_name}",
+            instruction_type=instruction_type,
+            output_path=usr_args["shared_eligibility_output"],
+        )
+        return
+
+    shared_eligibility = None
+    shared_eligibility_ref = None
+    shared_eligibility_hash = None
+    if usr_args.get("shared_eligibility_manifest"):
+        if exact_seeds is None or len(exact_seeds) != 1:
+            raise ValueError(
+                "shared eligibility consumption requires one exact seed"
+            )
+        shared_eligibility_ref = str(
+            usr_args["shared_eligibility_manifest"]
+        )
+        shared_eligibility = load_shared_eligibility_manifest(
+            shared_eligibility_ref,
+            expected_task_name=task_name,
+            expected_task_module=usr_args.get("task_module")
+            or f"envs.{task_name}",
+            expected_task_config=task_config,
+            expected_seed=exact_seeds[0],
+        )
+        shared_eligibility_hash = shared_eligibility_sha256(
+            shared_eligibility
+        )
+
     print(f"Evaluation episodes: {test_num}")
     if exact_seeds is None:
         print(f"Evaluation start seed: {st_seed}")
@@ -292,6 +345,7 @@ def main(usr_args):
         print(f"Exact evaluation seeds: {exact_seeds}")
     topk = 1
 
+    get_model = eval_function_decorator(policy_name, "get_model")
     model = get_model(usr_args)
     st_seed, suc_num, seed_measurements = eval_policy(
         task_name,
@@ -307,6 +361,9 @@ def main(usr_args):
         task_module=usr_args.get("task_module"),
         exact_seeds=exact_seeds,
         execution_receipt=execution_receipt,
+        shared_eligibility=shared_eligibility,
+        shared_eligibility_ref=shared_eligibility_ref,
+        shared_eligibility_sha256=shared_eligibility_hash,
         return_measurements=True,
     )
     suc_nums.append(suc_num)
@@ -339,6 +396,16 @@ def main(usr_args):
             ] == exact_seeds,
             "seed_measurements": seed_measurements,
         }
+        if shared_eligibility is not None:
+            seed_result.update(
+                {
+                    "shared_eligibility_ref": shared_eligibility_ref,
+                    "shared_eligibility_sha256": shared_eligibility_hash,
+                    "scene_signature_sha256": shared_eligibility[
+                        "scene_signature_sha256"
+                    ],
+                }
+            )
         seed_results_path = Path(
             usr_args.get("seed_results_path") or save_dir / "seed_results.json"
         ).expanduser().resolve()
@@ -371,6 +438,68 @@ def main(usr_args):
     # return task_reward
 
 
+def run_shared_eligibility_probe(
+    TASK_ENV,
+    args,
+    *,
+    seed,
+    task_module,
+    instruction_type,
+    output_path,
+):
+    """Run the expert exactly once and freeze its initial scene/instruction."""
+
+    render_freq = args["render_freq"]
+    args["render_freq"] = 0
+    try:
+        TASK_ENV.setup_demo(
+            now_ep_num=0,
+            seed=seed,
+            is_test=True,
+            **args,
+        )
+        scene_signature = capture_scene_signature(TASK_ENV)
+        episode_info = TASK_ENV.play_once()
+        plan_success = bool(TASK_ENV.plan_success)
+        check_success = bool(TASK_ENV.check_success())
+        if not (plan_success and check_success):
+            raise RuntimeError(
+                "shared expert eligibility failed; policy rollouts must not start"
+            )
+        descriptions = generate_episode_descriptions(
+            args["task_name"],
+            [episode_info["info"]],
+            1,
+        )
+        candidates = descriptions[0][instruction_type]
+        if not isinstance(candidates, (list, tuple)) or not candidates:
+            raise RuntimeError(
+                "expert probe did not produce an instruction candidate"
+            )
+        manifest = build_shared_eligibility_manifest(
+            task_name=args["task_name"],
+            task_module=task_module,
+            task_config=args["task_config"],
+            seed=seed,
+            instruction_type=instruction_type,
+            exact_instruction=str(candidates[0]),
+            scene_signature=scene_signature,
+        )
+    finally:
+        args["render_freq"] = render_freq
+        try:
+            TASK_ENV.close_env()
+        except Exception:
+            traceback.print_exc()
+    target = Path(output_path).expanduser().resolve()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    print(f"Shared expert eligibility: {target}")
+
+
 def eval_policy(task_name,
                 TASK_ENV,
                 args,
@@ -384,6 +513,9 @@ def eval_policy(task_name,
                 task_module=None,
                 exact_seeds=None,
                 execution_receipt=None,
+                shared_eligibility=None,
+                shared_eligibility_ref=None,
+                shared_eligibility_sha256=None,
                 return_measurements=False):
     """Evaluate ACT in legacy scan mode or strict exact-seed mode.
 
@@ -397,7 +529,7 @@ def eval_policy(task_name,
     print(f"\033[34mTask Name: {args['task_name']}\033[0m")
     print(f"\033[34mPolicy Name: {args['policy_name']}\033[0m")
 
-    expert_check = True
+    expert_check = shared_eligibility is None
     TASK_ENV.suc = 0
     TASK_ENV.test_num = 0
 
@@ -454,6 +586,18 @@ def eval_policy(task_name,
                 "policy_status": "not_run",
                 "time_to_success": None,
             }
+            if shared_eligibility is not None:
+                measurement.update(
+                    {
+                        "shared_eligibility_ref": shared_eligibility_ref,
+                        "shared_eligibility_sha256": (
+                            shared_eligibility_sha256
+                        ),
+                        "scene_signature_sha256": shared_eligibility[
+                            "scene_signature_sha256"
+                        ],
+                    }
+                )
 
         render_freq = args["render_freq"]
         args["render_freq"] = 0
@@ -525,11 +669,32 @@ def eval_policy(task_name,
                 is_test=True,
                 **args,
             )
-            episode_info_list = [episode_info["info"]]
-            results = generate_episode_descriptions(
-                args["task_name"], episode_info_list, test_num
-            )
-            instruction = np.random.choice(results[0][instruction_type])
+            if shared_eligibility is not None:
+                observed_signature = capture_scene_signature(TASK_ENV)
+                if (
+                    observed_signature
+                    != shared_eligibility["scene_signature"]
+                ):
+                    measurement.update(
+                        {
+                            "eligibility_status": "protocol_violation",
+                            "policy_status": "not_run",
+                            "scene_signature_match": False,
+                        }
+                    )
+                    seed_measurements.append(measurement)
+                    close_env_safely(clear_cache=True)
+                    continue
+                measurement["scene_signature_match"] = True
+                instruction = shared_eligibility["exact_instruction"]
+            else:
+                episode_info_list = [episode_info["info"]]
+                results = generate_episode_descriptions(
+                    args["task_name"], episode_info_list, test_num
+                )
+                instruction = np.random.choice(
+                    results[0][instruction_type]
+                )
             TASK_ENV.set_instruction(instruction=instruction)
 
             if TASK_ENV.eval_video_path is not None:

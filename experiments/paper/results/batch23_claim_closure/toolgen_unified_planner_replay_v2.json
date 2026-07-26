@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "protocol": "query_induced_tool_to_claim_first_replay_v1",
+  "source_query": "Before target contact, does the active TCP show abrupt jerk or oscillation?",
+  "source_live_episode": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260726_batch23_open_query_live_n1_v3_round_2/evaluation/telemetry/act/episode_000_seed_100600",
+  "toolgen_generation_ref": "mea/protocol_runs/batch23_toolgen_unified_v2/generation/query_induced_toolgen_result.json",
+  "exact_reuse_ref": "mea/protocol_runs/batch23_toolgen_unified_v2/exact_reuse/query_induced_toolgen_result.json",
+  "route": "exact_query_registry_reuse",
+  "provider_called_for_reuse": false,
+  "metric": "tcp_jerk_peak_l2_pre_contact",
+  "value": 58.14487919739201,
+  "unit": "m_per_second_cubed",
+  "passed": false,
+  "planner_evidence_contains_metric": true,
+  "planner_evidence_contains_value": true,
+  "planner_provider_called": true,
+  "planner_action": "continue",
+  "planner_sub_aspect": "robustness.distractor_avoidance",
+  "planner_rationale": "Testing robustness to distractor objects is critical to identifying potential weaknesses in the ACT policy when faced with visually similar but irrelevant objects. This test isolates the policy's ability to focus on the target object and avoid unintended interactions, which is a key aspect of robustness in dynamic environments.",
+  "scope": "cached-real-evidence planner replay; not a new policy rollout and not a causal planner ablation"
+}

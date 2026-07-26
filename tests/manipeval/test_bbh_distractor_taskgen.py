@@ -297,6 +297,43 @@ class BBHDistractorTaskGenTests(unittest.TestCase):
         ):
             validate_bbh_distractor_methods(malformed_pose, validated)
 
+        drops_inherited_target_interface = dict(methods)
+        drops_inherited_target_interface["load_actors"] = (
+            drops_inherited_target_interface["load_actors"].replace(
+                "self.block = create_box(",
+                "self.target = create_box(",
+            )
+        )
+        with self.assertRaisesRegex(
+            BBHDistractorTaskGenError,
+            "preserve self.block",
+        ):
+            validate_bbh_distractor_methods(
+                drops_inherited_target_interface,
+                validated,
+            )
+
+        actor_object_contacts = dict(methods)
+        actor_object_contacts["check_success"] = (
+            actor_object_contacts["check_success"]
+            .replace(
+                "self.hammer.get_name(), self.block.get_name()",
+                "self.hammer, self.block",
+            )
+            .replace(
+                "self.hammer.get_name(), self.distractor.get_name()",
+                "self.hammer, self.distractor",
+            )
+        )
+        with self.assertRaisesRegex(
+            BBHDistractorTaskGenError,
+            "actor-name strings",
+        ):
+            validate_bbh_distractor_methods(
+                actor_object_contacts,
+                validated,
+            )
+
     def test_structurally_different_semantically_equivalent_code_is_accepted(self) -> None:
         proposal = default_bbh_distractor_proposal()
         methods = reference_bbh_distractor_methods(proposal)
@@ -347,6 +384,36 @@ def check_success(self):
             validate_bbh_distractor_methods(reference, proposal)[
                 "success_sha256"
             ],
+        )
+
+    def test_public_pose_and_scene_actor_alias_are_accepted(self) -> None:
+        proposal = default_bbh_distractor_proposal()
+        methods = reference_bbh_distractor_methods(proposal)
+        methods["load_actors"] = methods["load_actors"].replace(
+            "    self.distractor = create_box(",
+            "    self.target = self.block\n    self.distractor = create_box(",
+        )
+        methods["check_success"] = """
+def check_success(self):
+    if self.check_actors_contact("020_hammer", "box"):
+        self._mea_target_contact_seen = True
+    if self.check_actors_contact("020_hammer", "distractor_box"):
+        self._mea_distractor_contact_seen = True
+    aligned = np.all(
+        np.abs(self.hammer.pose.p[:2] - self.target.pose.p[:2])
+        <= np.asarray((0.025, 0.025))
+    )
+    return bool(
+        aligned
+        and self._mea_target_contact_seen
+        and not self._mea_distractor_contact_seen
+    )
+"""
+        report = validate_bbh_distractor_methods(methods, proposal)
+        self.assertTrue(report["valid"])
+        self.assertEqual(
+            report["scene_fixture"]["actor_aliases"]["target"],
+            "box",
         )
 
     def test_checker_fixtures_include_latched_contacts_and_alignment(self) -> None:
@@ -519,6 +586,40 @@ def check_success(self):
             )
             self.assertFalse((run_dir / "task.py").exists())
 
+    def test_provider_scene_checker_ablation_changes_prompt_not_validator(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            proposal = default_bbh_distractor_proposal()
+            provider = _Provider(reference_bbh_distractor_methods(proposal))
+            manifest = materialize_bbh_distractor_candidate(
+                repo_root=root,
+                run_id="run_ablation_distractor",
+                proposal=proposal,
+                provider=provider,
+                model="fixture-model",
+                ablation_switches={
+                    "rag": False,
+                    "visual_self_check": False,
+                    "readme_agent": False,
+                },
+            )
+            prompt = provider.prompts[0]
+            self.assertNotIn("RETRIEVED ROBOTWIN API", prompt)
+            self.assertNotIn("README.AGENT CONTEXT", prompt)
+            self.assertIn("OUTPUT CONTRACT", prompt)
+            provenance = manifest["codegen_provenance"]
+            self.assertEqual(
+                provenance["taskgen_ablation_switches"],
+                {
+                    "rag": False,
+                    "readme_agent": False,
+                    "visual_self_check": False,
+                },
+            )
+            self.assertTrue(provenance["generated_by_model"])
+
     def test_one_local_regeneration_and_standard_taskgen_envelope(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -637,6 +738,63 @@ def check_success(self):
             self.assertEqual(
                 checker_execution["aggregate"]["metrics"][0]["metric"],
                 "bbh_target_without_distractor_success",
+            )
+
+    def test_standard_taskgen_accepts_fenced_provider_json(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for relative in (
+                "envs/beat_block_hammer.py",
+                "policy/ACT/eval.sh",
+                "script/eval_policy.py",
+            ):
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("# fixture\n", encoding="utf-8")
+            contract = resolve_capability_contract(
+                "beat_block_hammer",
+                "robustness.distractor_avoidance.lookalike",
+            )
+            public_proposal = task_proposal_from_contract(
+                contract,
+                intent="test target selection with a physical distractor",
+            )
+            _, spec = prepare_planner_capability_binding(
+                contract,
+                task_name="beat_block_hammer",
+                mode="provider_scene_checker_codegen",
+                variant_id=public_proposal["proposal_id"],
+                task_proposal=public_proposal,
+            )
+            provider = _FencedProvider(
+                reference_bbh_distractor_methods(
+                    default_bbh_distractor_proposal()
+                )
+            )
+            manifest = create_bbh_distractor_taskgen_run(
+                root,
+                user_request="Can ACT avoid a look-alike distractor?",
+                provider=provider,
+                model="fixture-model",
+                variant_spec=spec,
+                task_proposal=public_proposal,
+                run_id="run_fenced_standard_distractor",
+            )
+            response = json.loads(
+                (
+                    root
+                    / "mea/generated_tasks/run_fenced_standard_distractor"
+                    / "generation/provider_response.json"
+                ).read_text(encoding="utf-8")
+            )
+            self.assertEqual(provider.calls, 1)
+            self.assertEqual(
+                manifest["status"],
+                "generated",
+            )
+            self.assertEqual(
+                set(response),
+                {"load_actors", "check_success"},
             )
 
     def test_visual_failure_regenerates_both_methods_once_and_refreshes_bundle(

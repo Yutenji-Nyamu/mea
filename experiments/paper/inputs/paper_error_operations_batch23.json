@@ -1,0 +1,64 @@
+{
+  "operations": [
+  {
+    "operation_id": "batch23_plan_route_artifact_audit",
+    "run_id": "batch23_semantic_artifact_audit_v1",
+    "category": "plan_agent",
+    "paper_error_definition_id": "broad_query_route_missing_or_task_misbound"
+  },
+  {
+    "operation_id": "batch23_plan_candidate_domain_audit",
+    "run_id": "batch23_semantic_artifact_audit_v1",
+    "category": "plan_agent",
+    "paper_error_definition_id": "unbound_open_query_candidate_domain_collapsed"
+  },
+  {
+    "operation_id": "batch23_taskgen_visual_repair_audit",
+    "run_id": "batch23_semantic_artifact_audit_v1",
+    "category": "taskgen",
+    "paper_error_definition_id": "bounded_visual_repair_did_not_produce_accepted_final_scene"
+  },
+  {
+    "operation_id": "batch23_taskgen_scene_checker_audit",
+    "run_id": "batch23_semantic_artifact_audit_v1",
+    "category": "taskgen",
+    "paper_error_definition_id": "provider_scene_checker_missing_or_fixture_invalid"
+  },
+  {
+    "operation_id": "batch23_toolgen_live_value_audit",
+    "run_id": "batch23_semantic_artifact_audit_v1",
+    "category": "toolgen",
+    "paper_error_definition_id": "planned_tool_live_value_missing_or_nonfinite"
+  },
+  {
+    "operation_id": "batch23_toolgen_route_audit",
+    "run_id": "batch23_semantic_artifact_audit_v1",
+    "category": "toolgen",
+    "paper_error_definition_id": "planned_tool_route_missing_or_unvalidated"
+  },
+  {
+    "operation_id": "batch23_simulator_round1_receipt_audit",
+    "run_id": "batch23_semantic_artifact_audit_v1",
+    "category": "simulator",
+    "paper_error_definition_id": "round1_rollout_receipt_missing_or_not_live"
+  },
+  {
+    "operation_id": "batch23_simulator_round2_receipt_audit",
+    "run_id": "batch23_semantic_artifact_audit_v1",
+    "category": "simulator",
+    "paper_error_definition_id": "round2_rollout_receipt_missing_or_not_live"
+  },
+  {
+    "operation_id": "batch23_answer_scope_audit",
+    "run_id": "batch23_semantic_artifact_audit_v1",
+    "category": "other",
+    "paper_error_definition_id": "answer_omits_scope_or_exceeds_evidence"
+  },
+  {
+    "operation_id": "batch23_vqa_binary_grid_audit",
+    "run_id": "batch23_semantic_artifact_audit_v1",
+    "category": "other",
+    "paper_error_definition_id": "vqa_grid_missing_condition_or_polarity"
+  }
+  ]
+}

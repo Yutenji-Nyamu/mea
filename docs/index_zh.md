@@ -7,6 +7,8 @@
 - [论文 claim 与 gap](paper_claim_gap_zh.md)：论文声称、当前证据和下一步。
 - [开发者参考](developer_reference_zh.md)：扩展任务、生成器和工具时的最小接口。
 - [当前证据](evidence/current/README.md)：最近一次可审计运行的紧凑索引。
+- [当前小型论文协议结果](../experiments/paper/results/batch23_claim_closure/summary.json)：
+  efficiency、TaskGen ablation、ToolGen、ranking、proxy validity 与 LIBERO smoke。
 - [历史索引](evidence/history.jsonl)：旧批次只保留结论、边界和 Git revision。
 
 Git 的 current bundle 只保留最近一次运行的短视频、render、生成代码、关键

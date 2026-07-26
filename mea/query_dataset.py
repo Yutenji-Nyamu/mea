@@ -23,11 +23,11 @@ _PROXY_ANNOTATION = {
     "paper_eligible": False,
 }
 PAPER_CATEGORIES = {
-    "generalization_object",
-    "generalization_scene",
+    "generalization",
     "performance",
     "safety",
-    "language_or_multitask",
+    "robustness",
+    "multi_task",
 }
 
 

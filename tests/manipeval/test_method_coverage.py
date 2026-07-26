@@ -48,14 +48,14 @@ def write_png(path, *, width=32, height=32):
 
 
 class MethodCoverageTests(unittest.TestCase):
-    def test_report_has_sixteen_ranked_claims_and_derived_statuses(self):
+    def test_report_has_fifteen_ranked_claims_and_derived_statuses(self):
         root = Path(__file__).resolve().parents[2]
         report = build_method_coverage_report(root)
-        self.assertEqual(report["claim_count"], 16)
+        self.assertEqual(report["claim_count"], 15)
         self.assertEqual(
-            [item["rank"] for item in report["claims"]], list(range(1, 17))
+            [item["rank"] for item in report["claims"]], list(range(1, 16))
         )
-        self.assertEqual(len({item["claim_id"] for item in report["claims"]}), 16)
+        self.assertEqual(len({item["claim_id"] for item in report["claims"]}), 15)
         for claim in report["claims"]:
             self.assertIn(claim["status"], VALID_STATUSES)
             code_ready = all(item["passed"] for item in claim["code_checks"])
@@ -77,7 +77,6 @@ class MethodCoverageTests(unittest.TestCase):
         self.assertEqual(
             by_id["taxonomy_unsupported_boundary"]["status"], "implemented"
         )
-        self.assertEqual(by_id["protocol_resume"]["status"], "implemented")
         self.assertEqual(by_id["proposal_every_round"]["status"], "implemented")
         self.assertEqual(by_id["complete_task_codegen"]["status"], "implemented")
 

@@ -1,0 +1,22 @@
+{
+  "aspect_id": "object_scale",
+  "capability_id": "object_scale.bounded",
+  "changes": {
+    "block": {
+      "color": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "position_mode": "official_random",
+      "scale": 1.2,
+      "yaw_mode": "official_random"
+    }
+  },
+  "intent": "evaluate a query-relevant bounded variation",
+  "preserve_success_semantics": true,
+  "proposal_id": "object_scale.query_generated_1",
+  "reuse_first": true,
+  "schema_version": 1,
+  "task_name": "beat_block_hammer"
+}

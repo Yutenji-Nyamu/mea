@@ -1,0 +1,382 @@
+{
+  "schema_version": 3,
+  "action": "continue",
+  "transition": "switch_aspect",
+  "next_aspect_id": "object_scale",
+  "next_template_id": "object_scale.bounded_1_2",
+  "observation_summary": "Testing robustness to object scale variation is critical to identifying potential weaknesses in the ACT policy, as changes in object dimensions may impact the policy's ability to achieve the task's success criteria.",
+  "decision_reason": "provider_authored_plan_step",
+  "answered_query": false,
+  "plan_step_source": "provider_claim_first_open_query",
+  "plan_step_proposal": {
+    "schema_version": 1,
+    "action": "propose",
+    "aspect_id": "object_scale",
+    "template_id": "object_scale.bounded_1_2",
+    "rationale": "Testing robustness to object scale variation is critical to identifying potential weaknesses in the ACT policy, as changes in object dimensions may impact the policy's ability to achieve the task's success criteria.",
+    "answered_query": false
+  },
+  "round_budget_before_decision": 2,
+  "evidence_assessment": {
+    "schema_version": 1,
+    "task_name": "beat_block_hammer",
+    "checkpoint_id": "act-beat_block_hammer/demo_clean-50",
+    "current_aspect_id": "safety.hammer_left_camera_contact",
+    "round_budget_remaining": 2,
+    "evidence_state": "sufficient",
+    "evidence_packet": {
+      "schema_version": 1,
+      "round_id": "round_1",
+      "template_id": "safety.hammer_left_camera_contact.official",
+      "pipeline": {
+        "passed": true,
+        "failure_stage": null
+      },
+      "policy": {
+        "success_rate": 1.0,
+        "reported": true
+      },
+      "rule": {
+        "metric": "hammer_left_camera_contact_count",
+        "expected_policy_episodes": 1,
+        "aggregate_status": "passed",
+        "input_issue_count": 0,
+        "valid": 1,
+        "missing": 0,
+        "invalid": 0,
+        "semantic_missing": 0,
+        "semantic_missing_reasons": [],
+        "observed_policy_episodes": 1,
+        "complete": true,
+        "reasons": []
+      },
+      "vqa": {
+        "required": true,
+        "status": "passed",
+        "evidence_conflict": false
+      },
+      "evidence_strength": "sufficient",
+      "reason_codes": []
+    },
+    "initial_required_aspect_ids": [
+      "safety.hammer_left_camera_contact"
+    ],
+    "covered_aspect_ids": [
+      "safety.hammer_left_camera_contact"
+    ],
+    "uncovered_initial_required_aspect_ids": [],
+    "discoverable_aspect_ids": [
+      "object_appearance.color",
+      "object_position",
+      "object_scale",
+      "performance.pickup_to_contact_timing",
+      "robustness.distractor_avoidance"
+    ],
+    "available_steps": {
+      "refine": [],
+      "propose": [
+        {
+          "aspect_id": "object_appearance.color",
+          "template_ids": [
+            "object_appearance.color_blue"
+          ],
+          "initially_required": false
+        },
+        {
+          "aspect_id": "object_position",
+          "template_ids": [
+            "object_position.official_random"
+          ],
+          "initially_required": false
+        },
+        {
+          "aspect_id": "object_scale",
+          "template_ids": [
+            "object_scale.bounded_1_2"
+          ],
+          "initially_required": false
+        },
+        {
+          "aspect_id": "performance.pickup_to_contact_timing",
+          "template_ids": [
+            "performance.pickup_to_contact_timing"
+          ],
+          "initially_required": false
+        },
+        {
+          "aspect_id": "robustness.distractor_avoidance",
+          "template_ids": [
+            "robustness.distractor_avoidance.lookalike"
+          ],
+          "initially_required": false
+        }
+      ],
+      "stop": true
+    },
+    "stop_requires_answered_query": true,
+    "forced_stop": false,
+    "fallback_step": {
+      "schema_version": 1,
+      "action": "stop",
+      "aspect_id": null,
+      "template_id": null,
+      "rationale": "The initially required query aspects are covered; provider failure must not spend rollout budget on an unrequested discovery.",
+      "answered_query": true
+    }
+  },
+  "next_round": {
+    "round_id": "round_2",
+    "template_id": "object_scale.bounded_1_2",
+    "capability_id": "object_scale.bounded",
+    "task_variant_id": "object_scale.query_generated_1",
+    "capability_contract": {
+      "schema_version": 1,
+      "task_name": "beat_block_hammer",
+      "template_id": "object_scale.bounded_1_2",
+      "aspect": {
+        "aspect_id": "object_scale",
+        "semantic_scope": "object",
+        "target_role": "target_object"
+      },
+      "taskgen": {
+        "operation": "force_codegen",
+        "capability_id": "object_scale.bounded",
+        "task_variant_id": "object_scale.bounded_1_2",
+        "controlled_axis": "object_scale",
+        "change_scope": "object",
+        "generation_mode": "force_codegen",
+        "allowed_change_roots": [
+          "block"
+        ],
+        "changes": {
+          "block": {
+            "position_mode": "official_random",
+            "yaw_mode": "official_random",
+            "scale": 1.2,
+            "color": [
+              1.0,
+              0.0,
+              0.0
+            ]
+          }
+        }
+      },
+      "tool": {
+        "request_factory_id": "contact_tool_request",
+        "metric": "hammer_block_contact_ever"
+      },
+      "vqa": {
+        "phenomenon_ids": [
+          "hammer_visibly_lifted",
+          "block_visibly_displaced"
+        ]
+      },
+      "required_gates": [
+        "variant_spec",
+        "ast",
+        "render",
+        "rule",
+        "scene_variant",
+        "vision",
+        "expert",
+        "act",
+        "toolkit",
+        "planned_tool",
+        "aggregate",
+        "execution_vqa"
+      ]
+    },
+    "sub_aspect": "object_scale",
+    "rationale": "测试同一红色目标物在 1.2 倍有界尺度变化下的泛化。",
+    "task_instruction": "将 beat_block_hammer 的目标方块等比例放大到官方尺寸的 1.2 倍，保持红色、官方位置/朝向采样、成功语义和其余行为不变；先通过 render 与 expert gate。 Query-generated bounded variation: evaluate a query-relevant bounded variation",
+    "route": "force_codegen",
+    "variant_hint": {
+      "block": {
+        "position_mode": "official_random",
+        "yaw_mode": "official_random",
+        "scale": 1.2,
+        "color": [
+          1.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    "execution": {
+      "backend": "act",
+      "seeds": [
+        100600
+      ],
+      "num_episodes": 1,
+      "gates": [
+        "variant_spec",
+        "ast",
+        "render",
+        "rule",
+        "scene_variant",
+        "vision",
+        "expert",
+        "act",
+        "toolkit",
+        "planned_tool",
+        "aggregate",
+        "execution_vqa"
+      ]
+    },
+    "observations": [
+      "scene_alignment",
+      "observed_color",
+      "expert_solvable",
+      "act_pipeline_status",
+      "policy_success"
+    ],
+    "tool_request": {
+      "schema_version": 2,
+      "task_name": "beat_block_hammer",
+      "metric": "query_right_tcp_target_xy_distance",
+      "question": "What was the minimum XY TCP-target distance?",
+      "metric_spec": {
+        "schema_version": 1,
+        "operation": "minimum_distance",
+        "left_signal": "right_tcp_position",
+        "right_signal": "block_position",
+        "dimensions": [
+          "x",
+          "y"
+        ],
+        "unit": "m",
+        "null_semantics": "null_if_no_finite_sample"
+      }
+    },
+    "vqa_phenomenon_ids": [
+      "hammer_visibly_lifted",
+      "block_visibly_displaced",
+      "run_local.beat_block_hammer.object_scale.query_observation"
+    ],
+    "task_proposal": {
+      "schema_version": 1,
+      "proposal_id": "object_scale.query_generated_1",
+      "task_name": "beat_block_hammer",
+      "aspect_id": "object_scale",
+      "intent": "evaluate a query-relevant bounded variation",
+      "capability_id": "object_scale.bounded",
+      "reuse_first": true,
+      "changes": {
+        "block": {
+          "position_mode": "official_random",
+          "yaw_mode": "official_random",
+          "scale": 1.2,
+          "color": [
+            1.0,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "preserve_success_semantics": true
+    },
+    "tool_proposal": {
+      "schema_version": 3,
+      "proposal_id": "object_scale.query_metric_1.tool",
+      "task_name": "beat_block_hammer",
+      "aspect_id": "object_scale",
+      "evaluation_goal": "measure task outcome and visible behavior",
+      "metric": "query_right_tcp_target_xy_distance",
+      "question": "What was the minimum XY TCP-target distance?",
+      "vqa_phenomenon_ids": [
+        "hammer_visibly_lifted",
+        "block_visibly_displaced",
+        "run_local.beat_block_hammer.object_scale.query_observation"
+      ],
+      "vqa_question_specs": [
+        {
+          "question_type": "visible_state_change",
+          "target_role": "manipulated_tool",
+          "question": "Does the rollout visibly show the robot making task-relevant progress under the query-generated variation?",
+          "visual_scope": "rollout_change",
+          "numeric_authority": "simulator_pickup_threshold_is_authoritative",
+          "id": "run_local.beat_block_hammer.object_scale.query_observation"
+        }
+      ],
+      "reuse_first": true,
+      "metric_spec": {
+        "schema_version": 1,
+        "operation": "minimum_distance",
+        "left_signal": "right_tcp_position",
+        "right_signal": "block_position",
+        "dimensions": [
+          "x",
+          "y"
+        ],
+        "unit": "m",
+        "null_semantics": "null_if_no_finite_sample"
+      }
+    },
+    "task_name": "beat_block_hammer",
+    "aspect_id": "object_scale",
+    "proposal_materialization": {
+      "schema_version": 1,
+      "mode": "query_generated_bounded_variation",
+      "base_template_id": "object_scale.bounded_1_2",
+      "capability_contract_is_authority_envelope": true,
+      "task_proposal_is_round_variation_authority": true
+    },
+    "semantic_need_execution": {
+      "schema_version": 1,
+      "candidate_slot_id": "object_scale.bounded_1_2",
+      "realization_id": "object_scale.query_generated_1",
+      "task": {
+        "requested": true,
+        "description": "TaskGen must generate a new scene with the block's scale increased by 50%.",
+        "route": "bounded_task_proposal_v1",
+        "status": "selected"
+      },
+      "tool": {
+        "requested": true,
+        "description": "ToolGen must retrieve or generate a rule-based metric to measure the success of the task and ensure the hammer makes contact with the block's functional point.",
+        "route": "typed_metric_spec_compile",
+        "status": "selected"
+      }
+    }
+  },
+  "semantic_proposal": {
+    "schema_version": 1,
+    "action": "continue",
+    "sub_aspect": "robustness.block_scale_variation",
+    "hypothesis": "The ACT policy's performance will degrade when the block's scale is increased by 50%, as it may affect the hammer's ability to make contact with the block's functional point.",
+    "requested_perturbation": {
+      "description": "Increase the block's scale by 50% while preserving all other task attributes.",
+      "controlled_changes": [
+        "block scale"
+      ],
+      "preserve": [
+        "task identity",
+        "policy checkpoint"
+      ]
+    },
+    "task_need": {
+      "required": true,
+      "description": "TaskGen must generate a new scene with the block's scale increased by 50%."
+    },
+    "tool_need": {
+      "required": true,
+      "description": "ToolGen must retrieve or generate a rule-based metric to measure the success of the task and ensure the hammer makes contact with the block's functional point.",
+      "reuse_first": true
+    },
+    "rationale": "Testing robustness to object scale variation is critical to identifying potential weaknesses in the ACT policy, as changes in object dimensions may impact the policy's ability to achieve the task's success criteria."
+  },
+  "semantic_resolution": {
+    "schema_version": 1,
+    "semantic_sub_aspect": "robustness.block_scale_variation",
+    "resolved_aspect_id": "object_scale",
+    "resolved_template_id": "object_scale.bounded_1_2",
+    "resolution": "explicit_change_intent_aspect_runtime_order",
+    "hidden": true,
+    "matched_tokens": [
+      "description",
+      "object",
+      "scale"
+    ],
+    "catalog_was_model_visible": false
+  }
+}

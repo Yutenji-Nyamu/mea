@@ -1,0 +1,186 @@
+{
+  "schema_version": 1,
+  "batch": "batch23_claim_closure",
+  "date": "2026-07-26",
+  "paper_eligible": false,
+  "scope": "minimal_real_and_proxy_pilots_for_claim_level_reproduction",
+  "main_chain": {
+    "evaluation_id": "eval_20260726_batch23_open_query_live_n1_v5",
+    "query": "这个ACT策略最先在哪种被操作物体或场景变化上暴露弱点？",
+    "task": "beat_block_hammer",
+    "policy": "ACT",
+    "seed": 100600,
+    "act_rollouts": 3,
+    "planner_selected_candidates": [
+      "object_scale.bounded_1_2",
+      "robustness.distractor_avoidance.lookalike"
+    ],
+    "generated_scene_and_checker": true,
+    "checker_fixtures": "6/6",
+    "distractor_generated_checker_success": true,
+    "distractor_official_success": false,
+    "distractor_semantic_disagreement": true,
+    "live_tool_metric": "query_right_tcp_target_xy_distance",
+    "live_tool_value_m": 0.02450702767965987,
+    "termination": "budget_exhausted",
+    "claim_verdict": "inconclusive",
+    "answered": false,
+    "untested_candidate_count": 3,
+    "evidence": "docs/evidence/current/manifest.json"
+  },
+  "efficiency": {
+    "study_id": "batch23_click_bell_four_universal_n1_v2",
+    "source": "experiments/paper/results/batch23_claim_closure/efficiency_four_candidate_n1_v2.json",
+    "raw_server_source": "mea/protocol_runs/batch23_click_bell_four_universal_n1_v2/live_execution/efficiency_result.json",
+    "task": "click_bell",
+    "seed": 100404,
+    "fixed": {
+      "act_rollouts": 4,
+      "wall_seconds": 277.72405645623803,
+      "steps": 605,
+      "universal_conclusion": false
+    },
+    "adaptive": {
+      "act_rollouts": 1,
+      "wall_seconds": 107.72224425524473,
+      "steps": 400,
+      "universal_conclusion": false,
+      "stop_reason": "evidence_sufficient_after_first_failure"
+    },
+    "saved_act_rollouts": 3,
+    "saved_wall_seconds": 170.0018122009933,
+    "saved_steps": 205,
+    "conclusion_agrees": true,
+    "technical_errors": 0,
+    "toy_evidence_passed": true,
+    "paper_tables_1_2_eligible": false
+  },
+  "taskgen_ablation": {
+    "study_id": "batch23_table3_scene_checker_pilot_v5",
+    "source": "experiments/paper/results/batch23_claim_closure/table3_scene_checker_v5.json",
+    "raw_server_source": "mea/protocol_runs/batch23_table3_scene_checker_pilot_v5/live_execution/table3_result.json",
+    "unseen_proposals": 2,
+    "provider_generations": 10,
+    "act_rollouts": 0,
+    "annotator_kind": "development_agent_proxy",
+    "blind_to_condition": false,
+    "human_reviewer_count": 0,
+    "success_rates": {
+      "complete": 1.0,
+      "base": 0.0,
+      "no_rag": 0.0,
+      "no_visual_self_check": 1.0,
+      "no_readme_agent": 1.0
+    },
+    "interpretation": "RAG has a directional signal in this two-proposal pilot; visual self-check and README.Agent gains were not observed.",
+    "paper_table3_eligible": false
+  },
+  "toolgen": {
+    "study_id": "batch23_toolgen_unified_v2",
+    "sources": [
+      "experiments/paper/results/batch23_claim_closure/toolgen_unified_actual_v2.json",
+      "experiments/paper/results/batch23_claim_closure/toolgen_unified_exact_reuse_v2.json",
+      "experiments/paper/results/batch23_claim_closure/toolgen_unified_planner_replay_v2.json",
+      "experiments/paper/results/batch23_claim_closure/toolgen_unified_counterfactual_v2.json"
+    ],
+    "raw_server_source": "mea/protocol_runs/batch23_toolgen_unified_v2",
+    "query_induced_metric": "tcp_jerk_peak_l2_pre_contact",
+    "real_act_value": 58.14487919739201,
+    "unit": "m/s^3",
+    "passed": false,
+    "synthetic_fallback_used": false,
+    "exact_reuse_route": "exact_query_registry_reuse",
+    "reuse_provider_called": false,
+    "planner_branch_changed_when_measurement_removed": true,
+    "additional_act_for_replay": 0,
+    "limitation": "Planner influence is a cached-real provider counterfactual, not a replicated causal estimate."
+  },
+  "policy_ranking": {
+    "study_id": "batch23_act_dp3_shared_expert_n3",
+    "source": "experiments/paper/results/batch23_claim_closure/ranking_act_dp3_shared_n3.json",
+    "raw_server_source": "mea/protocol_runs/batch23_act_dp3_shared_expert_n3/live_execution/ranking_result.json",
+    "shared_expert_probes": 3,
+    "policy_rollouts": 6,
+    "act_successes": "2/3",
+    "dp3_successes": "2/3",
+    "observed_order": "tie",
+    "spearman": null,
+    "claim_status": "toy_order_inconclusive_tie",
+    "paper_table9_eligible": false
+  },
+  "plan_proxy": {
+    "source": "experiments/paper/results/batch23_claim_closure/query_proxy20_result_v1.json",
+    "raw_server_source": "mea/validation_runs/query_validation_20260726_proxy20_v1/validation_summary.json",
+    "query_count": 20,
+    "taxonomy_count": 5,
+    "annotator_kind": "development_agent_proxy",
+    "human_reviewer_count": 0,
+    "aspect_micro_f1": 0.4615384615384615,
+    "exact_set_accuracy": 0.4,
+    "first_aspect_accuracy": 0.9,
+    "provider_failure_count": 5,
+    "paper_table6_eligible": false
+  },
+  "vqa_proxy": {
+    "source": "experiments/paper/results/batch23_claim_closure/vqa_proxy_result_v1.json",
+    "sample_count": 8,
+    "source_real_rollouts": 2,
+    "new_act_rollouts": 0,
+    "vlm_count": 1,
+    "covered": "7/8",
+    "accuracy": 0.875,
+    "auroc": 1.0,
+    "annotator_kind": "development_agent_proxy",
+    "human_reviewer_count": 0,
+    "simulator_native_perturbations": false,
+    "paper_tables_7_8_eligible": false
+  },
+  "system_error_proxy": {
+    "sources": [
+      "experiments/paper/results/batch23_claim_closure/paper_error_study_v1.json",
+      "experiments/paper/results/batch23_claim_closure/paper_error_summary_v1.json",
+      "experiments/paper/results/batch23_claim_closure/semantic_artifact_audit_v1.json"
+    ],
+    "frozen_operation_count": 10,
+    "paper_error_count": 0,
+    "error_rate": 0.0,
+    "module_error_distribution": null,
+    "paper_fig6_eligible": false,
+    "limitation": "A later fenced-JSON adapter failure was outside the frozen denominator and demonstrates that this pilot is too small."
+  },
+  "libero_feasibility": {
+    "source": "experiments/paper/results/batch23_claim_closure/libero_smolvla_smoke_v1.json",
+    "raw_server_source": "mea/protocol_runs/batch23_libero_smolvla_adapter_smoke/live_eval_task0_seed100800_20260726T1242_retry1/eval_output/eval_info.json",
+    "scope": "independent_libero_adapter_feasibility",
+    "policy": "HuggingFaceVLA/smolvla_libero",
+    "parameter_count": 604934176,
+    "task_group": "libero_object",
+    "task_id": 0,
+    "seed": 100800,
+    "episodes": 1,
+    "success": true,
+    "reward": 1.0,
+    "official_eval_seconds": 31.131534337997437,
+    "total_wall_seconds": 89,
+    "gpu_memory_peak_mib": 2512,
+    "paper_cross_benchmark_eligible": false
+  },
+  "pruning": {
+    "deleted_old_source_and_test_files": 22,
+    "net_deleted_lines": 7225,
+    "removed_stacks": [
+      "cached_taskgen_acceptance_and_micro_ablation",
+      "legacy_module_ablation_table3",
+      "legacy_matched_efficiency",
+      "three_dead_standalone_clis"
+    ],
+    "retained": [
+      "claim_first_main_chain",
+      "production_acceptance",
+      "paired_shared_eligibility",
+      "all_live_planners",
+      "execution_receipts_used_by_policy_runtime",
+      "registries_with_current_callers"
+    ]
+  }
+}

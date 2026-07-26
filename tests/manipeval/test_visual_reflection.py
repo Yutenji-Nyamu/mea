@@ -70,6 +70,49 @@ class VisualReflectionTests(unittest.TestCase):
                 malformed_confidence
             )
 
+    def test_distractor_vision_requires_meaningful_confidence(self):
+        low_confidence = validate_bbh_distractor_vision_observation(
+            {
+                "aligned": True,
+                "target_visible": True,
+                "lookalike_distractor_visible": True,
+                "scene_physically_plausible": True,
+                "unexpected_changes": [],
+                "confidence": 0.0,
+            }
+        )
+        self.assertFalse(low_confidence["passed"])
+        self.assertIn(
+            "vision_confidence_below_0.5",
+            low_confidence["issues"],
+        )
+
+    def test_standard_vision_requires_meaningful_confidence(self):
+        low_confidence = validate_vision_observation(
+            {
+                "aligned": True,
+                "observed_color": "blue",
+                "unexpected_changes": [],
+                "confidence": 0.1,
+            },
+            SPEC,
+        )
+        self.assertFalse(low_confidence["passed"])
+        self.assertIn(
+            "vision_confidence_below_0.5",
+            low_confidence["issues"],
+        )
+        with self.assertRaisesRegex(VisualReflectionError, "numeric"):
+            validate_vision_observation(
+                {
+                    "aligned": True,
+                    "observed_color": "blue",
+                    "unexpected_changes": [],
+                    "confidence": "certain",
+                },
+                SPEC,
+            )
+
     def test_failed_observation_triggers_one_repair_then_passes(self):
         state = {"repaired": False}
 

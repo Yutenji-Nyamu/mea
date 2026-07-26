@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "scope": "independent_libero_adapter_feasibility",
+  "paper_eligible": false,
+  "status": "passed",
+  "task_group": "libero_object",
+  "task_id": 0,
+  "seed": 100800,
+  "episodes": 1,
+  "successes": [
+    true
+  ],
+  "avg_sum_reward": 1.0,
+  "pc_success": 100.0,
+  "official_eval_seconds": 31.131534337997437,
+  "total_wall_seconds": 89,
+  "gpu_samples": 82,
+  "gpu_total_memory_peak_mib": 2512,
+  "recording_requested": false,
+  "video_was_emitted_by_lerobot": true,
+  "checkpoint": {
+    "path": "/root/autodl-tmp/checkpoints/libero/smolvla_libero",
+    "model_safetensors_sha256": "71d9563c8295284acba8fc2d5c19de000d6fe9ba58a406832af7ef3d221ed52f",
+    "model_safetensors_bytes": 1218047032,
+    "parameter_count": 604934176
+  },
+  "software": {
+    "lerobot": "0.6.0",
+    "torch": "2.11.0+cu130"
+  },
+  "assets": {
+    "repository": "lerobot/libero-assets",
+    "revision": "0b3ea86be5fe169d0fd036ae63d1070ec09e90f6",
+    "repository_used_storage_bytes": 492798408,
+    "on_disk_bytes": 423025310
+  },
+  "successful_run_root": "/root/autodl-tmp/mea/mea/protocol_runs/batch23_libero_smolvla_adapter_smoke/live_eval_task0_seed100800_20260726T1242_retry1",
+  "retry_note": "The first launch exited 127 before model loading because /usr/bin/time was absent. The sole retry used bash timestamps and passed. No further retries were made."
+}

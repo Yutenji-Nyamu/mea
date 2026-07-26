@@ -13,11 +13,15 @@ from typing import Any
 
 
 PROTOCOL_ID = "exact_seed_paired_v1"
+SHARED_ELIGIBILITY_PROTOCOL_ID = "shared_expert_eligibility_v1"
 DEFAULT_CONDITIONS = (
     {"id": "easy", "task_config": "demo_clean"},
     {"id": "hard", "task_config": "demo_randomized"},
 )
 _IDENTIFIER = re.compile(r"[a-z0-9][a-z0-9_]*\Z")
+_DOTTED_IDENTIFIER = re.compile(
+    r"[a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*)*\Z"
+)
 
 
 class PairedProtocolError(ValueError):
@@ -167,6 +171,254 @@ def seed_manifest_sha256(payload: Mapping[str, Any]) -> str:
         separators=(",", ":"),
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def _canonical_sha256(payload: Mapping[str, Any]) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def validate_scene_signature(value: Any) -> dict[str, Any]:
+    """Validate the small, deterministic task-object signature used by ranking."""
+
+    if not isinstance(value, Mapping):
+        raise PairedProtocolError("scene_signature must be an object")
+    if set(value) != {"schema_version", "actors"}:
+        raise PairedProtocolError(
+            "scene_signature fields must be schema_version and actors"
+        )
+    if value.get("schema_version") != 1:
+        raise PairedProtocolError("scene_signature schema_version must be 1")
+    raw_actors = value.get("actors")
+    if not isinstance(raw_actors, list) or not raw_actors:
+        raise PairedProtocolError("scene_signature actors must be non-empty")
+    actors: list[dict[str, Any]] = []
+    attributes: set[str] = set()
+    for raw in raw_actors:
+        if not isinstance(raw, Mapping) or set(raw) != {
+            "attribute",
+            "name",
+            "position",
+            "quaternion",
+        }:
+            raise PairedProtocolError("invalid scene_signature actor")
+        attribute = _identifier(raw.get("attribute"), field="actor.attribute")
+        if attribute in attributes:
+            raise PairedProtocolError(
+                f"duplicate scene actor attribute: {attribute}"
+            )
+        attributes.add(attribute)
+        name = str(raw.get("name") or "").strip()
+        if not name:
+            raise PairedProtocolError("actor.name must be non-empty")
+
+        def vector(field: str, length: int) -> list[float]:
+            raw_vector = raw.get(field)
+            if not isinstance(raw_vector, list) or len(raw_vector) != length:
+                raise PairedProtocolError(
+                    f"actor.{field} must contain exactly {length} numbers"
+                )
+            result: list[float] = []
+            for item in raw_vector:
+                if (
+                    isinstance(item, bool)
+                    or not isinstance(item, (int, float))
+                    or not math.isfinite(float(item))
+                ):
+                    raise PairedProtocolError(
+                        f"actor.{field} values must be finite numbers"
+                    )
+                result.append(round(float(item), 6))
+            return result
+
+        actors.append(
+            {
+                "attribute": attribute,
+                "name": name,
+                "position": vector("position", 3),
+                "quaternion": vector("quaternion", 4),
+            }
+        )
+    actors.sort(key=lambda row: row["attribute"])
+    return {"schema_version": 1, "actors": actors}
+
+
+def capture_scene_signature(
+    task: Any,
+    *,
+    actor_attributes: Sequence[str] = ("block", "hammer"),
+) -> dict[str, Any]:
+    """Capture only task actors needed to prove identical seeded setup.
+
+    IDs, robot links, and renderer state are intentionally excluded because
+    they are process-local.  Attribute name, actor name, and rounded pose are
+    stable across fresh simulator processes for the same RoboTwin seed.
+    """
+
+    actors: list[dict[str, Any]] = []
+    for raw_attribute in actor_attributes:
+        attribute = _identifier(
+            raw_attribute, field="actor_attributes[]"
+        )
+        actor = getattr(task, attribute, None)
+        if actor is None or not callable(getattr(actor, "get_pose", None)):
+            raise PairedProtocolError(
+                f"task actor {attribute!r} is unavailable for scene signature"
+            )
+        pose = actor.get_pose()
+        name = (
+            actor.get_name()
+            if callable(getattr(actor, "get_name", None))
+            else attribute
+        )
+        actors.append(
+            {
+                "attribute": attribute,
+                "name": str(name),
+                "position": [float(item) for item in pose.p],
+                "quaternion": [float(item) for item in pose.q],
+            }
+        )
+    return validate_scene_signature(
+        {"schema_version": 1, "actors": actors}
+    )
+
+
+def build_shared_eligibility_manifest(
+    *,
+    task_name: str,
+    task_module: str,
+    task_config: str,
+    seed: int,
+    instruction_type: str,
+    exact_instruction: str,
+    scene_signature: Mapping[str, Any],
+) -> dict[str, Any]:
+    task_name = _identifier(task_name, field="task_name")
+    task_config = _identifier(task_config, field="task_config")
+    instruction_type = _identifier(
+        instruction_type, field="instruction_type"
+    )
+    task_module = str(task_module or "").strip()
+    if not _DOTTED_IDENTIFIER.fullmatch(task_module):
+        raise PairedProtocolError(
+            "task_module must be a lowercase dotted identifier"
+        )
+    if isinstance(seed, bool) or not isinstance(seed, int) or seed < 0:
+        raise PairedProtocolError("seed must be a non-negative integer")
+    exact_instruction = str(exact_instruction or "").strip()
+    if not exact_instruction:
+        raise PairedProtocolError("exact_instruction must be non-empty")
+    signature = validate_scene_signature(scene_signature)
+    return {
+        "schema_version": 1,
+        "protocol": SHARED_ELIGIBILITY_PROTOCOL_ID,
+        "task_name": task_name,
+        "task_module": task_module,
+        "task_config": task_config,
+        "seed": seed,
+        "eligibility_status": "passed",
+        "instruction_type": instruction_type,
+        "exact_instruction": exact_instruction,
+        "scene_signature": signature,
+        "scene_signature_sha256": _canonical_sha256(signature),
+        "expert_outcome": {
+            "plan_success": True,
+            "check_success": True,
+        },
+    }
+
+
+def validate_shared_eligibility_manifest(
+    value: Any,
+    *,
+    expected_task_name: str | None = None,
+    expected_task_module: str | None = None,
+    expected_task_config: str | None = None,
+    expected_seed: int | None = None,
+) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        raise PairedProtocolError(
+            "shared eligibility manifest must be a JSON object"
+        )
+    expected_fields = {
+        "schema_version",
+        "protocol",
+        "task_name",
+        "task_module",
+        "task_config",
+        "seed",
+        "eligibility_status",
+        "instruction_type",
+        "exact_instruction",
+        "scene_signature",
+        "scene_signature_sha256",
+        "expert_outcome",
+    }
+    if set(value) != expected_fields:
+        raise PairedProtocolError(
+            "shared eligibility manifest fields differ from schema"
+        )
+    if (
+        value.get("schema_version") != 1
+        or value.get("protocol") != SHARED_ELIGIBILITY_PROTOCOL_ID
+        or value.get("eligibility_status") != "passed"
+        or value.get("expert_outcome")
+        != {"plan_success": True, "check_success": True}
+    ):
+        raise PairedProtocolError(
+            "shared eligibility manifest does not prove expert success"
+        )
+    normalized = build_shared_eligibility_manifest(
+        task_name=value.get("task_name"),
+        task_module=value.get("task_module"),
+        task_config=value.get("task_config"),
+        seed=value.get("seed"),
+        instruction_type=value.get("instruction_type"),
+        exact_instruction=value.get("exact_instruction"),
+        scene_signature=value.get("scene_signature"),
+    )
+    if normalized != dict(value):
+        raise PairedProtocolError(
+            "shared eligibility manifest is not normalized"
+        )
+    expected = {
+        "task_name": expected_task_name,
+        "task_module": expected_task_module,
+        "task_config": expected_task_config,
+        "seed": expected_seed,
+    }
+    for field, wanted in expected.items():
+        if wanted is not None and normalized[field] != wanted:
+            raise PairedProtocolError(
+                f"shared eligibility {field} {normalized[field]!r} "
+                f"does not match {wanted!r}"
+            )
+    return normalized
+
+
+def load_shared_eligibility_manifest(
+    path: str | Path,
+    **expected: Any,
+) -> dict[str, Any]:
+    source = Path(path).expanduser().resolve()
+    try:
+        payload = json.loads(source.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise PairedProtocolError(
+            f"cannot load shared eligibility manifest {source}: {exc}"
+        ) from exc
+    return validate_shared_eligibility_manifest(payload, **expected)
+
+
+def shared_eligibility_sha256(payload: Mapping[str, Any]) -> str:
+    return _canonical_sha256(validate_shared_eligibility_manifest(payload))
 
 
 def _measurement_map(

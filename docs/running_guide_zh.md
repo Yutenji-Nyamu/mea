@@ -64,11 +64,23 @@ query
 → answer
 ```
 
-Git 只复制当前运行的两个短 rollout、render、生成代码、关键 provider 输出和结论；
-完整 telemetry/VQA bundle 留在服务器。需要发布新结果时，用新运行替换
+Git 只复制 current manifest 收录的短 rollout、render、生成代码、关键 provider 输出和
+结论；完整 telemetry/VQA bundle 留在服务器。需要发布新结果时，用新运行替换
 `docs/evidence/current/`，并在 `docs/evidence/history.jsonl` 追加一行旧结果摘要。
 
-## 5. 测试原则
+## 5. 论文协议
+
+`experiments/paper/manipeval_run_live_paper_protocols.py` 只运行已冻结输入：
+
+- efficiency：fixed 与 adaptive 独立执行，比较真实 ACT 数、wall time 和 dense 结论；
+- ranking：每个 seed 先冻结一次 expert instruction/scene eligibility，再让各 policy 共享；
+- table3：真实 provider scene+checker 经过 compile/render/expert/fixtures，最后读取显式
+  `development_agent_proxy` review；proxy 不能写成 human gold。
+
+协议结果保留 preregistration、逐 cell/seed 结果和一个最终 JSON；不要把这些 dispatcher
+接回生产 Agent。LIBERO smoke 也属于独立实验 adapter，不混入 RoboTwin 或 Table 9。
+
+## 6. 测试原则
 
 - 纯 schema、Planner、fixture 和 registry 单测可在服务器快速执行。
 - 修改主链后运行相关测试，再运行一次 plan-only。

@@ -1,18 +1,24 @@
 {
   "schema_version": 1,
-  "original_query": "Can this ACT policy avoid a physically similar distractor and strike only the intended block when performing beat_block_hammer?",
-  "answered": true,
-  "stop_reason": "evidence_sufficient",
+  "original_query": "这个ACT策略最先在哪种被操作物体或场景变化上暴露弱点？",
+  "answered": false,
+  "stop_reason": "budget_exhausted",
   "claim_type": "diagnostic",
-  "claim_verdict": "no_failure_observed",
-  "answer": "For the finite registered candidate domain, the Query verdict is no_failure_observed.",
+  "claim_verdict": "inconclusive",
+  "answer": "The bounded evidence does not yet satisfy the truth conditions needed to answer the original Query.",
   "tested_candidate_ids": [
+    "object_scale.bounded_1_2",
     "robustness.distractor_avoidance.lookalike"
   ],
-  "untested_candidate_ids": [],
+  "untested_candidate_ids": [
+    "object_appearance.color_blue",
+    "object_position.official_random",
+    "performance.pickup_to_contact_timing"
+  ],
   "limitations": [
     "This is a finite-domain stopping prototype, not a statistical generalization guarantee.",
     "Diagnosis strings are trusted upstream evidence labels; this contract does not independently infer or validate causality.",
+    "Untested finite-domain candidates: object_appearance.color_blue, object_position.official_random, performance.pickup_to_contact_timing",
     "This answer is limited to the bound task, checkpoint, variants, and recorded seeds.",
     "A finite-domain N-small result is not a broad generalization guarantee.",
     "At least one candidate verdict uses generated_check_success; it must not be interpreted as official benchmark success."
@@ -20,19 +26,51 @@
   "evidence_refs": [
     {
       "kind": "child_manifest",
-      "path": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_1/manifest.json"
+      "path": "mea/generated_tasks/run_20260726_batch23_open_query_live_n1_v5_round_1/manifest.json"
+    },
+    {
+      "kind": "round_aggregate",
+      "path": "mea/evaluation_runs/eval_20260726_batch23_open_query_live_n1_v5/execution/round_1/aggregate_result.json"
+    },
+    {
+      "kind": "tool_execution",
+      "path": "mea/evaluation_runs/eval_20260726_batch23_open_query_live_n1_v5/execution/round_1/planned_tool/tool_execution.json"
     },
     {
       "kind": "execution_vqa_result",
-      "path": "mea/evaluation_runs/eval_20260724_batch22_distractor_live_n1_v7/execution/round_1/execution_vqa/execution_vqa.json"
+      "path": "mea/evaluation_runs/eval_20260726_batch23_open_query_live_n1_v5/execution/round_1/execution_vqa/execution_vqa.json"
     },
     {
       "kind": "child_manifest",
-      "path": "mea/generated_tasks/run_20260724_batch22_distractor_live_n1_v7_round_2/manifest.json"
+      "path": "mea/generated_tasks/run_20260726_batch23_open_query_live_n1_v5_round_2/manifest.json"
+    },
+    {
+      "kind": "round_aggregate",
+      "path": "mea/evaluation_runs/eval_20260726_batch23_open_query_live_n1_v5/execution/round_2/aggregate_result.json"
+    },
+    {
+      "kind": "tool_execution",
+      "path": "mea/evaluation_runs/eval_20260726_batch23_open_query_live_n1_v5/execution/round_2/planned_tool/tool_execution.json"
     },
     {
       "kind": "execution_vqa_result",
-      "path": "mea/evaluation_runs/eval_20260724_batch22_distractor_live_n1_v7/execution/round_2/execution_vqa/execution_vqa.json"
+      "path": "mea/evaluation_runs/eval_20260726_batch23_open_query_live_n1_v5/execution/round_2/execution_vqa/execution_vqa.json"
+    },
+    {
+      "kind": "child_manifest",
+      "path": "mea/generated_tasks/run_20260726_batch23_open_query_live_n1_v5_round_3/manifest.json"
+    },
+    {
+      "kind": "round_aggregate",
+      "path": "mea/evaluation_runs/eval_20260726_batch23_open_query_live_n1_v5/execution/round_3/aggregate_result.json"
+    },
+    {
+      "kind": "tool_execution",
+      "path": "mea/evaluation_runs/eval_20260726_batch23_open_query_live_n1_v5/execution/round_3/planned_tool/tool_execution.json"
+    },
+    {
+      "kind": "execution_vqa_result",
+      "path": "mea/evaluation_runs/eval_20260726_batch23_open_query_live_n1_v5/execution/round_3/execution_vqa/execution_vqa.json"
     }
   ],
   "evaluation_outcomes": [
@@ -45,13 +83,21 @@
       "execution_scope": "official_equivalent"
     },
     {
+      "metric": "official_check_success",
+      "authority": "compiled_success_spec_official_equivalent",
+      "binding": null,
+      "value": 1.0,
+      "official_equivalent": true,
+      "execution_scope": "official_equivalent"
+    },
+    {
       "metric": "bbh_target_without_distractor_success",
       "authority": "llm_generated_python_ast_validated",
       "binding": {
         "metric": "bbh_target_without_distractor_success",
         "authority": "llm_generated_python_ast_validated",
-        "module_sha256": "deac1c5415f37cecef828ecf5b63d3610111ca3f41150afd0055c6fe1474ee44",
-        "task_module": "mea.generated_tasks.run_20260724_batch22_distractor_live_n1_v7_round_2.task"
+        "module_sha256": "5cd3ae7bddc4d7fe6f287faac282f9007e648b4a620c29b9ef051d23532918ed",
+        "task_module": "mea.generated_tasks.run_20260726_batch23_open_query_live_n1_v5_round_3.task"
       },
       "value": 1.0,
       "official_equivalent": false,

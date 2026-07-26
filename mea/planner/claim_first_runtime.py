@@ -398,6 +398,64 @@ def _round_artifact_refs(
     return refs
 
 
+def _compact_planned_tool_evidence(
+    observations: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Expose measured Tool values to the next semantic planning step.
+
+    The typed Tool execution remains authoritative. This projection is only a
+    compact prompt-facing observation; it never replaces official success or
+    changes the deterministic QueryContract outcome by itself.
+    """
+
+    planned = observations.get("planned_tool")
+    if not isinstance(planned, Mapping):
+        return []
+    route_decision = planned.get("route_decision")
+    route_decision = (
+        route_decision if isinstance(route_decision, Mapping) else {}
+    )
+    validation = planned.get("validation")
+    validation = validation if isinstance(validation, Mapping) else {}
+    route = (
+        planned.get("route")
+        or route_decision.get("resolved_route")
+        or route_decision.get("route")
+    )
+    provider_called = route_decision.get(
+        "provider_called",
+        validation.get("provider_called"),
+    )
+    compact: list[dict[str, Any]] = []
+    episodes = planned.get("episodes")
+    if not isinstance(episodes, list):
+        return compact
+    for episode in episodes:
+        if not isinstance(episode, Mapping):
+            continue
+        result = episode.get("result")
+        if not isinstance(result, Mapping):
+            continue
+        details = result.get("details")
+        details = details if isinstance(details, Mapping) else {}
+        compact.append(
+            {
+                "metric": str(
+                    result.get("tool")
+                    or planned.get("reference_tool")
+                    or ""
+                ),
+                "value": result.get("value"),
+                "unit": result.get("unit"),
+                "passed": result.get("passed"),
+                "route": route,
+                "provider_called": provider_called,
+                "null_reason": details.get("reason"),
+            }
+        )
+    return compact
+
+
 def build_claim_first_evidence_record(
     round_plan: Mapping[str, Any],
     round_summary: Mapping[str, Any],
@@ -414,10 +472,10 @@ def build_claim_first_evidence_record(
     )
     refs = _round_artifact_refs(round_summary)
     observations = round_summary.get("observations")
+    observations = observations if isinstance(observations, Mapping) else {}
     policy_outcome = (
         observations.get("policy_outcome")
-        if isinstance(observations, Mapping)
-        and isinstance(observations.get("policy_outcome"), Mapping)
+        if isinstance(observations.get("policy_outcome"), Mapping)
         else {
             "metric": "official_check_success",
             "authority": "official_check_success",
@@ -477,12 +535,24 @@ def build_claim_first_evidence_record(
             "This round is judged by the bounded generated_check_success "
             "predicate and is not an official RoboTwin success result."
         )
+    planned_tool_evidence = _compact_planned_tool_evidence(observations)
+    tool_summary = (
+        json.dumps(
+            planned_tool_evidence,
+            ensure_ascii=False,
+            sort_keys=True,
+            allow_nan=False,
+        )
+        if planned_tool_evidence
+        else "[]"
+    )
     summary_text = (
         f"EvidencePacket strength={strength}; policy_success_rate="
         f"{success_rate}; Rule metric={packet['rule']['metric']}; "
         f"outcome_metric={policy_outcome.get('metric')}; "
         f"outcome_authority={policy_outcome.get('authority')}; "
-        f"VQA status={packet['vqa']['status']}."
+        f"VQA status={packet['vqa']['status']}; "
+        f"planned_tool_measurements={tool_summary}."
     )
     open_query = validate_open_query_evidence(
         [
@@ -521,6 +591,7 @@ def build_claim_first_evidence_record(
         "open_query_evidence": open_query,
         "candidate_evidence": candidate,
         "evaluation_outcome": deepcopy(dict(policy_outcome)),
+        "planned_tool_evidence": planned_tool_evidence,
         "evidence_packet": packet,
         "evidence_refs": refs,
     }

@@ -77,6 +77,7 @@ def main() -> None:
             "smoke_3act",
             "toy_5to7act",
             "position_universal_3to4act",
+            "four_candidate_universal_5to8act",
         ),
         required=True,
     )
