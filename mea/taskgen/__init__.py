@@ -92,6 +92,12 @@ from .bbh_distractor import (
     validate_bbh_distractor_methods,
     validate_bbh_distractor_proposal,
 )
+from .click_bell_distractor import (
+    ClickBellDistractorTaskGenError,
+    click_bell_distractor_rollout_execution,
+    click_bell_distractor_from_task_proposal,
+    materialize_click_bell_distractor_candidate,
+)
 
 __all__ = [
     "TaskGenError",
@@ -166,4 +172,8 @@ __all__ = [
     "validate_bbh_distractor_manifest",
     "validate_bbh_distractor_methods",
     "validate_bbh_distractor_proposal",
+    "ClickBellDistractorTaskGenError",
+    "click_bell_distractor_rollout_execution",
+    "click_bell_distractor_from_task_proposal",
+    "materialize_click_bell_distractor_candidate",
 ]

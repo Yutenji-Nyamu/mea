@@ -147,7 +147,7 @@ def validate_task_proposal(
         raise ProposalError("TaskProposal.reuse_first must be true")
     provider_scene_checker = (
         schema_version == 1
-        and task_name == "beat_block_hammer"
+        and task_name in {"beat_block_hammer", "click_bell"}
         and capability_id == "robustness.distractor_avoidance"
         and aspect_id == "robustness.distractor_avoidance"
     )
@@ -157,7 +157,7 @@ def validate_task_proposal(
     ) is not expected_preserve:
         raise ProposalError(
             "TaskProposal.preserve_success_semantics must be false only for "
-            "the BBH provider scene+checker capability"
+            "a registered provider scene+checker capability"
         )
     if schema_version == 2:
         if official_passthrough:

@@ -35,6 +35,100 @@ _VISUAL_CAPTURE_PROFILES = {"event_keyframes_v1"}
 _VISUAL_CAPTURE_FPS = 2
 
 
+def _schema_with_task_tracked_actors(
+    schema: Mapping[str, Any],
+    task: Any,
+) -> dict[str, Any]:
+    """Append a generated task's public actors to the existing schema."""
+
+    raw = getattr(task, "mea_telemetry_tracked_actors", None)
+    if raw is None:
+        return deepcopy(dict(schema))
+    if not isinstance(raw, (list, tuple)):
+        raise RecorderError(
+            "mea_telemetry_tracked_actors must be a list or tuple"
+        )
+    result = deepcopy(dict(schema))
+    actors = result.setdefault("tracked_actors", [])
+    focus = result.setdefault("contact_focus_actor_ids", [])
+    ids = {item["id"] for item in actors}
+    attributes = {item["task_attribute"] for item in actors}
+    scene_names = {item["scene_name"] for item in actors}
+    expected = {
+        "id",
+        "task_attribute",
+        "scene_name",
+        "functional_points",
+        "contact_points",
+        "contact_focus",
+    }
+    for index, item in enumerate(raw):
+        if not isinstance(item, Mapping) or set(item) != expected:
+            raise RecorderError(
+                f"generated tracked actor {index} has invalid fields"
+            )
+        actor_id = item["id"]
+        attribute = item["task_attribute"]
+        scene_name = item["scene_name"]
+        if any(
+            not isinstance(value, str)
+            or not value
+            or not value.isidentifier()
+            or value.startswith("_")
+            for value in (actor_id, attribute)
+        ) or not isinstance(scene_name, str) or not scene_name:
+            raise RecorderError(
+                f"generated tracked actor {index} has invalid identity"
+            )
+        if (
+            actor_id in ids
+            or attribute in attributes
+            or scene_name in scene_names
+        ):
+            raise RecorderError(
+                f"generated tracked actor {index} duplicates the base schema"
+            )
+        points: dict[str, list[int]] = {}
+        for field in ("functional_points", "contact_points"):
+            values = item[field]
+            if (
+                not isinstance(values, (list, tuple))
+                or any(
+                    isinstance(value, bool)
+                    or not isinstance(value, int)
+                    or value < 0
+                    for value in values
+                )
+                or len(values) != len(set(values))
+            ):
+                raise RecorderError(
+                    f"generated tracked actor {index} has invalid {field}"
+                )
+            points[field] = list(values)
+        if not isinstance(item["contact_focus"], bool):
+            raise RecorderError(
+                f"generated tracked actor {index} contact_focus must be bool"
+            )
+        if not hasattr(task, attribute):
+            raise RecorderError(
+                f"generated tracked actor attribute is missing: {attribute}"
+            )
+        actors.append(
+            {
+                "id": actor_id,
+                "task_attribute": attribute,
+                "scene_name": scene_name,
+                **points,
+            }
+        )
+        if item["contact_focus"]:
+            focus.append(actor_id)
+        ids.add(actor_id)
+        attributes.add(attribute)
+        scene_names.add(scene_name)
+    return result
+
+
 def _numbers(value: Any) -> list[float]:
     if value is None:
         return []
@@ -215,6 +309,7 @@ class EpisodeRecorder:
 
     def start(self, task: Any) -> None:
         self._task = task
+        self.schema = _schema_with_task_tracked_actors(self.schema, task)
         self._validate_task(task)
         if self.execution_receipt is not None:
             self.executed_binding = validate_imported_task_binding(

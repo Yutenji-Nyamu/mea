@@ -1,0 +1,260 @@
+{
+  "schema_version": 1,
+  "recorder_schema_version": 2,
+  "task_name": "click_bell",
+  "task_module": "mea.generated_tasks.run_20260726_batch25_click_bell_open_provider_gate0_v2.task",
+  "task_config": "demo_clean",
+  "checkpoint_setting": "demo_clean",
+  "policy_name": "ACT",
+  "seed": 100405,
+  "episode_index": 0,
+  "success": true,
+  "policy_steps": 63,
+  "physics_steps": 4816,
+  "physics_timestep_seconds": 0.004,
+  "simulation_duration_seconds": 19.264,
+  "wall_duration_seconds": 20.239728927612305,
+  "policy_state_rows": 65,
+  "semantic_trace_rows": 4817,
+  "dynamics_trace_rows": 965,
+  "telemetry_profile_id": "balanced_v1",
+  "telemetry_profile_sha256": "f13e1b86e74d1f203bd9a889191203b4a1ff87d339e557aac864c027f715024c",
+  "telemetry": {
+    "profile_id": "balanced_v1",
+    "profile_sha256": "f13e1b86e74d1f203bd9a889191203b4a1ff87d339e557aac864c027f715024c",
+    "profile_artifact": "telemetry_profile.json",
+    "streams": {
+      "policy_state": {
+        "artifact": "states.csv",
+        "sampling": "policy_boundary",
+        "rows": 65
+      },
+      "semantic_trace": {
+        "artifact": "semantic_trace.npz",
+        "sampling": "physics_period",
+        "every_physics_steps": 1,
+        "rows": 4817,
+        "arrays": {
+          "bell_contact_position": {
+            "shape": [
+              4817,
+              3
+            ],
+            "dtype": "float32"
+          },
+          "bell_position": {
+            "shape": [
+              4817,
+              3
+            ],
+            "dtype": "float32"
+          },
+          "left_tcp_position": {
+            "shape": [
+              4817,
+              3
+            ],
+            "dtype": "float32"
+          },
+          "physics_step": {
+            "shape": [
+              4817
+            ],
+            "dtype": "float64"
+          },
+          "policy_step": {
+            "shape": [
+              4817
+            ],
+            "dtype": "float64"
+          },
+          "right_tcp_position": {
+            "shape": [
+              4817,
+              3
+            ],
+            "dtype": "float32"
+          },
+          "simulation_time_seconds": {
+            "shape": [
+              4817
+            ],
+            "dtype": "float64"
+          },
+          "success": {
+            "shape": [
+              4817
+            ],
+            "dtype": "bool"
+          }
+        }
+      },
+      "contact_events": {
+        "artifact": "events.jsonl",
+        "sampling": "physics_period",
+        "every_physics_steps": 1,
+        "mode": "interval_summary",
+        "rows": 2
+      },
+      "dynamics_trace": {
+        "artifact": "dynamics_trace.npz",
+        "sampling": "physics_period",
+        "every_physics_steps": 5,
+        "force_initial_sample": true,
+        "force_final_sample": true,
+        "rows": 965,
+        "arrays": {
+          "actor.bell.angular_velocity": {
+            "shape": [
+              965,
+              3
+            ],
+            "dtype": "float32"
+          },
+          "actor.bell.contact.0.position": {
+            "shape": [
+              965,
+              3
+            ],
+            "dtype": "float32"
+          },
+          "actor.bell.contact.0.quaternion": {
+            "shape": [
+              965,
+              4
+            ],
+            "dtype": "float32"
+          },
+          "actor.bell.linear_velocity": {
+            "shape": [
+              965,
+              3
+            ],
+            "dtype": "float32"
+          },
+          "actor.bell.position": {
+            "shape": [
+              965,
+              3
+            ],
+            "dtype": "float32"
+          },
+          "actor.bell.quaternion": {
+            "shape": [
+              965,
+              4
+            ],
+            "dtype": "float32"
+          },
+          "physics_step": {
+            "shape": [
+              965
+            ],
+            "dtype": "int64"
+          },
+          "policy_step": {
+            "shape": [
+              965
+            ],
+            "dtype": "int64"
+          },
+          "robot.left.ee_pose": {
+            "shape": [
+              965,
+              7
+            ],
+            "dtype": "float32"
+          },
+          "robot.left.gripper": {
+            "shape": [
+              965
+            ],
+            "dtype": "float32"
+          },
+          "robot.left.qpos": {
+            "shape": [
+              965,
+              38
+            ],
+            "dtype": "float32"
+          },
+          "robot.left.qvel": {
+            "shape": [
+              965,
+              38
+            ],
+            "dtype": "float32"
+          },
+          "robot.left.tcp_pose": {
+            "shape": [
+              965,
+              7
+            ],
+            "dtype": "float32"
+          },
+          "robot.right.ee_pose": {
+            "shape": [
+              965,
+              7
+            ],
+            "dtype": "float32"
+          },
+          "robot.right.gripper": {
+            "shape": [
+              965
+            ],
+            "dtype": "float32"
+          },
+          "robot.right.qpos": {
+            "shape": [
+              965,
+              38
+            ],
+            "dtype": "float32"
+          },
+          "robot.right.qvel": {
+            "shape": [
+              965,
+              38
+            ],
+            "dtype": "float32"
+          },
+          "robot.right.tcp_pose": {
+            "shape": [
+              965,
+              7
+            ],
+            "dtype": "float32"
+          },
+          "simulation_time_seconds": {
+            "shape": [
+              965
+            ],
+            "dtype": "float64"
+          },
+          "success": {
+            "shape": [
+              965
+            ],
+            "dtype": "bool"
+          }
+        }
+      }
+    }
+  },
+  "contact_interval_count": 1,
+  "error": null,
+  "artifacts": {
+    "policy_states": "states.csv",
+    "semantic_trace": "semantic_trace.npz",
+    "dynamics_trace": "dynamics_trace.npz",
+    "events": "events.jsonl",
+    "task_schema": "schema.json",
+    "telemetry_profile": "telemetry_profile.json",
+    "video": "video.mp4"
+  },
+  "video_alignment": {
+    "policy_frame_rate_hz": 10,
+    "frame_semantics": "pre-action; contact in policy step k lies between adjacent frames"
+  }
+}

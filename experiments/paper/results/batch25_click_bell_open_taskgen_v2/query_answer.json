@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "query": "这个ACT策略在目标附近有相似物体时是否仍能可靠点击正确目标？",
+  "verdict": "bounded_positive_but_general_reliability_inconclusive",
+  "answer": "At seed 100405, ACT succeeded on both the unchanged ClickBell control and one provider-generated scene containing a second physical bell 0.12 m away. The generated checker accepted the target click and forbade any latched distractor contact. This supports one bounded positive case, not reliable generalization to similar objects.",
+  "official_control_success": true,
+  "generated_checker_success": true,
+  "official_core_predicate_satisfied": true,
+  "distractor_contact_latched": false,
+  "distractor_latch_authority": "logical_implication_of_validated_checker_success",
+  "answer_scope": {
+    "schema_version": 1,
+    "sample_count": 2,
+    "seeds": [
+      100405
+    ],
+    "tested_candidate_ids": [
+      "official_click_bell_control",
+      "similar_bell_offset_y_0.12"
+    ],
+    "untested_candidate_ids": [
+      "other_similar_object_geometries",
+      "other_distractor_offsets",
+      "other_random_seeds"
+    ],
+    "unsupported_capabilities": [],
+    "evidence_conflict": false,
+    "termination": "budget_exhausted",
+    "claim_verdict": "single_case_positive_but_reliability_inconclusive",
+    "required_limitations": [
+      {
+        "code": "sample_count_and_seeds",
+        "text": "Evidence contains N=2 policy episodes at seeds [100405]."
+      },
+      {
+        "code": "untested_candidates",
+        "text": "Untested candidates remain: ['other_similar_object_geometries', 'other_distractor_offsets', 'other_random_seeds']."
+      },
+      {
+        "code": "termination_budget_exhausted",
+        "text": "The run stopped because its round budget was exhausted before the query-sufficiency contract was satisfied."
+      }
+    ]
+  }
+}

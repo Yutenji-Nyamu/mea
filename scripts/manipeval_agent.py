@@ -39,13 +39,16 @@ from mea.planner import (
     ClaimFirstRuntimeController,
     ClickBellFixedSuitePlanAgent,
     ClickBellPositionPlanAgent,
+    FreeConcernAgent,
     GlobalQueryRouter,
     build_act_catalog,
     build_control_anchor_proposal,
     control_template_id,
+    discover_robotwin_task_inventory,
     make_evaluation_id,
     project_open_query_capabilities,
     render_query_answer,
+    resolve_open_task,
     route_to_planner_proposal,
 )
 from mea.proposals import (
@@ -120,6 +123,86 @@ def supports_claim_first_runtime(
         for template_id in aspect.get("template_ids", [])
     }
     return bool(templates - {control})
+
+
+def build_bound_claim_first_handoff(
+    catalog: dict[str, Any],
+    *,
+    task_name: str,
+    user_request: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Bind an already resolved task to its runtime-owned control proposal.
+
+    FreeConcern and the policy compatibility gate have already selected the
+    executable task.  Choosing the unchanged control is a transport decision,
+    not another semantic provider decision, so the global checkpoint router is
+    deliberately skipped on this path.
+    """
+
+    session = BoundTaskPlanSession.from_catalog(catalog, task_name)
+    target = session.target
+    proposal = build_control_anchor_proposal(target, user_request)
+    requested_aspects = proposal.get("requested_aspect_ids")
+    first_aspect = proposal.get("first_aspect_id")
+    if not isinstance(requested_aspects, list) or not requested_aspects:
+        template_to_aspect = {
+            str(template_id): str(aspect["aspect_id"])
+            for aspect in target["aspects"]
+            for template_id in aspect["template_ids"]
+        }
+        requested_templates = proposal.get("requested_template_ids")
+        first_template = proposal.get("first_template_id")
+        if not isinstance(requested_templates, list) or not requested_templates:
+            raise RuntimeError("bound control proposal has no selected target")
+        try:
+            requested_aspects = list(
+                dict.fromkeys(
+                    template_to_aspect[str(template_id)]
+                    for template_id in requested_templates
+                )
+            )
+            first_aspect = template_to_aspect[str(first_template)]
+        except KeyError as exc:
+            raise RuntimeError(
+                "bound control proposal is outside the selected task"
+            ) from exc
+
+    selection = {
+        "schema_version": 2,
+        "decision": "route",
+        "task_name": target["task_name"],
+        "task_profile": target["task_profile"],
+        "evaluation_goal": proposal["evaluation_goal"],
+        "requested_aspect_ids": list(requested_aspects),
+        "first_aspect_id": str(first_aspect),
+        "unsupported_capabilities": [],
+    }
+    routed = route_to_planner_proposal(selection, catalog)
+    selected = set(selection["requested_aspect_ids"])
+    route_result = {
+        "schema_version": 1,
+        "selection": selection,
+        "resolved": {
+            "task_name": target["task_name"],
+            "task_family": target["task_family"],
+            "task_profile": target["task_profile"],
+            "planner_kind": target["planner_kind"],
+            "checkpoint": deepcopy(target["checkpoint"]),
+            "aspects": [
+                deepcopy(aspect)
+                for aspect in target["aspects"]
+                if aspect["aspect_id"] in selected
+            ],
+        },
+        "catalog_sha256": catalog["catalog_sha256"],
+        "provider_called": False,
+        "attempt_count": 0,
+        "validation_errors": [],
+        "provider_metadata": {},
+        "route_source": "runtime_bound_control_handoff",
+        "global_router_provider_calls": 0,
+    }
+    return route_result, routed
 
 
 def initialize_registered_dynamic_runtime(
@@ -427,7 +510,7 @@ def write_global_route_trace(
     *,
     catalog: dict[str, Any],
     route_result: dict[str, Any],
-    router: GlobalQueryRouter,
+    router: GlobalQueryRouter | None,
     history_retrieval: dict[str, Any],
 ) -> None:
     """Persist the bounded global route without leaking credentials."""
@@ -440,11 +523,13 @@ def write_global_route_trace(
             "history_retrieval": history_retrieval,
         },
     )
-    if router.last_prompt is not None:
+    if router is not None and router.last_prompt is not None:
         (evaluation_dir / "plan/global_query_prompt.md").write_text(
             router.last_prompt, encoding="utf-8"
         )
-    for index, response in enumerate(router.last_responses, start=1):
+    for index, response in enumerate(
+        router.last_responses if router is not None else [], start=1
+    ):
         (evaluation_dir / f"plan/global_query_response_{index}.txt").write_text(
             response + "\n", encoding="utf-8"
         )
@@ -491,6 +576,81 @@ def finish_unsupported_global_route(
         "global_act_catalog_path": "plan/global_act_catalog.json",
         "route": route_result["selection"],
         "limitations": ["query requires an aspect outside the trusted ACT catalog"],
+    }
+    write_json(evaluation_dir / "manifest.json", manifest)
+    return manifest
+
+
+def write_open_task_resolution_trace(
+    evaluation_dir: Path,
+    *,
+    concern_bundle: dict[str, Any],
+    task_inventory: list[dict[str, Any]],
+    task_resolution: dict[str, Any],
+    concern_agent: FreeConcernAgent,
+) -> None:
+    """Persist the Query-first concern and later task resolution."""
+
+    write_json(evaluation_dir / "plan/free_concern.json", concern_bundle)
+    write_json(evaluation_dir / "plan/robotwin_task_inventory.json", task_inventory)
+    write_json(evaluation_dir / "plan/open_task_resolution.json", task_resolution)
+    if concern_agent.last_prompt is not None:
+        (evaluation_dir / "plan/free_concern_prompt.md").write_text(
+            concern_agent.last_prompt, encoding="utf-8"
+        )
+    for index, response in enumerate(concern_agent.last_responses, start=1):
+        (evaluation_dir / f"plan/free_concern_response_{index}.txt").write_text(
+            response + "\n", encoding="utf-8"
+        )
+
+
+def finish_unsupported_open_task_resolution(
+    repo_root: Path,
+    *,
+    evaluation_id: str | None,
+    user_request: str,
+    catalog: dict[str, Any],
+    concern_bundle: dict[str, Any],
+    task_inventory: list[dict[str, Any]],
+    task_resolution: dict[str, Any],
+    concern_agent: FreeConcernAgent,
+) -> dict[str, Any]:
+    """Create the normal no-execution bundle for a policy/task mismatch."""
+
+    resolved_id = evaluation_id or make_evaluation_id()
+    if not re.fullmatch(r"eval_[A-Za-z0-9_]+", resolved_id):
+        raise ValueError("evaluation_id must match eval_[A-Za-z0-9_]+")
+    evaluation_dir = repo_root / "mea/evaluation_runs" / resolved_id
+    if evaluation_dir.exists():
+        raise RuntimeError(f"evaluation directory already exists: {evaluation_dir}")
+    for child in ("plan", "execution", "summary"):
+        (evaluation_dir / child).mkdir(parents=True, exist_ok=False)
+    write_json(evaluation_dir / "request.json", {"user_request": user_request})
+    write_json(evaluation_dir / "plan/global_act_catalog.json", catalog)
+    write_open_task_resolution_trace(
+        evaluation_dir,
+        concern_bundle=concern_bundle,
+        task_inventory=task_inventory,
+        task_resolution=task_resolution,
+        concern_agent=concern_agent,
+    )
+    now = datetime.now().astimezone().isoformat()
+    manifest = {
+        "schema_version": 1,
+        "evaluation_id": resolved_id,
+        "status": "unsupported",
+        "lifecycle_status": "completed_without_execution",
+        "created_at": now,
+        "execution_finished_at": now,
+        "user_request": user_request,
+        "auto_route": True,
+        "free_concern_path": "plan/free_concern.json",
+        "open_task_resolution_path": "plan/open_task_resolution.json",
+        "global_act_catalog_path": "plan/global_act_catalog.json",
+        "route": task_resolution,
+        "limitations": [
+            "the evaluated policy checkpoint cannot execute the resolved task"
+        ],
     }
     write_json(evaluation_dir / "manifest.json", manifest)
     return manifest
@@ -2318,9 +2478,11 @@ def parse_args() -> argparse.Namespace:
         "--auto-route",
         action="store_true",
         help=(
-            "Route the open query through the trusted ACT catalog. In this "
-            "mode task, profile, and initial aspects are selected and "
-            "validated before any task-specific planner runs."
+            "Resolve the Query before task-specific planning. With "
+            "--bound-task-name, claim_first_v1 creates a catalog-free concern "
+            "then checks it against the bound policy and the official RoboTwin "
+            "task library. Without a bound task this remains checkpoint-"
+            "portfolio selection, not one policy executing arbitrary tasks."
         ),
     )
     parser.add_argument(
@@ -2692,6 +2854,10 @@ def main() -> None:
         "candidates": [],
     }
     global_router: GlobalQueryRouter | None = None
+    free_concern_agent: FreeConcernAgent | None = None
+    free_concern_bundle: dict[str, Any] | None = None
+    open_task_inventory: list[dict[str, Any]] | None = None
+    open_task_resolution: dict[str, Any] | None = None
     validated_proposal: dict[str, Any] | None = (
         registered_execution["validated_proposal"]
         if registered_execution is not None
@@ -2741,6 +2907,46 @@ def main() -> None:
             ).planning_context(repo_root)
             for task_name in ready_tasks
         }
+        if claim_first_mode and args.bound_task_name is not None:
+            # The query-first acceptance path is intentionally fail-fast:
+            # one FreeConcern call and one bound route call, with no transport
+            # or schema-repair retry hiding provider instability.
+            provider.max_retries = 0
+            bound_policy_card = global_planning_contexts[
+                args.bound_task_name
+            ]["policy_card"]
+            free_concern_agent = FreeConcernAgent(
+                provider,
+                model=models["planner"],
+                max_attempts=1,
+            )
+            free_concern_bundle = free_concern_agent.propose(
+                args.request,
+                policy_card=bound_policy_card,
+            )
+            open_task_inventory = discover_robotwin_task_inventory(
+                repo_root,
+                capability_catalog=global_catalog,
+            )
+            open_task_resolution = resolve_open_task(
+                free_concern_bundle["concern"],
+                policy_card=bound_policy_card,
+                inventory=open_task_inventory,
+                can_generate_new_task=False,
+            )
+            if open_task_resolution["decision"] != "retrieve_and_adapt":
+                unsupported = finish_unsupported_open_task_resolution(
+                    repo_root,
+                    evaluation_id=args.evaluation_id,
+                    user_request=args.request,
+                    catalog=global_catalog,
+                    concern_bundle=free_concern_bundle,
+                    task_inventory=open_task_inventory,
+                    task_resolution=open_task_resolution,
+                    concern_agent=free_concern_agent,
+                )
+                print(json.dumps(unsupported, ensure_ascii=False, indent=2))
+                return
         global_history_context: list[dict[str, Any]] = []
         if not args.no_history:
             try:
@@ -2767,32 +2973,49 @@ def main() -> None:
                     "candidates": [],
                     "error": f"{type(exc).__name__}: {exc}",
                 }
-        global_router = GlobalQueryRouter(
-            provider,
-            model=models["planner"],
-            catalog=global_catalog,
-            bound_task_name=args.bound_task_name,
-            bound_requested_aspect_ids=args.bound_requested_aspect_ids,
-            planning_contexts=global_planning_contexts,
-        )
-        global_route_result = global_router.route(
-            args.request,
-            history_context=global_history_context,
-        )
-        selection = global_route_result["selection"]
-        if selection["decision"] == "unsupported":
-            unsupported = finish_unsupported_global_route(
-                repo_root,
-                evaluation_id=args.evaluation_id,
+        if open_task_resolution is not None:
+            assert args.bound_task_name is not None
+            global_route_result, routed = build_bound_claim_first_handoff(
+                global_catalog,
+                task_name=args.bound_task_name,
                 user_request=args.request,
-                catalog=global_catalog,
-                route_result=global_route_result,
-                router=global_router,
-                history_retrieval=global_history_retrieval,
             )
-            print(json.dumps(unsupported, ensure_ascii=False, indent=2))
-            return
-        routed = route_to_planner_proposal(selection, global_catalog)
+            global_route_result["task_resolution_scope"] = {
+                "mode": "query_first_bound_policy_task",
+                "artifact": "plan/open_task_resolution.json",
+            }
+        else:
+            global_router = GlobalQueryRouter(
+                provider,
+                model=models["planner"],
+                catalog=global_catalog,
+                planning_contexts=global_planning_contexts,
+            )
+            global_route_result = global_router.route(
+                args.request,
+                history_context=global_history_context,
+            )
+            global_route_result["task_resolution_scope"] = {
+                "mode": "checkpoint_portfolio_selection",
+                "paper_claim": (
+                    "selects among task-specific ACT checkpoints; it is not "
+                    "open-task execution by one policy"
+                ),
+            }
+            selection = global_route_result["selection"]
+            if selection["decision"] == "unsupported":
+                unsupported = finish_unsupported_global_route(
+                    repo_root,
+                    evaluation_id=args.evaluation_id,
+                    user_request=args.request,
+                    catalog=global_catalog,
+                    route_result=global_route_result,
+                    router=global_router,
+                    history_retrieval=global_history_retrieval,
+                )
+                print(json.dumps(unsupported, ensure_ascii=False, indent=2))
+                return
+            routed = route_to_planner_proposal(selection, global_catalog)
         args.task_name = routed["task_name"]
         routed_task_profile = routed["task_profile"]
         args.task_profile = (
@@ -2978,7 +3201,6 @@ def main() -> None:
     if (
         global_catalog is not None
         and global_route_result is not None
-        and global_router is not None
     ):
         write_global_route_trace(
             evaluation_dir,
@@ -2992,7 +3214,29 @@ def main() -> None:
             global_query_route_path="plan/global_query_route.json",
             global_act_catalog_path="plan/global_act_catalog.json",
             global_route_selection=global_route_result["selection"],
+            task_resolution_scope=global_route_result["task_resolution_scope"],
         )
+        if (
+            free_concern_agent is not None
+            and free_concern_bundle is not None
+            and open_task_inventory is not None
+            and open_task_resolution is not None
+        ):
+            write_open_task_resolution_trace(
+                evaluation_dir,
+                concern_bundle=free_concern_bundle,
+                task_inventory=open_task_inventory,
+                task_resolution=open_task_resolution,
+                concern_agent=free_concern_agent,
+            )
+            update_manifest(
+                evaluation_dir,
+                free_concern_path="plan/free_concern.json",
+                open_task_resolution_path="plan/open_task_resolution.json",
+                robotwin_task_inventory_path=(
+                    "plan/robotwin_task_inventory.json"
+                ),
+            )
     plan = manifest["plan"]
     bound_plan_session: BoundTaskPlanSession | None = None
     bound_plan_session_path: str | None = None

@@ -105,6 +105,11 @@ from .claim_first_runtime import (
     render_query_answer,
     resolve_semantic_proposal,
 )
+from .open_task_resolver import (
+    FreeConcernAgent,
+    discover_robotwin_task_inventory,
+    resolve_open_task,
+)
 
 __all__ = [
     "BLUE_TASK_INSTRUCTION",
@@ -186,4 +191,7 @@ __all__ = [
     "control_template_id",
     "render_query_answer",
     "resolve_semantic_proposal",
+    "FreeConcernAgent",
+    "discover_robotwin_task_inventory",
+    "resolve_open_task",
 ]

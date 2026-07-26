@@ -220,6 +220,30 @@ def write_task_artifact_bundle(
             )
     compiled_success = scene_origin == "generated_code" and success_spec_path.is_file()
     provider_success = scene_origin == "provider_generated_code"
+    provider_checker_contract: Mapping[str, Any] = {}
+    if provider_success:
+        try:
+            candidate_manifest = json.loads(
+                (run / "candidate_manifest.json").read_text(encoding="utf-8")
+            )
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise TaskArtifactBundleError(
+                f"provider candidate manifest is invalid: {exc}"
+            ) from exc
+        raw_contract = (
+            candidate_manifest.get("checker_contract")
+            if isinstance(candidate_manifest, Mapping)
+            else None
+        )
+        if (
+            not isinstance(raw_contract, Mapping)
+            or not isinstance(raw_contract.get("metric"), str)
+            or not raw_contract["metric"]
+        ):
+            raise TaskArtifactBundleError(
+                "provider candidate checker contract is incomplete"
+            )
+        provider_checker_contract = raw_contract
     success_module = (
         task_module if (compiled_success or provider_success) else official_success_module
     )
@@ -326,9 +350,9 @@ def write_task_artifact_bundle(
                 "authority": "llm_generated_python_ast_validated",
                 "generated_by_model": True,
                 "generated_from_spec": False,
-                "validation": "validation/bbh_distractor_static.json",
+                "validation": manifest.get("provider_validation_artifact"),
                 "act_runtime_eligible": True,
-                "outcome_label": "bbh_target_without_distractor_success",
+                "outcome_label": provider_checker_contract["metric"],
             }
             if provider_success
             else
@@ -439,18 +463,30 @@ def validate_task_artifact_bundle(value: Mapping[str, Any]) -> dict[str, Any]:
         }:
             raise TaskArtifactBundleError("official success semantics were not preserved")
     elif success.get("origin") == "provider_generated_python":
+        provider_bindings = {
+            "beat_block_hammer": {
+                "validation": "validation/bbh_distractor_static.json",
+                "outcome_label": "bbh_target_without_distractor_success",
+            },
+            "click_bell": {
+                "validation": "validation/click_bell_distractor_static.json",
+                "outcome_label": "click_target_without_distractor_success",
+            },
+        }
+        binding = provider_bindings.get(value.get("task_name"))
         if (
             not success.get("symbol_declared")
             or not isinstance(semantics, Mapping)
+            or binding is None
             or semantics
             != {
                 "preserved": False,
                 "authority": "llm_generated_python_ast_validated",
                 "generated_by_model": True,
                 "generated_from_spec": False,
-                "validation": "validation/bbh_distractor_static.json",
+                "validation": binding["validation"],
                 "act_runtime_eligible": True,
-                "outcome_label": "bbh_target_without_distractor_success",
+                "outcome_label": binding["outcome_label"],
             }
         ):
             raise TaskArtifactBundleError(

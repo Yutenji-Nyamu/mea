@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "decision": "unsupported",
+  "reason_code": "policy_task_mismatch",
+  "free_concern": {
+    "schema_version": 1,
+    "source_query": "这个ACT策略在目标附近有相似物体时是否仍能可靠点击正确目标？",
+    "sub_aspect": "Reliability of target selection when visually similar objects are nearby.",
+    "hypothesis": "The ACT policy reliably clicks the correct target even when visually similar objects are placed near the target.",
+    "task_intent": "Click the correct target object based on its predefined identity and location.",
+    "requested_variation": "Place visually similar objects near the target to test potential confusion.",
+    "measurement_need": "Observe whether the policy consistently clicks the correct target object without errors or confusion."
+  },
+  "policy_scope": {
+    "schema_version": 1,
+    "policy_name": "ACT",
+    "checkpoint_id": "act-click_bell/demo_clean-50",
+    "single_task_checkpoint": true,
+    "training_tasks": [
+      "click_bell"
+    ],
+    "language_conditioned": false,
+    "supports_unseen_tasks": false
+  },
+  "selected_base_task": null,
+  "ranked_candidates": [
+    {
+      "task_name": "scan_object",
+      "score": 0.296499,
+      "execution_status": "official_base_only",
+      "capability_aspects": []
+    },
+    {
+      "task_name": "click_alarmclock",
+      "score": 0.288663,
+      "execution_status": "official_base_only",
+      "capability_aspects": []
+    },
+    {
+      "task_name": "click_bell",
+      "score": 0.284901,
+      "execution_status": "capability_registered",
+      "capability_aspects": [
+        "object_position",
+        "object_instance",
+        "robustness.scene_clutter",
+        "scene_background_texture",
+        "scene_lighting",
+        "performance.completion_time_stability"
+      ]
+    }
+  ],
+  "resolution_contract": {
+    "concern_created_before_inventory": true,
+    "catalog_role": "execution_capability_inventory_only",
+    "retrieval_field": "FreeConcern.task_intent",
+    "preserve_base_task_semantics": false
+  }
+}

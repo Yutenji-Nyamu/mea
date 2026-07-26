@@ -119,7 +119,7 @@ def build_scene_check_spec(
         source = "task_proposal"
         if task_proposal.get("preserve_success_semantics") is False:
             if (
-                task_name == "beat_block_hammer"
+                task_name in {"beat_block_hammer", "click_bell"}
                 and task_proposal.get("capability_id")
                 == "robustness.distractor_avoidance"
                 and task_proposal.get("aspect_id")
@@ -186,12 +186,29 @@ def build_scene_check_spec(
             }
     elif task_name == "click_bell":
         target_actor = "bell"
-        visual_checks = [
-            "target_actor_visible",
-            "scene_is_physically_plausible",
-            "no_obvious_unrequested_scene_change",
-        ]
-        simulator_authorities = _click_bell_authorities(changes)
+        visual_checks = (
+            [
+                "target_actor_visible",
+                "lookalike_distractor_visible",
+                "scene_is_physically_plausible",
+            ]
+            if success_semantics == "provider_generated_python"
+            else [
+                "target_actor_visible",
+                "scene_is_physically_plausible",
+                "no_obvious_unrequested_scene_change",
+            ]
+        )
+        simulator_authorities = (
+            [
+                "simulator_actor_identity",
+                "simulator_rule_check",
+                "provider_checker_semantic_fixtures",
+                "expert_solvability",
+            ]
+            if success_semantics == "provider_generated_python"
+            else _click_bell_authorities(changes)
+        )
         repair_policy = {
             "mode": "validate_only",
             "handler": None,
@@ -284,7 +301,7 @@ def validate_scene_check_spec(value: Mapping[str, Any]) -> dict[str, Any]:
             "experimental SceneCheckSpec lacks bounded proposal authority"
         )
     if result["success_semantics"] == "provider_generated_python" and (
-        result["task_name"] != "beat_block_hammer"
+        result["task_name"] not in {"beat_block_hammer", "click_bell"}
         or result["aspect_id"] != "robustness.distractor_avoidance"
         or result["source"] != "task_proposal"
         or not result.get("proposal_sha256")

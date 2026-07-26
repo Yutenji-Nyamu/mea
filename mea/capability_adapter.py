@@ -158,6 +158,23 @@ _LOOKALIKE_DISTRACTOR = {
         },
     }
 }
+_LOOKALIKE_BELL_DISTRACTOR = {
+    "distractor": {
+        "scene": {
+            "target_name": "050_bell",
+            "distractor_name": "distractor_bell",
+            "distractor_offset_xy_m": [0.0, 0.12],
+            "instance_relation": "alternate_official_instance",
+        },
+        "success": {
+            "target_xy_threshold_m": [0.025, 0.025],
+            "target_z_threshold_m": 0.03,
+            "require_correct_arm": True,
+            "forbid_distractor_contact": True,
+            "latch_distractor_contact": True,
+        },
+    }
+}
 
 
 def _text(value: Any, *, field: str) -> str:
@@ -382,6 +399,38 @@ def _click_generated_contract(
 def _click_contracts() -> list[dict[str, Any]]:
     bell_pressed = ["bell_visibly_pressed"]
     result = [
+        _contract(
+            task_name="click_bell",
+            template_id="robustness.distractor_avoidance.lookalike_bell",
+            aspect_id="robustness.distractor_avoidance",
+            target_role="scene",
+            operation="provider_scene_checker_codegen",
+            capability_id="robustness.distractor_avoidance",
+            task_variant_id="robustness.distractor_avoidance.lookalike_bell",
+            controlled_axis="robustness.distractor_avoidance",
+            change_scope="scene",
+            generation_mode="provider_scene_checker_codegen",
+            allowed_change_roots=["distractor"],
+            changes=_LOOKALIKE_BELL_DISTRACTOR,
+            request_factory_id="official_success_tool_request",
+            metric="click_target_without_distractor_success",
+            required_gates=[
+                "variant_spec",
+                "ast",
+                "render",
+                "rule",
+                "scene_variant",
+                "expert",
+                "act",
+                "toolkit",
+                "aggregate",
+            ],
+            phenomenon_ids=[
+                "bell_visibly_pressed",
+                "lookalike_distractor_visible",
+                "distractor_not_clicked",
+            ],
+        ),
         _click_generated_contract(
             template_id="object_position.left_fixed",
             aspect_id="object_position",

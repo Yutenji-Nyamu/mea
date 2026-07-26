@@ -17,15 +17,34 @@ Windows 下载 checkpoint 或启动 simulator。
 
 ## 2. Plan-only
 
+单任务 checkpoint 的 query-first 入口必须显式给出执行边界。例如：
+
 ```bash
 python scripts/manipeval_agent.py \
-  --request "这个策略对被操作物体属性的泛化如何，最先在哪里暴露弱点？" \
+  --request "这个策略在目标旁存在相似物体时，还能可靠地点击正确目标吗？" \
   --auto-route \
-  --plan-only
+  --bound-task-name click_bell \
+  --open-query-planner claim_first_v1 \
+  --generated-rounds 2 \
+  --plan-only \
+  --no-history \
+  --evaluation-id <unique-plan-id>
 ```
 
-它只验证 Query route、QueryContract 和第一轮 Proposal；不运行 simulator/ACT，也不是
-policy 性能证据。检查输出中的 task、policy、候选 universe、停止条件和 unsupported axes。
+这会先调用一次 inventory-free FreeConcern，再做 official task retrieval、policy
+compatibility gate、QueryContract 和首个有界 Proposal；不运行 simulator/ACT，也不是
+policy 性能证据。重点检查 `free_concern.json`、`task_resolution.json` 中的候选、决策、
+provider/repair/retry 计数，以及最终是 `retrieve_and_adapt`、`generate_new` 还是
+`unsupported`。
+
+若 online resolver 已输出 `unsupported`，之后基于冻结 concern 的 0-provider 修复
+replay 只能证明确定性 resolver/control handoff；另一个 standalone TaskGen/ACT driver
+的成功也不能倒推为同一次 CLI 已自动完成多轮闭环。
+
+不传 `--bound-task-name` 的 auto-route 只能在已声明的 checkpoint portfolio 中选择，
+不是让一个单任务 policy 执行任意发现的 task。当前可发现 50 个 RoboTwin official
+task，但 discovery 不等于 checkpoint-ready。语义相近却与单任务 checkpoint 不兼容时
+必须 fail closed；不得靠 task 名覆盖绕过 scope gate。
 
 ## 3. Live evaluation
 
@@ -82,6 +101,13 @@ Git 只复制 current manifest 收录的短 rollout、render、生成代码、�
 LIBERO 的固定环境、official control 与 MEA 迁移协议见
 [LIBERO / SmolVLA 复现与 MEA 接入](libero_smolvla_reproduction_zh.md)。
 
+当前 SmolVLA checkpoint 没有可审计的训练 task manifest，声明 scope 为 unknown。
+因此 unbound LIBERO 请求必须在 rollout 前拒绝；`--bound-task-name libero_object/task0`
+只授权该次 official control，并不证明 checkpoint 支持该任务。plan-only 的通过标准是
+授权候选为 1、change contract 仍为 pending、`rollouts_executed=0`。live 时若 official
+control 失败，chain 必须以 `official_control_failed` 停止并保持
+`custom_rollout_authorized=false`；本批这个短路行为只有代码与回归测试，没有新 ACT 证据。
+
 ## 6. 测试原则
 
 - 纯 schema、Planner、fixture 和 registry 单测可在服务器快速执行。
@@ -89,3 +115,6 @@ LIBERO 的固定环境、official control 与 MEA 迁移协议见
 - 触及 TaskGen/ToolGen、simulator adapter 或 rollout 绑定时，追加一个最小 live smoke。
 - 不以固定测试数量为目标；被删除的旧链路测试随实现一起删除。
 - 大规模 N、更多 policy 或真实消融须另行预注册，不混入日常 smoke。
+
+本批开放检索、ClickBell TaskGen 与 LIBERO 边界的唯一紧凑索引见
+[`batch25_open_retrieval_taskgen/summary.json`](../experiments/paper/results/batch25_open_retrieval_taskgen/summary.json)。

@@ -133,6 +133,33 @@ class TaskCapabilityTests(unittest.TestCase):
         self.assertEqual(lighting["controlled_axis"], "scene_lighting")
         self.assertIn("static_per_episode_lighting", lighting["preserve"])
 
+    def test_click_provider_capability_is_dynamic_not_legacy_card(self):
+        spec = build_variant_spec(
+            task_name="click_bell",
+            variant_id="robustness.distractor_avoidance.lookalike_bell",
+            capability_id="robustness.distractor_avoidance",
+            intent="evaluate target selection around a lookalike bell",
+            changes={
+                "distractor": {
+                    "scene": {"kind": "lookalike_bell"},
+                    "success": {"forbid_distractor_contact": True},
+                }
+            },
+            generation_mode="provider_scene_checker_codegen",
+            preserve_success_semantics=False,
+        )
+        self.assertEqual(
+            spec["generation_mode"], "provider_scene_checker_codegen"
+        )
+        self.assertIn("provider_generated_check_success", spec["preserve"])
+        self.assertNotIn(
+            "robustness.distractor_avoidance",
+            {
+                item["capability_id"]
+                for item in capability_card("click_bell")["capabilities"]
+            },
+        )
+
     def test_bbh_scale_capability_is_bounded_and_single_axis(self):
         spec = build_variant_spec(
             task_name="beat_block_hammer",

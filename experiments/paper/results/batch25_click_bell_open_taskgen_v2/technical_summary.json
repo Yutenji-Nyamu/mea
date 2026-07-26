@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "provider_codegen": {
+    "v2_calls": 1,
+    "v2_local_regenerations": 0,
+    "fixture_pass_count": 6,
+    "fixture_count": 6
+  },
+  "gate0": {
+    "render_passed": true,
+    "expert_passed": true
+  },
+  "act": {
+    "rollout_count": 2,
+    "retry_count": 0,
+    "control_technical_passed": true,
+    "custom_technical_passed": true,
+    "video_count": 2,
+    "telemetry_episode_count": 2
+  }
+}

@@ -103,6 +103,7 @@ class CapabilityAdapterTests(unittest.TestCase):
                 "object_position.left_fixed",
                 "object_position.right_fixed",
                 "performance.completion_time_stability.official",
+                "robustness.distractor_avoidance.lookalike_bell",
                 "robustness.scene_clutter.official_table",
                 "scene_background_texture.unseen",
                 "scene_lighting.static_random",

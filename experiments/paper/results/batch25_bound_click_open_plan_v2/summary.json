@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "protocol_id": "batch25_bound_click_open_plan_v2",
+  "evaluation_id": "eval_20260726_batch25_bound_click_open_plan_v2",
+  "status": "negative_task_resolution",
+  "scientific_evidence_eligible": false,
+  "query": "这个ACT策略在目标附近有相似物体时是否仍能可靠点击正确目标？",
+  "evaluated_policy": {
+    "policy_name": "ACT",
+    "checkpoint_id": "act-click_bell/demo_clean-50",
+    "single_task_checkpoint": true,
+    "training_task": "click_bell"
+  },
+  "budget": {
+    "free_concern_provider_calls": 1,
+    "free_concern_schema_repairs": 0,
+    "free_concern_transport_retries": 0,
+    "global_route_provider_calls": 0,
+    "act_rollouts": 0,
+    "simulator_calls": 0
+  },
+  "ordering_check": {
+    "free_concern_created_before_inventory": true,
+    "candidate_catalog_visible_in_free_concern_prompt": false,
+    "bound_policy_training_task_visible_in_free_concern_prompt": true,
+    "official_inventory_task_count": 50
+  },
+  "acceptance": {
+    "base_intent_and_requested_variation_separated": true,
+    "free_concern_valid_on_first_call": true,
+    "selected_base_task_is_click_bell": false,
+    "policy_gate_passed": false,
+    "no_act_or_simulator_started": true
+  },
+  "observed_resolution": {
+    "decision": "unsupported",
+    "reason_code": "policy_task_mismatch",
+    "selected_base_task": null,
+    "ranked_candidates": [
+      {
+        "task_name": "scan_object",
+        "score": 0.296499
+      },
+      {
+        "task_name": "click_alarmclock",
+        "score": 0.288663
+      },
+      {
+        "task_name": "click_bell",
+        "score": 0.284901
+      }
+    ],
+    "best_to_training_task_score_gap": 0.011598
+  },
+  "failure_analysis": {
+    "stage": "policy_compatible_task_selection",
+    "cause": "The corrected task intent placed click_bell in a high-scoring semantic near-tie, but the resolver required the single-task training task to be the absolute lexical top-1 candidate.",
+    "interpretation": "The prompt repair worked. The remaining failure is deterministic resolver semantics, not provider schema quality or policy scope.",
+    "provider_retry_performed": false,
+    "live_v3_performed": false
+  },
+  "deterministic_repair": {
+    "provider_calls": 0,
+    "resolver_artifact": "deterministic_repair_replay.json",
+    "bound_control_handoff_artifact": "deterministic_bound_handoff_replay.json",
+    "global_router_provider_calls": 0,
+    "taskgen_handoff_ready": true,
+    "scope": "cached replay only; the online v2 resolver result remains negative"
+  },
+  "artifacts": {
+    "free_concern": "free_concern.json",
+    "free_concern_prompt": "free_concern_prompt.md",
+    "free_concern_response": "free_concern_response_1.txt",
+    "open_task_resolution": "open_task_resolution.json",
+    "raw_server_evaluation": "mea/evaluation_runs/eval_20260726_batch25_bound_click_open_plan_v2"
+  }
+}

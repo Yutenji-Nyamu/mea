@@ -17,18 +17,23 @@ import re
 import textwrap
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Mapping, Protocol
+from typing import Any, Mapping
 
 import numpy as np
+
+from .provider_scene_checker import (
+    TextProvider,
+    compose_prompt,
+    run_provider_codegen,
+    validate_ablation_switches,
+    validate_method_ast,
+    validate_provider_run_id,
+    write_candidate_artifacts,
+)
 
 
 class BBHDistractorTaskGenError(RuntimeError):
     """Raised when the bounded candidate or its evidence is invalid."""
-
-
-class TextProvider(Protocol):
-    def text(self, prompt: str, **kwargs: Any) -> str:
-        ...
 
 
 _PROPOSAL_KEYS = {
@@ -58,17 +63,6 @@ _IDENTIFIER = re.compile(r"^[A-Za-z0-9_.-]+$")
 _HASH = re.compile(r"^[0-9a-f]{64}$")
 
 
-def _canonical_sha256(value: Any) -> str:
-    encoded = json.dumps(
-        value,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-        allow_nan=False,
-    ).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
-
-
 def _text_sha256(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
@@ -79,14 +73,6 @@ def _file_sha256(path: Path) -> str:
         for block in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
-
-
-def _write_json(path: Path, value: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
-        encoding="utf-8",
-    )
 
 
 def default_bbh_distractor_proposal() -> dict[str, Any]:
@@ -397,23 +383,6 @@ def check_success(self):
     }
 
 
-_FORBIDDEN_AST_NODES = (
-    ast.Import,
-    ast.ImportFrom,
-    ast.ClassDef,
-    ast.AsyncFunctionDef,
-    ast.Lambda,
-    ast.Global,
-    ast.Nonlocal,
-    ast.With,
-    ast.AsyncWith,
-    ast.Try,
-    ast.Raise,
-    ast.Delete,
-    ast.Yield,
-    ast.YieldFrom,
-    ast.Await,
-)
 _SAFE_DIRECT_CALLS = {
     "abs",
     "all",
@@ -450,129 +419,22 @@ _SAFE_METHOD_CALLS = {
     "get_name",
     "set_mass",
 }
-_FORBIDDEN_NAMES = {
-    "__import__",
-    "breakpoint",
-    "builtins",
-    "compile",
-    "delattr",
-    "eval",
-    "exec",
-    "getattr",
-    "globals",
-    "importlib",
-    "input",
-    "locals",
-    "open",
-    "os",
-    "pathlib",
-    "requests",
-    "setattr",
-    "shutil",
-    "socket",
-    "subprocess",
-    "sys",
-    "urllib",
-}
 _ALLOWED_PRIVATE_ATTRIBUTES = {
     "_mea_target_contact_seen",
     "_mea_distractor_contact_seen",
 }
 
 
-def _attribute_parts(node: ast.AST) -> tuple[str, ...] | None:
-    parts: list[str] = []
-    cursor = node
-    while isinstance(cursor, ast.Attribute):
-        parts.append(cursor.attr)
-        cursor = cursor.value
-    if not isinstance(cursor, ast.Name):
-        return None
-    parts.append(cursor.id)
-    return tuple(reversed(parts))
-
-
 def _validate_safe_method_ast(source: str, method_name: str) -> ast.Module:
-    try:
-        tree = ast.parse(textwrap.dedent(source))
-    except SyntaxError as exc:
-        raise BBHDistractorTaskGenError(
-            f"{method_name} syntax error: {exc}"
-        ) from exc
-    if len(tree.body) != 1 or not isinstance(tree.body[0], ast.FunctionDef):
-        raise BBHDistractorTaskGenError(
-            f"{method_name} must contain exactly one function definition"
-        )
-    function = tree.body[0]
-    if (
-        function.name != method_name
-        or function.decorator_list
-        or function.args.posonlyargs
-        or len(function.args.args) != 1
-        or function.args.args[0].arg != "self"
-        or function.args.vararg is not None
-        or function.args.kwarg is not None
-        or function.args.kwonlyargs
-        or function.args.defaults
-    ):
-        raise BBHDistractorTaskGenError(
-            f"{method_name} must be an undecorated method with only self"
-        )
-    nodes = list(ast.walk(tree))
-    if len(nodes) > 500:
-        raise BBHDistractorTaskGenError(
-            f"{method_name} exceeds the bounded AST size"
-        )
-    for node in nodes:
-        if isinstance(node, _FORBIDDEN_AST_NODES):
-            raise BBHDistractorTaskGenError(
-                f"{method_name} contains forbidden AST node "
-                f"{type(node).__name__}"
-            )
-        if isinstance(node, ast.Name):
-            if (
-                node.id in _FORBIDDEN_NAMES
-                or "__" in node.id
-                or node.id.startswith("_")
-            ):
-                raise BBHDistractorTaskGenError(
-                    f"{method_name} contains forbidden name {node.id!r}"
-                )
-        if isinstance(node, ast.Attribute):
-            if (
-                "__" in node.attr
-                or (
-                    node.attr.startswith("_")
-                    and node.attr not in _ALLOWED_PRIVATE_ATTRIBUTES
-                )
-            ):
-                raise BBHDistractorTaskGenError(
-                    f"{method_name} contains forbidden attribute {node.attr!r}"
-                )
-        if isinstance(node, ast.keyword) and node.arg is None:
-            raise BBHDistractorTaskGenError(
-                f"{method_name} may not expand keyword dictionaries"
-            )
-        if isinstance(node, ast.Call):
-            if isinstance(node.func, ast.Name):
-                if node.func.id not in _SAFE_DIRECT_CALLS:
-                    raise BBHDistractorTaskGenError(
-                        f"{method_name} call {node.func.id!r} is not allowed"
-                    )
-            elif isinstance(node.func, ast.Attribute):
-                parts = _attribute_parts(node.func)
-                if parts in _SAFE_MODULE_CALLS:
-                    continue
-                if node.func.attr not in _SAFE_METHOD_CALLS:
-                    call_name = ".".join(parts or (node.func.attr,))
-                    raise BBHDistractorTaskGenError(
-                        f"{method_name} call {call_name!r} is not allowed"
-                    )
-            else:
-                raise BBHDistractorTaskGenError(
-                    f"{method_name} contains an indirect call"
-                )
-    return tree
+    return validate_method_ast(
+        source,
+        method_name,
+        safe_direct_calls=_SAFE_DIRECT_CALLS,
+        safe_module_calls=_SAFE_MODULE_CALLS,
+        safe_method_calls=_SAFE_METHOD_CALLS,
+        allowed_private_attributes=_ALLOWED_PRIVATE_ATTRIBUTES,
+        error_type=BBHDistractorTaskGenError,
+    )
 
 
 class _FixturePose:
@@ -990,42 +852,12 @@ def build_bbh_distractor_module(methods: Mapping[str, Any]) -> str:
     )
 
 
-def _provider_object(response: str) -> dict[str, Any]:
-    normalized = response.strip()
-    if normalized.startswith("```") and normalized.endswith("```"):
-        lines = normalized.splitlines()
-        if len(lines) >= 3 and lines[0].strip() in {"```", "```json"}:
-            normalized = "\n".join(lines[1:-1]).strip()
-    try:
-        value = json.loads(normalized)
-    except json.JSONDecodeError as exc:
-        raise BBHDistractorTaskGenError(
-            "provider response must be one JSON object"
-        ) from exc
-    if not isinstance(value, dict):
-        raise BBHDistractorTaskGenError(
-            "provider response must be one JSON object"
-        )
-    return value
-
-
 def _ablation_switches(
     value: Mapping[str, Any] | None,
 ) -> dict[str, bool]:
-    switches = (
-        {"rag": True, "visual_self_check": True, "readme_agent": True}
-        if value is None
-        else dict(value)
+    return validate_ablation_switches(
+        value, error_type=BBHDistractorTaskGenError
     )
-    expected = {"rag", "visual_self_check", "readme_agent"}
-    if set(switches) != expected or any(
-        not isinstance(switches[key], bool) for key in expected
-    ):
-        raise BBHDistractorTaskGenError(
-            "ablation switches must be exactly rag, visual_self_check, "
-            "and readme_agent booleans"
-        )
-    return {key: switches[key] for key in sorted(expected)}
 
 
 def _prompt(
@@ -1100,22 +932,17 @@ def _prompt(
             + "). Equivalent structure is allowed; scene "
             "and checker semantics are validated by fixtures."
         )
-    prompt = "\n\n".join(sections).strip() + "\n"
-    return prompt, {
-        "switches": switches,
-        "components": {
-            "core_contract": True,
-            "rag_context": switches["rag"],
-            "readme_agent_context": switches["readme_agent"],
-            "visual_self_check": switches["visual_self_check"],
-        },
-        "readme_agent_ref": (
-            "mea/taskgen/README.Agent.md"
-            if switches["readme_agent"]
-            else None
-        ),
-        "prompt_sha256": _text_sha256(prompt),
-    }
+    rag_prefix = "RETRIEVED ROBOTWIN API AND TASK CONTEXT:\n"
+    rag_context = (
+        sections[-1].removeprefix(rag_prefix) if switches["rag"] else ""
+    )
+    return compose_prompt(
+        core_contract=sections[0],
+        rag_context=rag_context,
+        repo_root=repo_root,
+        ablation_switches=ablation_switches,
+        error_type=BBHDistractorTaskGenError,
+    )
 
 
 def run_bbh_distractor_checker_fixtures(
@@ -1147,12 +974,11 @@ def materialize_bbh_distractor_candidate(
     max_regenerations: int = 1,
     ablation_switches: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Materialize one provider-written candidate with one local regeneration."""
+    """Materialize one BBH dialect through the shared provider controller."""
 
-    if not re.fullmatch(r"run_[A-Za-z0-9_]+", run_id):
-        raise BBHDistractorTaskGenError(
-            "run_id must be an importable run_* package name"
-        )
+    run_id = validate_provider_run_id(
+        run_id, error_type=BBHDistractorTaskGenError
+    )
     root = Path(repo_root).expanduser().resolve()
     run_dir = root / "mea" / "generated_tasks" / run_id
     if run_dir.exists():
@@ -1171,181 +997,35 @@ def materialize_bbh_distractor_candidate(
         repo_root=root,
         ablation_switches=ablation_switches,
     )
-    attempts: list[dict[str, Any]] = []
-    response = ""
-    methods: dict[str, Any] | None = None
-    validation: dict[str, Any] | None = None
-    current_prompt = prompt
-    for attempt_index in range(max_regenerations + 1):
-        response = provider.text(
-            current_prompt,
-            model=model,
-            system=(
-                "Return one strict JSON object containing the two requested "
-                "complete Python methods."
-            ),
-            max_tokens=5000,
-            temperature=0.0,
-        )
-        try:
-            candidate_methods = _provider_object(response)
-            candidate_validation = validate_bbh_distractor_methods(
-                candidate_methods, validated
-            )
-        except BBHDistractorTaskGenError as exc:
-            attempts.append(
-                {
-                    "attempt": attempt_index + 1,
-                    "status": "validation_failed",
-                    "diagnosis": str(exc),
-                    "provider_metadata": dict(
-                        getattr(provider, "last_metadata", {}) or {}
-                    ),
-                    "response": response,
-                }
-            )
-            if attempt_index >= max_regenerations:
-                run_dir.mkdir(parents=True, exist_ok=False)
-                (run_dir / "proposal_prompt.md").write_text(
-                    prompt, encoding="utf-8"
-                )
-                _write_json(run_dir / "proposal.json", validated)
-                attempts_dir = run_dir / "provider_attempts"
-                attempts_dir.mkdir(parents=True, exist_ok=False)
-                attempt_records: list[dict[str, Any]] = []
-                for attempt in attempts:
-                    attempt_number = int(attempt["attempt"])
-                    (
-                        attempts_dir
-                        / f"attempt_{attempt_number:02d}_response.txt"
-                    ).write_text(
-                        str(attempt["response"]) + "\n",
-                        encoding="utf-8",
-                    )
-                    attempt_records.append(
-                        {
-                            key: value
-                            for key, value in attempt.items()
-                            if key != "response"
-                        }
-                    )
-                _write_json(
-                    attempts_dir / "attempts.json", attempt_records
-                )
-                _write_json(
-                    run_dir / "failure_manifest.json",
-                    {
-                        "schema_version": 1,
-                        "status": "codegen_validation_failed",
-                        "run_id": run_id,
-                        "task_name": "beat_block_hammer",
-                        "model_requested": model,
-                        "provider_call_count": len(attempts),
-                        "local_regeneration_count": max(
-                            0, len(attempts) - 1
-                        ),
-                        "final_diagnosis": str(exc),
-                        "act_rollouts_completed": 0,
-                    },
-                )
-                raise
-            current_prompt = (
-                prompt
-                + "\n\nLOCAL VALIDATION FAILED ON THE PREVIOUS RESPONSE:\n"
-                + str(exc)
-                + "\nRegenerate both complete methods once. Do not return "
-                "a patch or explanation."
-            )
-            continue
-        attempts.append(
-            {
-                "attempt": attempt_index + 1,
-                "status": "validated",
-                "diagnosis": None,
-                "provider_metadata": dict(
-                    getattr(provider, "last_metadata", {}) or {}
-                ),
-                "response": response,
-            }
-        )
-        methods = candidate_methods
-        validation = candidate_validation
-        break
-    if methods is None or validation is None:  # pragma: no cover - loop raises.
-        raise BBHDistractorTaskGenError("provider candidate was not validated")
-    fixtures = [
-        dict(item) for item in validation["checker_fixtures"]
-    ]
-    module_source = build_bbh_distractor_module(methods)
-    compile(module_source, str(run_dir / "task.py"), "exec")
-
-    run_dir.mkdir(parents=True, exist_ok=False)
-    (run_dir / "__init__.py").write_text("", encoding="utf-8")
-    (run_dir / "task.py").write_text(module_source, encoding="utf-8")
-    (run_dir / "proposal_prompt.md").write_text(prompt, encoding="utf-8")
-    (run_dir / "provider_response.txt").write_text(
-        response + "\n", encoding="utf-8"
+    generated = run_provider_codegen(
+        attempt_root=root / "mea/generated_task_attempts" / run_id,
+        proposal=validated,
+        prompt=prompt,
+        provider=provider,
+        model=model,
+        validate=lambda methods: validate_bbh_distractor_methods(
+            methods, validated
+        ),
+        error_type=BBHDistractorTaskGenError,
+        max_regenerations=max_regenerations,
+        failure_run_dir=run_dir,
     )
-    attempts_dir = run_dir / "provider_attempts"
-    attempts_dir.mkdir(parents=True, exist_ok=False)
-    for attempt in attempts:
-        attempt_number = int(attempt["attempt"])
-        (attempts_dir / f"attempt_{attempt_number:02d}_response.txt").write_text(
-            str(attempt.pop("response")) + "\n",
-            encoding="utf-8",
-        )
-    _write_json(attempts_dir / "attempts.json", attempts)
-    _write_json(run_dir / "proposal.json", validated)
-    _write_json(run_dir / "checker_fixtures.json", fixtures)
-    task_module = f"mea.generated_tasks.{run_id}.task"
-    manifest = {
-        "schema_version": 1,
-        "status": "fixture_validated_candidate_not_production_accepted",
-        "run_id": run_id,
-        "task_name": "beat_block_hammer",
-        "task_module": task_module,
-        "proposal_sha256": _canonical_sha256(validated),
-        "module_sha256": _file_sha256(run_dir / "task.py"),
-        "scene_method_sha256": validation["scene_sha256"],
-        "success_method_sha256": validation["success_sha256"],
-        "codegen_provenance": {
-            "source_kind": "provider_response_python",
-            "provider_called": True,
-            "generated_by_model": True,
-            "model_requested": model,
-            "provider_metadata": dict(
-                getattr(provider, "last_metadata", {}) or {}
-            ),
-            "provider_call_count": len(attempts),
-            "local_regeneration_count": max(0, len(attempts) - 1),
-            "local_regeneration_limit": max_regenerations,
-            "restricted_success_spec_compiler_used": False,
-            "ast_policy": validation["policy"],
-            "taskgen_ablation_switches": prompt_context["switches"],
-            "prompt_components": prompt_context["components"],
-            "prompt_sha256": prompt_context["prompt_sha256"],
-            "readme_agent_ref": prompt_context["readme_agent_ref"],
-        },
-        "checker_contract": {
-            "metric": "bbh_target_without_distractor_success",
-            "authority": "llm_generated_python_ast_validated",
-            "official_success": False,
+    return write_candidate_artifacts(
+        run_dir=run_dir,
+        task_name="beat_block_hammer",
+        proposal=validated,
+        prompt=prompt,
+        prompt_context=prompt_context,
+        generated=generated,
+        module_source=build_bbh_distractor_module(generated["methods"]),
+        model=model,
+        metric="bbh_target_without_distractor_success",
+        checker_contract={
             "target_contact_required": True,
             "distractor_contact_latched_and_forbidden": True,
-            "fixture_count": len(fixtures),
-            "fixture_pass_count": sum(
-                1 for item in fixtures if item["passed"]
-            ),
         },
-        "live_boundary": {
-            "act_rollouts_completed": 0,
-            "expert_or_simulator_probes_completed": 0,
-            "production_accepted": False,
-            "candidate_task_module_is_importable": True,
-        },
-    }
-    _write_json(run_dir / "candidate_manifest.json", manifest)
-    return manifest
+        compatibility_attempt_directory=True,
+    )
 
 
 def validate_bbh_distractor_manifest(

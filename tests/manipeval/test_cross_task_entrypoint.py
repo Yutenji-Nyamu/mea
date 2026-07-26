@@ -6,14 +6,24 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
-from mea.planner import OfficialTaskPlanAgent, build_act_catalog
+from mea.planner import (
+    BoundTaskPlanSession,
+    FreeConcernAgent,
+    OfficialTaskPlanAgent,
+    build_act_catalog,
+    discover_robotwin_task_inventory,
+    resolve_open_task,
+)
 from mea.taskgen import create_official_task_run
 from scripts.manipeval_agent import (
     build_evidence_bundle,
+    build_bound_claim_first_handoff,
     build_taskgen_command,
     finish_unsupported_global_route,
+    finish_unsupported_open_task_resolution,
     run_round_execution_vqa,
     summarize_round,
     supports_claim_first_runtime,
@@ -65,6 +75,17 @@ def official_round(execution_backend: str | None = None) -> dict:
 
 
 class CrossTaskEntrypointTests(unittest.TestCase):
+    class FrozenConcernProvider:
+        last_metadata = {"provider": "fixture"}
+
+        def __init__(self, response: dict) -> None:
+            self.response = response
+            self.calls = 0
+
+        def text(self, _prompt: str, **_kwargs) -> str:
+            self.calls += 1
+            return json.dumps(self.response, ensure_ascii=False)
+
     def test_ast_gate_accepts_valid_provider_scene_checker_codegen(self):
         self.assertTrue(
             taskgen_ast_gate_passed(
@@ -175,6 +196,130 @@ class CrossTaskEntrypointTests(unittest.TestCase):
                     history_retrieval={},
                 )
             self.assertFalse((root / "mea/escape").exists())
+
+    def test_unsupported_open_task_resolution_writes_query_first_bundle(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            concern_bundle = {
+                "schema_version": 1,
+                "source": "provider_catalog_free_concern",
+                "concern": {"sub_aspect": "novel.concern"},
+                "provider": {"called": True},
+            }
+            resolution = {
+                "schema_version": 1,
+                "decision": "unsupported",
+                "reason_code": "policy_task_mismatch",
+            }
+            manifest = finish_unsupported_open_task_resolution(
+                root,
+                evaluation_id="eval_open_task_mismatch",
+                user_request="open a laptop",
+                catalog={"tasks": []},
+                concern_bundle=concern_bundle,
+                task_inventory=[],
+                task_resolution=resolution,
+                concern_agent=SimpleNamespace(
+                    last_prompt="catalog-free prompt",
+                    last_responses=['{"schema_version": 1}'],
+                ),
+            )
+            run_dir = root / "mea/evaluation_runs/eval_open_task_mismatch"
+            self.assertEqual(manifest["status"], "unsupported")
+            self.assertEqual(manifest["route"]["reason_code"], "policy_task_mismatch")
+            self.assertTrue((run_dir / "plan/free_concern.json").is_file())
+            self.assertTrue(
+                (run_dir / "plan/open_task_resolution.json").is_file()
+            )
+            self.assertTrue(
+                (run_dir / "plan/robotwin_task_inventory.json").is_file()
+            )
+            self.assertFalse(any((run_dir / "execution").iterdir()))
+
+    def test_bound_query_first_uses_one_concern_call_and_no_global_router(self):
+        query = "这个ACT策略在目标附近有相似物体时是否仍能可靠点击正确目标？"
+        frozen_concern = {
+            "schema_version": 1,
+            "source_query": query,
+            "sub_aspect": (
+                "Reliability of target selection when visually similar "
+                "objects are nearby."
+            ),
+            "hypothesis": (
+                "The ACT policy reliably clicks the correct target even when "
+                "visually similar objects are placed near the target."
+            ),
+            "task_intent": (
+                "Click the correct target object based on its predefined "
+                "identity and location."
+            ),
+            "requested_variation": (
+                "Place visually similar objects near the target to test "
+                "potential confusion."
+            ),
+            "measurement_need": (
+                "Observe whether the policy consistently clicks the correct "
+                "target object without errors or confusion."
+            ),
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            make_schema_repo(root)
+            instruction_dir = root / "description/task_instruction"
+            instruction_dir.mkdir(parents=True)
+            (instruction_dir / "click_bell.json").write_text(
+                json.dumps(
+                    {"full_description": "click the bell's top center"},
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            checkpoint_dir = (
+                root / "policy/ACT/act_ckpt/act-click_bell/demo_clean-50"
+            )
+            checkpoint_dir.mkdir(parents=True)
+            (checkpoint_dir / "policy_last.ckpt").write_bytes(b"checkpoint")
+            (checkpoint_dir / "dataset_stats.pkl").write_bytes(b"stats")
+            catalog = build_act_catalog(root)
+            policy_card = BoundTaskPlanSession.from_catalog(
+                catalog, "click_bell"
+            ).planning_context(root)["policy_card"]
+            provider = self.FrozenConcernProvider(frozen_concern)
+            concern_bundle = FreeConcernAgent(
+                provider,
+                model="fixture",
+                max_attempts=1,
+            ).propose(query, policy_card=policy_card)
+            inventory = discover_robotwin_task_inventory(
+                root,
+                capability_catalog=catalog,
+            )
+            resolution = resolve_open_task(
+                concern_bundle["concern"],
+                policy_card=policy_card,
+                inventory=inventory,
+                can_generate_new_task=False,
+            )
+            route_result, routed = build_bound_claim_first_handoff(
+                catalog,
+                task_name="click_bell",
+                user_request=query,
+            )
+
+        self.assertEqual(provider.calls, 1)
+        self.assertEqual(resolution["decision"], "retrieve_and_adapt")
+        self.assertEqual(
+            resolution["selected_base_task"]["task_name"], "click_bell"
+        )
+        self.assertFalse(route_result["provider_called"])
+        self.assertEqual(route_result["global_router_provider_calls"], 0)
+        self.assertEqual(route_result["attempt_count"], 0)
+        self.assertEqual(routed["task_name"], "click_bell")
+        self.assertEqual(
+            routed["proposal"]["first_aspect_id"],
+            "performance.completion_time_stability",
+        )
+        self.assertIn(query, routed["proposal"]["evaluation_goal"])
 
     def test_official_plan_only_does_not_require_provider_key(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -152,6 +152,8 @@ def build_task_contract(
     official_init_state_path: str | Path,
     source_query: str,
     proposal_artifact: str,
+    suite: str = "libero_object",
+    official_task_id: int = 0,
 ) -> TaskContract:
     path = Path(candidate_path).expanduser().resolve()
     language = " ".join(str(item) for item in candidate["language_instruction"])
@@ -161,8 +163,8 @@ def build_task_contract(
     return TaskContract(
         schema_version=1,
         benchmark="libero",
-        suite="libero_object",
-        official_task_id=0,
+        suite=suite,
+        official_task_id=official_task_id,
         bddl_path=str(path),
         bddl_sha256=_sha256_bytes(path.read_bytes()),
         problem_name=problem_name,
@@ -182,16 +184,23 @@ def build_task_contract(
     )
 
 
-def build_official_task_contract() -> TaskContract:
-    bddl_path, init_path = LiberoBenchmarkAdapter.official_paths()
+def build_official_task_contract(
+    *,
+    suite: str = "libero_object",
+    task_id: int = 0,
+) -> TaskContract:
+    bddl_path, init_path = LiberoBenchmarkAdapter.official_paths(
+        suite_name=suite,
+        task_id=task_id,
+    )
     parsed = parse_bddl(bddl_path)
     problem_name = str(parsed["problem_name"])
     impl = _problem_registry()[problem_name]
     return TaskContract(
         schema_version=1,
         benchmark="libero",
-        suite="libero_object",
-        official_task_id=0,
+        suite=suite,
+        official_task_id=task_id,
         bddl_path=str(bddl_path),
         bddl_sha256=_sha256_bytes(bddl_path.read_bytes()),
         problem_name=problem_name,
@@ -214,23 +223,46 @@ def build_official_task_contract() -> TaskContract:
 class LiberoBenchmarkAdapter:
     """Create official or custom task-0 environments without stock task-id spoofing."""
 
-    def __init__(self, *, episode_length: int = 100):
+    def __init__(
+        self,
+        *,
+        episode_length: int = 100,
+        suite_name: str = "libero_object",
+        task_id: int = 0,
+    ):
         if episode_length != 100:
             raise LiberoContractError("batch24 protocol requires an explicit 100-step horizon")
         self.episode_length = episode_length
+        self.suite_name = suite_name
+        self.task_id = int(task_id)
 
     @staticmethod
-    def suite_and_task() -> tuple[Any, Any]:
+    def suite_and_task(
+        suite_name: str = "libero_object",
+        task_id: int = 0,
+    ) -> tuple[Any, Any]:
         from libero.libero import benchmark
 
-        suite = benchmark.get_benchmark_dict()["libero_object"]()
-        return suite, suite.get_task(0)
+        try:
+            suite = benchmark.get_benchmark_dict()[suite_name]()
+        except KeyError as exc:
+            raise LiberoContractError(f"unknown LIBERO suite: {suite_name}") from exc
+        if not 0 <= int(task_id) < suite.get_num_tasks():
+            raise LiberoContractError(
+                f"LIBERO task id {task_id} is outside {suite_name}"
+            )
+        return suite, suite.get_task(int(task_id))
 
     @classmethod
-    def official_paths(cls) -> tuple[Path, Path]:
+    def official_paths(
+        cls,
+        *,
+        suite_name: str = "libero_object",
+        task_id: int = 0,
+    ) -> tuple[Path, Path]:
         from libero.libero import get_libero_path
 
-        suite, task = cls.suite_and_task()
+        _suite, task = cls.suite_and_task(suite_name, task_id)
         bddl = (
             Path(get_libero_path("bddl_files"))
             / task.problem_folder
@@ -246,11 +278,11 @@ class LiberoBenchmarkAdapter:
     def make_official_env(self):
         from lerobot.envs.libero import LiberoEnv
 
-        suite, _task = self.suite_and_task()
+        suite, _task = self.suite_and_task(self.suite_name, self.task_id)
         return LiberoEnv(
             task_suite=suite,
-            task_id=0,
-            task_suite_name="libero_object",
+            task_id=self.task_id,
+            task_suite_name=self.suite_name,
             episode_length=self.episode_length,
             control_mode="relative",
             obs_type="pixels_agent_pos",
@@ -261,11 +293,14 @@ class LiberoBenchmarkAdapter:
     def make_custom_env(self, contract: TaskContract):
         from lerobot.envs.libero import LiberoEnv
 
-        suite, _task = self.suite_and_task()
+        suite, _task = self.suite_and_task(
+            contract.suite,
+            contract.official_task_id,
+        )
         env = LiberoEnv(
             task_suite=suite,
-            task_id=0,
-            task_suite_name="libero_object",
+            task_id=contract.official_task_id,
+            task_suite_name=contract.suite,
             episode_length=self.episode_length,
             control_mode="relative",
             obs_type="pixels_agent_pos",

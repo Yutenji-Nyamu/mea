@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "source": "provider_catalog_free_concern",
+  "concern": {
+    "schema_version": 1,
+    "source_query": "这个ACT策略在目标附近有相似物体时是否仍能可靠点击正确目标？",
+    "sub_aspect": "Reliability of target selection when visually similar objects are nearby.",
+    "hypothesis": "The ACT policy reliably clicks the correct target even when visually similar objects are placed near the target.",
+    "task_intent": "Click the correct target object based on its predefined identity and location.",
+    "requested_variation": "Place visually similar objects near the target to test potential confusion.",
+    "measurement_need": "Observe whether the policy consistently clicks the correct target object without errors or confusion."
+  },
+  "provider": {
+    "model_requested": "gpt-4o-2024-11-20",
+    "called": true,
+    "attempt_count": 1,
+    "errors": [],
+    "last_metadata": {
+      "id": "chatcmpl-E5rf4rAWXsXtKUq2V5evLJqg4fddu",
+      "model": "gpt-4o-2024-11-20",
+      "finish_reason": "stop",
+      "usage": {
+        "completion_tokens": 142,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": 0
+        },
+        "latency_checkpoint": {
+          "engine_tbt_ms": 6,
+          "engine_ttft_ms": 32,
+          "engine_ttlt_ms": 892,
+          "pre_inference_ms": 168,
+          "service_tbt_ms": 7,
+          "service_ttft_ms": 482,
+          "service_ttlt_ms": 1423,
+          "total_duration_ms": 1288,
+          "user_visible_ttft_ms": 314
+        },
+        "prompt_tokens": 372,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0
+        },
+        "total_tokens": 514
+      },
+      "retry_count": 0
+    }
+  }
+}

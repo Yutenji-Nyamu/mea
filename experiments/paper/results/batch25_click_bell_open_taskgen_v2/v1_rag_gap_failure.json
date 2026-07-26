@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "status": "frozen_negative_codegen_result",
+  "provider_calls": 2,
+  "local_regenerations": 1,
+  "simulator_probes": 0,
+  "act_rollouts": 0,
+  "attempts": [
+    {
+      "failure": {
+        "stage": "scene_codegen",
+        "failure_kind": "invalid_candidate",
+        "type": "TaskGenerationStageError",
+        "message": "load_actors call 'self._load_official_bell' is not allowed",
+        "diagnosis": {}
+      },
+      "provider_response": {
+        "load_actors": "def load_actors(self):\n    # Load the primary target bell\n    self.bell = self._load_official_bell()\n    self.bell_id = self.bell.get_id()\n\n    # Load the distractor bell at the specified offset\n    distractor_pose = self.bell.pose\n    distractor_pose.p += sapien.Pose([0.0, 0.12, 0.0]).p\n    self.distractor_bell = self._load_official_bell()\n    self.distractor_bell.set_pose(distractor_pose)\n    self.distractor_bell.set_name(\"distractor_bell\")\n\n    # Initialize distractor contact tracking\n    self._mea_distractor_contact_seen = False\n\n    # Ensure both bells are static\n    self.bell.set_static(True)\n    self.distractor_bell.set_static(True)\n\n    # Set up the scene\n    self._setup_scene([self.bell, self.distractor_bell])",
+        "check_success": "def check_success(self):\n    # Check if the correct arm is used\n    if not self._check_correct_arm():\n        return False\n\n    # Check for contact with the distractor bell\n    if self._check_contact(self.distractor_bell):\n        self._mea_distractor_contact_seen = True\n\n    # Ensure no contact with the distractor bell\n    if self._mea_distractor_contact_seen:\n        return False\n\n    # Check if the target bell is clicked within the thresholds\n    target_contact = self._check_contact(self.bell)\n    if target_contact:\n        target_pose = self.bell.pose.p\n        gripper_pose = self._get_gripper_pose().p\n        xy_diff = np.abs(target_pose[:2] - gripper_pose[:2])\n        z_diff = np.abs(target_pose[2] - gripper_pose[2])\n\n        if (xy_diff[0] <= 0.025 and xy_diff[1] <= 0.025 and z_diff <= 0.03):\n            self._stage_success_tag()\n            return True\n\n    return False"
+      }
+    },
+    {
+      "failure": {
+        "stage": "scene_codegen",
+        "failure_kind": "invalid_candidate",
+        "type": "TaskGenerationStageError",
+        "message": "load_actors call 'self.bell.get_id' is not allowed",
+        "diagnosis": {}
+      },
+      "provider_response": {
+        "load_actors": "def load_actors(self):\n    # Load the official target bell\n    target_pose = rand_pose()\n    self.bell = create_actor('050_bell', pose=target_pose)\n    self.bell_id = self.bell.get_id()\n\n    # Load the distractor bell at the specified offset\n    distractor_pose = target_pose.copy()\n    distractor_pose.p[0] += 0.0  # x-offset\n    distractor_pose.p[1] += 0.12  # y-offset\n    self.distractor_bell = create_actor('050_bell', pose=distractor_pose)\n    self.distractor_bell.set_name('distractor_bell')\n\n    # Initialize distractor contact tracking\n    self._mea_distractor_contact_seen = False",
+        "check_success": "def check_success(self):\n    # Check if the distractor bell has been contacted\n    if self._mea_distractor_contact_seen:\n        return False\n\n    # Check if the correct arm is used\n    if not self.require_correct_arm():\n        return False\n\n    # Check if the target bell is contacted within thresholds\n    target_contact = self.check_contact(self.bell_id)\n    if not target_contact:\n        return False\n\n    # Check if the target position is within the specified thresholds\n    target_pose = self.bell.get_pose()\n    target_position = target_pose.p\n    if not (abs(target_position[0]) <= 0.025 and abs(target_position[1]) <= 0.025 and abs(target_position[2]) <= 0.03):\n        return False\n\n    # Latch success if all conditions are met\n    self.stage_success_tag()\n    return True"
+      }
+    }
+  ],
+  "diagnosis": "The v1 prompt used abstract RAG prose but did not retrieve the official ClickBell methods or exact public API."
+}

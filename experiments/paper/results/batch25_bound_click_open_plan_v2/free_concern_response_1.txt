@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "source_query": "这个ACT策略在目标附近有相似物体时是否仍能可靠点击正确目标？",
+  "sub_aspect": "Reliability of target selection when visually similar objects are nearby.",
+  "hypothesis": "The ACT policy reliably clicks the correct target even when visually similar objects are placed near the target.",
+  "task_intent": "Click the correct target object based on its predefined identity and location.",
+  "requested_variation": "Place visually similar objects near the target to test potential confusion.",
+  "measurement_need": "Observe whether the policy consistently clicks the correct target object without errors or confusion."
+}

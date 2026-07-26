@@ -1,0 +1,634 @@
+"""Query-first task retrieval for open manipulation evaluation.
+
+The Plan Agent should discover a semantic concern before it sees executable
+task/aspect choices.  This module keeps that ordering explicit:
+
+1. validate a provider-authored ``FreeConcern``;
+2. discover the public RoboTwin task library from official environment and
+   instruction files;
+3. retrieve the nearest base task using only the concern's task semantics;
+4. apply the evaluated policy's task-scope contract.
+
+The legacy planner catalog is accepted only as execution-capability metadata.
+It never enters the concern prompt and never changes semantic retrieval scores.
+"""
+
+from __future__ import annotations
+
+import json
+import math
+import re
+from collections import Counter
+from copy import deepcopy
+from pathlib import Path
+from typing import Any, Mapping, Sequence
+
+
+class OpenTaskResolutionError(ValueError):
+    """Raised when an open concern or task-resolution contract is invalid."""
+
+
+_CONCERN_KEYS = {
+    "schema_version",
+    "source_query",
+    "sub_aspect",
+    "hypothesis",
+    "task_intent",
+    "requested_variation",
+    "measurement_need",
+}
+_INVENTORY_KEYS = {
+    "schema_version",
+    "task_name",
+    "description",
+    "execution_status",
+    "capability_aspects",
+}
+_TOKEN = re.compile(r"[a-z0-9]+")
+_STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "arm",
+    "by",
+    "for",
+    "from",
+    "in",
+    "it",
+    "of",
+    "on",
+    "one",
+    "robot",
+    "the",
+    "then",
+    "to",
+    "two",
+    "use",
+    "using",
+    "with",
+}
+
+
+def _text(value: Any, field: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise OpenTaskResolutionError(f"{field} must be a non-empty string")
+    return value.strip()
+
+
+def _text_list(value: Any, field: str) -> list[str]:
+    if not isinstance(value, list):
+        raise OpenTaskResolutionError(f"{field} must be a list")
+    result = [_text(item, f"{field}[]") for item in value]
+    if len(result) != len(set(result)):
+        raise OpenTaskResolutionError(f"{field} must not contain duplicates")
+    return result
+
+
+def _extract_json_response(response: Any) -> dict[str, Any]:
+    source = str(response).strip()
+    start = source.find("{")
+    end = source.rfind("}")
+    if start < 0 or end < start:
+        raise OpenTaskResolutionError("FreeConcern response contains no JSON object")
+    try:
+        value = json.loads(source[start : end + 1])
+    except json.JSONDecodeError as exc:
+        raise OpenTaskResolutionError("FreeConcern response is invalid JSON") from exc
+    if not isinstance(value, dict):
+        raise OpenTaskResolutionError("FreeConcern response must be an object")
+    return value
+
+
+def build_free_concern_prompt(user_query: str, policy_card: Mapping[str, Any]) -> str:
+    """Build the catalog-free first-stage prompt.
+
+    The signature intentionally accepts no task inventory or aspect catalog.
+    A single-task checkpoint name may be visible as policy metadata, but it is
+    not an instruction to choose a predeclared concern.
+    """
+
+    query = _text(user_query, "user_query")
+    scope = policy_task_scope_from_card(policy_card)
+    example = {
+        "schema_version": 1,
+        "source_query": query,
+        "sub_aspect": "a precise concern discovered from the Query",
+        "hypothesis": "one falsifiable policy-behavior hypothesis",
+        "task_intent": "invariant base manipulation action and goal in English",
+        "requested_variation": "one bounded diagnostic change",
+        "measurement_need": "the observation needed to decide the hypothesis",
+    }
+    visible_scope = {
+        "policy_name": scope["policy_name"],
+        "single_task_checkpoint": scope["single_task_checkpoint"],
+        "training_tasks": scope["training_tasks"],
+        "language_conditioned": scope["language_conditioned"],
+    }
+    return f"""You are the open-Query concern stage of ManipEvalAgent.
+Read the original Query and first discover the single most informative
+sub-aspect and falsifiable hypothesis.  Describe the manipulation semantics
+needed for that test in concise English in task_intent, even when the Query is
+in another language.  task_intent must state the invariant base action and
+goal, never the requested scene/appearance variation.  For a single-task
+checkpoint, preserve its training-task semantics unless the Query explicitly
+asks to evaluate a different manipulation task.  Put distractors and all other
+diagnostic changes only in requested_variation.  Do not select from task names, task
+templates, aspect identifiers, or a capability catalog: those are deliberately
+not available until a later retrieval stage.
+
+ORIGINAL QUERY:
+{query}
+
+EVALUATED POLICY SCOPE (metadata, not a concern menu):
+{json.dumps(visible_scope, ensure_ascii=False, indent=2)}
+
+Return strict JSON with exactly these fields:
+{json.dumps(example, ensure_ascii=False, indent=2)}
+"""
+
+
+def validate_free_concern(
+    value: Mapping[str, Any], *, expected_query: str | None = None
+) -> dict[str, Any]:
+    """Validate one unconstrained semantic concern before task retrieval."""
+
+    if not isinstance(value, Mapping) or set(value) != _CONCERN_KEYS:
+        raise OpenTaskResolutionError(
+            f"FreeConcern fields must be exactly {sorted(_CONCERN_KEYS)}"
+        )
+    result = deepcopy(dict(value))
+    if result.get("schema_version") != 1:
+        raise OpenTaskResolutionError("FreeConcern.schema_version must be 1")
+    for field in sorted(_CONCERN_KEYS - {"schema_version"}):
+        result[field] = _text(result.get(field), f"FreeConcern.{field}")
+    if expected_query is not None and result["source_query"] != _text(
+        expected_query, "expected_query"
+    ):
+        raise OpenTaskResolutionError(
+            "FreeConcern.source_query differs from the original Query"
+        )
+    return result
+
+
+class FreeConcernAgent:
+    """Create the pre-retrieval concern without exposing task candidates."""
+
+    def __init__(self, provider: Any, *, model: str, max_attempts: int = 2):
+        self.provider = provider
+        self.model = _text(model, "model")
+        if (
+            isinstance(max_attempts, bool)
+            or not isinstance(max_attempts, int)
+            or max_attempts < 1
+        ):
+            raise OpenTaskResolutionError("max_attempts must be positive")
+        self.max_attempts = max_attempts
+        self.last_prompt: str | None = None
+        self.last_responses: list[str] = []
+        self.last_errors: list[str] = []
+
+    def propose(
+        self, user_query: str, *, policy_card: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        prompt = build_free_concern_prompt(user_query, policy_card)
+        self.last_prompt = prompt
+        self.last_responses = []
+        self.last_errors = []
+        concern: dict[str, Any] | None = None
+        for _attempt in range(self.max_attempts):
+            attempt_prompt = prompt
+            if self.last_errors:
+                attempt_prompt += (
+                    "\nPREVIOUS VALIDATION ERROR:\n"
+                    + self.last_errors[-1]
+                    + "\nReturn one corrected JSON object.\n"
+                )
+            try:
+                response = self.provider.text(
+                    attempt_prompt,
+                    model=self.model,
+                    system="Return only strict FreeConcern JSON.",
+                    max_tokens=700,
+                    temperature=0.0,
+                )
+                self.last_responses.append(response)
+                concern = validate_free_concern(
+                    _extract_json_response(response),
+                    expected_query=user_query,
+                )
+                break
+            except Exception as exc:
+                self.last_errors.append(f"{type(exc).__name__}: {exc}")
+        if concern is None:
+            raise OpenTaskResolutionError(
+                f"provider failed {self.max_attempts} FreeConcern attempt(s): "
+                + " | ".join(self.last_errors)
+            )
+        return {
+            "schema_version": 1,
+            "source": "provider_catalog_free_concern",
+            "concern": concern,
+            "provider": {
+                "model_requested": self.model,
+                "called": True,
+                "attempt_count": len(self.last_responses),
+                "errors": list(self.last_errors),
+                "last_metadata": deepcopy(
+                    dict(getattr(self.provider, "last_metadata", {}))
+                ),
+            },
+        }
+
+
+def policy_task_scope_from_card(policy_card: Mapping[str, Any]) -> dict[str, Any]:
+    """Normalize existing PlanningContext policy metadata into a task gate."""
+
+    if not isinstance(policy_card, Mapping):
+        raise OpenTaskResolutionError("policy_card must be an object")
+    policy_name = _text(policy_card.get("policy_name"), "policy_card.policy_name")
+    checkpoint_id = _text(
+        policy_card.get("checkpoint_id"), "policy_card.checkpoint_id"
+    )
+    single_task = policy_card.get("single_task_checkpoint")
+    language_conditioned = policy_card.get("language_conditioned")
+    checkpoint_ready = policy_card.get("checkpoint_ready")
+    if not isinstance(single_task, bool):
+        raise OpenTaskResolutionError(
+            "policy_card.single_task_checkpoint must be bool"
+        )
+    if not isinstance(language_conditioned, bool):
+        raise OpenTaskResolutionError("policy_card.language_conditioned must be bool")
+    if checkpoint_ready is not True:
+        raise OpenTaskResolutionError("task resolution requires a ready checkpoint")
+
+    if single_task:
+        training_tasks = [_text(policy_card.get("task_name"), "policy_card.task_name")]
+    else:
+        raw_training = policy_card.get("training_tasks")
+        training_tasks = _text_list(
+            raw_training, "policy_card.training_tasks"
+        )
+        if not training_tasks:
+            raise OpenTaskResolutionError(
+                "a multi-task checkpoint must declare training_tasks"
+            )
+
+    supports_unseen = policy_card.get("supports_unseen_tasks", False)
+    if not isinstance(supports_unseen, bool):
+        raise OpenTaskResolutionError(
+            "policy_card.supports_unseen_tasks must be bool when present"
+        )
+    if single_task and supports_unseen:
+        raise OpenTaskResolutionError(
+            "a single-task checkpoint cannot claim unseen-task support"
+        )
+    if supports_unseen and not language_conditioned:
+        raise OpenTaskResolutionError(
+            "unseen-task support requires a language-conditioned policy"
+        )
+    return {
+        "schema_version": 1,
+        "policy_name": policy_name,
+        "checkpoint_id": checkpoint_id,
+        "single_task_checkpoint": single_task,
+        "training_tasks": training_tasks,
+        "language_conditioned": language_conditioned,
+        "supports_unseen_tasks": supports_unseen,
+    }
+
+
+def _capability_index(catalog: Mapping[str, Any] | None) -> dict[str, list[str]]:
+    if catalog is None:
+        return {}
+    raw_tasks = catalog.get("tasks")
+    if not isinstance(raw_tasks, list):
+        raise OpenTaskResolutionError("capability_catalog.tasks must be a list")
+    result: dict[str, list[str]] = {}
+    for index, raw in enumerate(raw_tasks):
+        if not isinstance(raw, Mapping):
+            raise OpenTaskResolutionError(
+                f"capability_catalog.tasks[{index}] must be an object"
+            )
+        task_name = _text(
+            raw.get("task_name"), f"capability_catalog.tasks[{index}].task_name"
+        )
+        raw_aspects = raw.get("aspects")
+        if not isinstance(raw_aspects, list):
+            raise OpenTaskResolutionError(
+                f"capability_catalog.tasks[{index}].aspects must be a list"
+            )
+        aspects: list[str] = []
+        for aspect_index, aspect in enumerate(raw_aspects):
+            if not isinstance(aspect, Mapping):
+                raise OpenTaskResolutionError(
+                    "capability catalog aspects must be objects"
+                )
+            aspects.append(
+                _text(
+                    aspect.get("aspect_id"),
+                    f"capability_catalog.tasks[{index}].aspects"
+                    f"[{aspect_index}].aspect_id",
+                )
+            )
+        result[task_name] = list(dict.fromkeys(aspects))
+    return result
+
+
+def validate_task_inventory(
+    inventory: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Validate the compact public RoboTwin task inventory."""
+
+    if not isinstance(inventory, Sequence) or isinstance(
+        inventory, (str, bytes, bytearray)
+    ):
+        raise OpenTaskResolutionError("task inventory must be a sequence")
+    result: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for index, raw in enumerate(inventory):
+        if not isinstance(raw, Mapping) or set(raw) != _INVENTORY_KEYS:
+            raise OpenTaskResolutionError(
+                f"task inventory entry {index} fields must be exactly "
+                f"{sorted(_INVENTORY_KEYS)}"
+            )
+        item = deepcopy(dict(raw))
+        if item.get("schema_version") != 1:
+            raise OpenTaskResolutionError("task inventory schema_version must be 1")
+        item["task_name"] = _text(
+            item.get("task_name"), f"task_inventory[{index}].task_name"
+        )
+        item["description"] = _text(
+            item.get("description"), f"task_inventory[{index}].description"
+        )
+        if item["task_name"] in seen:
+            raise OpenTaskResolutionError("task inventory contains duplicate tasks")
+        seen.add(item["task_name"])
+        if item.get("execution_status") not in {
+            "capability_registered",
+            "official_base_only",
+        }:
+            raise OpenTaskResolutionError("invalid task inventory execution_status")
+        item["capability_aspects"] = _text_list(
+            item.get("capability_aspects"),
+            f"task_inventory[{index}].capability_aspects",
+        )
+        if (
+            item["execution_status"] == "capability_registered"
+            and not item["capability_aspects"]
+        ):
+            raise OpenTaskResolutionError(
+                "registered inventory task must expose at least one capability"
+            )
+        if (
+            item["execution_status"] == "official_base_only"
+            and item["capability_aspects"]
+        ):
+            raise OpenTaskResolutionError(
+                "official-only task cannot expose registered capabilities"
+            )
+        result.append(item)
+    return sorted(result, key=lambda item: item["task_name"])
+
+
+def discover_robotwin_task_inventory(
+    repo_root: str | Path,
+    *,
+    capability_catalog: Mapping[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """Discover official task bases without turning them into a concern menu."""
+
+    root = Path(repo_root).expanduser().resolve()
+    env_root = root / "envs"
+    instruction_root = root / "description" / "task_instruction"
+    capabilities = _capability_index(capability_catalog)
+    entries: list[dict[str, Any]] = []
+    if not env_root.is_dir() or not instruction_root.is_dir():
+        raise OpenTaskResolutionError(
+            "RoboTwin envs and description/task_instruction directories are required"
+        )
+    for env_path in sorted(env_root.glob("*.py")):
+        task_name = env_path.stem
+        if task_name.startswith("_"):
+            continue
+        instruction_path = instruction_root / f"{task_name}.json"
+        if not instruction_path.is_file():
+            continue
+        try:
+            instruction = json.loads(instruction_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise OpenTaskResolutionError(
+                f"invalid official task instruction: {task_name}"
+            ) from exc
+        if not isinstance(instruction, Mapping):
+            raise OpenTaskResolutionError(
+                f"official task instruction must be an object: {task_name}"
+            )
+        aspects = capabilities.get(task_name, [])
+        entries.append(
+            {
+                "schema_version": 1,
+                "task_name": task_name,
+                "description": _text(
+                    instruction.get("full_description"),
+                    f"{task_name}.full_description",
+                ),
+                "execution_status": (
+                    "capability_registered" if aspects else "official_base_only"
+                ),
+                "capability_aspects": list(aspects),
+            }
+        )
+    if not entries:
+        raise OpenTaskResolutionError("no official RoboTwin tasks were discovered")
+    return validate_task_inventory(entries)
+
+
+def _tokens(value: str) -> list[str]:
+    return [
+        token
+        for token in _TOKEN.findall(value.lower().replace("_", " "))
+        if token not in _STOPWORDS
+    ]
+
+
+def _cosine(left: Counter[str], right: Counter[str]) -> float:
+    if not left or not right:
+        return 0.0
+    dot = sum(count * right.get(token, 0) for token, count in left.items())
+    left_norm = math.sqrt(sum(count * count for count in left.values()))
+    right_norm = math.sqrt(sum(count * count for count in right.values()))
+    return dot / (left_norm * right_norm) if left_norm and right_norm else 0.0
+
+
+def rank_official_tasks(
+    concern: Mapping[str, Any],
+    inventory: Sequence[Mapping[str, Any]],
+    *,
+    top_k: int = 3,
+) -> list[dict[str, Any]]:
+    """Rank base tasks from task intent only, independent of concern novelty."""
+
+    trusted_concern = validate_free_concern(concern)
+    trusted_inventory = validate_task_inventory(inventory)
+    if isinstance(top_k, bool) or not isinstance(top_k, int) or top_k < 1:
+        raise OpenTaskResolutionError("top_k must be a positive integer")
+    intent = Counter(_tokens(trusted_concern["task_intent"]))
+    ranked: list[dict[str, Any]] = []
+    for task in trusted_inventory:
+        name_tokens = _tokens(task["task_name"])
+        document = Counter(
+            _tokens(task["description"]) + name_tokens + name_tokens
+        )
+        semantic = _cosine(intent, document)
+        name_coverage = (
+            len(set(name_tokens) & set(intent)) / len(set(name_tokens))
+            if name_tokens
+            else 0.0
+        )
+        score = round(0.75 * semantic + 0.25 * name_coverage, 6)
+        ranked.append(
+            {
+                "task_name": task["task_name"],
+                "score": score,
+                "execution_status": task["execution_status"],
+                "capability_aspects": list(task["capability_aspects"]),
+            }
+        )
+    ranked.sort(key=lambda item: (-item["score"], item["task_name"]))
+    return ranked[: min(top_k, len(ranked))]
+
+
+def resolve_open_task(
+    concern: Mapping[str, Any],
+    *,
+    policy_card: Mapping[str, Any],
+    inventory: Sequence[Mapping[str, Any]],
+    top_k: int = 3,
+    semantic_threshold: float = 0.2,
+    near_tie_margin: float = 0.03,
+    can_generate_new_task: bool = False,
+) -> dict[str, Any]:
+    """Resolve an open concern to retrieval, generation, or explicit refusal."""
+
+    trusted_concern = validate_free_concern(concern)
+    scope = policy_task_scope_from_card(policy_card)
+    trusted_inventory = validate_task_inventory(inventory)
+    if (
+        isinstance(semantic_threshold, bool)
+        or not isinstance(semantic_threshold, (int, float))
+        or not 0.0 < float(semantic_threshold) <= 1.0
+    ):
+        raise OpenTaskResolutionError(
+            "semantic_threshold must be in the interval (0, 1]"
+        )
+    if not isinstance(can_generate_new_task, bool):
+        raise OpenTaskResolutionError("can_generate_new_task must be bool")
+    if (
+        isinstance(near_tie_margin, bool)
+        or not isinstance(near_tie_margin, (int, float))
+        or not 0.0 <= float(near_tie_margin) < 1.0
+    ):
+        raise OpenTaskResolutionError(
+            "near_tie_margin must be in the interval [0, 1)"
+        )
+
+    ranked_all = rank_official_tasks(
+        trusted_concern, trusted_inventory, top_k=len(trusted_inventory)
+    )
+    ranked = ranked_all[: min(top_k, len(ranked_all))]
+    best = ranked_all[0]
+    matched = best["score"] >= float(semantic_threshold)
+    plausible = [
+        item
+        for item in ranked_all
+        if item["score"] >= float(semantic_threshold)
+        and best["score"] - item["score"] <= float(near_tie_margin)
+    ]
+    training_tasks = set(scope["training_tasks"])
+
+    decision = "unsupported"
+    reason_code = "no_semantic_task_match"
+    selected: dict[str, Any] | None = None
+    if matched:
+        if scope["single_task_checkpoint"]:
+            anchor = scope["training_tasks"][0]
+            compatible = next(
+                (item for item in plausible if item["task_name"] == anchor),
+                None,
+            )
+            if compatible is not None:
+                decision = "retrieve_and_adapt"
+                reason_code = (
+                    "nearest_training_task"
+                    if best["task_name"] == anchor
+                    else "policy_compatible_semantic_near_tie"
+                )
+                selected = compatible
+            else:
+                reason_code = "policy_task_mismatch"
+        else:
+            compatible = next(
+                (
+                    item
+                    for item in plausible
+                    if item["task_name"] in training_tasks
+                    or scope["supports_unseen_tasks"]
+                ),
+                None,
+            )
+        if not scope["single_task_checkpoint"] and compatible is not None:
+            decision = "retrieve_and_adapt"
+            reason_code = (
+                "nearest_training_task"
+                if compatible["task_name"] in training_tasks
+                else "nearest_official_open_task"
+            )
+            selected = compatible
+        elif not scope["single_task_checkpoint"]:
+            reason_code = "policy_task_mismatch"
+    elif (
+        can_generate_new_task
+        and scope["language_conditioned"]
+        and scope["supports_unseen_tasks"]
+        and not scope["single_task_checkpoint"]
+    ):
+        decision = "generate_new"
+        reason_code = "no_near_official_base"
+    elif can_generate_new_task and not scope["supports_unseen_tasks"]:
+        reason_code = "policy_not_open_task_capable"
+    elif scope["supports_unseen_tasks"] and not can_generate_new_task:
+        reason_code = "task_generation_unavailable"
+
+    return {
+        "schema_version": 1,
+        "decision": decision,
+        "reason_code": reason_code,
+        "free_concern": trusted_concern,
+        "policy_scope": scope,
+        "selected_base_task": deepcopy(selected),
+        "ranked_candidates": deepcopy(ranked),
+        "resolution_contract": {
+            "concern_created_before_inventory": True,
+            "catalog_role": "execution_capability_inventory_only",
+            "retrieval_field": "FreeConcern.task_intent",
+            "semantic_threshold": float(semantic_threshold),
+            "semantic_near_tie_margin": float(near_tie_margin),
+            "plausible_candidate_names": [
+                item["task_name"] for item in plausible
+            ],
+            "preserve_base_task_semantics": decision == "retrieve_and_adapt",
+        },
+    }
+
+
+__all__ = [
+    "FreeConcernAgent",
+    "OpenTaskResolutionError",
+    "build_free_concern_prompt",
+    "discover_robotwin_task_inventory",
+    "policy_task_scope_from_card",
+    "rank_official_tasks",
+    "resolve_open_task",
+    "validate_free_concern",
+    "validate_task_inventory",
+]

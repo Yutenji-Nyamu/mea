@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "replay_id": "batch25_bound_click_open_plan_v2_control_handoff",
+  "source_artifact": "free_concern.json",
+  "source_sha256": "d3409aab40b9408279075961ca9817e0a2cfd640502fac27096891f3706ec364",
+  "new_provider_calls": 0,
+  "global_router_provider_calls": 0,
+  "act_rollouts": 0,
+  "simulator_calls": 0,
+  "resolution": {
+    "decision": "retrieve_and_adapt",
+    "reason_code": "policy_compatible_semantic_near_tie",
+    "selected_base_task": {
+      "task_name": "click_bell",
+      "score": 0.284901,
+      "execution_status": "capability_registered",
+      "capability_aspects": [
+        "object_position",
+        "object_instance",
+        "robustness.scene_clutter",
+        "scene_background_texture",
+        "scene_lighting",
+        "performance.completion_time_stability"
+      ]
+    }
+  },
+  "runtime_handoff": {
+    "route_source": "runtime_bound_control_handoff",
+    "provider_called": false,
+    "attempt_count": 0,
+    "selection": {
+      "schema_version": 2,
+      "decision": "route",
+      "task_name": "click_bell",
+      "task_profile": "adaptive_properties",
+      "evaluation_goal": "establish_clean_control_before_claim_first_attribution: 这个ACT策略在目标附近有相似物体时是否仍能可靠点击正确目标？",
+      "requested_aspect_ids": [
+        "performance.completion_time_stability"
+      ],
+      "first_aspect_id": "performance.completion_time_stability",
+      "unsupported_capabilities": []
+    },
+    "taskgen_proposal": {
+      "schema_version": 1,
+      "task_name": "click_bell",
+      "evaluation_goal": "establish_clean_control_before_claim_first_attribution: 这个ACT策略在目标附近有相似物体时是否仍能可靠点击正确目标？",
+      "requested_aspect_ids": [
+        "performance.completion_time_stability"
+      ],
+      "first_aspect_id": "performance.completion_time_stability"
+    }
+  },
+  "acceptance": {
+    "selected_click_bell": true,
+    "deterministic_control_handoff": true,
+    "global_router_skipped": true,
+    "taskgen_handoff_ready": true
+  },
+  "scope": "Zero-provider deterministic replay from the frozen v2 concern to the runtime control/TaskGen proposal. It is not a new online provider run, simulator run, ACT rollout, or policy-performance result."
+}

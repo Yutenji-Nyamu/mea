@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "query": "这个ACT策略在目标附近有相似物体时是否仍能可靠点击正确目标？",
+  "total_episodes": 2,
+  "seeds": [
+    100405
+  ],
+  "rounds": [
+    {
+      "template_id": "official_click_bell_control",
+      "seed": 100405,
+      "success": true,
+      "authority": "official_check_success"
+    },
+    {
+      "template_id": "similar_bell_offset_y_0.12",
+      "seed": 100405,
+      "success": true,
+      "authority": "llm_generated_python_ast_validated"
+    }
+  ],
+  "checker_aggregate_artifact": "checker_aggregate.json",
+  "observations": {
+    "pipeline_passed": true,
+    "execution_vqa_conflict": false,
+    "official_control_success": true,
+    "generated_checker_success": true,
+    "official_core_predicate_satisfied": true,
+    "distractor_contact_latched": false,
+    "distractor_latch_authority": "logical_implication_of_validated_checker_success",
+    "distractor_contact_event_recorded": false,
+    "distractor_trace_coverage": "not_registered_in_current_click_bell_task_schema"
+  },
+  "execution_vqa": {
+    "status": "not_run",
+    "provider_calls": 0,
+    "evidence_conflict": false,
+    "reason": "A rollout VQA call would require another provider request; the validated generated checker is the outcome authority."
+  },
+  "query_sufficiency": {
+    "observed_candidate_ids": [
+      "official_click_bell_control",
+      "similar_bell_offset_y_0.12"
+    ],
+    "untested_candidate_ids": [
+      "other_similar_object_geometries",
+      "other_distractor_offsets",
+      "other_random_seeds"
+    ],
+    "conflict_candidate_ids": [],
+    "evidence_sufficient": false,
+    "should_stop": true,
+    "stop_reason": "budget_exhausted",
+    "claim_verdict": "single_case_positive_but_reliability_inconclusive"
+  }
+}

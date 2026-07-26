@@ -151,10 +151,34 @@ TASK_CAPABILITIES: dict[str, dict[str, dict[str, Any]]] = {
     },
 }
 
+_DYNAMIC_PROVIDER_CAPABILITIES: dict[str, dict[str, dict[str, Any]]] = {
+    "click_bell": {
+        "robustness.distractor_avoidance": {
+            "controlled_axis": "robustness.distractor_avoidance",
+            "allowed_change_roots": ["distractor"],
+            "generation_mode": "provider_scene_checker_codegen",
+            "allowed_generation_modes": ["provider_scene_checker_codegen"],
+            "default_metric": "click_target_without_distractor_success",
+            "preserve": [
+                "official_target_pose_sampling",
+                "official_bell_assets",
+                "official_instance_sampling",
+                "play_once",
+                "check_success",
+                "checkpoint",
+            ],
+        }
+    }
+}
+
 
 def get_capability(task_name: str, capability_id: str) -> dict[str, Any]:
     try:
-        value = TASK_CAPABILITIES[str(task_name)][str(capability_id)]
+        task = str(task_name)
+        capability = str(capability_id)
+        value = TASK_CAPABILITIES.get(task, {}).get(capability)
+        if value is None:
+            value = _DYNAMIC_PROVIDER_CAPABILITIES[task][capability]
     except KeyError as exc:
         raise CapabilityError(
             f"unknown TaskGen capability {task_name!r}/{capability_id!r}"
@@ -259,7 +283,7 @@ def build_variant_spec(
             and resolved_mode == "force_codegen"
         )
         provider_checker = (
-            task_name == "beat_block_hammer"
+            task_name in {"beat_block_hammer", "click_bell"}
             and capability_id == "robustness.distractor_avoidance"
             and resolved_mode == "provider_scene_checker_codegen"
         )
@@ -268,7 +292,7 @@ def build_variant_spec(
                 "replacement SuccessSpec is capability-gated to "
                 "beat_block_hammer/object_appearance.color; provider-written "
                 "replacement semantics are separately gated to "
-                "beat_block_hammer/robustness.distractor_avoidance"
+                "the registered robustness.distractor_avoidance dialects"
             )
         if "check_success" not in preserve:
             raise CapabilityError(

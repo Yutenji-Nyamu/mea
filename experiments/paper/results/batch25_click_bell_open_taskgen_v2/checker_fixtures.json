@@ -1,0 +1,38 @@
+[
+  {
+    "expected": true,
+    "fixture": "positive_target_only",
+    "observed": true,
+    "passed": true
+  },
+  {
+    "expected": false,
+    "fixture": "wrong_arm",
+    "observed": false,
+    "passed": true
+  },
+  {
+    "expected": false,
+    "fixture": "target_miss",
+    "observed": false,
+    "passed": true
+  },
+  {
+    "expected": false,
+    "fixture": "distractor_contact",
+    "observed": false,
+    "passed": true
+  },
+  {
+    "expected": false,
+    "fixture": "latched_distractor_then_target",
+    "observed": false,
+    "passed": true
+  },
+  {
+    "expected": true,
+    "fixture": "official_success_latch_preserved",
+    "observed": true,
+    "passed": true
+  }
+]

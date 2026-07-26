@@ -57,6 +57,10 @@ from mea.taskgen import (
     validate_bbh_distractor_methods,
     validate_bbh_distractor_proposal,
     validate_bbh_distractor_vision_observation,
+    ClickBellDistractorTaskGenError,
+    click_bell_distractor_from_task_proposal,
+    click_bell_distractor_rollout_execution,
+    materialize_click_bell_distractor_candidate,
     validate_scene_check_spec,
     write_task_artifact_bundle,
 )
@@ -246,7 +250,7 @@ def task_artifact_summary(bundle: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def create_bbh_distractor_taskgen_run(
+def create_provider_scene_checker_taskgen_run(
     repo_root: Path,
     *,
     user_request: str,
@@ -258,31 +262,62 @@ def create_bbh_distractor_taskgen_run(
     telemetry_profile: str = "balanced_v1",
     ablation_switches: Mapping[str, bool] | None = None,
 ) -> dict[str, Any]:
-    """Adapt provider-written BBH scene+checker code to the normal run envelope."""
+    """Adapt one registered provider scene+checker dialect to the run envelope."""
 
     request = str(user_request).strip()
     if not request:
-        raise BBHDistractorTaskGenError("user_request must be non-empty")
+        raise ValueError("user_request must be non-empty")
+    proposal = validate_task_proposal(task_proposal)
+    selected_base_task = proposal["task_name"]
+    dialects = {
+        "beat_block_hammer": {
+            "error_type": BBHDistractorTaskGenError,
+            "capability_id": "robustness.distractor_avoidance",
+            "proposal_adapter": bbh_distractor_proposal_from_task_proposal,
+            "materializer": materialize_bbh_distractor_candidate,
+            "run_prefix": "run_bbh_distractor_",
+            "proposal_artifact": "bbh_distractor_proposal.json",
+            "static_artifact": "bbh_distractor_static.json",
+        },
+        "click_bell": {
+            "error_type": ClickBellDistractorTaskGenError,
+            "capability_id": "robustness.distractor_avoidance",
+            "proposal_adapter": click_bell_distractor_from_task_proposal,
+            "materializer": materialize_click_bell_distractor_candidate,
+            "run_prefix": "run_click_bell_distractor_",
+            "proposal_artifact": "click_bell_distractor_proposal.json",
+            "static_artifact": "click_bell_distractor_static.json",
+        },
+    }
+    dialect = dialects.get(selected_base_task)
+    if dialect is None:
+        raise ValueError(
+            "provider scene+checker has no registered dialect for "
+            f"{selected_base_task!r}"
+        )
+    error_type = dialect["error_type"]
     spec = validate_variant_spec_envelope(variant_spec)
     if (
-        spec["task_name"] != "beat_block_hammer"
-        or spec["capability_id"] != "robustness.distractor_avoidance"
+        spec["task_name"] != selected_base_task
+        or spec["capability_id"] != dialect["capability_id"]
         or spec["generation_mode"] != "provider_scene_checker_codegen"
     ):
-        raise BBHDistractorTaskGenError(
-            "VariantSpec is not the BBH provider scene+checker capability"
+        raise error_type(
+            "VariantSpec is not the selected provider scene+checker capability"
         )
-    proposal = validate_task_proposal(
-        task_proposal, expected_task_name="beat_block_hammer"
-    )
-    bounded_proposal = bbh_distractor_proposal_from_task_proposal(
+    bounded_proposal = dialect["proposal_adapter"](
         proposal, query=request
     )
     resolved_run_id = run_id or (
-        "run_bbh_distractor_"
+        dialect["run_prefix"]
         + datetime.now().astimezone().strftime("%Y%m%d_%H%M%S_%f")
     )
-    candidate = materialize_bbh_distractor_candidate(
+    materializer_options = (
+        {"compatibility_attempt_directory": True}
+        if selected_base_task == "click_bell"
+        else {}
+    )
+    candidate = dialect["materializer"](
         repo_root=repo_root,
         run_id=resolved_run_id,
         proposal=bounded_proposal,
@@ -290,6 +325,7 @@ def create_bbh_distractor_taskgen_run(
         model=model,
         max_regenerations=1,
         ablation_switches=ablation_switches,
+        **materializer_options,
     )
     run_dir = repo_root / "mea/generated_tasks" / resolved_run_id
     for child in ("generation", "validation", "evidence", "evaluation"):
@@ -298,7 +334,7 @@ def create_bbh_distractor_taskgen_run(
     moves = {
         "proposal_prompt.md": "generation/code_prompt.md",
         "provider_response.txt": "generation/provider_response.txt",
-        "proposal.json": "generation/bbh_distractor_proposal.json",
+        "proposal.json": f"generation/{dialect['proposal_artifact']}",
         "checker_fixtures.json": "validation/checker_fixtures.json",
         "provider_attempts": "generation/provider_attempts",
     }
@@ -306,7 +342,7 @@ def create_bbh_distractor_taskgen_run(
         source = run_dir / source_name
         destination = run_dir / destination_name
         if not source.exists():
-            raise BBHDistractorTaskGenError(
+            raise error_type(
                 f"candidate artifact is missing: {source_name}"
             )
         shutil.move(str(source), str(destination))
@@ -344,7 +380,7 @@ def create_bbh_distractor_taskgen_run(
         },
     }
     write_json(
-        run_dir / "validation/bbh_distractor_static.json",
+        run_dir / f"validation/{dialect['static_artifact']}",
         static_validation,
     )
     try:
@@ -362,7 +398,7 @@ def create_bbh_distractor_taskgen_run(
         "status": "generated",
         "created_at": datetime.now().astimezone().isoformat(),
         "user_request": request,
-        "task_name": "beat_block_hammer",
+        "task_name": selected_base_task,
         "task_module": candidate["task_module"],
         "mode": "provider_scene_checker_codegen",
         "generation_kind": "provider_scene_checker_codegen",
@@ -400,6 +436,12 @@ def create_bbh_distractor_taskgen_run(
         "checker_contract": candidate["checker_contract"],
         "candidate_module_sha256": candidate["module_sha256"],
         "candidate_manifest": "candidate_manifest.json",
+        "provider_validation_artifact": (
+            f"validation/{dialect['static_artifact']}"
+        ),
+        "provider_proposal_artifact": (
+            f"generation/{dialect['proposal_artifact']}"
+        ),
     }
     write_json(run_dir / "manifest.json", manifest)
     bundle = write_task_artifact_bundle(
@@ -417,6 +459,20 @@ def create_bbh_distractor_taskgen_run(
     )
     write_json(run_dir / "manifest.json", manifest)
     return manifest
+
+
+def create_bbh_distractor_taskgen_run(
+    repo_root: Path,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Compatibility entry for callers that explicitly require the BBH dialect."""
+
+    proposal = kwargs.get("task_proposal")
+    if not isinstance(proposal, Mapping) or proposal.get("task_name") != "beat_block_hammer":
+        raise BBHDistractorTaskGenError(
+            "BBH provider scene+checker requires a beat_block_hammer TaskProposal"
+        )
+    return create_provider_scene_checker_taskgen_run(repo_root, **kwargs)
 
 
 def materialize_reviewed_task_run(
@@ -567,7 +623,11 @@ def prepare_planner_capability_binding(
             raise RuntimeError("TaskProposal capability does not match planner contract")
         if proposal["aspect_id"] != contract["aspect"]["aspect_id"]:
             raise RuntimeError("TaskProposal aspect does not match planner contract")
-        if task_name == "click_bell" and proposal["changes"]:
+        if (
+            task_name == "click_bell"
+            and taskgen["operation"] == "bounded_variant_overlay"
+            and proposal["changes"]
+        ):
             try:
                 proposal["changes"] = validate_click_bell_variant_hint(
                     proposal["changes"]
@@ -1521,10 +1581,45 @@ def run_vision_check(
     scene_check_text = json.dumps(scene_check, ensure_ascii=False, indent=2)
     is_provider_distractor = (
         scene_check.get("success_semantics") == "provider_generated_python"
-        and scene_check.get("repair_policy", {}).get("mode")
-        == "regenerate_scene_checker_code"
     )
-    if spec.get("task_name") == "click_bell":
+    if is_provider_distractor:
+        task_proposal_path = run_dir / "generation/task_proposal.json"
+        if not task_proposal_path.is_file():
+            raise VisualReflectionError(
+                "provider distractor visual check requires TaskProposal"
+            )
+        task_label = str(spec.get("task_name"))
+        target_label = "bell" if task_label == "click_bell" else "block"
+        task_proposal_text = task_proposal_path.read_text(encoding="utf-8")
+        prompt = f"""This is the initial rendered frame of a proposal-derived
+RoboTwin {task_label} task. The proposal intentionally adds a lookalike physical
+distractor beside the target.
+
+TASK PROPOSAL:
+{task_proposal_text}
+
+SCENE CHECK SPEC:
+{scene_check_text}
+
+Check only proposal-derived visual facts: the target and lookalike distractor
+are separately visible, and the initial scene is physically plausible.
+Do not infer exact actor identity, exact offset, contact latches, or success
+from RGB.
+
+Return JSON only:
+{{
+  "aligned": true,
+  "target_actor": "{target_label}",
+  "target_visible": true,
+  "lookalike_distractor_visible": true,
+  "scene_physically_plausible": true,
+  "unexpected_changes": [],
+  "diagnosis": "Whether both intended objects are visible and plausible.",
+  "suggestions": [],
+  "confidence": 0.8
+}}
+"""
+    elif spec.get("task_name") == "click_bell":
         bell_change = spec["changes"].get("bell")
         randomization_change = spec["changes"].get("domain_randomization") or {}
         clutter_change = (
@@ -1599,45 +1694,6 @@ PROPOSAL-DERIVED SCENE CHECK SPEC:
   "confidence": 0.8
 }}
 """
-    elif is_provider_distractor:
-        task_proposal_path = run_dir / "generation/task_proposal.json"
-        if not task_proposal_path.is_file():
-            raise VisualReflectionError(
-                "provider distractor visual check requires TaskProposal"
-            )
-        task_proposal_text = task_proposal_path.read_text(encoding="utf-8")
-        prompt = f"""This is the initial rendered frame of a proposal-derived
-RoboTwin beat_block_hammer task. The proposal intentionally adds a same-size,
-lookalike physical distractor beside the target block.
-
-TASK PROPOSAL:
-{task_proposal_text}
-
-SCENE CHECK SPEC:
-{scene_check_text}
-
-Check only proposal-derived visual facts:
-1. the target block is clearly visible;
-2. the lookalike distractor is separately visible;
-3. the hammer, target, distractor, and workspace form a physically plausible
-   initial scene with no obvious missing, overlapping, or stray objects.
-
-Do not infer exact actor identity, exact distractor offset, contact latches, or
-success from RGB. Simulator state and semantic fixtures own those facts.
-
-Return JSON only:
-{{
-  "aligned": true,
-  "target_actor": "block",
-  "target_visible": true,
-  "lookalike_distractor_visible": true,
-  "scene_physically_plausible": true,
-  "unexpected_changes": [],
-  "diagnosis": "Whether both intended blocks are visible and the scene is plausible.",
-  "suggestions": [],
-  "confidence": 0.8
-}}
-"""
     else:
         expected_half_size = 0.025 * float(spec["changes"]["block"]["scale"])
         prompt = f"""这是 RoboTwin beat_block_hammer 的初始场景首帧。
@@ -1682,10 +1738,10 @@ half_size 是 ({expected_half_size:.6f}, {expected_half_size:.6f}, {expected_hal
 
     parsed = extract_json_response(response)
     result = (
-        validate_click_bell_vision_observation(parsed)
-        if spec.get("task_name") == "click_bell"
-        else validate_bbh_distractor_vision_observation(parsed)
+        validate_bbh_distractor_vision_observation(parsed)
         if is_provider_distractor
+        else validate_click_bell_vision_observation(parsed)
+        if spec.get("task_name") == "click_bell"
         else validate_vision_observation(parsed, spec)
     )
     result["provider_metadata"] = dict(provider.last_metadata)
@@ -2013,8 +2069,6 @@ def run_visual_self_reflection(
     is_click_bell = spec.get("task_name") == "click_bell"
     is_provider_distractor = (
         scene_check.get("success_semantics") == "provider_generated_python"
-        and scene_check.get("repair_policy", {}).get("mode")
-        == "regenerate_scene_checker_code"
     )
     is_reviewed_reuse = isinstance(manifest.get("reviewed_task_registration"), Mapping)
     reflection_dir = run_dir / "reflection"
@@ -2044,7 +2098,9 @@ def run_visual_self_reflection(
         )
         variant_validation = (
             validate_click_bell_scene_contract(scene, spec)
-            if is_click_bell and structural_probe_passed
+            if is_click_bell
+            and not is_provider_distractor
+            and structural_probe_passed
             else {
                 "status": "not_applicable",
                 "passed": True,
@@ -2122,9 +2178,14 @@ def run_visual_self_reflection(
                 "reviewed generated-Task reuse is validate-only; repair requires "
                 "a newly generated candidate and a new review"
             )
-        if is_click_bell:
+        if is_click_bell and not is_provider_distractor:
             raise VisualReflectionError(
                 "click_bell bounded overlay is validate-only and does not support repair"
+            )
+        if is_provider_distractor and is_click_bell:
+            raise VisualReflectionError(
+                "click_bell provider scene+checker visual repair requires a new "
+                "candidate run; BBH repair is not reused across dialects"
             )
         if is_provider_distractor:
             update_manifest(
@@ -2180,7 +2241,9 @@ def run_visual_self_reflection(
         return result
 
     effective_max_repairs = min(
-        0 if is_reviewed_reuse else max_repairs,
+        0
+        if is_reviewed_reuse or (is_provider_distractor and is_click_bell)
+        else max_repairs,
         int(scene_check["repair_policy"]["max_repairs_supported"]),
     )
     summary = execute_reflection_loop(
@@ -2188,7 +2251,7 @@ def run_visual_self_reflection(
         observe=observe,
         repair=repair,
     )
-    if is_click_bell:
+    if is_click_bell and not is_provider_distractor:
         summary["requested_max_repairs"] = max_repairs
         summary["repair_supported"] = False
         summary[
@@ -2196,8 +2259,8 @@ def run_visual_self_reflection(
         ] = "simulator_position_or_instance_plus_visual_plausibility"
     if is_provider_distractor:
         summary["requested_max_repairs"] = max_repairs
-        summary["repair_supported"] = True
-        summary["repair_limit"] = 1
+        summary["repair_supported"] = not is_click_bell
+        summary["repair_limit"] = 0 if is_click_bell else 1
         summary[
             "validation_mode"
         ] = "proposal_derived_target_distractor_visual_plausibility"
@@ -2551,8 +2614,25 @@ def evaluate_run_telemetry(
             raise RuntimeError(
                 "provider checker execution found no recorded ACT episodes"
             )
+        task_name = manifest.get("task_name")
+        checker_bridges = {
+            "beat_block_hammer": (
+                bbh_distractor_rollout_execution,
+                "bbh_target_without_distractor_success",
+            ),
+            "click_bell": (
+                click_bell_distractor_rollout_execution,
+                "click_target_without_distractor_success",
+            ),
+        }
+        bridge = checker_bridges.get(task_name)
+        if bridge is None:
+            raise RuntimeError(
+                f"provider checker bridge is not registered: {task_name!r}"
+            )
+        checker_execution, outcome_metric = bridge
         executions = [
-            bbh_distractor_rollout_execution(
+            checker_execution(
                 episode_dir=episode_dir,
                 candidate_dir=run_dir,
                 policy_name="ACT",
@@ -2567,12 +2647,13 @@ def evaluate_run_telemetry(
                 for episode in item["episodes"]
             ],
         }
+        artifact_stem = str(task_name)
         execution_path = (
-            run_dir / "evaluation/bbh_distractor_checker_execution.json"
+            run_dir / f"evaluation/{artifact_stem}_checker_execution.json"
         )
         write_json(execution_path, execution)
         aggregate_path = (
-            run_dir / "evaluation/bbh_distractor_checker_aggregate.json"
+            run_dir / f"evaluation/{artifact_stem}_checker_aggregate.json"
         )
         aggregate = aggregate_tool_executions(
             [execution],
@@ -2582,10 +2663,10 @@ def evaluate_run_telemetry(
             "artifact": str(execution_path.relative_to(repo_root)),
             "aggregate_artifact": str(aggregate_path.relative_to(repo_root)),
             "episode_count": len(execution["episodes"]),
-            "outcome_metric": "bbh_target_without_distractor_success",
+            "outcome_metric": outcome_metric,
             "outcome_authority": "llm_generated_python_ast_validated",
             "outcome_binding": {
-                "metric": "bbh_target_without_distractor_success",
+                "metric": outcome_metric,
                 "authority": "llm_generated_python_ast_validated",
                 "module_sha256": manifest["candidate_module_sha256"],
                 "task_module": manifest["task_module"],
@@ -3033,7 +3114,7 @@ def main() -> None:
                     "provider scene+checker codegen requires its exact "
                     "capability contract, TaskProposal, and provider"
                 )
-            manifest = create_bbh_distractor_taskgen_run(
+            manifest = create_provider_scene_checker_taskgen_run(
                 repo_root,
                 user_request=args.request,
                 provider=provider,

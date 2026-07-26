@@ -6,8 +6,18 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from mea.libero.benchmark import LiberoContractError
-from mea.libero.benchmark import EpisodeRecord, LiberoBenchmarkAdapter
+from mea.libero.benchmark import (
+    EpisodeRecord,
+    LiberoBenchmarkAdapter,
+    LiberoContractError,
+    build_official_task_contract,
+)
+from mea.libero.chain import parse_bound_libero_task
+from mea.libero.retrieval import (
+    BDDLTaskIndex,
+    authorize_controlled_change,
+    smolvla_policy_compatibility,
+)
 from mea.libero.taskgen import LiberoTaskGenBackend
 from mea.libero.tool import LiberoPredicateToolBackend
 from mea.toolkit.aggregate import aggregate_tool_executions
@@ -53,6 +63,17 @@ def test_taskgen_state_compatible_and_tool_exact_reuse(tmp_path: Path) -> None:
             "tool_need": {"description": "goal predicate"},
         },
     }
+    official = build_official_task_contract()
+    index = BDDLTaskIndex.from_contracts([official])
+    compatibility = smolvla_policy_compatibility(
+        checkpoint="/checkpoint",
+        explicit_task_binding=index.tasks[0],
+    )
+    retrieval = index.retrieve_nearest(
+        "test object identity",
+        compatibility=compatibility,
+    )
+    change_contract = authorize_controlled_change(retrieval, proposal)
     contract, result = LiberoTaskGenBackend(
         _FakeProvider(), model="fixture"
     ).generate(
@@ -60,6 +81,8 @@ def test_taskgen_state_compatible_and_tool_exact_reuse(tmp_path: Path) -> None:
         proposal_bundle=proposal,
         output_dir=tmp_path / "taskgen",
         seed=100800,
+        retrieval=retrieval,
+        change_contract=change_contract,
     )
     assert result["status"] == "passed"
     assert result["experiment_seed"] == 100800
@@ -124,24 +147,44 @@ def test_custom_factory_is_not_stock_task_id() -> None:
     assert "libero_object" in official_path
 
 
+def test_unknown_checkpoint_scope_requires_explicit_suite_task_binding() -> None:
+    assert parse_bound_libero_task("libero_object/task0") == ("libero_object", 0)
+    with unittest.TestCase().assertRaisesRegex(ValueError, "scope is unknown"):
+        parse_bound_libero_task(None)
+
+
 def test_taskgen_rejects_planner_language_only_request(tmp_path: Path) -> None:
+    official = build_official_task_contract()
+    index = BDDLTaskIndex.from_contracts([official])
+    compatibility = smolvla_policy_compatibility(
+        checkpoint="/checkpoint",
+        explicit_task_binding=index.tasks[0],
+    )
+    retrieval = index.retrieve_nearest(
+        "object identity robustness",
+        compatibility=compatibility,
+    )
+    proposal = {
+        "proposal": {
+            "requested_perturbation": {
+                "description": "paraphrase only",
+                "controlled_changes": ["language"],
+                "preserve": ["goal semantics"],
+            }
+        }
+    }
+    change_contract = authorize_controlled_change(retrieval, proposal)
     with unittest.TestCase().assertRaisesRegex(
         LiberoContractError,
-        match="Planner requested a different controlled change",
+        "controlled-change contract is not authorized",
     ):
         LiberoTaskGenBackend(_FakeProvider(), model="fixture").generate(
             user_query="object identity robustness",
-            proposal_bundle={
-                "proposal": {
-                    "requested_perturbation": {
-                        "description": "paraphrase only",
-                        "controlled_changes": ["language"],
-                        "preserve": ["goal semantics"],
-                    }
-                }
-            },
+            proposal_bundle=proposal,
             output_dir=tmp_path / "taskgen",
             seed=100800,
+            retrieval=retrieval,
+            change_contract=change_contract,
         )
 
 
@@ -156,4 +199,5 @@ class LiberoMethodChainTests(unittest.TestCase):
             temp_path = Path(directory)
             test_taskgen_state_compatible_and_tool_exact_reuse(temp_path)
             test_custom_factory_is_not_stock_task_id()
+            test_unknown_checkpoint_scope_requires_explicit_suite_task_binding()
             test_taskgen_rejects_planner_language_only_request(temp_path)

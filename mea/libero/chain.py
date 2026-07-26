@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -20,6 +21,15 @@ from .benchmark import (
     build_official_task_contract,
 )
 from .policy import LeRobotPolicyAdapter
+from .retrieval import (
+    BDDLRetrieval,
+    BDDLTaskIndex,
+    ControlledChangeContract,
+    PolicyTaskCompatibility,
+    authorize_controlled_change,
+    pending_controlled_change,
+    smolvla_policy_compatibility,
+)
 from .taskgen import LiberoTaskGenBackend
 from .tool import LiberoPredicateToolBackend
 
@@ -27,6 +37,17 @@ from .tool import LiberoPredicateToolBackend
 DEFAULT_CHECKPOINT = Path("/root/autodl-tmp/checkpoints/libero/smolvla_libero")
 DEFAULT_SEED = 100800
 HORIZON_STEPS = 100
+_BOUND_TASK_RE = re.compile(r"^(libero_[a-z0-9_]+)/task([0-9]+)$")
+
+
+def parse_bound_libero_task(value: str | None) -> tuple[str, int]:
+    match = _BOUND_TASK_RE.fullmatch((value or "").strip().casefold())
+    if not match:
+        raise ValueError(
+            "checkpoint task scope is unknown; bind an official control explicitly "
+            "with --bound-task-name libero_object/task0 (or another suite/task)"
+        )
+    return match.group(1), int(match.group(2))
 
 
 def _write_json(path: Path, value: Any) -> Path:
@@ -45,11 +66,41 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _gate0(*, checkpoint: Path) -> dict[str, Any]:
-    bddl_path, init_path = LiberoBenchmarkAdapter.official_paths()
-    official = build_official_task_contract()
+def _open_query_retrieval(
+    *,
+    request: str,
+    checkpoint: Path,
+    official: TaskContract,
+) -> tuple[PolicyTaskCompatibility, BDDLRetrieval, ControlledChangeContract]:
+    index = BDDLTaskIndex.from_libero_suite(official.suite)
+    task = next(
+        item
+        for item in index.tasks
+        if item.task_id == official.official_task_id
+        and item.problem_name == official.problem_name
+    )
+    compatibility = smolvla_policy_compatibility(
+        checkpoint=checkpoint,
+        explicit_task_binding=task,
+    )
+    retrieval = index.retrieve_nearest(request, compatibility=compatibility)
+    return compatibility, retrieval, pending_controlled_change(retrieval)
+
+
+def _gate0(
+    *,
+    checkpoint: Path,
+    official: TaskContract,
+    compatibility: PolicyTaskCompatibility,
+    retrieval: BDDLRetrieval,
+    change_contract: ControlledChangeContract,
+) -> dict[str, Any]:
+    bddl_path = Path(official.bddl_path)
+    init_path = Path(official.initial_state_source)
     official_env = LiberoBenchmarkAdapter(
-        episode_length=HORIZON_STEPS
+        episode_length=HORIZON_STEPS,
+        suite_name=official.suite,
+        task_id=official.official_task_id,
     ).make_official_env()
     state_observation_enabled = official_env.obs_type == "pixels_agent_pos"
     official_env.close()
@@ -67,6 +118,10 @@ def _gate0(*, checkpoint: Path) -> dict[str, Any]:
     checks = {
         "all_required_files_present": all(path.is_file() for path in required),
         "official_problem_registered": bool(official.python_problem_impl),
+        "query_source_is_authorized_for_control": compatibility.authorizes(
+            retrieval.selected
+        ),
+        "taskgen_change_awaits_planner": change_contract.status == "pending",
         "explicit_horizon_100": official.horizon_steps == HORIZON_STEPS,
         "relative_control": official.control_mode == "relative",
         "state_observation_enabled": state_observation_enabled,
@@ -87,6 +142,9 @@ def _gate0(*, checkpoint: Path) -> dict[str, Any]:
             ),
         },
         "official_task_contract": official.to_dict(),
+        "policy_task_compatibility": compatibility.to_dict(),
+        "open_query_retrieval": retrieval.to_dict(),
+        "controlled_change_contract": change_contract.to_dict(),
         "rollout_budget": 2,
         "horizon_steps_each": HORIZON_STEPS,
     }
@@ -96,7 +154,10 @@ def _gate0(*, checkpoint: Path) -> dict[str, Any]:
     return result
 
 
-def _capabilities(checkpoint: Path) -> dict[str, Any]:
+def _capabilities(
+    checkpoint: Path,
+    official: TaskContract,
+) -> dict[str, Any]:
     return {
         "schema_version": 1,
         "policy_card": {
@@ -107,8 +168,11 @@ def _capabilities(checkpoint: Path) -> dict[str, Any]:
         },
         "simulator_card": {
             "benchmark": "LIBERO",
-            "suite": "libero_object",
-            "official_control": "task 0 at the same initial simulator state",
+            "suite": official.suite,
+            "official_control": (
+                f"explicitly bound task {official.official_task_id} at the same "
+                "initial simulator state"
+            ),
             "phase_boundary": (
                 "existing object identity may change; objects, regions, initial "
                 "state, camera, workspace, action mode and horizon are fixed"
@@ -193,15 +257,36 @@ def run_libero_method_chain(
     taskgen_model: str = "gpt-4o-2024-11-20",
     base_url: str | None = None,
     plan_only: bool = False,
+    bound_suite: str | None = None,
+    bound_task_id: int | None = None,
 ) -> dict[str, Any]:
     repo = Path(repo_root).expanduser().resolve()
     checkpoint_path = Path(checkpoint).expanduser().resolve()
+    if bound_suite is None or bound_task_id is None:
+        raise ValueError(
+            "checkpoint task scope is unknown; an explicit LIBERO suite/task "
+            "binding is required before retrieval or control"
+        )
     root = repo / "mea" / "evaluation_runs" / evaluation_id
     root.mkdir(parents=True, exist_ok=False)
     started = time.monotonic()
-    gate = _gate0(checkpoint=checkpoint_path)
+    official_contract = build_official_task_contract(
+        suite=bound_suite,
+        task_id=bound_task_id,
+    )
+    compatibility, query_retrieval, pending_change = _open_query_retrieval(
+        request=request,
+        checkpoint=checkpoint_path,
+        official=official_contract,
+    )
+    gate = _gate0(
+        checkpoint=checkpoint_path,
+        official=official_contract,
+        compatibility=compatibility,
+        retrieval=query_retrieval,
+        change_contract=pending_change,
+    )
     _write_json(root / "gate0.json", gate)
-    official_contract = build_official_task_contract()
     official_contract_path = _official_contract_artifact(root, official_contract)
     if plan_only:
         result = {
@@ -211,6 +296,10 @@ def run_libero_method_chain(
             "provider_required": False,
             "rollouts_executed": 0,
             "gate0": str(root / "gate0.json"),
+            "query_concern": request,
+            "retrieval": query_retrieval.to_dict(),
+            "policy_task_compatibility": compatibility.to_dict(),
+            "controlled_change_contract": pending_change.to_dict(),
         }
         _write_json(root / "compact_result.json", result)
         return result
@@ -224,7 +313,11 @@ def run_libero_method_chain(
         text_model=planner_model,
         max_retries=1,
     )
-    benchmark = LiberoBenchmarkAdapter(episode_length=HORIZON_STEPS)
+    benchmark = LiberoBenchmarkAdapter(
+        episode_length=HORIZON_STEPS,
+        suite_name=official_contract.suite,
+        task_id=official_contract.official_task_id,
+    )
     policy = LeRobotPolicyAdapter(
         checkpoint=checkpoint_path,
         device="cuda",
@@ -238,7 +331,10 @@ def run_libero_method_chain(
             env_factory=benchmark.make_official_env,
             seed=seed,
             output_dir=root / "round_01_official" / "episode",
-            task_id="libero_object/task0/official",
+            task_id=(
+                f"{official_contract.suite}/task"
+                f"{official_contract.official_task_id}/official"
+            ),
             task_contract_path=official_contract_path,
             bddl_path=official_contract.bddl_path,
             provenance={
@@ -265,11 +361,32 @@ def run_libero_method_chain(
             ],
         )
         _write_json(root / "round_01_official" / "evidence.json", control_evidence)
+        if not official_record.success:
+            result = {
+                "schema_version": 1,
+                "status": "control_failed",
+                "benchmark": "libero",
+                "policy": "smolvla",
+                "query": request,
+                "rollouts_executed": 1,
+                "rollout_budget": 2,
+                "official_success": False,
+                "custom_rollout_authorized": False,
+                "stop_reason": "official_control_failed",
+                "paper_performance_evidence": False,
+                "scientific_evidence_eligible": False,
+                "retrieval": query_retrieval.to_dict(),
+                "policy_task_compatibility": compatibility.to_dict(),
+                "controlled_change_contract": pending_change.to_dict(),
+                "raw_run_dir": str(root),
+            }
+            _write_json(root / "compact_result.json", result)
+            return result
 
         planner = ClaimFirstOpenQueryAgent(provider, model=planner_model)
         first_bundle = planner.propose(
             request,
-            capabilities=_capabilities(checkpoint_path),
+            capabilities=_capabilities(checkpoint_path, official_contract),
             evidence_history=[control_evidence],
         )
         _persist_planner_bundle(root, "after_control", planner, first_bundle)
@@ -277,6 +394,35 @@ def run_libero_method_chain(
             raise RuntimeError(
                 "ClaimFirst stopped after control; no provider-authored custom task was authorized"
             )
+        proposal = first_bundle["proposal"]
+        planner_concern = " ".join(
+            str(item)
+            for item in (
+                proposal.get("sub_aspect", ""),
+                proposal.get("hypothesis", ""),
+                proposal.get("requested_perturbation", {}).get("description", ""),
+            )
+            if item
+        )
+        planner_retrieval = BDDLTaskIndex.from_libero_suite(
+            official_contract.suite
+        ).retrieve_nearest(
+            planner_concern or request,
+            compatibility=compatibility,
+        )
+        controlled_change = authorize_controlled_change(
+            planner_retrieval,
+            first_bundle,
+        )
+        _write_json(
+            root / "planner" / "after_control" / "taskgen_gate.json",
+            {
+                "retrieval": planner_retrieval.to_dict(),
+                "policy_task_compatibility": compatibility.to_dict(),
+                "controlled_change_contract": controlled_change.to_dict(),
+            },
+        )
+        controlled_change.require_authorized()
 
         taskgen = LiberoTaskGenBackend(provider, model=taskgen_model)
         custom_contract, taskgen_result = taskgen.generate(
@@ -284,6 +430,8 @@ def run_libero_method_chain(
             proposal_bundle=first_bundle,
             output_dir=root / "round_02_custom" / "taskgen",
             seed=seed,
+            retrieval=planner_retrieval,
+            change_contract=controlled_change,
         )
         custom_contract_path = Path(taskgen_result["artifacts"]["task_contract"])
         probe = benchmark.render_and_init_probe(
@@ -297,7 +445,10 @@ def run_libero_method_chain(
             env_factory=lambda: benchmark.make_custom_env(custom_contract),
             seed=seed,
             output_dir=root / "round_02_custom" / "episode",
-            task_id="libero_object/task0/mea_custom",
+            task_id=(
+                f"{custom_contract.suite}/task"
+                f"{custom_contract.official_task_id}/mea_custom"
+            ),
             task_contract_path=custom_contract_path,
             bddl_path=custom_contract.bddl_path,
             provenance={
@@ -357,7 +508,7 @@ def run_libero_method_chain(
         try:
             second_bundle = planner.propose(
                 request,
-                capabilities=_capabilities(checkpoint_path),
+                capabilities=_capabilities(checkpoint_path, official_contract),
                 evidence_history=[control_evidence, custom_evidence],
             )
             _persist_planner_bundle(root, "after_custom", planner, second_bundle)
@@ -538,6 +689,9 @@ def run_libero_method_chain(
 
 def run_libero_agent_cli(args: Any) -> None:
     evaluation_id = args.evaluation_id or "eval_batch24_libero_method_chain_v1"
+    bound_suite, bound_task_id = parse_bound_libero_task(
+        getattr(args, "bound_task_name", None)
+    )
     result = run_libero_method_chain(
         repo_root=args.repo_root,
         request=args.request,
@@ -552,5 +706,7 @@ def run_libero_agent_cli(args: Any) -> None:
         taskgen_model=args.taskgen_model or "gpt-4o-2024-11-20",
         base_url=args.base_url,
         plan_only=args.plan_only,
+        bound_suite=bound_suite,
+        bound_task_id=bound_task_id,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))

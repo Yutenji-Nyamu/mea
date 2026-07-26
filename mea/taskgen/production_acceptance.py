@@ -45,6 +45,12 @@ from .bbh_distractor import (
     validate_bbh_distractor_methods,
     validate_bbh_distractor_proposal,
 )
+from .click_bell_distractor import (
+    ClickBellDistractorTaskGenError,
+    validate_click_bell_distractor_manifest,
+    validate_click_bell_distractor_methods,
+    validate_click_bell_distractor_proposal,
+)
 
 
 class ProductionTaskAcceptanceError(RuntimeError):
@@ -462,26 +468,57 @@ def _verify_bound_artifacts(
     if not isinstance(scene_binding, Mapping):
         raise ProductionTaskAcceptanceError("scene method binding is missing")
     if scene_binding.get("origin") == "provider_generated_code":
+        task_name = manifest.get("task_name")
+        dialects = {
+            "beat_block_hammer": (
+                BBHDistractorTaskGenError,
+                validate_bbh_distractor_manifest,
+                validate_bbh_distractor_proposal,
+                validate_bbh_distractor_methods,
+            ),
+            "click_bell": (
+                ClickBellDistractorTaskGenError,
+                validate_click_bell_distractor_manifest,
+                validate_click_bell_distractor_proposal,
+                validate_click_bell_distractor_methods,
+            ),
+        }
+        dialect = dialects.get(task_name)
+        if dialect is None:
+            raise ProductionTaskAcceptanceError(
+                f"provider scene+checker dialect is not registered: {task_name!r}"
+            )
+        (
+            dialect_error,
+            validate_candidate,
+            validate_proposal,
+            validate_methods,
+        ) = dialect
+        proposal_artifact = manifest.get("provider_proposal_artifact")
+        if not isinstance(proposal_artifact, str):
+            raise ProductionTaskAcceptanceError(
+                "provider proposal artifact binding is missing"
+            )
         try:
-            candidate = validate_bbh_distractor_manifest(
+            candidate = validate_candidate(
                 _read_json(
                     run_dir / "candidate_manifest.json",
-                    label="BBH distractor candidate manifest",
+                    label="provider distractor candidate manifest",
                 )
             )
-            proposal = validate_bbh_distractor_proposal(
+            proposal = validate_proposal(
                 _read_json(
-                    run_dir / "generation/bbh_distractor_proposal.json",
-                    label="BBH distractor proposal",
+                    run_dir / proposal_artifact,
+                    label="provider distractor proposal",
                 )
             )
             response = _read_json(
                 run_dir / "generation/provider_response.json",
-                label="BBH distractor provider response",
+                label="provider distractor response",
             )
-            validation = validate_bbh_distractor_methods(response, proposal)
+            validation = validate_methods(response, proposal)
         except (
-            BBHDistractorTaskGenError,
+            dialect_error,
             OSError,
             UnicodeError,
             ValueError,

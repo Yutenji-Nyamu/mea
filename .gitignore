@@ -35,6 +35,7 @@ envs/curobo/*
 
 # TaskGen runtime packages and evidence. Keep only the package marker tracked.
 /mea/generated_tasks/run_*/
+/mea/generated_task_attempts/
 
 # Plan Agent runtime plans and child-run links.
 /mea/evaluation_runs/eval_*/

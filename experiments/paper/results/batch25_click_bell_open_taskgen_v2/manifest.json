@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "status": "complete_bounded_positive_case",
+  "query_source": "../batch25_bound_click_open_plan_v2/free_concern.json",
+  "retrieval_source": "../batch25_bound_click_open_plan_v2/deterministic_repair_replay.json",
+  "raw_custom_run": "mea/generated_tasks/run_20260726_batch25_click_bell_open_provider_gate0_v2",
+  "raw_control_run": "mea/generated_tasks/run_20260726_batch25_click_bell_open_official_control_seed100405",
+  "raw_v1_negative": "mea/generated_task_attempts/run_20260726_batch25_click_bell_open_provider_gate0_v1",
+  "artifacts": [
+    "answer_scope.json",
+    "checker_aggregate.json",
+    "checker_execution.json",
+    "checker_fixtures.json",
+    "control_episode.json",
+    "control_events.jsonl",
+    "control_video.mp4",
+    "custom_episode.json",
+    "custom_events.jsonl",
+    "custom_video.mp4",
+    "evidence_packet.json",
+    "provider_response.json",
+    "query_answer.json",
+    "scene.png",
+    "task.py",
+    "taskgen_prompt.md",
+    "technical_summary.json",
+    "v1_rag_gap_failure.json"
+  ],
+  "policy_performance_scope": "one control and one custom episode at the same seed"
+}

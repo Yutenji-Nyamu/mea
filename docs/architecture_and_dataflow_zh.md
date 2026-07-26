@@ -4,7 +4,12 @@
 
 ```text
 原始 Query
-  → Global route（选择可运行的 RoboTwin task/policy）
+  → FreeConcern（先抽取任务意图与待测变化，不向模型展示 task inventory）
+  → official task discovery + retrieve/generate decision
+  → policy/checkpoint compatibility gate
+      ├─ 语义相近且 checkpoint 可执行：retrieve and adapt
+      ├─ open-policy 且确有新任务需求：generate new
+      └─ 不可执行或 scope 不明：unsupported
   → ClaimFirst Planner + QueryContract（选择本轮要区分的 claim）
   → TaskProposal / ToolProposal
   → TaskGen（检索或生成 scene + check_success）
@@ -21,13 +26,16 @@
 | 阶段 | 主要位置 | 最小职责 |
 | --- | --- | --- |
 | 编排 | `scripts/manipeval_agent.py` | 创建 evaluation，逐轮调用下述阶段，写出紧凑 run bundle |
-| 路由与规划 | `mea/planner/global_query.py`、`claim_first.py`、`query_contract.py` | 从 Query 和已有证据选择下一测试；不预写 aspect 顺序 |
+| 开放任务解析 | `mea/planner/open_task_resolver.py`、`global_query.py` | Query-first 抽取 concern；从 official inventory 检索候选；在 policy scope 边界内决定复用、生成或 unsupported |
+| Claim 规划 | `mea/planner/claim_first.py`、`query_contract.py` | 从已绑定 task、Query 和已有证据选择下一测试；不预写 aspect 顺序 |
 | TaskGen | `mea/taskgen/`、`scripts/manipeval_taskgen.py` | retrieve-first；必要时生成 scene 与实验 checker；渲染、fixture 与 expert 验证 |
 | Policy | `policy/ACT/eval_mea.sh` 及 paper experiment adapter | ACT 主链在明确 task、checkpoint、seed 下产生 rollout、video 与 telemetry；ranking pilot 让 ACT/DP3 共享同一 expert scene gate |
 | ToolGen/VQA | `mea/toolgen/`、`mea/execution_vqa/` | retrieve-first；生成并验证缺失 metric；对 rollout 产生可追踪 observation |
 | Aggregate/Answer | `mea/toolkit/aggregate.py`、`mea/feedback/` | 汇总样本，决定证据是否充分，回答 Query |
 
-catalog 只是运行能力清单，不是另一套 Planner。论文消融、效率比较、人类/VQA
+official inventory/catalog 只是可检索的任务与运行能力清单，不是另一套 Planner。发现某个
+task 不等于当前 checkpoint 能执行它：单任务 checkpoint 只能在其声明任务上运行，除非
+另有可验证的 open-policy scope。论文消融、效率比较、人类/VQA
 有效性和 policy ranking 属于 `experiments/paper/`，不得被生产入口隐式调用。
 
 ## 每次运行应保留的干净证据
@@ -37,6 +45,8 @@ catalog 只是运行能力清单，不是另一套 Planner。论文消融、效�
 ```text
 query.txt
 plan/
+  free_concern.json
+  task_resolution.json
   query_contract.json
   round_01_proposal.json
   round_02_proposal.json
@@ -69,10 +79,20 @@ Git 只发布一个最近运行的紧凑证据包 `docs/evidence/current/`：保
 ## 当前范围
 
 - 生产评估以 ACT 为主，DP3 只用于 BBH 最小双 policy pilot。
+- RoboTwin official env 与 instruction 的交集当前可发现 50 个 task；这表示检索空间，
+  不是 50 个 checkpoint-ready task，也不是 50-task 论文复现。
 - ACT official 入口覆盖 `beat_block_hammer`、`click_bell`、`adjust_bottle`、
   `grab_roller`；新增任务优先复用 official task、TaskSchema 和
   通用 recorder/tool，不复制整套 planner。
-- `experiments/paper/libero_adapter_smoke.py` 只验证独立 LIBERO/LeRobot
-  policy adapter；它不属于 RoboTwin 主链，也不构成跨 benchmark 一致性证据。
+- ClickBell 已有第二个 provider-written scene+checker 完整单例：首版因虚构 API 在
+  静态验证处失败；补齐 exact-code retrieval 后，独立一次生成通过 6/6 fixture、
+  render/expert gate，并裁决 official/custom 各 1 个同 seed ACT。它仍因单 seed、
+  单 distractor 几何而 `inconclusive`。本批 online resolver v2 实际以 unsupported
+  结束；之后的 0-provider near-tie/control handoff replay 与 standalone TaskGen/ACT
+  driver 是分开的证据，不是同一 CLI 自动完成的多轮闭环。
+- LIBERO/SmolVLA 由 `mea/libero/` 的独立 adapter/chain 负责，不进入 RoboTwin resolver。
+  当前 checkpoint 未声明训练 task scope；未显式绑定时 fail closed，显式绑定只授权
+  official control，不证明 checkpoint 兼容。plan-only 为 0 rollout；live control 失败
+  时必须停止，不能继续 custom rollout。
 - generated checker 是实验评价语义，必须与 RoboTwin official success 分开报告。
 - N=1–3 的 smoke 只能证明机制跑通，不能声称论文规模的泛化、效率或 ranking。

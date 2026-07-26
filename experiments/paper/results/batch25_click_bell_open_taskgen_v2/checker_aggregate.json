@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "representation": "compact_metric_summary",
+  "status": "passed",
+  "metric": "click_target_without_distractor_success",
+  "value_kind": "boolean",
+  "source_count": 1,
+  "episode_result_count": 1,
+  "unique_episode_count": 1,
+  "valid_count": 1,
+  "missing_count": 0,
+  "invalid_count": 0,
+  "true_count": 1,
+  "false_count": 0,
+  "true_rate": 1.0,
+  "episodes": [
+    {
+      "seed": 100405,
+      "policy_name": "ACT",
+      "value": true,
+      "passed": true,
+      "evidence_steps": [
+        4816
+      ]
+    }
+  ]
+}

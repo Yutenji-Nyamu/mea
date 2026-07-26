@@ -9,11 +9,18 @@ from typing import Any, Mapping
 from mea.taskgen import extract_json_response
 
 from .benchmark import (
-    LiberoBenchmarkAdapter,
     LiberoContractError,
     TaskContract,
+    build_official_task_contract,
     build_task_contract,
     validate_phase1_bddl,
+)
+from .retrieval import (
+    BDDLRetrieval,
+    BDDLTaskIndex,
+    ControlledChangeContract,
+    authorize_controlled_change,
+    smolvla_policy_compatibility,
 )
 
 
@@ -63,10 +70,24 @@ Return strict JSON with exactly:
         proposal_bundle: Mapping[str, Any],
         output_dir: str | Path,
         seed: int,
+        retrieval: BDDLRetrieval,
+        change_contract: ControlledChangeContract,
     ) -> tuple[TaskContract, dict[str, Any]]:
         output = Path(output_dir).expanduser().resolve()
         output.mkdir(parents=True, exist_ok=True)
-        base_path, init_path = LiberoBenchmarkAdapter.official_paths()
+        change_contract.require_authorized()
+        if (
+            change_contract.source_suite != retrieval.selected.suite
+            or change_contract.source_task_id != retrieval.selected.task_id
+            or change_contract.source_problem_name != retrieval.selected.problem_name
+        ):
+            raise LiberoContractError(
+                "controlled-change contract does not bind the retrieved BDDL source"
+            )
+        base_path = Path(retrieval.selected.bddl_path).expanduser().resolve()
+        init_path = Path(retrieval.selected.init_state_path).expanduser().resolve()
+        if not base_path.is_file() or not init_path.is_file():
+            raise LiberoContractError("retrieved BDDL/init-state source is missing")
         base_text = base_path.read_text(encoding="utf-8")
         proposal = proposal_bundle.get("proposal", proposal_bundle)
         perturbation = proposal.get("requested_perturbation")
@@ -151,6 +172,8 @@ Return strict JSON with exactly:
             official_init_state_path=init_path,
             source_query=user_query,
             proposal_artifact=str(proposal_path),
+            suite=retrieval.selected.suite,
+            official_task_id=retrieval.selected.task_id,
         )
         contract_path = output / "task_contract.json"
         contract_path.write_text(
@@ -170,6 +193,8 @@ Return strict JSON with exactly:
             },
             "selected_object": selected_object,
             "planner_taskgen_alignment": True,
+            "retrieval": retrieval.to_dict(),
+            "controlled_change_contract": change_contract.to_dict(),
             "checks": checks,
             "artifacts": {
                 "prompt": str(output / "prompt.md"),
@@ -210,6 +235,35 @@ def run_libero_taskgen_cli(args: Any) -> None:
             "--benchmark libero requires a planner-owned --task-proposal-json"
         )
     proposal: Mapping[str, Any] = json.loads(args.task_proposal_json)
+    source_task = proposal.get("source_task")
+    if not isinstance(source_task, Mapping):
+        raise SystemExit(
+            "checkpoint task scope is unknown; the planner proposal must include "
+            'source_task={"suite":"libero_object","task_id":0}'
+        )
+    official = build_official_task_contract(
+        suite=str(source_task.get("suite", "")),
+        task_id=int(source_task.get("task_id")),
+    )
+    index = BDDLTaskIndex.from_libero_suite(official.suite)
+    official_task = next(
+        item
+        for item in index.tasks
+        if item.task_id == official.official_task_id
+        and item.problem_name == official.problem_name
+    )
+    compatibility = smolvla_policy_compatibility(
+        checkpoint=(
+            getattr(args, "libero_checkpoint", None)
+            or "/root/autodl-tmp/checkpoints/libero/smolvla_libero"
+        ),
+        explicit_task_binding=official_task,
+    )
+    retrieval = index.retrieve_nearest(
+        args.request,
+        compatibility=compatibility,
+    )
+    change_contract = authorize_controlled_change(retrieval, proposal)
     provider = OpenAICompatibleProvider(
         base_url=args.base_url,
         text_model=args.text_model,
@@ -222,5 +276,7 @@ def run_libero_taskgen_cli(args: Any) -> None:
         proposal_bundle=proposal,
         output_dir=output,
         seed=args.seed,
+        retrieval=retrieval,
+        change_contract=change_contract,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
