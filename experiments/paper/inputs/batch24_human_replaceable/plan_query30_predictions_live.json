@@ -1,0 +1,251 @@
+{
+  "schema_version": 1,
+  "protocol": "frozen_annotation_predictions_v1",
+  "packet_id": "batch24_plan_query30_human_replaceable_v1",
+  "label_kind": "plan_sub_aspect",
+  "prediction_source": "mea/validation_runs/query_validation_20260726_proxy30_v1/validation_summary.json",
+  "provider_calls_started_by_packaging": 0,
+  "items": [
+    {
+      "id": "q001",
+      "schema_valid": true,
+      "predicted_sub_aspect_ids": [
+        "object.physics.mass",
+        "object_appearance.color",
+        "object_appearance.material_gloss",
+        "object_appearance.texture",
+        "object_instance",
+        "object_position",
+        "object_scale"
+      ],
+      "provider_error": null
+    },
+    {
+      "id": "q002",
+      "schema_valid": true,
+      "predicted_sub_aspect_ids": [
+        "object_instance",
+        "object_position",
+        "scene_background_texture"
+      ],
+      "provider_error": null
+    },
+    {
+      "id": "q003",
+      "schema_valid": true,
+      "predicted_sub_aspect_ids": [
+        "object_appearance.color"
+      ],
+      "provider_error": null
+    },
+    {
+      "id": "q004",
+      "schema_valid": true,
+      "predicted_sub_aspect_ids": [
+        "object.physics.mass"
+      ],
+      "provider_error": null
+    },
+    {
+      "id": "q005",
+      "schema_valid": true,
+      "predicted_sub_aspect_ids": [
+        "performance.completion_time_stability"
+      ],
+      "provider_error": null
+    },
+    {
+      "id": "q006",
+      "schema_valid": true,
+      "predicted_sub_aspect_ids": [
+        "performance.pickup_to_contact_timing"
+      ],
+      "provider_error": null
+    },
+    {
+      "id": "q007",
+      "schema_valid": true,
+      "predicted_sub_aspect_ids": [
+        "performance.force_overshoot",
+        "performance.peak_impact_force"
+      ],
+      "provider_error": null
+    },
+    {
+      "id": "q008",
+      "schema_valid": true,
+      "predicted_sub_aspect_ids": [
+        "task_execution.official_baseline"
+      ],
+      "provider_error": null
+    },
+    {
+      "id": "q009",
+      "schema_valid": true,
+      "predicted_sub_aspect_ids": [
+        "safety.hammer_left_camera_contact"
+      ],
+      "provider_error": null
+    },
+    {
+      "id": "q010",
+      "schema_valid": true,
+      "predicted_sub_aspect_ids": [
+        "safety.boundary_clearance",
+        "safety.unintended_contact"
+      ],
+      "provider_error": null
+    },
+    {
+      "id": "q011",
+      "schema_valid": true,
+      "predicted_sub_aspect_ids": [
+        "robustness.distractor_avoidance",
+        "safety.unintended_contact"
+      ],
+      "provider_error": null
+    },
+    {
+      "id": "q012",
+      "schema_valid": true,
+      "predicted_sub_aspect_ids": [
+        "safety.unintended_contact",
+        "task_execution.official_baseline"
+      ],
+      "provider_error": null
+    },
+    {
+      "id": "q013",
+      "schema_valid": true,
+      "predicted_sub_aspect_ids": [
+        "robustness.distractor_avoidance"
+      ],
+      "provider_error": null
+    },
+    {
+      "id": "q014",
+      "schema_valid": true,
+      "predicted_sub_aspect_ids": [
+        "robustness.scene_clutter"
+      ],
+      "provider_error": null
+    },
+    {
+      "id": "q015",
+      "schema_valid": true,
+      "predicted_sub_aspect_ids": [
+        "scene_background_texture",
+        "scene_lighting"
+      ],
+      "provider_error": null
+    },
+    {
+      "id": "q016",
+      "schema_valid": true,
+      "predicted_sub_aspect_ids": [
+        "occlusion.target_contact"
+      ],
+      "provider_error": null
+    },
+    {
+      "id": "q017",
+      "schema_valid": false,
+      "predicted_sub_aspect_ids": [],
+      "provider_error": "GlobalRouteError: global route failed twice: ['GlobalRouteError: unsupported_capabilities[0] must contain exactly task_name and aspect_id', \"GlobalRouteError: a partial route must qualify every unsupported capability against its selected task 'beat_block_hammer': [('click_bell', 'conclusion.multi_task_consistency')]\"]"
+    },
+    {
+      "id": "q018",
+      "schema_valid": false,
+      "predicted_sub_aspect_ids": [],
+      "provider_error": "GlobalRouteError: global route failed twice: ['GlobalRouteError: unsupported_capabilities[0] must contain exactly task_name and aspect_id', \"GlobalRouteError: supported task-qualified capabilities cannot be declared unsupported: [('grab_roller', 'task_execution.official_baseline')]\"]"
+    },
+    {
+      "id": "q019",
+      "schema_valid": false,
+      "predicted_sub_aspect_ids": [],
+      "provider_error": "GlobalRouteError: global route failed twice: ['ProviderError: Gateway request failed with HTTP 404: {\"error\":{\"message\":\"Service temporarily unavailable\",\"type\":\"model_not_found\",\"param\":\"\",\"code\":null}}', 'ProviderError: Gateway request failed with HTTP 404: {\"error\":{\"message\":\"Service temporarily unavailable\",\"type\":\"model_not_found\",\"param\":\"\",\"code\":null}}']"
+    },
+    {
+      "id": "q020",
+      "schema_valid": false,
+      "predicted_sub_aspect_ids": [],
+      "provider_error": "GlobalRouteError: global route failed twice: ['GlobalRouteError: unsupported_capabilities[0] must contain exactly task_name and aspect_id', \"GlobalRouteError: a partial route must qualify every unsupported capability against its selected task 'click_bell': [('adjust_bottle', 'conclusion.multi_task_consistency'), ('beat_block_hammer', 'conclusion.multi_task_consistency'), ('grab_roller', 'conclusion.multi_task_consistency')]\"]"
+    },
+    {
+      "id": "q021",
+      "schema_valid": true,
+      "predicted_sub_aspect_ids": [
+        "object_instance",
+        "object_position"
+      ],
+      "provider_error": null
+    },
+    {
+      "id": "q022",
+      "schema_valid": false,
+      "predicted_sub_aspect_ids": [],
+      "provider_error": "GlobalRouteError: global route failed twice: ['ProviderError: Gateway request failed with HTTP 404: {\"error\":{\"message\":\"Service temporarily unavailable\",\"type\":\"model_not_found\",\"param\":\"\",\"code\":null}}', 'ProviderError: Gateway request failed with HTTP 404: {\"error\":{\"message\":\"Service temporarily unavailable\",\"type\":\"model_not_found\",\"param\":\"\",\"code\":null}}']"
+    },
+    {
+      "id": "q023",
+      "schema_valid": true,
+      "predicted_sub_aspect_ids": [
+        "performance.completion_time_stability"
+      ],
+      "provider_error": null
+    },
+    {
+      "id": "q024",
+      "schema_valid": true,
+      "predicted_sub_aspect_ids": [
+        "object_physics.mass",
+        "performance.path_efficiency"
+      ],
+      "provider_error": null
+    },
+    {
+      "id": "q025",
+      "schema_valid": false,
+      "predicted_sub_aspect_ids": [],
+      "provider_error": "GlobalRouteError: global route failed twice: ['GlobalRouteError: unsupported_capabilities[0] must contain exactly task_name and aspect_id', 'ProviderError: Gateway request failed with HTTP 404: {\"error\":{\"message\":\"Service temporarily unavailable\",\"type\":\"model_not_found\",\"param\":\"\",\"code\":null}}']"
+    },
+    {
+      "id": "q026",
+      "schema_valid": false,
+      "predicted_sub_aspect_ids": [],
+      "provider_error": "GlobalRouteError: global route failed twice: ['ProviderError: Gateway request failed with HTTP 404: {\"error\":{\"message\":\"Service temporarily unavailable\",\"type\":\"model_not_found\",\"param\":\"\",\"code\":null}}', 'GlobalRouteError: unsupported_capabilities[0] must contain exactly task_name and aspect_id']"
+    },
+    {
+      "id": "q027",
+      "schema_valid": true,
+      "predicted_sub_aspect_ids": [
+        "robustness.scene_clutter",
+        "scene_lighting"
+      ],
+      "provider_error": null
+    },
+    {
+      "id": "q028",
+      "schema_valid": true,
+      "predicted_sub_aspect_ids": [
+        "camera_viewpoint"
+      ],
+      "provider_error": null
+    },
+    {
+      "id": "q029",
+      "schema_valid": true,
+      "predicted_sub_aspect_ids": [
+        "conclusion.multi_task_consistency",
+        "task_execution.official_baseline"
+      ],
+      "provider_error": null
+    },
+    {
+      "id": "q030",
+      "schema_valid": false,
+      "predicted_sub_aspect_ids": [],
+      "provider_error": "GlobalRouteError: global route failed twice: ['GlobalRouteError: unsupported_capabilities[0] must contain exactly task_name and aspect_id', \"GlobalRouteError: a partial route must qualify every unsupported capability against its selected task 'beat_block_hammer': [('click_bell', 'conclusion.multi_task_consistency')]\"]"
+    }
+  ]
+}

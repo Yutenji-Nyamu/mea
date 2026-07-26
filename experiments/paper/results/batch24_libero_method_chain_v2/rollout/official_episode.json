@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "benchmark": "libero",
+  "policy_name": "smolvla",
+  "checkpoint": "/root/autodl-tmp/checkpoints/libero/smolvla_libero",
+  "suite": "libero_object",
+  "task_id": "libero_object/task0/official",
+  "seed": 100800,
+  "horizon_steps": 100,
+  "executed_steps": 100,
+  "success": false,
+  "reward_sum": 0.0,
+  "goal_predicate_satisfied": false,
+  "elapsed_seconds": 15.477,
+  "bddl_path": "/root/autodl-tmp/envs/mea-libero/lib/python3.12/site-packages/libero/libero/bddl_files/libero_object/pick_up_the_alphabet_soup_and_place_it_in_the_basket.bddl",
+  "video_path": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_01_official/episode/episode.mp4",
+  "task_contract_path": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_01_official/task_contract.json",
+  "actions_path": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_01_official/episode/actions.npy",
+  "provenance": {
+    "round": 1,
+    "route": "official_control",
+    "stock_task_ids": true,
+    "horizon_steps": 100
+  }
+}

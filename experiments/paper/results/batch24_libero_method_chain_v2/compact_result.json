@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "status": "completed_with_protocol_violation",
+  "benchmark": "libero",
+  "policy": "smolvla",
+  "query": "How robust is SmolVLA to task-relevant object identity changes in LIBERO, and where does it first fail?",
+  "conclusion": "Pipeline invalid for claim evidence: the unchanged 100-step control failed and Planner/TaskGen perturbations were misaligned.",
+  "rollouts_executed": 2,
+  "rollout_budget": 2,
+  "horizon_steps_each": 100,
+  "seed": 100800,
+  "official_success": false,
+  "custom_success": false,
+  "custom_goal_object": "salad_dressing_1",
+  "provider_written_bddl": true,
+  "custom_env_route": "OffScreenRenderEnv via explicit custom factory",
+  "stock_task_id_faked_for_custom": false,
+  "tool_live_value": false,
+  "tool_artifact_kind": "deterministic_predicate_metric_adapter",
+  "model_generated_tool": false,
+  "tool_exact_reuse": true,
+  "reuse_additional_rollouts": 0,
+  "aggregate_status": "passed",
+  "planner_final_action": "continue",
+  "query_contract_sufficient": false,
+  "query_sufficiency": {
+    "evidence_sufficient": false,
+    "should_stop": true,
+    "stop_reason": "control_baseline_failed",
+    "claim_verdict": "The unchanged 100-step control failed; the custom outcome cannot be attributed to object identity.",
+    "observed_candidate_ids": [
+      "official_control",
+      "generated_goal:salad_dressing_1"
+    ],
+    "untested_candidate_ids": [
+      "butter_1",
+      "cream_cheese_1",
+      "milk_1",
+      "tomato_sauce_1"
+    ],
+    "conflict_candidate_ids": []
+  },
+  "answer_scope": {
+    "schema_version": 1,
+    "sample_count": 2,
+    "seeds": [
+      100800
+    ],
+    "tested_candidate_ids": [
+      "official_control",
+      "generated_goal:salad_dressing_1"
+    ],
+    "untested_candidate_ids": [
+      "butter_1",
+      "cream_cheese_1",
+      "milk_1",
+      "tomato_sauce_1"
+    ],
+    "unsupported_capabilities": [],
+    "evidence_conflict": false,
+    "termination": "pipeline_invalid",
+    "claim_verdict": null,
+    "required_limitations": [
+      {
+        "code": "sample_count_and_seeds",
+        "text": "Evidence contains N=2 policy episodes at seeds [100800]."
+      },
+      {
+        "code": "untested_candidates",
+        "text": "Untested candidates remain: ['butter_1', 'cream_cheese_1', 'milk_1', 'tomato_sauce_1']."
+      },
+      {
+        "code": "termination_pipeline_invalid",
+        "text": "The evaluation pipeline is invalid, so it cannot support a policy performance conclusion."
+      }
+    ]
+  },
+  "elapsed_seconds": 74.3,
+  "raw_run_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2",
+  "artifacts": {
+    "gate0": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/gate0.json",
+    "official_episode": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_01_official/episode/episode.json",
+    "planner_after_control": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/planner/after_control/proposal_bundle.json",
+    "generated_bddl": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/taskgen/generated_task.bddl",
+    "custom_task_contract": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/taskgen/task_contract.json",
+    "custom_first_frame": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/gate/first_frame.png",
+    "custom_episode": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode/episode.json",
+    "toolgen": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/tool/toolgen_result.json",
+    "aggregate": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/aggregate/aggregate_result.json",
+    "reuse": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/reuse_query/tool_reuse_result.json",
+    "evidence_packet": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/evidence_packet.json",
+    "answer_scope": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/answer_scope.json",
+    "protocol_audit": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/protocol_audit.json"
+  },
+  "scientific_evidence_eligible": false,
+  "planner_taskgen_alignment": false
+}

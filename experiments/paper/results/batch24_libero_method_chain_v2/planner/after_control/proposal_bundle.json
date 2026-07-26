@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "source": "provider_claim_first_open_query",
+  "input_digest": "cfb89ef1968ee0080879d8b8aca57372ca082db7c392585cbf455c5ffef72b07",
+  "proposal": {
+    "schema_version": 1,
+    "action": "continue",
+    "sub_aspect": "object_identity.goal_language_dependency",
+    "hypothesis": "SmolVLA's failure in the official control task is due to a dependency on the specific language phrasing of the goal.",
+    "requested_perturbation": {
+      "description": "Modify the goal language while preserving its semantic meaning.",
+      "controlled_changes": [
+        "language"
+      ],
+      "preserve": [
+        "task identity",
+        "policy checkpoint"
+      ]
+    },
+    "task_need": {
+      "required": true,
+      "description": "TaskGen must edit the goal language in the BDDL while ensuring the task remains semantically identical."
+    },
+    "tool_need": {
+      "required": true,
+      "description": "ToolGen must retrieve the success metric for the modified task execution.",
+      "reuse_first": true
+    },
+    "rationale": "The failure in the official control task suggests a potential issue with SmolVLA's ability to generalize to variations in task representation. Testing a language modification isolates whether the policy is overly reliant on specific goal phrasing, which is a critical sub-aspect of robustness to object identity changes."
+  },
+  "provider": {
+    "model_requested": "gpt-4o-2024-11-20",
+    "called": true,
+    "attempt_count": 1,
+    "errors": [],
+    "last_metadata": {
+      "id": "chatcmpl-E5oYCjCjrhKHq4t3Af7wIM35aVICB",
+      "model": "gpt-4o-2024-11-20",
+      "finish_reason": "stop",
+      "usage": {
+        "completion_tokens": 265,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": 0
+        },
+        "latency_checkpoint": {
+          "engine_tbt_ms": 8,
+          "engine_ttft_ms": 81,
+          "engine_ttlt_ms": 2146,
+          "pre_inference_ms": 114,
+          "service_tbt_ms": 8,
+          "service_ttft_ms": 412,
+          "service_ttlt_ms": 2446,
+          "total_duration_ms": 2341,
+          "user_visible_ttft_ms": 298
+        },
+        "prompt_tokens": 944,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0
+        },
+        "total_tokens": 1209
+      },
+      "retry_count": 0
+    }
+  }
+}

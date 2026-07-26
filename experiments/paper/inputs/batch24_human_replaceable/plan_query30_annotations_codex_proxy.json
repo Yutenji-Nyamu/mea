@@ -1,0 +1,208 @@
+{
+  "schema_version": 1,
+  "protocol": "human_replaceable_annotations_v1",
+  "packet_id": "batch24_plan_query30_human_replaceable_v1",
+  "label_kind": "plan_sub_aspect",
+  "annotation_set_id": "batch24_plan_query30_codex_development_agent_proxy_v1",
+  "annotation_source": "codex_development_agent_proxy",
+  "human_reviewer_count": 0,
+  "paper_eligible": false,
+  "raters": [
+    {
+      "rater_id": "codex_development_agent_proxy",
+      "kind": "development_agent_proxy",
+      "role": "proxy",
+      "labels": [
+        {
+          "id": "q001",
+          "value": [
+            "object_appearance.color",
+            "object_position",
+            "object_scale"
+          ]
+        },
+        {
+          "id": "q002",
+          "value": [
+            "object_position",
+            "object_instance",
+            "scene_background_texture",
+            "scene_lighting"
+          ]
+        },
+        {
+          "id": "q003",
+          "value": [
+            "object_appearance.color"
+          ]
+        },
+        {
+          "id": "q004",
+          "value": [
+            "object_physics.mass"
+          ]
+        },
+        {
+          "id": "q005",
+          "value": [
+            "performance.completion_time_stability"
+          ]
+        },
+        {
+          "id": "q006",
+          "value": [
+            "performance.pickup_to_contact_timing"
+          ]
+        },
+        {
+          "id": "q007",
+          "value": [
+            "performance.contact_force_overshoot"
+          ]
+        },
+        {
+          "id": "q008",
+          "value": [
+            "task_execution.official_baseline"
+          ]
+        },
+        {
+          "id": "q009",
+          "value": [
+            "safety.hammer_left_camera_contact"
+          ]
+        },
+        {
+          "id": "q010",
+          "value": [
+            "safety.minimum_clearance"
+          ]
+        },
+        {
+          "id": "q011",
+          "value": [
+            "safety.unintended_object_contact"
+          ]
+        },
+        {
+          "id": "q012",
+          "value": [
+            "safety.dual_arm_self_collision"
+          ]
+        },
+        {
+          "id": "q013",
+          "value": [
+            "robustness.distractor_avoidance"
+          ]
+        },
+        {
+          "id": "q014",
+          "value": [
+            "robustness.scene_clutter"
+          ]
+        },
+        {
+          "id": "q015",
+          "value": [
+            "scene_background_texture",
+            "scene_lighting"
+          ]
+        },
+        {
+          "id": "q016",
+          "value": [
+            "robustness.partial_occlusion"
+          ]
+        },
+        {
+          "id": "q017",
+          "value": [
+            "multi_task.cross_task_comparison"
+          ]
+        },
+        {
+          "id": "q018",
+          "value": [
+            "multi_task.official_baseline_comparison"
+          ]
+        },
+        {
+          "id": "q019",
+          "value": [
+            "language.instruction_paraphrase"
+          ]
+        },
+        {
+          "id": "q020",
+          "value": [
+            "multi_task.worst_case_search"
+          ]
+        },
+        {
+          "id": "q021",
+          "value": [
+            "object_instance",
+            "object_position"
+          ]
+        },
+        {
+          "id": "q022",
+          "value": [
+            "object_appearance.material_gloss"
+          ]
+        },
+        {
+          "id": "q023",
+          "value": [
+            "performance.completion_time_stability"
+          ]
+        },
+        {
+          "id": "q024",
+          "value": [
+            "performance.energy_efficiency"
+          ]
+        },
+        {
+          "id": "q025",
+          "value": [
+            "safety.hammer_left_camera_contact"
+          ]
+        },
+        {
+          "id": "q026",
+          "value": [
+            "safety.end_effector_speed_limit"
+          ]
+        },
+        {
+          "id": "q027",
+          "value": [
+            "robustness.scene_clutter",
+            "scene_lighting"
+          ]
+        },
+        {
+          "id": "q028",
+          "value": [
+            "robustness.camera_viewpoint_shift"
+          ]
+        },
+        {
+          "id": "q029",
+          "value": [
+            "multi_task.average_success_comparison"
+          ]
+        },
+        {
+          "id": "q030",
+          "value": [
+            "multi_task.shared_failure_axis"
+          ]
+        }
+      ]
+    }
+  ],
+  "proxy_basis": "One Codex development-agent taxonomy review; temporary reference only."
+}

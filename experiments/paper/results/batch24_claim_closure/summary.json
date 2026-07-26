@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "batch_id": "batch24_claim_closure",
+  "status": "completed_mixed_restricted_evidence",
+  "paper_eligible": false,
+  "results": {
+    "three_seed_restricted_efficiency_toy": {
+      "path": "experiments/paper/results/batch24_click_bell_conclusion_fidelity_n3.json",
+      "sha256": "eece196f25ebf77a5b836ad79186f5fe14665d1f83817f4a1802d945d290550b",
+      "status": "positive_for_preregistered_universal_and_paired_axis_metrics",
+      "headline": {
+        "seed_count": 3,
+        "universal_conclusion_agreement": "3/3",
+        "paired_weak_axis_agreement": "3/3",
+        "full_failure_candidate_set_agreement": "2/3",
+        "fixed_act_episode_starts": 12,
+        "adaptive_act_episode_starts": 6,
+        "act_saving_fraction": 0.5,
+        "wall_saving_fraction": 0.467628081385,
+        "policy_step_saving_fraction": 0.431561996779388
+      },
+      "claim_boundary": "Restricted one-task N=1-per-candidate toy; not Tables 1-2."
+    },
+    "table3_unseen5": {
+      "path": "experiments/paper/results/batch24_table3_scene_checker_unseen5_v1.json",
+      "sha256": "1357ac5c5f3589f68e3bb3880e847bc3562d8cc484e1ba82bd7507683d68865d",
+      "status": "completed_mixed_micro_ablation",
+      "headline": {
+        "proposal_count": 5,
+        "generation_cell_count": 25,
+        "complete_pass_rate": 0.8,
+        "no_rag_pass_rate": 0.0,
+        "no_visual_self_check_pass_rate": 0.6,
+        "no_readme_agent_pass_rate": 1.0,
+        "act_rollouts": 0,
+        "human_reviewer_count": 0
+      },
+      "claim_boundary": "Directional RAG signal only; visual/README gains are not established."
+    },
+    "libero_method_chain": {
+      "path": "experiments/paper/results/batch24_libero_method_chain_v2/compact_result.json",
+      "sha256": "155cb44bb71d13ef16329298e870e5743ed0bc54b389640d265ee4be1cf1aa67",
+      "protocol_audit": "experiments/paper/results/batch24_libero_method_chain_v2/evidence/protocol_audit.json",
+      "status": "protocol_invalid_fail_closed",
+      "headline": {
+        "rollouts_executed": 2,
+        "horizon_steps_each": 100,
+        "official_success": false,
+        "custom_success": false,
+        "component_mechanism_status": "passed",
+        "planner_taskgen_alignment": false,
+        "query_contract_sufficient": false,
+        "answer_termination": "pipeline_invalid",
+        "scientific_evidence_eligible": false,
+        "tool_artifact_kind": "deterministic_predicate_metric_adapter",
+        "tool_live_value": false,
+        "tool_exact_reuse": true,
+        "reuse_additional_rollouts": 0,
+        "model_generated_tool": false
+      },
+      "claim_boundary": "The deterministic predicate adapter is a bounded compiler/reuse mechanism, not a model-generated Tool; control failure and unauthorized goal-object change prohibit a SmolVLA robustness conclusion."
+    },
+    "plan_vqa_human_replaceable_proxy": {
+      "path": "experiments/paper/results/batch24_human_replaceable/summary.json",
+      "sha256": "6eca1486a29e0af6deee0dc516b81fd5342e99da99c2c061f443cbd14a787d21",
+      "status": "completed_with_plan_provider_budget_deviation",
+      "headline": {
+        "human_reviewer_count": 0,
+        "plan_query_count": 30,
+        "plan_table6_sub_aspect_precision": 0.5128205128205128,
+        "plan_micro_f1": 0.5194805194805194,
+        "plan_exact_set_accuracy": 0.36666666666666664,
+        "plan_query_invocations": 30,
+        "plan_provider_attempts": 50,
+        "plan_recorded_responses": 42,
+        "vqa_cached_clip_count": 8,
+        "vqa_accuracy": 0.875,
+        "vqa_auroc": 1.0,
+        "new_vqa_provider_calls": 0
+      },
+      "claim_boundary": "Codex/numeric proxy labels only; humans later replace annotation JSON without changing samples or predictions."
+    }
+  },
+  "batch_bottom_line": [
+    "The three-seed efficiency result is positive only for its restricted preregistered conclusion and paired-axis metrics; it misses dense failure candidates in one seed.",
+    "The unseen-five TaskGen ablation supports a bounded RAG direction but does not establish all Table 3 component gains.",
+    "The LIBERO run demonstrates component execution while correctly rejecting scientific interpretation.",
+    "Plan and VQA now have human-replaceable annotation entry points, but human_count remains zero."
+  ]
+}

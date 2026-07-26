@@ -3,6 +3,7 @@ import unittest
 from mea.query_dataset import summarize_query_dataset
 from mea.query_planner_validation import (
     aggregate_live_query_cases,
+    aggregate_sub_aspect_predictions,
     score_live_query_case,
     validate_capability_snapshot,
     validate_live_query_budget,
@@ -38,6 +39,10 @@ def dataset():
     return {
         "schema_version": 1,
         "dataset_id": "proxy",
+        "dataset_contract": {
+            "minimum_case_count": 20,
+            "required_paper_categories": ["generalization"],
+        },
         "annotation_status": "development_agent_proxy_reviewed",
         "annotation_protocol": {
             "role": "development_agent_proxy",
@@ -51,6 +56,32 @@ def dataset():
 
 
 class QueryPlannerValidationTests(unittest.TestCase):
+    def test_shared_sub_aspect_aggregation_preserves_table6_metrics(self):
+        rows = [
+            {
+                "paper_category": "safety",
+                "true_positive": 1,
+                "false_positive": 0,
+                "false_negative": 0,
+                "aspect_exact_set_match": True,
+            },
+            {
+                "paper_category": "safety",
+                "true_positive": 0,
+                "false_positive": 1,
+                "false_negative": 1,
+                "aspect_exact_set_match": False,
+            },
+        ]
+        result = aggregate_sub_aspect_predictions(rows)
+        self.assertEqual(result["aspect_micro_precision"], 0.5)
+        self.assertEqual(result["aspect_micro_recall"], 0.5)
+        self.assertEqual(result["aspect_exact_set_accuracy"], 0.5)
+        self.assertEqual(
+            result["by_paper_category"]["safety"]["sub_aspect_precision"],
+            0.5,
+        )
+
     def test_budget_is_agile_and_requires_proxy_review(self):
         self.assertEqual(
             summarize_query_dataset(dataset())["paper_category_counts"],
@@ -75,6 +106,24 @@ class QueryPlannerValidationTests(unittest.TestCase):
             }
         with self.assertRaisesRegex(ValueError, "proxy labels"):
             validate_live_query_budget(value, 1)
+
+    def test_thirty_case_full_budget_is_accepted(self):
+        value = dataset()
+        value["cases"].extend(case(index) for index in range(21, 31))
+        selected = validate_live_query_budget(value, 30)
+        self.assertEqual(len(selected), 30)
+        self.assertEqual({item["id"] for item in selected}, {
+            f"q{index:03d}" for index in range(1, 31)
+        })
+
+    def test_declared_taxonomy_coverage_is_enforced(self):
+        value = dataset()
+        value["dataset_contract"]["required_paper_categories"] = [
+            "generalization",
+            "safety",
+        ]
+        with self.assertRaisesRegex(ValueError, "misses required"):
+            validate_live_query_budget(value, 20)
 
     def test_capability_snapshot_prevents_silent_catalog_drift(self):
         selected = [case(1)]

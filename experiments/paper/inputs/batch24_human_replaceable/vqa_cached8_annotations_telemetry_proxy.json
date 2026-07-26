@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "protocol": "human_replaceable_annotations_v1",
+  "packet_id": "batch24_vqa_cached8_human_replaceable_v1",
+  "label_kind": "vqa_binary",
+  "annotation_set_id": "batch24_vqa_cached8_numeric_telemetry_proxy_v1",
+  "annotation_source": "codex_development_agent_proxy",
+  "human_reviewer_count": 0,
+  "paper_eligible": false,
+  "raters": [
+    {
+      "rater_id": "codex_development_agent_proxy",
+      "kind": "development_agent_proxy",
+      "role": "proxy",
+      "labels": [
+        {
+          "id": "vqa_item_001",
+          "value": false,
+          "source_row_id": "batch23_v3_contact_negative:clean"
+        },
+        {
+          "id": "vqa_item_002",
+          "value": true,
+          "source_row_id": "batch23_v4_no_contact_positive:clean"
+        },
+        {
+          "id": "vqa_item_003",
+          "value": false,
+          "source_row_id": "batch23_v3_contact_negative:scene_clutter_image_proxy"
+        },
+        {
+          "id": "vqa_item_004",
+          "value": true,
+          "source_row_id": "batch23_v4_no_contact_positive:scene_clutter_image_proxy"
+        },
+        {
+          "id": "vqa_item_005",
+          "value": false,
+          "source_row_id": "batch23_v3_contact_negative:background_texture_image_proxy"
+        },
+        {
+          "id": "vqa_item_006",
+          "value": true,
+          "source_row_id": "batch23_v4_no_contact_positive:background_texture_image_proxy"
+        },
+        {
+          "id": "vqa_item_007",
+          "value": false,
+          "source_row_id": "batch23_v3_contact_negative:lighting_image_proxy"
+        },
+        {
+          "id": "vqa_item_008",
+          "value": true,
+          "source_row_id": "batch23_v4_no_contact_positive:lighting_image_proxy"
+        }
+      ]
+    }
+  ],
+  "proxy_basis": {
+    "source": "cached_numeric_telemetry",
+    "negative_rule": "hammer_left_camera_contact_count == 1",
+    "positive_rule": "hammer_left_camera_contact_count == 0",
+    "negative_source_ref": "mea/evaluation_runs/eval_20260724_batch21_semantic_needs_live_n1_v3/execution/round_1/execution_vqa/execution_vqa.json",
+    "positive_source_ref": "mea/evaluation_runs/eval_20260724_batch21_semantic_needs_live_n1_v4/execution/round_1/execution_vqa/execution_vqa.json"
+  }
+}

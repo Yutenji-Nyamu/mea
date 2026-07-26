@@ -1,0 +1,211 @@
+{
+  "schema_version": 1,
+  "proposal_set_id": "batch24_bbh_unseen5_v1",
+  "proposals": [
+    {
+      "proposal_id": "u03_bbh_teal_distractor_diagonal",
+      "task_name": "beat_block_hammer",
+      "prompt": "Generate a teal target block and a bounded teal look-alike distractor at diagonal offset (0.08, 0.06) m; success must reject every distractor contact.",
+      "changes": {
+        "distractor": {
+          "scene": {
+            "target_name": "box",
+            "distractor_name": "distractor_box",
+            "target_color": [
+              0.0,
+              0.6,
+              0.6
+            ],
+            "distractor_color": [
+              0.05,
+              0.5,
+              0.55
+            ],
+            "half_size_m": [
+              0.025,
+              0.025,
+              0.025
+            ],
+            "distractor_offset_xy_m": [
+              0.08,
+              0.06
+            ]
+          },
+          "success": {
+            "target_alignment_thresholds_m": [
+              0.025,
+              0.025
+            ],
+            "require_target_contact": true,
+            "forbid_distractor_contact": true,
+            "latch_distractor_contact": true
+          }
+        }
+      }
+    },
+    {
+      "proposal_id": "u04_bbh_yellow_distractor_negative_diagonal",
+      "task_name": "beat_block_hammer",
+      "prompt": "Generate a yellow target block and a bounded yellow look-alike distractor at diagonal offset (-0.08, 0.06) m; success must reject every distractor contact.",
+      "changes": {
+        "distractor": {
+          "scene": {
+            "target_name": "box",
+            "distractor_name": "distractor_box",
+            "target_color": [
+              0.9,
+              0.75,
+              0.1
+            ],
+            "distractor_color": [
+              0.78,
+              0.65,
+              0.12
+            ],
+            "half_size_m": [
+              0.025,
+              0.025,
+              0.025
+            ],
+            "distractor_offset_xy_m": [
+              -0.08,
+              0.06
+            ]
+          },
+          "success": {
+            "target_alignment_thresholds_m": [
+              0.025,
+              0.025
+            ],
+            "require_target_contact": true,
+            "forbid_distractor_contact": true,
+            "latch_distractor_contact": true
+          }
+        }
+      }
+    },
+    {
+      "proposal_id": "u05_bbh_magenta_distractor_near_negative_x",
+      "task_name": "beat_block_hammer",
+      "prompt": "Generate a magenta target block and a bounded magenta look-alike distractor 0.085 m away on negative x; success must reject every distractor contact.",
+      "changes": {
+        "distractor": {
+          "scene": {
+            "target_name": "box",
+            "distractor_name": "distractor_box",
+            "target_color": [
+              0.75,
+              0.1,
+              0.65
+            ],
+            "distractor_color": [
+              0.62,
+              0.12,
+              0.55
+            ],
+            "half_size_m": [
+              0.025,
+              0.025,
+              0.025
+            ],
+            "distractor_offset_xy_m": [
+              -0.085,
+              0.0
+            ]
+          },
+          "success": {
+            "target_alignment_thresholds_m": [
+              0.025,
+              0.025
+            ],
+            "require_target_contact": true,
+            "forbid_distractor_contact": true,
+            "latch_distractor_contact": true
+          }
+        }
+      }
+    },
+    {
+      "proposal_id": "u06_bbh_gray_distractor_far_negative_y_strict",
+      "task_name": "beat_block_hammer",
+      "prompt": "Generate a gray target block and a bounded gray look-alike distractor 0.135 m away on negative y; require strict 0.015 m XY alignment, target contact, and no distractor contact.",
+      "changes": {
+        "distractor": {
+          "scene": {
+            "target_name": "box",
+            "distractor_name": "distractor_box",
+            "target_color": [
+              0.5,
+              0.5,
+              0.5
+            ],
+            "distractor_color": [
+              0.38,
+              0.4,
+              0.42
+            ],
+            "half_size_m": [
+              0.025,
+              0.025,
+              0.025
+            ],
+            "distractor_offset_xy_m": [
+              0.0,
+              -0.135
+            ]
+          },
+          "success": {
+            "target_alignment_thresholds_m": [
+              0.015,
+              0.015
+            ],
+            "require_target_contact": true,
+            "forbid_distractor_contact": true,
+            "latch_distractor_contact": true
+          }
+        }
+      }
+    },
+    {
+      "proposal_id": "u07_bbh_orange_distractor_asymmetric_tolerance",
+      "task_name": "beat_block_hammer",
+      "prompt": "Generate an orange target block and a bounded orange look-alike distractor at offset (0.096, -0.072) m; require asymmetric 0.018 m x and 0.030 m y alignment, target contact, and no distractor contact.",
+      "changes": {
+        "distractor": {
+          "scene": {
+            "target_name": "box",
+            "distractor_name": "distractor_box",
+            "target_color": [
+              0.95,
+              0.45,
+              0.05
+            ],
+            "distractor_color": [
+              0.82,
+              0.4,
+              0.08
+            ],
+            "half_size_m": [
+              0.025,
+              0.025,
+              0.025
+            ],
+            "distractor_offset_xy_m": [
+              0.096,
+              -0.072
+            ]
+          },
+          "success": {
+            "target_alignment_thresholds_m": [
+              0.018,
+              0.03
+            ],
+            "require_target_contact": true,
+            "forbid_distractor_contact": true,
+            "latch_distractor_contact": true
+          }
+        }
+      }
+    }
+  ]
+}

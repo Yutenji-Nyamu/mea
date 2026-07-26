@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "evaluation_id": "eval_batch24_libero_method_chain_live_v2",
+  "benchmark": "libero_object",
+  "policy": "smolvla",
+  "seed": 100800,
+  "horizon_steps_each": 100,
+  "rollouts": 2,
+  "official_success": false,
+  "custom_success": false,
+  "scientific_evidence_eligible": false,
+  "query_contract_sufficient": false,
+  "tool_artifact_kind": "deterministic_predicate_metric_adapter",
+  "model_generated_tool": false,
+  "component_mechanism_status": "passed",
+  "protocol_status": "pipeline_invalid",
+  "reason": "Official control failed and the Planner language-only request did not align with TaskGen's generated goal-object change.",
+  "artifact_groups": {
+    "planner": "planner/",
+    "taskgen": "taskgen/",
+    "render": "render/",
+    "rollout": "rollout/",
+    "tool": "tool/",
+    "evidence": "evidence/"
+  }
+}

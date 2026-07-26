@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "generation": {
+    "source": "provider_written_bddl",
+    "model_requested": "gpt-4o-2024-11-20",
+    "attempt_count": 1,
+    "repair_count": 0,
+    "provider_metadata": {
+      "id": "chatcmpl-E5oYIpS2MGvfbnxAcepQz2jlDUvSq",
+      "model": "gpt-4o-2024-11-20",
+      "finish_reason": "stop",
+      "usage": {
+        "completion_tokens": 764,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": 0
+        },
+        "latency_checkpoint": {
+          "engine_tbt_ms": 5,
+          "engine_ttft_ms": 76,
+          "engine_ttlt_ms": 3554,
+          "pre_inference_ms": 94,
+          "service_tbt_ms": 5,
+          "service_ttft_ms": 465,
+          "service_ttlt_ms": 3897,
+          "total_duration_ms": 3810,
+          "user_visible_ttft_ms": 371
+        },
+        "prompt_tokens": 1099,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0
+        },
+        "total_tokens": 1863
+      },
+      "retry_count": 0
+    }
+  },
+  "selected_object": "salad_dressing_1",
+  "checks": {
+    "problem_class_registered": true,
+    "same_problem_name": true,
+    "same_fixtures": true,
+    "same_regions": true,
+    "same_objects": true,
+    "same_initial_state": true,
+    "language_changed": true,
+    "goal_changed": true,
+    "single_in_goal": true,
+    "interest_matches_goal": true
+  },
+  "artifacts": {
+    "prompt": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/taskgen/prompt.md",
+    "responses": [
+      "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/taskgen/response_attempt_1.txt"
+    ],
+    "bddl": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/taskgen/generated_task.bddl",
+    "task_contract": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/taskgen/task_contract.json",
+    "planner_proposal": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/taskgen/planner_proposal.json"
+  }
+}

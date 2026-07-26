@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "source_query": "Using the already validated observable, did the generated LIBERO goal predicate succeed?",
+  "route": "exact_registry_reuse",
+  "additional_rollouts": 0,
+  "registration": {
+    "registration_id": "runlocal_fc1864bc8fd7c95aceac",
+    "scope": "run_local",
+    "status": "validated",
+    "tool_id": "libero_goal_predicate_tool",
+    "version": 1,
+    "target_metric": "libero_goal_predicate_satisfied",
+    "contract_sha256": "be4f852a465f875d9b5a9d76e87a22915623cb9ee5d7865a70b16a875e581eb1",
+    "telemetry_schema_sha256": "b8ea1d6570bd52c74ea00b49dae56a16a4e2a68bc5a1061ba6a142a70afa381c",
+    "code_sha256": "d4757961704fec8ef4667c1d8b3d7bd9cad04eafd85da3f7bbb0844e9a9d283d",
+    "promotion": {
+      "current_scope": "run_local",
+      "candidate": {
+        "status": "not_requested"
+      },
+      "trusted": {
+        "status": "not_requested"
+      }
+    }
+  },
+  "live_value_non_null": true,
+  "tool_execution": {
+    "schema_version": 1,
+    "status": "passed",
+    "tool_request": {
+      "metric": "libero_goal_predicate_satisfied"
+    },
+    "tool_spec": {
+      "schema_version": 1,
+      "task_name": "libero_object/task0/mea_custom",
+      "tool_id": "libero_goal_predicate_tool",
+      "metric": "libero_goal_predicate_satisfied",
+      "question": "Was the generated LIBERO goal predicate satisfied by the live rollout?",
+      "metric_spec": {
+        "operator": "episode_boolean_field",
+        "field": "goal_predicate_satisfied",
+        "goal_predicates": [
+          [
+            "in",
+            "salad_dressing_1",
+            "basket_1_contain_region"
+          ]
+        ]
+      },
+      "required_signals": [
+        "goal_predicate_satisfied",
+        "executed_steps"
+      ],
+      "output": {
+        "kind": "boolean",
+        "unit": null
+      }
+    },
+    "route_decision": {
+      "metric": "libero_goal_predicate_satisfied",
+      "route": "exact_registry_reuse",
+      "registration": {
+        "registration_id": "runlocal_fc1864bc8fd7c95aceac",
+        "scope": "run_local",
+        "status": "validated",
+        "tool_id": "libero_goal_predicate_tool",
+        "version": 1,
+        "target_metric": "libero_goal_predicate_satisfied",
+        "contract_sha256": "be4f852a465f875d9b5a9d76e87a22915623cb9ee5d7865a70b16a875e581eb1",
+        "telemetry_schema_sha256": "b8ea1d6570bd52c74ea00b49dae56a16a4e2a68bc5a1061ba6a142a70afa381c",
+        "code_sha256": "d4757961704fec8ef4667c1d8b3d7bd9cad04eafd85da3f7bbb0844e9a9d283d",
+        "promotion": {
+          "current_scope": "run_local",
+          "candidate": {
+            "status": "not_requested"
+          },
+          "trusted": {
+            "status": "not_requested"
+          }
+        }
+      }
+    },
+    "episodes": [
+      {
+        "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+        "seed": 100800,
+        "policy_name": "smolvla",
+        "role": "policy_under_evaluation",
+        "variant": "libero_object/task0/mea_custom",
+        "result": {
+          "tool": "libero_goal_predicate_tool",
+          "value": false,
+          "unit": null,
+          "passed": false,
+          "evidence_steps": [
+            99
+          ],
+          "details": {
+            "predicate": [
+              [
+                "in",
+                "salad_dressing_1",
+                "basket_1_contain_region"
+              ]
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

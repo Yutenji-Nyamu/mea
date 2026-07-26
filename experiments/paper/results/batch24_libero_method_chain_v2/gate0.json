@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "checks": {
+    "all_required_files_present": true,
+    "official_problem_registered": true,
+    "explicit_horizon_100": true,
+    "relative_control": true,
+    "uiui_key_process_only_present": true
+  },
+  "checkpoint": {
+    "path": "/root/autodl-tmp/checkpoints/libero/smolvla_libero",
+    "model_sha256": "71d9563c8295284acba8fc2d5c19de000d6fe9ba58a406832af7ef3d221ed52f"
+  },
+  "official_task_contract": {
+    "schema_version": 1,
+    "benchmark": "libero",
+    "suite": "libero_object",
+    "official_task_id": 0,
+    "bddl_path": "/root/autodl-tmp/envs/mea-libero/lib/python3.12/site-packages/libero/libero/bddl_files/libero_object/pick_up_the_alphabet_soup_and_place_it_in_the_basket.bddl",
+    "bddl_sha256": "df088984da13131f8332ee0f13a7896c6a97afd02ee5007a42e8fc5e0893571e",
+    "problem_name": "libero_floor_manipulation",
+    "domain": "robosuite",
+    "language": "pick the alphabet soup and place it in the basket",
+    "objects": {
+      "alphabet_soup": [
+        "alphabet_soup_1"
+      ],
+      "basket": [
+        "basket_1"
+      ],
+      "salad_dressing": [
+        "salad_dressing_1"
+      ],
+      "cream_cheese": [
+        "cream_cheese_1"
+      ],
+      "milk": [
+        "milk_1"
+      ],
+      "tomato_sauce": [
+        "tomato_sauce_1"
+      ],
+      "butter": [
+        "butter_1"
+      ]
+    },
+    "regions": [
+      "basket_1_contain_region",
+      "floor_bin_region",
+      "floor_other_object_region_0",
+      "floor_other_object_region_1",
+      "floor_other_object_region_2",
+      "floor_other_object_region_3",
+      "floor_other_object_region_4",
+      "floor_target_object_region"
+    ],
+    "initial_state_sha256": "42a727fc611cb7e98879a82b5a85ecac1efa252e14ca50b9c6d9df190c384c85",
+    "goal_predicates": [
+      [
+        "in",
+        "alphabet_soup_1",
+        "basket_1_contain_region"
+      ]
+    ],
+    "python_problem_impl": "libero.libero.envs.problems.libero_floor_manipulation.Libero_Floor_Manipulation",
+    "initial_state_source": "/root/autodl-tmp/envs/mea-libero/lib/python3.12/site-packages/libero/libero/init_files/libero_object/pick_up_the_alphabet_soup_and_place_it_in_the_basket.pruned_init",
+    "control_mode": "relative",
+    "horizon_steps": 100,
+    "source_query": null,
+    "proposal_artifact": null,
+    "validation": {
+      "official_upstream_task": true
+    }
+  },
+  "rollout_budget": 2,
+  "horizon_steps_each": 100
+}

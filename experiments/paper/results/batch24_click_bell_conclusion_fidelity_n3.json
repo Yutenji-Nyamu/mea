@@ -1,0 +1,229 @@
+{
+  "schema_version": 1,
+  "protocol": "batch24_click_bell_three_seed_conclusion_fidelity_v1_result",
+  "study_id": "batch24_click_bell_conclusion_fidelity_n3",
+  "status": "completed",
+  "paper_eligible": false,
+  "paper_tables_1_2_eligible": false,
+  "design": {
+    "task": "click_bell",
+    "policy": "ACT",
+    "checkpoint_id": "act-click_bell-demo_clean-50",
+    "checkpoint_sha256": "2392fcdd7aaf4fe20fdefcf6b84c813e2cd5d2c27468f32f77c390341baf7c1b",
+    "seeds": [
+      100405,
+      100406,
+      100407
+    ],
+    "excluded_prior_seed": 100404,
+    "excluded_prior_seed_reason": "seed 100404 was observed in batch23, so three unseen adjacent seeds were preregistered before live execution",
+    "candidate_universe": [
+      "object_position.left_fixed",
+      "object_position.right_fixed",
+      "object_instance.base0",
+      "object_instance.base1"
+    ],
+    "fixed_episode_starts_per_seed": 4,
+    "adaptive_episode_starts_range_per_seed": [
+      2,
+      3
+    ],
+    "actual_adaptive_episode_starts_per_seed": 2,
+    "all_rollouts_fresh": true,
+    "fixed_and_adaptive_arms_independent": true,
+    "cached_rollouts_used": 0,
+    "retry_count": 0
+  },
+  "comparison_semantics": {
+    "universal_conclusion": "refuted if any frozen candidate fails; supported only if all four succeed",
+    "weak_axis": "paired_binary_score_difference",
+    "failure_candidate_set": "reported separately because equal failure on both members of a pair does not create a paired-difference weak axis"
+  },
+  "per_seed": [
+    {
+      "seed": 100405,
+      "fixed": {
+        "candidate_success": {
+          "object_position.left_fixed": false,
+          "object_position.right_fixed": true,
+          "object_instance.base0": true,
+          "object_instance.base1": true
+        },
+        "universal_conclusion": "refuted",
+        "overall_verdict": "weakness_observed",
+        "weakness_axes": [
+          "object_position"
+        ],
+        "observed_failure_candidates": [
+          "object_position.left_fixed"
+        ],
+        "act_episode_starts": 4,
+        "policy_steps": 600,
+        "wall_seconds": 280.4999065771699
+      },
+      "adaptive": {
+        "candidate_success": {
+          "object_position.left_fixed": false,
+          "object_position.right_fixed": true
+        },
+        "universal_conclusion": "refuted",
+        "overall_verdict": "weakness_observed",
+        "weakness_axes": [
+          "object_position"
+        ],
+        "observed_failure_candidates": [
+          "object_position.left_fixed"
+        ],
+        "stop_reason": "query_sufficient",
+        "act_episode_starts": 2,
+        "policy_steps": 472,
+        "wall_seconds": 171.11622135341167
+      },
+      "universal_conclusion_agrees": true,
+      "weakness_axes_agree": true,
+      "failure_candidate_set_agrees": true,
+      "technical_runtime_errors": 0,
+      "raw_result_ref": "mea/protocol_runs/batch24_click_bell_conclusion_fidelity_seed100405/live_execution/efficiency_result.json",
+      "raw_result_sha256": "6644c8bb0b2d4a0635c1b90ce498a0b4308169b500525b5a6c7fde118c5a2a3e"
+    },
+    {
+      "seed": 100406,
+      "fixed": {
+        "candidate_success": {
+          "object_position.left_fixed": false,
+          "object_position.right_fixed": true,
+          "object_instance.base0": false,
+          "object_instance.base1": false
+        },
+        "universal_conclusion": "refuted",
+        "overall_verdict": "weakness_observed",
+        "weakness_axes": [
+          "object_position"
+        ],
+        "observed_failure_candidates": [
+          "object_instance.base0",
+          "object_instance.base1",
+          "object_position.left_fixed"
+        ],
+        "act_episode_starts": 4,
+        "policy_steps": 1270,
+        "wall_seconds": 402.0626709982753
+      },
+      "adaptive": {
+        "candidate_success": {
+          "object_position.left_fixed": false,
+          "object_position.right_fixed": true
+        },
+        "universal_conclusion": "refuted",
+        "overall_verdict": "weakness_observed",
+        "weakness_axes": [
+          "object_position"
+        ],
+        "observed_failure_candidates": [
+          "object_position.left_fixed"
+        ],
+        "stop_reason": "query_sufficient",
+        "act_episode_starts": 2,
+        "policy_steps": 470,
+        "wall_seconds": 175.24262145906687
+      },
+      "universal_conclusion_agrees": true,
+      "weakness_axes_agree": true,
+      "failure_candidate_set_agrees": false,
+      "dense_only_failure_candidates": [
+        "object_instance.base0",
+        "object_instance.base1"
+      ],
+      "technical_runtime_errors": 0,
+      "raw_result_ref": "mea/protocol_runs/batch24_click_bell_conclusion_fidelity_seed100406/live_execution/efficiency_result.json",
+      "raw_result_sha256": "496bac1b570ca5d91c54f057e41e6353014b89cafa5db1435cf5085891608230"
+    },
+    {
+      "seed": 100407,
+      "fixed": {
+        "candidate_success": {
+          "object_position.left_fixed": false,
+          "object_position.right_fixed": true,
+          "object_instance.base0": true,
+          "object_instance.base1": true
+        },
+        "universal_conclusion": "refuted",
+        "overall_verdict": "weakness_observed",
+        "weakness_axes": [
+          "object_position"
+        ],
+        "observed_failure_candidates": [
+          "object_position.left_fixed"
+        ],
+        "act_episode_starts": 4,
+        "policy_steps": 614,
+        "wall_seconds": 302.2431359998882
+      },
+      "adaptive": {
+        "candidate_success": {
+          "object_position.left_fixed": false,
+          "object_position.right_fixed": true
+        },
+        "universal_conclusion": "refuted",
+        "overall_verdict": "weakness_observed",
+        "weakness_axes": [
+          "object_position"
+        ],
+        "observed_failure_candidates": [
+          "object_position.left_fixed"
+        ],
+        "stop_reason": "query_sufficient",
+        "act_episode_starts": 2,
+        "policy_steps": 470,
+        "wall_seconds": 177.92406438663602
+      },
+      "universal_conclusion_agrees": true,
+      "weakness_axes_agree": true,
+      "failure_candidate_set_agrees": true,
+      "technical_runtime_errors": 0,
+      "raw_result_ref": "mea/protocol_runs/batch24_click_bell_conclusion_fidelity_seed100407/live_execution/efficiency_result.json",
+      "raw_result_sha256": "d2519b3f392f745ba9ff9c8a9c4f88f4bb52884bef0d2b6b587b8f8b29ac05e5"
+    }
+  ],
+  "aggregate": {
+    "completed_seed_count": 3,
+    "universal_conclusion_agreement": "3/3",
+    "weakness_axis_exact_agreement": "3/3",
+    "failure_candidate_set_exact_agreement": "2/3",
+    "fixed_act_episode_starts": 12,
+    "adaptive_act_episode_starts": 6,
+    "saved_act_episode_starts": 6,
+    "act_saving_fraction_vs_fixed": 0.5,
+    "fixed_policy_steps": 2484,
+    "adaptive_policy_steps": 1412,
+    "saved_policy_steps": 1072,
+    "policy_step_saving_fraction_vs_fixed": 0.431561996779388,
+    "fixed_wall_seconds": 984.8057135753334,
+    "adaptive_wall_seconds": 524.2829071991146,
+    "saved_wall_seconds": 460.5228063762188,
+    "wall_saving_fraction_vs_fixed": 0.467628081385,
+    "technical_runtime_errors": 0,
+    "actual_total_act_episode_starts": 18,
+    "preregistered_max_act_episode_starts": 21
+  },
+  "verdict": {
+    "preregistered_conclusion_fidelity_and_saving_contract_passed": true,
+    "full_failure_mode_coverage_preserved": false,
+    "label": "positive_three_seed_toy_for_universal_conclusion_and_paired_weak_axis_with_failure_coverage_limitation",
+    "paper_claim_reproduced": false
+  },
+  "limitations": [
+    "This is one RoboTwin task, one ACT checkpoint, three seeds, and four frozen candidates.",
+    "Each candidate is sampled once per arm and seed, below the paper's default repeated-trial and repeated-agent-run protocols.",
+    "All three adaptive arms stop after the preregistered position pair, so they do not test the instance pair.",
+    "Seed 100406 shows that universal and paired-axis agreement can coexist with missed dense failure candidates.",
+    "Policy steps are a simulator-sample proxy; this is not the paper's total sample accounting.",
+    "The result is toy evidence and is not eligible for ManipEvalAgent Tables 1 or 2."
+  ],
+  "raw_server_paths": {
+    "batch_preregistration": "mea/protocol_runs/batch24_click_bell_conclusion_fidelity_n3/preregistration.json",
+    "seed_100405_root": "mea/protocol_runs/batch24_click_bell_conclusion_fidelity_seed100405",
+    "seed_100406_root": "mea/protocol_runs/batch24_click_bell_conclusion_fidelity_seed100406",
+    "seed_100407_root": "mea/protocol_runs/batch24_click_bell_conclusion_fidelity_seed100407"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "status": "protocol_invalid",
+  "scientific_evidence_eligible": false,
+  "component_mechanism_status": "passed",
+  "checks": {
+    "planner_requested_language_only": true,
+    "planner_requested_semantics_preserved": true,
+    "taskgen_changed_goal_object": true,
+    "planner_taskgen_alignment": false
+  },
+  "reason": "ClaimFirst requested a language-only, semantics-preserving perturbation, but TaskGen generated a different goal object. The two live rollouts remain component smoke evidence; they are not an evidence-conditioned policy comparison.",
+  "future_runtime_gate": "Reject before TaskGen/provider/custom rollout unless controlled_changes explicitly authorizes an object/goal identity edit."
+}

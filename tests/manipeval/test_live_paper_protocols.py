@@ -1059,6 +1059,44 @@ class Table3AndProxyTests(unittest.TestCase):
                     prereg, repo_root=root, require_materialized=True
                 )
 
+    def test_table3_materializes_batch24_five_proposal_set(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            prereg = build_table3_codegen_preregistration(
+                study_id="table3_batch24_test",
+                created_at_utc="2026-07-26T00:00:00Z",
+                artifact_root_ref="artifacts/table3_batch24",
+                text_model="frozen-text-model",
+                vision_model="frozen-vision-model",
+                proposal_set_id="batch24_bbh_unseen5_v1",
+            )
+            materialize_table3_codegen_preregistration(root, prereg)
+            self.assertEqual(prereg["proposal_set_id"], "batch24_bbh_unseen5_v1")
+            self.assertEqual(len(prereg["unseen_proposals"]), 5)
+            self.assertEqual(len(prereg["cells"]), 25)
+            self.assertEqual(
+                prereg["execution_contract"]["provider_generation_calls"], 25
+            )
+            strict = next(
+                cell
+                for cell in prereg["cells"]
+                if cell["proposal_id"]
+                == "u06_bbh_gray_distractor_far_negative_y_strict"
+                and cell["condition"] == "complete"
+            )
+            runner = json.loads((root / strict["runner_ref"]).read_text())
+            proposal_index = runner["argv"].index("--task-proposal-json")
+            task_proposal = json.loads(runner["argv"][proposal_index + 1])
+            self.assertEqual(
+                task_proposal["changes"]["distractor"]["success"][
+                    "target_alignment_thresholds_m"
+                ],
+                [0.015, 0.015],
+            )
+            validate_table3_codegen_preregistration(
+                prereg, repo_root=root, require_materialized=True
+            )
+
     def test_table3_rejects_scene_only_codegen_without_generated_checker(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

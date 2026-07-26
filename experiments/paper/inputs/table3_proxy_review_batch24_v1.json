@@ -1,0 +1,158 @@
+{
+  "schema_version": 1,
+  "annotator_kind": "development_agent_proxy",
+  "human_reviewer_count": 0,
+  "paper_eligible": false,
+  "reviews": [
+    {
+      "cell_id": "u03_bbh_teal_distractor_diagonal__complete",
+      "passed": true,
+      "blind_to_condition": true,
+      "notes": "All conditions are met: (1) `load_actors` implements the requested target and look-alike distractor colors and XY offset; (2) `check_success` uses the requested x/y thresholds, requires target contact, and permanently rejects distractor contact; (3) fixture/static summaries support those semantics; and (4) the image plausibly shows a separated target and look-alike distractor."
+    },
+    {
+      "cell_id": "u03_bbh_teal_distractor_diagonal__base",
+      "passed": false,
+      "blind_to_condition": true,
+      "notes": "Execution failed before a complete code, fixture, render, and expert evidence bundle was available."
+    },
+    {
+      "cell_id": "u03_bbh_teal_distractor_diagonal__no_rag",
+      "passed": false,
+      "blind_to_condition": true,
+      "notes": "Execution failed before a complete code, fixture, render, and expert evidence bundle was available."
+    },
+    {
+      "cell_id": "u03_bbh_teal_distractor_diagonal__no_visual_self_check",
+      "passed": true,
+      "blind_to_condition": true,
+      "notes": "All conditions are met: (1) load_actors implements the requested target and distractor colors and XY offset; (2) check_success uses the requested x/y thresholds, requires target contact, and permanently rejects distractor contact; (3) fixture/static summaries support the semantics; (4) the image plausibly shows a separated target and look-alike distractor."
+    },
+    {
+      "cell_id": "u03_bbh_teal_distractor_diagonal__no_readme_agent",
+      "passed": true,
+      "blind_to_condition": true,
+      "notes": "All conditions are met: (1) `load_actors` implements the requested target and distractor colors and XY offset; (2) `check_success` uses the requested x/y thresholds, requires target contact, and permanently rejects distractor contact; (3) fixture/static summaries support the semantics; and (4) the image plausibly shows a separated target and distractor."
+    },
+    {
+      "cell_id": "u04_bbh_yellow_distractor_negative_diagonal__complete",
+      "passed": true,
+      "blind_to_condition": true,
+      "notes": "All conditions are met: (1) load_actors implements the requested target and look-alike distractor colors and XY offset; (2) check_success uses the requested x/y thresholds, requires target contact, and permanently rejects distractor contact; (3) fixture/static summaries support those semantics; and (4) the image plausibly shows a separated target and look-alike distractor."
+    },
+    {
+      "cell_id": "u04_bbh_yellow_distractor_negative_diagonal__base",
+      "passed": false,
+      "blind_to_condition": true,
+      "notes": "Execution failed before a complete code, fixture, render, and expert evidence bundle was available."
+    },
+    {
+      "cell_id": "u04_bbh_yellow_distractor_negative_diagonal__no_rag",
+      "passed": false,
+      "blind_to_condition": true,
+      "notes": "Execution failed before a complete code, fixture, render, and expert evidence bundle was available."
+    },
+    {
+      "cell_id": "u04_bbh_yellow_distractor_negative_diagonal__no_visual_self_check",
+      "passed": true,
+      "blind_to_condition": true,
+      "notes": "All conditions are met: (1) `load_actors` implements the requested target and look-alike distractor colors and XY offset; (2) `check_success` uses the requested x/y thresholds, requires target contact, and permanently rejects distractor contact; (3) fixture/static summaries support those semantics; and (4) the image plausibly shows a separated target and look-alike distractor."
+    },
+    {
+      "cell_id": "u04_bbh_yellow_distractor_negative_diagonal__no_readme_agent",
+      "passed": true,
+      "blind_to_condition": true,
+      "notes": "All conditions are satisfied: (1) load_actors implements the requested target and distractor colors and XY offset; (2) check_success uses the requested x/y thresholds, requires target contact, and permanently rejects distractor contact; (3) fixture/static summaries support these semantics; (4) the image plausibly shows a separated target and distractor."
+    },
+    {
+      "cell_id": "u05_bbh_magenta_distractor_near_negative_x__complete",
+      "passed": true,
+      "blind_to_condition": true,
+      "notes": "All conditions are satisfied: (1) `load_actors` implements the requested target and look-alike distractor colors and XY offset; (2) `check_success` uses the requested x/y thresholds, requires target contact, and permanently rejects distractor contact; (3) fixture/static summaries support the semantics; and (4) the image plausibly shows a separated target and look-alike distractor."
+    },
+    {
+      "cell_id": "u05_bbh_magenta_distractor_near_negative_x__base",
+      "passed": false,
+      "blind_to_condition": true,
+      "notes": "Execution failed before a complete code, fixture, render, and expert evidence bundle was available."
+    },
+    {
+      "cell_id": "u05_bbh_magenta_distractor_near_negative_x__no_rag",
+      "passed": false,
+      "blind_to_condition": true,
+      "notes": "Execution failed before a complete code, fixture, render, and expert evidence bundle was available."
+    },
+    {
+      "cell_id": "u05_bbh_magenta_distractor_near_negative_x__no_visual_self_check",
+      "passed": false,
+      "blind_to_condition": true,
+      "notes": "Execution failed before a complete code, fixture, render, and expert evidence bundle was available."
+    },
+    {
+      "cell_id": "u05_bbh_magenta_distractor_near_negative_x__no_readme_agent",
+      "passed": true,
+      "blind_to_condition": true,
+      "notes": "All conditions are met: (1) `load_actors` implements the requested target and look-alike distractor colors and XY offset; (2) `check_success` uses the requested x/y thresholds, requires target contact, and permanently rejects distractor contact; (3) fixture/static summaries support the semantics; and (4) the image plausibly shows a separated target and look-alike distractor."
+    },
+    {
+      "cell_id": "u06_bbh_gray_distractor_far_negative_y_strict__complete",
+      "passed": false,
+      "blind_to_condition": true,
+      "notes": "Execution failed before a complete code, fixture, render, and expert evidence bundle was available."
+    },
+    {
+      "cell_id": "u06_bbh_gray_distractor_far_negative_y_strict__base",
+      "passed": false,
+      "blind_to_condition": true,
+      "notes": "Execution failed before a complete code, fixture, render, and expert evidence bundle was available."
+    },
+    {
+      "cell_id": "u06_bbh_gray_distractor_far_negative_y_strict__no_rag",
+      "passed": false,
+      "blind_to_condition": true,
+      "notes": "Execution failed before a complete code, fixture, render, and expert evidence bundle was available."
+    },
+    {
+      "cell_id": "u06_bbh_gray_distractor_far_negative_y_strict__no_visual_self_check",
+      "passed": false,
+      "blind_to_condition": true,
+      "notes": "Execution failed before a complete code, fixture, render, and expert evidence bundle was available."
+    },
+    {
+      "cell_id": "u06_bbh_gray_distractor_far_negative_y_strict__no_readme_agent",
+      "passed": true,
+      "blind_to_condition": true,
+      "notes": "All conditions are met: (1) `load_actors` implements the requested target and look-alike distractor colors and XY offset; (2) `check_success` uses the requested x/y thresholds, requires target contact, and permanently rejects distractor contact; (3) fixture/static summaries support the semantics; and (4) the image plausibly shows a separated target and look-alike distractor."
+    },
+    {
+      "cell_id": "u07_bbh_orange_distractor_asymmetric_tolerance__complete",
+      "passed": true,
+      "blind_to_condition": true,
+      "notes": "All conditions are met: (1) `load_actors` implements the requested target and look-alike distractor colors and XY offset; (2) `check_success` uses the requested x/y thresholds, requires target contact, and permanently rejects distractor contact; (3) fixture/static summaries support the semantics; and (4) the image plausibly shows a separated target and look-alike distractor."
+    },
+    {
+      "cell_id": "u07_bbh_orange_distractor_asymmetric_tolerance__base",
+      "passed": false,
+      "blind_to_condition": true,
+      "notes": "Execution failed before a complete code, fixture, render, and expert evidence bundle was available."
+    },
+    {
+      "cell_id": "u07_bbh_orange_distractor_asymmetric_tolerance__no_rag",
+      "passed": false,
+      "blind_to_condition": true,
+      "notes": "Execution failed before a complete code, fixture, render, and expert evidence bundle was available."
+    },
+    {
+      "cell_id": "u07_bbh_orange_distractor_asymmetric_tolerance__no_visual_self_check",
+      "passed": true,
+      "blind_to_condition": true,
+      "notes": "All conditions are met: (1) `load_actors` implements the correct target and distractor colors and XY offset; (2) `check_success` uses the specified thresholds, requires target contact, and permanently rejects distractor contact; (3) fixture and static validation summaries align with the semantics; (4) the image plausibly shows a separated target and distractor."
+    },
+    {
+      "cell_id": "u07_bbh_orange_distractor_asymmetric_tolerance__no_readme_agent",
+      "passed": true,
+      "blind_to_condition": true,
+      "notes": "All conditions are met: (1) `load_actors` implements the requested target and distractor colors and XY offset; (2) `check_success` uses the specified x/y thresholds, requires target contact, and permanently rejects distractor contact; (3) fixture/static summaries support the semantics; and (4) the image plausibly shows a separated target and distractor."
+    }
+  ]
+}

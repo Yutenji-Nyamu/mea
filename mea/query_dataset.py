@@ -1,4 +1,4 @@
-"""Validation for the 20-query Planner/aspect development dataset."""
+"""Validation for bounded Planner/aspect development datasets."""
 
 from __future__ import annotations
 
@@ -29,6 +29,10 @@ PAPER_CATEGORIES = {
     "robustness",
     "multi_task",
 }
+DEFAULT_DATASET_CONTRACT = {
+    "minimum_case_count": 20,
+    "required_paper_categories": sorted(PAPER_CATEGORIES),
+}
 
 
 def _validate_annotation(value: Mapping[str, Any]) -> str:
@@ -52,13 +56,40 @@ def _validate_annotation(value: Mapping[str, Any]) -> str:
     return status
 
 
+def _validate_dataset_contract(value: Mapping[str, Any]) -> dict[str, Any]:
+    raw = value.get("dataset_contract", DEFAULT_DATASET_CONTRACT)
+    if not isinstance(raw, Mapping) or set(raw) != {
+        "minimum_case_count",
+        "required_paper_categories",
+    }:
+        raise QueryDatasetError("invalid dataset_contract fields")
+    minimum = raw.get("minimum_case_count")
+    categories = raw.get("required_paper_categories")
+    if isinstance(minimum, bool) or not isinstance(minimum, int) or minimum < 1:
+        raise QueryDatasetError("minimum_case_count must be a positive integer")
+    if (
+        not isinstance(categories, list)
+        or not categories
+        or len(categories) != len(set(categories))
+        or not set(categories).issubset(PAPER_CATEGORIES)
+    ):
+        raise QueryDatasetError("required_paper_categories are invalid")
+    return {
+        "minimum_case_count": minimum,
+        "required_paper_categories": sorted(categories),
+    }
+
+
 def validate_query_dataset(value: Any) -> dict[str, Any]:
     if not isinstance(value, Mapping) or value.get("schema_version") != 1:
         raise QueryDatasetError("query dataset schema_version must be 1")
     status = _validate_annotation(value)
+    contract = _validate_dataset_contract(value)
     cases = value.get("cases")
-    if not isinstance(cases, list) or len(cases) != 20:
-        raise QueryDatasetError("query dataset must contain exactly 20 cases")
+    if not isinstance(cases, list) or len(cases) < contract["minimum_case_count"]:
+        raise QueryDatasetError(
+            "query dataset has fewer cases than minimum_case_count"
+        )
     required = {
         "id",
         "query",
@@ -122,7 +153,19 @@ def validate_query_dataset(value: Any) -> dict[str, Any]:
             )
             raise QueryDatasetError(f"{case_id} {message}")
         normalized.append(dict(case))
+    if status == "development_agent_proxy_reviewed":
+        observed_categories = {
+            case["paper_category"] for case in normalized
+        }
+        missing_categories = sorted(
+            set(contract["required_paper_categories"]) - observed_categories
+        )
+        if missing_categories:
+            raise QueryDatasetError(
+                f"query dataset misses required paper categories: {missing_categories}"
+            )
     result = dict(value)
+    result["dataset_contract"] = contract
     result["cases"] = normalized
     return result
 
@@ -148,6 +191,7 @@ def summarize_query_dataset(value: Any) -> dict[str, Any]:
         "dataset_id": dataset.get("dataset_id"),
         "annotation_status": annotation_status,
         "case_count": len(cases),
+        "dataset_contract": dataset["dataset_contract"],
         "capability_status_counts": dict(sorted(status.items())),
         "aspect_counts": dict(sorted(aspects.items())),
         "paper_category_counts": dict(sorted(categories.items())),
@@ -159,6 +203,7 @@ def summarize_query_dataset(value: Any) -> dict[str, Any]:
 
 
 __all__ = [
+    "DEFAULT_DATASET_CONTRACT",
     "QueryDatasetError",
     "summarize_query_dataset",
     "validate_query_dataset",

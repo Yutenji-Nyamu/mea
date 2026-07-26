@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "source": "provider_claim_first_open_query",
+  "input_digest": "237c36dca4c2ed22d03fdf6b859867c78605939aa303a37d736e921cf3f7bec2",
+  "proposal": {
+    "schema_version": 1,
+    "action": "continue",
+    "sub_aspect": "object_identity.obj_of_interest_dependency",
+    "hypothesis": "SmolVLA's failure is due to a dependency on the specific object of interest being used in the task.",
+    "requested_perturbation": {
+      "description": "Replace the object of interest (salad_dressing_1) with a semantically similar object while preserving the task's goal and context.",
+      "controlled_changes": [
+        "obj_of_interest"
+      ],
+      "preserve": [
+        "task identity",
+        "policy checkpoint"
+      ]
+    },
+    "task_need": {
+      "required": true,
+      "description": "TaskGen must provide a state-compatible task with a semantically similar object replacing the original object of interest."
+    },
+    "tool_need": {
+      "required": true,
+      "description": "ToolGen must retrieve or generate an observable to confirm whether the policy can handle the modified object of interest.",
+      "reuse_first": true
+    },
+    "rationale": "The previous tests ruled out goal language dependency as the cause of failure. Testing with a semantically similar object of interest will help determine if the failure is due to a dependency on the specific object identity, which is a critical sub-aspect of robustness to object identity changes."
+  },
+  "provider": {
+    "model_requested": "gpt-4o-2024-11-20",
+    "called": true,
+    "attempt_count": 1,
+    "errors": [],
+    "last_metadata": {
+      "id": "chatcmpl-E5oYfGK4mM0rYoH8doB3pOPkPDT0M",
+      "model": "gpt-4o-2024-11-20",
+      "finish_reason": "stop",
+      "usage": {
+        "completion_tokens": 288,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": 0
+        },
+        "latency_checkpoint": {
+          "engine_tbt_ms": 7,
+          "engine_ttft_ms": 55,
+          "engine_ttlt_ms": 1992,
+          "pre_inference_ms": 61,
+          "service_tbt_ms": 7,
+          "service_ttft_ms": 321,
+          "service_ttlt_ms": 2261,
+          "total_duration_ms": 2204,
+          "user_visible_ttft_ms": 260
+        },
+        "prompt_tokens": 1101,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0
+        },
+        "total_tokens": 1389
+      },
+      "retry_count": 0
+    }
+  }
+}

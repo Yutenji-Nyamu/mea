@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "protocol": "frozen_annotation_predictions_v1",
+  "packet_id": "batch24_vqa_cached8_human_replaceable_v1",
+  "label_kind": "vqa_binary",
+  "prediction_source": "experiments/paper/results/batch23_claim_closure/vqa_proxy_result_v1.json",
+  "provider_calls_started_by_packaging": 0,
+  "items": [
+    {
+      "id": "vqa_item_001",
+      "predicted_observed": false,
+      "positive_score": 0.14,
+      "confidence": 0.86,
+      "source_row_id": "batch23_v3_contact_negative:clean",
+      "provider_record_ref": "mea/validation_runs/validation_vqa_proxy_batch23_contact_n3_v1/cases/batch23_v3_contact_negative/clean.json"
+    },
+    {
+      "id": "vqa_item_002",
+      "predicted_observed": true,
+      "positive_score": 0.98,
+      "confidence": 0.98,
+      "source_row_id": "batch23_v4_no_contact_positive:clean",
+      "provider_record_ref": "mea/validation_runs/validation_vqa_proxy_batch23_contact_n3_v1/cases/batch23_v4_no_contact_positive/clean.json"
+    },
+    {
+      "id": "vqa_item_003",
+      "predicted_observed": null,
+      "positive_score": 0.5,
+      "confidence": 0.58,
+      "source_row_id": "batch23_v3_contact_negative:scene_clutter_image_proxy",
+      "provider_record_ref": "mea/validation_runs/validation_vqa_proxy_batch23_negative_retry_v1/cases/batch23_v3_contact_negative/scene_clutter_image_proxy.json"
+    },
+    {
+      "id": "vqa_item_004",
+      "predicted_observed": true,
+      "positive_score": 0.97,
+      "confidence": 0.97,
+      "source_row_id": "batch23_v4_no_contact_positive:scene_clutter_image_proxy",
+      "provider_record_ref": "mea/validation_runs/validation_vqa_proxy_batch23_contact_n3_v1/cases/batch23_v4_no_contact_positive/scene_clutter_image_proxy.json"
+    },
+    {
+      "id": "vqa_item_005",
+      "predicted_observed": false,
+      "positive_score": 0.08999999999999997,
+      "confidence": 0.91,
+      "source_row_id": "batch23_v3_contact_negative:background_texture_image_proxy",
+      "provider_record_ref": "mea/validation_runs/validation_vqa_proxy_batch23_contact_n3_v1/cases/batch23_v3_contact_negative/background_texture_image_proxy.json"
+    },
+    {
+      "id": "vqa_item_006",
+      "predicted_observed": true,
+      "positive_score": 0.97,
+      "confidence": 0.97,
+      "source_row_id": "batch23_v4_no_contact_positive:background_texture_image_proxy",
+      "provider_record_ref": "mea/validation_runs/validation_vqa_proxy_batch23_contact_n3_v1/cases/batch23_v4_no_contact_positive/background_texture_image_proxy.json"
+    },
+    {
+      "id": "vqa_item_007",
+      "predicted_observed": false,
+      "positive_score": 0.07999999999999996,
+      "confidence": 0.92,
+      "source_row_id": "batch23_v3_contact_negative:lighting_image_proxy",
+      "provider_record_ref": "mea/validation_runs/validation_vqa_proxy_batch23_contact_n3_v1/cases/batch23_v3_contact_negative/lighting_image_proxy.json"
+    },
+    {
+      "id": "vqa_item_008",
+      "predicted_observed": true,
+      "positive_score": 0.97,
+      "confidence": 0.97,
+      "source_row_id": "batch23_v4_no_contact_positive:lighting_image_proxy",
+      "provider_record_ref": "mea/validation_runs/validation_vqa_proxy_batch23_contact_n3_v1/cases/batch23_v4_no_contact_positive/lighting_image_proxy.json"
+    }
+  ]
+}

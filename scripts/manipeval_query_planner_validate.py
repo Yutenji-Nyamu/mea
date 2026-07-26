@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Call the Global Plan Agent on 1/3/5/20 development-proxy queries."""
+"""Call the Global Plan Agent on a bounded development-proxy query set."""
 
 from __future__ import annotations
 
@@ -105,7 +105,12 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     parser.add_argument("--dataset", type=Path, required=True)
-    parser.add_argument("--budget", type=int, choices=[1, 3, 5, 20], default=1)
+    parser.add_argument(
+        "--budget",
+        type=int,
+        default=1,
+        help="Validated against the dataset size (1/3/5/20/full-set).",
+    )
     parser.add_argument("--run-id")
     parser.add_argument(
         "--model-profile", choices=available_model_profiles(), default="economy"
@@ -195,7 +200,7 @@ def main() -> None:
         "budget": args.budget,
         "provider_called": True,
         "model": models["planner"],
-        "annotation_source": "development_agent_proxy",
+        "annotation_source": "codex_development_agent_proxy",
         "human_reviewer_count": 0,
         "paper_table_eligible": False,
         "paper_ineligible_reason": "development_agent_proxy_is_not_human_gold",

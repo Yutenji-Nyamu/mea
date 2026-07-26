@@ -23,7 +23,9 @@ ManipEvalAgent（MEA）迁移到 LIBERO 的最小接口和协议。它不把 LIB
 
 - [adapter contract gate](../experiments/paper/libero_adapter_smoke.py)
 - [紧凑 smoke 结果](../experiments/paper/results/batch23_claim_closure/libero_smolvla_smoke_v1.json)
-- [本批协议汇总](../experiments/paper/results/batch23_claim_closure/summary.json)
+- [100-step method-chain compact 结果](../experiments/paper/results/batch24_libero_method_chain_v2/compact_result.json)
+- [Planner–TaskGen 协议审计](../experiments/paper/results/batch24_libero_method_chain_v2/evidence/protocol_audit.json)
+- [batch24 四项结果索引](../experiments/paper/results/batch24_claim_closure/summary.json)
 
 ## 1. 已核实环境与产物
 
@@ -444,6 +446,29 @@ variation N=1；实现必须在 adapter 中显式记录并限制每个 episode �
 - variation 成功或失败都可接受，但 simulator 必须合法完成，official 与 experimental
   semantics 必须分别报告。
 
+### 本批执行结果：机制通过，协议 fail-closed
+
+batch24 v2 真实执行了同一 seed 的 official control 与 custom variation，各 100 steps，
+总计 2 episodes。Gate 0、provider-written BDDL、显式 `OffScreenRenderEnv` custom
+factory、确定性 predicate MetricSpec adapter 的非空 live 值及 0-rollout exact reuse
+均跑通；没有把 custom 文件伪装成 stock task id。该 adapter 来自有界 schema 编译，
+不是模型现场生成的新 Tool。
+
+但它不能支持 policy 结论，原因有两层：
+
+1. 未改变任务的 100-step official control 已失败，因此 custom failure 不能归因于
+   object identity。
+2. ClaimFirst Proposal 明确要求 language-only、semantics-preserving 变化，TaskGen
+   却把 goal object 改成 `salad_dressing_1`。`planner_taskgen_alignment=false`。
+
+因此 compact result 为 `completed_with_protocol_violation`，protocol audit 为
+`protocol_invalid`，AnswerScope 以 `pipeline_invalid` 停止；
+`query_contract_sufficient=false`、`scientific_evidence_eligible=false`。这两回合只能
+保留为 component mechanism smoke；Query contract sufficiency 与 scientific evidence
+eligibility 是两个独立字段。该历史运行早于 alignment gate；
+当前 runtime 已在 TaskGen provider 和 custom rollout 之前拒绝未授权 controlled
+change，不再为同类错配消耗第二回合。
+
 ### 验收条件
 
 - 两个 episode 都有完整且可对齐的 `TaskContract` 与 `EpisodeRecord`，并进入现有
@@ -471,3 +496,7 @@ variation N=1；实现必须在 adapter 中显式记录并限制每个 episode �
 - 当前 1/1 SmolVLA success 只证明 official evaluator、LIBERO environment 与
   SmolVLA inference/eval 路径能端到端运行，不证明 MEA adapter。它不能与 RoboTwin
   ACT/DP3 数值直接比较，也不能支持效率、排名或泛化结论。
+- batch24 的 2×100-step method-chain 进一步证明 BDDL/custom env/确定性 predicate
+  MetricSpec adapter/reuse 机制可执行，但没有证明模型生成新 Tool；control failure
+  与 Planner–TaskGen misalignment 使整条科学协议无效，它同样不能支持 SmolVLA
+  robustness 或 RoboTwin↔LIBERO 一致性结论。

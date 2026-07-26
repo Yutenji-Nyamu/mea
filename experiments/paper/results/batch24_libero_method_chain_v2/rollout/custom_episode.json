@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "benchmark": "libero",
+  "policy_name": "smolvla",
+  "checkpoint": "/root/autodl-tmp/checkpoints/libero/smolvla_libero",
+  "suite": "libero_object",
+  "task_id": "libero_object/task0/mea_custom",
+  "seed": 100800,
+  "horizon_steps": 100,
+  "executed_steps": 100,
+  "success": false,
+  "reward_sum": 0.0,
+  "goal_predicate_satisfied": false,
+  "elapsed_seconds": 13.967,
+  "bddl_path": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/taskgen/generated_task.bddl",
+  "video_path": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode/episode.mp4",
+  "task_contract_path": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/taskgen/task_contract.json",
+  "actions_path": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode/actions.npy",
+  "provenance": {
+    "round": 2,
+    "route": "custom_offscreen_render_env_factory",
+    "stock_task_ids": false,
+    "official_init_state_reused_after_probe": true,
+    "horizon_steps": 100
+  },
+  "goal_predicates": [
+    [
+      "in",
+      "salad_dressing_1",
+      "basket_1_contain_region"
+    ]
+  ]
+}

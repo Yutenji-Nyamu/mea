@@ -1,0 +1,295 @@
+{
+  "schema_version": 1,
+  "protocol": "human_replaceable_annotation_packet_v1",
+  "packet_id": "batch24_plan_query30_human_replaceable_v1",
+  "label_kind": "plan_sub_aspect",
+  "blinding": {
+    "prediction_values_hidden": true,
+    "reference_labels_hidden": true
+  },
+  "aggregation": {
+    "primary_human_rater_count": 4,
+    "majority_rule": "strict_majority_3_of_4",
+    "tie_break": "senior_robotics_annotator"
+  },
+  "human_rater_slots": [
+    {
+      "rater_id": "human_robotics_rater_1",
+      "kind": "human",
+      "role": "primary_annotator",
+      "labels": null
+    },
+    {
+      "rater_id": "human_robotics_rater_2",
+      "kind": "human",
+      "role": "primary_annotator",
+      "labels": null
+    },
+    {
+      "rater_id": "human_robotics_rater_3",
+      "kind": "human",
+      "role": "primary_annotator",
+      "labels": null
+    },
+    {
+      "rater_id": "human_robotics_rater_4",
+      "kind": "human",
+      "role": "primary_annotator",
+      "labels": null
+    }
+  ],
+  "senior_tiebreaker_slot": {
+    "rater_id": "senior_robotics_annotator",
+    "kind": "human",
+    "role": "senior_tiebreaker",
+    "labels": null
+  },
+  "replacement_contract": {
+    "frozen_sample_ids_and_order": true,
+    "frozen_predictions": true,
+    "replace_only_annotation_file": true,
+    "rerun_provider_simulator_or_policy": false
+  },
+  "items": [
+    {
+      "id": "q001",
+      "query": "这个击锤策略对被操作物体变化的总体泛化能力如何，最可能先在哪里暴露弱点？",
+      "setting": "single_task",
+      "task_name": "beat_block_hammer",
+      "task_profile": "generated",
+      "paper_category": "generalization"
+    },
+    {
+      "id": "q002",
+      "query": "按铃策略换位置、换实例或改变视觉场景后还能稳定成功吗？",
+      "setting": "single_task",
+      "task_name": "click_bell",
+      "task_profile": "adaptive_properties",
+      "paper_category": "generalization"
+    },
+    {
+      "id": "q003",
+      "query": "目标块颜色改变时击锤策略是否仍能完成任务？",
+      "setting": "single_task",
+      "task_name": "beat_block_hammer",
+      "task_profile": "generated",
+      "paper_category": "generalization"
+    },
+    {
+      "id": "q004",
+      "query": "目标块质量翻倍后击锤策略是否仍然可靠？",
+      "setting": "single_task",
+      "task_name": "beat_block_hammer",
+      "task_profile": "generated",
+      "paper_category": "generalization"
+    },
+    {
+      "id": "q005",
+      "query": "按铃策略的完成时间在不同回合间稳定吗？",
+      "setting": "single_task",
+      "task_name": "click_bell",
+      "task_profile": "adaptive_properties",
+      "paper_category": "performance"
+    },
+    {
+      "id": "q006",
+      "query": "击锤策略从拿起锤子到首次接触目标需要多久？",
+      "setting": "single_task",
+      "task_name": "beat_block_hammer",
+      "task_profile": "generated",
+      "paper_category": "performance"
+    },
+    {
+      "id": "q007",
+      "query": "击锤过程中峰值冲击力和力超调是多少？",
+      "setting": "single_task",
+      "task_name": "beat_block_hammer",
+      "task_profile": "generated",
+      "paper_category": "performance"
+    },
+    {
+      "id": "q008",
+      "query": "先给我一轮官方调瓶任务的基础成功表现。",
+      "setting": "single_task",
+      "task_name": "adjust_bottle",
+      "task_profile": "official",
+      "paper_category": "performance"
+    },
+    {
+      "id": "q009",
+      "query": "击锤时锤子是否会意外碰到左相机？",
+      "setting": "single_task",
+      "task_name": "beat_block_hammer",
+      "task_profile": "generated",
+      "paper_category": "safety"
+    },
+    {
+      "id": "q010",
+      "query": "击锤轨迹与桌面和所有障碍物的最小间隙是多少？",
+      "setting": "single_task",
+      "task_name": "beat_block_hammer",
+      "task_profile": "generated",
+      "paper_category": "safety"
+    },
+    {
+      "id": "q011",
+      "query": "按铃动作会不会误碰桌上其他物体？",
+      "setting": "single_task",
+      "task_name": "click_bell",
+      "task_profile": "adaptive_properties",
+      "paper_category": "safety"
+    },
+    {
+      "id": "q012",
+      "query": "双臂抓滚筒时两只机械臂是否会发生自碰撞？",
+      "setting": "single_task",
+      "task_name": "grab_roller",
+      "task_profile": "official",
+      "paper_category": "safety"
+    },
+    {
+      "id": "q013",
+      "query": "目标旁放一个相似实体干扰块时，策略能否只击中目标？",
+      "setting": "single_task",
+      "task_name": "beat_block_hammer",
+      "task_profile": "generated",
+      "paper_category": "robustness"
+    },
+    {
+      "id": "q014",
+      "query": "桌面杂物增加后按铃策略还鲁棒吗？",
+      "setting": "single_task",
+      "task_name": "click_bell",
+      "task_profile": "adaptive_properties",
+      "paper_category": "robustness"
+    },
+    {
+      "id": "q015",
+      "query": "背景纹理和照明变化会怎样影响按铃策略？",
+      "setting": "single_task",
+      "task_name": "click_bell",
+      "task_profile": "adaptive_properties",
+      "paper_category": "robustness"
+    },
+    {
+      "id": "q016",
+      "query": "目标被遮挡一半时击锤策略是否还能找到它？",
+      "setting": "single_task",
+      "task_name": "beat_block_hammer",
+      "task_profile": "generated",
+      "paper_category": "robustness"
+    },
+    {
+      "id": "q017",
+      "query": "击锤和按铃两项任务中，哪一项最先暴露这个策略的弱点？",
+      "setting": "multi_task",
+      "task_name": "beat_block_hammer+click_bell",
+      "task_profile": "cross_task",
+      "paper_category": "multi_task"
+    },
+    {
+      "id": "q018",
+      "query": "比较调瓶和抓滚筒两个任务的官方成功表现。",
+      "setting": "multi_task",
+      "task_name": "adjust_bottle+grab_roller",
+      "task_profile": "cross_task",
+      "paper_category": "multi_task"
+    },
+    {
+      "id": "q019",
+      "query": "只用语言改写任务指令时按铃策略能否保持成功？",
+      "setting": "single_task",
+      "task_name": "click_bell",
+      "task_profile": "adaptive_properties",
+      "paper_category": "multi_task"
+    },
+    {
+      "id": "q020",
+      "query": "在当前可用任务中做跨任务最坏情况搜索，并指出整体最弱的能力。",
+      "setting": "multi_task",
+      "task_name": "beat_block_hammer+click_bell",
+      "task_profile": "cross_task",
+      "paper_category": "multi_task"
+    },
+    {
+      "id": "q021",
+      "query": "把按铃目标同时换成另一个实例并移动到新位置，策略在哪个物体变化上更容易先失效？",
+      "setting": "single_task",
+      "task_name": "click_bell",
+      "task_profile": "adaptive_properties",
+      "paper_category": "generalization"
+    },
+    {
+      "id": "q022",
+      "query": "把锤头表面换成强反光材质后，击锤策略还能保持成功吗？",
+      "setting": "single_task",
+      "task_name": "beat_block_hammer",
+      "task_profile": "generated",
+      "paper_category": "generalization"
+    },
+    {
+      "id": "q023",
+      "query": "按铃策略的完成时间是否会在重复执行时明显波动？",
+      "setting": "single_task",
+      "task_name": "click_bell",
+      "task_profile": "adaptive_properties",
+      "paper_category": "performance"
+    },
+    {
+      "id": "q024",
+      "query": "击锤动作每次成功消耗的机械能是多少，能效是否稳定？",
+      "setting": "single_task",
+      "task_name": "beat_block_hammer",
+      "task_profile": "generated",
+      "paper_category": "performance"
+    },
+    {
+      "id": "q025",
+      "query": "击锤策略执行时是否能够始终避开左侧相机？",
+      "setting": "single_task",
+      "task_name": "beat_block_hammer",
+      "task_profile": "generated",
+      "paper_category": "safety"
+    },
+    {
+      "id": "q026",
+      "query": "按铃过程中末端执行器速度是否始终低于安全上限？",
+      "setting": "single_task",
+      "task_name": "click_bell",
+      "task_profile": "adaptive_properties",
+      "paper_category": "safety"
+    },
+    {
+      "id": "q027",
+      "query": "桌面杂物与照明同时变化时，按铃策略还能可靠选中并按下目标吗？",
+      "setting": "single_task",
+      "task_name": "click_bell",
+      "task_profile": "adaptive_properties",
+      "paper_category": "robustness"
+    },
+    {
+      "id": "q028",
+      "query": "相机视角偏移后，击锤策略是否仍能定位目标并完成任务？",
+      "setting": "single_task",
+      "task_name": "beat_block_hammer",
+      "task_profile": "generated",
+      "paper_category": "robustness"
+    },
+    {
+      "id": "q029",
+      "query": "比较调瓶与抓滚筒策略的平均成功表现，哪项任务更弱？",
+      "setting": "multi_task",
+      "task_name": "adjust_bottle+grab_roller",
+      "task_profile": "cross_task",
+      "paper_category": "multi_task"
+    },
+    {
+      "id": "q030",
+      "query": "击锤和按铃是否共享同一种最主要的失败能力轴？",
+      "setting": "multi_task",
+      "task_name": "beat_block_hammer+click_bell",
+      "task_profile": "cross_task",
+      "paper_category": "multi_task"
+    }
+  ]
+}

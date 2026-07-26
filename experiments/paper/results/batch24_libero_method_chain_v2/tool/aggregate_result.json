@@ -1,0 +1,1030 @@
+{
+  "aggregation_policy": {
+    "group_dimensions": [
+      "seed",
+      "round_id",
+      "variant",
+      "policy_name"
+    ],
+    "invalid_values_enter_numeric_statistics": false,
+    "missing_values_enter_numeric_statistics": false,
+    "numeric_standard_deviation": "population",
+    "role_isolation": "strict"
+  },
+  "episode_result_count": 1,
+  "input_issues": [],
+  "metrics": [
+    {
+      "cohorts": [
+        {
+          "groups": {
+            "policy_name": [
+              {
+                "passed_summary": {
+                  "episode_result_count": 1,
+                  "quality": {
+                    "invalid": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "missing": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "valid": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 1
+                    }
+                  },
+                  "statistics": {
+                    "false_count": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 1
+                    },
+                    "false_rate": {
+                      "denominator": 1,
+                      "numerator": 1,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 1.0
+                    },
+                    "true_count": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "true_rate": {
+                      "denominator": 1,
+                      "numerator": 0,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 0.0
+                    }
+                  },
+                  "unit": null,
+                  "value_kind": "boolean"
+                },
+                "summary": {
+                  "episode_result_count": 1,
+                  "quality": {
+                    "invalid": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "missing": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "valid": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 1
+                    }
+                  },
+                  "statistics": {
+                    "false_count": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 1
+                    },
+                    "false_rate": {
+                      "denominator": 1,
+                      "numerator": 1,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 1.0
+                    },
+                    "true_count": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "true_rate": {
+                      "denominator": 1,
+                      "numerator": 0,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 0.0
+                    }
+                  },
+                  "unit": null,
+                  "value_kind": "boolean"
+                },
+                "value": "smolvla"
+              }
+            ],
+            "round_id": [
+              {
+                "passed_summary": {
+                  "episode_result_count": 1,
+                  "quality": {
+                    "invalid": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "missing": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "valid": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 1
+                    }
+                  },
+                  "statistics": {
+                    "false_count": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 1
+                    },
+                    "false_rate": {
+                      "denominator": 1,
+                      "numerator": 1,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 1.0
+                    },
+                    "true_count": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "true_rate": {
+                      "denominator": 1,
+                      "numerator": 0,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 0.0
+                    }
+                  },
+                  "unit": null,
+                  "value_kind": "boolean"
+                },
+                "summary": {
+                  "episode_result_count": 1,
+                  "quality": {
+                    "invalid": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "missing": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "valid": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 1
+                    }
+                  },
+                  "statistics": {
+                    "false_count": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 1
+                    },
+                    "false_rate": {
+                      "denominator": 1,
+                      "numerator": 1,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 1.0
+                    },
+                    "true_count": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "true_rate": {
+                      "denominator": 1,
+                      "numerator": 0,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 0.0
+                    }
+                  },
+                  "unit": null,
+                  "value_kind": "boolean"
+                },
+                "value": null
+              }
+            ],
+            "seed": [
+              {
+                "passed_summary": {
+                  "episode_result_count": 1,
+                  "quality": {
+                    "invalid": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "missing": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "valid": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 1
+                    }
+                  },
+                  "statistics": {
+                    "false_count": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 1
+                    },
+                    "false_rate": {
+                      "denominator": 1,
+                      "numerator": 1,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 1.0
+                    },
+                    "true_count": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "true_rate": {
+                      "denominator": 1,
+                      "numerator": 0,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 0.0
+                    }
+                  },
+                  "unit": null,
+                  "value_kind": "boolean"
+                },
+                "summary": {
+                  "episode_result_count": 1,
+                  "quality": {
+                    "invalid": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "missing": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "valid": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 1
+                    }
+                  },
+                  "statistics": {
+                    "false_count": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 1
+                    },
+                    "false_rate": {
+                      "denominator": 1,
+                      "numerator": 1,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 1.0
+                    },
+                    "true_count": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "true_rate": {
+                      "denominator": 1,
+                      "numerator": 0,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 0.0
+                    }
+                  },
+                  "unit": null,
+                  "value_kind": "boolean"
+                },
+                "value": 100800
+              }
+            ],
+            "variant": [
+              {
+                "passed_summary": {
+                  "episode_result_count": 1,
+                  "quality": {
+                    "invalid": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "missing": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "valid": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 1
+                    }
+                  },
+                  "statistics": {
+                    "false_count": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 1
+                    },
+                    "false_rate": {
+                      "denominator": 1,
+                      "numerator": 1,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 1.0
+                    },
+                    "true_count": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "true_rate": {
+                      "denominator": 1,
+                      "numerator": 0,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 0.0
+                    }
+                  },
+                  "unit": null,
+                  "value_kind": "boolean"
+                },
+                "summary": {
+                  "episode_result_count": 1,
+                  "quality": {
+                    "invalid": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "missing": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "valid": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 1
+                    }
+                  },
+                  "statistics": {
+                    "false_count": {
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 1
+                    },
+                    "false_rate": {
+                      "denominator": 1,
+                      "numerator": 1,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 1.0
+                    },
+                    "true_count": {
+                      "provenance": [],
+                      "value": 0
+                    },
+                    "true_rate": {
+                      "denominator": 1,
+                      "numerator": 0,
+                      "provenance": [
+                        {
+                          "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                          "evidence_steps": [
+                            99
+                          ],
+                          "policy_name": "smolvla",
+                          "role": "policy_under_evaluation",
+                          "round_id": null,
+                          "seed": 100800,
+                          "source_artifact": null,
+                          "value": false,
+                          "variant": "libero_object/task0/mea_custom"
+                        }
+                      ],
+                      "value": 0.0
+                    }
+                  },
+                  "unit": null,
+                  "value_kind": "boolean"
+                },
+                "value": "libero_object/task0/mea_custom"
+              }
+            ]
+          },
+          "passed_summary": {
+            "episode_result_count": 1,
+            "quality": {
+              "invalid": {
+                "provenance": [],
+                "value": 0
+              },
+              "missing": {
+                "provenance": [],
+                "value": 0
+              },
+              "valid": {
+                "provenance": [
+                  {
+                    "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                    "evidence_steps": [
+                      99
+                    ],
+                    "policy_name": "smolvla",
+                    "role": "policy_under_evaluation",
+                    "round_id": null,
+                    "seed": 100800,
+                    "source_artifact": null,
+                    "value": false,
+                    "variant": "libero_object/task0/mea_custom"
+                  }
+                ],
+                "value": 1
+              }
+            },
+            "statistics": {
+              "false_count": {
+                "provenance": [
+                  {
+                    "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                    "evidence_steps": [
+                      99
+                    ],
+                    "policy_name": "smolvla",
+                    "role": "policy_under_evaluation",
+                    "round_id": null,
+                    "seed": 100800,
+                    "source_artifact": null,
+                    "value": false,
+                    "variant": "libero_object/task0/mea_custom"
+                  }
+                ],
+                "value": 1
+              },
+              "false_rate": {
+                "denominator": 1,
+                "numerator": 1,
+                "provenance": [
+                  {
+                    "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                    "evidence_steps": [
+                      99
+                    ],
+                    "policy_name": "smolvla",
+                    "role": "policy_under_evaluation",
+                    "round_id": null,
+                    "seed": 100800,
+                    "source_artifact": null,
+                    "value": false,
+                    "variant": "libero_object/task0/mea_custom"
+                  }
+                ],
+                "value": 1.0
+              },
+              "true_count": {
+                "provenance": [],
+                "value": 0
+              },
+              "true_rate": {
+                "denominator": 1,
+                "numerator": 0,
+                "provenance": [
+                  {
+                    "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                    "evidence_steps": [
+                      99
+                    ],
+                    "policy_name": "smolvla",
+                    "role": "policy_under_evaluation",
+                    "round_id": null,
+                    "seed": 100800,
+                    "source_artifact": null,
+                    "value": false,
+                    "variant": "libero_object/task0/mea_custom"
+                  }
+                ],
+                "value": 0.0
+              }
+            },
+            "unit": null,
+            "value_kind": "boolean"
+          },
+          "policy_names": [
+            "smolvla"
+          ],
+          "role": "policy_under_evaluation",
+          "summary": {
+            "episode_result_count": 1,
+            "quality": {
+              "invalid": {
+                "provenance": [],
+                "value": 0
+              },
+              "missing": {
+                "provenance": [],
+                "value": 0
+              },
+              "valid": {
+                "provenance": [
+                  {
+                    "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                    "evidence_steps": [
+                      99
+                    ],
+                    "policy_name": "smolvla",
+                    "role": "policy_under_evaluation",
+                    "round_id": null,
+                    "seed": 100800,
+                    "source_artifact": null,
+                    "value": false,
+                    "variant": "libero_object/task0/mea_custom"
+                  }
+                ],
+                "value": 1
+              }
+            },
+            "statistics": {
+              "false_count": {
+                "provenance": [
+                  {
+                    "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                    "evidence_steps": [
+                      99
+                    ],
+                    "policy_name": "smolvla",
+                    "role": "policy_under_evaluation",
+                    "round_id": null,
+                    "seed": 100800,
+                    "source_artifact": null,
+                    "value": false,
+                    "variant": "libero_object/task0/mea_custom"
+                  }
+                ],
+                "value": 1
+              },
+              "false_rate": {
+                "denominator": 1,
+                "numerator": 1,
+                "provenance": [
+                  {
+                    "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                    "evidence_steps": [
+                      99
+                    ],
+                    "policy_name": "smolvla",
+                    "role": "policy_under_evaluation",
+                    "round_id": null,
+                    "seed": 100800,
+                    "source_artifact": null,
+                    "value": false,
+                    "variant": "libero_object/task0/mea_custom"
+                  }
+                ],
+                "value": 1.0
+              },
+              "true_count": {
+                "provenance": [],
+                "value": 0
+              },
+              "true_rate": {
+                "denominator": 1,
+                "numerator": 0,
+                "provenance": [
+                  {
+                    "episode_dir": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/episode",
+                    "evidence_steps": [
+                      99
+                    ],
+                    "policy_name": "smolvla",
+                    "role": "policy_under_evaluation",
+                    "round_id": null,
+                    "seed": 100800,
+                    "source_artifact": null,
+                    "value": false,
+                    "variant": "libero_object/task0/mea_custom"
+                  }
+                ],
+                "value": 0.0
+              }
+            },
+            "unit": null,
+            "value_kind": "boolean"
+          }
+        }
+      ],
+      "metric": "libero_goal_predicate_satisfied",
+      "tools": [
+        "libero_goal_predicate_tool"
+      ],
+      "unit": null,
+      "value_kind": "boolean"
+    }
+  ],
+  "schema_version": 1,
+  "source_count": 1,
+  "status": "passed",
+  "unique_episode_count": 1
+}

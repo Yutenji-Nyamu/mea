@@ -40,6 +40,23 @@ class QueryDatasetTests(unittest.TestCase):
         with self.assertRaises(QueryDatasetError):
             summarize_query_dataset(value)
 
+    def test_dataset_size_uses_a_declared_minimum_instead_of_exact_sizes(self):
+        value = {
+            "schema_version": 1,
+            "dataset_id": "draft30",
+            "annotation_status": "model_draft_unreviewed",
+            "cases": [case(i) for i in range(1, 31)],
+        }
+        self.assertEqual(summarize_query_dataset(value)["case_count"], 30)
+        value["cases"].pop()
+        self.assertEqual(summarize_query_dataset(value)["case_count"], 29)
+        value["dataset_contract"] = {
+            "minimum_case_count": 30,
+            "required_paper_categories": ["generalization"],
+        }
+        with self.assertRaisesRegex(QueryDatasetError, "minimum_case_count"):
+            summarize_query_dataset(value)
+
 
 if __name__ == "__main__":
     unittest.main()

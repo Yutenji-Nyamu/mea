@@ -116,6 +116,7 @@ def main() -> None:
     table3_pre.add_argument("--created-at-utc", required=True)
     table3_pre.add_argument("--text-model", default="gpt-4o-2024-11-20")
     table3_pre.add_argument("--vision-model", default="gpt-4o-2024-11-20")
+    table3_pre.add_argument("--proposal-set")
     table3_pre.add_argument("--output", type=Path, required=True)
 
     table3_eval = sub.add_parser("table3-finalize")
@@ -209,6 +210,7 @@ def main() -> None:
                 artifact_root_ref=artifact_root_ref,
                 text_model=args.text_model,
                 vision_model=args.vision_model,
+                proposal_set_id=args.proposal_set,
             )
             materialize_table3_codegen_preregistration(REPO_ROOT, output)
             _write(output_path, output)

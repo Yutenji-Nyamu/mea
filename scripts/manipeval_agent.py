@@ -2303,6 +2303,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     parser.add_argument("--evaluation-id")
     parser.add_argument(
+        "--benchmark",
+        choices=["robotwin", "libero"],
+        default="robotwin",
+        help="Select the existing RoboTwin chain or the bounded LIBERO backend.",
+    )
+    parser.add_argument(
+        "--libero-checkpoint",
+        type=Path,
+        default=Path("/root/autodl-tmp/checkpoints/libero/smolvla_libero"),
+    )
+    parser.add_argument("--libero-seed", type=int, default=100800)
+    parser.add_argument(
         "--auto-route",
         action="store_true",
         help=(
@@ -2524,6 +2536,11 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    if args.benchmark == "libero":
+        from mea.libero.chain import run_libero_agent_cli
+
+        run_libero_agent_cli(args)
+        return
     requested_open_query_planner = args.open_query_planner
     if args.open_query_planner is None:
         args.open_query_planner = (

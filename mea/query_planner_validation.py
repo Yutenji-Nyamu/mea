@@ -150,7 +150,11 @@ def score_live_query_case(
     }
 
 
-def aggregate_live_query_cases(cases: list[dict[str, Any]]) -> dict[str, Any]:
+def aggregate_sub_aspect_predictions(
+    cases: list[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Aggregate Table-6-style sub-aspect set predictions."""
+
     tp = sum(case["true_positive"] for case in cases)
     fp = sum(case["false_positive"] for case in cases)
     fn = sum(case["false_negative"] for case in cases)
@@ -163,6 +167,41 @@ def aggregate_live_query_cases(cases: list[dict[str, Any]]) -> dict[str, Any]:
             if precision + recall == 0
             else 2 * precision * recall / (precision + recall)
         )
+    categories = sorted(
+        {
+            str(case["paper_category"])
+            for case in cases
+            if isinstance(case.get("paper_category"), str)
+        }
+    )
+    by_category = {}
+    for category in categories:
+        subset = [
+            case for case in cases if case.get("paper_category") == category
+        ]
+        category_tp = sum(case["true_positive"] for case in subset)
+        category_fp = sum(case["false_positive"] for case in subset)
+        by_category[category] = {
+            "case_count": len(subset),
+            "sub_aspect_precision": _ratio(
+                category_tp, category_tp + category_fp
+            ),
+        }
+    return {
+        "case_count": len(cases),
+        "aspect_micro_precision": precision,
+        "aspect_micro_recall": recall,
+        "aspect_micro_f1": f1,
+        "aspect_exact_set_accuracy": _ratio(
+            sum(bool(case["aspect_exact_set_match"]) for case in cases),
+            len(cases),
+        ),
+        "by_paper_category": by_category,
+    }
+
+
+def aggregate_live_query_cases(cases: list[dict[str, Any]]) -> dict[str, Any]:
+    aspect_metrics = aggregate_sub_aspect_predictions(cases)
     task_cases = [case for case in cases if case["task_match_evaluable"]]
     first_cases = [case for case in cases if case["first_aspect_evaluable"]]
     unsupported_cases = [
@@ -195,12 +234,12 @@ def aggregate_live_query_cases(cases: list[dict[str, Any]]) -> dict[str, Any]:
             sum(case["task_qualified_gap_available"] for case in unsupported_cases),
             len(unsupported_cases),
         ),
-        "aspect_micro_precision": precision,
-        "aspect_micro_recall": recall,
-        "aspect_micro_f1": f1,
-        "aspect_exact_set_accuracy": _ratio(
-            sum(case["aspect_exact_set_match"] for case in cases), len(cases)
-        ),
+        "aspect_micro_precision": aspect_metrics["aspect_micro_precision"],
+        "aspect_micro_recall": aspect_metrics["aspect_micro_recall"],
+        "aspect_micro_f1": aspect_metrics["aspect_micro_f1"],
+        "aspect_exact_set_accuracy": aspect_metrics[
+            "aspect_exact_set_accuracy"
+        ],
         "first_aspect_accuracy": _ratio(
             sum(case["first_aspect_match"] is True for case in first_cases),
             len(first_cases),
@@ -217,8 +256,11 @@ def validate_live_query_budget(
         raise QueryDatasetError(
             "live scoring requires reviewed development proxy labels"
         )
-    if budget not in {1, 3, 5, 20}:
-        raise QueryDatasetError("budget must be one of 1, 3, 5, or 20")
+    full_budget = len(normalized["cases"])
+    allowed_budgets = {1, 3, 5, min(20, full_budget), full_budget}
+    if budget not in allowed_budgets:
+        choices = ", ".join(str(item) for item in sorted(allowed_budgets))
+        raise QueryDatasetError(f"budget must be one of {choices}")
     by_id = {case["id"]: case for case in normalized["cases"]}
     order = list(_AGILE_CASE_ORDER) + [
         case["id"]
@@ -267,6 +309,7 @@ def validate_capability_snapshot(
 
 __all__ = [
     "aggregate_live_query_cases",
+    "aggregate_sub_aspect_predictions",
     "score_live_query_case",
     "validate_capability_snapshot",
     "validate_live_query_budget",

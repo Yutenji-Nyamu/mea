@@ -1,0 +1,184 @@
+{
+  "schema_version": 1,
+  "experiment_id": "batch24_table3_scene_checker_unseen5_v1",
+  "study_id": "batch24_table3_scene_checker_unseen5_v3",
+  "paper_target": "Table 3 TaskGen code-generation component ablation",
+  "status": "completed_mixed_micro_ablation",
+  "paper_eligible": false,
+  "base_commit": "ad8e9f5a1dd342d089ad167e475f3161e5972c36",
+  "scope": {
+    "task": "beat_block_hammer",
+    "provider_model": "gpt-4o-2024-11-20",
+    "proposal_set_id": "batch24_bbh_unseen5_v1",
+    "proposal_count": 5,
+    "condition_count": 5,
+    "frozen_generation_cell_count": 25,
+    "semantic_changes": [
+      "target_and_distractor_appearance",
+      "distractor_xy_direction_and_distance",
+      "checker_xy_alignment_threshold"
+    ],
+    "proposal_ids": [
+      "u03_bbh_teal_distractor_diagonal",
+      "u04_bbh_yellow_distractor_negative_diagonal",
+      "u05_bbh_magenta_distractor_near_negative_x",
+      "u06_bbh_gray_distractor_far_negative_y_strict",
+      "u07_bbh_orange_distractor_asymmetric_tolerance"
+    ]
+  },
+  "budget_and_execution": {
+    "act_rollouts": 0,
+    "text_provider_completion_calls": 37,
+    "initial_generation_calls": 25,
+    "bounded_local_regeneration_calls": 12,
+    "generation_visual_self_check_calls": 10,
+    "condition_hidden_proxy_review_vision_calls": 12,
+    "cells_reaching_render_and_expert_probe": 15,
+    "rendered_initial_frames": 15,
+    "expert_probe_attempts": 24,
+    "sequential_cell_wall_seconds": 1762.149,
+    "cell_wall_seconds_sum": 1762.105
+  },
+  "success_by_condition": {
+    "complete": {
+      "passed": 4,
+      "total": 5,
+      "rate": 0.8
+    },
+    "base": {
+      "passed": 0,
+      "total": 5,
+      "rate": 0.0
+    },
+    "no_rag": {
+      "passed": 0,
+      "total": 5,
+      "rate": 0.0
+    },
+    "no_visual_self_check": {
+      "passed": 3,
+      "total": 5,
+      "rate": 0.6
+    },
+    "no_readme_agent": {
+      "passed": 5,
+      "total": 5,
+      "rate": 1.0
+    }
+  },
+  "failure_taxonomy": {
+    "failed_cells": 13,
+    "ast_allowlist_validation": {
+      "count": 10,
+      "details": {
+        "target_pose.copy_not_allowed": 4,
+        "self.create_block_not_allowed": 2,
+        "self.simulation.create_box_not_allowed": 2,
+        "self.rand_pose_not_allowed": 1,
+        "self.add_box_not_allowed": 1
+      }
+    },
+    "setup_or_expert_probe_failed": {
+      "count": 3
+    },
+    "blind_review_only_failure": {
+      "count": 0
+    }
+  },
+  "component_assessment": {
+    "rag": {
+      "complete_minus_ablation_rate": 0.8,
+      "assessment": "directional_support_in_this_bounded_pilot",
+      "reason": "Complete passed 4/5 while no_rag passed 0/5; all no_rag failures were bounded AST validation failures."
+    },
+    "visual_self_check": {
+      "complete_minus_ablation_rate": 0.2,
+      "assessment": "weak_single_pair_direction_only",
+      "reason": "Complete passed one additional paired proposal, but failures occurred at the stochastic expert probe rather than at visual acceptance."
+    },
+    "readme_agent": {
+      "complete_minus_ablation_rate": -0.2,
+      "assessment": "gain_not_supported",
+      "reason": "No_readme_agent reached 5/5 while complete reached 4/5."
+    },
+    "base": {
+      "complete_minus_ablation_rate": 0.8,
+      "assessment": "joint_component_floor_not_an_isolated_effect"
+    },
+    "ceiling_floor": {
+      "ceiling_conditions": [
+        "no_readme_agent"
+      ],
+      "floor_conditions": [
+        "base",
+        "no_rag"
+      ],
+      "interpretation": "The 5-proposal grid is too small and partly ceiling/floor limited for paper-level component attribution."
+    }
+  },
+  "proxy_review": {
+    "reviewer_kind": "development_agent_proxy",
+    "method": "condition_hidden_gpt4o_vision_code_fixture_review",
+    "blind_to_condition": true,
+    "human_reviewer_count": 0,
+    "completed_bundle_reviews": 12,
+    "completed_bundle_passes": 12,
+    "generator_and_reviewer_model_family_shared": true,
+    "paper_eligible": false
+  },
+  "artifacts": {
+    "raw_server_root": "mea/protocol_runs/batch24_table3_scene_checker_unseen5_v3",
+    "frozen_input": {
+      "path": "mea/protocol_runs/batch24_table3_scene_checker_unseen5_v3/preregistration.json",
+      "file_sha256": "46f0b093b88d5b8b7539a535fdbadf0d82651d1f81327c733e4c36425b9e0f6a",
+      "contract_sha256": "cacfda796d770f4e2db9ba131246a1cf893660a9f8c63c05374a23949140ba99"
+    },
+    "execution_receipts": {
+      "path": "mea/protocol_runs/batch24_table3_scene_checker_unseen5_v3/live_execution/table3_execution_receipts.json",
+      "sha256": "5fbb0f519eb9ef2a1ff43655016394072383aba23d59ce3cb6fcd39847db24fe"
+    },
+    "generated_scene_checker_pattern": "mea/generated_tasks/run_batch24_table3_scene_checker_unseen5_v3_<cell_id>/{task.py,validation/checker_fixtures.json,validation/bbh_distractor_static.json,evidence/initial_head.png,manifest.json}",
+    "condition_hidden_review": {
+      "path": "mea/protocol_runs/batch24_table3_scene_checker_unseen5_v3/blind_review/provider_reviews.json",
+      "sha256": "756e1d838223e621b02a96805f250e49c2e4c4c0598dd79357fdce653dff5965"
+    },
+    "mapped_proxy_review_input": {
+      "path": "experiments/paper/inputs/table3_proxy_review_batch24_v1.json",
+      "sha256": "906ffb24482ef6d2b36beeffcb4b2d558d531fc1e09b695cec011dcc0c2b8e80"
+    },
+    "per_cell_runs": {
+      "path": "mea/protocol_runs/batch24_table3_scene_checker_unseen5_v3/live_execution/table3_runs.json",
+      "sha256": "05e6cf218059ed1cd44fe14193a61ca1aacdfa02a5646bcfde72fc85666a5d17"
+    },
+    "protocol_result": {
+      "path": "mea/protocol_runs/batch24_table3_scene_checker_unseen5_v3/live_execution/table3_result.json",
+      "sha256": "7d3b10627fc601a62184bf19393d2b68345bbdab77635ac090eeb0521a9c8b52"
+    }
+  },
+  "excluded_setup_runs": [
+    {
+      "study_id": "batch24_table3_scene_checker_unseen5_v1",
+      "reason": "proposal_specific_capability_contract_wiring_error",
+      "provider_calls": 0,
+      "simulator_calls": 0,
+      "act_rollouts": 0
+    },
+    {
+      "study_id": "batch24_table3_scene_checker_unseen5_v2",
+      "reason": "background_process_missing_process_only_provider_key",
+      "provider_calls": 0,
+      "simulator_calls": 0,
+      "act_rollouts": 0
+    }
+  ],
+  "auxiliary_setup_notes": [
+    "The first condition-hidden reviewer launch lacked PYTHONPATH and made zero provider calls; the preserved setup log is excluded from the 25-cell denominator."
+  ],
+  "limitations": [
+    "This is five proposals from one bounded BBH distractor family, one provider model, and one seed per proposal-condition cell; it is not the paper-scale Table 3 experiment.",
+    "The development proxy reviewer used the same model family as generation and is not independent human gold.",
+    "The bounded AST policy rejects semantically plausible but unapproved helper calls, so some failures measure compatibility with the current runtime contract as well as generation quality.",
+    "The complete, base/no_rag, and no_readme_agent conditions exhibit near-ceiling or floor behavior.",
+    "Expert probing was bounded to at most three attempts per materialized cell; no ACT rollout was started."
+  ]
+}

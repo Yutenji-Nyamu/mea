@@ -78,7 +78,11 @@ def _finite_probability(value: Any, *, field: str) -> float | None:
     return float(value)
 
 
-def _majority(labels: list[bool]) -> bool | None:
+def majority_vote(labels: list[bool]) -> bool | None:
+    """Return the strict binary majority, or ``None`` for a tie."""
+
+    if any(not isinstance(label, bool) for label in labels):
+        raise IndependentValidityError("majority labels must be boolean")
     positives = sum(labels)
     negatives = len(labels) - positives
     if positives == negatives:
@@ -390,11 +394,11 @@ def _agreement_rows(
             if raters[value["rater_id"]]["kind"] == "development_agent"
         ]
         if len(primary_human_labels) >= 2:
-            reference = _majority(primary_human_labels)
+            reference = majority_vote(primary_human_labels)
             if reference is not None:
                 reference_source = "declared_human_majority"
             elif senior_human_labels:
-                reference = _majority(senior_human_labels)
+                reference = majority_vote(senior_human_labels)
                 reference_source = (
                     "declared_human_senior_tiebreak"
                     if reference is not None
@@ -406,14 +410,14 @@ def _agreement_rows(
             reference = primary_human_labels[0]
             reference_source = "single_human_not_consensus"
         elif synthetic_labels:
-            reference = _majority(synthetic_labels)
+            reference = majority_vote(synthetic_labels)
             reference_source = (
                 "synthetic_fixture_consensus_not_human_gold"
                 if reference is not None
                 else "synthetic_fixture_tie_unscorable"
             )
         else:
-            reference = _majority(development_labels)
+            reference = majority_vote(development_labels)
             reference_source = (
                 "development_agent_proxy_not_human_gold"
                 if reference is not None
@@ -852,6 +856,7 @@ __all__ = [
     "RATER_KINDS",
     "RATER_ROLES",
     "build_synthetic_validity_demonstration",
+    "majority_vote",
     "summarize_independent_validity",
     "validate_independent_validity_study",
 ]

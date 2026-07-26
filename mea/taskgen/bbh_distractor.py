@@ -1095,8 +1095,9 @@ def _prompt(
             "alignment with "
             "self.hammer.get_functional_point(0, \"pose\").p and the target "
             "actor's get_functional_point(1, \"pose\").p, compare their first "
-            "two coordinates against "
-            "np.array([0.025, 0.025]). Equivalent structure is allowed; scene "
+            "two coordinates against np.array("
+            + repr(proposal["success"]["target_alignment_thresholds_m"])
+            + "). Equivalent structure is allowed; scene "
             "and checker semantics are validated by fixtures."
         )
     prompt = "\n\n".join(sections).strip() + "\n"

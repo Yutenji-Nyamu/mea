@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "protocol": "batch24_plan_vqa_human_replaceable_proxy_closure_v1",
+  "status": "completed_with_plan_provider_budget_deviation",
+  "human_reviewer_count": 0,
+  "annotation_source": "codex_development_agent_proxy",
+  "paper_eligible": false,
+  "plan": {
+    "query_count": 30,
+    "paper_category_counts": {
+      "generalization": 6,
+      "performance": 6,
+      "safety": 6,
+      "robustness": 6,
+      "multi_task": 6
+    },
+    "model": "gpt-5.6-luna",
+    "query_invocations": 30,
+    "provider_attempts": 50,
+    "recorded_response_artifacts": 42,
+    "schema_valid_rate": 0.7333333333333333,
+    "table6_sub_aspect_precision": 0.5128205128205128,
+    "sub_aspect_micro_recall": 0.5263157894736842,
+    "sub_aspect_micro_f1": 0.5194805194805194,
+    "sub_aspect_exact_set_accuracy": 0.36666666666666664,
+    "route_failure_count": 8,
+    "packet": "experiments/paper/inputs/batch24_human_replaceable/plan_query30_annotation_packet_blind.json",
+    "proxy_annotations": "experiments/paper/inputs/batch24_human_replaceable/plan_query30_annotations_codex_proxy.json",
+    "frozen_predictions": "experiments/paper/inputs/batch24_human_replaceable/plan_query30_predictions_live.json",
+    "score": "experiments/paper/results/batch24_human_replaceable/plan_query30_proxy_score.json",
+    "raw_run": "mea/validation_runs/query_validation_20260726_proxy30_v1"
+  },
+  "vqa": {
+    "cached_clip_count": 8,
+    "covered_prediction_count": 7,
+    "accuracy": 0.875,
+    "auroc": 1.0,
+    "condition_counts": {
+      "clean": 2,
+      "clutter": 2,
+      "texture": 2,
+      "lighting": 2
+    },
+    "provider_calls_started": 0,
+    "simulator_calls_started": 0,
+    "act_calls_started": 0,
+    "packet": "experiments/paper/inputs/batch24_human_replaceable/vqa_cached8_annotation_packet_blind.json",
+    "review_assets": "experiments/paper/inputs/batch24_human_replaceable/vqa_review_assets",
+    "proxy_annotations": "experiments/paper/inputs/batch24_human_replaceable/vqa_cached8_annotations_telemetry_proxy.json",
+    "frozen_predictions": "experiments/paper/inputs/batch24_human_replaceable/vqa_cached8_predictions_reused.json",
+    "score": "experiments/paper/results/batch24_human_replaceable/vqa_cached8_proxy_score.json",
+    "raw_prediction_source": "experiments/paper/results/batch23_claim_closure/vqa_proxy_result_v1.json"
+  },
+  "replacement_contract": {
+    "sample_ids_and_order_frozen": true,
+    "predictions_frozen": true,
+    "human_packet_has_four_empty_primary_slots": true,
+    "aggregation": "strict_majority_3_of_4_with_senior_tiebreak",
+    "human_return_changes_only_annotation_file": true,
+    "rerun_provider_simulator_or_policy_for_human_scoring": false
+  },
+  "protocol_deviations": [
+    "The Plan run evaluated 30 queries but the existing GlobalQueryRouter performed bounded schema repair, producing 50 provider attempts rather than the requested maximum of 30.",
+    "Forty-two successful provider responses were recorded; eight attempts ended without response artifacts."
+  ],
+  "limitations": [
+    "The only current references are one Codex development-agent proxy and cached numeric telemetry proxy labels; neither is independent human gold.",
+    "The Plan result is a 30-query development sample, not the paper-scale human validity study.",
+    "The VQA result reuses one VLM's eight cached predictions and does not add simulator-native perturbations or a multi-VLM comparison.",
+    "Accuracy and AUROC are descriptive proxy metrics and are not eligible for Tables 6–8."
+  ]
+}

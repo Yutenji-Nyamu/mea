@@ -620,6 +620,24 @@ def check_success(self):
             )
             self.assertTrue(provenance["generated_by_model"])
 
+    def test_rag_prompt_uses_proposal_alignment_thresholds(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            proposal = default_bbh_distractor_proposal()
+            proposal["success"]["target_alignment_thresholds_m"] = [
+                0.015,
+                0.03,
+            ]
+            provider = _Provider(reference_bbh_distractor_methods(proposal))
+            materialize_bbh_distractor_candidate(
+                repo_root=root,
+                run_id="run_threshold_prompt_distractor",
+                proposal=proposal,
+                provider=provider,
+                model="fixture-model",
+            )
+            self.assertIn("np.array([0.015, 0.03])", provider.prompts[0])
+
     def test_one_local_regeneration_and_standard_taskgen_envelope(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

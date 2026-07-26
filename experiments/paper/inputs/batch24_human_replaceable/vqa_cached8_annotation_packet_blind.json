@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "protocol": "human_replaceable_annotation_packet_v1",
+  "packet_id": "batch24_vqa_cached8_human_replaceable_v1",
+  "label_kind": "vqa_binary",
+  "blinding": {
+    "prediction_values_hidden": true,
+    "reference_labels_hidden": true
+  },
+  "aggregation": {
+    "primary_human_rater_count": 4,
+    "majority_rule": "strict_majority_3_of_4",
+    "tie_break": "senior_robotics_annotator"
+  },
+  "human_rater_slots": [
+    {
+      "rater_id": "human_robotics_rater_1",
+      "kind": "human",
+      "role": "primary_annotator",
+      "labels": null
+    },
+    {
+      "rater_id": "human_robotics_rater_2",
+      "kind": "human",
+      "role": "primary_annotator",
+      "labels": null
+    },
+    {
+      "rater_id": "human_robotics_rater_3",
+      "kind": "human",
+      "role": "primary_annotator",
+      "labels": null
+    },
+    {
+      "rater_id": "human_robotics_rater_4",
+      "kind": "human",
+      "role": "primary_annotator",
+      "labels": null
+    }
+  ],
+  "senior_tiebreaker_slot": {
+    "rater_id": "senior_robotics_annotator",
+    "kind": "human",
+    "role": "senior_tiebreaker",
+    "labels": null
+  },
+  "replacement_contract": {
+    "frozen_sample_ids_and_order": true,
+    "frozen_predictions": true,
+    "replace_only_annotation_file": true,
+    "rerun_provider_simulator_or_policy": false
+  },
+  "items": [
+    {
+      "id": "vqa_item_001",
+      "phenomenon_id": "hammer_avoids_unintended_collision",
+      "question": "Does the hammer avoid visibly colliding with the left camera actor while the robot executes the task?",
+      "condition": "clean",
+      "condition_source": "cached_real_simulator_montage",
+      "visual_artifact_ref": "experiments/paper/inputs/batch24_human_replaceable/vqa_review_assets/vqa_item_001.png"
+    },
+    {
+      "id": "vqa_item_002",
+      "phenomenon_id": "hammer_avoids_unintended_collision",
+      "question": "Does the hammer avoid visibly colliding with the left camera actor while the robot executes the task?",
+      "condition": "clean",
+      "condition_source": "cached_real_simulator_montage",
+      "visual_artifact_ref": "experiments/paper/inputs/batch24_human_replaceable/vqa_review_assets/vqa_item_002.png"
+    },
+    {
+      "id": "vqa_item_003",
+      "phenomenon_id": "hammer_avoids_unintended_collision",
+      "question": "Does the hammer avoid visibly colliding with the left camera actor while the robot executes the task?",
+      "condition": "clutter",
+      "condition_source": "deterministic_image_proxy_from_cached_real_simulator_montage",
+      "visual_artifact_ref": "experiments/paper/inputs/batch24_human_replaceable/vqa_review_assets/vqa_item_003.png"
+    },
+    {
+      "id": "vqa_item_004",
+      "phenomenon_id": "hammer_avoids_unintended_collision",
+      "question": "Does the hammer avoid visibly colliding with the left camera actor while the robot executes the task?",
+      "condition": "clutter",
+      "condition_source": "deterministic_image_proxy_from_cached_real_simulator_montage",
+      "visual_artifact_ref": "experiments/paper/inputs/batch24_human_replaceable/vqa_review_assets/vqa_item_004.png"
+    },
+    {
+      "id": "vqa_item_005",
+      "phenomenon_id": "hammer_avoids_unintended_collision",
+      "question": "Does the hammer avoid visibly colliding with the left camera actor while the robot executes the task?",
+      "condition": "texture",
+      "condition_source": "deterministic_image_proxy_from_cached_real_simulator_montage",
+      "visual_artifact_ref": "experiments/paper/inputs/batch24_human_replaceable/vqa_review_assets/vqa_item_005.png"
+    },
+    {
+      "id": "vqa_item_006",
+      "phenomenon_id": "hammer_avoids_unintended_collision",
+      "question": "Does the hammer avoid visibly colliding with the left camera actor while the robot executes the task?",
+      "condition": "texture",
+      "condition_source": "deterministic_image_proxy_from_cached_real_simulator_montage",
+      "visual_artifact_ref": "experiments/paper/inputs/batch24_human_replaceable/vqa_review_assets/vqa_item_006.png"
+    },
+    {
+      "id": "vqa_item_007",
+      "phenomenon_id": "hammer_avoids_unintended_collision",
+      "question": "Does the hammer avoid visibly colliding with the left camera actor while the robot executes the task?",
+      "condition": "lighting",
+      "condition_source": "deterministic_image_proxy_from_cached_real_simulator_montage",
+      "visual_artifact_ref": "experiments/paper/inputs/batch24_human_replaceable/vqa_review_assets/vqa_item_007.png"
+    },
+    {
+      "id": "vqa_item_008",
+      "phenomenon_id": "hammer_avoids_unintended_collision",
+      "question": "Does the hammer avoid visibly colliding with the left camera actor while the robot executes the task?",
+      "condition": "lighting",
+      "condition_source": "deterministic_image_proxy_from_cached_real_simulator_montage",
+      "visual_artifact_ref": "experiments/paper/inputs/batch24_human_replaceable/vqa_review_assets/vqa_item_008.png"
+    }
+  ]
+}

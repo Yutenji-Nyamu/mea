@@ -1,0 +1,13 @@
+{
+  "reset": true,
+  "robot_state_present": true,
+  "official_init_state_applied": true,
+  "render_nonempty": true,
+  "render_shape": [
+    256,
+    256,
+    3
+  ],
+  "render_path": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_batch24_libero_method_chain_live_v2/round_02_custom/gate/first_frame.png",
+  "underlying_problem": "libero_floor_manipulation"
+}

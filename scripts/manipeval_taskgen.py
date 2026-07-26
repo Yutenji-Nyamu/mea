@@ -2648,6 +2648,12 @@ def evaluate_run_telemetry(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--benchmark",
+        choices=["robotwin", "libero"],
+        default="robotwin",
+        help="Select the existing RoboTwin TaskGen or the bounded LIBERO backend.",
+    )
     parser.add_argument("--request")
     parser.add_argument("--run-id")
     parser.add_argument(
@@ -2755,6 +2761,11 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    if args.benchmark == "libero":
+        from mea.libero.taskgen import run_libero_taskgen_cli
+
+        run_libero_taskgen_cli(args)
+        return
     if args.num_episodes <= 0:
         raise SystemExit("--num-episodes 必须是正整数")
     if args.success_spec_fixture is not None and (

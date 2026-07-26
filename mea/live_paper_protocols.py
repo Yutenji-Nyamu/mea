@@ -2107,6 +2107,102 @@ def _table3_task_proposal(proposal: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _table3_proposals(
+    proposal_set_id: str | None,
+) -> tuple[dict[str, Any], ...]:
+    if proposal_set_id is None:
+        return tuple(deepcopy(dict(item)) for item in TABLE3_PROPOSALS)
+    resolved = _identifier(proposal_set_id, field="proposal_set_id")
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "experiments"
+        / "paper"
+        / "inputs"
+        / "table3_proposal_sets"
+        / f"{resolved}.json"
+    )
+    if not path.is_file():
+        raise LivePaperProtocolError(
+            f"unsupported Table 3 proposal set: {resolved}"
+        )
+    try:
+        proposal_set = _object(
+            json.loads(path.read_text(encoding="utf-8")),
+            field="table3_proposal_set",
+        )
+    except (OSError, json.JSONDecodeError) as exc:
+        raise LivePaperProtocolError(
+            f"invalid Table 3 proposal set: {resolved}"
+        ) from exc
+    if set(proposal_set) != {
+        "schema_version",
+        "proposal_set_id",
+        "proposals",
+    }:
+        raise LivePaperProtocolError(
+            "table3_proposal_set has unsupported fields"
+        )
+    if proposal_set["schema_version"] != 1:
+        raise LivePaperProtocolError(
+            "table3_proposal_set.schema_version must be 1"
+        )
+    if (
+        _identifier(
+            proposal_set["proposal_set_id"],
+            field="table3_proposal_set.proposal_set_id",
+        )
+        != resolved
+    ):
+        raise LivePaperProtocolError("Table 3 proposal set id mismatch")
+
+    proposals: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    for index, raw in enumerate(
+        _items(
+            proposal_set["proposals"],
+            field="table3_proposal_set.proposals",
+            minimum=1,
+        )
+    ):
+        field = f"table3_proposal_set.proposals[{index}]"
+        proposal = _object(raw, field=field)
+        if set(proposal) != {
+            "proposal_id",
+            "task_name",
+            "prompt",
+            "changes",
+        }:
+            raise LivePaperProtocolError(f"{field} has unsupported fields")
+        proposal_id = _identifier(
+            proposal["proposal_id"], field=f"{field}.proposal_id"
+        )
+        if proposal_id in seen_ids:
+            raise LivePaperProtocolError(
+                f"duplicate Table 3 proposal id: {proposal_id}"
+            )
+        seen_ids.add(proposal_id)
+        task_name = _identifier(
+            proposal["task_name"], field=f"{field}.task_name"
+        )
+        if task_name != "beat_block_hammer":
+            raise LivePaperProtocolError(
+                f"{field}.task_name must be beat_block_hammer"
+            )
+        proposals.append(
+            {
+                "proposal_id": proposal_id,
+                "task_name": task_name,
+                "prompt": _text(
+                    proposal["prompt"], field=f"{field}.prompt"
+                ),
+                "changes": deepcopy(
+                    _object(proposal["changes"], field=f"{field}.changes")
+                ),
+            }
+        )
+    return tuple(proposals)
+
+
 def _table3_capability_contract(
     proposal: Mapping[str, Any],
 ) -> dict[str, Any]:
@@ -2167,6 +2263,7 @@ def _table3_runner(
     text_model: str,
     vision_model: str,
     seed: int,
+    proposal_set_id: str | None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     cell_id = f"{proposal['proposal_id']}__{condition}"
     run_token = "".join(
@@ -2255,6 +2352,8 @@ def _table3_runner(
         "act_rollout_budget": 0,
         "expected_stage_receipts": stage_receipts,
     }
+    if proposal_set_id is not None:
+        runner["proposal_set_id"] = proposal_set_id
     runner_ref = f"{artifact_root_ref}/cells/{cell_id}/runner.json"
     binding = {
         "cell_id": cell_id,
@@ -2278,6 +2377,7 @@ def build_table3_codegen_preregistration(
     artifact_root_ref: str | None = None,
     text_model: str = "gpt-4o-2024-11-20",
     vision_model: str = "gpt-4o-2024-11-20",
+    proposal_set_id: str | None = None,
 ) -> dict[str, Any]:
     _utc(created_at_utc, field="created_at_utc")
     resolved_study_id = _identifier(study_id, field="study_id")
@@ -2288,9 +2388,10 @@ def build_table3_codegen_preregistration(
     )
     resolved_text_model = _text(text_model, field="text_model")
     resolved_vision_model = _text(vision_model, field="vision_model")
+    selected_proposals = _table3_proposals(proposal_set_id)
     proposals: list[dict[str, Any]] = []
     cells: list[dict[str, Any]] = []
-    for proposal_index, raw in enumerate(TABLE3_PROPOSALS):
+    for proposal_index, raw in enumerate(selected_proposals):
         proposal = deepcopy(dict(raw))
         task_proposal = _table3_task_proposal(proposal)
         proposal_ref = (
@@ -2312,6 +2413,7 @@ def build_table3_codegen_preregistration(
                 text_model=resolved_text_model,
                 vision_model=resolved_vision_model,
                 seed=100700 + proposal_index,
+                proposal_set_id=proposal_set_id,
             )
             cells.append(binding)
     body = {
@@ -2347,8 +2449,13 @@ def build_table3_codegen_preregistration(
         "claim_scope": (
             "two_unseen_distractor_proposals_per_condition_micro_ablation_"
             "not_table3"
+            if proposal_set_id is None
+            else "five_unseen_bbh_scene_checker_proposals_per_condition_"
+            "condition_blind_development_proxy_not_table3"
         ),
     }
+    if proposal_set_id is not None:
+        body["proposal_set_id"] = proposal_set_id
     return _seal(body, hash_field="preregistration_sha256")
 
 
@@ -2371,6 +2478,7 @@ def validate_table3_codegen_preregistration(
         vision_model=_object(
             row.get("provider_models"), field="provider_models"
         ).get("vision"),
+        proposal_set_id=row.get("proposal_set_id"),
     )
     if rebuilt != row:
         raise LivePaperProtocolError("Table 3 preregistration contract was modified")
@@ -2401,7 +2509,8 @@ def materialize_table3_codegen_preregistration(
         for proposal in prereg["unseen_proposals"]
     }
     proposal_templates = {
-        proposal["proposal_id"]: proposal for proposal in TABLE3_PROPOSALS
+        proposal["proposal_id"]: proposal
+        for proposal in _table3_proposals(prereg.get("proposal_set_id"))
     }
     for proposal in prereg["unseen_proposals"]:
         task_proposal = _table3_task_proposal(
@@ -2424,6 +2533,7 @@ def materialize_table3_codegen_preregistration(
             text_model=prereg["provider_models"]["text"],
             vision_model=prereg["provider_models"]["vision"],
             seed=100700 + proposal_index,
+            proposal_set_id=prereg.get("proposal_set_id"),
         )
         if rebuilt != cell:
             raise LivePaperProtocolError("internal Table 3 cell mismatch")
@@ -2699,7 +2809,13 @@ def evaluate_table3_codegen(
         "claim_scope": prereg["claim_scope"],
         "limitations": [
             review_scope,
-            "A two-proposal micro-ablation is not the paper-scale Table 3 experiment.",
+            (
+                "A two-proposal micro-ablation is not the paper-scale Table 3 "
+                "experiment."
+                if len(prereg["unseen_proposals"]) == 2
+                else f"A {len(prereg['unseen_proposals'])}-proposal ablation "
+                "is not the paper-scale Table 3 experiment."
+            ),
         ],
     }
 

@@ -11,12 +11,20 @@ from unittest.mock import patch
 from mea.independent_validity import (
     IndependentValidityError,
     build_synthetic_validity_demonstration,
+    majority_vote,
     summarize_independent_validity,
     validate_independent_validity_study,
 )
 
 
 class IndependentValidityTests(unittest.TestCase):
+    def test_majority_vote_is_shared_and_rejects_non_binary_labels(self):
+        self.assertTrue(majority_vote([True, True, True, False]))
+        self.assertFalse(majority_vote([False, False, False, True]))
+        self.assertIsNone(majority_vote([True, True, False, False]))
+        with self.assertRaises(IndependentValidityError):
+            majority_vote([True, 1])
+
     def test_synthetic_multirater_and_vqa_controls_are_honest(self):
         demo = build_synthetic_validity_demonstration()
         summary = demo["summary"]
