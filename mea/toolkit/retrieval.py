@@ -59,6 +59,9 @@ class TrustedToolRetriever:
                 outcome_metric if name == "official_check_success" else name
                 for name in selected
             ]
+            selected = [
+                name for name in selected if name != "time_to_success"
+            ]
         reason = (
             "BeatBlockHammer baseline evidence"
             if profile == "beat_block_hammer"
@@ -86,6 +89,11 @@ class TrustedToolRetriever:
                 if matches:
                     selected.append(name)
                     reasons[name] = f"matched request terms: {matches}"
+        if outcome_metric == "generated_check_success":
+            selected = [
+                name for name in selected if name != "time_to_success"
+            ]
+            reasons.pop("time_to_success", None)
         selected = [name for name in TOOL_CATALOG if name in selected]
         return {
             "schema_version": 1,

@@ -7,7 +7,7 @@ after execution.
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import Any
 
 import numpy as np
 
@@ -179,7 +179,3 @@ EXAMPLE_CATALOG: dict[str, dict[str, Any]] = {
         "tags": ["time", "duration", "success", "null", "耗时", "时间", "缺失"],
     },
 }
-
-
-def example_function(name: str) -> Callable[..., dict[str, Any]]:
-    return EXAMPLE_CATALOG[name]["function"]

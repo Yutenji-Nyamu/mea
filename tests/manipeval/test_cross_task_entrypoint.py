@@ -331,7 +331,7 @@ class CrossTaskEntrypointTests(unittest.TestCase):
         )
         self.assertFalse(rejected["accepted"])
 
-    def test_claim_first_runtime_requires_control_and_candidate(self):
+    def test_claim_first_runtime_requires_only_checkpoint_bound_control(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             schema_dir = root / "mea/toolkit/schemas"
@@ -361,10 +361,10 @@ class CrossTaskEntrypointTests(unittest.TestCase):
             self.assertTrue(
                 supports_claim_first_runtime(catalog, "click_bell")
             )
-            self.assertFalse(
+            self.assertTrue(
                 supports_claim_first_runtime(catalog, "adjust_bottle")
             )
-            self.assertFalse(
+            self.assertTrue(
                 supports_claim_first_runtime(catalog, "grab_roller")
             )
 

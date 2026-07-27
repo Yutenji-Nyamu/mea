@@ -357,6 +357,48 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         self.assertFalse(resolution["execution_authorized"])
         self.assertNotIn("resolved_template_id", resolution)
 
+    def test_official_only_task_routes_specific_concern_to_generation(self):
+        official_only_target = {
+            "task_name": "place_phone_stand",
+            "max_rounds": 1,
+            "policy": {"policy_name": "ACT"},
+            "aspects": [
+                {
+                    "aspect_id": "task_execution.official_baseline",
+                    "description": "Unchanged official task.",
+                    "template_ids": ["task_execution.official_baseline"],
+                }
+            ],
+        }
+        concern = {
+            "schema_version": 1,
+            "source_query": (
+                "Does phone-to-stand clearance expose a placement weakness?"
+            ),
+            "sub_aspect": "Phone-to-stand clearance sensitivity.",
+            "hypothesis": "Low clearance causes unintended stand contact.",
+            "task_intent": "Place the phone on its stand.",
+            "requested_variation": (
+                "Reduce phone-to-stand clearance while preserving task identity."
+            ),
+            "measurement_need": (
+                "Measure minimum clearance and unintended contact."
+            ),
+        }
+
+        resolution = resolve_concern_candidate_domain(
+            concern, target=official_only_target
+        )
+
+        self.assertEqual(resolution["decision"], "catalog_external")
+        self.assertEqual(
+            resolution["resolution"],
+            "generation_required_no_registered_candidate",
+        )
+        self.assertEqual(resolution["ranked_aspects"], [])
+        self.assertTrue(resolution["task_need"]["required"])
+        self.assertFalse(resolution["execution_authorized"])
+
     def test_provider_incidental_catalog_words_do_not_hide_external_mass_concern(self):
         resolution = resolve_concern_candidate_domain(
             {
@@ -496,6 +538,41 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         self.assertIn('"value": 0.031', evidence_summary)
         self.assertIn('"provider_called": false', evidence_summary)
 
+    def test_flat_compact_tool_value_reaches_next_planner_evidence(self):
+        plan = round_plan(
+            1,
+            "performance.completion_time_stability.official",
+        )
+        observed = summary(plan, 1.0)
+        observed["observations"]["planned_tool"] = {
+            "status": "passed",
+            "route": "generate",
+            "reference_tool": "query_bottle_tcp_min_distance",
+            "route_decision": {
+                "resolved_route": "generate",
+                "provider_called": True,
+            },
+            "episodes": [
+                {
+                    "metric": "query_bottle_tcp_min_distance",
+                    "value": 0.017,
+                    "unit": "m",
+                    "passed": True,
+                    "details": {},
+                }
+            ],
+        }
+
+        record = build_claim_first_evidence_record(plan, observed)
+
+        self.assertEqual(
+            record["planned_tool_evidence"][0]["metric"],
+            "query_bottle_tcp_min_distance",
+        )
+        self.assertEqual(record["planned_tool_evidence"][0]["value"], 0.017)
+        self.assertTrue(
+            record["planned_tool_evidence"][0]["provider_called"]
+        )
     def test_explicit_change_intent_outranks_preserved_scene_tokens(self):
         proposal = semantic_bundle("bell_property.object_instance_transfer")[
             "proposal"
@@ -689,6 +766,22 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
                 "official_equivalent": False,
                 "execution_scope": "experimental_bounded",
             },
+            outcome_semantics={
+                "schema_version": 1,
+                "status": "expected_semantic_extension",
+                "evidence_conflict": False,
+                "official_equivalent": False,
+                "episodes": [
+                    {
+                        "generated_checker_success": False,
+                        "official_success": True,
+                        "official_core_predicate_satisfied": True,
+                    }
+                ],
+                "reason_codes": [
+                    "generated_checker_adds_constraints_beyond_official_core"
+                ],
+            },
         )
 
         state = controller.observe([control], [observed])
@@ -720,6 +813,22 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
                 "value": 0.0,
                 "official_equivalent": False,
                 "execution_scope": "experimental_bounded",
+            },
+            outcome_semantics={
+                "schema_version": 1,
+                "status": "expected_semantic_extension",
+                "evidence_conflict": False,
+                "official_equivalent": False,
+                "episodes": [
+                    {
+                        "generated_checker_success": False,
+                        "official_success": True,
+                        "official_core_predicate_satisfied": True,
+                    }
+                ],
+                "reason_codes": [
+                    "generated_checker_adds_constraints_beyond_official_core"
+                ],
             },
         )
 
@@ -852,6 +961,55 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         self.assertFalse(state["query_answer"]["answered"])
         self.assertTrue(state["query_answer"]["evidence_conflict"])
 
+    def test_non_comparable_generated_checker_fails_closed(self):
+        controller = ClaimFirstRuntimeController(
+            "Where does this policy first expose a weakness?",
+            target(),
+        )
+        control = round_plan(
+            1, "performance.completion_time_stability.official"
+        )
+        candidate = round_plan(2, "object_position.left_fixed")
+        candidate_summary = summary(
+            candidate,
+            1.0,
+            policy_outcome={
+                "metric": "generated_check_success",
+                "authority": "llm_generated_python_ast_validated",
+                "binding": {"module_sha256": "b" * 64},
+                "value": 1.0,
+                "official_equivalent": False,
+                "execution_scope": "experimental_bounded",
+            },
+            outcome_semantics={
+                "schema_version": 1,
+                "status": "non_comparable",
+                "evidence_conflict": False,
+                "official_equivalent": False,
+                "episodes": [],
+                "reason_codes": [
+                    "non_equivalent_checker_has_no_official_core_projection"
+                ],
+            },
+        )
+
+        state = controller.observe(
+            [control, candidate],
+            [summary(control, 1.0), candidate_summary],
+        )
+
+        self.assertTrue(state["assessment"]["should_stop"])
+        self.assertFalse(state["assessment"]["evidence_sufficient"])
+        self.assertEqual(
+            state["assessment"]["stop_reason"],
+            "outcome_semantics_non_comparable",
+        )
+        self.assertEqual(
+            state["records"][1]["candidate_evidence"]["outcome"],
+            "unknown",
+        )
+        self.assertFalse(state["query_answer"]["answered"])
+
     def test_control_semantics_conflict_invalidates_baseline(self):
         controller = ClaimFirstRuntimeController(
             "Where does this policy first expose a weakness?",
@@ -916,6 +1074,208 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         self.assertGreaterEqual(
             len(state["query_answer"]["evidence_refs"]), 6
         )
+
+    def test_chinese_failure_query_requires_a_failing_witness(self):
+        controller = ClaimFirstRuntimeController(
+            "\u662f\u5426\u5b58\u5728\u4e00\u4e2a\u4f1a\u8ba9\u7b56\u7565\u5931\u8d25\u7684\u53d8\u5316\uff1f",
+            target(),
+        )
+
+        self.assertEqual(
+            controller.query_contract["existential_witness_outcome"],
+            "fail",
+        )
+
+    def test_official_only_task_bootstraps_dynamic_candidate_after_control(self):
+        official_only_target = {
+            "task_name": "place_phone_stand",
+            "max_rounds": 1,
+            "policy": {"policy_name": "ACT"},
+            "aspects": [
+                {
+                    "aspect_id": "task_execution.official_baseline",
+                    "description": "Unchanged official task.",
+                    "template_ids": ["task_execution.official_baseline"],
+                }
+            ],
+        }
+        controller = ClaimFirstRuntimeController(
+            "Where does pose-dependent clearance first expose a weakness?",
+            official_only_target,
+        )
+        self.assertEqual(controller.query_contract["schema_version"], 2)
+        self.assertEqual(controller.query_contract["candidate_universe"], [])
+        self.assertFalse(
+            controller.query_contract["candidate_universe_closed"]
+        )
+
+        control = round_plan(1, "task_execution.official_baseline")
+        control["task_name"] = "place_phone_stand"
+        state = controller.observe([control], [summary(control, 1.0)])
+        self.assertTrue(state["assessment"]["candidate_discovery_required"])
+
+        bundle = semantic_bundle("object_pose.receptacle_clearance")
+        bundle["proposal"]["hypothesis"] = (
+            "A rotated stand may cause phone-to-stand collision before placement."
+        )
+        bundle["proposal"]["requested_perturbation"] = {
+            "description": "Rotate only the phone stand within the safe workspace.",
+            "controlled_changes": ["phone stand yaw"],
+            "preserve": ["phone identity", "policy checkpoint"],
+        }
+        bundle["proposal"]["task_need"] = {
+            "required": True,
+            "description": "Generate the rotated-stand scene and success checker.",
+        }
+        bundle["proposal"]["tool_need"] = {
+            "required": True,
+            "description": "Measure minimum phone-to-stand clearance.",
+            "reuse_first": True,
+        }
+        bound = controller.bind_semantic_step(
+            bundle,
+            state,
+            executed_template_ids=[control["template_id"]],
+        )
+
+        dynamic_step = bound["plan_step"]
+        candidate = dynamic_step["experiment_candidate"]
+        self.assertEqual(bound["schema_version"], 2)
+        self.assertEqual(
+            bound["resolution"]["resolution"],
+            "dynamic_experiment_candidate",
+        )
+        self.assertNotIn("template_id", dynamic_step)
+        self.assertEqual(candidate["base_task"], "place_phone_stand")
+        self.assertEqual(dynamic_step["candidate_id"], candidate["candidate_id"])
+        self.assertIn(
+            candidate["candidate_id"],
+            controller.query_contract["candidate_universe"],
+        )
+
+        executed_dynamic = {
+            "round_id": "round_2",
+            "template_id": None,
+            "candidate_id": candidate["candidate_id"],
+            "sub_aspect": dynamic_step["aspect_id"],
+            "task_instruction": candidate["checker_need"],
+            "execution": {"num_episodes": 1, "seeds": [1002]},
+            "tool_request": {"metric": "time_to_success"},
+            "task_proposal": {
+                "aspect_id": dynamic_step["aspect_id"],
+                "intent": bundle["proposal"]["hypothesis"],
+                "changes": {"stand": {"yaw_mode": "bounded"}},
+            },
+        }
+        completed = controller.observe(
+            [control, executed_dynamic],
+            [summary(control, 1.0), summary(executed_dynamic, 0.0)],
+        )
+        self.assertEqual(
+            completed["records"][1]["candidate_id"],
+            candidate["candidate_id"],
+        )
+        self.assertTrue(completed["assessment"]["evidence_sufficient"])
+        self.assertEqual(
+            completed["assessment"]["stop_reason"], "evidence_sufficient"
+        )
+
+    def test_unresolved_catalog_proposal_falls_back_to_dynamic_candidate(self):
+        controller = ClaimFirstRuntimeController(
+            "Where does target mass first expose a weakness?",
+            target(),
+        )
+        control = round_plan(
+            1, "performance.completion_time_stability.official"
+        )
+        state = controller.observe([control], [summary(control, 1.0)])
+        bundle = semantic_bundle("object_physics.mass")
+        bundle["proposal"]["hypothesis"] = (
+            "A heavier bell may cause an incomplete press."
+        )
+        bundle["proposal"]["requested_perturbation"] = {
+            "description": "Increase only target bell mass.",
+            "controlled_changes": ["target mass"],
+            "preserve": ["bell geometry", "policy checkpoint"],
+        }
+        bundle["proposal"]["task_need"] = {
+            "required": True,
+            "description": "Generate a bounded heavier-bell scene and checker.",
+        }
+        bundle["proposal"]["tool_need"] = {
+            "required": True,
+            "description": "Measure press depth and unintended contact.",
+            "reuse_first": True,
+        }
+        bundle["proposal"]["rationale"] = (
+            "Target mass is the queried controlled factor."
+        )
+
+        bound = controller.bind_semantic_step(
+            bundle,
+            state,
+            executed_template_ids=[control["template_id"]],
+        )
+
+        self.assertEqual(
+            bound["resolution"]["resolution"],
+            "dynamic_experiment_candidate",
+        )
+        self.assertEqual(controller.query_contract["schema_version"], 2)
+        self.assertFalse(
+            controller.query_contract["candidate_universe_closed"]
+        )
+        self.assertIn(
+            bound["plan_step"]["candidate_id"],
+            controller.query_contract["candidate_universe"],
+        )
+
+    def test_diagnostic_protocol_can_explicitly_skip_control(self):
+        official_only_target = {
+            "task_name": "adjust_bottle",
+            "max_rounds": 1,
+            "policy": {"policy_name": "ACT"},
+            "aspects": [
+                {
+                    "aspect_id": "task_execution.official_baseline",
+                    "description": "Unchanged official task.",
+                    "template_ids": ["task_execution.official_baseline"],
+                }
+            ],
+        }
+        controller = ClaimFirstRuntimeController(
+            "Diagnose post-release bottle wobble.",
+            official_only_target,
+            require_control_anchor=False,
+        )
+        state = controller.observe([], [])
+        self.assertFalse(state["control_required"])
+        self.assertIsNone(state["control_passed"])
+        self.assertTrue(state["assessment"]["candidate_discovery_required"])
+
+        bundle = semantic_bundle("motion.post_release_wobble")
+        bundle["proposal"]["hypothesis"] = (
+            "The bottle oscillates after policy release."
+        )
+        bound = controller.bind_semantic_step(
+            bundle,
+            state,
+            executed_template_ids=[],
+        )
+        self.assertEqual(
+            bound["resolution"]["resolution"],
+            "dynamic_experiment_candidate",
+        )
+
+    def test_control_opt_out_rejects_attribution_claims(self):
+        with self.assertRaisesRegex(
+            ClaimFirstRuntimeError, "diagnostic/non-attribution"
+        ):
+            ClaimFirstRuntimeController(
+                "Does every position remain successful?",
+                target(),
+                require_control_anchor=False,
+            )
 
 
 if __name__ == "__main__":

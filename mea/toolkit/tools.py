@@ -507,19 +507,34 @@ def official_check_success(trajectory: TrajectoryView) -> dict[str, Any]:
 
 
 def generated_check_success(trajectory: TrajectoryView) -> dict[str, Any]:
-    """Expose a compiled SuccessSpec outcome without calling it official."""
+    """Expose a validated generated checker outcome without calling it official."""
 
     binding = getattr(trajectory, "outcome_binding", None)
+    supported_bindings = {
+        "compiled_success_spec_experimental_bounded": "success_spec_sha256",
+        "llm_generated_python_ast_validated": "module_sha256",
+    }
     if (
         not isinstance(binding, dict)
         or binding.get("metric") != "generated_check_success"
-        or binding.get("authority")
-        != "compiled_success_spec_experimental_bounded"
+        or binding.get("authority") not in supported_bindings
     ):
         raise TrajectoryError(
             "generated_check_success requires a validated runtime outcome binding"
         )
-    final_success = bool(trajectory.metadata.get("success"))
+    hash_field = supported_bindings[binding["authority"]]
+    generated_success = trajectory.metadata.get(
+        "generated_checker_success"
+    )
+    official_core = trajectory.metadata.get(
+        "official_core_predicate_satisfied"
+    )
+    latched_success = bool(trajectory.metadata.get("success"))
+    final_success = (
+        generated_success
+        if isinstance(generated_success, bool)
+        else latched_success
+    )
     first = trajectory.success_events[0] if trajectory.success_events else None
     return _result(
         "generated_check_success",
@@ -528,11 +543,17 @@ def generated_check_success(trajectory: TrajectoryView) -> dict[str, Any]:
         unit=None,
         evidence=[first] if first else [],
         details={
-            "latched_eval_success": final_success,
+            "latched_eval_success": latched_success,
             "success_transition_recorded": first is not None,
             "authority": binding["authority"],
-            "success_spec_sha256": binding["success_spec_sha256"],
+            hash_field: binding[hash_field],
             "task_module": binding["task_module"],
+            "generated_checker_success": (
+                final_success
+            ),
+            "official_core_predicate_satisfied": (
+                official_core if isinstance(official_core, bool) else None
+            ),
         },
         passed=final_success,
     )
@@ -620,7 +641,9 @@ TOOL_CATALOG: dict[str, dict[str, Any]] = {
     },
     "generated_check_success": {
         "function": generated_check_success,
-        "description": "Latched outcome from a validated compiled SuccessSpec.",
+        "description": (
+            "Latched outcome from a validated experimental generated checker."
+        ),
         "tags": ["success", "generated", "experimental", "result"],
         "supported_task_names": ["*"],
     },

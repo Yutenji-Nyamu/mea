@@ -10,11 +10,11 @@
 
 | 论文 claim | 当前项目证据 | 判断 |
 | --- | --- | --- |
-| 开放 Query 驱动多轮评估；evidence 决定下一步 | batch26 ClickBell v6 从未带 candidate/aspect 顺序的 Query 出发，在线生成 `FreeConcern` 并闭合两轮。batch27 又用 mass Query 在线完成 0-ACT catalog-external 解析：保留 `TaskNeed`/`ToolNeed`，并因缺少可验证执行能力设置 `execution_authorized=false` | **规划正例仍是有限域；开放需求边界已闭合**。系统不再强迫 catalog 外 concern 匹配旧 aspect，也不会越权执行；但尚未把该 concern 自动变成 scene/metric/rollout，因此不是“开放 concern 已评价” |
+| 开放 Query 驱动多轮评估；evidence 决定下一步 | batch26 ClickBell v6 从未带 candidate/aspect 顺序的 Query 出发，在线生成 `FreeConcern` 并闭合两轮。本批又把 catalog-external need 转成无 template id 的 runtime `ExperimentCandidate`；catalog 只作 retrieval hint，generic TaskGen/ToolGen 可 materialize | **代码主链已解除 catalog 执行锁定，live 证据仍缺**。组合/fixture 测试证明 candidate 可进入 scene/checker/telemetry/Tool 路径，但尚无一次新的 provider+ACT 同 bundle 接受，因此当前公开正例仍是有限 distractor Query |
 | 证据充分后停止并回答原 Query | v6 两轮 ACT 后以 `evidence_sufficient` 停止；官方轮标为 `official_only`，生成 checker 轮标为 `expected_semantic_extension`；Answer 只回答有限实验语义，并明确不回答 official benchmark | **有限合同完成**。不再因 hard cap 停止，也没有把 official/generated checker 的语义差异误报成 benchmark 冲突；N=2、单候选仍不是广泛泛化结论 |
 | TaskGen 为同一 Proposal 生成 scene 与 `check_success()`，并裁决 rollout | BBH 已有完整案例；batch26 又把 ClickBell provider scene+checker 放进同一旗舰命令：代码生成、静态检查、6/6 fixtures、render/expert gate、ACT 与生成 checker 裁决均进入同一 bundle | **两个任务上的最小正例**。生成 checker 成功而 official terminal success=false，只支持声明的实验扩展语义；还没有跨多个 unseen Proposal 的稳定 live 成功率 |
 | 首帧视觉检查与重新生成 | 通用 wrong-color 案例完成 fail→一次 provider repair→rerender→accept；batch26 干净旗舰无需 repair | **机制有真实个例**，但没有证明 visual self-check 提高总体生成成功率 |
-| ToolGen retrieve/generate/validate/register/reuse | jerk Query 已完成新 metric→oracle→真实 telemetry 非空值→第二 Query exact reuse；batch26 同 bundle 中 checker Tool 被绑定、执行并复用到 Aggregate/Planner | **生命周期小范围闭合**。跨 Query exact reuse 与“同 bundle 影响 Planner”仍来自两个案例，而不是同一个旗舰 |
+| ToolGen retrieve/generate/validate/register/reuse | jerk Query 已完成新 metric→oracle→真实 telemetry 非空值→第二 Query exact reuse；batch26 同 bundle 中 checker Tool 被绑定、执行并进入 Aggregate/Planner。本批支持从生成 actor 扩展后的实际 telemetry schema 产生 typed Tool，并让显式 reviewed Tool 在独立 Query/evaluation 中 exact reuse和当前数据重验证 | **主调用协议已统一，新的 live flagship 仍缺**。run-local 与 reviewed registry 的物理存储尚未合并；reviewed 晋升仍须显式审核。本批没有新的 provider+ACT 产物证明所有阶段同包发生 |
 | rollout → Rule/VQA → Aggregate → Planner → Answer | batch26 v6 的两个 ACT round 均产生 episode、Rule/Tool、VQA、Aggregate、next decision 与受限 Answer | **RoboTwin 小范围基本实现** |
 | 更少 samples/time 得到与 dense benchmark 可比结论 | batch26 单 seed、四候选 universal-refutation：fixed 4 ACT，adaptive 首轮发现反例后停在 1 ACT；两者原 Query verdict 均为 refuted，少 3 ACT、170.7 秒和 200 policy steps。既有三 seed实验为 12→6 ACT，但完整 failure set 只保持 2/3 | **受限 toy 正证据，不是 Tables 1–2**。它只保持预注册的“存在反例”结论；adaptive 未覆盖其余三候选，因此完整 failure set 不可比较 |
 | 少样本保持 ACT、DP、DP3、RDT、π0 相对排名 | 既有 ACT/DP3 三 seed pilot 为 2/3 对 2/3，平局。batch26 N=5 预注册先跑共享 expert gate，仅 2/5 seed eligible，按协议在策略 rollout 前中止 | **未复现**。pair order 与 Spearman 为空；本批 5 次 expert probe、0 policy rollout，未通过 gate 不能靠筛 seed 制造排名 |
@@ -28,18 +28,20 @@
 
 ## 第一性原理上的首要 gap
 
-1. **把 catalog-external concern 变成可执行证据**：batch27 已正确抽取 mass concern、
-   保存 `TaskNeed`/`ToolNeed` 并拒绝越权 rollout；下一步缺的是让同一需求驱动
-   TaskGen/ToolGen 生成、fixture/visual 验证并执行 1–2 次 ACT，而不是再增加 catalog
-   同义词。
+1. **为解除 catalog 锁定后的主链补真实验收**：代码已能把 catalog-external need
+   转成 runtime candidate，并让 generic TaskGen、动态 telemetry 与 Tool exact reuse
+   串起来；下一步只缺一个无 template/aspect 提示的 provider+ACT 同 bundle（1–2 ACT）。
+   通过标准是 scene/checker/Tool 均由同一 candidate 派生且 evidence 决定停止，不是再加
+   catalog 同义词。
 2. **结论保真，而不只是快速找到一个反例**：universal-refutation 可以合法早停，
    但“完整弱项/最差属性/比较”需要不同 coverage contract。下一批应在 3 个 seed 上
    预注册一种更难的 claim，只有 adaptive 与 dense 在该 claim 的全部所需字段一致且
    rollout/time 下降才算正结果。
-3. **从接口广度推进第三个深入任务**：统一 `TaskAdapter` 已消除多处任务枚举，但
-   adjust_bottle/grab_roller/place_phone_stand 尚无完整的 model-written
-   scene+checker→rollout→Tool/VQA→Answer。只需选择一个能引入新 concern 类型的任务
-   做 1 个两回合正例，不应为所有 50 个可发现任务复制特定 planner。
+3. **从接口广度推进第三个 live 深入任务**：generic adapter 已从 official
+   source/schema 自动发现任务，不再要求为 adjust_bottle/grab_roller/place_phone_stand
+   写专属方言；但后三者仍无完整的 model-written
+   scene+checker→rollout→Tool/VQA→Answer 证据。只需选一个 official control 成功的
+   任务做两回合正例，不应为所有可发现任务复制特定 planner。
 4. **LIBERO 结论充分性**：两回合方法链已合法执行，但 official positive/custom
    negative 在单 seed 下只能回答“该 variation 出现失败”，且 Planner 继续请求证据，
    最终因预算停止。下一步应先预注册有限 candidate universe 与停止合同，再以最多

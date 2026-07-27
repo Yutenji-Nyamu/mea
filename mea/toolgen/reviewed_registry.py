@@ -621,6 +621,74 @@ def find_reviewed_registration(
     return None
 
 
+def compatible_reviewed_tool_requests(
+    registry_dir: str | Path,
+    *,
+    task_name: str,
+    episode_dirs: Iterable[str | Path],
+) -> list[dict[str, Any]]:
+    """Advertise approved typed Tools compatible with current telemetry."""
+
+    root = Path(registry_dir).expanduser().resolve()
+    episode_paths = tuple(
+        Path(item).expanduser().resolve() for item in episode_dirs
+    )
+    compatible: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for entry in load_reviewed_registry(root)["entries"]:
+        if (
+            entry.get("task_name") != task_name
+            or entry.get("target_metric") in seen
+        ):
+            continue
+        loaded = _load_reviewed_entry(root, entry)
+        tool_spec = loaded["tool_spec"]
+        output_contract = tool_spec.get("output_contract") or {}
+        metric_spec = output_contract.get("metric_spec")
+        if (
+            output_contract.get("source") != "typed_metric_spec_v1"
+            or not isinstance(metric_spec, dict)
+        ):
+            continue
+        match = find_reviewed_registration(
+            root,
+            tool_spec=tool_spec,
+            episode_dirs=episode_paths,
+        )
+        if match is None:
+            continue
+        metric = str(tool_spec["metric"])
+        seen.add(metric)
+        compatible.append(
+            {
+                "registration_id": match["registration"][
+                    "registration_id"
+                ],
+                "request": {
+                    "schema_version": 2,
+                    "task_name": task_name,
+                    "metric": metric,
+                    "question": (
+                        f"Reuse the reviewed {metric} measurement."
+                    ),
+                    "metric_spec": json.loads(
+                        json.dumps(metric_spec)
+                    ),
+                },
+                "validation": {
+                    "scope": "reviewed_persistent",
+                    "telemetry_schema_sha256": match["registration"][
+                        "telemetry_schema_sha256"
+                    ],
+                    "review_manifest_sha256": match["registration"][
+                        "review_manifest_sha256"
+                    ],
+                },
+            }
+        )
+    return compatible
+
+
 def public_reviewed_registration_summary(
     match: dict[str, Any],
 ) -> dict[str, Any]:

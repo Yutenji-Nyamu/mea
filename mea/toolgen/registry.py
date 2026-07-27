@@ -240,6 +240,83 @@ def find_run_local_registration(
     return None
 
 
+def compatible_run_local_tool_requests(
+    registry_dir: str | Path,
+    *,
+    task_name: str,
+    episode_dirs: Iterable[str | Path],
+) -> list[dict[str, Any]]:
+    """Advertise exact typed Tools that remain valid for current telemetry."""
+
+    root = Path(registry_dir).expanduser().resolve()
+    episode_paths = tuple(
+        Path(item).expanduser().resolve() for item in episode_dirs
+    )
+    compatible: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for entry in load_registry(root)["entries"]:
+        registration_path = root / str(
+            entry.get("registration_artifact") or ""
+        )
+        try:
+            registration = json.loads(
+                registration_path.read_text(encoding="utf-8")
+            )
+        except (OSError, json.JSONDecodeError):
+            continue
+        tool_spec = (
+            (registration.get("tool_contract") or {}).get("tool_spec")
+        )
+        if (
+            not isinstance(tool_spec, dict)
+            or tool_spec.get("task_name") != task_name
+            or tool_spec.get("metric") in seen
+        ):
+            continue
+        output_contract = tool_spec.get("output_contract") or {}
+        metric_spec = output_contract.get("metric_spec")
+        if (
+            output_contract.get("source") != "typed_metric_spec_v1"
+            or not isinstance(metric_spec, dict)
+        ):
+            continue
+        match = find_run_local_registration(
+            root,
+            tool_spec=tool_spec,
+            episode_dirs=episode_paths,
+        )
+        if match is None:
+            continue
+        metric = str(tool_spec["metric"])
+        seen.add(metric)
+        compatible.append(
+            {
+                "registration_id": match["registration"][
+                    "registration_id"
+                ],
+                "request": {
+                    "schema_version": 2,
+                    "task_name": task_name,
+                    "metric": metric,
+                    "question": (
+                        f"Reuse the validated {metric} measurement."
+                    ),
+                    "metric_spec": deepcopy(metric_spec),
+                },
+                "validation": {
+                    "scope": "evaluation_local",
+                    "telemetry_schema_sha256": match["registration"][
+                        "telemetry_schema_compatibility"
+                    ]["compatibility_sha256"],
+                    "validated_episode_count": match["registration"][
+                        "validation"
+                    ].get("validated_episode_count"),
+                },
+            }
+        )
+    return compatible
+
+
 def register_run_local_tool(
     registry_dir: str | Path,
     *,

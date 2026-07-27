@@ -5,7 +5,11 @@ from .aggregate import (
     aggregate_tool_executions,
     write_aggregate_result,
 )
-from .recorder import EpisodeRecorder, RecorderError
+from .recorder import (
+    EpisodeRecorder,
+    RecorderError,
+    extend_task_schema_with_generated_actors,
+)
 from .retrieval import TrustedToolRetriever
 from .runner import evaluate_telemetry_root
 from .schema import (
@@ -26,6 +30,7 @@ __all__ = [
     "write_aggregate_result",
     "EpisodeRecorder",
     "RecorderError",
+    "extend_task_schema_with_generated_actors",
     "TrustedToolRetriever",
     "evaluate_telemetry_root",
     "TaskSchemaError",

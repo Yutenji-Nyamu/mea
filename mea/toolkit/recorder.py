@@ -24,7 +24,7 @@ from mea.execution_receipt import (
 )
 
 from .profiles import load_telemetry_profile, telemetry_profile_sha256
-from .schema import load_task_schema
+from .schema import load_task_schema, validate_task_schema
 
 
 class RecorderError(RuntimeError):
@@ -35,11 +35,11 @@ _VISUAL_CAPTURE_PROFILES = {"event_keyframes_v1"}
 _VISUAL_CAPTURE_FPS = 2
 
 
-def _schema_with_task_tracked_actors(
+def extend_task_schema_with_generated_actors(
     schema: Mapping[str, Any],
     task: Any,
 ) -> dict[str, Any]:
-    """Append a generated task's public actors to the existing schema."""
+    """Append generated public actors and their measurable pose signals."""
 
     raw = getattr(task, "mea_telemetry_tracked_actors", None)
     if raw is None:
@@ -51,9 +51,11 @@ def _schema_with_task_tracked_actors(
     result = deepcopy(dict(schema))
     actors = result.setdefault("tracked_actors", [])
     focus = result.setdefault("contact_focus_actor_ids", [])
+    semantic_fields = result.setdefault("semantic_fields", [])
     ids = {item["id"] for item in actors}
     attributes = {item["task_attribute"] for item in actors}
     scene_names = {item["scene_name"] for item in actors}
+    field_names = {item["name"] for item in semantic_fields}
     expected = {
         "id",
         "task_attribute",
@@ -121,13 +123,57 @@ def _schema_with_task_tracked_actors(
                 **points,
             }
         )
+        new_fields = [
+            {
+                "name": f"{actor_id}_position",
+                "source": "actor_position",
+                "actor_id": actor_id,
+            },
+            *[
+                {
+                    "name": f"{actor_id}_functional_{point_id}_position",
+                    "source": "actor_functional_position",
+                    "actor_id": actor_id,
+                    "point_id": point_id,
+                }
+                for point_id in points["functional_points"]
+            ],
+            *[
+                {
+                    "name": f"{actor_id}_contact_{point_id}_position",
+                    "source": "actor_contact_position",
+                    "actor_id": actor_id,
+                    "point_id": point_id,
+                }
+                for point_id in points["contact_points"]
+            ],
+        ]
+        duplicates = sorted(
+            field["name"]
+            for field in new_fields
+            if field["name"] in field_names
+        )
+        if duplicates:
+            raise RecorderError(
+                "generated tracked actor duplicates semantic fields: "
+                + ", ".join(duplicates)
+            )
+        semantic_fields.extend(new_fields)
+        field_names.update(field["name"] for field in new_fields)
         if item["contact_focus"]:
             focus.append(actor_id)
         ids.add(actor_id)
         attributes.add(attribute)
         scene_names.add(scene_name)
-    return result
-
+    try:
+        return validate_task_schema(
+            result,
+            expected_task_name=str(schema.get("task_name")),
+        )
+    except Exception as exc:
+        raise RecorderError(
+            f"generated tracked actor schema is invalid: {exc}"
+        ) from exc
 
 def _numbers(value: Any) -> list[float]:
     if value is None:
@@ -309,8 +355,18 @@ class EpisodeRecorder:
 
     def start(self, task: Any) -> None:
         self._task = task
-        self.schema = _schema_with_task_tracked_actors(self.schema, task)
+        self.schema = extend_task_schema_with_generated_actors(
+            self.schema,
+            task,
+        )
         self._validate_task(task)
+        # ``schema.json`` is an executed-episode contract. Generated tasks may
+        # add public tracked actors only after construction, so overwrite the
+        # initial official snapshot once that extension has been validated.
+        (self.output_dir / "schema.json").write_text(
+            json.dumps(self.schema, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
         if self.execution_receipt is not None:
             self.executed_binding = validate_imported_task_binding(
                 self.execution_receipt,
@@ -1035,6 +1091,29 @@ class EpisodeRecorder:
             self._full_state(task, phase="final", action=None)
         )
         self._record_dynamics(task, force=True, success_override=success)
+        generated_checker_success: bool | None = None
+        official_core_predicate_satisfied: bool | None = None
+        official_core_checker = getattr(
+            task,
+            "mea_official_check_success",
+            None,
+        )
+        if callable(official_core_checker):
+            try:
+                generated_checker_success = bool(task.check_success())
+                official_core_predicate_satisfied = bool(
+                    official_core_checker()
+                )
+            except Exception as exc:
+                self.events.append(
+                    {
+                        "type": "outcome_semantics_error",
+                        "policy_step": self.policy_step,
+                        "physics_step": self.physics_step,
+                        "error_type": type(exc).__name__,
+                        "message": str(exc),
+                    }
+                )
         self._write_policy_csv()
         semantic_arrays = self._write_semantic_npz()
         dynamics_arrays = self._write_dynamics_npz()
@@ -1110,6 +1189,19 @@ class EpisodeRecorder:
             "seed": self.seed,
             "episode_index": self.episode_index,
             "success": bool(success),
+            **(
+                {
+                    "generated_checker_success": (
+                        generated_checker_success
+                    ),
+                    "official_core_predicate_satisfied": (
+                        official_core_predicate_satisfied
+                    ),
+                }
+                if generated_checker_success is not None
+                and official_core_predicate_satisfied is not None
+                else {}
+            ),
             "policy_steps": max(self.policy_step + 1, 0),
             "physics_steps": self.physics_step,
             "physics_timestep_seconds": self.physics_dt,

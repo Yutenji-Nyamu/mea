@@ -8,12 +8,14 @@ from types import SimpleNamespace
 import numpy as np
 
 from mea.toolkit import (
-    TOOL_CATALOG,
     EpisodeRecorder,
+    TOOL_CATALOG,
     TrajectoryView,
     TrustedToolRetriever,
     evaluate_telemetry_root,
+    extend_task_schema_with_generated_actors,
     run_trusted_tools,
+    validate_task_schema,
 )
 
 
@@ -27,6 +29,68 @@ class ToolkitTests(unittest.TestCase):
 
     def tearDown(self):
         self._temporary.cleanup()
+
+    def test_generated_actor_extends_executed_schema_with_pose_signals(self):
+        schema = {
+            "schema_version": 1,
+            "task_name": "adjust_bottle",
+            "physics_timestep_seconds": 0.004,
+            "action_dimension": 14,
+            "tracked_actors": [
+                {
+                    "id": "bottle",
+                    "task_attribute": "bottle",
+                    "scene_name": "001_bottle",
+                    "functional_points": [0],
+                    "contact_points": [],
+                }
+            ],
+            "contact_focus_actor_ids": ["bottle"],
+            "semantic_fields": [
+                {
+                    "name": "bottle_position",
+                    "source": "actor_position",
+                    "actor_id": "bottle",
+                }
+            ],
+            "semantic_roles": {},
+        }
+        task = SimpleNamespace(
+            distractor=object(),
+            mea_telemetry_tracked_actors=[
+                {
+                    "id": "distractor",
+                    "task_attribute": "distractor",
+                    "scene_name": "generated_distractor",
+                    "functional_points": [0],
+                    "contact_points": [1],
+                    "contact_focus": True,
+                }
+            ],
+        )
+
+        extended = extend_task_schema_with_generated_actors(schema, task)
+
+        self.assertIs(validate_task_schema(extended), extended)
+        self.assertEqual(
+            extended["tracked_actors"][-1]["id"],
+            "distractor",
+        )
+        self.assertEqual(
+            [
+                field["name"]
+                for field in extended["semantic_fields"][-3:]
+            ],
+            [
+                "distractor_position",
+                "distractor_functional_0_position",
+                "distractor_contact_1_position",
+            ],
+        )
+        self.assertIn(
+            "distractor",
+            extended["contact_focus_actor_ids"],
+        )
 
     @staticmethod
     def _write_episode(episode_dir):
@@ -228,6 +292,7 @@ class ToolkitTests(unittest.TestCase):
         )
         self.assertIn("generated_check_success", selection["selected_tools"])
         self.assertNotIn("official_check_success", selection["selected_tools"])
+        self.assertNotIn("time_to_success", selection["selected_tools"])
         summary = evaluate_telemetry_root(
             self.root,
             user_request="Evaluate the generated success predicate.",
@@ -261,6 +326,63 @@ class ToolkitTests(unittest.TestCase):
                 self.root,
                 user_request="Evaluate the generated success predicate.",
                 outcome_metric="generated_check_success",
+            )
+
+    def test_generated_success_accepts_model_written_module_binding(self):
+        metadata_path = self.episode_dir / "episode.json"
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        metadata.update(
+            {
+                "generated_checker_success": True,
+                "official_core_predicate_satisfied": False,
+            }
+        )
+        metadata_path.write_text(
+            json.dumps(metadata),
+            encoding="utf-8",
+        )
+        summary = evaluate_telemetry_root(
+            self.root,
+            user_request="Evaluate the model-written task checker.",
+            outcome_metric="generated_check_success",
+            outcome_binding={
+                "metric": "generated_check_success",
+                "authority": "llm_generated_python_ast_validated",
+                "module_sha256": "c" * 64,
+                "task_module": "mea.generated_tasks.fixture.task",
+            },
+        )
+        result = next(
+            item
+            for item in summary["episodes"][0]["tool_results"]
+            if item["tool"] == "generated_check_success"
+        )
+        self.assertEqual(
+            result["details"]["authority"],
+            "llm_generated_python_ast_validated",
+        )
+        self.assertEqual(result["details"]["module_sha256"], "c" * 64)
+        self.assertNotIn("success_spec_sha256", result["details"])
+        self.assertTrue(
+            result["details"]["generated_checker_success"]
+        )
+        self.assertFalse(
+            result["details"]["official_core_predicate_satisfied"]
+        )
+
+    def test_generated_success_rejects_mixed_binding_hash_fields(self):
+        with self.assertRaisesRegex(RuntimeError, "exact outcome binding"):
+            evaluate_telemetry_root(
+                self.root,
+                user_request="Evaluate the model-written task checker.",
+                outcome_metric="generated_check_success",
+                outcome_binding={
+                    "metric": "generated_check_success",
+                    "authority": "llm_generated_python_ast_validated",
+                    "module_sha256": "c" * 64,
+                    "success_spec_sha256": "b" * 64,
+                    "task_module": "mea.generated_task_attempts.fixture.task",
+                },
             )
 
     def test_contact_samples_keep_physical_evidence_and_peak(self):

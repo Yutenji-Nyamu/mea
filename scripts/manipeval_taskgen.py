@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import sys
 from collections.abc import Mapping
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -37,14 +38,11 @@ from mea.taskgen import (
     VisualReflectionError,
     extract_json_response,
     execute_reflection_loop,
-    inject_oversized_block_fixture,
-    inject_wrong_color_fixture,
     repair_generated_method,
     validate_click_bell_vision_observation,
     validate_vision_observation,
     create_click_bell_variant_run,
     create_official_task_run,
-    default_bbh_success_spec,
     validate_click_bell_variant_hint,
     build_variant_spec,
     validate_variant_spec_envelope,
@@ -62,6 +60,19 @@ from mea.taskgen import (
     materialize_click_bell_distractor_candidate,
     validate_scene_check_spec,
     write_task_artifact_bundle,
+)
+from mea.taskgen.artifact_index import (
+    GenericTaskArtifactIndex,
+    materialize_reused_generic_task,
+)
+from mea.taskgen.generic_backend import (
+    GenericRoboTwinTaskGenBackend,
+    GenericTaskGenError,
+    load_generic_robotwin_task_adapter,
+)
+from mea.planner.experiment_candidate import (
+    ExperimentCandidateError,
+    validate_experiment_candidate,
 )
 from mea.taskgen.resolver import TaskResolutionError, resolve_task_proposal
 from mea.taskgen.prototype import (
@@ -1002,6 +1013,568 @@ def run_probe(
     if raise_on_failure and returncode != 0:
         raise RuntimeError(f"setup/expert probe 失败，returncode={returncode}")
     return scene
+
+
+def create_generic_provider_taskgen_run(
+    repo_root: Path,
+    *,
+    user_request: str,
+    provider: Any,
+    model: str,
+    experiment_candidate: Mapping[str, Any],
+    run_id: str,
+    seed: int,
+    telemetry_profile: str = "balanced_v1",
+    ablation_switches: Mapping[str, bool] | None = None,
+) -> dict[str, Any]:
+    """Materialize one catalog-independent scene/checker candidate.
+
+    The generated checker is gated against two real simulator states before
+    any learned-policy rollout: the untouched initial state must be negative,
+    and the official expert terminal state must be positive.  These are
+    experimental semantics, not a claim of official-checker equivalence.
+    """
+
+    try:
+        candidate = validate_experiment_candidate(experiment_candidate)
+    except ExperimentCandidateError as exc:
+        raise GenericTaskGenError(str(exc)) from exc
+    request = str(user_request).strip()
+    if not request:
+        raise GenericTaskGenError("user_request must be non-empty")
+    accepted_preflight: dict[str, Any] = {}
+
+    def scene_projection(scene: Mapping[str, Any]) -> dict[str, Any]:
+        """Keep simulator-native fields that can prove a materialized change."""
+
+        return {
+            "actors": scene.get("actors"),
+            "tracked_actors": scene.get("tracked_actors"),
+            "task_attributes": scene.get("task_attributes"),
+            "domain_randomization": scene.get("domain_randomization"),
+        }
+
+    def scene_change_report(
+        official: Mapping[str, Any],
+        generated: Mapping[str, Any],
+        *,
+        official_image: Path,
+        generated_image: Path,
+    ) -> dict[str, Any]:
+        official_projection = scene_projection(official)
+        generated_projection = scene_projection(generated)
+        changed_components = [
+            key
+            for key in official_projection
+            if official_projection[key] != generated_projection[key]
+        ]
+        official_image_sha256 = (
+            hashlib.sha256(official_image.read_bytes()).hexdigest()
+            if official_image.is_file()
+            else None
+        )
+        generated_image_sha256 = (
+            hashlib.sha256(generated_image.read_bytes()).hexdigest()
+            if generated_image.is_file()
+            else None
+        )
+        image_changed = bool(
+            official_image_sha256
+            and generated_image_sha256
+            and official_image_sha256 != generated_image_sha256
+        )
+        return {
+            "schema_version": 1,
+            "passed": bool(changed_components or image_changed),
+            "authority": (
+                "same_seed_official_vs_generated_simulator_state_and_render"
+            ),
+            "changed_components": changed_components,
+            "render_changed": image_changed,
+            "official_render_sha256": official_image_sha256,
+            "generated_render_sha256": generated_image_sha256,
+            "scene_need": candidate["scene_need"],
+            "semantic_scope": (
+                "observable_scene_difference; exact natural-language "
+                "entailment remains a limitation"
+            ),
+        }
+
+    def checker_fixtures(
+        _methods: Mapping[str, str],
+        _candidate: Mapping[str, Any],
+    ) -> list[dict[str, Any]]:
+        # Semantic fixtures are produced by the simulator preflight below.
+        # Returning a fabricated Python-only fixture here would weaken the
+        # paper claim, so the generic backend explicitly merges the live pair.
+        return []
+
+    def preflight_candidate(
+        attempt_dir: Path,
+        _module_source: str,
+        _candidate: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        for package_dir in (
+            repo_root / "mea/generated_task_attempts",
+            attempt_dir.parent,
+            attempt_dir,
+        ):
+            package_dir.mkdir(parents=True, exist_ok=True)
+            (package_dir / "__init__.py").write_text("", encoding="utf-8")
+        overlay_path = attempt_dir / "overlay.yml"
+        overlay_path.write_text("{}\n", encoding="utf-8")
+        module_path = attempt_dir / "candidate_task.py"
+        if not module_path.is_file():
+            module_path = attempt_dir / "task.py"
+        if not module_path.is_file():
+            raise GenericTaskGenError(
+                "generic candidate module is unavailable for preflight"
+            )
+        task_module = (
+            module_path.relative_to(repo_root).with_suffix("").as_posix()
+            .replace("/", ".")
+        )
+        probe_manifest = {
+            "task_name": candidate["base_task"],
+            "task_module": task_module,
+        }
+        official_manifest = {
+            "task_name": candidate["base_task"],
+            "task_module": f"envs.{candidate['base_task']}",
+        }
+        official_setup_image = attempt_dir / "official_setup_head.png"
+        official_setup = run_probe(
+            repo_root,
+            attempt_dir,
+            official_manifest,
+            seed=seed,
+            expert=False,
+            scene_json=attempt_dir / "official_setup_preflight.json",
+            image=official_setup_image,
+            log_path=attempt_dir / "official_setup_preflight.log",
+            telemetry_profile=telemetry_profile,
+        )
+        setup_image = attempt_dir / "setup_head.png"
+        setup = run_probe(
+            repo_root,
+            attempt_dir,
+            probe_manifest,
+            seed=seed,
+            expert=False,
+            scene_json=attempt_dir / "setup_preflight.json",
+            image=setup_image,
+            log_path=attempt_dir / "setup_preflight.log",
+            telemetry_profile=telemetry_profile,
+        )
+        expert = run_probe(
+            repo_root,
+            attempt_dir,
+            probe_manifest,
+            seed=seed,
+            expert=True,
+            scene_json=attempt_dir / "expert_preflight.json",
+            image=attempt_dir / "expert_head.png",
+            log_path=attempt_dir / "expert_preflight.log",
+            max_expert_attempts=3,
+            telemetry_profile=telemetry_profile,
+        )
+        fixtures = [
+            {
+                "fixture_id": "simulator_initial_negative",
+                "expected": False,
+                "observed": bool(setup.get("initial_check_success")),
+                "passed": setup.get("initial_check_success") is False,
+                "authority": "fresh_simulator_state_before_action",
+            },
+            {
+                "fixture_id": "official_expert_terminal_positive",
+                "expected": True,
+                "observed": bool(
+                    (expert.get("expert") or {}).get("check_success")
+                ),
+                "passed": bool(
+                    (expert.get("expert") or {}).get("check_success")
+                ),
+                "authority": "official_expert_terminal_state",
+            },
+        ]
+        scene_change = scene_change_report(
+            official_setup,
+            setup,
+            official_image=official_setup_image,
+            generated_image=setup_image,
+        )
+        result = {
+            "schema_version": 1,
+            "render_passed": bool(
+                setup.get("render_success") and expert.get("render_success")
+            ),
+            "expert_passed": bool(
+                (expert.get("expert") or {}).get("passed")
+            ),
+            "scene_change_passed": scene_change["passed"],
+            "scene_change": scene_change,
+            "checker_fixtures": fixtures,
+            "official_setup_scene": str(
+                (
+                    attempt_dir / "official_setup_preflight.json"
+                ).relative_to(repo_root)
+            ).replace("\\", "/"),
+            "official_setup_image": str(
+                official_setup_image.relative_to(repo_root)
+            ).replace("\\", "/"),
+            "setup_scene": str(
+                (attempt_dir / "setup_preflight.json").relative_to(repo_root)
+            ).replace("\\", "/"),
+            "expert_scene": str(
+                (attempt_dir / "expert_preflight.json").relative_to(repo_root)
+            ).replace("\\", "/"),
+            "setup_image": str(
+                (attempt_dir / "setup_head.png").relative_to(repo_root)
+            ).replace("\\", "/"),
+            "expert_image": str(
+                (attempt_dir / "expert_head.png").relative_to(repo_root)
+            ).replace("\\", "/"),
+        }
+        if not all(item["passed"] for item in fixtures):
+            raise GenericTaskGenError(
+                "generated checker failed live negative/positive fixtures"
+            )
+        if not scene_change["passed"]:
+            raise GenericTaskGenError(
+                "generated scene is not observably different from the "
+                "same-seed official control"
+            )
+        accepted_preflight.clear()
+        accepted_preflight.update(result)
+        return result
+
+    adapter = load_generic_robotwin_task_adapter(
+        repo_root,
+        candidate["base_task"],
+        checker_fixtures=checker_fixtures,
+        preflight_candidate=preflight_candidate,
+        resolve_metric=lambda _candidate: "generated_check_success",
+        resolve_checker_contract=lambda _candidate: {
+            "outcome_label": "generated_check_success",
+            "act_runtime_eligible": True,
+            "preserved": False,
+            "semantic_scope": "query_derived_experimental_predicate",
+        },
+        prompt_constraints=(
+            "Keep the official class identity and policy action interface. "
+            "Use only assets and simulator APIs present in retrieved context. "
+            "The generated initial scene must differ observably from the "
+            "same-seed official scene in simulator state or rendered pixels. "
+            "If load_actors adds an actor that later measurement may need, "
+            "also assign self.mea_telemetry_tracked_actors to a list of dicts "
+            "with exactly id, task_attribute, scene_name, functional_points, "
+            "contact_points, and contact_focus; task_attribute must name the "
+            "public self attribute holding that actor. "
+            "The initial state must not satisfy check_success; the official "
+            "expert terminal state must satisfy it."
+        ),
+    )
+    artifact_index = GenericTaskArtifactIndex(repo_root)
+    resolution = GenericRoboTwinTaskGenBackend(
+        repo_root,
+        provider,
+        model=model,
+        find_exact=artifact_index.find_exact,
+    ).materialize(
+        candidate,
+        adapter,
+        run_id=run_id,
+        max_regenerations=1,
+        ablation_switches=ablation_switches,
+    )
+    reused_manifest: dict[str, Any] | None = None
+    if resolution["status"] == "reused":
+        reused_manifest = materialize_reused_generic_task(
+            repo_root,
+            run_id=run_id,
+            user_request=request,
+            candidate=candidate,
+            resolution=resolution,
+        )
+    elif resolution["status"] != "generated":
+        raise GenericTaskGenError(
+            "generic TaskGen returned an unsupported resolution status"
+        )
+    run_dir = repo_root / "mea/generated_tasks" / run_id
+    for child in ("generation", "validation", "evidence", "evaluation"):
+        (run_dir / child).mkdir(parents=True, exist_ok=True)
+    if reused_manifest is None:
+        moves = {
+            "proposal_prompt.md": "generation/code_prompt.md",
+            "provider_response.txt": "generation/provider_response.txt",
+            "proposal.json": "generation/experiment_candidate.json",
+            "checker_fixtures.json": "validation/checker_fixtures.json",
+            "provider_attempts.json": "generation/provider_attempts.json",
+        }
+        for source_name, destination_name in moves.items():
+            source = run_dir / source_name
+            if not source.is_file():
+                raise GenericTaskGenError(
+                    f"generic candidate artifact is missing: {source_name}"
+                )
+            shutil.move(str(source), str(run_dir / destination_name))
+        write_json(
+            run_dir / "generation/provider_response.json",
+            extract_json_response(
+                (run_dir / "generation/provider_response.txt").read_text(
+                    encoding="utf-8"
+                )
+            ),
+        )
+    else:
+        # Exact reuse skips provider code generation, not simulator
+        # acceptance. Re-run the same-seed scene/checker gates before ACT.
+        preflight_candidate(
+            run_dir,
+            (run_dir / "task.py").read_text(encoding="utf-8"),
+            candidate,
+        )
+    (run_dir / "overlay.yml").write_text("{}\n", encoding="utf-8")
+    write_json(run_dir / "request.json", {"user_request": request})
+
+    def copy_preflight(key: str, destination: str) -> dict[str, Any]:
+        relative = accepted_preflight.get(key)
+        if not isinstance(relative, str):
+            raise GenericTaskGenError(f"generic preflight lacks {key}")
+        source = repo_root / relative
+        target = run_dir / destination
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+        return (
+            json.loads(target.read_text(encoding="utf-8"))
+            if target.suffix == ".json"
+            else {}
+        )
+
+    setup_scene = copy_preflight(
+        "setup_scene", "validation/setup_preflight.json"
+    )
+    copy_preflight(
+        "official_setup_scene",
+        "validation/official_setup_preflight.json",
+    )
+    expert_scene = copy_preflight(
+        "expert_scene", "validation/expert_preflight.json"
+    )
+    copy_preflight("setup_image", "evidence/initial_head.png")
+    copy_preflight(
+        "official_setup_image",
+        "evidence/official_initial_head.png",
+    )
+    copy_preflight("expert_image", "evidence/expert_head.png")
+    run_local_preflight = deepcopy(accepted_preflight)
+    run_local_preflight.update(
+        {
+            "official_setup_scene": (
+                f"mea/generated_tasks/{run_id}/validation/"
+                "official_setup_preflight.json"
+            ),
+            "setup_scene": (
+                f"mea/generated_tasks/{run_id}/validation/"
+                "setup_preflight.json"
+            ),
+            "expert_scene": (
+                f"mea/generated_tasks/{run_id}/validation/"
+                "expert_preflight.json"
+            ),
+            "official_setup_image": (
+                f"mea/generated_tasks/{run_id}/evidence/"
+                "official_initial_head.png"
+            ),
+            "setup_image": (
+                f"mea/generated_tasks/{run_id}/evidence/initial_head.png"
+            ),
+            "expert_image": (
+                f"mea/generated_tasks/{run_id}/evidence/expert_head.png"
+            ),
+        }
+    )
+    if reused_manifest is not None:
+        reused_manifest["scene_validation"] = {
+            **expert_scene,
+            "setup_fixture": setup_scene,
+            "generic_preflight": run_local_preflight,
+        }
+        reused_manifest["task_generation_acceptance"] = {
+            **dict(
+                reused_manifest.get("task_generation_acceptance") or {}
+            ),
+            "status": "accepted",
+            "scope": (
+                "exact_reuse_with_current_seed_render_expert_fixtures"
+            ),
+            "act_rollouts_started_before_acceptance": 0,
+            "checker_fixture_count": len(
+                run_local_preflight["checker_fixtures"]
+            ),
+            "scene_change_passed": run_local_preflight[
+                "scene_change_passed"
+            ],
+            "scene_change_authority": run_local_preflight[
+                "scene_change"
+            ]["authority"],
+        }
+        write_json(run_dir / "manifest.json", reused_manifest)
+        artifact_entry = artifact_index.mark_reuse(
+            resolution["semantic_key"]
+        )
+        reused_manifest["artifact_reuse"]["reuse_count"] = artifact_entry[
+            "reuse_count"
+        ]
+        reused_manifest["artifact_registry"] = {
+            "kind": artifact_entry["kind"],
+            "semantic_key": artifact_entry["semantic_key"],
+            "artifact_path": artifact_entry["artifact_path"],
+            "reuse_count": artifact_entry["reuse_count"],
+            "index_path": str(
+                artifact_index.registry.index_path.relative_to(repo_root)
+            ).replace("\\", "/"),
+        }
+        write_json(run_dir / "manifest.json", reused_manifest)
+        for name in (
+            "official_setup_preflight.json",
+            "official_setup_preflight.log",
+            "official_setup_head.png",
+            "setup_preflight.json",
+            "setup_preflight.log",
+            "setup_head.png",
+            "expert_preflight.json",
+            "expert_preflight.log",
+            "expert_head.png",
+        ):
+            (run_dir / name).unlink(missing_ok=True)
+        return reused_manifest
+    candidate_manifest = resolution["candidate_manifest"]
+    validation = resolution["validation"]
+    static_validation = {
+        "provider_scene_checker": {
+            "valid": True,
+            "ast_policy": validation["policy"],
+            "model_written_python": True,
+            "restricted_success_spec_compiler_used": False,
+            "checker_fixture_count": validation["checker_fixture_count"],
+            "checker_fixture_pass_count": sum(
+                1
+                for item in validation["checker_fixtures"]
+                if item.get("passed") is True
+            ),
+        }
+    }
+    try:
+        base_commit = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo_root,
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except (OSError, subprocess.CalledProcessError):
+        base_commit = None
+    manifest: dict[str, Any] = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "status": "generated",
+        "created_at": datetime.now().astimezone().isoformat(),
+        "user_request": request,
+        "task_name": candidate["base_task"],
+        "task_module": candidate_manifest["task_module"],
+        "mode": "generic_provider_scene_checker_codegen",
+        "generation_kind": "generic_provider_scene_checker_codegen",
+        "base_commit": base_commit,
+        "protected_hashes_before": protected_hashes(repo_root),
+        "overlay": str((run_dir / "overlay.yml").relative_to(repo_root)).replace(
+            "\\", "/"
+        ),
+        "telemetry_profile": telemetry_profile,
+        "static_validation": static_validation,
+        "scene_validation": {
+            **expert_scene,
+            "setup_fixture": setup_scene,
+            "generic_preflight": run_local_preflight,
+        },
+        "vision_validation": {
+            "status": "not_run",
+            "passed": None,
+            "reason": (
+                "generic acceptance uses simulator render plus semantic "
+                "negative/positive fixtures; VQA remains an execution-stage Tool"
+            ),
+        },
+        "provider": {
+            "model_requested": model,
+            "called": True,
+            "local_regeneration_count": resolution[
+                "local_regeneration_count"
+            ],
+            "provider_call_count": resolution["provider_call_count"],
+        },
+        "taskgen_ablation_switches": candidate_manifest[
+            "codegen_provenance"
+        ]["taskgen_ablation_switches"],
+        "taskgen_prompt_components": candidate_manifest[
+            "codegen_provenance"
+        ]["prompt_components"],
+        "experiment_candidate": candidate,
+        "experiment_candidate_path": "generation/experiment_candidate.json",
+        "checker_contract": candidate_manifest["checker_contract"],
+        "candidate_module_sha256": candidate_manifest["module_sha256"],
+        "candidate_manifest": "candidate_manifest.json",
+        "generic_taskgen_resolution": "generic_taskgen_resolution.json",
+        "task_generation_acceptance": {
+            "status": "accepted",
+            "scope": "generic_live_fixture_render_expert_before_policy",
+            "act_rollouts_started_before_acceptance": 0,
+            "checker_fixture_count": validation["checker_fixture_count"],
+            "scene_change_passed": accepted_preflight[
+                "scene_change_passed"
+            ],
+            "scene_change_authority": accepted_preflight[
+                "scene_change"
+            ]["authority"],
+        },
+        "task_artifact_summary": {
+            "scene_origin": "provider_generated_code",
+            "success_origin": "provider_generated_python",
+            "success_semantics_preserved": False,
+            "success_official_equivalent": False,
+            "success_compiler_eligible": False,
+            "success_act_eligible": True,
+            "success_execution_scope": "provider_generated_checker",
+            "success_outcome_label": "generated_check_success",
+        },
+    }
+    write_json(run_dir / "manifest.json", manifest)
+    if ablation_switches is not None:
+        manifest["artifact_registry"] = {
+            "status": "disabled_for_codegen_ablation",
+            "reason": (
+                "Table 3 conditions generate independently and never "
+                "occupy or reuse the production semantic artifact key"
+            ),
+        }
+        write_json(run_dir / "manifest.json", manifest)
+        return manifest
+    artifact_entry = artifact_index.register_generated(
+        resolution=resolution,
+        manifest_path=run_dir / "manifest.json",
+        source_query=request,
+    )
+    manifest["artifact_registry"] = {
+        "kind": artifact_entry["kind"],
+        "semantic_key": artifact_entry["semantic_key"],
+        "artifact_path": artifact_entry["artifact_path"],
+        "reuse_count": artifact_entry["reuse_count"],
+        "index_path": str(
+            artifact_index.registry.index_path.relative_to(repo_root)
+        ).replace("\\", "/"),
+    }
+    write_json(run_dir / "manifest.json", manifest)
+    return manifest
 
 
 def run_official_expert_episodes(
@@ -2602,6 +3175,47 @@ def evaluate_run_telemetry(
     manifest: dict[str, Any],
 ) -> dict[str, Any]:
     telemetry_root = run_dir / "evaluation/telemetry"
+    if (
+        manifest.get("generation_kind")
+        == "generic_provider_scene_checker_codegen"
+    ):
+        outcome_metric = "generated_check_success"
+        outcome_binding = {
+            "metric": outcome_metric,
+            "authority": "llm_generated_python_ast_validated",
+            "module_sha256": manifest["candidate_module_sha256"],
+            "task_module": manifest["task_module"],
+        }
+        summary = evaluate_telemetry_root(
+            telemetry_root,
+            user_request=manifest["user_request"],
+            task_name=manifest["task_name"],
+            outcome_metric=outcome_metric,
+            outcome_binding=outcome_binding,
+        )
+        return {
+            "artifact": str(
+                (telemetry_root / "tool_results.json").relative_to(repo_root)
+            ),
+            "episode_count": summary["episode_count"],
+            "outcome_metric": outcome_metric,
+            "outcome_authority": "llm_generated_python_ast_validated",
+            "outcome_binding": outcome_binding,
+            "tool_retrieval": {
+                "route": "bound_llm_generated_checker",
+                "generated_new_tool": False,
+            },
+            "episodes": [
+                {
+                    "episode_dir": episode["episode_dir"],
+                    "policy_name": episode["metadata"].get("policy_name"),
+                    "seed": episode["metadata"].get("seed"),
+                    "success": episode["metadata"].get("success"),
+                    "tool_results": episode["tool_results"],
+                }
+                for episode in summary["episodes"]
+            ],
+        }
     if manifest.get("generation_kind") == "provider_scene_checker_codegen":
         episode_dirs = sorted(
             metadata.parent
@@ -2766,6 +3380,13 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--experiment-candidate-json",
+        help=(
+            "Runtime open-world ExperimentCandidate. It contains no catalog "
+            "template/aspect and is consumed by generic scene+checker TaskGen."
+        ),
+    )
+    parser.add_argument(
         "--reviewed-task-registry",
         type=Path,
         help=(
@@ -2779,6 +3400,7 @@ def parse_args() -> argparse.Namespace:
             "reuse",
             "force_codegen",
             "provider_scene_checker_codegen",
+            "generic_provider_scene_checker_codegen",
             "official",
         ],
         default="force_codegen",
@@ -2802,19 +3424,6 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=2,
         help="Maximum number of CodeGen repairs after failed visual observations.",
-    )
-    parser.add_argument(
-        "--reflection-fixture",
-        choices=["wrong_color", "oversized_block"],
-        help="Test-only injected visual mismatch used to exercise the repair loop.",
-    )
-    parser.add_argument(
-        "--success-spec-fixture",
-        choices=["invalid_threshold"],
-        help=(
-            "Development-only invalid SuccessSpec used to prove diagnosis and one "
-            "bounded repair before code generation."
-        ),
     )
     parser.add_argument("--run-act", action="store_true")
     parser.add_argument(
@@ -2848,14 +3457,6 @@ def main() -> None:
         return
     if args.num_episodes <= 0:
         raise SystemExit("--num-episodes 必须是正整数")
-    if args.success_spec_fixture is not None and (
-        args.resume_run
-        or args.mode != "force_codegen"
-        or args.task_name != "beat_block_hammer"
-    ):
-        raise SystemExit(
-            "--success-spec-fixture requires a fresh beat_block_hammer force_codegen run"
-        )
     if args.accept_task_only and args.run_act:
         raise SystemExit("--accept-task-only cannot be combined with --run-act")
     if args.accept_task_only and not args.expert:
@@ -2870,7 +3471,11 @@ def main() -> None:
             raise SystemExit(f"invalid --taskgen-ablation-json: {exc}") from exc
         if (
             args.mode
-            not in {"force_codegen", "provider_scene_checker_codegen"}
+            not in {
+                "force_codegen",
+                "provider_scene_checker_codegen",
+                "generic_provider_scene_checker_codegen",
+            }
             or args.resume_run
         ):
             raise SystemExit(
@@ -2903,6 +3508,36 @@ def main() -> None:
             )
         except (json.JSONDecodeError, ProposalError) as exc:
             raise SystemExit(f"invalid --task-proposal-json: {exc}") from exc
+    experiment_candidate: dict[str, Any] | None = None
+    if args.experiment_candidate_json is not None:
+        if args.resume_run:
+            raise SystemExit(
+                "--experiment-candidate-json cannot be used with --resume-run"
+            )
+        if args.mode != "generic_provider_scene_checker_codegen":
+            raise SystemExit(
+                "--experiment-candidate-json requires generic provider mode"
+            )
+        if task_proposal is not None:
+            raise SystemExit(
+                "ExperimentCandidate and legacy TaskProposal are mutually exclusive"
+            )
+        try:
+            experiment_candidate = validate_experiment_candidate(
+                json.loads(args.experiment_candidate_json)
+            )
+        except (json.JSONDecodeError, ExperimentCandidateError) as exc:
+            raise SystemExit(
+                f"invalid --experiment-candidate-json: {exc}"
+            ) from exc
+        if experiment_candidate["base_task"] != args.task_name:
+            raise SystemExit(
+                "ExperimentCandidate.base_task differs from --task-name"
+            )
+    elif args.mode == "generic_provider_scene_checker_codegen":
+        raise SystemExit(
+            "generic provider mode requires --experiment-candidate-json"
+        )
     reviewed_task_registry = (
         args.reviewed_task_registry.expanduser().resolve()
         if args.reviewed_task_registry is not None
@@ -3124,21 +3759,29 @@ def main() -> None:
                 telemetry_profile=args.telemetry_profile,
                 ablation_switches=taskgen_ablation,
             )
+        elif args.mode == "generic_provider_scene_checker_codegen":
+            if (
+                provider is None
+                or experiment_candidate is None
+                or not args.run_id
+            ):
+                raise SystemExit(
+                    "generic scene+checker codegen requires a provider, "
+                    "ExperimentCandidate, and explicit --run-id"
+                )
+            manifest = create_generic_provider_taskgen_run(
+                repo_root,
+                user_request=args.request,
+                provider=provider,
+                model=args.text_model,
+                experiment_candidate=experiment_candidate,
+                run_id=args.run_id,
+                seed=args.seed,
+                telemetry_profile=args.telemetry_profile,
+                ablation_switches=taskgen_ablation,
+            )
         else:
             prototype = TaskGenPrototype(repo_root, provider, model=args.text_model)
-            success_spec_candidate = None
-            success_spec_max_repairs = 0
-            if args.success_spec_fixture == "invalid_threshold":
-                if args.mode != "force_codegen":
-                    raise SystemExit(
-                        "--success-spec-fixture requires --mode force_codegen"
-                    )
-                success_spec_candidate = default_bbh_success_spec()
-                success_spec_candidate["predicates"][0]["thresholds_m"] = [
-                    0.2,
-                    0.2,
-                ]
-                success_spec_max_repairs = 1
             manifest = prototype.generate(
                 args.request,
                 task_name=args.task_name,
@@ -3147,8 +3790,6 @@ def main() -> None:
                 variant_id=args.variant_id,
                 trusted_variant_spec=trusted_variant_spec,
                 task_proposal=task_proposal,
-                success_spec_candidate=success_spec_candidate,
-                success_spec_max_repairs=success_spec_max_repairs,
                 ablation_switches=taskgen_ablation,
             )
         run_dir = repo_root / "mea/generated_tasks" / manifest["run_id"]
@@ -3223,11 +3864,34 @@ def main() -> None:
             registration_identity=registration_identity,
         )
 
-    if args.run_act:
+    generic_provider_mode = (
+        manifest.get("mode") == "generic_provider_scene_checker_codegen"
+    )
+    if args.run_act and not generic_provider_mode:
         try:
             require_task_artifact_act_runtime_eligible(run_dir, manifest)
         except ProductionTaskAcceptanceError as exc:
             raise SystemExit(f"TaskGen ACT runtime gate failed: {exc}") from exc
+    elif args.run_act:
+        acceptance = manifest.get("task_generation_acceptance") or {}
+        preflight = (
+            (manifest.get("scene_validation") or {}).get("generic_preflight")
+            or {}
+        )
+        fixtures = preflight.get("checker_fixtures") or []
+        if (
+            acceptance.get("status") != "accepted"
+            or acceptance.get("act_rollouts_started_before_acceptance") != 0
+            or preflight.get("render_passed") is not True
+            or preflight.get("expert_passed") is not True
+            or preflight.get("scene_change_passed") is not True
+            or not fixtures
+            or any(item.get("passed") is not True for item in fixtures)
+        ):
+            raise SystemExit(
+                "generic TaskGen ACT runtime gate failed: live fixture/render/"
+                "expert preflight is incomplete"
+            )
 
     if args.accept_task_only:
         requested_execution_backend = "expert+task_acceptance_no_act"
@@ -3260,38 +3924,11 @@ def main() -> None:
 
     position_samples: dict[str, Any] | None = None
     try:
-        if manifest.get("mode") == "official" and (
-            args.vision_check or args.reflection_fixture
-        ):
+        if manifest.get("mode") == "official" and args.vision_check:
             raise RuntimeError(
                 "official route bypasses generated-scene vision/reflection; "
                 "use expert, act, or both execution without scene codegen"
             )
-        if args.reflection_fixture:
-            if isinstance(manifest.get("reviewed_task_registration"), Mapping):
-                raise RuntimeError(
-                    "reflection fixtures cannot mutate an approved reviewed Task"
-                )
-            if manifest.get("task_name") != "beat_block_hammer":
-                raise RuntimeError(
-                    "reflection fixtures are only defined for beat_block_hammer"
-                )
-            if args.resume_run:
-                raise RuntimeError("reflection fixture 只允许用于新的 TaskGen run")
-            if not args.vision_check:
-                raise RuntimeError("reflection fixture 必须与 --vision-check 一起使用")
-            spec = json.loads(
-                (run_dir / "variant_spec.json").read_text(encoding="utf-8")
-            )
-            fixture_function = {
-                "wrong_color": inject_wrong_color_fixture,
-                "oversized_block": inject_oversized_block_fixture,
-            }[args.reflection_fixture]
-            fixture = fixture_function(
-                repo_root, run_dir, spec, manifest["protected_hashes_before"]
-            )
-            update_manifest(run_dir, reflection_fixture=fixture)
-
         scene = None
         if args.vision_check:
             if provider is None:
@@ -3314,7 +3951,10 @@ def main() -> None:
             )
             scene = reflected_scene
 
-        if manifest.get("mode") == "official" and args.expert:
+        if generic_provider_mode:
+            scene = dict(manifest.get("scene_validation") or {})
+            write_json(run_dir / "validation/scene.json", scene)
+        elif manifest.get("mode") == "official" and args.expert:
             scene = run_official_expert_episodes(
                 repo_root,
                 run_dir,
@@ -3366,7 +4006,13 @@ def main() -> None:
             write_json(run_dir / "validation/scene.json", scene)
             update_manifest(run_dir, scene_validation=scene)
 
-        if args.accept_task_only:
+        if args.accept_task_only and generic_provider_mode:
+            update_manifest(
+                run_dir,
+                status="completed_without_act",
+                failure=None,
+            )
+        elif args.accept_task_only:
             manifest = json.loads(
                 (run_dir / "manifest.json").read_text(encoding="utf-8")
             )
@@ -3419,7 +4065,23 @@ def main() -> None:
             )
 
         if args.run_act:
-            if manifest["task_name"] == "beat_block_hammer":
+            if generic_provider_mode:
+                position_samples = {
+                    "status": "not_applicable",
+                    "reason": (
+                        "generic TaskGen validates its Query-derived scene "
+                        "through live fixtures rather than a task-specific "
+                        "position contract"
+                    ),
+                    "passed": True,
+                    "samples": [],
+                    "metrics": {},
+                }
+                write_json(
+                    run_dir / "validation/position_samples.json",
+                    position_samples,
+                )
+            elif manifest["task_name"] == "beat_block_hammer":
                 position_samples = collect_position_samples(
                     repo_root,
                     run_dir,
@@ -3465,38 +4127,39 @@ def main() -> None:
                 effective_task_resolution = json.loads(
                     task_resolution_path.read_text(encoding="utf-8")
                 )
-            task_acceptance = record_production_task_acceptance(
-                run_dir,
-                manifest,
-                scene=scene,
-                position_samples=position_samples,
-                task_resolution=effective_task_resolution,
-                require_expert=bool(
-                    args.expert or manifest.get("mode") != "official"
-                ),
-            )
-            update_manifest(
-                run_dir,
-                task_generation_acceptance={
-                    "status": task_acceptance["status"],
-                    "artifact": (
-                        "validation/task_generation_attempts/"
-                        "task_generation_attempt_summary.json"
+            if not generic_provider_mode:
+                task_acceptance = record_production_task_acceptance(
+                    run_dir,
+                    manifest,
+                    scene=scene,
+                    position_samples=position_samples,
+                    task_resolution=effective_task_resolution,
+                    require_expert=bool(
+                        args.expert or manifest.get("mode") != "official"
                     ),
-                    "act_rollouts_started_before_acceptance": task_acceptance[
-                        "runtime"
-                    ]["act_rollouts_started"],
-                },
-            )
-            manifest = json.loads(
-                (run_dir / "manifest.json").read_text(encoding="utf-8")
-            )
-            require_production_task_acceptance(
-                run_dir,
-                manifest,
-                task_resolution=effective_task_resolution,
-                for_act=True,
-            )
+                )
+                update_manifest(
+                    run_dir,
+                    task_generation_acceptance={
+                        "status": task_acceptance["status"],
+                        "artifact": (
+                            "validation/task_generation_attempts/"
+                            "task_generation_attempt_summary.json"
+                        ),
+                        "act_rollouts_started_before_acceptance": task_acceptance[
+                            "runtime"
+                        ]["act_rollouts_started"],
+                    },
+                )
+                manifest = json.loads(
+                    (run_dir / "manifest.json").read_text(encoding="utf-8")
+                )
+                require_production_task_acceptance(
+                    run_dir,
+                    manifest,
+                    task_resolution=effective_task_resolution,
+                    for_act=True,
+                )
             act = run_act(
                 repo_root,
                 run_dir,

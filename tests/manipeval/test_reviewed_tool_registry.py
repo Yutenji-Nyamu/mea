@@ -10,6 +10,8 @@ from pathlib import Path
 from mea.toolgen import (
     ReviewedRegistryError,
     build_review_manifest_template,
+    compatible_reviewed_tool_requests,
+    execute_metric_spec,
     execute_tool_request,
     install_reviewed_registration,
     load_registry,
@@ -262,6 +264,57 @@ print(json.dumps({
             result["route_decision"]["matched_registry"],
             "reviewed_tool_registry",
         )
+
+    def test_typed_metric_is_discoverable_and_reused_across_evaluations(self):
+        metric_spec = {
+            "schema_version": 1,
+            "operation": "minimum_distance",
+            "left_signal": "right_tcp_position",
+            "right_signal": "block_position",
+            "dimensions": ["x", "y"],
+            "unit": "m",
+            "null_semantics": "null_if_no_finite_sample",
+        }
+        generated = execute_metric_spec(
+            task_name="beat_block_hammer",
+            metric="reviewed_tcp_block_gap",
+            question="How close did the TCP get to the block?",
+            metric_spec=metric_spec,
+            episode_dirs=[self.act_episode, self.expert_episode],
+            output_dir=self.root / "typed_source",
+            registry_dir=self.source_registry,
+        )
+        registration_id = generated["registration"]["registration_id"]
+        install_reviewed_registration(
+            self.source_registry,
+            registration_id,
+            self._approved_manifest(registration_id),
+            self.reviewed_registry,
+        )
+        compatible = compatible_reviewed_tool_requests(
+            self.reviewed_registry,
+            task_name="beat_block_hammer",
+            episode_dirs=[self.act_episode, self.expert_episode],
+        )
+        self.assertEqual(len(compatible), 1)
+        request = compatible[0]["request"]
+        request["question"] = "Reuse the same gap for a new Query."
+
+        result = execute_tool_request(
+            self.repo_root,
+            self.child_run,
+            self.root / "eval_typed/execution/round_1/planned_tool",
+            request,
+            reviewed_registry_dir=self.reviewed_registry,
+        )
+
+        self.assertEqual(result["route"], "reviewed_persistent_reuse")
+        self.assertEqual(
+            result["route_decision"]["matched_registry"],
+            "reviewed_tool_registry",
+        )
+        self.assertFalse(result["validation"]["provider_called"])
+        self.assertTrue(result["validation"]["typed_metric_spec"])
 
 
 if __name__ == "__main__":

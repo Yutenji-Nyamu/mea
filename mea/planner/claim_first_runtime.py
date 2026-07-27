@@ -7,16 +7,17 @@ execution details or decide when evidence is sufficient.
 
 The bridge has four explicit responsibilities:
 
-* run one unchanged official-scene control before property attribution;
+* run one unchanged official-scene control before property attribution
+  (diagnostic-only protocols may explicitly opt out);
 * derive OpenQueryEvidence and finite-domain candidate evidence directly from
   the runtime-owned EvidencePacket and lightweight artifact paths;
 * apply the query-sufficiency contract before accepting a model-authored stop;
-* resolve a semantic sub-aspect to one still-legal trusted template only after
-  the model has made its claim-first proposal.
+* reuse a matching trusted template when one exists, otherwise materialize a
+  Query-derived ``ExperimentCandidate`` for TaskGen/ToolGen.
 
-This remains a bounded finite-domain protocol.  It is not a statistical
-generalization guarantee and does not make the hidden executable catalog part
-of the model prompt.
+The legacy finite catalog path remains supported.  Dynamic candidates use an
+open-world sufficiency contract and never make the hidden executable catalog
+part of the model prompt.
 """
 
 from __future__ import annotations
@@ -35,9 +36,11 @@ from .claim_first import (
     validate_open_query_plan_proposal,
 )
 from .evidence_policy import build_evidence_packet, validate_evidence_packet
+from .experiment_candidate import build_experiment_candidate
 from .query_contract import (
     assess_query_sufficiency,
     build_query_sufficiency_contract,
+    extend_query_candidate_universe,
     infer_claim_type,
     validate_query_sufficiency_contract,
 )
@@ -141,6 +144,37 @@ def _nonempty_text(value: Any, field: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ClaimFirstRuntimeError(f"{field} must be a non-empty string")
     return value.strip()
+
+
+def _round_candidate_id(round_plan: Mapping[str, Any]) -> str:
+    """Return the semantic candidate identity for catalog or dynamic rounds."""
+
+    return _nonempty_text(
+        round_plan.get("candidate_id") or round_plan.get("template_id"),
+        "round_plan.candidate_id",
+    )
+
+
+def _failure_seeking_existential(user_query: str) -> bool:
+    """Recognize an existential whose witness is a policy counterexample."""
+
+    query = user_query.casefold()
+    return bool(
+        re.search(
+            r"\b(?:fail(?:s|ed|ing|ure)?|weakness|counterexample|breaks?)\b",
+            query,
+        )
+        or any(
+            term in query
+            for term in (
+                "\u5931\u8d25",
+                "\u5931\u6548",
+                "\u5f31\u70b9",
+                "\u53cd\u4f8b",
+                "\u5d29\u6e83",
+            )
+        )
+    )
 
 
 def control_template_id(target: Mapping[str, Any]) -> str:
@@ -419,10 +453,48 @@ def resolve_concern_candidate_domain(
                 "source_query_matched_tokens": query_matched,
             }
         )
+    external_specificity = _catalog_external_specificity(
+        semantic_fields,
+        source_query=source_query,
+    )
     if not candidates:
-        raise ClaimFirstRuntimeError(
-            "bound task has no non-control capability for the FreeConcern"
-        )
+        if not external_specificity["specific"]:
+            return {
+                "schema_version": 1,
+                "decision": "ambiguous",
+                "resolution": "no_registered_non_control_capability",
+                "candidate_aspect_ids": None,
+                "selected_aspect_id": None,
+                "selected_template_ids": [],
+                "ranked_aspects": [],
+                "concern_created_before_catalog": True,
+                "catalog_was_model_visible": False,
+            }
+        return {
+            "schema_version": 1,
+            "decision": "catalog_external",
+            "resolution": "generation_required_no_registered_candidate",
+            "candidate_aspect_ids": None,
+            "selected_aspect_id": None,
+            "selected_template_ids": [],
+            "ranked_aspects": [],
+            "concern_created_before_catalog": True,
+            "catalog_was_model_visible": False,
+            "concern": deepcopy(dict(concern)),
+            "task_need": {
+                "required": True,
+                "description": semantic_fields["requested_variation"],
+            },
+            "tool_need": {
+                "required": True,
+                "description": semantic_fields["measurement_need"],
+                "reuse_first": True,
+            },
+            "catalog_external_specificity": external_specificity,
+            # Generation, validation, and registration must occur before an
+            # execution backend treats this semantic request as runnable.
+            "execution_authorized": False,
+        }
 
     exact_matches = [item for item in candidates if item["exact"]]
     selected: dict[str, Any] | None = None
@@ -452,10 +524,6 @@ def resolve_concern_candidate_domain(
             selected = top[0]
             resolution = "unique_query_supported_concern"
 
-    external_specificity = _catalog_external_specificity(
-        semantic_fields,
-        source_query=source_query,
-    )
     catalog_external = bool(
         selected is None
         and not exact_matches
@@ -764,14 +832,14 @@ def _compact_planned_tool_evidence(
         if not isinstance(episode, Mapping):
             continue
         result = episode.get("result")
-        if not isinstance(result, Mapping):
-            continue
+        result = result if isinstance(result, Mapping) else episode
         details = result.get("details")
         details = details if isinstance(details, Mapping) else {}
         compact.append(
             {
                 "metric": str(
                     result.get("tool")
+                    or result.get("metric")
                     or planned.get("reference_tool")
                     or ""
                 ),
@@ -794,9 +862,16 @@ def build_claim_first_evidence_record(
 
     if round_plan.get("round_id") != round_summary.get("round_id"):
         raise ClaimFirstRuntimeError("round plan and summary ids disagree")
+    candidate_id = _round_candidate_id(round_plan)
+    evidence_round = deepcopy(dict(round_plan))
+    # EvidencePacket v1 calls this execution identity ``template_id``.  A
+    # dynamic plan has no catalog template, so project its candidate id into
+    # that legacy transport field without mutating the runtime plan.
+    if not evidence_round.get("template_id"):
+        evidence_round["template_id"] = candidate_id
     packet = validate_evidence_packet(
         build_evidence_packet(
-            {"rounds": [deepcopy(dict(round_plan))], "max_rounds": 1},
+            {"rounds": [evidence_round], "max_rounds": 1},
             [deepcopy(dict(round_summary))],
         )
     )
@@ -835,9 +910,18 @@ def build_claim_first_evidence_record(
     )
     strength = packet["evidence_strength"]
     success_rate = packet["policy"]["success_rate"]
+    generated_metric = (
+        policy_outcome.get("metric") == "generated_check_success"
+    )
     if outcome_semantics_status == "conflict":
         semantic_outcome = "ambiguous"
         candidate_outcome = "conflict"
+    elif generated_metric and outcome_semantics_status not in {
+        "equivalent_agreement",
+        "expected_semantic_extension",
+    }:
+        semantic_outcome = "ambiguous"
+        candidate_outcome = "unknown"
     elif strength == "conflicting":
         semantic_outcome = "ambiguous"
         candidate_outcome = "conflict"
@@ -869,7 +953,7 @@ def build_claim_first_evidence_record(
         if isinstance(changes, Mapping) and changes
         else "unchanged official-scene control"
         if _uses_task_control_template(round_plan)
-        else str(round_plan.get("template_id") or sub_aspect)
+        else candidate_id
     )
     limitations = [
         "One bounded runtime round is not a statistical generalization estimate."
@@ -934,12 +1018,12 @@ def build_claim_first_evidence_record(
     if candidate_outcome == "fail":
         diagnosis = (
             f"Observed policy success_rate={float(success_rate):.6g} for "
-            f"{round_plan.get('template_id')} with complete Rule metric "
+            f"{candidate_id} with complete Rule metric "
             f"{packet['rule']['metric']}; this localizes an observed weakness "
             "but does not establish a causal mechanism."
         )
     candidate = {
-        "candidate_id": str(round_plan.get("template_id") or ""),
+        "candidate_id": candidate_id,
         "outcome": candidate_outcome,
         "score": (
             float(success_rate) if success_rate is not None else None
@@ -950,6 +1034,7 @@ def build_claim_first_evidence_record(
         "schema_version": 1,
         "round_id": str(round_plan["round_id"]),
         "template_id": str(round_plan.get("template_id") or ""),
+        "candidate_id": candidate_id,
         "open_query_evidence": open_query,
         "candidate_evidence": candidate,
         "evaluation_outcome": deepcopy(dict(policy_outcome)),
@@ -971,6 +1056,9 @@ def render_query_answer(
     """Build a deterministic query answer/limitation projection."""
 
     query = _nonempty_text(user_query, "user_query")
+    contract = assessment.get("contract")
+    contract = contract if isinstance(contract, Mapping) else {}
+    dynamic_domain = contract.get("schema_version") == 2
     if not baseline_valid:
         answered = False
         stop_reason = baseline_stop_reason or "control_baseline_invalid"
@@ -992,10 +1080,16 @@ def render_query_answer(
         stop_reason = str(assessment.get("stop_reason") or "continue")
         verdict = str(assessment.get("claim_verdict") or "inconclusive")
         if answered:
-            answer = (
-                f"For the finite registered candidate domain, the Query verdict "
-                f"is {verdict}."
-            )
+            if dynamic_domain:
+                answer = (
+                    "For the currently discovered candidate domain, the Query "
+                    f"verdict is {verdict}."
+                )
+            else:
+                answer = (
+                    "For the finite registered candidate domain, the Query "
+                    f"verdict is {verdict}."
+                )
         else:
             answer = (
                 "The bounded evidence does not yet satisfy the truth conditions "
@@ -1005,7 +1099,7 @@ def render_query_answer(
         limitations = list(assessment.get("limitations") or [])
     if untested:
         limitations.append(
-            "Untested finite-domain candidates: " + ", ".join(untested)
+            "Untested candidates: " + ", ".join(untested)
         )
     limitations.extend(
         [
@@ -1085,7 +1179,7 @@ def render_query_answer(
 
 
 class ClaimFirstRuntimeController:
-    """Own control gating, query sufficiency, and semantic catalog resolution."""
+    """Own control gating, query sufficiency, retrieval, and generation hand-off."""
 
     def __init__(
         self,
@@ -1094,9 +1188,13 @@ class ClaimFirstRuntimeController:
         *,
         query_contract: Mapping[str, Any] | None = None,
         candidate_aspect_ids: Sequence[str] | None = None,
+        require_control_anchor: bool = True,
     ):
         self.user_query = _nonempty_text(user_query, "user_query")
         self.target = deepcopy(dict(target))
+        if not isinstance(require_control_anchor, bool):
+            raise ClaimFirstRuntimeError("require_control_anchor must be bool")
+        self.require_control_anchor = require_control_anchor
         self.control_template = control_template_id(self.target)
         if candidate_aspect_ids is not None:
             allowed_aspects = {
@@ -1130,10 +1228,17 @@ class ClaimFirstRuntimeController:
             for template_id in self.template_to_aspect
             if template_id != self.control_template
         ]
-        round_budget = int(self.target.get("max_rounds") or 0) - 1
-        if not candidates or round_budget < 1:
+        round_budget = int(self.target.get("max_rounds") or 0) - (
+            1 if self.require_control_anchor else 0
+        )
+        # Legacy official-only adapters use max_rounds=1 because their catalog
+        # contains only the control.  That catalog size must not prohibit one
+        # Query-derived generation round.
+        if not candidates and round_budget < 1:
+            round_budget = 1
+        if round_budget < 1:
             raise ClaimFirstRuntimeError(
-                "claim-first runtime needs one control and at least one candidate round"
+                "claim-first runtime needs budget for at least one candidate round"
             )
         if query_contract is None:
             claim_type = infer_claim_type(self.user_query)
@@ -1142,15 +1247,28 @@ class ClaimFirstRuntimeController:
                     "comparative Query requires an explicit preregistered "
                     "query-sufficiency contract with two groups"
                 )
+            failure_witness = bool(
+                claim_type == "existential"
+                and _failure_seeking_existential(self.user_query)
+            )
             contract = build_query_sufficiency_contract(
                 self.user_query,
                 candidate_universe=candidates,
                 round_budget=round_budget,
                 claim_type=claim_type,
+                candidate_universe_closed=(
+                    False if not candidates or failure_witness else None
+                ),
+                existential_witness_outcome=(
+                    "fail" if failure_witness else None
+                ),
             )
         else:
             contract = validate_query_sufficiency_contract(query_contract)
-            if set(contract["candidate_universe"]) - set(candidates):
+            if (
+                contract["schema_version"] == 1
+                and set(contract["candidate_universe"]) - set(candidates)
+            ):
                 raise ClaimFirstRuntimeError(
                     "query contract leaves the non-control bound candidate domain"
                 )
@@ -1158,7 +1276,15 @@ class ClaimFirstRuntimeController:
                 raise ClaimFirstRuntimeError(
                     "query contract spends rounds reserved for the control anchor"
                 )
+        if (
+            not self.require_control_anchor
+            and contract["claim_type"] != "diagnostic"
+        ):
+            raise ClaimFirstRuntimeError(
+                "control opt-out is limited to diagnostic/non-attribution Queries"
+            )
         self.query_contract = contract
+        self.dynamic_candidates: dict[str, dict[str, Any]] = {}
 
     def observe(
         self,
@@ -1167,41 +1293,53 @@ class ClaimFirstRuntimeController:
     ) -> dict[str, Any]:
         """Normalize all completed rounds and decide whether execution stops."""
 
-        if not (len(round_plans) == len(round_summaries) and round_plans):
+        if len(round_plans) != len(round_summaries):
             raise ClaimFirstRuntimeError(
-                "completed plans and summaries must be non-empty and aligned"
+                "completed plans and summaries must be aligned"
+            )
+        if self.require_control_anchor and not round_plans:
+            raise ClaimFirstRuntimeError(
+                "control-first observation requires one completed control round"
             )
         records = [
             build_claim_first_evidence_record(plan, summary)
             for plan, summary in zip(round_plans, round_summaries)
         ]
-        if records[0]["template_id"] != self.control_template:
-            raise ClaimFirstRuntimeError(
-                "claim-first property attribution requires the control template first"
+        control_semantics: Mapping[str, Any] = {}
+        control_authority_valid = True
+        control_pipeline_valid = True
+        baseline_valid = True
+        if self.require_control_anchor:
+            if records[0]["template_id"] != self.control_template:
+                raise ClaimFirstRuntimeError(
+                    "claim-first property attribution requires the control "
+                    "template first"
+                )
+            control_packet = records[0]["evidence_packet"]
+            control_outcome = records[0]["evaluation_outcome"]
+            control_semantics = records[0].get("outcome_semantics") or {}
+            control_authority_valid = bool(
+                control_outcome.get("metric") == "official_check_success"
+                and control_outcome.get("official_equivalent") is not False
+                and control_semantics.get("status") != "conflict"
             )
-        control_packet = records[0]["evidence_packet"]
-        control_outcome = records[0]["evaluation_outcome"]
-        control_semantics = records[0].get("outcome_semantics") or {}
-        control_authority_valid = bool(
-            control_outcome.get("metric") == "official_check_success"
-            and control_outcome.get("official_equivalent") is not False
-            and control_semantics.get("status") != "conflict"
+            control_pipeline_valid = bool(
+                control_packet["pipeline"]["passed"]
+                and control_packet["policy"]["reported"]
+                and control_packet["policy"]["success_rate"] is not None
+            )
+            baseline_valid = bool(
+                control_authority_valid
+                and control_pipeline_valid
+                and float(control_packet["policy"]["success_rate"]) >= 1.0
+            )
+        candidate_records = (
+            records[1:] if self.require_control_anchor else records
         )
-        control_pipeline_valid = bool(
-            control_packet["pipeline"]["passed"]
-            and control_packet["policy"]["reported"]
-            and control_packet["policy"]["success_rate"] is not None
-        )
-        baseline_valid = bool(
-            control_authority_valid
-            and control_pipeline_valid
-            and float(control_packet["policy"]["success_rate"]) >= 1.0
-        )
-        candidate_records = records[1:]
         candidate_evidence = [
             deepcopy(record["candidate_evidence"])
             for record in candidate_records
-            if record["template_id"] in self.query_contract["candidate_universe"]
+            if record["candidate_id"] in self.query_contract["candidate_universe"]
         ]
         assessment = assess_query_sufficiency(
             self.query_contract,
@@ -1209,10 +1347,10 @@ class ClaimFirstRuntimeController:
             completed_rounds=len(candidate_records),
         )
         semantic_conflict_ids = [
-            record["template_id"]
+            record["candidate_id"]
             for record in candidate_records
             if (
-                record["template_id"]
+                record["candidate_id"]
                 in self.query_contract["candidate_universe"]
                 and record.get("outcome_semantics", {}).get("status")
                 == "conflict"
@@ -1238,7 +1376,36 @@ class ClaimFirstRuntimeController:
                 ),
                 "recommended_candidate_ids": [],
             }
-        if not baseline_valid:
+        semantic_non_comparable_ids = [
+            record["candidate_id"]
+            for record in candidate_records
+            if (
+                record["candidate_id"]
+                in self.query_contract["candidate_universe"]
+                and record.get("evaluation_outcome", {}).get("metric")
+                == "generated_check_success"
+                and record.get("outcome_semantics", {}).get("status")
+                == "non_comparable"
+            )
+        ]
+        if semantic_non_comparable_ids:
+            assessment = {
+                **assessment,
+                "should_stop": True,
+                "stop_reason": "outcome_semantics_non_comparable",
+                "evidence_sufficient": False,
+                "claim_verdict": "inconclusive",
+                "rationale": (
+                    "The generated checker lacks a comparable official/core "
+                    "projection, so this Query cannot be answered from the "
+                    "completed evidence."
+                ),
+                "non_comparable_candidate_ids": list(
+                    dict.fromkeys(semantic_non_comparable_ids)
+                ),
+                "recommended_candidate_ids": [],
+            }
+        if self.require_control_anchor and not baseline_valid:
             reason = (
                 "control_baseline_semantics_conflict"
                 if control_semantics.get("status") == "conflict"
@@ -1276,7 +1443,10 @@ class ClaimFirstRuntimeController:
         return {
             "schema_version": 1,
             "control_template_id": self.control_template,
-            "control_passed": baseline_valid,
+            "control_required": self.require_control_anchor,
+            "control_passed": (
+                baseline_valid if self.require_control_anchor else None
+            ),
             "query_contract": deepcopy(self.query_contract),
             "assessment": assessment,
             "records": records,
@@ -1302,7 +1472,10 @@ class ClaimFirstRuntimeController:
             raise ClaimFirstRuntimeError(
                 "cannot bind a semantic step after the query contract stopped"
             )
-        if observation.get("control_passed") is not True:
+        if (
+            self.require_control_anchor
+            and observation.get("control_passed") is not True
+        ):
             raise ClaimFirstRuntimeError(
                 "cannot attribute a property before the control passes"
             )
@@ -1313,18 +1486,111 @@ class ClaimFirstRuntimeController:
             )
         try:
             proposal = validate_open_query_plan_proposal(
-                raw_proposal, has_evidence=True
+                raw_proposal,
+                has_evidence=bool(observation.get("records")),
             )
         except ClaimFirstPlanError as exc:
             raise ClaimFirstRuntimeError(str(exc)) from exc
-        resolution = resolve_semantic_proposal(
-            proposal,
-            target=self.target,
-            executed_template_ids=executed_template_ids,
-            control_template=self.control_template,
-        )
-        current_aspect = self.template_to_aspect.get(
-            str(executed_template_ids[-1])
+        if proposal["action"] != "continue":
+            raise ClaimFirstRuntimeError(
+                "the query contract, not the model, owns claim-first stopping"
+            )
+        try:
+            resolution = resolve_semantic_proposal(
+                proposal,
+                target=self.target,
+                executed_template_ids=executed_template_ids,
+                control_template=self.control_template,
+            )
+        except ClaimFirstRuntimeError as catalog_error:
+            perturbation = proposal["requested_perturbation"]
+            task_need = proposal["task_need"]
+            tool_need = proposal["tool_need"]
+            candidate = build_experiment_candidate(
+                source_query=self.user_query,
+                base_task=_nonempty_text(
+                    self.target.get("task_name"), "target.task_name"
+                ),
+                semantic_concern=(
+                    f"{proposal['sub_aspect']}: {proposal['hypothesis']}"
+                ),
+                scene_need=(
+                    task_need.get("description")
+                    or perturbation["description"]
+                ),
+                checker_need=(
+                    "Generate an experimental check_success predicate that "
+                    f"decides: {proposal['hypothesis']}"
+                ),
+                tool_need=(
+                    tool_need.get("description")
+                    or "Measure evidence needed to decide the hypothesis: "
+                    + proposal["hypothesis"]
+                ),
+            )
+            candidate_id = candidate["candidate_id"]
+            if candidate_id in {str(item) for item in executed_template_ids}:
+                raise ClaimFirstRuntimeError(
+                    f"dynamic candidate was already executed: {candidate_id}"
+                ) from catalog_error
+            existing = self.dynamic_candidates.get(candidate_id)
+            if existing is not None and existing != candidate:
+                raise ClaimFirstRuntimeError(
+                    f"dynamic candidate id collision: {candidate_id}"
+                ) from catalog_error
+            self.dynamic_candidates[candidate_id] = candidate
+            self.query_contract = extend_query_candidate_universe(
+                self.query_contract,
+                [candidate_id],
+                candidate_universe_closed=False,
+            )
+            dynamic_resolution = {
+                "schema_version": 1,
+                "semantic_sub_aspect": proposal["sub_aspect"],
+                "resolved_aspect_id": None,
+                "resolved_template_id": None,
+                "resolved_candidate_id": candidate_id,
+                "resolution": "dynamic_experiment_candidate",
+                "hidden": False,
+                "matched_tokens": [],
+                "catalog_was_model_visible": False,
+                "catalog_resolution_error": str(catalog_error),
+            }
+            return {
+                "schema_version": 2,
+                "semantic_proposal_bundle": deepcopy(dict(proposal_bundle)),
+                "semantic_needs": {
+                    "task_need": {
+                        "required": True,
+                        "description": candidate["scene_need"],
+                    },
+                    "checker_need": {
+                        "required": True,
+                        "description": candidate["checker_need"],
+                    },
+                    "tool_need": {
+                        "required": True,
+                        "description": candidate["tool_need"],
+                        "reuse_first": True,
+                    },
+                },
+                "resolution": dynamic_resolution,
+                "query_contract": deepcopy(self.query_contract),
+                "plan_step": {
+                    "schema_version": 2,
+                    "action": "propose",
+                    "aspect_id": proposal["sub_aspect"],
+                    "candidate_id": candidate_id,
+                    "execution_mode": "reuse_or_generate",
+                    "experiment_candidate": candidate,
+                    "rationale": proposal["rationale"],
+                    "answered_query": False,
+                },
+            }
+        current_aspect = (
+            self.template_to_aspect.get(str(executed_template_ids[-1]))
+            if executed_template_ids
+            else None
         )
         return {
             "schema_version": 1,

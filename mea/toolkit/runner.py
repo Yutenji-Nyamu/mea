@@ -30,13 +30,22 @@ def evaluate_telemetry_root(
 ) -> dict[str, Any]:
     normalized_outcome_binding: dict[str, str] | None = None
     if outcome_metric == "generated_check_success":
-        expected = {
-            "metric",
-            "authority",
-            "success_spec_sha256",
-            "task_module",
+        binding_fields = {
+            "compiled_success_spec_experimental_bounded": "success_spec_sha256",
+            "llm_generated_python_ast_validated": "module_sha256",
         }
-        if not isinstance(outcome_binding, Mapping) or set(outcome_binding) != expected:
+        if not isinstance(outcome_binding, Mapping):
+            raise RuntimeError(
+                "generated_check_success requires an exact outcome binding"
+            )
+        authority = str(outcome_binding.get("authority", "")).strip()
+        hash_field = binding_fields.get(authority)
+        expected = (
+            {"metric", "authority", hash_field, "task_module"}
+            if hash_field is not None
+            else set()
+        )
+        if set(outcome_binding) != expected:
             raise RuntimeError(
                 "generated_check_success requires an exact outcome binding"
             )
@@ -45,11 +54,10 @@ def evaluate_telemetry_root(
         }
         if (
             normalized_outcome_binding["metric"] != "generated_check_success"
-            or normalized_outcome_binding["authority"]
-            != "compiled_success_spec_experimental_bounded"
+            or normalized_outcome_binding["authority"] not in binding_fields
             or not re.fullmatch(
                 r"[0-9a-f]{64}",
-                normalized_outcome_binding["success_spec_sha256"],
+                normalized_outcome_binding[hash_field],
             )
             or not normalized_outcome_binding["task_module"]
         ):

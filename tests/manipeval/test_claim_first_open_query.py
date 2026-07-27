@@ -247,7 +247,18 @@ class ClaimFirstOpenQueryTest(unittest.TestCase):
                     "controlled_axis": "robustness.distractor_avoidance",
                     "generation_mode": "provider_scene_checker_codegen",
                     "allowed_change_roots": ["distractor"],
-                }
+                },
+                {
+                    "operation": "retrieve_or_generate_scene_checker",
+                    "controlled_axis": None,
+                    "generation_mode": (
+                        "generic_provider_scene_checker_codegen"
+                    ),
+                    "allowed_change_roots": [
+                        "load_actors",
+                        "check_success",
+                    ],
+                },
             ],
         )
         self.assertNotIn("aspect_id", json.dumps(projected))

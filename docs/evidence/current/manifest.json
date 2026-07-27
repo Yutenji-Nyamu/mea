@@ -12,8 +12,8 @@
     {
       "path": "README.md",
       "source": "docs/evidence/current/README.md",
-      "sha256": "b21566294a9a68874fe91f02f424cd40003ff13177d859cefb5e2164e3fd2e7f",
-      "bytes": 3444
+      "sha256": "4f4c327e3e6e440b115c9ea463f11286ce2a342eda500e81e1c0d4c0aea7ba2a",
+      "bytes": 3723
     },
     {
       "path": "artifacts/concern_candidate_resolution.json",
@@ -32,12 +32,6 @@
       "source": "mea/evaluation_runs/eval_20260727_batch26_clean_online_click_live_v6/plan/decision_after_round_2.json",
       "sha256": "9f8f5d8f2eaed2a067642d2bb923465904c5ccbf533875e9e1a3a516a12ad0cc",
       "bytes": 2038
-    },
-    {
-      "path": "artifacts/evidence_report.md",
-      "source": "mea/evaluation_runs/eval_20260727_batch26_clean_online_click_live_v6/evidence_report.md",
-      "sha256": "d88530f7bac1cfd7cf16f95c83eb8bbf2c79c5ba0c8d586bb2830e7ab3e30d2f",
-      "bytes": 33581
     },
     {
       "path": "artifacts/feedback.json",

@@ -82,8 +82,14 @@ from .query_contract import (
     QuerySufficiencyError,
     assess_query_sufficiency,
     build_query_sufficiency_contract,
+    extend_query_candidate_universe,
     infer_claim_type,
     validate_query_sufficiency_contract,
+)
+from .experiment_candidate import (
+    ExperimentCandidateError,
+    build_experiment_candidate,
+    validate_experiment_candidate,
 )
 from .claim_first import (
     ClaimFirstOpenQueryAgent,
@@ -108,6 +114,12 @@ from .open_task_resolver import (
     FreeConcernAgent,
     discover_robotwin_task_inventory,
     resolve_open_task,
+)
+from .open_world_session import (
+    OpenWorldPlanSession,
+    OpenWorldSessionError,
+    build_open_world_evaluation_target,
+    validate_open_world_evaluation_target,
 )
 
 __all__ = [
@@ -172,8 +184,12 @@ __all__ = [
     "QuerySufficiencyError",
     "assess_query_sufficiency",
     "build_query_sufficiency_contract",
+    "extend_query_candidate_universe",
     "infer_claim_type",
     "validate_query_sufficiency_contract",
+    "ExperimentCandidateError",
+    "build_experiment_candidate",
+    "validate_experiment_candidate",
     "ClaimFirstOpenQueryAgent",
     "ClaimFirstPlanError",
     "open_query_input_digest",
@@ -192,4 +208,8 @@ __all__ = [
     "FreeConcernAgent",
     "discover_robotwin_task_inventory",
     "resolve_open_task",
+    "OpenWorldPlanSession",
+    "OpenWorldSessionError",
+    "build_open_world_evaluation_target",
+    "validate_open_world_evaluation_target",
 ]

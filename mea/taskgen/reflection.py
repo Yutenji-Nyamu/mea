@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import ast
-import copy
 import hashlib
 import json
 import math
@@ -102,7 +100,6 @@ def validate_vision_observation(
             f"unexpected_changes={result['unexpected_changes']}."
         )
     return result
-
 
 def validate_click_bell_vision_observation(value: Any) -> dict[str, Any]:
     """Validate a visual plausibility check; simulator state owns exact XY."""
@@ -418,130 +415,6 @@ def repair_generated_method(
         "installed": True,
     }
     (attempt_dir / "repair.json").write_text(
-        json.dumps(result, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    return result
-
-
-def inject_oversized_block_fixture(
-    repo_root: Path,
-    run_dir: Path,
-    spec: dict[str, Any],
-    protected_before: dict[str, str],
-) -> dict[str, Any]:
-    """Inject a test-only visual mismatch that the existing AST gate permits."""
-
-    source = (run_dir / "generation/load_actors.py.txt").read_text(encoding="utf-8")
-    tree = ast.parse(source)
-    changed = False
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-        name = node.func.id if isinstance(node.func, ast.Name) else None
-        if name != "create_box":
-            continue
-        for keyword in node.keywords:
-            if keyword.arg == "half_size":
-                keyword.value = ast.Tuple(
-                    elts=[ast.Constant(0.06), ast.Constant(0.06), ast.Constant(0.06)],
-                    ctx=ast.Load(),
-                )
-                changed = True
-    if not changed:
-        raise TaskGenError("oversized_block fixture 找不到 create_box half_size")
-    ast.fix_missing_locations(tree)
-    injected = ast.unparse(tree).strip() + "\n"
-
-    fixture_dir = run_dir / "reflection/fixture"
-    fixture_dir.mkdir(parents=True, exist_ok=True)
-    (fixture_dir / "method_before_fixture.py").write_text(source, encoding="utf-8")
-    (fixture_dir / "oversized_load_actors.py").write_text(injected, encoding="utf-8")
-    # As with the wrong-color fixture below, validate the deliberately injected
-    # method against a fixture-only contract.  The committed VariantSpec remains
-    # unchanged, so the visual gate still observes and repairs the mismatch.
-    fixture_spec = copy.deepcopy(spec)
-    fixture_spec["changes"]["block"]["scale"] = 2.4
-    static_validation = install_repaired_method(
-        repo_root,
-        run_dir,
-        injected,
-        fixture_spec,
-        protected_before,
-    )
-    result = {
-        "fixture": "oversized_block",
-        "test_only": True,
-        "injected_half_size": [0.06, 0.06, 0.06],
-        "expected_half_size": [0.025, 0.025, 0.025],
-        "static_gate_still_passes": bool(
-            static_validation["load_actors_ast"]["valid"]
-        ),
-    }
-    (fixture_dir / "fixture.json").write_text(
-        json.dumps(result, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    return result
-
-
-def inject_wrong_color_fixture(
-    repo_root: Path,
-    run_dir: Path,
-    spec: dict[str, Any],
-    protected_before: dict[str, str],
-) -> dict[str, Any]:
-    """Inject a test-only red/blue mismatch after the normal static gate."""
-
-    source = (run_dir / "generation/load_actors.py.txt").read_text(encoding="utf-8")
-    tree = ast.parse(source)
-    changed = False
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-        name = node.func.id if isinstance(node.func, ast.Name) else None
-        if name != "create_box":
-            continue
-        for keyword in node.keywords:
-            if keyword.arg == "color":
-                keyword.value = ast.Tuple(
-                    elts=[ast.Constant(1.0), ast.Constant(0.0), ast.Constant(0.0)],
-                    ctx=ast.Load(),
-                )
-                changed = True
-    if not changed:
-        raise TaskGenError("wrong_color fixture 找不到 create_box color")
-    ast.fix_missing_locations(tree)
-    injected = ast.unparse(tree).strip() + "\n"
-
-    fixture_spec = copy.deepcopy(spec)
-    fixture_spec["changes"]["block"]["color"] = [1.0, 0.0, 0.0]
-    fixture_static = validate_load_actors(injected, fixture_spec)
-    hashes_after = protected_hashes(repo_root)
-    if hashes_after != protected_before:
-        raise TaskGenError("wrong_color fixture 检测到 protected-file 变化")
-    module_source = build_generated_module(injected)
-    compile(module_source, str(run_dir / "task.py"), "exec")
-
-    fixture_dir = run_dir / "reflection/fixture"
-    fixture_dir.mkdir(parents=True, exist_ok=True)
-    (fixture_dir / "method_before_fixture.py").write_text(source, encoding="utf-8")
-    (fixture_dir / "wrong_color_load_actors.py").write_text(
-        injected, encoding="utf-8"
-    )
-    (run_dir / "task.py").write_text(module_source, encoding="utf-8")
-    (run_dir / "generation/load_actors.py.txt").write_text(
-        injected, encoding="utf-8"
-    )
-    result = {
-        "fixture": "wrong_color",
-        "test_only": True,
-        "injected_color": [1.0, 0.0, 0.0],
-        "expected_color": spec["changes"]["block"]["color"],
-        "injected_method_structurally_valid": bool(fixture_static["valid"]),
-        "injected_after_normal_static_gate": True,
-    }
-    (fixture_dir / "fixture.json").write_text(
         json.dumps(result, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )

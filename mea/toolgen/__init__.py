@@ -31,6 +31,7 @@ from .router import (
 )
 from .registry import (
     RunLocalRegistryError,
+    compatible_run_local_tool_requests,
     find_run_local_registration,
     infer_registry_dir,
     load_registry,
@@ -39,6 +40,7 @@ from .registry import (
 from .reviewed_registry import (
     ReviewedRegistryError,
     build_review_manifest_template,
+    compatible_reviewed_tool_requests,
     find_reviewed_registration,
     install_reviewed_registration,
     load_reviewed_registry,
@@ -60,6 +62,12 @@ from .metric_spec import (
     validate_metric_spec,
 )
 from .query_induced import query_induced_result_to_tool_execution
+from .open_request import (
+    OpenToolRequestAgent,
+    OpenToolRequestError,
+    tool_generation_context,
+    validate_open_tool_request,
+)
 
 __all__ = [
     "ToolGenError",
@@ -73,7 +81,9 @@ __all__ = [
     "click_bell_distractor_success_tool_request",
     "ToolRouterError",
     "RunLocalRegistryError",
+    "compatible_run_local_tool_requests",
     "ReviewedRegistryError",
+    "compatible_reviewed_tool_requests",
     "contact_tool_request",
     "contact_tool_spec",
     "execute_tool_request",
@@ -108,4 +118,8 @@ __all__ = [
     "metric_spec_tool_spec",
     "validate_metric_spec",
     "query_induced_result_to_tool_execution",
+    "OpenToolRequestAgent",
+    "OpenToolRequestError",
+    "tool_generation_context",
+    "validate_open_tool_request",
 ]

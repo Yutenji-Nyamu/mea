@@ -7,6 +7,7 @@ import numpy as np
 
 from mea.toolgen import (
     MetricSpecError,
+    compatible_run_local_tool_requests,
     compile_metric_spec_source,
     evaluate_metric_spec,
     execute_tool_request,
@@ -270,6 +271,20 @@ class MetricSpecTests(unittest.TestCase):
             self.assertFalse(result["provider_called"])
             self.assertTrue(result["task_code_context_consumed"])
             self.assertEqual(result["registration"]["scope"], "run_local")
+            reusable = compatible_run_local_tool_requests(
+                registry,
+                task_name="beat_block_hammer",
+                episode_dirs=[first, second],
+            )
+            self.assertEqual(len(reusable), 1)
+            self.assertEqual(
+                reusable[0]["request"]["metric_spec"],
+                SPEC,
+            )
+            self.assertEqual(
+                reusable[0]["registration_id"],
+                result["registration"]["registration_id"],
+            )
 
             replay = execute_metric_spec(
                 task_name="beat_block_hammer",

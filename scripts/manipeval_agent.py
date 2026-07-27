@@ -34,6 +34,7 @@ from mea.history import EvaluationHistoryDB
 from mea.planner import (
     AdaptivePlanStepAgent,
     BoundTaskPlanSession,
+    OpenWorldPlanSession,
     CatalogPlanAgent,
     ClaimFirstOpenQueryAgent,
     ClaimFirstRuntimeController,
@@ -52,6 +53,10 @@ from mea.planner import (
     resolve_open_task,
     route_to_planner_proposal,
 )
+from mea.planner.experiment_candidate import (
+    build_experiment_candidate,
+)
+from mea.planner.query_contract import extend_query_candidate_universe
 from mea.proposals import (
     ProposalError,
     materialize_round_proposals,
@@ -70,6 +75,9 @@ from mea.providers import (
     resolve_model_profile,
 )
 from mea.toolgen import (
+    OpenToolRequestAgent,
+    compatible_reviewed_tool_requests,
+    compatible_run_local_tool_requests,
     execute_tool_request,
     route_tool_request,
 )
@@ -111,19 +119,19 @@ def supports_claim_first_runtime(
     catalog: dict[str, Any],
     task_name: str,
 ) -> bool:
-    """Return whether a routed task has a control plus a candidate experiment."""
+    """Return whether the catalog can retrieve a checkpoint-bound control.
 
-    target = BoundTaskPlanSession.from_catalog(catalog, task_name).target
-    if int(target.get("max_rounds") or 0) < 2:
+    Candidate experiments are generated at runtime and therefore are not an
+    admission requirement.  Failure here means the base task/checkpoint itself
+    is unavailable, not that a concern is absent from a template menu.
+    """
+
+    try:
+        target = BoundTaskPlanSession.from_catalog(catalog, task_name).target
+        control_template_id(target)
+    except (KeyError, TypeError, ValueError):
         return False
-    control = control_template_id(target)
-    templates = {
-        str(template_id)
-        for aspect in target.get("aspects", [])
-        if isinstance(aspect, dict)
-        for template_id in aspect.get("template_ids", [])
-    }
-    return bool(templates - {control})
+    return True
 
 
 def build_bound_claim_first_handoff(
@@ -957,6 +965,19 @@ def build_taskgen_command(
                 ),
             ]
         )
+    experiment_candidate = round_plan.get("experiment_candidate")
+    if experiment_candidate is not None:
+        command.extend(
+            [
+                "--experiment-candidate-json",
+                json.dumps(
+                    experiment_candidate,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+            ]
+        )
     task_variant_id = round_plan.get("task_variant_id")
     if task_variant_id:
         command.extend(["--variant-id", str(task_variant_id)])
@@ -996,6 +1017,10 @@ def build_taskgen_command(
             command.append("--expert")
         if execution_backend in {"act", "both"}:
             command.append("--run-act")
+    elif route == "generic_provider_scene_checker_codegen":
+        # Generic TaskGen already performs live initial-negative, render, and
+        # official-expert-positive preflight inside its single repair loop.
+        command.append("--run-act")
     elif route == "provider_scene_checker_codegen":
         # The proposal-derived visual contract checks that both intended
         # blocks are visible before the expert and ACT gates.
@@ -1021,6 +1046,217 @@ def build_taskgen_command(
             ]
         )
     return command, run_id
+
+
+def materialize_open_world_round(
+    repo_root: Path,
+    evaluation_dir: Path,
+    *,
+    round_number: int,
+    candidate: Mapping[str, Any],
+    control_execution: Mapping[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Bind TaskGen now and defer ToolGen until executed telemetry exists."""
+
+    deferred_tool_request = {
+        "schema_version": 1,
+        "task_name": str(candidate["base_task"]),
+        "metric": "generated_check_success",
+        "question": (
+            "Fallback only: did the validated Query-derived checker pass?"
+        ),
+    }
+    tool_bundle = {
+        "schema_version": 1,
+        "source": "deferred_until_executed_telemetry_schema",
+        "tool_request": deferred_tool_request,
+    }
+    artifact_dir = (
+        evaluation_dir / "plan/open_world_materialization"
+        / f"round_{round_number:02d}"
+    )
+    write_json(artifact_dir / "experiment_candidate.json", dict(candidate))
+    write_json(artifact_dir / "tool_request_bundle.json", tool_bundle)
+    execution = deepcopy(dict(control_execution))
+    execution["backend"] = "act"
+    execution["gates"] = [
+        "ast",
+        "render",
+        "expert",
+        "act",
+        "toolkit",
+        "planned_tool",
+        "aggregate",
+    ]
+    candidate_id = str(candidate["candidate_id"])
+    sub_aspect = str(candidate["semantic_concern"]).split(":", 1)[0].strip()
+    round_plan = {
+        "round_id": f"round_{round_number}",
+        "template_id": None,
+        "candidate_id": candidate_id,
+        "experiment_candidate": deepcopy(dict(candidate)),
+        "sub_aspect": sub_aspect,
+        "rationale": (
+            "Materialize the Query-derived concern through reuse-or-generate "
+            "TaskGen and ToolGen; no catalog template authorizes this round."
+        ),
+        "task_instruction": (
+            f"{candidate['source_query']}\nScene need: "
+            f"{candidate['scene_need']}\nChecker need: "
+            f"{candidate['checker_need']}"
+        ),
+        "task_name": str(candidate["base_task"]),
+        "task_module": None,
+        "telemetry_profile": "balanced_v1",
+        "route": "generic_provider_scene_checker_codegen",
+        "variant_hint": {},
+        "execution": execution,
+        "observations": [
+            "scene_alignment",
+            "expert_solvable",
+            "trusted_tools",
+            "planned_tool",
+            "aggregate",
+        ],
+        "tool_request": deepcopy(deferred_tool_request),
+        "open_tool_request_deferred": True,
+        "vqa_phenomenon_ids": [],
+        "semantic_need_execution": {
+            "schema_version": 2,
+            "candidate_id": candidate_id,
+            "task": {
+                "requested": True,
+                "description": str(candidate["scene_need"]),
+                "route": "generic_provider_scene_checker_codegen",
+                "status": "selected",
+            },
+            "checker": {
+                "requested": True,
+                "description": str(candidate["checker_need"]),
+                "route": "provider_written_python",
+                "status": "selected",
+            },
+            "tool": {
+                "requested": True,
+                "description": str(candidate["tool_need"]),
+                "route": "after_taskgen_executed_telemetry_schema",
+                "status": "pending",
+            },
+        },
+    }
+    return round_plan, tool_bundle
+
+
+def _executed_runtime_task_schema(
+    child_dir: Path,
+    *,
+    task_name: str,
+) -> dict[str, Any]:
+    schema_paths = sorted(
+        (child_dir / "evaluation/telemetry").glob(
+            "act/episode_*/schema.json"
+        )
+    )
+    if not schema_paths:
+        raise RuntimeError(
+            "open ToolGen requires an executed ACT telemetry schema"
+        )
+    schemas = [
+        json.loads(path.read_text(encoding="utf-8"))
+        for path in schema_paths
+    ]
+    canonical = {
+        json.dumps(
+            schema,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        for schema in schemas
+    }
+    if len(canonical) != 1:
+        raise RuntimeError(
+            "executed ACT episodes expose inconsistent telemetry schemas"
+        )
+    schema = schemas[0]
+    if schema.get("task_name") != task_name:
+        raise RuntimeError(
+            "executed telemetry schema changed the bound task"
+        )
+    return schema
+
+
+def materialize_open_world_tool_request(
+    repo_root: Path,
+    execution_dir: Path,
+    *,
+    round_plan: Mapping[str, Any],
+    child_dir: Path,
+    provider: Any,
+    toolgen_model: str,
+    reviewed_tool_registry: Path | None = None,
+) -> dict[str, Any]:
+    """Run ToolGen after TaskGen/ACT using the schema actually recorded."""
+
+    candidate = round_plan.get("experiment_candidate")
+    if not isinstance(candidate, Mapping):
+        raise RuntimeError(
+            "deferred open ToolGen requires an ExperimentCandidate"
+        )
+    runtime_schema = _executed_runtime_task_schema(
+        child_dir,
+        task_name=str(candidate["base_task"]),
+    )
+    episode_dirs = [
+        path.parent
+        for path in sorted(
+            (child_dir / "evaluation/telemetry").glob(
+                "act/episode_*/schema.json"
+            )
+        )
+    ]
+    run_local_registry = execution_dir.parent.parent / "tool_registry"
+    reusable_tool_requests = compatible_run_local_tool_requests(
+        run_local_registry,
+        task_name=str(candidate["base_task"]),
+        episode_dirs=episode_dirs,
+    )
+    if reviewed_tool_registry is not None:
+        reusable_tool_requests.extend(
+            compatible_reviewed_tool_requests(
+                reviewed_tool_registry,
+                task_name=str(candidate["base_task"]),
+                episode_dirs=episode_dirs,
+            )
+        )
+    tool_agent = OpenToolRequestAgent(
+        repo_root,
+        provider,
+        model=toolgen_model,
+    )
+    bundle = tool_agent.propose(
+        source_query=str(candidate["source_query"]),
+        semantic_concern=str(candidate["semantic_concern"]),
+        tool_need=str(candidate["tool_need"]),
+        task_name=str(candidate["base_task"]),
+        generated_checker_semantics=True,
+        runtime_schema=runtime_schema,
+        reusable_tool_requests=reusable_tool_requests,
+    )
+    artifact_dir = execution_dir / "open_tool_request"
+    write_json(artifact_dir / "runtime_schema.json", runtime_schema)
+    write_json(artifact_dir / "tool_request_bundle.json", bundle)
+    if tool_agent.last_prompt is not None:
+        (artifact_dir / "prompt.md").write_text(
+            tool_agent.last_prompt,
+            encoding="utf-8",
+        )
+    for index, response in enumerate(tool_agent.last_responses, start=1):
+        (artifact_dir / f"response_{index}.txt").write_text(
+            response + "\n",
+            encoding="utf-8",
+        )
+    return bundle
 
 
 def run_logged(command: list[str], *, cwd: Path, log_path: Path) -> int:
@@ -1108,7 +1344,11 @@ def reuse_bound_child_checker_tool(
 
     trusted = child_manifest.get("trusted_tool_evaluation")
     if (
-        child_manifest.get("generation_kind") != "provider_scene_checker_codegen"
+        child_manifest.get("generation_kind")
+        not in {
+            "provider_scene_checker_codegen",
+            "generic_provider_scene_checker_codegen",
+        }
         or not isinstance(trusted, Mapping)
         or tool_request.get("schema_version") != 1
         or "metric_spec" in tool_request
@@ -1235,6 +1475,27 @@ def compact_tool_evaluation(
 
     if not tool_evaluation:
         return None
+    compact_episodes: list[dict[str, Any]] = []
+    for item in tool_evaluation.get("episodes", []):
+        if not isinstance(item, Mapping):
+            continue
+        for result in _episode_tool_results(item):
+            compact_episodes.append(
+                {
+                    "policy_name": item.get("policy_name"),
+                    "seed": item.get("seed"),
+                    "role": item.get("role"),
+                    "metric": (
+                        result.get("tool")
+                        or tool_evaluation.get("reference_tool")
+                    ),
+                    "value": result.get("value"),
+                    "unit": result.get("unit"),
+                    "passed": result.get("passed"),
+                    "evidence_steps": result.get("evidence_steps", []),
+                    "details": result.get("details", {}),
+                }
+            )
     return {
         "status": tool_evaluation.get("status"),
         "requested_route": tool_evaluation.get("requested_route"),
@@ -1242,18 +1503,7 @@ def compact_tool_evaluation(
         "reference_tool": tool_evaluation.get("reference_tool"),
         "route_decision": tool_evaluation.get("route_decision", {}),
         "source": tool_evaluation.get("source", {}),
-        "episodes": [
-            {
-                "policy_name": item.get("policy_name"),
-                "seed": item.get("seed"),
-                "role": item.get("role"),
-                "value": item.get("result", {}).get("value"),
-                "passed": item.get("result", {}).get("passed"),
-                "evidence_steps": item.get("result", {}).get("evidence_steps", []),
-                "details": item.get("result", {}).get("details", {}),
-            }
-            for item in tool_evaluation.get("episodes", [])
-        ],
+        "episodes": compact_episodes,
         "validation": tool_evaluation.get("validation", {}),
     }
 
@@ -1874,6 +2124,10 @@ def summarize_round(
     trusted_tool_evaluation = child_manifest.get("trusted_tool_evaluation") or {}
     task_artifact_summary = child_manifest.get("task_artifact_summary") or {}
     is_official = round_plan.get("route") == "official"
+    is_generic_provider = (
+        round_plan.get("route")
+        == "generic_provider_scene_checker_codegen"
+    )
     execution_backend = round_execution_backend(round_plan)
     uses_act = execution_backend in {"act", "both"}
     uses_expert = execution_backend in {"expert", "both"}
@@ -1881,6 +2135,7 @@ def summarize_round(
         trusted_tool_evaluation,
         task_artifact_summary,
     )
+    static = child_manifest.get("static_validation") or {}
     policy_outcome = {
         "metric": trusted_tool_evaluation.get("outcome_metric"),
         "authority": trusted_tool_evaluation.get("outcome_authority"),
@@ -1902,7 +2157,6 @@ def summarize_round(
             for item in scene.get("expert_batch", {}).get("episodes", [])
             if item.get("seed") is not None
         ]
-    static = child_manifest.get("static_validation") or {}
     gate_status = {
         "variant_spec": (
             (child_manifest.get("capability_contract_validation") or {}).get(
@@ -1963,6 +2217,30 @@ def summarize_round(
             and (not uses_expert or expert_batch.get("passed"))
             and (not uses_act or act.get("passed"))
             and child_manifest.get("trusted_tool_evaluation", {}).get("episode_count")
+            and tool_evaluation
+            and tool_evaluation.get("status") == "passed"
+            and aggregate_result
+            and str(aggregate_result.get("status", "")).startswith("passed")
+            and execution_vqa
+            and execution_vqa.get("status") in {"passed", "skipped"}
+        )
+    elif is_generic_provider:
+        preflight = scene.get("generic_preflight") or {}
+        fixtures = preflight.get("checker_fixtures") or []
+        pipeline_passed = bool(
+            child_manifest.get("status") == "completed"
+            and taskgen_returncode == 0
+            and taskgen_ast_gate_passed(static)
+            and scene.get("render_success")
+            and scene.get("rule_check", {}).get("passed")
+            and expert.get("passed")
+            and preflight.get("render_passed") is True
+            and preflight.get("expert_passed") is True
+            and preflight.get("scene_change_passed") is True
+            and fixtures
+            and all(item.get("passed") is True for item in fixtures)
+            and positions.get("passed")
+            and act.get("passed")
             and tool_evaluation
             and tool_evaluation.get("status") == "passed"
             and aggregate_result
@@ -2411,6 +2689,39 @@ def execute_round(
         }
         if reviewed_tool_registry is not None:
             tool_kwargs["reviewed_registry_dir"] = reviewed_tool_registry
+        if round_plan.get("open_tool_request_deferred") is True:
+            tool_bundle = materialize_open_world_tool_request(
+                repo_root,
+                execution_dir,
+                round_plan=round_plan,
+                child_dir=child_dir,
+                provider=provider,
+                toolgen_model=toolgen_model,
+                reviewed_tool_registry=reviewed_tool_registry,
+            )
+            round_plan["tool_request"] = deepcopy(
+                tool_bundle["tool_request"]
+            )
+            round_plan["open_tool_request_deferred"] = False
+            semantic_execution = round_plan.get("semantic_need_execution")
+            if isinstance(semantic_execution, dict):
+                tool_execution = semantic_execution.get("tool")
+                if isinstance(tool_execution, dict):
+                    tool_execution.update(
+                        {
+                            "route": route_tool_request(
+                                tool_bundle["tool_request"]
+                            )["route_decision"]["resolved_route"],
+                            "status": "selected",
+                            "request_artifact": str(
+                                (
+                                    execution_dir
+                                    / "open_tool_request/"
+                                    "tool_request_bundle.json"
+                                ).relative_to(repo_root)
+                            ).replace("\\", "/"),
+                        }
+                    )
         proposed_request = (
             tool_request_from_proposal(round_plan["tool_proposal"])
             if round_plan.get("tool_proposal") is not None
@@ -3462,6 +3773,10 @@ def main() -> None:
                     or len(candidate_templates) <= candidate_budget
                 )
             )
+            if concern_candidate_resolution.get("decision") == "catalog_external":
+                candidate_domain_supported = bool(
+                    candidate_budget is None or candidate_budget >= 1
+                )
             if not candidate_domain_supported:
                 unsupported = finish_unsupported_open_task_resolution(
                     repo_root,
@@ -3596,7 +3911,11 @@ def main() -> None:
         raise SystemExit("click_bell position_lr supports at most 2 rounds")
     execution_backend = (
         "act"
-        if args.task_name == "beat_block_hammer" or bounded_click_bell
+        if (
+            claim_first_mode
+            or args.task_name == "beat_block_hammer"
+            or bounded_click_bell
+        )
         else (args.execution_backend or "expert")
     )
     # The deterministic official planner can materialize --plan-only without
@@ -3705,20 +4024,22 @@ def main() -> None:
     if validated_proposal is not None:
         planner_kwargs["validated_proposal"] = validated_proposal
     claim_first_pre_session: BoundTaskPlanSession | None = None
+    claim_first_round_budget: int | None = None
     if claim_first_mode:
         if global_catalog is None:
             raise RuntimeError("claim-first runtime requires the trusted ACT catalog")
-        requested_round_budget = (
-            args.generated_rounds if bounded_click_bell else None
+        claim_first_round_budget = (
+            int(args.max_agent_rounds)
+            if args.max_agent_rounds is not None
+            else max(2, int(args.generated_rounds))
         )
-        if requested_round_budget is not None and requested_round_budget < 2:
+        if claim_first_round_budget < 2:
             raise SystemExit(
                 "claim_first_v1 requires at least two rounds: control plus candidate"
             )
         claim_first_pre_session = BoundTaskPlanSession.from_catalog(
             global_catalog,
             args.task_name,
-            max_rounds=requested_round_budget,
         )
         planner_kwargs["validated_proposal"] = build_control_anchor_proposal(
             claim_first_pre_session.target,
@@ -3767,7 +4088,7 @@ def main() -> None:
                 ),
             )
     plan = manifest["plan"]
-    bound_plan_session: BoundTaskPlanSession | None = None
+    bound_plan_session: BoundTaskPlanSession | OpenWorldPlanSession | None = None
     bound_plan_session_path: str | None = None
     evaluation_target: dict[str, Any] | None = None
     planning_context: dict[str, Any] | None = None
@@ -3786,17 +4107,37 @@ def main() -> None:
                 or raw_round_budget < 1
             ):
                 raise ValueError("planner max_rounds must be a positive integer")
-            effective_round_budget = raw_round_budget
-            if args.max_agent_rounds is not None:
-                effective_round_budget = min(
-                    effective_round_budget, int(args.max_agent_rounds)
-                )
+            if claim_first_mode:
+                if claim_first_round_budget is None:
+                    raise RuntimeError(
+                        "claim-first open-world budget was not initialized"
+                    )
+                effective_round_budget = claim_first_round_budget
                 plan["max_rounds"] = effective_round_budget
-            bound_plan_session = BoundTaskPlanSession.from_catalog(
-                global_catalog,
-                args.task_name,
-                max_rounds=effective_round_budget,
-            )
+                bound_plan_session = OpenWorldPlanSession.from_catalog(
+                    global_catalog,
+                    args.task_name,
+                    max_rounds=effective_round_budget,
+                    control_round=plan["rounds"][0],
+                    query_contract=(
+                        query_sufficiency_contract
+                        if isinstance(query_sufficiency_contract, Mapping)
+                        and query_sufficiency_contract.get("schema_version") == 2
+                        else None
+                    ),
+                )
+            else:
+                effective_round_budget = raw_round_budget
+                if args.max_agent_rounds is not None:
+                    effective_round_budget = min(
+                        effective_round_budget, int(args.max_agent_rounds)
+                    )
+                    plan["max_rounds"] = effective_round_budget
+                bound_plan_session = BoundTaskPlanSession.from_catalog(
+                    global_catalog,
+                    args.task_name,
+                    max_rounds=effective_round_budget,
+                )
             plan = bound_plan_session.normalize_plan(plan)
             planning_context = bound_plan_session.planning_context(repo_root)
             write_json(evaluation_dir / "plan/planning_context.json", planning_context)
@@ -4347,10 +4688,87 @@ def main() -> None:
                     semantic_bundle,
                     claim_first_runtime_state,
                     executed_template_ids=[
-                        str(item["round_plan"]["template_id"])
+                        str(
+                            item["round_plan"].get("candidate_id")
+                            or item["round_plan"].get("template_id")
+                        )
                         for item in round_runs
                     ],
                 )
+                if (
+                    isinstance(bound_plan_session, OpenWorldPlanSession)
+                    and not isinstance(
+                        bound_semantic_step["plan_step"].get(
+                            "experiment_candidate"
+                        ),
+                        Mapping,
+                    )
+                ):
+                    # A catalog match is a retrieval hint, not execution
+                    # permission in the production open-world path.  Express
+                    # the same semantic request as a runtime candidate; the
+                    # generic backend may exact-reuse a registered artifact or
+                    # generate one after a miss.
+                    semantic_proposal = semantic_bundle["proposal"]
+                    perturbation = semantic_proposal[
+                        "requested_perturbation"
+                    ]
+                    candidate = build_experiment_candidate(
+                        source_query=args.request,
+                        base_task=args.task_name,
+                        semantic_concern=(
+                            f"{semantic_proposal['sub_aspect']}: "
+                            f"{semantic_proposal['hypothesis']}"
+                        ),
+                        scene_need=(
+                            semantic_proposal["task_need"]["description"]
+                            or perturbation["description"]
+                        ),
+                        checker_need=(
+                            "Generate an experimental check_success predicate "
+                            f"that decides: {semantic_proposal['hypothesis']}"
+                        ),
+                        tool_need=(
+                            semantic_proposal["tool_need"]["description"]
+                            or "Measure evidence for: "
+                            + semantic_proposal["hypothesis"]
+                        ),
+                    )
+                    claim_first_controller.query_contract = (
+                        extend_query_candidate_universe(
+                            claim_first_controller.query_contract,
+                            [candidate["candidate_id"]],
+                            candidate_universe_closed=False,
+                        )
+                    )
+                    bound_semantic_step = {
+                        **bound_semantic_step,
+                        "schema_version": 2,
+                        "query_contract": deepcopy(
+                            claim_first_controller.query_contract
+                        ),
+                        "resolution": {
+                            **bound_semantic_step["resolution"],
+                            "resolution": (
+                                "catalog_retrieval_hint_then_reuse_or_generate"
+                            ),
+                            "retrieval_template_id": bound_semantic_step[
+                                "plan_step"
+                            ].get("template_id"),
+                            "resolved_template_id": None,
+                            "resolved_candidate_id": candidate["candidate_id"],
+                        },
+                        "plan_step": {
+                            "schema_version": 2,
+                            "action": "propose",
+                            "aspect_id": semantic_proposal["sub_aspect"],
+                            "candidate_id": candidate["candidate_id"],
+                            "execution_mode": "reuse_or_generate",
+                            "experiment_candidate": candidate,
+                            "rationale": semantic_proposal["rationale"],
+                            "answered_query": False,
+                        },
+                    }
                 step_dir = (
                     evaluation_dir
                     / "plan/claim_first_steps"
@@ -4372,111 +4790,102 @@ def main() -> None:
                 write_json(step_dir / "semantic_proposal_bundle.json", semantic_bundle)
                 write_json(step_dir / "bound_semantic_step.json", bound_semantic_step)
                 plan_step = bound_semantic_step["plan_step"]
-                materialize = getattr(planner, "materialize_plan_step", None)
-                if not callable(materialize):
-                    raise RuntimeError(
-                        "bound task planner cannot materialize claim-first PlanStep"
-                    )
-                materialized_round = materialize(
-                    plan_step["template_id"],
-                    len(plan_before_decision["rounds"]) + 1,
-                    args.request,
-                )
-                semantic_proposal = semantic_bundle["proposal"]
-                semantic_generation_required = bool(
-                    semantic_proposal["task_need"]["required"]
-                    or semantic_proposal["tool_need"]["required"]
-                )
-                if semantic_generation_required:
-                    active_failure_stage = (
-                        f"semantic_task_tool_generation_after_round_"
-                        f"{executed_rounds}"
-                    )
-                    if proposal_agent is None or planning_context is None:
-                        raise RuntimeError(
-                            "claim-first semantic task/tool needs require the "
-                            "bounded Proposal Agent"
-                        )
+                dynamic_candidate = plan_step.get("experiment_candidate")
+                is_open_world_step = isinstance(dynamic_candidate, Mapping)
+                if is_open_world_step:
                     next_round_number = len(plan_before_decision["rounds"]) + 1
                     (
                         materialized_round,
-                        semantic_execution_bundle,
-                    ) = apply_bounded_round_proposal(
-                        proposal_agent=proposal_agent,
-                        user_query=args.request,
-                        target=bound_plan_session.target,
-                        planning_context=planning_context,
-                        round_plan=materialized_round,
+                        open_tool_bundle,
+                    ) = materialize_open_world_round(
+                        repo_root,
                         evaluation_dir=evaluation_dir,
                         round_number=next_round_number,
-                        semantic_proposal=semantic_proposal,
+                        candidate=dynamic_candidate,
+                        control_execution=plan_before_decision["rounds"][0][
+                            "execution"
+                        ],
                     )
                     bound_semantic_step["execution_binding"] = {
-                        "schema_version": 1,
-                        "proposal_bundle_path": (
-                            f"plan/bounded_proposal/round_"
-                            f"{next_round_number:02d}/proposal_bundle.json"
+                        "schema_version": 2,
+                        "candidate_id": dynamic_candidate["candidate_id"],
+                        "materialization_path": (
+                            "plan/open_world_materialization/"
+                            f"round_{next_round_number:02d}"
                         ),
-                        "task_proposal_id": materialized_round[
-                            "task_proposal"
-                        ]["proposal_id"],
-                        "task_proposal_schema_version": materialized_round[
-                            "task_proposal"
-                        ]["schema_version"],
-                        "tool_proposal_id": materialized_round[
-                            "tool_proposal"
-                        ]["proposal_id"],
-                        "tool_proposal_schema_version": materialized_round[
-                            "tool_proposal"
-                        ]["schema_version"],
-                        "semantic_need_binding": semantic_execution_bundle[
-                            "semantic_need_binding"
-                        ],
-                    }
-                    materialized_round["semantic_need_execution"] = {
-                        "schema_version": 1,
-                        "candidate_slot_id": plan_step["template_id"],
-                        "realization_id": materialized_round[
-                            "task_proposal"
-                        ]["proposal_id"],
-                        "task": {
-                            "requested": bool(
-                                semantic_proposal["task_need"]["required"]
-                            ),
-                            "description": semantic_proposal["task_need"][
-                                "description"
-                            ],
-                            "route": (
-                                "task_proposal_v2"
-                                if materialized_round["task_proposal"][
-                                    "schema_version"
-                                ]
-                                == 2
-                                else "bounded_task_proposal_v1"
-                            ),
-                            "status": "selected",
-                        },
-                        "tool": {
-                            "requested": bool(
-                                semantic_proposal["tool_need"]["required"]
-                            ),
-                            "description": semantic_proposal["tool_need"][
-                                "description"
-                            ],
-                            "route": (
-                                "typed_metric_spec_compile"
-                                if materialized_round["tool_proposal"][
-                                    "schema_version"
-                                ]
-                                == 3
-                                else "registered_tool_reuse"
-                            ),
-                            "status": "selected",
-                        },
+                        "taskgen_route": materialized_round["route"],
+                        "toolgen_route": open_tool_bundle["source"],
+                        "catalog_template_used": False,
                     }
                     write_json(
                         step_dir / "bound_semantic_step.json",
                         bound_semantic_step,
+                    )
+                else:
+                    materialize = getattr(planner, "materialize_plan_step", None)
+                    if not callable(materialize):
+                        raise RuntimeError(
+                            "bound task planner cannot materialize claim-first "
+                            "PlanStep"
+                        )
+                    materialized_round = materialize(
+                        plan_step["template_id"],
+                        len(plan_before_decision["rounds"]) + 1,
+                        args.request,
+                    )
+                    semantic_proposal = semantic_bundle["proposal"]
+                    semantic_generation_required = bool(
+                        semantic_proposal["task_need"]["required"]
+                        or semantic_proposal["tool_need"]["required"]
+                    )
+                    if semantic_generation_required:
+                        active_failure_stage = (
+                            f"semantic_task_tool_generation_after_round_"
+                            f"{executed_rounds}"
+                        )
+                        if proposal_agent is None or planning_context is None:
+                            raise RuntimeError(
+                                "registered semantic task/tool needs require the "
+                                "bounded Proposal Agent"
+                            )
+                        next_round_number = len(plan_before_decision["rounds"]) + 1
+                        (
+                            materialized_round,
+                            semantic_execution_bundle,
+                        ) = apply_bounded_round_proposal(
+                            proposal_agent=proposal_agent,
+                            user_query=args.request,
+                            target=bound_plan_session.target,
+                            planning_context=planning_context,
+                            round_plan=materialized_round,
+                            evaluation_dir=evaluation_dir,
+                            round_number=next_round_number,
+                            semantic_proposal=semantic_proposal,
+                        )
+                        bound_semantic_step["execution_binding"] = {
+                            "schema_version": 1,
+                            "proposal_bundle_path": (
+                                f"plan/bounded_proposal/round_"
+                                f"{next_round_number:02d}/proposal_bundle.json"
+                            ),
+                            "task_proposal_id": materialized_round[
+                                "task_proposal"
+                            ]["proposal_id"],
+                            "tool_proposal_id": materialized_round[
+                                "tool_proposal"
+                            ]["proposal_id"],
+                            "semantic_need_binding": semantic_execution_bundle[
+                                "semantic_need_binding"
+                            ],
+                        }
+                        write_json(
+                            step_dir / "bound_semantic_step.json",
+                            bound_semantic_step,
+                        )
+                apply_kwargs: dict[str, Any] = {}
+                if is_open_world_step:
+                    apply_kwargs["query_contract"] = bound_semantic_step.get(
+                        "query_contract"
                     )
                 plan, decision, runtime_directive = (
                     bound_plan_session.apply_plan_step(
@@ -4485,6 +4894,7 @@ def main() -> None:
                         plan_step,
                         materialized_round=materialized_round,
                         source="provider_claim_first_open_query",
+                        **apply_kwargs,
                     )
                 )
                 decision["semantic_proposal"] = deepcopy(
@@ -4498,9 +4908,9 @@ def main() -> None:
                     / f"plan/runtime_directive_after_{round_plan['round_id']}.json",
                     {
                         "schema_version": 1,
-                        "owner": "BoundTaskPlanSession",
+                        "owner": type(bound_plan_session).__name__,
                         "adapter_role": (
-                            "claim_first_discover_resolve_materialize_and_adjudicate"
+                            "claim_first_retrieve_or_generate_and_adjudicate"
                         ),
                         **runtime_directive,
                     },
@@ -4514,7 +4924,8 @@ def main() -> None:
                         "semantic_sub_aspect": (
                             semantic_bundle["proposal"]["sub_aspect"]
                         ),
-                        "resolved_template_id": plan_step["template_id"],
+                        "resolved_template_id": plan_step.get("template_id"),
+                        "resolved_candidate_id": plan_step.get("candidate_id"),
                         "artifact_path": (
                             f"plan/claim_first_steps/"
                             f"after_round_{executed_rounds:02d}/"

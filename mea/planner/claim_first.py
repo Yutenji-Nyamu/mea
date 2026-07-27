@@ -242,6 +242,14 @@ def project_open_query_capabilities(
         }
         if item not in operations:
             operations.append(item)
+    generic_generation = {
+        "operation": "retrieve_or_generate_scene_checker",
+        "controlled_axis": None,
+        "generation_mode": "generic_provider_scene_checker_codegen",
+        "allowed_change_roots": ["load_actors", "check_success"],
+    }
+    if generic_generation not in operations:
+        operations.append(generic_generation)
     if allowed is not None and not operations:
         raise ClaimFirstPlanError(
             "allowed aspect domain has no projected TaskGen operation"

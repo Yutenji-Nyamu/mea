@@ -23,7 +23,7 @@ from mea.proposals import task_proposal_from_contract
 from scripts.manipeval_taskgen import main as taskgen_main
 from mea.toolkit.recorder import (
     RecorderError,
-    _schema_with_task_tracked_actors,
+    extend_task_schema_with_generated_actors,
 )
 
 
@@ -174,6 +174,10 @@ class ClickBellDistractorTaskGenTests(unittest.TestCase):
 
     def test_generated_distractor_extends_future_recorder_schema(self) -> None:
         base = {
+            "schema_version": 1,
+            "task_name": "click_bell",
+            "physics_timestep_seconds": 0.004,
+            "action_dimension": 14,
             "tracked_actors": [
                 {
                     "id": "bell",
@@ -184,6 +188,20 @@ class ClickBellDistractorTaskGenTests(unittest.TestCase):
                 }
             ],
             "contact_focus_actor_ids": ["bell"],
+            "semantic_fields": [
+                {
+                    "name": "bell_position",
+                    "source": "actor_position",
+                    "actor_id": "bell",
+                },
+                {
+                    "name": "bell_contact_position",
+                    "source": "actor_contact_position",
+                    "actor_id": "bell",
+                    "point_id": 0,
+                },
+            ],
+            "semantic_roles": {},
         }
         extension = [
             {
@@ -200,7 +218,7 @@ class ClickBellDistractorTaskGenTests(unittest.TestCase):
             distractor=object(),
             mea_telemetry_tracked_actors=extension,
         )
-        schema = _schema_with_task_tracked_actors(base, task)
+        schema = extend_task_schema_with_generated_actors(base, task)
         self.assertEqual(
             [item["id"] for item in schema["tracked_actors"]],
             ["bell", "distractor"],
@@ -216,7 +234,7 @@ class ClickBellDistractorTaskGenTests(unittest.TestCase):
             ],
         )
         with self.assertRaisesRegex(RecorderError, "duplicates"):
-            _schema_with_task_tracked_actors(base, duplicate)
+            extend_task_schema_with_generated_actors(base, duplicate)
 
     def test_ast_boundary_rejects_non_dialect_calls(self) -> None:
         proposal = default_click_bell_distractor_proposal()

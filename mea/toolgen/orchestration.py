@@ -24,7 +24,9 @@ from .reviewed_registry import (
 from .metric_spec import (
     MetricSpecError,
     build_task_code_context,
+    evaluate_metric_spec,
     execute_metric_spec,
+    metric_spec_tool_spec,
 )
 from .router import (
     ToolRouterError,
@@ -773,6 +775,7 @@ def _execute_registry_match(
     source_scope: str,
     registration_id_field: str,
     registry_artifact_key: str,
+    oracle_evaluator: Any | None = None,
 ) -> dict[str, Any]:
     """Execute one exact generated-code registry match without a provider."""
 
@@ -796,10 +799,15 @@ def _execute_registry_match(
             episode["episode_dir_path"],
             tool_name=registration["tool_id"],
         )
-        expected = evaluate_target_oracle(
-            spec["metric"],
-            TrajectoryView(episode["episode_dir_path"]),
-            reference_tool=spec["reference_tool"],
+        trajectory = TrajectoryView(episode["episode_dir_path"])
+        expected = (
+            oracle_evaluator(trajectory)
+            if oracle_evaluator is not None
+            else evaluate_target_oracle(
+                spec["metric"],
+                trajectory,
+                reference_tool=spec["reference_tool"],
+            )
         )
         agreement = _same_projection(generated, expected)
         deterministic = generated == repeated
@@ -983,6 +991,7 @@ def _execute_typed_metric_request(
     decision: dict[str, Any],
     *,
     registry_root: Path | None,
+    reviewed_root: Path | None,
     task_proposal: dict[str, Any] | None,
 ) -> dict[str, Any]:
     """Compile one ToolProposal v3 metric over the round's real telemetry."""
@@ -996,6 +1005,106 @@ def _execute_typed_metric_request(
         raise ToolOrchestrationError(
             f"no complete telemetry episode found under {telemetry_root}"
         )
+    typed_tool_spec = metric_spec_tool_spec(
+        task_name=request["task_name"],
+        metric=request["metric"],
+        question=request["question"],
+        metric_spec=request["metric_spec"],
+    )
+    reviewed_match = None
+    typed_episodes: list[dict[str, Any]] = []
+    if reviewed_root is not None:
+        try:
+            reviewed_match = find_reviewed_registration(
+                reviewed_root,
+                tool_spec=typed_tool_spec,
+                episode_dirs=episode_dirs,
+            )
+        except (ReviewedRegistryError, RunLocalRegistryError) as exc:
+            decision["reviewed_lookup"] = {
+                "status": "invalid_registry",
+                "message": str(exc),
+            }
+        if reviewed_match is None and "reviewed_lookup" not in decision:
+            decision["reviewed_lookup"] = {
+                "status": "miss",
+                "registry_dir": _relative(reviewed_root, repo),
+            }
+    if reviewed_match is not None:
+        for episode_dir in episode_dirs:
+            trajectory = TrajectoryView(episode_dir)
+            if (
+                trajectory.metadata.get("error") is not None
+                or trajectory.metadata.get("task_name")
+                != request["task_name"]
+                or trajectory.schema.get("task_name")
+                != request["task_name"]
+            ):
+                raise ToolOrchestrationError(
+                    "reviewed typed Tool telemetry is invalid or task-mismatched"
+                )
+            typed_episodes.append(
+                {
+                    "episode_dir_path": episode_dir,
+                    "policy_name": trajectory.metadata.get("policy_name"),
+                    "seed": trajectory.metadata.get("seed"),
+                    "role": _role(trajectory.metadata.get("policy_name")),
+                    "oracle_result": evaluate_metric_spec(
+                        request["metric_spec"],
+                        trajectory,
+                    ),
+                }
+            )
+        decision.update(
+            {
+                "resolved_route": "reviewed_persistent_reuse",
+                "matched_registry": "reviewed_tool_registry",
+                "reason": (
+                    "exact reviewed typed MetricSpec and current telemetry "
+                    "schema matched"
+                ),
+                "provider_called": False,
+            }
+        )
+        _write_json(destination / "route_decision.json", decision)
+        execution = _execute_registry_match(
+            repo,
+            destination,
+            typed_tool_spec,
+            reviewed_match,
+            typed_episodes,
+            route="reviewed_persistent_reuse",
+            source_scope="reviewed_persistent_registry",
+            registration_id_field="reviewed_registration_id",
+            registry_artifact_key="reviewed_registry",
+            oracle_evaluator=lambda trajectory: evaluate_metric_spec(
+                request["metric_spec"],
+                trajectory,
+            ),
+        )
+        execution.update(
+            {
+                "requested_route": "auto",
+                "tool_request": request,
+                "route_decision": decision,
+            }
+        )
+        execution["validation"]["typed_metric_spec"] = True
+        execution["artifacts"].update(
+            {
+                "tool_request": _relative(
+                    destination / "tool_request.json", repo
+                ),
+                "catalog_snapshot": _relative(
+                    destination / "catalog_snapshot.json", repo
+                ),
+                "route_decision": _relative(
+                    destination / "route_decision.json", repo
+                ),
+            }
+        )
+        _write_json(destination / "tool_execution.json", execution)
+        return execution
     try:
         context = build_task_code_context(
             child_run_dir, task_proposal=task_proposal
@@ -1230,6 +1339,7 @@ def execute_tool_request(
                 request,
                 decision,
                 registry_root=registry_root,
+                reviewed_root=reviewed_root,
                 task_proposal=task_proposal,
             )
         except Exception as exc:

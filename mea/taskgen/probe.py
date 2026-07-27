@@ -245,7 +245,10 @@ def run_probe(arguments: argparse.Namespace) -> dict[str, Any]:
     recorder = None
     recorder_started = False
     try:
-        from mea.toolkit import load_task_schema
+        from mea.toolkit import (
+            extend_task_schema_with_generated_actors,
+            load_task_schema,
+        )
 
         schema = load_task_schema(repo_root, arguments.task_name)
         result["task_schema"] = {
@@ -302,6 +305,17 @@ def run_probe(arguments: argparse.Namespace) -> dict[str, Any]:
         if execution_receipt is not None:
             validate_imported_task_binding(execution_receipt, task)
         task.setup_demo(now_ep_num=0, seed=arguments.seed, is_test=True, **args)
+        schema = extend_task_schema_with_generated_actors(schema, task)
+        result["task_schema"].update(
+            {
+                "tracked_actor_ids": [
+                    actor["id"] for actor in schema["tracked_actors"]
+                ],
+                "semantic_field_names": [
+                    field["name"] for field in schema["semantic_fields"]
+                ],
+            }
+        )
         result["setup_success"] = True
         task_info = getattr(task, "info", {}) or {}
         cluttered_objects = task_info.get("cluttered_table_info", [])
@@ -374,6 +388,10 @@ def run_probe(arguments: argparse.Namespace) -> dict[str, Any]:
             scene_actors=result["actors"],
             tracked_actors=result["tracked_actors"],
         )
+        # This state is a generic negative-checker fixture for TaskGen.  It is
+        # recorded before any expert or learned-policy action and therefore
+        # does not assert that the generated predicate is official-equivalent.
+        result["initial_check_success"] = bool(task.check_success())
         if arguments.task_name == "beat_block_hammer":
             actor_names = {actor["name"] for actor in result["actors"]}
             result["rule_check"].update(

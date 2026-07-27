@@ -37,10 +37,11 @@ policy 性能证据。重点检查 `free_concern.json`、`task_resolution.json` 
 provider/repair/retry 计数，以及最终是 `retrieve_and_adapt`、`generate_new` 还是
 `unsupported`。
 
-若原始 Query 提出 catalog 外 concern，正确的 0-ACT 结果是保存该 concern 的
-`TaskNeed`/`ToolNeed`，并在没有已验证生成/执行能力时输出
-`execution_authorized=false`。不要为通过路由测试而给 catalog 增加同义词，也不要把
-plan-only 写成 policy evidence。
+若原始 Query 提出 catalog 外 concern，plan-only 应保存 FreeConcern、
+candidate-domain resolution、control anchor 与 QueryContract，并明确它没有执行
+scene/checker/tool materialization。runtime `ExperimentCandidate` 只能在 live control
+evidence 后产生；因此 plan-only 不能预测后续一定 exact reuse 或 generation，更不得
+写成 policy evidence。
 
 若 online resolver 已输出 `unsupported`，之后基于冻结 concern 的 0-provider
 replay 只能证明确定性 resolver/control handoff，不能倒推成一次在线成功。当前
@@ -63,8 +64,9 @@ task，但 discovery 不等于 checkpoint-ready。语义相近却与单任务 ch
 - evaluation id；
 - live/ACT 授权开关。
 
-默认 Planner 应为 ClaimFirst；不要重新启用 legacy task-specific planner、whole-round
-recovery 或 fault injection。TaskGen/ToolGen 各允许一次局部修复。执行后至少核对：
+`--auto-route` live 的默认 Planner 应为 ClaimFirst；不要在这条生产链重新启用 legacy
+task-specific planner、whole-round recovery 或 fault injection。TaskGen/ToolGen 各允许
+一次局部修复。执行后至少核对：
 
 1. QueryContract 与首轮 proposal；
 2. scene/checker、render 和 gate；
@@ -73,6 +75,16 @@ recovery 或 fault injection。TaskGen/ToolGen 各允许一次局部修复。执
 5. 下一轮是否由上轮 evidence 产生；
 6. stop 是 evidence sufficient、unsupported 还是 budget exhausted；
 7. Answer 是否列出 N、未覆盖候选和限制。
+
+open-world round 的顺序固定为：先用 `ExperimentCandidate` 做 Task exact lookup；miss
+才调用 provider。无论生成还是复用，都必须在当前 seed 重跑 setup、render、expert 与
+checker fixtures。ACT 完成后再从实际 telemetry schema 生成 Tool request，避免为尚未
+出现的 actor/signal 预写 metric。生成 checker 与 official success 必须并列记录；二者
+冲突或不可比较时，Answer 不得把实验语义写成 official benchmark 结论。
+
+跨 Query 的 Tool 复用只接受显式 approved 的 reviewed registry 条目；检索命中后仍会
+在当前 episode 上重复执行并与 typed MetricSpec oracle 比较。普通生成不会自动晋升成
+跨 evaluation 的可信 Tool。
 
 ## 4. 查看证据
 
@@ -137,6 +149,18 @@ cd /root/autodl-tmp/mea
 . /root/autodl-tmp/envs/mea-libero/etc/conda/activate.d/10_mea_libero_paths.sh
 /root/autodl-tmp/envs/mea-libero/bin/python -m pytest -q tests/manipeval
 ```
+
+非交互 shell 若没有执行 conda activation，可一次性安装同一配置作为 upstream 默认值：
+
+```bash
+mkdir -p /root/.libero
+install -m 600 \
+  /root/autodl-tmp/cache/libero/config/config.yaml \
+  /root/.libero/config.yaml
+```
+
+该文件只记录服务器路径，不含账号或 key。本批全量回归正是通过此 fallback 消除了
+LIBERO import prompt。
 
 当前 ClickBell 旗舰见[当前证据](evidence/current/README.md)；batch27 的
 catalog-external、第五个 RoboTwin adapter 与 LIBERO 结果见

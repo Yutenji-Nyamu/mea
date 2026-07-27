@@ -5,8 +5,8 @@ separate question of whether the evidence collected so far is logically
 sufficient for the user's query.  Keeping those concerns separate prevents a
 route's initial aspect list from silently becoming the stopping rule.
 
-The contract deliberately supports only claims whose finite-domain semantics
-can be checked without another model call:
+The v1 contract supports claims whose finite-domain semantics can be checked
+without another model call:
 
 * ``universal``: every required candidate passes;
 * ``existential``: at least one required candidate passes;
@@ -15,6 +15,12 @@ can be checked without another model call:
 * ``comparative``: two explicitly named groups have enough scored evidence;
 * ``diagnostic``: a failure has an evidence-backed diagnosis, or the entire
   required finite domain has been checked without observing a failure.
+
+The backward-compatible v2 extension makes the candidate-domain boundary
+explicit.  An open candidate universe may grow as the planner discovers new
+concerns.  Existential searches may name either ``pass`` or ``fail`` as their
+witness outcome, while exhaustive and worst-case conclusions remain
+inconclusive until the candidate universe is explicitly closed.
 
 This is an MEA reliability extension, not a contract defined by the paper.
 The paper describes a small dynamically discovered aspect set and stopping
@@ -48,6 +54,7 @@ CLAIM_TYPES = frozenset(
         "failure_enumeration",
         "comparative",
         "diagnostic",
+        "worst_case",
     }
 )
 OUTCOMES = frozenset({"pass", "fail", "unknown", "conflict"})
@@ -60,12 +67,17 @@ _CONTRACT_KEYS = {
     "round_budget",
     "comparison_groups",
 }
+_OPEN_CONTRACT_KEYS = _CONTRACT_KEYS | {
+    "candidate_universe_closed",
+    "existential_witness_outcome",
+}
 _COVERAGE_KEYS = {
     "candidate_ids",
     "minimum_evaluated",
     "minimum_per_group",
 }
 _EVIDENCE_KEYS = {"candidate_id", "outcome", "score", "diagnosis"}
+_EXISTENTIAL_WITNESS_OUTCOMES = frozenset({"pass", "fail"})
 
 
 def _text(value: Any, field: str) -> str:
@@ -135,8 +147,15 @@ def build_query_sufficiency_contract(
     minimum_evaluated: int | None = None,
     comparison_groups: Mapping[str, Iterable[str]] | None = None,
     minimum_per_group: int | None = None,
+    candidate_universe_closed: bool | None = None,
+    existential_witness_outcome: str | None = None,
 ) -> dict[str, Any]:
-    """Build and validate an explicit query-sufficiency contract."""
+    """Build and validate an explicit query-sufficiency contract.
+
+    Existing callers receive the unchanged finite-domain v1 schema.  Passing
+    ``candidate_universe_closed`` or ``existential_witness_outcome`` opts into
+    v2 open-world semantics.
+    """
 
     universe = [str(item) for item in candidate_universe]
     required = (
@@ -145,11 +164,29 @@ def build_query_sufficiency_contract(
         else [str(item) for item in required_candidate_ids]
     )
     resolved_type = str(claim_type or infer_claim_type(user_query))
+    if (
+        existential_witness_outcome is not None
+        and resolved_type != "existential"
+    ):
+        raise QuerySufficiencyError(
+            "existential_witness_outcome is only valid for existential claims"
+        )
+    use_open_schema = (
+        candidate_universe_closed is not None
+        or existential_witness_outcome is not None
+        or resolved_type == "worst_case"
+    )
     resolved_minimum = (
+        0
+        if minimum_evaluated is None
+        and not required
+        and use_open_schema
+        and candidate_universe_closed is False
+        else
         len(required)
         if minimum_evaluated is None
         and resolved_type
-        in {"universal", "existential", "failure_enumeration"}
+        in {"universal", "existential", "failure_enumeration", "worst_case"}
         else 1
         if minimum_evaluated is None
         else minimum_evaluated
@@ -167,20 +204,30 @@ def build_query_sufficiency_contract(
         if comparison_groups is not None
         else None
     )
-    return validate_query_sufficiency_contract(
-        {
-            "schema_version": 1,
-            "claim_type": resolved_type,
-            "candidate_universe": universe,
-            "required_coverage": {
-                "candidate_ids": required,
-                "minimum_evaluated": resolved_minimum,
-                "minimum_per_group": resolved_group_minimum,
-            },
-            "round_budget": round_budget,
-            "comparison_groups": groups,
-        }
-    )
+    contract = {
+        "schema_version": 2 if use_open_schema else 1,
+        "claim_type": resolved_type,
+        "candidate_universe": universe,
+        "required_coverage": {
+            "candidate_ids": required,
+            "minimum_evaluated": resolved_minimum,
+            "minimum_per_group": resolved_group_minimum,
+        },
+        "round_budget": round_budget,
+        "comparison_groups": groups,
+    }
+    if use_open_schema:
+        contract["candidate_universe_closed"] = (
+            True
+            if candidate_universe_closed is None
+            else candidate_universe_closed
+        )
+        contract["existential_witness_outcome"] = (
+            str(existential_witness_outcome or "pass")
+            if resolved_type == "existential"
+            else None
+        )
+    return validate_query_sufficiency_contract(contract)
 
 
 def validate_query_sufficiency_contract(
@@ -188,22 +235,41 @@ def validate_query_sufficiency_contract(
 ) -> dict[str, Any]:
     """Validate a finite-domain sufficiency contract exactly."""
 
-    if not isinstance(value, Mapping) or set(value) != _CONTRACT_KEYS:
+    if not isinstance(value, Mapping):
         raise QuerySufficiencyError(
-            f"QuerySufficiencyContract fields must be exactly {sorted(_CONTRACT_KEYS)}"
+            "QuerySufficiencyContract must be an object"
+        )
+    schema_version = value.get("schema_version")
+    expected_keys = (
+        _CONTRACT_KEYS
+        if schema_version == 1
+        else _OPEN_CONTRACT_KEYS
+        if schema_version == 2
+        else None
+    )
+    if expected_keys is None:
+        raise QuerySufficiencyError(
+            "QuerySufficiencyContract schema_version must be 1 or 2"
+        )
+    if set(value) != expected_keys:
+        raise QuerySufficiencyError(
+            "QuerySufficiencyContract fields must be exactly "
+            f"{sorted(expected_keys)} for schema_version {schema_version}"
         )
     contract = deepcopy(dict(value))
-    if contract.get("schema_version") != 1:
-        raise QuerySufficiencyError(
-            "QuerySufficiencyContract schema_version must be 1"
-        )
     claim_type = contract.get("claim_type")
     if claim_type not in CLAIM_TYPES:
         raise QuerySufficiencyError(
             f"claim_type must be one of {sorted(CLAIM_TYPES)}"
         )
+    allow_empty_open_universe = bool(
+        schema_version == 2
+        and contract.get("candidate_universe_closed") is False
+    )
     universe = _unique_text_list(
-        contract.get("candidate_universe"), "candidate_universe"
+        contract.get("candidate_universe"),
+        "candidate_universe",
+        allow_empty=allow_empty_open_universe,
     )
     raw_coverage = contract.get("required_coverage")
     if not isinstance(raw_coverage, Mapping) or set(raw_coverage) != _COVERAGE_KEYS:
@@ -213,6 +279,7 @@ def validate_query_sufficiency_contract(
     required = _unique_text_list(
         raw_coverage.get("candidate_ids"),
         "required_coverage.candidate_ids",
+        allow_empty=allow_empty_open_universe,
     )
     outside = sorted(set(required) - set(universe))
     if outside:
@@ -220,21 +287,32 @@ def validate_query_sufficiency_contract(
             f"required coverage leaves the candidate universe: {outside}"
         )
     minimum = raw_coverage.get("minimum_evaluated")
+    minimum_floor = 0 if not required and allow_empty_open_universe else 1
     if (
         isinstance(minimum, bool)
         or not isinstance(minimum, int)
-        or minimum < 1
+        or minimum < minimum_floor
         or minimum > len(required)
     ):
         raise QuerySufficiencyError(
             "required_coverage.minimum_evaluated must be in "
-            f"[1, {len(required)}]"
+            f"[{minimum_floor}, {len(required)}]"
         )
     if claim_type == "failure_enumeration" and minimum != len(required):
         raise QuerySufficiencyError(
             "failure_enumeration requires every required candidate to be "
             "decisively evaluated"
         )
+    if claim_type == "worst_case":
+        if schema_version != 2:
+            raise QuerySufficiencyError(
+                "worst_case requires QuerySufficiencyContract schema_version 2"
+            )
+        if minimum != len(required):
+            raise QuerySufficiencyError(
+                "worst_case requires every required candidate to be "
+                "decisively evaluated"
+            )
     budget = contract.get("round_budget")
     if isinstance(budget, bool) or not isinstance(budget, int) or budget < 1:
         raise QuerySufficiencyError("round_budget must be a positive integer")
@@ -279,6 +357,23 @@ def validate_query_sufficiency_contract(
                 "comparative claims"
             )
 
+    if schema_version == 2:
+        universe_closed = contract.get("candidate_universe_closed")
+        if not isinstance(universe_closed, bool):
+            raise QuerySufficiencyError(
+                "candidate_universe_closed must be bool"
+            )
+        witness = contract.get("existential_witness_outcome")
+        if claim_type == "existential":
+            if witness not in _EXISTENTIAL_WITNESS_OUTCOMES:
+                raise QuerySufficiencyError(
+                    "existential_witness_outcome must be pass or fail"
+                )
+        elif witness is not None:
+            raise QuerySufficiencyError(
+                "existential_witness_outcome is only valid for existential claims"
+            )
+
     contract["candidate_universe"] = universe
     contract["required_coverage"] = {
         "candidate_ids": required,
@@ -287,6 +382,72 @@ def validate_query_sufficiency_contract(
     }
     contract["comparison_groups"] = groups
     return contract
+
+
+def extend_query_candidate_universe(
+    contract: Mapping[str, Any],
+    candidate_ids: Iterable[str],
+    *,
+    candidate_universe_closed: bool | None = None,
+) -> dict[str, Any]:
+    """Append dynamically discovered candidates to an open-world contract.
+
+    A v1 finite contract is promoted to v2 and reopened.  Comparative
+    contracts are intentionally excluded because a new candidate also needs a
+    preregistered group assignment, which this small API cannot infer.
+    """
+
+    normalized = validate_query_sufficiency_contract(contract)
+    if isinstance(candidate_ids, (str, bytes, bytearray)):
+        raise QuerySufficiencyError(
+            "candidate_ids must be an iterable of candidate-id strings"
+        )
+    additions = _unique_text_list(
+        [str(item) for item in candidate_ids],
+        "candidate_ids",
+        allow_empty=True,
+    )
+    if normalized["claim_type"] == "comparative" and additions:
+        raise QuerySufficiencyError(
+            "comparative candidate discovery requires an explicit group assignment"
+        )
+    universe = list(normalized["candidate_universe"])
+    new_ids = [item for item in additions if item not in universe]
+    universe.extend(new_ids)
+    required = list(normalized["required_coverage"]["candidate_ids"])
+    previous_required_count = len(required)
+    required.extend(item for item in new_ids if item not in required)
+    minimum = normalized["required_coverage"]["minimum_evaluated"]
+    if (
+        (
+            normalized["claim_type"]
+            in {"universal", "existential", "failure_enumeration", "worst_case"}
+            or previous_required_count == 0
+        )
+        and minimum == previous_required_count
+    ):
+        minimum = len(required)
+    promoted = {
+        **normalized,
+        "schema_version": 2,
+        "candidate_universe": universe,
+        "candidate_universe_closed": (
+            False
+            if candidate_universe_closed is None
+            else candidate_universe_closed
+        ),
+        "existential_witness_outcome": (
+            normalized.get("existential_witness_outcome", "pass")
+            if normalized["claim_type"] == "existential"
+            else None
+        ),
+        "required_coverage": {
+            **normalized["required_coverage"],
+            "candidate_ids": required,
+            "minimum_evaluated": minimum,
+        },
+    }
+    return validate_query_sufficiency_contract(promoted)
 
 
 def _validate_candidate_evidence(
@@ -431,13 +592,19 @@ def assess_query_sufficiency(
     ]
 
     claim_type = normalized["claim_type"]
+    universe_closed = normalized.get("candidate_universe_closed", True)
     sufficient = False
     verdict = "inconclusive"
     statistics: dict[str, Any] = {}
     rationale = "The query contract still has unresolved required evidence."
 
     if claim_type == "universal":
-        if failed:
+        if not universe_closed:
+            rationale = (
+                "The universal candidate universe remains open, so the "
+                "exhaustive Query verdict must remain inconclusive."
+            )
+        elif failed:
             sufficient = True
             verdict = "refuted"
             rationale = (
@@ -450,22 +617,35 @@ def assess_query_sufficiency(
                 "Every candidate in the finite required coverage passed."
             )
     elif claim_type == "existential":
-        if passed:
+        witness_outcome = normalized.get(
+            "existential_witness_outcome", "pass"
+        )
+        witnesses = passed if witness_outcome == "pass" else failed
+        non_witnesses = failed if witness_outcome == "pass" else passed
+        statistics["existential_witness_outcome"] = witness_outcome
+        statistics["witness_candidate_ids"] = list(witnesses)
+        if witnesses:
             sufficient = True
-            verdict = "supported"
-            rationale = (
-                "A definitive passing candidate witnesses the existential claim."
+            verdict = (
+                "counterexample_found"
+                if witness_outcome == "fail"
+                else "supported"
             )
-        elif len(failed) == len(required):
+            rationale = (
+                f"A definitive {witness_outcome} candidate witnesses the "
+                "existential claim."
+            )
+        elif universe_closed and len(non_witnesses) == len(required):
             sufficient = True
             verdict = "refuted"
             rationale = (
-                "Every candidate in the finite required coverage failed."
+                "The closed required candidate universe contains no requested "
+                "existential witness."
             )
     elif claim_type == "failure_enumeration":
         statistics["failure_candidate_ids"] = list(failed)
         statistics["passed_candidate_ids"] = list(passed)
-        if len(decisive) == len(required):
+        if universe_closed and len(decisive) == len(required):
             sufficient = True
             verdict = "failure_set_enumerated"
             rationale = (
@@ -513,6 +693,38 @@ def assess_query_sufficiency(
                 "Both comparison groups meet the preregistered finite evidence "
                 "minimum; the verdict describes only their observed scores."
             )
+    elif claim_type == "worst_case":
+        if universe_closed and len(decisive) == len(required):
+            scores = {
+                candidate_id: states[candidate_id]["score"]
+                for candidate_id in required
+                if states[candidate_id]["score"] is not None
+            }
+            if len(scores) == len(required):
+                worst_score = min(scores.values())
+                worst_ids = [
+                    candidate_id
+                    for candidate_id in required
+                    if math.isclose(
+                        scores[candidate_id],
+                        worst_score,
+                        rel_tol=0.0,
+                        abs_tol=1e-12,
+                    )
+                ]
+                sufficient = True
+                verdict = "worst_case_observed"
+                statistics["worst_score"] = worst_score
+                statistics["worst_candidate_ids"] = worst_ids
+                rationale = (
+                    "Every candidate in the closed required universe has a "
+                    "comparable score, so its observed worst case is known."
+                )
+        elif not universe_closed:
+            rationale = (
+                "The worst-case candidate universe remains open; an unseen "
+                "candidate may have a lower score."
+            )
     else:
         diagnosed_failures = [
             candidate_id
@@ -531,7 +743,7 @@ def assess_query_sufficiency(
                 "A measured failure has an evidence-backed diagnosis and the "
                 "minimum diagnostic coverage is met."
             )
-        elif len(passed) == len(required):
+        elif universe_closed and len(passed) == len(required):
             sufficient = True
             verdict = "no_failure_observed"
             rationale = (
@@ -607,6 +819,11 @@ def assess_query_sufficiency(
             "generalization guarantee."
         )
     ]
+    if not universe_closed:
+        limitations.append(
+            "The candidate universe is open; exhaustive, no-counterexample, "
+            "and worst-case conclusions are not licensed."
+        )
     if claim_type == "comparative":
         limitations.append(
             "Comparative scores are trusted upstream inputs; their metric, "
@@ -623,6 +840,11 @@ def assess_query_sufficiency(
             "The enumerated failures are complete only for the explicitly "
             "required finite candidate domain."
         )
+    if claim_type == "worst_case":
+        limitations.append(
+            "Worst-case scores are trusted upstream inputs and are comparable "
+            "only under a shared metric, unit, and direction."
+        )
     return {
         "schema_version": 1,
         "contract": normalized,
@@ -633,6 +855,10 @@ def assess_query_sufficiency(
         "completed_rounds": rounds,
         "round_budget": normalized["round_budget"],
         "budget_remaining": budget_remaining,
+        "candidate_universe_closed": universe_closed,
+        "candidate_discovery_required": bool(
+            not universe_closed and not sufficient and budget_remaining > 0
+        ),
         "observed_candidate_ids": observed,
         "decisive_candidate_ids": decisive,
         "conflict_candidate_ids": conflicts,
@@ -652,6 +878,7 @@ __all__ = [
     "QuerySufficiencyError",
     "assess_query_sufficiency",
     "build_query_sufficiency_contract",
+    "extend_query_candidate_universe",
     "infer_claim_type",
     "validate_query_sufficiency_contract",
 ]

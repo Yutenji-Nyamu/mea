@@ -12,8 +12,6 @@ from .reflection import (
     VisualReflectionError,
     execute_reflection_loop,
     expected_color_name,
-    inject_oversized_block_fixture,
-    inject_wrong_color_fixture,
     repair_generated_method,
     validate_bbh_distractor_vision_observation,
     validate_click_bell_vision_observation,
@@ -98,7 +96,6 @@ from .click_bell_distractor import (
     click_bell_distractor_from_task_proposal,
     materialize_click_bell_distractor_candidate,
 )
-
 __all__ = [
     "TaskGenError",
     "TaskGenPrototype",
@@ -109,8 +106,6 @@ __all__ = [
     "VisualReflectionError",
     "execute_reflection_loop",
     "expected_color_name",
-    "inject_oversized_block_fixture",
-    "inject_wrong_color_fixture",
     "repair_generated_method",
     "validate_bbh_distractor_vision_observation",
     "validate_click_bell_vision_observation",

@@ -135,6 +135,21 @@ datasets: /root/autodl-tmp/cache/libero/datasets
 init_states: /root/autodl-tmp/envs/mea-libero/lib/python3.12/site-packages/libero/libero/init_files
 ```
 
+conda activation 会通过 `LIBERO_CONFIG_PATH` 使用上述目录。CI、Paramiko
+`exec_command()` 或其他非交互 shell 若直接调用环境 Python、没有执行 activation，
+upstream `libero` 会在 import 时询问 dataset 路径。服务器已验证的非交互 fallback 是：
+
+```bash
+mkdir -p /root/.libero
+install -m 600 \
+  /root/autodl-tmp/cache/libero/config/config.yaml \
+  /root/.libero/config.yaml
+```
+
+两份配置内容相同；它们只含服务器路径，不含账号、provider key 或 checkpoint 凭据。
+2026-07-27 的全量 `tests/manipeval` 回归使用该 fallback，LIBERO 的 19 项测试不再出现
+交互 prompt。
+
 package assets 入口当前是：
 
 ```text
