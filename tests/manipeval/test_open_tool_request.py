@@ -244,6 +244,68 @@ class OpenToolRequestTest(unittest.TestCase):
             "time_between_events",
         )
 
+    def test_active_arm_need_rejects_fixed_side_metric_spec(self):
+        request = _typed("click_bell")
+        request["metric_spec"]["left_signal"] = "left_tcp_position"
+        request["metric_spec"]["right_signal"] = "bell_contact_position"
+
+        with self.assertRaisesRegex(
+            OpenToolRequestError,
+            "fixed-side minimum_distance",
+        ):
+            validate_open_tool_request(
+                request,
+                task_name="click_bell",
+                available_signal_names={
+                    "left_tcp_position",
+                    "right_tcp_position",
+                    "bell_contact_position",
+                },
+                available_signal_sides={
+                    "left_tcp_position": "left",
+                    "right_tcp_position": "right",
+                },
+                measurement_need=(
+                    "Measure target-contact distance with the active gripper."
+                ),
+            )
+
+    def test_active_arm_need_retries_to_registered_composite_target(self):
+        root = Path(__file__).resolve().parents[2]
+        invalid = _typed("click_bell")
+        invalid["metric_spec"]["left_signal"] = "left_tcp_position"
+        invalid["metric_spec"]["right_signal"] = "bell_contact_position"
+        repaired = {
+            "schema_version": 1,
+            "task_name": "click_bell",
+            "metric": "bell_active_tcp_min_xy_error",
+            "question": (
+                "What was the minimum XY distance between the official "
+                "active-arm TCP and the bell contact point?"
+            ),
+        }
+        provider = _RetryProvider([invalid, repaired])
+        agent = OpenToolRequestAgent(root, provider, model="fixture-model")
+
+        bundle = agent.propose(
+            source_query="Where does bell-position generalization fail?",
+            semantic_concern="bounded bell translation",
+            tool_need=(
+                "Measure target-contact distance with the active gripper."
+            ),
+            task_name="click_bell",
+        )
+
+        self.assertEqual(
+            bundle["tool_request"]["metric"],
+            "bell_active_tcp_min_xy_error",
+        )
+        self.assertEqual(provider.calls, 2)
+        self.assertIn(
+            "fixed-side minimum_distance",
+            bundle["provider"]["errors"][0],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -167,6 +167,45 @@ class CrossTaskEntrypointTests(unittest.TestCase):
         self.assertEqual(conflict["status"], "conflict")
         self.assertTrue(conflict["evidence_conflict"])
 
+    def test_official_outcome_defaults_missing_summary_to_equivalent(self):
+        for label, episodes in (
+            ("no_episode_details", []),
+            (
+                "official_result",
+                [
+                    {
+                        "seed": 100405,
+                        "result": {
+                            "details": {
+                                "official_success": True,
+                            }
+                        },
+                    }
+                ],
+            ),
+        ):
+            with self.subTest(label=label):
+                semantics = normalize_outcome_semantics(
+                    {
+                        "outcome_authority": "official_check_success",
+                        "episodes": episodes,
+                    },
+                    {},
+                )
+                self.assertEqual(semantics["status"], "official_only")
+                self.assertTrue(semantics["official_equivalent"])
+                self.assertFalse(semantics["evidence_conflict"])
+                if semantics["episodes"]:
+                    self.assertEqual(
+                        semantics["episodes"][0]["status"],
+                        "official_only",
+                    )
+                    self.assertTrue(
+                        semantics["episodes"][0][
+                            "official_equivalent"
+                        ]
+                    )
+
     def test_compact_flagship_acceptance_requires_online_sufficient_reuse(self):
         module_sha256 = "a" * 64
         round_runs = [

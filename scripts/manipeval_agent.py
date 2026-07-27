@@ -2134,12 +2134,16 @@ def normalize_outcome_semantics(
     raw_official_equivalent = task_artifact_summary.get(
         "success_official_equivalent"
     )
+    outcome_authority = trusted_tool_evaluation.get("outcome_authority")
     official_equivalent = (
         raw_official_equivalent
         if isinstance(raw_official_equivalent, bool)
-        else None
+        else (
+            True
+            if outcome_authority == "official_check_success"
+            else None
+        )
     )
-    outcome_authority = trusted_tool_evaluation.get("outcome_authority")
     episodes: list[dict[str, Any]] = []
     for episode in trusted_tool_evaluation.get("episodes", []):
         if not isinstance(episode, Mapping):

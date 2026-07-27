@@ -174,8 +174,10 @@ def validate_open_tool_request(
     *,
     task_name: str,
     available_signal_names: set[str] | None = None,
+    available_signal_sides: Mapping[str, str] | None = None,
     available_actor_ids: set[str] | None = None,
     forbidden_metric_ids: set[str] | None = None,
+    measurement_need: str | None = None,
 ) -> dict[str, Any]:
     """Require an executable exact reuse or typed MetricSpec request."""
 
@@ -203,10 +205,12 @@ def validate_open_tool_request(
         )
     if decision["resolved_route"] not in {
         "reuse",
+        "force_codegen",
         "typed_metric_spec_compile",
     }:
         raise OpenToolRequestError(
-            "open Tool request must exact-reuse or compile a typed MetricSpec"
+            "open Tool request must reuse, generate a registered composite "
+            "target, or compile a typed MetricSpec"
         )
     metric_spec = request.get("metric_spec")
     if isinstance(metric_spec, Mapping):
@@ -229,6 +233,34 @@ def validate_open_tool_request(
             if missing:
                 raise OpenToolRequestError(
                     f"MetricSpec uses unavailable telemetry signals: {missing}"
+                )
+            need = (measurement_need or "").casefold()
+            active_side_requested = any(
+                phrase in need
+                for phrase in (
+                    "active arm",
+                    "active-arm",
+                    "active gripper",
+                    "active tcp",
+                    "主动臂",
+                    "活动臂",
+                )
+            )
+            sided_signals = {
+                str(signal): str(side)
+                for signal, side in (available_signal_sides or {}).items()
+                if isinstance(side, str) and side.strip()
+            }
+            available_sides = set(sided_signals.values())
+            if (
+                active_side_requested
+                and len(available_sides) > 1
+                and requested_signals.intersection(sided_signals)
+            ):
+                raise OpenToolRequestError(
+                    "a fixed-side minimum_distance MetricSpec cannot satisfy "
+                    "an active-arm measurement need; reuse or generate a "
+                    "registered metric that selects the active side at runtime"
                 )
         if operation in {"event_count", "time_between_events"}:
             selectors = (
@@ -300,8 +332,13 @@ class OpenToolRequestAgent:
             "request and MetricSpec exactly. Otherwise return "
             "schema_version=2 and a MetricSpec using only the advertised typed "
             "operator contracts and telemetry names. Replace angle-bracket "
-            "placeholders with real advertised names or null. Do not invent an unavailable "
-            "signal, task name, template, or aspect. Return strict JSON only.\n\n"
+            "placeholders with real advertised names or null. A registered "
+            "composite target is an exact static match and may be selected by "
+            "its schema_version=1 metric id; it will be generated and validated "
+            "when no compatible registration exists. A fixed left/right signal "
+            "does not satisfy an active-arm or active-gripper need when both "
+            "sides are advertised. Do not invent an unavailable signal, task "
+            "name, template, or aspect. Return strict JSON only.\n\n"
             f"ORIGINAL QUERY:\n{source_query}\n\n"
             f"SEMANTIC CONCERN:\n{semantic_concern}\n\n"
             f"MEASUREMENT NEED:\n{tool_need}\n\n"
@@ -363,6 +400,12 @@ class OpenToolRequestAgent:
                         str(item["name"])
                         for item in context["telemetry_schema"]["semantic_fields"]
                     },
+                    available_signal_sides={
+                        str(item["name"]): str(item["side"])
+                        for item in context["telemetry_schema"]["semantic_fields"]
+                        if isinstance(item.get("side"), str)
+                        and str(item["side"]).strip()
+                    },
                     available_actor_ids={
                         str(item["id"])
                         for item in context["telemetry_schema"]["tracked_actors"]
@@ -370,6 +413,7 @@ class OpenToolRequestAgent:
                     forbidden_metric_ids=set(
                         context["forbidden_metric_ids"]
                     ),
+                    measurement_need=tool_need,
                 )
                 break
             except Exception as exc:
