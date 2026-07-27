@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "task_name": "place_phone_stand",
+  "task_family": "precise_object_placement",
+  "trusted_tool_profile": "generic_success",
+  "physics_timestep_seconds": 0.004,
+  "action_dimension": 14,
+  "probe_task_attributes": ["phone_id", "stand_id"],
+  "tracked_actors": [
+    {
+      "id": "phone",
+      "task_attribute": "phone",
+      "scene_name": "077_phone",
+      "functional_points": [0],
+      "contact_points": []
+    },
+    {
+      "id": "stand",
+      "task_attribute": "stand",
+      "scene_name": "078_phonestand",
+      "functional_points": [0],
+      "contact_points": []
+    }
+  ],
+  "contact_focus_actor_ids": ["phone", "stand"],
+  "semantic_fields": [
+    {
+      "name": "phone_position",
+      "source": "actor_position",
+      "actor_id": "phone"
+    },
+    {
+      "name": "phone_functional_position",
+      "source": "actor_functional_position",
+      "actor_id": "phone",
+      "point_id": 0
+    },
+    {
+      "name": "stand_position",
+      "source": "actor_position",
+      "actor_id": "stand"
+    },
+    {
+      "name": "stand_functional_position",
+      "source": "actor_functional_position",
+      "actor_id": "stand",
+      "point_id": 0
+    },
+    {
+      "name": "left_tcp_position",
+      "source": "robot_tcp_position",
+      "side": "left"
+    },
+    {
+      "name": "right_tcp_position",
+      "source": "robot_tcp_position",
+      "side": "right"
+    }
+  ],
+  "semantic_roles": {
+    "manipulated_object_position": "phone_position",
+    "manipulated_functional_position": "phone_functional_position",
+    "target_object_position": "stand_position",
+    "target_functional_position": "stand_functional_position",
+    "left_tcp_position": "left_tcp_position",
+    "right_tcp_position": "right_tcp_position"
+  },
+  "success_contract": {
+    "type": "official_check_success",
+    "manipulated_actor_id": "phone",
+    "target_actor_id": "stand",
+    "manipulated_functional_point": 0,
+    "target_functional_point": 0,
+    "xyz_tolerance_m": [0.045, 0.04, 0.04],
+    "requires_left_gripper_open": true,
+    "requires_right_gripper_open": true
+  }
+}

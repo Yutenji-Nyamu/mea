@@ -194,7 +194,11 @@ def semantic_bundle(sub_aspect="object_position.left_fixed"):
 
 class ClaimFirstRuntimeTests(unittest.TestCase):
     def test_generic_official_tasks_have_claim_first_control_anchors(self):
-        for task_name in ("adjust_bottle", "grab_roller"):
+        for task_name in (
+            "adjust_bottle",
+            "grab_roller",
+            "place_phone_stand",
+        ):
             generic_target = {
                 "task_name": task_name,
                 "max_rounds": 1,
@@ -297,6 +301,132 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         )
         self.assertEqual(resolution["decision"], "bind_single_aspect")
         self.assertFalse(resolution["catalog_was_model_visible"])
+
+    def test_concrete_catalog_external_concern_preserves_unresolved_needs(self):
+        concern = {
+            "schema_version": 1,
+            "source_query": (
+                "How robust is this policy when the target object's mass changes?"
+            ),
+            "sub_aspect": "Object mass sensitivity.",
+            "hypothesis": (
+                "The policy may fail to lift the target when its mass increases."
+            ),
+            "task_intent": "Press the intended bell.",
+            "requested_variation": (
+                "Increase the target object mass while preserving its geometry."
+            ),
+            "measurement_need": (
+                "Measure success and unintended contact under the heavier mass."
+            ),
+        }
+
+        resolution = resolve_concern_candidate_domain(
+            concern,
+            target=target(),
+        )
+
+        self.assertEqual(resolution["decision"], "catalog_external")
+        self.assertEqual(
+            resolution["resolution"],
+            "unsupported_or_generation_required",
+        )
+        self.assertIsNone(resolution["candidate_aspect_ids"])
+        self.assertIsNone(resolution["selected_aspect_id"])
+        self.assertEqual(resolution["selected_template_ids"], [])
+        self.assertEqual(resolution["concern"], concern)
+        self.assertEqual(
+            resolution["task_need"],
+            {
+                "required": True,
+                "description": concern["requested_variation"],
+            },
+        )
+        self.assertEqual(
+            resolution["tool_need"],
+            {
+                "required": True,
+                "description": concern["measurement_need"],
+                "reuse_first": True,
+            },
+        )
+        self.assertEqual(
+            resolution["catalog_external_specificity"]["canonical_aspect_id"],
+            "object_physics.mass",
+        )
+        self.assertFalse(resolution["execution_authorized"])
+        self.assertNotIn("resolved_template_id", resolution)
+
+    def test_provider_incidental_catalog_words_do_not_hide_external_mass_concern(self):
+        resolution = resolve_concern_candidate_domain(
+            {
+                "source_query": (
+                    "How robust is this ACT policy when the target object mass changes?"
+                ),
+                "sub_aspect": (
+                    "Effect of target object mass variation on policy performance"
+                ),
+                "hypothesis": (
+                    "The policy will click the bell regardless of target mass."
+                ),
+                "task_intent": "Click the bell.",
+                "requested_variation": (
+                    "Test a range from very light to very heavy while keeping "
+                    "all other properties constant."
+                ),
+                "measurement_need": (
+                    "Determine success across the range of target object masses."
+                ),
+            },
+            target=target(),
+        )
+
+        self.assertEqual(resolution["decision"], "catalog_external")
+        self.assertEqual(
+            resolution["resolution"],
+            "unsupported_or_generation_required",
+        )
+        self.assertTrue(resolution["task_need"]["required"])
+        self.assertTrue(resolution["tool_need"]["required"])
+        self.assertFalse(resolution["execution_authorized"])
+
+    def test_catalog_external_detail_not_grounded_in_query_stays_ambiguous(self):
+        resolution = resolve_concern_candidate_domain(
+            {
+                "source_query": "How robust is this policy in general?",
+                "sub_aspect": "Object mass sensitivity.",
+                "hypothesis": "The policy may fail when object mass increases.",
+                "requested_variation": "Increase the object mass.",
+                "measurement_need": "Measure success under the heavier mass.",
+            },
+            target=target(),
+        )
+
+        self.assertEqual(resolution["decision"], "ambiguous")
+        self.assertEqual(resolution["resolution"], "broad_or_ambiguous")
+        self.assertNotIn("task_need", resolution)
+        self.assertNotIn("tool_need", resolution)
+
+    def test_tied_registered_concern_stays_ambiguous(self):
+        resolution = resolve_concern_candidate_domain(
+            {
+                "source_query": (
+                    "Does changing object_position or object_instance expose a failure?"
+                ),
+                "sub_aspect": "object_position and object_instance",
+                "hypothesis": "Either supported variation may fail.",
+                "requested_variation": (
+                    "Change object_position or object_instance."
+                ),
+                "measurement_need": "Measure success for each variation.",
+            },
+            target=target(),
+        )
+
+        self.assertEqual(resolution["decision"], "ambiguous")
+        self.assertEqual(resolution["resolution"], "broad_or_ambiguous")
+        self.assertIsNone(resolution["candidate_aspect_ids"])
+        self.assertEqual(resolution["selected_template_ids"], [])
 
     def test_broad_or_tied_concern_keeps_full_candidate_domain(self):
         resolution = resolve_concern_candidate_domain(

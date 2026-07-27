@@ -17,27 +17,19 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping
 
+from mea.capability_adapter import (
+    CapabilityAdapterError,
+    registered_task_names,
+    resolve_task_adapter,
+)
+
 from .click_bell import ClickBellAdaptivePlanAgent
 from .official import OFFICIAL_TEMPLATE_ID, OfficialTaskPlanAgent
 from .prototype import PlanAgentError, PlanAgentPrototype
 
 
-CATALOG_PLAN_TASKS = (
-    "beat_block_hammer",
-    "click_bell",
-    "adjust_bottle",
-    "grab_roller",
-)
-
-# These modes are useful scientific controls, but they are not alternative
-# production routers.  Keeping the names here makes the boundary discoverable
-# without deleting the fixed/adaptive ablations required by the paper.
-EXPERIMENT_ONLY_PLANNER_MODES = (
-    "click_bell_position_lr",
-    "click_bell_adaptive_catalog",
-    "click_bell_fixed_suite",
-)
-
+# Backward-compatible public name; TaskAdapter owns task membership.
+CATALOG_PLAN_TASKS = registered_task_names()
 
 class CatalogPlanError(PlanAgentError):
     """Raised when a request leaves the production task/template catalog."""
@@ -45,11 +37,13 @@ class CatalogPlanError(PlanAgentError):
 
 def _task_name(value: Any) -> str:
     normalized = str(value or "").strip()
-    if normalized not in CATALOG_PLAN_TASKS:
+    try:
+        resolve_task_adapter(normalized)
+    except CapabilityAdapterError as exc:
         raise CatalogPlanError(
             f"unsupported catalog task {normalized!r}; "
             f"expected one of {list(CATALOG_PLAN_TASKS)}"
-        )
+        ) from exc
     return normalized
 
 
@@ -127,7 +121,8 @@ class PlanMaterializer:
         self._delegate = self._build_delegate()
 
     def _build_delegate(self) -> Any:
-        if self.task_name == "beat_block_hammer":
+        planner_kind = resolve_task_adapter(self.task_name)["planner_kind"]
+        if planner_kind == "bounded_bbh_v1":
             return PlanAgentPrototype(
                 self.repo_root,
                 self.provider,
@@ -136,7 +131,7 @@ class PlanMaterializer:
                 num_episodes=self.num_episodes,
             )
         if (
-            self.task_name == "click_bell"
+            planner_kind == "model_click_bell_adaptive_v1"
             and self.task_profile != "official"
         ):
             return ClickBellAdaptivePlanAgent(
@@ -199,7 +194,7 @@ class PlanMaterializer:
 
 
 class CatalogPlanAgent:
-    """Single production planner interface for the four ACT catalog tasks."""
+    """Single production planner interface for registered ACT catalog tasks."""
 
     planner_kind = "catalog_claim_first_v1"
 
@@ -247,7 +242,6 @@ class CatalogPlanAgent:
 
 __all__ = [
     "CATALOG_PLAN_TASKS",
-    "EXPERIMENT_ONLY_PLANNER_MODES",
     "CatalogPlanAgent",
     "CatalogPlanError",
     "PlanMaterializer",

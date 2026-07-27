@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "benchmark": "libero",
+  "policy_name": "smolvla",
+  "checkpoint": "/root/autodl-tmp/checkpoints/libero/smolvla_libero",
+  "suite": "libero_object",
+  "task_id": "libero_object/task0/mea_custom",
+  "seed": 100800,
+  "horizon_steps": 280,
+  "executed_steps": 280,
+  "success": false,
+  "reward_sum": 0.0,
+  "goal_predicate_satisfied": false,
+  "elapsed_seconds": 35.574,
+  "bddl_path": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_20260727_batch27_libero_seed_parity_v3/round_02_custom/taskgen/generated_task.bddl",
+  "video_path": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_20260727_batch27_libero_seed_parity_v3/round_02_custom/episode/episode.mp4",
+  "task_contract_path": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_20260727_batch27_libero_seed_parity_v3/round_02_custom/taskgen/task_contract.json",
+  "actions_path": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_20260727_batch27_libero_seed_parity_v3/round_02_custom/episode/actions.npy",
+  "provenance": {
+    "round": 2,
+    "route": "custom_offscreen_render_env_factory",
+    "stock_task_ids": false,
+    "official_init_state_reused_after_probe": true,
+    "horizon_steps": 280,
+    "env_route": "custom_sync_vector_env",
+    "rollout_index": 2,
+    "policy_rng_mode": "restored_pre_first_rollout_state",
+    "seed_contract": {
+      "schema_version": 1,
+      "global_seed": 100800,
+      "environment_reset_seed": 100800,
+      "policy_rng_origin_seed": 100800,
+      "seed_scope": "once_before_env_and_policy_construction",
+      "policy_rng_first_rollout_state": "continuation_after_env_policy_and_processor_construction",
+      "first_rollout_integer_reseed": false,
+      "paired_round_rng_restore": true,
+      "paired_rng_capture_point": "after_env_policy_and_processors_before_first_rollout",
+      "implementation": "lerobot.utils.random_utils.set_seed",
+      "cudnn_benchmark": true,
+      "cuda_matmul_allow_tf32": true
+    }
+  },
+  "goal_predicates": [
+    [
+      "in",
+      "salad_dressing_1",
+      "basket_1_contain_region"
+    ]
+  ]
+}

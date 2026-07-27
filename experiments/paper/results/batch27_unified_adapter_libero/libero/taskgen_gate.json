@@ -1,0 +1,86 @@
+{
+  "retrieval": {
+    "query_concern": "goal_object_identity_change The SmolVLA policy can successfully adapt to a change in the goal object identity while preserving the initial scene state. Change the goal object identity to a different object while keeping the initial scene state unchanged.",
+    "selected": {
+      "suite": "libero_object",
+      "task_id": 0,
+      "problem_name": "libero_floor_manipulation",
+      "language": "pick the alphabet soup and place it in the basket",
+      "bddl_path": "/root/autodl-tmp/envs/mea-libero/lib/python3.12/site-packages/libero/libero/bddl_files/libero_object/pick_up_the_alphabet_soup_and_place_it_in_the_basket.bddl",
+      "init_state_path": "/root/autodl-tmp/envs/mea-libero/lib/python3.12/site-packages/libero/libero/init_files/libero_object/pick_up_the_alphabet_soup_and_place_it_in_the_basket.pruned_init",
+      "objects": [
+        "alphabet_soup_1",
+        "basket_1",
+        "butter_1",
+        "cream_cheese_1",
+        "milk_1",
+        "salad_dressing_1",
+        "tomato_sauce_1"
+      ],
+      "goal_predicates": [
+        [
+          "in",
+          "alphabet_soup_1",
+          "basket_1_contain_region"
+        ]
+      ]
+    },
+    "score": 0.051282,
+    "authorized_candidate_count": 1,
+    "not_authorized_candidate_count": 9,
+    "selection_authorization": "explicit_run_binding_only",
+    "route": "policy_authorized_nearest_bddl"
+  },
+  "policy_task_compatibility": {
+    "policy_name": "SmolVLA",
+    "checkpoint": "/root/autodl-tmp/checkpoints/libero/smolvla_libero",
+    "declared_scope": "unknown",
+    "authorized_task_ids": {
+      "libero_object": [
+        0
+      ]
+    },
+    "authorization_source": "explicit_run_binding",
+    "artifact_evidence": {
+      "model_card": "/root/autodl-tmp/checkpoints/libero/smolvla_libero/README.md",
+      "model_card_datasets": "unknown",
+      "config": "/root/autodl-tmp/checkpoints/libero/smolvla_libero/config.json",
+      "config_repo_id": "None",
+      "task_manifest": null
+    },
+    "authorized_problem_names": [
+      "libero_floor_manipulation"
+    ]
+  },
+  "controlled_change_contract": {
+    "source_suite": "libero_object",
+    "source_task_id": 0,
+    "source_problem_name": "libero_floor_manipulation",
+    "query_concern": "goal_object_identity_change The SmolVLA policy can successfully adapt to a change in the goal object identity while preserving the initial scene state. Change the goal object identity to a different object while keeping the initial scene state unchanged.",
+    "requested_change_roots": [
+      "goal_object_identity"
+    ],
+    "allowed_change_roots": [
+      "language",
+      "obj_of_interest",
+      "goal"
+    ],
+    "preserved_roots": [
+      "suite",
+      "task_id",
+      "problem_name",
+      "domain",
+      "fixtures",
+      "regions",
+      "objects",
+      "initial_state",
+      "camera",
+      "workspace",
+      "action_mode",
+      "horizon"
+    ],
+    "status": "authorized",
+    "reason": "existing-object goal identity can be expressed by the Phase-1 BDDL contract",
+    "authorized": true
+  }
+}

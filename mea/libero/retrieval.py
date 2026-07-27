@@ -298,7 +298,7 @@ def authorize_controlled_change(
     requested = tuple(
         str(item).strip() for item in raw_changes if str(item).strip()
     )
-    normalized = " ".join(requested).casefold()
+    normalized = re.sub(r"[_-]+", " ", " ".join(requested).casefold())
     identity_change = re.search(
         r"\b(?:goal\s+object|object\s+identity|goal\s+identity)\b",
         normalized,

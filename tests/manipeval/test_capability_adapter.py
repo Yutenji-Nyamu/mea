@@ -11,10 +11,15 @@ from mea.aspects import (
 from mea.capability_adapter import (
     CapabilityAdapterError,
     build_contract_tool_request,
+    registered_task_names,
+    registered_task_vqa_questions,
     registered_templates,
     resolve_capability_contract,
+    resolve_task_adapter,
+    task_vqa_metric_phenomena,
     validate_capability_contract,
     validate_contract_changes,
+    validate_task_adapter,
 )
 
 
@@ -110,11 +115,56 @@ class CapabilityAdapterTests(unittest.TestCase):
                 "task_execution.official_baseline",
             ],
         )
-        for task_name in ("adjust_bottle", "grab_roller"):
+        for task_name in ("adjust_bottle", "grab_roller", "place_phone_stand"):
             self.assertEqual(
                 registered_templates(task_name),
                 ["task_execution.official_baseline"],
             )
+
+    def test_task_registry_is_the_single_task_membership_and_control_source(self):
+        self.assertEqual(
+            registered_task_names(),
+            (
+                "beat_block_hammer",
+                "click_bell",
+                "adjust_bottle",
+                "grab_roller",
+                "place_phone_stand",
+            ),
+        )
+        expected_controls = {
+            "adjust_bottle": "task_execution.official_baseline",
+            "beat_block_hammer": "safety.hammer_left_camera_contact.official",
+            "click_bell": "performance.completion_time_stability.official",
+            "grab_roller": "task_execution.official_baseline",
+            "place_phone_stand": "task_execution.official_baseline",
+        }
+        for task_name, expected_control in expected_controls.items():
+            with self.subTest(task_name=task_name):
+                adapter = resolve_task_adapter(task_name)
+                self.assertEqual(adapter["control_template_id"], expected_control)
+                self.assertIn(
+                    expected_control,
+                    [
+                        contract["template_id"]
+                        for contract in adapter["capability_contracts"]
+                    ],
+                )
+                self.assertEqual(validate_task_adapter(adapter), adapter)
+
+    def test_official_vqa_rules_are_task_owned(self):
+        questions = registered_task_vqa_questions()
+        self.assertIn("phone_visibly_placed_on_stand", questions)
+        self.assertEqual(
+            task_vqa_metric_phenomena(
+                "place_phone_stand", "official_check_success"
+            ),
+            ["phone_visibly_placed_on_stand"],
+        )
+        self.assertEqual(
+            questions["phone_visibly_placed_on_stand"]["numeric_authority"],
+            "official_check_success_is_authoritative",
+        )
 
     def test_bbh_template_identity_is_separate_from_reused_task_variant(self):
         appearance = resolve_capability_contract(
@@ -254,6 +304,7 @@ class CapabilityAdapterTests(unittest.TestCase):
             ("beat_block_hammer", "safety.hammer_left_camera_contact.official"),
             ("adjust_bottle", "task_execution.official_baseline"),
             ("grab_roller", "task_execution.official_baseline"),
+            ("place_phone_stand", "task_execution.official_baseline"),
         ):
             with self.subTest(template_id=template_id):
                 contract = resolve_capability_contract(task_name, template_id)
@@ -292,6 +343,8 @@ class CapabilityAdapterTests(unittest.TestCase):
             resolve_capability_contract("click_bell", "object_scale.freeform")
         with self.assertRaisesRegex(CapabilityAdapterError, "unknown capability"):
             resolve_capability_contract("future_task", "object_position.left_fixed")
+        with self.assertRaisesRegex(CapabilityAdapterError, "unknown task adapter"):
+            resolve_task_adapter("future_task")
 
 
 if __name__ == "__main__":

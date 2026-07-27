@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "sample_count": 2,
+  "seeds": [
+    100800
+  ],
+  "tested_candidate_ids": [
+    "official_control",
+    "generated_goal:salad_dressing_1"
+  ],
+  "untested_candidate_ids": [
+    "butter_1",
+    "cream_cheese_1",
+    "milk_1",
+    "tomato_sauce_1"
+  ],
+  "unsupported_capabilities": [],
+  "evidence_conflict": false,
+  "termination": "budget_exhausted",
+  "claim_verdict": "The official control and one generated variation are insufficient to establish object-identity robustness.",
+  "required_limitations": [
+    {
+      "code": "sample_count_and_seeds",
+      "text": "Evidence contains N=2 policy episodes at seeds [100800]."
+    },
+    {
+      "code": "untested_candidates",
+      "text": "Untested candidates remain: ['butter_1', 'cream_cheese_1', 'milk_1', 'tomato_sauce_1']."
+    },
+    {
+      "code": "termination_budget_exhausted",
+      "text": "The run stopped because its round budget was exhausted before the query-sufficiency contract was satisfied."
+    }
+  ]
+}

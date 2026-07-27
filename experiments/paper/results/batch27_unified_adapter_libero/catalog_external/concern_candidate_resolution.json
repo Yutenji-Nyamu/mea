@@ -1,0 +1,113 @@
+{
+  "schema_version": 1,
+  "decision": "catalog_external",
+  "resolution": "unsupported_or_generation_required",
+  "candidate_aspect_ids": null,
+  "selected_aspect_id": null,
+  "selected_template_ids": [],
+  "ranked_aspects": [
+    {
+      "aspect_id": "object_instance",
+      "template_ids": [
+        "object_instance.base0",
+        "object_instance.base1"
+      ],
+      "exact": false,
+      "score": 2,
+      "matched_tokens": [
+        "across",
+        "constant"
+      ],
+      "source_query_matched_tokens": []
+    },
+    {
+      "aspect_id": "object_position",
+      "template_ids": [
+        "object_position.left_fixed",
+        "object_position.right_fixed"
+      ],
+      "exact": false,
+      "score": 2,
+      "matched_tokens": [
+        "across",
+        "constant"
+      ],
+      "source_query_matched_tokens": []
+    },
+    {
+      "aspect_id": "robustness.distractor_avoidance",
+      "template_ids": [
+        "robustness.distractor_avoidance.lookalike_bell"
+      ],
+      "exact": false,
+      "score": 0,
+      "matched_tokens": [],
+      "source_query_matched_tokens": []
+    },
+    {
+      "aspect_id": "robustness.scene_clutter",
+      "template_ids": [
+        "robustness.scene_clutter.official_table"
+      ],
+      "exact": false,
+      "score": 0,
+      "matched_tokens": [],
+      "source_query_matched_tokens": []
+    },
+    {
+      "aspect_id": "scene_background_texture",
+      "template_ids": [
+        "scene_background_texture.unseen"
+      ],
+      "exact": false,
+      "score": 0,
+      "matched_tokens": [],
+      "source_query_matched_tokens": []
+    },
+    {
+      "aspect_id": "scene_lighting",
+      "template_ids": [
+        "scene_lighting.static_random"
+      ],
+      "exact": false,
+      "score": 0,
+      "matched_tokens": [],
+      "source_query_matched_tokens": []
+    }
+  ],
+  "concern_created_before_catalog": true,
+  "catalog_was_model_visible": false,
+  "concern": {
+    "schema_version": 1,
+    "source_query": "How robust is this ACT policy when the target object mass changes?",
+    "sub_aspect": "Effect of target object mass variation on policy performance",
+    "hypothesis": "The ACT policy will successfully click the bell regardless of changes in the target object's mass.",
+    "task_intent": "Click the bell as the invariant base action and goal.",
+    "requested_variation": "Change the mass of the target object incrementally while keeping all other factors constant.",
+    "measurement_need": "Observe whether the bell is successfully clicked across different target object masses."
+  },
+  "task_need": {
+    "required": true,
+    "description": "Change the mass of the target object incrementally while keeping all other factors constant."
+  },
+  "tool_need": {
+    "required": true,
+    "description": "Observe whether the bell is successfully clicked across different target object masses.",
+    "reuse_first": true
+  },
+  "catalog_external_specificity": {
+    "specific": true,
+    "grounded_anchor_tokens": [
+      "mass"
+    ],
+    "repeated_anchor_tokens": [
+      "mass",
+      "successfully"
+    ],
+    "ontology_matches": [
+      "object_physics.mass"
+    ],
+    "canonical_aspect_id": "object_physics.mass"
+  },
+  "execution_authorized": false
+}

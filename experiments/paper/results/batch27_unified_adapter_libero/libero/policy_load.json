@@ -1,0 +1,32 @@
+{
+  "status": "passed",
+  "checkpoint": "/root/autodl-tmp/checkpoints/libero/smolvla_libero",
+  "device": "cuda",
+  "n_action_steps": 10,
+  "horizon_steps": 280,
+  "observation_size": 360,
+  "suite": "libero_object",
+  "task_id": 0,
+  "control_mode": "relative",
+  "seed_contract": {
+    "schema_version": 1,
+    "global_seed": 100800,
+    "environment_reset_seed": 100800,
+    "policy_rng_origin_seed": 100800,
+    "seed_scope": "once_before_env_and_policy_construction",
+    "policy_rng_first_rollout_state": "continuation_after_env_policy_and_processor_construction",
+    "first_rollout_integer_reseed": false,
+    "paired_round_rng_restore": true,
+    "paired_rng_capture_point": "after_env_policy_and_processors_before_first_rollout",
+    "implementation": "lerobot.utils.random_utils.set_seed",
+    "cudnn_benchmark": true,
+    "cuda_matmul_allow_tf32": true
+  },
+  "processor_artifacts": {
+    "preprocessor": "/root/autodl-tmp/checkpoints/libero/smolvla_libero/policy_preprocessor.json",
+    "postprocessor": "/root/autodl-tmp/checkpoints/libero/smolvla_libero/policy_postprocessor.json"
+  },
+  "parameter_count": 604934176,
+  "elapsed_seconds": 45.818,
+  "torch_version": "2.11.0+cu130"
+}

@@ -27,6 +27,7 @@ ManipEvalAgent（MEA）迁移到 LIBERO 的最小接口和协议。它不把 LIB
 - [Planner–TaskGen 协议审计](../experiments/paper/results/batch24_libero_method_chain_v2/evidence/protocol_audit.json)
 - [batch24 四项结果索引](../experiments/paper/results/batch24_claim_closure/summary.json)
 - [batch26 严格 control 结果](../experiments/paper/results/batch26_claim_closure/libero_compact_result.json)
+- [batch27 两回合方法链结果](../experiments/paper/results/batch27_unified_adapter_libero/libero/compact_result.json)
 
 ## 1. 已核实环境与产物
 
@@ -279,6 +280,26 @@ line 11: /usr/bin/time: No such file or directory
 timestamps；policy、checkpoint、task、seed 和 eval 参数未变，之后没有继续重试。
 robosuite private macro 与 `OpenGL_accelerate` 缺失是本次的非致命警告。
 
+### stock evaluator 与 direct adapter 的 seed parity
+
+batch26 出现“同一 task/seed 下 stock evaluator 成功、direct adapter 失败”并不是
+checkpoint 或 BDDL 不兼容。排查确认 SmolVLA policy 构造和 processor 初始化也会消耗
+Python/NumPy/PyTorch 全局 RNG；只给环境 reset 同一个 seed，不能保证两条执行路径拿到
+相同状态。batch27 将 direct adapter 的顺序固定为：
+
+```text
+set_seed
+→ make_env
+→ make_policy
+→ make_processors
+→ rollout
+```
+
+official control 使用与 stock evaluator 相同的 official env factory。对 paired custom
+rollout，在 official 环境/policy 初始化后捕获 RNG state，并在构造 custom env 前恢复，
+从而把“环境差异”与“初始化顺序差异”分开。该修复使 task0 official control 在 direct
+chain 中重现成功；它不意味着所有 task/seed 均与 stock evaluator 等价。
+
 ## 4. RoboTwin 与 LIBERO 的语义边界
 
 | 维度 | 当前 RoboTwin 主链 | LIBERO / 当前 smoke | 迁移要求 |
@@ -449,7 +470,7 @@ LeRobot/SmolVLA adapter parity 设置：单 episode 最多 280 steps、observati
 - variation 成功或失败都可接受，但 simulator 必须合法完成，official 与 experimental
   semantics 必须分别报告。
 
-### batch26 执行结果：control 失败后严格短路
+### batch26 历史结果：control 失败后严格短路
 
 `eval_20260727_batch26_libero_parity_live_v1` 绑定
 `libero_object/task0`、SmolVLA checkpoint 和 seed `100800`。Gate 0 与 policy load
@@ -469,6 +490,32 @@ paper_performance_evidence=false
 fail-closed 协议的真实正证据，同时是 LIBERO 方法链的负结果。batch24 历史运行曾让
 official/custom 各跑 100 steps，但 control 失败且 Planner–TaskGen 变更不对齐；当前
 alignment gate 已把这类第二回合提前阻断。
+
+### batch27 执行结果：两回合方法链合法完成
+
+`eval_20260727_batch27_libero_seed_parity_v3` 使用
+`libero_object/task0`、SmolVLA、seed `100800` 和上述 parity 顺序。结果为：
+
+```text
+official control: success=true
+custom BDDL: salad_dressing_1 goal, success=false
+rollouts_executed=2
+wall_seconds=132.698
+method_chain_valid=true
+episode_protocol_matches=true
+tool_live_value=false
+tool_exact_reuse=true
+query_sufficient=false
+paper_performance_evidence=false
+scientific_evidence_eligible=false
+```
+
+第一回合 evidence 之后才生成具体 Proposal 和 state-compatible custom BDDL；第二回合
+通过 direct `OffScreenRenderEnv` 执行，并将 predicate Tool 的非空 live 值送入
+Aggregate/Planner。相同 Tool need 随后 exact reuse，未增加 rollout。custom failure
+是合法观测，不是链路错误；由于仍有四个未测 goal object 且只运行单 seed，系统以预算
+耗尽和 `query_sufficient=false` 收尾。该结果只支持“LIBERO basic-adaptation
+method-chain 可执行”，不支持 SmolVLA robustness、采样效率或跨模拟器一致性。
 
 ### 验收条件
 
@@ -494,12 +541,14 @@ alignment gate 已把这类第二回合提前阻断。
   evidence-conditioned Planner 的完整主链在两个 simulator 上一致。
 - Table 10 明确不保证 absolute correctness；结论仍受 LLM、simulator fidelity、
   observation、predicate/tool 和有限 samples 约束。
-- 当前 1/1 SmolVLA success 只证明 official evaluator、LIBERO environment 与
+- batch23 的 1/1 SmolVLA success 只证明 official evaluator、LIBERO environment 与
   SmolVLA inference/eval 路径能端到端运行，不证明 MEA adapter。它不能与 RoboTwin
   ACT/DP3 数值直接比较，也不能支持效率、排名或泛化结论。
 - batch24 的 2×100-step method-chain 只证明 BDDL/custom env/确定性 predicate
   MetricSpec adapter/reuse 机制可执行，但没有证明模型生成新 Tool；control failure
   与 Planner–TaskGen misalignment 使整条科学协议无效，它同样不能支持 SmolVLA
   robustness 或 RoboTwin↔LIBERO 一致性结论。
-- batch26 使用 adapter parity 参数重新执行后，official control 仍失败，并正确只消耗
-  1/2 rollout；因此当前仍没有有效的 LIBERO 两轮 MEA 方法链。
+- batch26 的 control-failed 结果保留为 fail-closed 历史负例；batch27 修复 seed/RNG
+  parity 后，official-positive/custom-negative 两回合已形成合法方法链。但
+  `query_sufficient=false`、单 task/seed 与 2-rollout 预算决定了它仍不是论文表格、
+  robustness 或跨环境一致性结果。

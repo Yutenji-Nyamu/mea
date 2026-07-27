@@ -34,6 +34,7 @@ class GenericTaskSchemaTests(unittest.TestCase):
         self.assertIn("click_bell", summaries)
         self.assertIn("adjust_bottle", summaries)
         self.assertIn("grab_roller", summaries)
+        self.assertIn("place_phone_stand", summaries)
         self.assertEqual(summaries["click_bell"]["tracked_actor_ids"], ["bell"])
         self.assertEqual(
             summaries["click_bell"]["trusted_tool_profile"],
@@ -41,16 +42,27 @@ class GenericTaskSchemaTests(unittest.TestCase):
         )
         self.assertEqual(summaries["adjust_bottle"]["tracked_actor_ids"], ["bottle"])
         self.assertEqual(summaries["grab_roller"]["tracked_actor_ids"], ["roller"])
+        self.assertEqual(
+            summaries["place_phone_stand"]["tracked_actor_ids"],
+            ["phone", "stand"],
+        )
 
     def test_new_task_schemas_use_only_generic_recorder_sources(self):
         adjust = load_task_schema(REPO_ROOT, "adjust_bottle")
         roller = load_task_schema(REPO_ROOT, "grab_roller")
+        phone = load_task_schema(REPO_ROOT, "place_phone_stand")
         self.assertEqual(adjust["trusted_tool_profile"], "generic_success")
         self.assertEqual(adjust["tracked_actors"][0]["functional_points"], [0])
         self.assertEqual(roller["trusted_tool_profile"], "generic_success")
         self.assertEqual(roller["tracked_actors"][0]["contact_points"], [0, 1])
         self.assertIn("bottle_functional_position", required_trace_keys(adjust))
         self.assertIn("roller_left_contact_position", required_trace_keys(roller))
+        self.assertEqual(
+            phone["success_contract"]["xyz_tolerance_m"],
+            [0.045, 0.04, 0.04],
+        )
+        self.assertIn("phone_functional_position", required_trace_keys(phone))
+        self.assertIn("stand_functional_position", required_trace_keys(phone))
 
     def test_click_bell_declares_exact_trace_contract(self):
         schema = load_task_schema(REPO_ROOT, "click_bell")

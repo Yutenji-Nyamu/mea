@@ -1,0 +1,177 @@
+{
+  "schema_version": 1,
+  "model_requested": "gpt-4o-2024-11-20",
+  "selection": {
+    "video_path": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260727_batch27_place_phone_act_v1_round_1/evaluation/telemetry/act/episode_000_seed_100501/video.mp4",
+    "frame_count": 400,
+    "fps": 10.0,
+    "selected_frames": [
+      {
+        "frame_id": "initial",
+        "frame_index": 0,
+        "source": "video_boundary"
+      },
+      {
+        "frame_id": "context_1",
+        "frame_index": 133,
+        "source": "uniform_fallback"
+      },
+      {
+        "frame_id": "context_2",
+        "frame_index": 266,
+        "source": "uniform_fallback"
+      },
+      {
+        "frame_id": "final",
+        "frame_index": 399,
+        "source": "video_boundary"
+      }
+    ],
+    "reference_scene": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260727_batch27_place_phone_act_v1_round_1/evidence/initial_head.png",
+    "montage_path": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_20260727_batch27_place_phone_act_v1/execution/round_1/execution_vqa/execution_montage.png"
+  },
+  "query": {
+    "schema_version": 1,
+    "profile": "dynamic_v1",
+    "task_name": "place_phone_stand",
+    "template_id": "task_execution.official_baseline",
+    "sub_aspect": "task_execution.official_baseline",
+    "tool_metric": "official_check_success",
+    "phenomenon_ids": [
+      "phone_visibly_placed_on_stand"
+    ],
+    "questions": [
+      {
+        "id": "phone_visibly_placed_on_stand",
+        "question_type": "visible_state_change",
+        "target_role": "task_target",
+        "question": "Is the phone visibly placed and released on the phone stand?",
+        "visual_scope": "rollout_change",
+        "numeric_authority": "official_check_success_is_authoritative"
+      }
+    ],
+    "selection_reasons": [
+      "capability_adapter:place_phone_stand:task_execution.official_baseline",
+      "task_metric:place_phone_stand:official_check_success"
+    ],
+    "answer_contract": {
+      "required_response_keys": [
+        "phenomena",
+        "confidence",
+        "frame_ids",
+        "numeric_consistency",
+        "conflicts"
+      ],
+      "phenomenon_item_keys": [
+        "id",
+        "observed",
+        "description",
+        "confidence",
+        "frame_ids"
+      ],
+      "observed_type": "boolean_or_null",
+      "numeric_consistency_values": [
+        "consistent",
+        "conflict",
+        "uncertain"
+      ]
+    }
+  },
+  "numeric_tool_results": [
+    {
+      "tool": "official_check_success",
+      "version": 1,
+      "tool_sha256": "a81c64679f614717fa869b312e8e927bff9fbfae65c02f57bddcf14964285822",
+      "value": false,
+      "unit": null,
+      "evidence_steps": [],
+      "evidence": [],
+      "details": {
+        "latched_eval_success": false,
+        "success_transition_recorded": false
+      },
+      "passed": false
+    },
+    {
+      "tool": "time_to_success",
+      "version": 1,
+      "tool_sha256": "15b7e9522b6d4d018755674f6cf959233d80315bddeda7db0f49e039341b7104",
+      "value": null,
+      "unit": "s",
+      "evidence_steps": [],
+      "evidence": [],
+      "details": {
+        "physics_step": null
+      }
+    }
+  ],
+  "observation": {
+    "phenomena": [
+      {
+        "id": "phone_visibly_placed_on_stand",
+        "observed": false,
+        "description": "The phone is not visibly placed and released on the phone stand.",
+        "confidence": 0.9,
+        "frame_ids": [
+          "initial",
+          "context_1",
+          "context_2",
+          "final"
+        ]
+      }
+    ],
+    "confidence": 0.9,
+    "frame_ids": [
+      "initial",
+      "context_1",
+      "context_2",
+      "final"
+    ],
+    "numeric_consistency": "consistent",
+    "conflicts": [],
+    "evidence_conflict": false
+  },
+  "evidence_conflict": false,
+  "provider_metadata": {
+    "id": "chatcmpl-E69ZdFgupkLckJRgNnvg2gcqyEwbA",
+    "model": "gpt-4o-2024-11-20",
+    "finish_reason": "stop",
+    "usage": {
+      "completion_tokens": 133,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 16,
+        "engine_ttft_ms": 279,
+        "engine_ttlt_ms": 2347,
+        "pre_inference_ms": 368,
+        "service_tbt_ms": 16,
+        "service_ttft_ms": 1154,
+        "service_ttlt_ms": 3253,
+        "total_duration_ms": 2886,
+        "user_visible_ttft_ms": 785
+      },
+      "prompt_tokens": 1381,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 1514
+    },
+    "retry_count": 0
+  },
+  "artifacts": {
+    "result": "mea/evaluation_runs/eval_20260727_batch27_place_phone_act_v1/execution/round_1/execution_vqa/execution_vqa.json",
+    "prompt": "mea/evaluation_runs/eval_20260727_batch27_place_phone_act_v1/execution/round_1/execution_vqa/execution_vqa_prompt.md",
+    "response": "mea/evaluation_runs/eval_20260727_batch27_place_phone_act_v1/execution/round_1/execution_vqa/execution_vqa_response.txt",
+    "montage": "mea/evaluation_runs/eval_20260727_batch27_place_phone_act_v1/execution/round_1/execution_vqa/execution_montage.png",
+    "selection": "mea/evaluation_runs/eval_20260727_batch27_place_phone_act_v1/execution/round_1/execution_vqa/keyframe_selection.json",
+    "query": "mea/evaluation_runs/eval_20260727_batch27_place_phone_act_v1/execution/round_1/execution_vqa/execution_vqa_query.json"
+  },
+  "status": "passed",
+  "representative_episode": "mea/generated_tasks/run_20260727_batch27_place_phone_act_v1_round_1/evaluation/telemetry/act/episode_000_seed_100501"
+}

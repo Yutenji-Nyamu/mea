@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "decision": "retrieve_and_adapt",
+  "reason_code": "nearest_training_task",
+  "free_concern": {
+    "schema_version": 1,
+    "source_query": "How robust is this ACT policy when the target object mass changes?",
+    "sub_aspect": "Effect of target object mass variation on policy performance",
+    "hypothesis": "The ACT policy will successfully click the bell regardless of changes in the target object's mass.",
+    "task_intent": "Click the bell as the invariant base action and goal.",
+    "requested_variation": "Change the mass of the target object incrementally while keeping all other factors constant.",
+    "measurement_need": "Observe whether the bell is successfully clicked across different target object masses."
+  },
+  "policy_scope": {
+    "schema_version": 1,
+    "policy_name": "ACT",
+    "checkpoint_id": "act-click_bell/demo_clean-50",
+    "single_task_checkpoint": true,
+    "training_tasks": [
+      "click_bell"
+    ],
+    "language_conditioned": false,
+    "supports_unseen_tasks": false
+  },
+  "selected_base_task": {
+    "task_name": "click_bell",
+    "score": 0.61262,
+    "execution_status": "capability_registered",
+    "capability_aspects": [
+      "object_position",
+      "object_instance",
+      "robustness.distractor_avoidance",
+      "robustness.scene_clutter",
+      "scene_background_texture",
+      "scene_lighting",
+      "performance.completion_time_stability"
+    ]
+  },
+  "ranked_candidates": [
+    {
+      "task_name": "click_bell",
+      "score": 0.61262,
+      "execution_status": "capability_registered",
+      "capability_aspects": [
+        "object_position",
+        "object_instance",
+        "robustness.distractor_avoidance",
+        "robustness.scene_clutter",
+        "scene_background_texture",
+        "scene_lighting",
+        "performance.completion_time_stability"
+      ]
+    },
+    {
+      "task_name": "click_alarmclock",
+      "score": 0.310577,
+      "execution_status": "official_base_only",
+      "capability_aspects": []
+    },
+    {
+      "task_name": "turn_switch",
+      "score": 0.073193,
+      "execution_status": "official_base_only",
+      "capability_aspects": []
+    }
+  ],
+  "resolution_contract": {
+    "concern_created_before_inventory": true,
+    "catalog_role": "execution_capability_inventory_only",
+    "retrieval_field": "FreeConcern.task_intent",
+    "semantic_threshold": 0.2,
+    "semantic_near_tie_margin": 0.03,
+    "plausible_candidate_names": [
+      "click_bell"
+    ],
+    "preserve_base_task_semantics": true
+  }
+}

@@ -37,6 +37,11 @@ policy 性能证据。重点检查 `free_concern.json`、`task_resolution.json` 
 provider/repair/retry 计数，以及最终是 `retrieve_and_adapt`、`generate_new` 还是
 `unsupported`。
 
+若原始 Query 提出 catalog 外 concern，正确的 0-ACT 结果是保存该 concern 的
+`TaskNeed`/`ToolNeed`，并在没有已验证生成/执行能力时输出
+`execution_authorized=false`。不要为通过路由测试而给 catalog 增加同义词，也不要把
+plan-only 写成 policy evidence。
+
 若 online resolver 已输出 `unsupported`，之后基于冻结 concern 的 0-provider
 replay 只能证明确定性 resolver/control handoff，不能倒推成一次在线成功。当前
 ClickBell flagship 的通过标准更严格：无 aspect CLI hint、无 history replay、一个
@@ -105,11 +110,16 @@ LIBERO 的固定环境、official control 与 MEA 迁移协议见
 
 当前 SmolVLA checkpoint 没有可审计的训练 task manifest，声明 scope 为 unknown。
 因此 unbound LIBERO 请求必须在 rollout 前拒绝；`--bound-task-name libero_object/task0`
-只授权该次 official control，并不证明 checkpoint 支持该任务。plan-only 的通过标准是
-授权候选为 1、change contract 仍为 pending、`rollouts_executed=0`。batch26 live
-实际执行 1 个 280-step 上限 official control，结果失败，并以
-`control_failed / official_control_failed` 停止；`custom_rollout_authorized=false`，
-没有消耗第二 rollout。该负结果只验证协议短路。
+只授权该次协议，不证明 checkpoint 的广泛 task scope。direct chain 必须沿用已验证的
+顺序 `set_seed → make_env → make_policy → processors → rollout`；paired custom
+rollout 在构造 custom env 前恢复捕获的 RNG state，避免把初始化顺序差异误判为 BDDL
+效应。
+
+batch27 `libero_object/task0` 已执行 official-positive/custom-negative 两回合：
+2 rollouts、132.698 s，`method_chain_valid=true`、Tool exact reuse，
+`query_sufficient=false`。该运行只能称 method-chain smoke；custom failure、单 seed
+和四个未测 goal object 决定了它不是 robustness、效率或跨环境一致性证据。batch26
+control-failed 结果保留为 parity 修复前的 fail-closed 历史负例。
 
 ## 6. 测试原则
 
@@ -128,7 +138,9 @@ cd /root/autodl-tmp/mea
 /root/autodl-tmp/envs/mea-libero/bin/python -m pytest -q tests/manipeval
 ```
 
-本批唯一紧凑运行入口见[当前证据](evidence/current/README.md)；效率、LIBERO、
-ranking 与 proxy 结果统一由
+当前 ClickBell 旗舰见[当前证据](evidence/current/README.md)；batch27 的
+catalog-external、第五个 RoboTwin adapter 与 LIBERO 结果见
+[`batch27_unified_adapter_libero`](../experiments/paper/results/batch27_unified_adapter_libero/)；
+效率、ranking 与 proxy 基线仍由
 [`batch26_claim_closure/summary.json`](../experiments/paper/results/batch26_claim_closure/summary.json)
 索引。

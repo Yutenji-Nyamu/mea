@@ -1,0 +1,76 @@
+{
+  "schema_version": 5,
+  "task_name": "place_phone_stand",
+  "policy": {
+    "name": "ACT",
+    "checkpoint_setting": "demo_clean",
+    "expert_data_num": 50,
+    "language_conditioned": false
+  },
+  "evaluation_goal": "validate_schema_backed_official_task_execution",
+  "requested_template_ids": [
+    "task_execution.official_baseline"
+  ],
+  "rounds": [
+    {
+      "round_id": "round_1",
+      "template_id": "task_execution.official_baseline",
+      "sub_aspect": "task_execution.official_baseline",
+      "rationale": "Run the unchanged schema-backed task through the requested act execution backend.",
+      "task_instruction": "Can the ACT policy place and release the phone on its stand under the unchanged official scene?",
+      "task_name": "place_phone_stand",
+      "task_module": "envs.place_phone_stand",
+      "telemetry_profile": "balanced_v1",
+      "route": "official",
+      "variant_hint": {},
+      "execution": {
+        "backend": "act",
+        "seeds": [
+          100501
+        ],
+        "num_episodes": 1,
+        "gates": [
+          "render",
+          "rule",
+          "act",
+          "toolkit",
+          "planned_tool",
+          "aggregate"
+        ]
+      },
+      "observations": [
+        "scene_alignment",
+        "expert_solvable",
+        "trusted_tools",
+        "aggregate"
+      ],
+      "tool_request": {
+        "schema_version": 1,
+        "task_name": "place_phone_stand",
+        "metric": "official_check_success",
+        "question": "Did the rollout satisfy the official RoboTwin success check?"
+      }
+    }
+  ],
+  "round_decisions": [
+    {
+      "schema_version": 2,
+      "action": "stop",
+      "observation_summary": "The official schema-backed task round completed; inspect its pipeline status and aggregate evidence.",
+      "decision_reason": "The bounded official-task vertical slice contains one round.",
+      "next_template_id": null,
+      "remaining_template_ids_before_decision": [],
+      "round_budget_before_decision": 0,
+      "evidence_assessment": {
+        "schema_version": 1,
+        "state": "official_baseline_complete",
+        "required_action": "stop",
+        "pipeline_passed": true,
+        "reason": "The bounded official-task vertical slice contains one round."
+      },
+      "next_round": null
+    }
+  ],
+  "max_rounds": 1,
+  "planning_state": "stopped_after_round_1"
+}

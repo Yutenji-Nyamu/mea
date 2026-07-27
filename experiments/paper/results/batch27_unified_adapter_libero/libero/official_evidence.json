@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "round_id": "round_01_official_control",
+  "tested_sub_aspect": "official_control",
+  "tested_hypothesis": "The local SmolVLA checkpoint can execute the unchanged task.",
+  "tested_perturbation": "none",
+  "outcome": "success",
+  "evidence_summary": "Official libero_object/task0 live rollout success=True; reward_sum=1.0; steps=135.",
+  "limitations": [
+    "N=1 fixed seed",
+    "batch23-parity 280-step feasibility horizon"
+  ]
+}

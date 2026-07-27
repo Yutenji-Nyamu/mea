@@ -1,0 +1,28 @@
+```json
+{
+  "schema_version": 1,
+  "action": "continue",
+  "sub_aspect": "goal_object_identity_change",
+  "hypothesis": "The SmolVLA policy can successfully adapt to a change in the goal object identity while preserving the initial scene state.",
+  "requested_perturbation": {
+    "description": "Change the goal object identity to a different object while keeping the initial scene state unchanged.",
+    "controlled_changes": [
+      "goal_object_identity"
+    ],
+    "preserve": [
+      "task identity",
+      "policy checkpoint"
+    ]
+  },
+  "task_need": {
+    "required": true,
+    "description": "TaskGen must modify the goal object identity in the task while ensuring compatibility with the initial scene state."
+  },
+  "tool_need": {
+    "required": true,
+    "description": "ToolGen must retrieve or generate a success metric to evaluate the policy's performance under the modified goal object identity.",
+    "reuse_first": true
+  },
+  "rationale": "Testing the policy's ability to handle a change in goal object identity directly addresses the original Query and is the next logical step after confirming the policy's success in the unperturbed task."
+}
+```

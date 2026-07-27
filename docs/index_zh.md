@@ -4,16 +4,15 @@
 
 - [架构与干净数据流](architecture_and_dataflow_zh.md)：当前唯一生产主链及每轮证据结构。
 - [运行指南](running_guide_zh.md)：plan-only、live rollout 与证据查看。
-- [LIBERO / SmolVLA 复现与 MEA 接入](libero_smolvla_reproduction_zh.md)：独立 environment/policy smoke、scope 审计、显式绑定 plan-only 与 fail-closed live chain。
+- [LIBERO / SmolVLA 复现与 MEA 接入](libero_smolvla_reproduction_zh.md)：服务器安装、镜像/限流问题、seed/RNG parity、official/custom 两回合方法链及复现协议；这是长期保留的唯一 LIBERO 文档。
 - [论文 claim 与 gap](paper_claim_gap_zh.md)：论文声称、当前证据和下一步。
 - [开发者参考](developer_reference_zh.md)：扩展任务、生成器和工具时的最小接口。
 - [当前证据](evidence/current/README.md)：最近一次可审计运行的紧凑索引。
+- [batch27 unified adapter / LIBERO](../experiments/paper/results/batch27_unified_adapter_libero/)：
+  catalog-external 0-ACT、第五个 RoboTwin official adapter 与 LIBERO 两回合方法链。
 - [batch26 claim closure](../experiments/paper/results/batch26_claim_closure/summary.json)：
-  无缓存旗舰、5-ACT 效率对照、LIBERO fail-closed、ACT/DP3 pilot 与零-ACT proxy。
-- [当前开放检索与第二任务结果](../experiments/paper/results/batch25_open_retrieval_taskgen/summary.json)：
-  50-task discovery、正负 plan-only、ClickBell provider TaskGen 与 LIBERO scope 边界。
-- [上一批小型论文协议结果](../experiments/paper/results/batch24_claim_closure/summary.json)：
-  efficiency、TaskGen ablation、ToolGen、ranking 与 proxy validity。
+  无缓存旗舰、5-ACT 效率对照、ACT/DP3 pilot 与零-ACT proxy；LIBERO fail-closed
+  结果作为 batch27 parity 修复前的历史负例。
 - [历史索引](evidence/history.jsonl)：旧批次只保留结论、边界和 Git revision。
 
 Git 的 current bundle 只保留最近一次运行的短视频、render、生成代码、关键

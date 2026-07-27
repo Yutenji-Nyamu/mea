@@ -22,6 +22,7 @@ def make_ready_repo(root: Path, *task_names: str) -> None:
         "click_bell": "press_contact",
         "adjust_bottle": "object_reposition",
         "grab_roller": "dual_arm_lift",
+        "place_phone_stand": "precise_object_placement",
     }
     for task_name in task_names:
         schema = root / f"mea/toolkit/schemas/{task_name}.json"
@@ -127,6 +128,14 @@ class GlobalQueryRouterTests(unittest.TestCase):
                             "task_schema_missing",
                         ],
                     },
+                    {
+                        "task_name": "place_phone_stand",
+                        "missing_requirements": [
+                            "dataset_stats_missing",
+                            "policy_weights_missing",
+                            "task_schema_missing",
+                        ],
+                    },
                 ],
             )
             with self.assertRaisesRegex(GlobalRouteError, "not ACT-ready"):
@@ -210,14 +219,23 @@ class GlobalQueryRouterTests(unittest.TestCase):
     def test_generic_official_tasks_route_to_one_baseline_round(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            make_ready_repo(root, "adjust_bottle", "grab_roller")
+            make_ready_repo(
+                root,
+                "adjust_bottle",
+                "grab_roller",
+                "place_phone_stand",
+            )
             catalog = build_act_catalog(root)
 
             self.assertEqual(
                 [task["task_name"] for task in catalog["tasks"]],
-                ["adjust_bottle", "grab_roller"],
+                ["adjust_bottle", "grab_roller", "place_phone_stand"],
             )
-            for task_name in ("adjust_bottle", "grab_roller"):
+            for task_name in (
+                "adjust_bottle",
+                "grab_roller",
+                "place_phone_stand",
+            ):
                 routed = route_to_official_proposal(
                     official_route(task_name),
                     catalog,

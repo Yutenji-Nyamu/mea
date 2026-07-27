@@ -232,6 +232,7 @@ class ExecutionVQAQueryTests(unittest.TestCase):
         expected = {
             "adjust_bottle": "bottle_visibly_repositioned",
             "grab_roller": "roller_visibly_lifted",
+            "place_phone_stand": "phone_visibly_placed_on_stand",
         }
         for task_name, phenomenon_id in expected.items():
             with self.subTest(task_name=task_name):

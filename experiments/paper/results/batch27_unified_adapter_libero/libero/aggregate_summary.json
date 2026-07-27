@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "source_count": 1,
+  "unique_episode_count": 1,
+  "episode_result_count": 1,
+  "input_issues": [],
+  "metric": {
+    "name": "libero_goal_predicate_satisfied",
+    "tool": "libero_goal_predicate_tool",
+    "value_kind": "boolean",
+    "valid_count": 1,
+    "true_count": 0,
+    "false_count": 1,
+    "true_rate": 0.0,
+    "false_rate": 1.0
+  },
+  "episode": {
+    "policy_name": "smolvla",
+    "role": "policy_under_evaluation",
+    "variant": "libero_object/task0/mea_custom",
+    "seed": 100800,
+    "value": false,
+    "evidence_steps": [
+      279
+    ]
+  },
+  "raw_artifact": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_20260727_batch27_libero_seed_parity_v3/round_02_custom/aggregate/aggregate_result.json"
+}

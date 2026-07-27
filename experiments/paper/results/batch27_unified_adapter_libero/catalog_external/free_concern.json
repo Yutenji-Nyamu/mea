@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "source": "provider_catalog_free_concern",
+  "concern": {
+    "schema_version": 1,
+    "source_query": "How robust is this ACT policy when the target object mass changes?",
+    "sub_aspect": "Effect of target object mass variation on policy performance",
+    "hypothesis": "The ACT policy will successfully click the bell regardless of changes in the target object's mass.",
+    "task_intent": "Click the bell as the invariant base action and goal.",
+    "requested_variation": "Change the mass of the target object incrementally while keeping all other factors constant.",
+    "measurement_need": "Observe whether the bell is successfully clicked across different target object masses."
+  },
+  "provider": {
+    "model_requested": "gpt-4o-2024-11-20",
+    "called": true,
+    "attempt_count": 1,
+    "errors": [],
+    "last_metadata": {
+      "id": "chatcmpl-E69z1gaRKNe8zukAp3o1QCJoj0KNd",
+      "model": "gpt-4o-2024-11-20",
+      "finish_reason": "stop",
+      "usage": {
+        "completion_tokens": 134,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": 0
+        },
+        "latency_checkpoint": {
+          "engine_tbt_ms": 9,
+          "engine_ttft_ms": 45,
+          "engine_ttlt_ms": 1238,
+          "pre_inference_ms": 245,
+          "service_tbt_ms": 9,
+          "service_ttft_ms": 514,
+          "service_ttlt_ms": 1705,
+          "total_duration_ms": 1514,
+          "user_visible_ttft_ms": 269
+        },
+        "prompt_tokens": 357,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0
+        },
+        "total_tokens": 491
+      },
+      "retry_count": 0
+    }
+  }
+}

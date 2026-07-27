@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "task_name": "place_phone_stand",
+  "policy": "ACT",
+  "source": {
+    "repo_id": "TianxingChen/RoboTwin2.0",
+    "repo_type": "dataset",
+    "revision": "9dc9299c163db059931898a9f0852098a61155a1",
+    "download_endpoint": "https://hf-mirror.com"
+  },
+  "server_only": true,
+  "local_dir": "/root/autodl-tmp/RoboTwin/policy/ACT",
+  "files": [
+    {
+      "path": "act_ckpt/act-place_phone_stand/demo_clean-50/policy_last.ckpt",
+      "bytes": 335907442
+    },
+    {
+      "path": "act_ckpt/act-place_phone_stand/demo_clean-50/dataset_stats.pkl",
+      "bytes": 8696
+    }
+  ]
+}

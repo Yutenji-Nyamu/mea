@@ -206,18 +206,11 @@ def _capabilities(
                         "obj_of_interest",
                         "goal",
                     ],
-                    "planner_contract": (
-                        "If action is continue, controlled_changes MUST include "
-                        "goal object identity. Language-only or semantics-preserving "
-                        "paraphrase proposals are unsupported."
-                    ),
                 }
             ],
             "toolgen": {
                 "retrieve_first": True,
-                "can_generate_rule_metric": False,
-                "can_compile_bounded_rule_metric": True,
-                "generation_mode": "deterministic_metric_spec_adapter",
+                "can_generate_rule_metric": True,
                 "can_generate_vqa_question": False,
             },
         },
@@ -343,11 +336,6 @@ def run_libero_method_chain(
             "checkpoint task scope is unknown; an explicit LIBERO suite/task "
             "binding is required before retrieval or control"
         )
-    if (bound_suite, int(bound_task_id)) != ("libero_object", 0):
-        raise ValueError(
-            "the current SmolVLA basic-adaptation protocol is validated only "
-            "for libero_object/task0"
-        )
     root = repo / "mea" / "evaluation_runs" / evaluation_id
     root.mkdir(parents=True, exist_ok=False)
     started = time.monotonic()
@@ -421,10 +409,12 @@ def run_libero_method_chain(
         n_action_steps=N_ACTION_STEPS,
         horizon_steps=HORIZON_STEPS,
         observation_size=OBSERVATION_SIZE,
+        suite_name=official_contract.suite,
+        task_id=official_contract.official_task_id,
     )
     rollouts_executed = 0
     try:
-        _write_json(root / "policy_load.json", policy.load())
+        _write_json(root / "policy_load.json", policy.load(seed=seed))
         official_record = policy.run(
             env_factory=benchmark.make_official_env,
             seed=seed,
@@ -441,6 +431,7 @@ def run_libero_method_chain(
                 "stock_task_ids": True,
                 "horizon_steps": HORIZON_STEPS,
             },
+            use_stock_official_env=True,
         )
         rollouts_executed += 1
         control_evidence = _round_evidence(
@@ -450,7 +441,9 @@ def run_libero_method_chain(
             perturbation="none",
             success=official_record.success,
             summary=(
-                f"Official task0 live rollout success={official_record.success}; "
+                f"Official {official_contract.suite}/task"
+                f"{official_contract.official_task_id} live rollout "
+                f"success={official_record.success}; "
                 f"reward_sum={official_record.reward_sum}; steps={official_record.executed_steps}."
             ),
             limitations=[

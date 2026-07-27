@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "benchmark": "libero",
+  "suite": "libero_object",
+  "official_task_id": 0,
+  "bddl_path": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_20260727_batch27_libero_seed_parity_v3/round_02_custom/taskgen/generated_task.bddl",
+  "bddl_sha256": "f4fe359ace80389f968441da69470326fd0ce31fab695cf3a14ab71d93e8a18f",
+  "problem_name": "libero_floor_manipulation",
+  "domain": "robosuite",
+  "language": "pick the salad dressing and place it in the basket",
+  "objects": {
+    "alphabet_soup": [
+      "alphabet_soup_1"
+    ],
+    "basket": [
+      "basket_1"
+    ],
+    "salad_dressing": [
+      "salad_dressing_1"
+    ],
+    "cream_cheese": [
+      "cream_cheese_1"
+    ],
+    "milk": [
+      "milk_1"
+    ],
+    "tomato_sauce": [
+      "tomato_sauce_1"
+    ],
+    "butter": [
+      "butter_1"
+    ]
+  },
+  "regions": [
+    "basket_1_contain_region",
+    "floor_bin_region",
+    "floor_other_object_region_0",
+    "floor_other_object_region_1",
+    "floor_other_object_region_2",
+    "floor_other_object_region_3",
+    "floor_other_object_region_4",
+    "floor_target_object_region"
+  ],
+  "initial_state_sha256": "42a727fc611cb7e98879a82b5a85ecac1efa252e14ca50b9c6d9df190c384c85",
+  "goal_predicates": [
+    [
+      "in",
+      "salad_dressing_1",
+      "basket_1_contain_region"
+    ]
+  ],
+  "python_problem_impl": "libero.libero.envs.problems.libero_floor_manipulation.Libero_Floor_Manipulation",
+  "initial_state_source": "/root/autodl-tmp/envs/mea-libero/lib/python3.12/site-packages/libero/libero/init_files/libero_object/pick_up_the_alphabet_soup_and_place_it_in_the_basket.pruned_init",
+  "control_mode": "relative",
+  "horizon_steps": 280,
+  "source_query": "Can this policy remain successful when the goal object identity changes while the initial scene state is preserved?",
+  "proposal_artifact": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_20260727_batch27_libero_seed_parity_v3/round_02_custom/taskgen/planner_proposal.json",
+  "validation": {
+    "problem_class_registered": true,
+    "same_problem_name": true,
+    "same_fixtures": true,
+    "same_regions": true,
+    "same_objects": true,
+    "same_initial_state": true,
+    "language_changed": true,
+    "goal_changed": true,
+    "single_in_goal": true,
+    "interest_matches_goal": true
+  }
+}

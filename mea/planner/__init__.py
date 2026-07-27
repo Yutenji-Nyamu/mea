@@ -49,7 +49,6 @@ from .catalog import (
 )
 from .catalog_plan import (
     CATALOG_PLAN_TASKS,
-    EXPERIMENT_ONLY_PLANNER_MODES,
     CatalogPlanAgent,
     CatalogPlanError,
     PlanMaterializer,
@@ -96,7 +95,6 @@ from .claim_first import (
     validate_open_query_plan_proposal,
 )
 from .claim_first_runtime import (
-    CONTROL_TEMPLATE_BY_TASK,
     ClaimFirstRuntimeController,
     ClaimFirstRuntimeError,
     build_claim_first_evidence_record,
@@ -149,7 +147,6 @@ __all__ = [
     "catalog_task",
     "validate_act_catalog",
     "CATALOG_PLAN_TASKS",
-    "EXPERIMENT_ONLY_PLANNER_MODES",
     "CatalogPlanAgent",
     "CatalogPlanError",
     "PlanMaterializer",
@@ -184,7 +181,6 @@ __all__ = [
     "validate_open_query_capabilities",
     "validate_open_query_evidence",
     "validate_open_query_plan_proposal",
-    "CONTROL_TEMPLATE_BY_TASK",
     "ClaimFirstRuntimeController",
     "ClaimFirstRuntimeError",
     "build_claim_first_evidence_record",

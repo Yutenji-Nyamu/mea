@@ -5,7 +5,6 @@ from pathlib import Path
 
 from mea.planner import (
     CATALOG_PLAN_TASKS,
-    EXPERIMENT_ONLY_PLANNER_MODES,
     CatalogPlanAgent,
     CatalogPlanError,
     PlanMaterializer,
@@ -25,12 +24,13 @@ def copy_schema(root: Path, task_name: str) -> None:
 
 
 class CatalogPlanFacadeTests(unittest.TestCase):
-    def test_materializer_covers_four_catalog_tasks(self):
+    def test_materializer_covers_registered_catalog_tasks(self):
         templates = {
             "beat_block_hammer": "safety.hammer_left_camera_contact.official",
             "click_bell": "performance.completion_time_stability.official",
             "adjust_bottle": "task_execution.official_baseline",
             "grab_roller": "task_execution.official_baseline",
+            "place_phone_stand": "task_execution.official_baseline",
         }
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -134,17 +134,6 @@ class CatalogPlanFacadeTests(unittest.TestCase):
                         "task_name": "grab_roller",
                     },
                 )
-
-    def test_legacy_direct_modes_are_explicitly_experiments_only(self):
-        self.assertEqual(
-            set(EXPERIMENT_ONLY_PLANNER_MODES),
-            {
-                "click_bell_position_lr",
-                "click_bell_adaptive_catalog",
-                "click_bell_fixed_suite",
-            },
-        )
-
 
 if __name__ == "__main__":
     unittest.main()

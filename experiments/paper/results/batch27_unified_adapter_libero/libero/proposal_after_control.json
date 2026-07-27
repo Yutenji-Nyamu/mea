@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "source": "provider_claim_first_open_query",
+  "input_digest": "25a040c010108f67161ae6d459803ddcb1e5b85c668080ad670490635101f886",
+  "proposal": {
+    "schema_version": 1,
+    "action": "continue",
+    "sub_aspect": "goal_object_identity_change",
+    "hypothesis": "The SmolVLA policy can successfully adapt to a change in the goal object identity while preserving the initial scene state.",
+    "requested_perturbation": {
+      "description": "Change the goal object identity to a different object while keeping the initial scene state unchanged.",
+      "controlled_changes": [
+        "goal_object_identity"
+      ],
+      "preserve": [
+        "task identity",
+        "policy checkpoint"
+      ]
+    },
+    "task_need": {
+      "required": true,
+      "description": "TaskGen must modify the goal object identity in the task while ensuring compatibility with the initial scene state."
+    },
+    "tool_need": {
+      "required": true,
+      "description": "ToolGen must retrieve or generate a success metric to evaluate the policy's performance under the modified goal object identity.",
+      "reuse_first": true
+    },
+    "rationale": "Testing the policy's ability to handle a change in goal object identity directly addresses the original Query and is the next logical step after confirming the policy's success in the unperturbed task."
+  },
+  "provider": {
+    "model_requested": "gpt-4o-2024-11-20",
+    "called": true,
+    "attempt_count": 1,
+    "errors": [],
+    "last_metadata": {
+      "id": "chatcmpl-E69kX6HNhFx2xU8OwsU4Aa70DUIH5",
+      "model": "gpt-4o-2024-11-20",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 948,
+        "completion_tokens": 259,
+        "total_tokens": 1207,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "audio_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "audio_tokens": 0,
+          "accepted_prediction_tokens": 0,
+          "rejected_prediction_tokens": 0
+        },
+        "latency_checkpoint": {
+          "engine_tbt_ms": 7,
+          "engine_ttft_ms": 55,
+          "engine_ttlt_ms": 1833,
+          "pre_inference_ms": 44,
+          "service_tbt_ms": 7,
+          "service_ttft_ms": 298,
+          "service_ttlt_ms": 2064,
+          "total_duration_ms": 2028,
+          "user_visible_ttft_ms": 254
+        }
+      },
+      "retry_count": 0
+    }
+  }
+}

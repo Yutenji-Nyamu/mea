@@ -26,6 +26,9 @@ import re
 from copy import deepcopy
 from typing import Any, Mapping, Sequence
 
+from mea.aspects import public_aspect_ontology
+from mea.capability_adapter import resolve_task_adapter
+
 from .claim_first import (
     ClaimFirstPlanError,
     validate_open_query_evidence,
@@ -43,16 +46,6 @@ from .query_contract import (
 class ClaimFirstRuntimeError(ValueError):
     """Raised when semantic planning cannot be bound to trusted evidence."""
 
-
-CONTROL_TEMPLATE_BY_TASK = {
-    # Both templates preserve the upstream scene.  Their Rule metric may be
-    # task-specific, while the policy-success field supplies the common
-    # clean-control gate used here.
-    "beat_block_hammer": "safety.hammer_left_camera_contact.official",
-    "click_bell": "performance.completion_time_stability.official",
-    "adjust_bottle": "task_execution.official_baseline",
-    "grab_roller": "task_execution.official_baseline",
-}
 
 _SEMANTIC_STOPWORDS = {
     "a",
@@ -92,12 +85,23 @@ _ASPECT_GENERIC_TOKENS = {
 
 _CONCERN_GENERIC_TOKENS = _ASPECT_GENERIC_TOKENS | {
     "ability",
+    "appropriate",
+    "change",
     "correct",
     "evaluation",
+    "expose",
+    "general",
     "generalization",
+    "measure",
+    "may",
+    "observe",
+    "property",
     "reliability",
+    "robustness",
     "success",
     "target",
+    "variation",
+    "weakness",
 }
 
 _SEMANTIC_ALIASES = {
@@ -143,11 +147,13 @@ def control_template_id(target: Mapping[str, Any]) -> str:
     """Return the trusted official-scene control for a bound task."""
 
     task_name = _nonempty_text(target.get("task_name"), "target.task_name")
-    template_id = CONTROL_TEMPLATE_BY_TASK.get(task_name)
-    if template_id is None:
+    try:
+        adapter = resolve_task_adapter(task_name)
+    except ValueError as exc:
         raise ClaimFirstRuntimeError(
             f"claim-first control anchor is not defined for {task_name!r}"
-        )
+        ) from exc
+    template_id = adapter["control_template_id"]
     available = {
         str(item)
         for aspect in target.get("aspects", [])
@@ -159,6 +165,23 @@ def control_template_id(target: Mapping[str, Any]) -> str:
             f"control template {template_id!r} is outside the bound task"
         )
     return template_id
+
+
+def _uses_task_control_template(round_plan: Mapping[str, Any]) -> bool:
+    task_name = round_plan.get("task_name")
+    template_id = round_plan.get("template_id")
+    if (
+        not isinstance(task_name, str)
+        or not task_name.strip()
+        or not isinstance(template_id, str)
+        or not template_id.strip()
+    ):
+        return False
+    try:
+        adapter = resolve_task_adapter(task_name)
+    except ValueError:
+        return False
+    return template_id.strip() == adapter["control_template_id"]
 
 
 def build_control_anchor_proposal(
@@ -174,7 +197,9 @@ def build_control_anchor_proposal(
     query = _nonempty_text(user_query, "user_query")
     task_name = _nonempty_text(target.get("task_name"), "target.task_name")
     template_id = control_template_id(target)
-    if task_name == "click_bell":
+    adapter = resolve_task_adapter(task_name)
+    planner_kind = adapter["planner_kind"]
+    if planner_kind == "model_click_bell_adaptive_v1":
         return {
             "schema_version": 1,
             "task_name": "click_bell",
@@ -187,7 +212,7 @@ def build_control_anchor_proposal(
             ],
             "first_aspect_id": "performance.completion_time_stability",
         }
-    if task_name == "beat_block_hammer":
+    if planner_kind == "bounded_bbh_v1":
         return {
             "schema_version": 5,
             "task_name": "beat_block_hammer",
@@ -200,7 +225,7 @@ def build_control_anchor_proposal(
             "first_template_id": template_id,
             "max_rounds": int(target["max_rounds"]),
         }
-    if task_name in {"adjust_bottle", "grab_roller"}:
+    if planner_kind == "deterministic_official_task":
         return {
             "schema_version": 1,
             "task_name": task_name,
@@ -248,6 +273,74 @@ def _expanded_semantic_tokens(value: Any) -> set[str]:
         if any(alias in text for alias in aliases):
             tokens.add(canonical)
     return tokens
+
+
+def _normalized_identifier_phrase(value: str) -> str:
+    return " ".join(
+        re.findall(
+            r"[a-z0-9]+",
+            value.casefold().replace("_", " ").replace(".", " "),
+        )
+    )
+
+
+def _catalog_external_specificity(
+    semantic_fields: Mapping[str, str],
+    *,
+    source_query: str,
+) -> dict[str, Any]:
+    """Describe a concrete, Query-grounded concern without inventing a route.
+
+    A concern is specific only when a non-generic semantic anchor occurs in at
+    least two FreeConcern fields *and* in the original Query.  This keeps a
+    broad Query such as "test general robustness" ambiguous instead of letting
+    a model-authored detail silently create an executable itinerary.
+
+    The public aspect ontology is used only to name an exact catalog-external
+    semantic concept.  It does not authorize a TaskGen operation or template.
+    """
+
+    field_tokens = {
+        field: _expanded_semantic_tokens(value) - _CONCERN_GENERIC_TOKENS
+        for field, value in semantic_fields.items()
+    }
+    counts: dict[str, int] = {}
+    for tokens in field_tokens.values():
+        for token in tokens:
+            counts[token] = counts.get(token, 0) + 1
+    repeated = {token for token, count in counts.items() if count >= 2}
+    query_tokens = (
+        _expanded_semantic_tokens(source_query) - _CONCERN_GENERIC_TOKENS
+    )
+    grounded = sorted(repeated & query_tokens)
+
+    primary_text = " ".join(
+        [
+            source_query,
+            semantic_fields["sub_aspect"],
+            semantic_fields["requested_variation"],
+        ]
+    )
+    normalized_primary = _normalized_identifier_phrase(primary_text)
+    ontology_matches: list[str] = []
+    for item in public_aspect_ontology():
+        identifiers = [item["aspect_id"], *item.get("aliases", [])]
+        if any(
+            f" {_normalized_identifier_phrase(identifier)} "
+            in f" {normalized_primary} "
+            for identifier in identifiers
+        ):
+            ontology_matches.append(str(item["aspect_id"]))
+
+    return {
+        "specific": bool(grounded),
+        "grounded_anchor_tokens": grounded,
+        "repeated_anchor_tokens": sorted(repeated),
+        "ontology_matches": sorted(set(ontology_matches)),
+        "canonical_aspect_id": (
+            ontology_matches[0] if len(set(ontology_matches)) == 1 else None
+        ),
+    }
 
 
 def resolve_concern_candidate_domain(
@@ -334,13 +427,13 @@ def resolve_concern_candidate_domain(
     exact_matches = [item for item in candidates if item["exact"]]
     selected: dict[str, Any] | None = None
     resolution = "broad_or_ambiguous"
+    top_score = max(int(item["score"]) for item in candidates)
     if len(exact_matches) == 1:
         exact_candidate = exact_matches[0]
         if exact_candidate["source_query_matched_tokens"]:
             selected = exact_candidate
             resolution = "exact_query_supported_concern"
     elif not exact_matches:
-        top_score = max(int(item["score"]) for item in candidates)
         top = [item for item in candidates if int(item["score"]) == top_score]
         second_score = max(
             (
@@ -359,12 +452,33 @@ def resolve_concern_candidate_domain(
             selected = top[0]
             resolution = "unique_query_supported_concern"
 
-    return {
+    external_specificity = _catalog_external_specificity(
+        semantic_fields,
+        source_query=source_query,
+    )
+    catalog_external = bool(
+        selected is None
+        and not exact_matches
+        and all(
+            not item["source_query_matched_tokens"]
+            for item in candidates
+        )
+        and external_specificity["specific"]
+    )
+    result = {
         "schema_version": 1,
         "decision": (
-            "bind_single_aspect" if selected is not None else "ambiguous"
+            "bind_single_aspect"
+            if selected is not None
+            else "catalog_external"
+            if catalog_external
+            else "ambiguous"
         ),
-        "resolution": resolution,
+        "resolution": (
+            "unsupported_or_generation_required"
+            if catalog_external
+            else resolution
+        ),
         "candidate_aspect_ids": (
             [str(selected["aspect_id"])] if selected is not None else None
         ),
@@ -385,6 +499,27 @@ def resolve_concern_candidate_domain(
         "concern_created_before_catalog": True,
         "catalog_was_model_visible": False,
     }
+    if catalog_external:
+        result.update(
+            {
+                # Preserve the provider-authored semantic request for a later
+                # TaskAdapter.  Nothing here names or authorizes an executable
+                # template, operation, route, or success checker.
+                "concern": deepcopy(dict(concern)),
+                "task_need": {
+                    "required": True,
+                    "description": semantic_fields["requested_variation"],
+                },
+                "tool_need": {
+                    "required": True,
+                    "description": semantic_fields["measurement_need"],
+                    "reuse_first": True,
+                },
+                "catalog_external_specificity": external_specificity,
+                "execution_authorized": False,
+            }
+        )
+    return result
 
 
 def resolve_semantic_proposal(
@@ -733,7 +868,7 @@ def build_claim_first_evidence_record(
         json.dumps(changes, ensure_ascii=False, sort_keys=True)
         if isinstance(changes, Mapping) and changes
         else "unchanged official-scene control"
-        if str(round_plan.get("template_id")) in CONTROL_TEMPLATE_BY_TASK.values()
+        if _uses_task_control_template(round_plan)
         else str(round_plan.get("template_id") or sub_aspect)
     )
     limitations = [
@@ -1215,7 +1350,6 @@ class ClaimFirstRuntimeController:
 
 
 __all__ = [
-    "CONTROL_TEMPLATE_BY_TASK",
     "ClaimFirstRuntimeController",
     "ClaimFirstRuntimeError",
     "build_claim_first_evidence_record",

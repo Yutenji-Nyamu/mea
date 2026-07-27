@@ -16,7 +16,9 @@ from typing import Any, Mapping, Sequence
 
 from mea.capability_adapter import (
     CapabilityAdapterError,
+    registered_task_vqa_questions,
     resolve_capability_contract,
+    task_vqa_metric_phenomena,
 )
 
 
@@ -24,6 +26,7 @@ class ExecutionVQAQueryError(ValueError):
     """Raised when a dynamic Execution VQA query violates its contract."""
 
 
+_TASK_VQA_QUESTIONS = registered_task_vqa_questions()
 QUESTION_CATALOG: dict[str, dict[str, Any]] = {
     "block_color_blue": {
         "question_type": "categorical_attribute_match",
@@ -102,16 +105,9 @@ QUESTION_CATALOG: dict[str, dict[str, Any]] = {
             "generated_checker_and_simulator_contacts_are_authoritative"
         ),
     },
-    "bell_visibly_pressed": {
-        "question_type": "visible_state_change",
-        "target_role": "task_target",
-        "question": "Does the robot visibly press or actuate the target bell?",
-        "visual_scope": "rollout_change",
-        "numeric_authority": (
-            "official_core_predicate_is_authoritative_when_available_"
-            "else_official_check_success"
-        ),
-    },
+    "bell_visibly_pressed": deepcopy(
+        _TASK_VQA_QUESTIONS["bell_visibly_pressed"]
+    ),
     "bell_target_selected_among_clutter": {
         "question_type": "visible_target_selection",
         "target_role": "task_target",
@@ -142,24 +138,9 @@ QUESTION_CATALOG: dict[str, dict[str, Any]] = {
         "visual_scope": "scene_appearance",
         "numeric_authority": "simulator_light_configuration_is_authoritative",
     },
-    "bottle_visibly_repositioned": {
-        "question_type": "visible_state_change",
-        "target_role": "manipulated_object",
-        "question": (
-            "Is the target bottle visibly moved from its initial resting pose "
-            "to the elevated side placement?"
-        ),
-        "visual_scope": "rollout_change",
-        "numeric_authority": "official_check_success_is_authoritative",
-    },
-    "roller_visibly_lifted": {
-        "question_type": "visible_state_change",
-        "target_role": "manipulated_object",
-        "question": "Is the target roller visibly lifted by both robot arms?",
-        "visual_scope": "rollout_change",
-        "numeric_authority": "official_check_success_is_authoritative",
-    },
 }
+for _phenomenon_id, _question in _TASK_VQA_QUESTIONS.items():
+    QUESTION_CATALOG.setdefault(_phenomenon_id, deepcopy(_question))
 
 # Keep the implicit legacy profile frozen even as task-specific catalog entries
 # are added.  Existing callers must never receive a click_bell question.
@@ -174,46 +155,6 @@ ALL_PHENOMENON_IDS = tuple(QUESTION_CATALOG)
 # nor ToolSpec.question is copied into the Vision prompt.
 TEMPLATE_QUESTION_RULES: dict[str, tuple[str, ...]] = {
     "object_appearance.color_blue": ("block_color_blue",),
-}
-TASK_TEMPLATE_QUESTION_RULES: dict[tuple[str, str], tuple[str, ...]] = {
-    ("beat_block_hammer", "safety.hammer_left_camera_contact.official"): (
-        "hammer_avoids_unintended_collision",
-    ),
-    ("beat_block_hammer", "robustness.distractor_avoidance.lookalike"): (
-        "target_block_visible",
-        "lookalike_distractor_visible",
-        "distractor_not_struck",
-    ),
-    ("click_bell", "task_execution.official_baseline"): ("bell_visibly_pressed",),
-    ("click_bell", "object_position.left_fixed"): ("bell_visibly_pressed",),
-    ("click_bell", "object_position.right_fixed"): ("bell_visibly_pressed",),
-    (
-        "click_bell",
-        "robustness.distractor_avoidance.lookalike_bell",
-    ): (
-        "bell_visibly_pressed",
-        "lookalike_distractor_visible",
-        "distractor_not_clicked",
-    ),
-    ("click_bell", "robustness.scene_clutter.official_table"): (
-        "bell_visibly_pressed",
-        "bell_target_selected_among_clutter",
-    ),
-    ("click_bell", "scene_background_texture.unseen"): (
-        "bell_visibly_pressed",
-        "bell_visible_with_unseen_background_texture",
-    ),
-    ("click_bell", "scene_lighting.static_random"): (
-        "bell_visibly_pressed",
-        "bell_visible_under_random_lighting",
-    ),
-    ("click_bell", "performance.completion_time_stability.official"): (
-        "bell_visibly_pressed",
-    ),
-    ("adjust_bottle", "task_execution.official_baseline"): (
-        "bottle_visibly_repositioned",
-    ),
-    ("grab_roller", "task_execution.official_baseline"): ("roller_visibly_lifted",),
 }
 SUB_ASPECT_QUESTION_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("object_appearance.color", ("block_color_blue",)),
@@ -239,15 +180,12 @@ METRIC_QUESTION_RULES: dict[str, tuple[str, ...]] = {
     ),
 }
 TASK_METRIC_QUESTION_RULES: dict[tuple[str, str], tuple[str, ...]] = {
-    ("click_bell", "official_check_success"): ("bell_visibly_pressed",),
     ("click_bell", "time_to_success"): ("bell_visibly_pressed",),
     ("click_bell", "click_target_without_distractor_success"): (
         "bell_visibly_pressed",
         "lookalike_distractor_visible",
         "distractor_not_clicked",
     ),
-    ("adjust_bottle", "official_check_success"): ("bottle_visibly_repositioned",),
-    ("grab_roller", "official_check_success"): ("roller_visibly_lifted",),
 }
 
 QUERY_KEYS = {
@@ -482,7 +420,6 @@ def build_execution_vqa_query(
     if local_questions:
         reasons.append("tool_proposal:run_local_visual_assignment")
 
-    task_template_key = (task, template)
     adapter_matched = False
     if not explicit_proposal and task is not None and template is not None:
         try:
@@ -499,9 +436,6 @@ def build_execution_vqa_query(
             _append_unique(selected, adapter_ids)
             reasons.append(f"capability_adapter:{task}:{template}")
             adapter_matched = True
-    if not explicit_proposal and not adapter_matched and task_template_key in TASK_TEMPLATE_QUESTION_RULES:
-        _append_unique(selected, TASK_TEMPLATE_QUESTION_RULES[task_template_key])
-        reasons.append(f"task_template:{task}:{template}")
     if not explicit_proposal and not adapter_matched and template in TEMPLATE_QUESTION_RULES:
         _append_unique(selected, TEMPLATE_QUESTION_RULES[template])
         reasons.append(f"template:{template}")
@@ -512,7 +446,16 @@ def build_execution_vqa_query(
                 reasons.append(f"sub_aspect:{prefix}")
                 break
     task_metric_key = (task, metric)
-    if not explicit_proposal and task_metric_key in TASK_METRIC_QUESTION_RULES:
+    adapter_metric_ids: list[str] = []
+    if not explicit_proposal and task is not None and metric is not None:
+        try:
+            adapter_metric_ids = task_vqa_metric_phenomena(task, metric)
+        except CapabilityAdapterError:
+            adapter_metric_ids = []
+    if not explicit_proposal and adapter_metric_ids:
+        _append_unique(selected, adapter_metric_ids)
+        reasons.append(f"task_metric:{task}:{metric}")
+    elif not explicit_proposal and task_metric_key in TASK_METRIC_QUESTION_RULES:
         _append_unique(selected, TASK_METRIC_QUESTION_RULES[task_metric_key])
         reasons.append(f"task_metric:{task}:{metric}")
     elif not explicit_proposal and metric in METRIC_QUESTION_RULES:

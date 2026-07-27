@@ -49,3 +49,8 @@ Query
 [manifest.json](manifest.json) 是本包唯一文件索引，包含每个公开文件的来源、大小和
 SHA-256。完整 telemetry、raw logs、checkpoint 与生成任务目录仍保留在 manifest
 记录的 canonical AutoDL 路径中。
+
+后续的统一 `TaskAdapter`、catalog-external 0-ACT 边界、第五个 RoboTwin official
+adapter 与 LIBERO 两回合方法链见
+[batch27 紧凑结果](../../../experiments/paper/results/batch27_unified_adapter_libero/)；
+该批不替换本页的 ClickBell 干净旗舰。

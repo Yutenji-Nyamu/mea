@@ -1,8 +1,10 @@
-"""Pure declarative capability adapters for the two generated MEA families.
+"""Pure declarative task and capability adapters for RoboTwin MEA.
 
 Each trusted template resolves to one immutable-by-copy contract spanning the
 Plan/TaskGen boundary and the later Tool, Execution VQA, and gate selection.
-The registry contains identifiers and JSON-compatible values only: importing
+The task-level registry is the single source for public task membership,
+control templates, compatibility planner delegates, and official-task visual
+contracts.  It contains identifiers and JSON-compatible values only: importing
 this module never calls a provider, simulator, Tool, or planner.
 """
 
@@ -41,6 +43,24 @@ _TASKGEN_KEYS = {
 }
 _TOOL_KEYS = {"request_factory_id", "metric"}
 _VQA_KEYS = {"phenomenon_ids"}
+_TASK_ADAPTER_KEYS = {
+    "schema_version",
+    "task_name",
+    "control_template_id",
+    "task_profile",
+    "planner_kind",
+    "max_rounds",
+    "capability_contracts",
+    "vqa_questions",
+    "vqa_metric_rules",
+}
+_VQA_QUESTION_KEYS = {
+    "question_type",
+    "target_role",
+    "question",
+    "visual_scope",
+    "numeric_authority",
+}
 
 _OPERATIONS = {
     "force_codegen",
@@ -601,6 +621,7 @@ def _generic_official_contracts() -> list[dict[str, Any]]:
     phenomenon_by_task = {
         "adjust_bottle": ["bottle_visibly_repositioned"],
         "grab_roller": ["roller_visibly_lifted"],
+        "place_phone_stand": ["phone_visibly_placed_on_stand"],
     }
     return [
         _contract(
@@ -635,6 +656,127 @@ for _item in [
     if _identity in _CONTRACTS:
         raise RuntimeError(f"duplicate capability adapter identity: {_identity!r}")
     _CONTRACTS[_identity] = _item
+
+
+_TASK_ADAPTER_METADATA: dict[str, dict[str, Any]] = {
+    "beat_block_hammer": {
+        "control_template_id": "safety.hammer_left_camera_contact.official",
+        "task_profile": "generated",
+        "planner_kind": "bounded_bbh_v1",
+        "max_rounds": 3,
+        "vqa_questions": {},
+        "vqa_metric_rules": {},
+    },
+    "click_bell": {
+        "control_template_id": "performance.completion_time_stability.official",
+        "task_profile": "adaptive_properties",
+        "planner_kind": "model_click_bell_adaptive_v1",
+        "max_rounds": 3,
+        "vqa_questions": {
+            "bell_visibly_pressed": {
+                "question_type": "visible_state_change",
+                "target_role": "task_target",
+                "question": "Does the robot visibly press or actuate the target bell?",
+                "visual_scope": "rollout_change",
+                "numeric_authority": (
+                    "official_core_predicate_is_authoritative_when_available_"
+                    "else_official_check_success"
+                ),
+            },
+        },
+        "vqa_metric_rules": {
+            "official_check_success": ["bell_visibly_pressed"],
+        },
+    },
+    "adjust_bottle": {
+        "control_template_id": "task_execution.official_baseline",
+        "task_profile": "official",
+        "planner_kind": "deterministic_official_task",
+        "max_rounds": 1,
+        "vqa_questions": {
+            "bottle_visibly_repositioned": {
+                "question_type": "visible_state_change",
+                "target_role": "manipulated_object",
+                "question": (
+                    "Is the target bottle visibly moved from its initial resting "
+                    "pose to the elevated side placement?"
+                ),
+                "visual_scope": "rollout_change",
+                "numeric_authority": "official_check_success_is_authoritative",
+            },
+        },
+        "vqa_metric_rules": {
+            "official_check_success": ["bottle_visibly_repositioned"],
+        },
+    },
+    "grab_roller": {
+        "control_template_id": "task_execution.official_baseline",
+        "task_profile": "official",
+        "planner_kind": "deterministic_official_task",
+        "max_rounds": 1,
+        "vqa_questions": {
+            "roller_visibly_lifted": {
+                "question_type": "visible_state_change",
+                "target_role": "manipulated_object",
+                "question": "Is the target roller visibly lifted by both robot arms?",
+                "visual_scope": "rollout_change",
+                "numeric_authority": "official_check_success_is_authoritative",
+            },
+        },
+        "vqa_metric_rules": {
+            "official_check_success": ["roller_visibly_lifted"],
+        },
+    },
+    "place_phone_stand": {
+        "control_template_id": "task_execution.official_baseline",
+        "task_profile": "official",
+        "planner_kind": "deterministic_official_task",
+        "max_rounds": 1,
+        "vqa_questions": {
+            "phone_visibly_placed_on_stand": {
+                "question_type": "visible_state_change",
+                "target_role": "task_target",
+                "question": (
+                    "Is the phone visibly placed and released on the phone stand?"
+                ),
+                "visual_scope": "rollout_change",
+                "numeric_authority": "official_check_success_is_authoritative",
+            },
+        },
+        "vqa_metric_rules": {
+            "official_check_success": ["phone_visibly_placed_on_stand"],
+        },
+    },
+}
+
+_CONTRACT_TASK_NAMES = {task_name for task_name, _template_id in _CONTRACTS}
+if _CONTRACT_TASK_NAMES != set(_TASK_ADAPTER_METADATA):
+    raise RuntimeError(
+        "task adapter metadata and capability task membership differ: "
+        f"{sorted(_CONTRACT_TASK_NAMES ^ set(_TASK_ADAPTER_METADATA))}"
+    )
+
+
+def _raw_task_adapter(task_name: str) -> dict[str, Any]:
+    """Assemble one task view from task metadata and the capability index."""
+
+    metadata = _TASK_ADAPTER_METADATA[task_name]
+    contracts = [
+        deepcopy(contract)
+        for (registered_task, _template), contract in sorted(_CONTRACTS.items())
+        if registered_task == task_name
+    ]
+    return {
+        "schema_version": 1,
+        "task_name": task_name,
+        "control_template_id": metadata["control_template_id"],
+        "task_profile": metadata["task_profile"],
+        "planner_kind": metadata["planner_kind"],
+        "max_rounds": metadata["max_rounds"],
+        "capability_contracts": contracts,
+        "vqa_questions": deepcopy(metadata["vqa_questions"]),
+        "vqa_metric_rules": deepcopy(metadata["vqa_metric_rules"]),
+    }
 
 
 def _validate_change_roots(
@@ -848,6 +990,172 @@ def resolve_capability_contract(task_name: Any, template_id: Any) -> dict[str, A
     return validate_capability_contract(contract)
 
 
+def _validate_task_adapter_structure(value: Mapping[str, Any]) -> dict[str, Any]:
+    if not isinstance(value, Mapping) or set(value) != _TASK_ADAPTER_KEYS:
+        raise CapabilityAdapterError(
+            f"task adapter fields must be exactly {sorted(_TASK_ADAPTER_KEYS)}"
+        )
+    adapter = deepcopy(dict(value))
+    if adapter.get("schema_version") != 1:
+        raise CapabilityAdapterError("task adapter schema_version must be 1")
+    task_name = _text(adapter.get("task_name"), field="task_adapter.task_name")
+    control_template_id = _text(
+        adapter.get("control_template_id"),
+        field="task_adapter.control_template_id",
+    )
+    _text(adapter.get("task_profile"), field="task_adapter.task_profile")
+    _text(adapter.get("planner_kind"), field="task_adapter.planner_kind")
+    max_rounds = adapter.get("max_rounds")
+    if (
+        isinstance(max_rounds, bool)
+        or not isinstance(max_rounds, int)
+        or max_rounds <= 0
+    ):
+        raise CapabilityAdapterError("task_adapter.max_rounds must be positive")
+
+    raw_contracts = adapter.get("capability_contracts")
+    if not isinstance(raw_contracts, list) or not raw_contracts:
+        raise CapabilityAdapterError(
+            "task_adapter.capability_contracts must be non-empty"
+        )
+    contracts = [validate_capability_contract(item) for item in raw_contracts]
+    if any(contract["task_name"] != task_name for contract in contracts):
+        raise CapabilityAdapterError(
+            "task adapter cannot contain another task's capability contract"
+        )
+    template_ids = [contract["template_id"] for contract in contracts]
+    if template_ids != sorted(set(template_ids)):
+        raise CapabilityAdapterError(
+            "task adapter capability contracts must be unique and sorted"
+        )
+    if control_template_id not in template_ids:
+        raise CapabilityAdapterError(
+            "task adapter control_template_id must name a registered capability"
+        )
+    if max_rounds > len(template_ids):
+        raise CapabilityAdapterError(
+            "task_adapter.max_rounds exceeds its capability count"
+        )
+
+    raw_questions = adapter.get("vqa_questions")
+    if not isinstance(raw_questions, Mapping):
+        raise CapabilityAdapterError("task_adapter.vqa_questions must be an object")
+    questions: dict[str, dict[str, Any]] = {}
+    for raw_id, raw_spec in raw_questions.items():
+        phenomenon_id = _text(
+            raw_id, field="task_adapter.vqa_questions.phenomenon_id"
+        )
+        if not isinstance(raw_spec, Mapping) or set(raw_spec) != _VQA_QUESTION_KEYS:
+            raise CapabilityAdapterError(
+                f"VQA question {phenomenon_id!r} fields must be exactly "
+                f"{sorted(_VQA_QUESTION_KEYS)}"
+            )
+        spec = deepcopy(dict(raw_spec))
+        for field in sorted(_VQA_QUESTION_KEYS):
+            _text(
+                spec.get(field),
+                field=f"task_adapter.vqa_questions.{phenomenon_id}.{field}",
+            )
+        questions[phenomenon_id] = spec
+
+    raw_metric_rules = adapter.get("vqa_metric_rules")
+    if not isinstance(raw_metric_rules, Mapping):
+        raise CapabilityAdapterError(
+            "task_adapter.vqa_metric_rules must be an object"
+        )
+    metric_rules: dict[str, list[str]] = {}
+    for raw_metric, raw_ids in raw_metric_rules.items():
+        metric = _text(raw_metric, field="task_adapter.vqa_metric_rules.metric")
+        if (
+            not isinstance(raw_ids, list)
+            or not raw_ids
+            or any(not isinstance(item, str) or not item for item in raw_ids)
+            or len(raw_ids) != len(set(raw_ids))
+        ):
+            raise CapabilityAdapterError(
+                f"task adapter VQA metric rule {metric!r} must be a "
+                "non-empty unique string list"
+            )
+        unknown = sorted(set(raw_ids) - set(questions))
+        if unknown:
+            raise CapabilityAdapterError(
+                f"task adapter VQA metric rule {metric!r} lacks question specs: "
+                f"{unknown}"
+            )
+        metric_rules[metric] = list(raw_ids)
+
+    adapter.update(
+        {
+            "task_name": task_name,
+            "control_template_id": control_template_id,
+            "capability_contracts": contracts,
+            "vqa_questions": questions,
+            "vqa_metric_rules": metric_rules,
+        }
+    )
+    return adapter
+
+
+def validate_task_adapter(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate one complete task-level adapter against the trusted registry."""
+
+    adapter = _validate_task_adapter_structure(value)
+    task_name = adapter["task_name"]
+    if task_name not in _TASK_ADAPTER_METADATA:
+        raise CapabilityAdapterError(f"unknown task adapter: {task_name!r}")
+    expected = _raw_task_adapter(task_name)
+    if adapter != expected:
+        raise CapabilityAdapterError(f"task adapter changed for {task_name!r}")
+    return deepcopy(adapter)
+
+
+def resolve_task_adapter(task_name: Any) -> dict[str, Any]:
+    """Resolve all trusted planning/evaluation capabilities for one task."""
+
+    normalized = _text(task_name, field="task_name")
+    if normalized not in _TASK_ADAPTER_METADATA:
+        raise CapabilityAdapterError(f"unknown task adapter: {normalized!r}")
+    return validate_task_adapter(_raw_task_adapter(normalized))
+
+
+def registered_task_adapters() -> list[dict[str, Any]]:
+    """Return every task adapter in deterministic registry order."""
+
+    return [
+        resolve_task_adapter(task_name)
+        for task_name in _TASK_ADAPTER_METADATA
+    ]
+
+
+def registered_task_names() -> tuple[str, ...]:
+    """Return the single public task membership list."""
+
+    return tuple(adapter["task_name"] for adapter in registered_task_adapters())
+
+
+def registered_task_vqa_questions() -> dict[str, dict[str, Any]]:
+    """Return the union of task-owned audited VQA question definitions."""
+
+    questions: dict[str, dict[str, Any]] = {}
+    for adapter in registered_task_adapters():
+        for phenomenon_id, spec in adapter["vqa_questions"].items():
+            previous = questions.get(phenomenon_id)
+            if previous is not None and previous != spec:
+                raise CapabilityAdapterError(
+                    f"conflicting task VQA question: {phenomenon_id!r}"
+                )
+            questions[phenomenon_id] = deepcopy(spec)
+    return questions
+
+
+def task_vqa_metric_phenomena(task_name: Any, metric: Any) -> list[str]:
+    """Resolve task-scoped VQA phenomena for a trusted metric."""
+
+    adapter = resolve_task_adapter(task_name)
+    normalized_metric = _text(metric, field="metric")
+    return list(adapter["vqa_metric_rules"].get(normalized_metric, []))
+
+
 def validate_contract_changes(
     contract: Mapping[str, Any], changes: Mapping[str, Any]
 ) -> dict[str, Any]:
@@ -958,9 +1266,15 @@ __all__ = [
     "CapabilityAdapterError",
     "build_contract_tool_request",
     "registered_capability_contracts",
+    "registered_task_adapters",
+    "registered_task_names",
+    "registered_task_vqa_questions",
     "registered_templates",
     "resolve_capability_contract",
+    "resolve_task_adapter",
+    "task_vqa_metric_phenomena",
     "taskgen_route",
     "validate_capability_contract",
     "validate_contract_changes",
+    "validate_task_adapter",
 ]

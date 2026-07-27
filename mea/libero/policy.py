@@ -30,42 +30,90 @@ class LeRobotPolicyAdapter:
         n_action_steps: int = BATCH23_PARITY_ACTION_STEPS,
         horizon_steps: int = BATCH23_PARITY_HORIZON_STEPS,
         observation_size: int = BATCH23_PARITY_OBSERVATION_SIZE,
+        suite_name: str = "libero_object",
+        task_id: int = 0,
     ):
+        if not suite_name.strip():
+            raise ValueError("suite_name cannot be empty")
+        if int(task_id) < 0:
+            raise ValueError("task_id must be non-negative")
         self.checkpoint = Path(checkpoint).expanduser().resolve()
         self.device = device
         self.n_action_steps = n_action_steps
         self.horizon_steps = horizon_steps
         self.observation_size = observation_size
+        self.suite_name = suite_name
+        self.task_id = int(task_id)
         self.policy: Any | None = None
         self.env_config: Any | None = None
         self.preprocessor: Any | None = None
         self.postprocessor: Any | None = None
         self.env_preprocessor: Any | None = None
         self.env_postprocessor: Any | None = None
+        self.seed_contract: dict[str, Any] | None = None
+        self._official_vector_env: Any | None = None
+        self._paired_rollout_rng_state: dict[str, Any] | None = None
+        self._rollouts_started = 0
 
-    def load(self) -> dict[str, Any]:
+    def load(self, *, seed: int) -> dict[str, Any]:
         import torch
         from lerobot.configs import PreTrainedConfig
         from lerobot.envs.configs import LiberoEnv as LiberoEnvConfig
-        from lerobot.envs.factory import make_env_pre_post_processors
+        from lerobot.envs.factory import make_env, make_env_pre_post_processors
         from lerobot.policies import make_policy, make_pre_post_processors
+        from lerobot.utils.random_utils import get_rng_state, set_seed
 
         started = time.monotonic()
-        policy_config = PreTrainedConfig.from_pretrained(self.checkpoint)
-        policy_config.pretrained_path = self.checkpoint
-        policy_config.device = self.device
-        policy_config.load_vlm_weights = False
-        policy_config.n_action_steps = self.n_action_steps
+        # Match lerobot-eval's process-level setup before policy construction.
+        # SmolVLA samples flow-matching noise whenever its action queue is empty;
+        # seeding only env.reset() does not make policy inference reproducible.
+        torch.backends.cudnn.benchmark = True
+        torch.backends.cuda.matmul.allow_tf32 = True
+        set_seed(seed)
+        self.seed_contract = {
+            "schema_version": 1,
+            "global_seed": int(seed),
+            "environment_reset_seed": int(seed),
+            "policy_rng_origin_seed": int(seed),
+            "seed_scope": "once_before_env_and_policy_construction",
+            "policy_rng_first_rollout_state": (
+                "continuation_after_env_policy_and_processor_construction"
+            ),
+            "first_rollout_integer_reseed": False,
+            "paired_round_rng_restore": True,
+            "paired_rng_capture_point": (
+                "after_env_policy_and_processors_before_first_rollout"
+            ),
+            "implementation": "lerobot.utils.random_utils.set_seed",
+            "cudnn_benchmark": True,
+            "cuda_matmul_allow_tf32": True,
+        }
         env_config = LiberoEnvConfig(
-            task="libero_object",
-            task_ids=[0],
+            task=self.suite_name,
+            task_ids=[self.task_id],
             episode_length=self.horizon_steps,
             control_mode="relative",
             observation_height=self.observation_size,
             observation_width=self.observation_size,
             max_parallel_tasks=1,
         )
-        policy = make_policy(cfg=policy_config, env_cfg=env_config)
+        # Stock evaluator order is set_seed -> make_env -> make_policy -> rollout.
+        envs = make_env(
+            env_config,
+            n_envs=1,
+            use_async_envs=True,
+        )
+        self._official_vector_env = envs[self.suite_name][self.task_id]
+        policy_config = PreTrainedConfig.from_pretrained(self.checkpoint)
+        policy_config.pretrained_path = self.checkpoint
+        policy_config.device = self.device
+        policy_config.load_vlm_weights = False
+        policy_config.n_action_steps = self.n_action_steps
+        policy = make_policy(
+            cfg=policy_config,
+            env_cfg=env_config,
+            rename_map={},
+        )
         policy.eval()
         preprocessor, postprocessor = make_pre_post_processors(
             policy_cfg=policy_config,
@@ -85,6 +133,8 @@ class LeRobotPolicyAdapter:
         self.postprocessor = postprocessor
         self.env_preprocessor = env_preprocessor
         self.env_postprocessor = env_postprocessor
+        self._paired_rollout_rng_state = get_rng_state()
+        self._rollouts_started = 0
         return {
             "status": "passed",
             "checkpoint": str(self.checkpoint),
@@ -92,7 +142,10 @@ class LeRobotPolicyAdapter:
             "n_action_steps": self.n_action_steps,
             "horizon_steps": self.horizon_steps,
             "observation_size": self.observation_size,
+            "suite": self.suite_name,
+            "task_id": self.task_id,
             "control_mode": "relative",
+            "seed_contract": dict(self.seed_contract),
             "processor_artifacts": {
                 "preprocessor": str(self.checkpoint / "policy_preprocessor.json"),
                 "postprocessor": str(self.checkpoint / "policy_postprocessor.json"),
@@ -101,6 +154,28 @@ class LeRobotPolicyAdapter:
             "elapsed_seconds": round(time.monotonic() - started, 3),
             "torch_version": torch.__version__,
         }
+
+    def make_stock_official_vector_env(self) -> Any:
+        """Use the same public environment factory as ``lerobot-eval``."""
+        if self.env_config is None or self._official_vector_env is None:
+            raise RuntimeError("LeRobotPolicyAdapter.load() must be called first")
+        env = self._official_vector_env
+        self._official_vector_env = None
+        return env
+
+    def prepare_policy_rng_for_rollout(self) -> tuple[int, str]:
+        """Keep the first rollout stock-compatible and pair later variants."""
+        from lerobot.utils.random_utils import set_rng_state
+
+        if self._rollouts_started == 0:
+            mode = "stock_first_rollout_continuation"
+        else:
+            if self._paired_rollout_rng_state is None:
+                raise RuntimeError("paired rollout RNG state is missing")
+            set_rng_state(self._paired_rollout_rng_state)
+            mode = "restored_pre_first_rollout_state"
+        self._rollouts_started += 1
+        return self._rollouts_started, mode
 
     def run(
         self,
@@ -112,9 +187,16 @@ class LeRobotPolicyAdapter:
         task_contract_path: str | Path,
         bddl_path: str | Path,
         provenance: dict[str, Any],
+        use_stock_official_env: bool = False,
     ) -> EpisodeRecord:
         if self.policy is None:
             raise RuntimeError("LeRobotPolicyAdapter.load() must be called first")
+        if self.seed_contract is None:
+            raise RuntimeError("policy seed contract is missing")
+        if int(seed) != int(self.seed_contract["environment_reset_seed"]):
+            raise ValueError(
+                "rollout seed disagrees with the seed fixed before policy construction"
+            )
 
         import gymnasium as gym
         import imageio.v3 as iio
@@ -130,7 +212,13 @@ class LeRobotPolicyAdapter:
             rendered = vector_env.call("render")[0]
             frames.append(np.asarray(rendered, dtype=np.uint8))
 
-        env = gym.vector.SyncVectorEnv([env_factory])
+        if use_stock_official_env:
+            env = self.make_stock_official_vector_env()
+            env_route = "lerobot_make_env_single_task"
+        else:
+            env = gym.vector.SyncVectorEnv([env_factory])
+            env_route = "custom_sync_vector_env"
+        rollout_index, policy_rng_mode = self.prepare_policy_rng_for_rollout()
         started = time.monotonic()
         precision_context = (
             torch.autocast(device_type="cuda")
@@ -186,7 +274,7 @@ class LeRobotPolicyAdapter:
             benchmark="libero",
             policy_name="smolvla",
             checkpoint=str(self.checkpoint),
-            suite="libero_object",
+            suite=self.suite_name,
             task_id=task_id,
             seed=seed,
             horizon_steps=self.horizon_steps,
@@ -199,7 +287,13 @@ class LeRobotPolicyAdapter:
             video_path=str(video_path) if video_path else None,
             task_contract_path=str(Path(task_contract_path).expanduser().resolve()),
             actions_path=str(actions_path),
-            provenance=provenance,
+            provenance={
+                **provenance,
+                "env_route": env_route,
+                "rollout_index": rollout_index,
+                "policy_rng_mode": policy_rng_mode,
+                "seed_contract": dict(self.seed_contract),
+            },
         )
         (output / "episode.json").write_text(
             json.dumps(record.to_dict(), ensure_ascii=False, indent=2) + "\n",
@@ -208,6 +302,9 @@ class LeRobotPolicyAdapter:
         return record
 
     def unload(self) -> None:
+        if self._official_vector_env is not None:
+            self._official_vector_env.close()
+            self._official_vector_env = None
         if self.policy is None:
             return
         import torch

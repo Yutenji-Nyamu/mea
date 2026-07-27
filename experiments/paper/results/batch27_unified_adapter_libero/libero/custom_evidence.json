@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "round_id": "round_02_custom_bddl",
+  "tested_sub_aspect": "goal_object_identity_change",
+  "tested_hypothesis": "The SmolVLA policy can successfully adapt to a change in the goal object identity while preserving the initial scene state.",
+  "tested_perturbation": "Change the goal object identity to a different object while keeping the initial scene state unchanged.",
+  "outcome": "failure",
+  "evidence_summary": "Provider-written BDDL selected salad_dressing_1; live predicate=False; steps=280; compiled MetricSpec adapter value entered Aggregate.",
+  "limitations": [
+    "N=1 fixed seed",
+    "one state-compatible generated object-identity variation"
+  ]
+}

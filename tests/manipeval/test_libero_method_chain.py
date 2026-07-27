@@ -3,7 +3,10 @@ from __future__ import annotations
 import json
 import importlib.util
 from pathlib import Path
+import sys
 import tempfile
+import types
+from types import SimpleNamespace
 import unittest
 
 from mea.libero.benchmark import (
@@ -17,6 +20,7 @@ from mea.libero.benchmark import (
     build_official_task_contract,
 )
 from mea.libero.chain import (
+    _capabilities,
     _method_chain_is_valid,
     _planner_taskgen_misaligned_result,
     parse_bound_libero_task,
@@ -33,6 +37,7 @@ from mea.libero.retrieval import (
 )
 from mea.libero.taskgen import LiberoTaskGenBackend
 from mea.libero.tool import LiberoPredicateToolBackend
+from mea.planner.claim_first import validate_open_query_capabilities
 from mea.toolkit.aggregate import aggregate_tool_executions
 
 
@@ -63,6 +68,43 @@ class _FakeProvider:
         )
 
 
+def test_libero_capabilities_match_public_claim_first_schema() -> None:
+    official = TaskContract(
+        schema_version=1,
+        benchmark="libero",
+        suite="libero_object",
+        official_task_id=0,
+        bddl_path="/tmp/official.bddl",
+        bddl_sha256="fixture",
+        problem_name="fixture",
+        domain="libero",
+        language="fixture",
+        objects={"fixture": ["fixture_1"]},
+        regions=["fixture_region"],
+        initial_state_sha256="fixture",
+        goal_predicates=[["In", "fixture_1", "fixture_region"]],
+        python_problem_impl="fixture",
+        initial_state_source="/tmp/fixture.pruned_init",
+    )
+
+    validated = validate_open_query_capabilities(
+        _capabilities(Path("/checkpoint"), official)
+    )
+
+    operation = validated["generation_card"]["taskgen_operations"][0]
+    assert set(operation) == {
+        "operation",
+        "controlled_axis",
+        "generation_mode",
+        "allowed_change_roots",
+    }
+    assert validated["generation_card"]["toolgen"] == {
+        "retrieve_first": True,
+        "can_generate_rule_metric": True,
+        "can_generate_vqa_question": False,
+    }
+
+
 def test_taskgen_state_compatible_and_tool_exact_reuse(tmp_path: Path) -> None:
     proposal = {
         "schema_version": 1,
@@ -70,7 +112,7 @@ def test_taskgen_state_compatible_and_tool_exact_reuse(tmp_path: Path) -> None:
             "sub_aspect": "existing_object_identity",
             "requested_perturbation": {
                 "description": "change only the goal object",
-                "controlled_changes": ["goal object"],
+                "controlled_changes": ["goal_object_identity"],
                 "preserve": ["initial state"],
             },
             "tool_need": {"description": "goal predicate"},
@@ -171,6 +213,142 @@ def test_batch23_parity_protocol_defaults_are_shared() -> None:
     assert policy.horizon_steps == BATCH23_PARITY_HORIZON_STEPS
     assert policy.observation_size == BATCH23_PARITY_OBSERVATION_SIZE
     assert policy.n_action_steps == BATCH23_PARITY_ACTION_STEPS == 10
+    assert policy.suite_name == "libero_object"
+    assert policy.task_id == 0
+
+
+def test_policy_load_matches_stock_seed_order_and_supports_bound_task(
+    monkeypatch,
+) -> None:
+    events: list[tuple] = []
+    captured_rng_state = {"python": "fixture", "torch": "fixture"}
+
+    class FakeVectorEnv:
+        def close(self) -> None:
+            events.append(("env_close",))
+
+    class FakeEnvConfig:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    class FakePolicyConfig:
+        @classmethod
+        def from_pretrained(cls, checkpoint):
+            events.append(("policy_config", str(checkpoint)))
+            return SimpleNamespace()
+
+    class FakeParameter:
+        def numel(self) -> int:
+            return 7
+
+    class FakePolicy:
+        def eval(self) -> None:
+            events.append(("policy_eval",))
+
+        def parameters(self):
+            return [FakeParameter()]
+
+    vector_env = FakeVectorEnv()
+
+    def fake_set_seed(seed: int) -> None:
+        events.append(("set_seed", seed))
+
+    def fake_make_env(env_config, *, n_envs: int, use_async_envs: bool):
+        events.append(
+            (
+                "make_env",
+                env_config.kwargs["task"],
+                tuple(env_config.kwargs["task_ids"]),
+                n_envs,
+                use_async_envs,
+            )
+        )
+        return {"libero_goal": {3: vector_env}}
+
+    def fake_make_policy(*, cfg, env_cfg, rename_map):
+        events.append(
+            (
+                "make_policy",
+                cfg.n_action_steps,
+                env_cfg.kwargs["task"],
+                tuple(env_cfg.kwargs["task_ids"]),
+                rename_map,
+            )
+        )
+        return FakePolicy()
+
+    def fake_get_rng_state():
+        events.append(("capture_rng",))
+        return captured_rng_state
+
+    def fake_set_rng_state(state):
+        events.append(("restore_rng", state))
+
+    modules = {
+        "lerobot": types.ModuleType("lerobot"),
+        "lerobot.configs": types.ModuleType("lerobot.configs"),
+        "lerobot.envs": types.ModuleType("lerobot.envs"),
+        "lerobot.envs.configs": types.ModuleType("lerobot.envs.configs"),
+        "lerobot.envs.factory": types.ModuleType("lerobot.envs.factory"),
+        "lerobot.policies": types.ModuleType("lerobot.policies"),
+        "lerobot.utils": types.ModuleType("lerobot.utils"),
+        "lerobot.utils.random_utils": types.ModuleType(
+            "lerobot.utils.random_utils"
+        ),
+    }
+    modules["lerobot.configs"].PreTrainedConfig = FakePolicyConfig
+    modules["lerobot.envs.configs"].LiberoEnv = FakeEnvConfig
+    modules["lerobot.envs.factory"].make_env = fake_make_env
+    modules["lerobot.envs.factory"].make_env_pre_post_processors = (
+        lambda **_kwargs: ("env_pre", "env_post")
+    )
+    modules["lerobot.policies"].make_policy = fake_make_policy
+    modules["lerobot.policies"].make_pre_post_processors = (
+        lambda **_kwargs: ("policy_pre", "policy_post")
+    )
+    modules["lerobot.utils.random_utils"].get_rng_state = fake_get_rng_state
+    modules["lerobot.utils.random_utils"].set_seed = fake_set_seed
+    modules["lerobot.utils.random_utils"].set_rng_state = fake_set_rng_state
+    for name, module in modules.items():
+        monkeypatch.setitem(sys.modules, name, module)
+
+    policy = LeRobotPolicyAdapter(
+        checkpoint="/checkpoint",
+        suite_name="libero_goal",
+        task_id=3,
+    )
+    loaded = policy.load(seed=100800)
+
+    assert [event[0] for event in events[:4]] == [
+        "set_seed",
+        "make_env",
+        "policy_config",
+        "make_policy",
+    ]
+    assert events[1] == ("make_env", "libero_goal", (3,), 1, True)
+    assert events[3][-1] == {}
+    assert loaded["suite"] == "libero_goal"
+    assert loaded["task_id"] == 3
+    assert loaded["seed_contract"]["seed_scope"] == (
+        "once_before_env_and_policy_construction"
+    )
+    assert loaded["seed_contract"]["first_rollout_integer_reseed"] is False
+    assert loaded["seed_contract"]["paired_round_rng_restore"] is True
+    assert policy.make_stock_official_vector_env() is vector_env
+
+    first_index, first_mode = policy.prepare_policy_rng_for_rollout()
+    second_index, second_mode = policy.prepare_policy_rng_for_rollout()
+    assert (first_index, first_mode) == (1, "stock_first_rollout_continuation")
+    assert (second_index, second_mode) == (
+        2,
+        "restored_pre_first_rollout_state",
+    )
+    assert [event for event in events if event[0] == "set_seed"] == [
+        ("set_seed", 100800)
+    ]
+    assert [event for event in events if event[0] == "restore_rng"] == [
+        ("restore_rng", captured_rng_state)
+    ]
 
 
 def test_method_chain_valid_is_mechanism_not_custom_outcome() -> None:
@@ -325,8 +503,8 @@ def test_official_control_failure_short_circuits_custom_rollout(
         def __init__(self, **_kwargs):
             pass
 
-        def load(self):
-            return {"status": "passed"}
+        def load(self, *, seed):
+            return {"status": "passed", "seed": seed}
 
         def run(self, **kwargs):
             type(self).run_count += 1
@@ -394,6 +572,7 @@ def test_official_control_failure_short_circuits_custom_rollout(
 
 def test_unknown_checkpoint_scope_requires_explicit_suite_task_binding() -> None:
     assert parse_bound_libero_task("libero_object/task0") == ("libero_object", 0)
+    assert parse_bound_libero_task("libero_goal/task4") == ("libero_goal", 4)
     with unittest.TestCase().assertRaisesRegex(ValueError, "scope is unknown"):
         parse_bound_libero_task(None)
 

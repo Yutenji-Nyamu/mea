@@ -1,0 +1,106 @@
+{
+  "schema_version": 3,
+  "registration_id": "runlocal_62044aad6b9dfcbc2dc9",
+  "scope": "run_local",
+  "status": "validated",
+  "tool_id": "libero_goal_predicate_tool",
+  "version": 1,
+  "target_metric": "libero_goal_predicate_satisfied",
+  "code_sha256": "83d1b04f7fa96ac67b33d513069eff7dac8bd13dc29f0868df45e4b9b5ef5812",
+  "source_sha256": "83d1b04f7fa96ac67b33d513069eff7dac8bd13dc29f0868df45e4b9b5ef5812",
+  "contract_sha256": "be4f852a465f875d9b5a9d76e87a22915623cb9ee5d7865a70b16a875e581eb1",
+  "tool_contract": {
+    "tool_spec": {
+      "schema_version": 1,
+      "task_name": "libero_object/task0/mea_custom",
+      "tool_id": "libero_goal_predicate_tool",
+      "metric": "libero_goal_predicate_satisfied",
+      "metric_spec": {
+        "operator": "episode_boolean_field",
+        "field": "goal_predicate_satisfied",
+        "goal_predicates": [
+          [
+            "in",
+            "salad_dressing_1",
+            "basket_1_contain_region"
+          ]
+        ]
+      },
+      "required_signals": [
+        "goal_predicate_satisfied",
+        "executed_steps"
+      ],
+      "output": {
+        "kind": "boolean",
+        "unit": null
+      }
+    },
+    "required_signals": [
+      "goal_predicate_satisfied",
+      "executed_steps"
+    ]
+  },
+  "required_signals": [
+    "goal_predicate_satisfied",
+    "executed_steps"
+  ],
+  "generation": {
+    "model": null,
+    "prompt_sha256": null,
+    "prompt_artifact": null,
+    "generator_source_sha256": null,
+    "generator_contract_sha256": null,
+    "source_examples": [
+      {
+        "fixture": "positive",
+        "passed": true
+      },
+      {
+        "fixture": "negative",
+        "passed": true
+      }
+    ]
+  },
+  "telemetry_schema_compatibility": {
+    "matching_policy": "exact_schema_snapshot_set",
+    "required_signals": [
+      "goal_predicate_satisfied",
+      "executed_steps"
+    ],
+    "schemas": [
+      {
+        "schema_sha256": "0609c2582ad7862b209a4b1eeebe95041f3b9cf1c0cdd69a608b72f1c8e9df6c",
+        "schema_version": 1,
+        "task_name": "libero_object/task0/mea_custom"
+      }
+    ],
+    "compatibility_sha256": "b8ea1d6570bd52c74ea00b49dae56a16a4e2a68bc5a1061ba6a142a70afa381c"
+  },
+  "validation": {
+    "episodes": [
+      {
+        "fixture": "positive",
+        "passed": true
+      },
+      {
+        "fixture": "negative",
+        "passed": true
+      }
+    ],
+    "validated_episode_count": 1,
+    "validated_property_scenario_count": 3,
+    "oracle_kind": "positive_negative_missing_fixture",
+    "determinism_required": true,
+    "oracle_agreement_required": true
+  },
+  "promotion": {
+    "current_scope": "run_local",
+    "candidate": {
+      "status": "not_requested"
+    },
+    "trusted": {
+      "status": "not_requested"
+    }
+  },
+  "created_at": "2026-07-27T15:10:00.950749+08:00"
+}

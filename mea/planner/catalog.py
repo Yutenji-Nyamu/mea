@@ -13,38 +13,26 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping
 
-from mea.capability_adapter import resolve_capability_contract, taskgen_route
+from mea.capability_adapter import (
+    registered_task_names,
+    resolve_capability_contract,
+    resolve_task_adapter,
+    taskgen_route,
+)
 
 from .click_bell import (
     CLICK_BELL_ADAPTIVE_ASPECTS,
     CLICK_BELL_ADAPTIVE_TEMPLATES,
 )
-from .prototype import EXPECTED_POLICY, MAX_ROUNDS, SUB_ASPECT_CATALOG
+from .prototype import EXPECTED_POLICY, SUB_ASPECT_CATALOG
 
 
 class ACTCatalogError(ValueError):
     """Raised when a trusted ACT catalog is missing or has been changed."""
 
 
-ACT_ROUTE_TASKS = (
-    "beat_block_hammer",
-    "click_bell",
-    "adjust_bottle",
-    "grab_roller",
-)
-
-_TASK_PROFILE = {
-    "beat_block_hammer": "generated",
-    "click_bell": "adaptive_properties",
-    "adjust_bottle": "official",
-    "grab_roller": "official",
-}
-_PLANNER_KIND = {
-    "beat_block_hammer": "bounded_bbh_v1",
-    "click_bell": "model_click_bell_adaptive_v1",
-    "adjust_bottle": "deterministic_official_task",
-    "grab_roller": "deterministic_official_task",
-}
+# Backward-compatible public name; membership is owned by TaskAdapter.
+ACT_ROUTE_TASKS = registered_task_names()
 def _canonical_json(value: Any) -> str:
     return json.dumps(
         value,
@@ -148,23 +136,20 @@ def _generic_official_aspects(task_name: str) -> list[dict[str, Any]]:
 
 
 def _trusted_task_entry(task_name: str, task_family: str) -> dict[str, Any]:
+    adapter = resolve_task_adapter(task_name)
     aspects = (
         _bbh_aspects()
-        if task_name == "beat_block_hammer"
+        if adapter["planner_kind"] == "bounded_bbh_v1"
         else _click_aspects()
-        if task_name == "click_bell"
+        if adapter["planner_kind"] == "model_click_bell_adaptive_v1"
         else _generic_official_aspects(task_name)
     )
     return {
         "task_name": task_name,
         "task_family": task_family,
-        "task_profile": _TASK_PROFILE[task_name],
-        "planner_kind": _PLANNER_KIND[task_name],
-        "max_rounds": (
-            MAX_ROUNDS
-            if task_name in {"beat_block_hammer", "click_bell"}
-            else 1
-        ),
+        "task_profile": adapter["task_profile"],
+        "planner_kind": adapter["planner_kind"],
+        "max_rounds": adapter["max_rounds"],
         "checkpoint": {
             "policy_name": "ACT",
             "checkpoint_setting": "demo_clean",
