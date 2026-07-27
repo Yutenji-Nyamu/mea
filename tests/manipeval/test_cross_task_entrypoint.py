@@ -25,6 +25,7 @@ from scripts.manipeval_agent import (
     build_bound_claim_first_handoff,
     build_pending_task_binding_policy_card,
     build_taskgen_command,
+    concern_candidate_domain_is_executable,
     finish_unsupported_global_route,
     finish_unsupported_open_task_resolution,
     run_round_execution_vqa,
@@ -626,6 +627,25 @@ class CrossTaskEntrypointTests(unittest.TestCase):
             "task_underspecified_cli_default_after_free_concern",
         )
         self.assertEqual(binding["selected_task_name"], "beat_block_hammer")
+
+    def test_broad_domain_does_not_require_preselected_template(self):
+        broad = {
+            "decision": "discover_candidates",
+            "candidate_aspect_ids": ["object_scale", "object_position"],
+            "selected_template_ids": [],
+        }
+        self.assertTrue(
+            concern_candidate_domain_is_executable(
+                broad,
+                candidate_budget=1,
+            )
+        )
+        self.assertFalse(
+            concern_candidate_domain_is_executable(
+                broad,
+                candidate_budget=0,
+            )
+        )
 
     def test_official_plan_only_does_not_require_provider_key(self):
         with tempfile.TemporaryDirectory() as temporary:

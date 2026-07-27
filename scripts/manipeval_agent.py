@@ -295,6 +295,27 @@ def bind_ready_task_after_free_concern(
     }
 
 
+def concern_candidate_domain_is_executable(
+    resolution: Mapping[str, Any],
+    *,
+    candidate_budget: int | None,
+) -> bool:
+    """Admit a semantic domain without requiring a preselected template."""
+
+    if candidate_budget is not None and candidate_budget < 1:
+        return False
+    decision = resolution.get("decision")
+    if decision == "bind_single_aspect":
+        templates = resolution.get("selected_template_ids")
+        return isinstance(templates, list) and bool(templates)
+    if decision == "discover_candidates":
+        aspects = resolution.get("candidate_aspect_ids")
+        return isinstance(aspects, list) and bool(aspects)
+    if decision == "catalog_external":
+        return True
+    return False
+
+
 def initialize_registered_dynamic_runtime(
     repo_root: Path,
     existing_catalog: dict[str, Any] | None,
@@ -3994,28 +4015,17 @@ def main() -> None:
                     global_catalog, args.bound_task_name
                 ).target,
             )
-            candidate_templates = concern_candidate_resolution.get(
-                "selected_template_ids"
-            )
             candidate_budget = (
                 int(args.max_agent_rounds) - 1
                 if args.max_agent_rounds is not None
                 else None
             )
-            candidate_domain_supported = bool(
-                concern_candidate_resolution.get("decision")
-                in {"bind_single_aspect", "discover_candidates"}
-                and isinstance(candidate_templates, list)
-                and candidate_templates
-                and (
-                    candidate_budget is None
-                    or candidate_budget >= 1
+            candidate_domain_supported = (
+                concern_candidate_domain_is_executable(
+                    concern_candidate_resolution,
+                    candidate_budget=candidate_budget,
                 )
             )
-            if concern_candidate_resolution.get("decision") == "catalog_external":
-                candidate_domain_supported = bool(
-                    candidate_budget is None or candidate_budget >= 1
-                )
             if not candidate_domain_supported:
                 unsupported = finish_unsupported_open_task_resolution(
                     repo_root,
