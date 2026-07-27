@@ -247,9 +247,12 @@ def bind_ready_task_after_free_concern(
     inventory: list[dict[str, Any]],
     ready_task_names: list[str],
     default_task_name: str,
+    semantic_threshold: float = 0.2,
 ) -> dict[str, Any]:
     """Bind a checkpoint only after a catalog-free semantic concern exists."""
 
+    if not 0.0 < float(semantic_threshold) <= 1.0:
+        raise ValueError("semantic_threshold must be in (0, 1]")
     ranked = rank_official_tasks(
         concern,
         inventory,
@@ -264,7 +267,7 @@ def bind_ready_task_after_free_concern(
             "no checkpoint-ready task remains after semantic task retrieval"
         )
     best = ranked_ready[0]
-    fallback_used = float(best["score"]) <= 0.0
+    fallback_used = float(best["score"]) < float(semantic_threshold)
     if fallback_used:
         selected_name = (
             default_task_name
@@ -287,6 +290,7 @@ def bind_ready_task_after_free_concern(
         "fallback_used": fallback_used,
         "catalog_visible_to_concern_model": False,
         "retrieval_field": "FreeConcern.task_intent",
+        "semantic_threshold": float(semantic_threshold),
         "ranked_ready_tasks": ranked_ready,
     }
 
@@ -3913,10 +3917,19 @@ def main() -> None:
             bound_policy_card = global_planning_contexts[
                 args.bound_task_name
             ]["policy_card"]
+            resolution_inventory = (
+                [
+                    item
+                    for item in open_task_inventory
+                    if item["task_name"] in ready_tasks
+                ]
+                if checkpoint_binding is not None
+                else open_task_inventory
+            )
             open_task_resolution = resolve_open_task(
                 free_concern_bundle["concern"],
                 policy_card=bound_policy_card,
-                inventory=open_task_inventory,
+                inventory=resolution_inventory,
                 can_generate_new_task=False,
             )
             if (
@@ -3958,6 +3971,7 @@ def main() -> None:
                     "fallback_used": False,
                     "catalog_visible_to_concern_model": False,
                     "retrieval_field": "explicit_policy_binding",
+                    "semantic_threshold": 0.2,
                     "ranked_ready_tasks": [],
                 }
             )

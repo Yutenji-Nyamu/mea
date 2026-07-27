@@ -585,6 +585,48 @@ class CrossTaskEntrypointTests(unittest.TestCase):
         self.assertNotIn("adjust_bottle", concern_agent.last_prompt)
         self.assertNotIn("click_bell", concern_agent.last_prompt)
 
+    def test_task_underspecified_unbound_query_uses_declared_default(self):
+        concern = {
+            "schema_version": 1,
+            "source_query": "Where does this policy first expose a weakness?",
+            "sub_aspect": "Sensitivity to object scale.",
+            "hypothesis": "A larger target exposes a failure.",
+            "task_intent": (
+                "Perform the trained manipulation action and satisfy its goal."
+            ),
+            "requested_variation": "Increase target scale by twenty percent.",
+            "measurement_need": "Compare success with the unchanged control.",
+        }
+        inventory = [
+            {
+                "schema_version": 1,
+                "task_name": "beat_block_hammer",
+                "description": "beat a block with a hammer",
+                "execution_status": "capability_registered",
+                "capability_aspects": ["object_scale"],
+            },
+            {
+                "schema_version": 1,
+                "task_name": "click_bell",
+                "description": "click the top center of a bell",
+                "execution_status": "capability_registered",
+                "capability_aspects": ["object_position"],
+            },
+        ]
+        binding = bind_ready_task_after_free_concern(
+            concern,
+            inventory=inventory,
+            ready_task_names=["beat_block_hammer", "click_bell"],
+            default_task_name="beat_block_hammer",
+        )
+
+        self.assertTrue(binding["fallback_used"])
+        self.assertEqual(
+            binding["reason_code"],
+            "task_underspecified_cli_default_after_free_concern",
+        )
+        self.assertEqual(binding["selected_task_name"], "beat_block_hammer")
+
     def test_official_plan_only_does_not_require_provider_key(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
