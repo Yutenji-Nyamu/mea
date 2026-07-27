@@ -166,6 +166,41 @@ def _official_class(
     return source, classes[0]
 
 
+def _reject_pose_property_item_assignment(
+    methods: Mapping[str, ast.AST],
+) -> None:
+    """Reject writes to indexed SAPIEN Pose properties.
+
+    ``Pose.p`` and ``Pose.q`` are exposed as array values.  Mutating an item
+    such as ``pose.p[0] += 0.08`` changes that temporary array, not the Pose
+    passed to ``create_actor``.  The code is syntactically valid but silently
+    leaves the generated scene identical to the official control.
+    """
+
+    for method_name, method in methods.items():
+        for node in ast.walk(method):
+            targets: list[ast.AST] = []
+            if isinstance(node, ast.AugAssign):
+                targets = [node.target]
+            elif isinstance(node, (ast.Assign, ast.AnnAssign)):
+                targets = (
+                    list(node.targets)
+                    if isinstance(node, ast.Assign)
+                    else [node.target]
+                )
+            for target in targets:
+                if (
+                    isinstance(target, ast.Subscript)
+                    and isinstance(target.value, ast.Attribute)
+                    and target.value.attr in {"p", "q"}
+                ):
+                    raise GenericTaskGenError(
+                        f"{method_name} mutates Pose.{target.value.attr} by "
+                        "indexed assignment; construct a new sapien.Pose "
+                        "instead"
+                    )
+
+
 def _derived_ast_policy(
     source_path: Path, *, class_name: str
 ) -> dict[str, Any]:
@@ -277,6 +312,7 @@ def validate_generic_task_methods(
         )
         for name in ("load_actors", "check_success")
     }
+    _reject_pose_property_item_assignment(parsed)
     _official_source, official_node = _official_class(
         source_path,
         class_name=official_class,

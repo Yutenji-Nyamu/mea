@@ -518,6 +518,41 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             )
             self.assertTrue(report["valid"])
 
+    def test_pose_property_item_assignment_is_rejected(self) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+        methods = {
+            "load_actors": (
+                "def load_actors(self):\n"
+                "    rand_pos = rand_pose(\n"
+                "        xlim=[-0.25, 0.25],\n"
+                "        ylim=[-0.2, 0.0],\n"
+                "        qpos=[0.5, 0.5, 0.5, 0.5],\n"
+                "    )\n"
+                "    rand_pos.p[0] += 0.08\n"
+                "    self.bell = create_actor(\n"
+                "        scene=self,\n"
+                "        pose=rand_pos,\n"
+                '        modelname="050_bell",\n'
+                "        convex=True,\n"
+                "        model_id=0,\n"
+                "        is_static=True,\n"
+                "    )\n"
+            ),
+            "check_success": (
+                "def check_success(self):\n"
+                "    return bool(self.stage_success_tag)\n"
+            ),
+        }
+        with self.assertRaisesRegex(
+            GenericTaskGenError,
+            r"mutates Pose\.p.*construct a new sapien\.Pose",
+        ):
+            validate_generic_task_methods(
+                methods,
+                official_source=repo_root / "envs/click_bell.py",
+                official_class="click_bell",
+            )
+
     def test_semantic_reuse_ignores_query_wording_and_candidate_id(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
