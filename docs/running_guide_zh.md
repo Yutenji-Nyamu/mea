@@ -37,9 +37,11 @@ policy 性能证据。重点检查 `free_concern.json`、`task_resolution.json` 
 provider/repair/retry 计数，以及最终是 `retrieve_and_adapt`、`generate_new` 还是
 `unsupported`。
 
-若 online resolver 已输出 `unsupported`，之后基于冻结 concern 的 0-provider 修复
-replay 只能证明确定性 resolver/control handoff；另一个 standalone TaskGen/ACT driver
-的成功也不能倒推为同一次 CLI 已自动完成多轮闭环。
+若 online resolver 已输出 `unsupported`，之后基于冻结 concern 的 0-provider
+replay 只能证明确定性 resolver/control handoff，不能倒推成一次在线成功。当前
+ClickBell flagship 的通过标准更严格：无 aspect CLI hint、无 history replay、一个
+进程完成 official→generated scene/checker→Tool/VQA/Aggregate→Answer，并在同一
+bundle 中记录 `flagship_acceptance.accepted=true`。
 
 不传 `--bound-task-name` 的 auto-route 只能在已声明的 checkpoint portfolio 中选择，
 不是让一个单任务 policy 执行任意发现的 task。当前可发现 50 个 RoboTwin official
@@ -104,9 +106,10 @@ LIBERO 的固定环境、official control 与 MEA 迁移协议见
 当前 SmolVLA checkpoint 没有可审计的训练 task manifest，声明 scope 为 unknown。
 因此 unbound LIBERO 请求必须在 rollout 前拒绝；`--bound-task-name libero_object/task0`
 只授权该次 official control，并不证明 checkpoint 支持该任务。plan-only 的通过标准是
-授权候选为 1、change contract 仍为 pending、`rollouts_executed=0`。live 时若 official
-control 失败，chain 必须以 `official_control_failed` 停止并保持
-`custom_rollout_authorized=false`；本批这个短路行为只有代码与回归测试，没有新 ACT 证据。
+授权候选为 1、change contract 仍为 pending、`rollouts_executed=0`。batch26 live
+实际执行 1 个 280-step 上限 official control，结果失败，并以
+`control_failed / official_control_failed` 停止；`custom_rollout_authorized=false`，
+没有消耗第二 rollout。该负结果只验证协议短路。
 
 ## 6. 测试原则
 
@@ -116,5 +119,16 @@ control 失败，chain 必须以 `official_control_failed` 停止并保持
 - 不以固定测试数量为目标；被删除的旧链路测试随实现一起删除。
 - 大规模 N、更多 policy 或真实消融须另行预注册，不混入日常 smoke。
 
-本批开放检索、ClickBell TaskGen 与 LIBERO 边界的唯一紧凑索引见
-[`batch25_open_retrieval_taskgen/summary.json`](../experiments/paper/results/batch25_open_retrieval_taskgen/summary.json)。
+包含 LIBERO 测试时必须先加载专用环境路径；否则 upstream `libero` 会交互询问
+dataset 路径，不能被解释为代码回归：
+
+```bash
+cd /root/autodl-tmp/mea
+. /root/autodl-tmp/envs/mea-libero/etc/conda/activate.d/10_mea_libero_paths.sh
+/root/autodl-tmp/envs/mea-libero/bin/python -m pytest -q tests/manipeval
+```
+
+本批唯一紧凑运行入口见[当前证据](evidence/current/README.md)；效率、LIBERO、
+ranking 与 proxy 结果统一由
+[`batch26_claim_closure/summary.json`](../experiments/paper/results/batch26_claim_closure/summary.json)
+索引。

@@ -33,6 +33,7 @@ PAPER_ERROR_TERMINAL_STATUSES = (
     "infrastructure_error",
     "aborted_upstream",
 )
+MIN_ERROR_RATE_DENOMINATOR = 10
 
 
 class ProspectiveLedgerError(ValueError):
@@ -229,6 +230,14 @@ class ProspectiveOperationLedger:
                 category_rows[category]["errors"] += 1
         denominator = sum(row["started"] for row in category_rows.values())
         numerator = sum(row["errors"] for row in category_rows.values())
+        terminal = sum(
+            row["completed"] + row["errors"]
+            for row in category_rows.values()
+        )
+        rate_reported = (
+            denominator >= MIN_ERROR_RATE_DENOMINATOR
+            and terminal == denominator
+        )
         return {
             "schema_version": 1,
             "protocol": f"{LEDGER_PROTOCOL}_summary",
@@ -236,12 +245,19 @@ class ProspectiveOperationLedger:
             "metadata_sha256": self.metadata["metadata_sha256"],
             "denominator_operation_starts": denominator,
             "numerator_terminal_errors": numerator,
-            "prospective_error_rate": numerator / denominator if denominator else None,
+            "prospective_error_rate": (
+                numerator / denominator if rate_reported else None
+            ),
+            "rate_reporting_minimum_denominator": (
+                MIN_ERROR_RATE_DENOMINATOR
+            ),
+            "rate_reported": rate_reported,
             "categories": category_rows,
             "paper_fig6_eligible": False,
             "limitations": [
                 "The denominator is prospective but does not yet match the paper run count.",
                 "In-flight operations remain in the denominator and outside the error numerator.",
+                "Below ten completed operations, only error counts are reported.",
             ],
         }
 
@@ -452,9 +468,15 @@ def summarize_paper_error_study_v2(
     semantic_terminal = totals["passed"] + totals["paper_defined_errors"]
     evidence_complete = semantic_terminal == totals["planned"]
     numerator = totals["paper_defined_errors"]
+    rate_reported = (
+        evidence_complete
+        and totals["planned"] >= MIN_ERROR_RATE_DENOMINATOR
+    )
     distribution = {
         category: (
-            row["paper_defined_errors"] / numerator if numerator else None
+            row["paper_defined_errors"] / numerator
+            if rate_reported and numerator
+            else None
         )
         for category, row in category_rows.items()
     }
@@ -467,8 +489,10 @@ def summarize_paper_error_study_v2(
         "semantic_terminal_operations": semantic_terminal,
         "paper_defined_error_numerator": numerator,
         "prospective_error_rate": (
-            numerator / totals["planned"] if evidence_complete else None
+            numerator / totals["planned"] if rate_reported else None
         ),
+        "rate_reporting_minimum_denominator": MIN_ERROR_RATE_DENOMINATOR,
+        "rate_reported": rate_reported,
         "evidence_complete": evidence_complete,
         "totals": totals,
         "categories": category_rows,
@@ -478,6 +502,7 @@ def summarize_paper_error_study_v2(
             "This pilot uses a small project-defined operation roster.",
             "Infrastructure errors and upstream aborts never enter the semantic error numerator.",
             "A rate is withheld until every frozen operation has a semantic terminal status.",
+            "Below ten semantic-terminal operations, only error counts are reported.",
         ],
     }
 
@@ -485,6 +510,7 @@ def summarize_paper_error_study_v2(
 __all__ = [
     "FROZEN_CATEGORIES",
     "LEDGER_PROTOCOL",
+    "MIN_ERROR_RATE_DENOMINATOR",
     "PAPER_ERROR_CATEGORIES",
     "PAPER_ERROR_PROTOCOL",
     "PAPER_ERROR_TERMINAL_STATUSES",

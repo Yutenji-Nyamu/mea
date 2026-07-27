@@ -19,12 +19,14 @@ from mea.planner import (
 )
 from mea.taskgen import create_official_task_run
 from scripts.manipeval_agent import (
+    build_compact_flagship_acceptance,
     build_evidence_bundle,
     build_bound_claim_first_handoff,
     build_taskgen_command,
     finish_unsupported_global_route,
     finish_unsupported_open_task_resolution,
     run_round_execution_vqa,
+    normalize_outcome_semantics,
     summarize_round,
     supports_claim_first_runtime,
     taskgen_ast_gate_passed,
@@ -118,6 +120,216 @@ class CrossTaskEntrypointTests(unittest.TestCase):
                 }
             )
         )
+
+    def test_outcome_semantics_separates_extension_from_conflict(self):
+        official = normalize_outcome_semantics(
+            {
+                "outcome_authority": "official_check_success",
+                "episodes": [],
+            },
+            {"success_official_equivalent": True},
+        )
+        self.assertEqual(official["status"], "official_only")
+        self.assertFalse(official["evidence_conflict"])
+
+        trusted = {
+            "outcome_authority": "llm_generated_python_ast_validated",
+            "episodes": [
+                {
+                    "seed": 100405,
+                    "result": {
+                        "details": {
+                            "generated_checker_success": True,
+                            "official_success": False,
+                            "official_core_predicate_satisfied": True,
+                        }
+                    },
+                }
+            ]
+        }
+        extension = normalize_outcome_semantics(
+            trusted,
+            {"success_official_equivalent": False},
+        )
+        self.assertEqual(extension["status"], "expected_semantic_extension")
+        self.assertFalse(extension["evidence_conflict"])
+
+        trusted["episodes"][0]["result"]["details"][
+            "official_core_predicate_satisfied"
+        ] = False
+        conflict = normalize_outcome_semantics(
+            trusted,
+            {"success_official_equivalent": False},
+        )
+        self.assertEqual(conflict["status"], "conflict")
+        self.assertTrue(conflict["evidence_conflict"])
+
+    def test_compact_flagship_acceptance_requires_online_sufficient_reuse(self):
+        module_sha256 = "a" * 64
+        round_runs = [
+            {
+                "round_summary": {
+                    "route": "official",
+                    "observations": {
+                        "execution_backend": "ACT",
+                        "actual_seeds": [100405],
+                        "outcome_semantics": {"status": "official_only"},
+                    }
+                },
+            },
+            {
+                "round_summary": {
+                    "route": "provider_scene_checker_codegen",
+                    "observations": {
+                        "execution_backend": "ACT",
+                        "actual_seeds": [100405],
+                        "outcome_semantics": {
+                            "status": "expected_semantic_extension"
+                        },
+                    }
+                },
+                "tool_evaluation": {
+                    "route": "bound_child_trusted_checker",
+                    "route_decision": {
+                        "provider_called": False,
+                        "exact_match": True,
+                        "metric": "generated_check_success",
+                    },
+                    "source": {
+                        "authority": "llm_generated_python_ast_validated"
+                    },
+                    "validation": {
+                        "status": "passed",
+                        "exact_metric_match": True,
+                    },
+                    "episodes": [
+                        {
+                            "role": "policy_under_evaluation",
+                            "result": {
+                                "tool": "generated_check_success",
+                                "value": True,
+                                "details": {
+                                    "authority": (
+                                        "llm_generated_python_ast_validated"
+                                    ),
+                                    "module_sha256": module_sha256,
+                                },
+                            },
+                        }
+                    ],
+                },
+            },
+        ]
+        acceptance = build_compact_flagship_acceptance(
+            round_runs,
+            global_route_result={
+                "global_router_provider_calls": 0,
+                "provider_called": False,
+                "route_source": "runtime_bound_control_handoff",
+            },
+            claim_first_runtime_state={
+                "assessment": {
+                    "stop_reason": "evidence_sufficient",
+                    "evidence_sufficient": True,
+                    "observed_candidate_ids": [
+                        "robustness.distractor_avoidance.lookalike_bell"
+                    ],
+                },
+                "query_contract": {
+                    "candidate_universe": [
+                        "robustness.distractor_avoidance.lookalike_bell"
+                    ],
+                }
+            },
+            claim_first_query_answer={
+                "answered": True,
+                "stop_reason": "evidence_sufficient",
+                "answer_scope": "bounded_experimental_query_semantics",
+            },
+            free_concern_bundle={
+                "source": "provider_catalog_free_concern",
+                "provider": {
+                    "called": True,
+                    "attempt_count": 1,
+                    "errors": [],
+                },
+            },
+            open_task_resolution={"decision": "retrieve_and_adapt"},
+            concern_candidate_resolution={
+                "decision": "bind_single_aspect",
+                "resolution": "unique_query_supported_concern",
+                "candidate_aspect_ids": [
+                    "robustness.distractor_avoidance"
+                ],
+                "selected_template_ids": [
+                    "robustness.distractor_avoidance.lookalike_bell"
+                ],
+                "concern_created_before_catalog": True,
+                "catalog_was_model_visible": False,
+            },
+            history_disabled=True,
+        )
+
+        self.assertTrue(acceptance["accepted"])
+        self.assertEqual(acceptance["act_rollouts"], 2)
+        self.assertTrue(acceptance["history_replay_disabled"])
+        self.assertTrue(acceptance["same_bundle_bound_checker_reuse"])
+        self.assertFalse(
+            acceptance["cross_query_registry_reuse_established"]
+        )
+
+        no_act = json.loads(json.dumps(round_runs))
+        for item in no_act:
+            item["round_summary"]["observations"]["actual_seeds"] = []
+        rejected = build_compact_flagship_acceptance(
+            no_act,
+            global_route_result={
+                "global_router_provider_calls": 0,
+                "provider_called": False,
+                "route_source": "runtime_bound_control_handoff",
+            },
+            claim_first_runtime_state={
+                "assessment": {
+                    "stop_reason": "evidence_sufficient",
+                    "evidence_sufficient": True,
+                    "observed_candidate_ids": [
+                        "robustness.distractor_avoidance.lookalike_bell"
+                    ],
+                },
+                "query_contract": {
+                    "candidate_universe": [
+                        "robustness.distractor_avoidance.lookalike_bell"
+                    ],
+                }
+            },
+            claim_first_query_answer={
+                "answered": True,
+                "answer_scope": "bounded_experimental_query_semantics",
+            },
+            free_concern_bundle={
+                "source": "provider_catalog_free_concern",
+                "provider": {
+                    "called": True,
+                    "attempt_count": 1,
+                    "errors": [],
+                },
+            },
+            open_task_resolution={"decision": "retrieve_and_adapt"},
+            concern_candidate_resolution={
+                "decision": "bind_single_aspect",
+                "resolution": "unique_query_supported_concern",
+                "candidate_aspect_ids": [
+                    "robustness.distractor_avoidance"
+                ],
+                "selected_template_ids": [
+                    "robustness.distractor_avoidance.lookalike_bell"
+                ],
+                "concern_created_before_catalog": True,
+                "catalog_was_model_visible": False,
+            },
+            history_disabled=True,
+        )
+        self.assertFalse(rejected["accepted"])
 
     def test_claim_first_runtime_requires_control_and_candidate(self):
         with tempfile.TemporaryDirectory() as temporary:

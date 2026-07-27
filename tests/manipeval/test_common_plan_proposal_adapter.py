@@ -160,6 +160,7 @@ class FakeRegisteredProposalAgent:
     def __init__(self):
         self.last_prompt = "registered proposal prompt"
         self.last_responses = ["registered proposal response"]
+        self.calls = 0
 
     def propose(
         self,
@@ -174,6 +175,7 @@ class FakeRegisteredProposalAgent:
         require_new_tool,
     ):
         del user_query, aspect_id, planning_context
+        self.calls += 1
         self.last_prompt = f"registered proposal for {target['task_name']}"
         contract = resolve_capability_contract(target["task_name"], base_template_id)
         task = task_proposal_from_contract(
@@ -320,6 +322,51 @@ class CommonPlanProposalAdapterTests(unittest.TestCase):
         self.assertIs(_validate_current_plan(plan), plan)
         self.assertEqual(artifact["proposal_capability_mode"], "registered_reuse")
         self.assertFalse(agent.require_novel_changes)
+
+    def test_click_distractor_checker_satisfies_same_round_tool_need(self):
+        session = BoundTaskPlanSession.from_catalog(
+            self.catalog, "click_bell", max_rounds=2
+        )
+        round_plan = _round(
+            "click_bell",
+            "robustness.distractor_avoidance.lookalike_bell",
+            2,
+        )
+        agent = FakeRegisteredProposalAgent()
+        proposed, artifact = apply_bounded_round_proposal(
+            proposal_agent=agent,
+            user_query="Can ACT avoid a look-alike bell?",
+            target=session.target,
+            planning_context={"schema_version": 1},
+            round_plan=round_plan,
+            evaluation_dir=self.root / "mea/evaluation_runs/eval_click_checker",
+            round_number=2,
+            semantic_proposal={
+                "task_need": {"required": True},
+                "tool_need": {"required": True},
+            },
+        )
+        self.assertEqual(
+            proposed["route"], "provider_scene_checker_codegen"
+        )
+        self.assertEqual(agent.calls, 0)
+        self.assertEqual(
+            artifact["proposal_source"],
+            (
+                "runtime_bound_claim_first_semantics_to_registered_"
+                "scene_checker"
+            ),
+        )
+        self.assertEqual(artifact["attempt_count"], 0)
+        self.assertEqual(
+            artifact["semantic_need_binding"]["selected_taskgen_route"],
+            "provider_scene_checker_codegen",
+        )
+        self.assertTrue(
+            artifact["semantic_need_binding"][
+                "tool_satisfied_by_task_checker"
+            ]
+        )
 
     def test_bbh_legacy_planner_and_common_adjudicator_share_proposed_rounds(self):
         session = BoundTaskPlanSession.from_catalog(

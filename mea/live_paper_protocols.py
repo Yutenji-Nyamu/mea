@@ -95,6 +95,7 @@ _EFFICIENCY_MODES = {
         "total_min": 3,
         "total_max": 3,
         "claim_scope": "three_act_mechanism_smoke_not_dense_reference",
+        "claim_type": "first_observed_failure",
         "query": (
             "Does at least one of the two frozen click_bell position "
             "candidates fail?"
@@ -109,6 +110,7 @@ _EFFICIENCY_MODES = {
         "total_min": 6,
         "total_max": 7,
         "claim_scope": "independent_live_toy_not_paper_tables_1_2",
+        "claim_type": "first_observed_failure_with_paired_axis",
         "query": (
             "Does at least one of the four frozen click_bell candidates fail, "
             "and which paired position/instance axis is directly contrasted?"
@@ -127,6 +129,7 @@ _EFFICIENCY_MODES = {
         "claim_scope": (
             "independent_live_finite_position_universal_toy_not_paper_tables_1_2"
         ),
+        "claim_type": "universal_refutation",
         "query": (
             "Does this ACT checkpoint succeed on every candidate in the "
             "preregistered two-position click_bell domain?"
@@ -146,6 +149,7 @@ _EFFICIENCY_MODES = {
             "independent_live_four_candidate_universal_toy_not_paper_"
             "tables_1_2"
         ),
+        "claim_type": "universal_refutation",
         "query": (
             "Does this ACT checkpoint succeed on every candidate in the "
             "preregistered four-candidate click_bell domain?"
@@ -154,10 +158,31 @@ _EFFICIENCY_MODES = {
             "finite_universal_refuted_by_one_failure_or_supported_by_full_coverage"
         ),
     },
+    "four_candidate_universal_5to6act": {
+        "fixed_candidates": _CANDIDATE_IDS,
+        "adaptive_candidates": _CANDIDATE_IDS,
+        "adaptive_min": 1,
+        "adaptive_max": 2,
+        "total_min": 5,
+        "total_max": 6,
+        "claim_scope": (
+            "independent_live_four_candidate_universal_budgeted_toy_not_"
+            "paper_tables_1_2"
+        ),
+        "claim_type": "universal_refutation",
+        "query": (
+            "Does this ACT checkpoint succeed on every candidate in the "
+            "preregistered four-candidate click_bell domain?"
+        ),
+        "query_sufficient_rule": (
+            "finite_universal_refuted_by_one_failure_or_budgeted_inconclusive"
+        ),
+    },
 }
 _UNIVERSAL_EFFICIENCY_MODES = {
     "position_universal_3to4act",
     "four_candidate_universal_5to8act",
+    "four_candidate_universal_5to6act",
 }
 
 TABLE3_CONDITIONS = (
@@ -635,7 +660,13 @@ def build_click_bell_efficiency_preregistration(
             spec["query"],
             candidate_universe=spec["adaptive_candidates"],
             required_candidate_ids=spec["adaptive_candidates"],
-            round_budget=spec["adaptive_max"],
+            # The same finite-domain contract also scores the dense fixed arm.
+            # The adaptive arm's smaller live budget remains independently
+            # frozen and enforced by ``adaptive_contract`` below.
+            round_budget=max(
+                len(spec["fixed_candidates"]),
+                spec["adaptive_max"],
+            ),
             claim_type="universal",
         )
         if mode in _UNIVERSAL_EFFICIENCY_MODES
@@ -671,6 +702,7 @@ def build_click_bell_efficiency_preregistration(
             "maximum": spec["total_max"],
         },
         "conclusion_contract": {
+            "claim_type": spec["claim_type"],
             "score_semantics": "official_success_boolean",
             "overall_verdicts": [
                 "weakness_observed",
@@ -681,6 +713,8 @@ def build_click_bell_efficiency_preregistration(
             "comparison_fields": (
                 ["claim_verdict"]
                 if mode in _UNIVERSAL_EFFICIENCY_MODES
+                else ["overall_verdict"]
+                if mode == "smoke_3act"
                 else ["overall_verdict", "weakness_axes"]
             ),
         },
@@ -1289,6 +1323,137 @@ def _efficiency_conclusion(
     return result
 
 
+def _efficiency_claim_fidelity(
+    fixed: Mapping[str, Any],
+    adaptive: Mapping[str, Any],
+    *,
+    prereg: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Keep first-failure, universal, and full-set claims distinct."""
+
+    required = list(prereg["fixed_contract"]["candidate_ids"])
+    axis_by_candidate = {
+        item["candidate_id"]: item["axis_id"]
+        for item in prereg["candidate_universe"]
+    }
+
+    def summarize(arm: Mapping[str, Any]) -> dict[str, Any]:
+        completed = [
+            item
+            for item in arm["attempts"]
+            if item["status"] == "completed"
+        ]
+        scores = {
+            item["candidate_id"]: item["success"] for item in completed
+        }
+        failures = sorted(
+            candidate_id
+            for candidate_id, success in scores.items()
+            if success is False
+        )
+        complete = set(scores) == set(required)
+        if failures:
+            universal_verdict = "refuted"
+        elif complete and all(
+            scores[candidate_id] is True for candidate_id in required
+        ):
+            universal_verdict = "supported"
+        else:
+            universal_verdict = "inconclusive"
+        first_failure = next(
+            (
+                item["candidate_id"]
+                for item in completed
+                if item["success"] is False
+            ),
+            None,
+        )
+        return {
+            "first_failure": first_failure,
+            "first_failure_axis": (
+                axis_by_candidate[first_failure]
+                if first_failure is not None
+                else None
+            ),
+            "failure_observed": bool(failures),
+            "universal_verdict": universal_verdict,
+            "coverage_complete": complete,
+            "failure_set": failures if complete else None,
+        }
+
+    fixed_summary = summarize(fixed)
+    adaptive_summary = summarize(adaptive)
+    failure_sets_comparable = (
+        fixed_summary["coverage_complete"]
+        and adaptive_summary["coverage_complete"]
+    )
+    return {
+        "first_observed_failure": {
+            "fixed": {
+                "observed": fixed_summary["failure_observed"],
+                "candidate_id": fixed_summary["first_failure"],
+                "axis_id": fixed_summary["first_failure_axis"],
+            },
+            "adaptive": {
+                "observed": adaptive_summary["failure_observed"],
+                "candidate_id": adaptive_summary["first_failure"],
+                "axis_id": adaptive_summary["first_failure_axis"],
+            },
+            "failure_existence_agrees": (
+                fixed_summary["failure_observed"]
+                == adaptive_summary["failure_observed"]
+            ),
+            "candidate_agrees": (
+                fixed_summary["first_failure"]
+                == adaptive_summary["first_failure"]
+                if (
+                    fixed_summary["failure_observed"]
+                    and adaptive_summary["failure_observed"]
+                )
+                else None
+            ),
+            "axis_agrees": (
+                fixed_summary["first_failure_axis"]
+                == adaptive_summary["first_failure_axis"]
+                if (
+                    fixed_summary["failure_observed"]
+                    and adaptive_summary["failure_observed"]
+                )
+                else None
+            ),
+        },
+        "universal_refutation": {
+            "fixed": fixed_summary["universal_verdict"],
+            "adaptive": adaptive_summary["universal_verdict"],
+            "agrees": (
+                fixed_summary["universal_verdict"]
+                == adaptive_summary["universal_verdict"]
+            ),
+        },
+        "full_failure_set": {
+            "fixed": fixed_summary["failure_set"],
+            "adaptive": adaptive_summary["failure_set"],
+            "fixed_required_coverage_complete": fixed_summary[
+                "coverage_complete"
+            ],
+            "adaptive_required_coverage_complete": adaptive_summary[
+                "coverage_complete"
+            ],
+            "agrees": (
+                fixed_summary["failure_set"]
+                == adaptive_summary["failure_set"]
+                if failure_sets_comparable
+                else None
+            ),
+            "status": (
+                "comparable"
+                if failure_sets_comparable
+                else "not_established_incomplete_coverage"
+            ),
+        },
+    }
+
+
 def evaluate_click_bell_efficiency(
     preregistration: Any,
     fixed_result: Any,
@@ -1322,8 +1487,33 @@ def evaluate_click_bell_efficiency(
         "fixed": _efficiency_conclusion(fixed, prereg=prereg),
         "adaptive": _efficiency_conclusion(adaptive, prereg=prereg),
     }
+    claim_fidelity = _efficiency_claim_fidelity(
+        fixed, adaptive, prereg=prereg
+    )
     fields = prereg["conclusion_contract"]["comparison_fields"]
-    agrees = all(conclusions["fixed"][field] == conclusions["adaptive"][field] for field in fields)
+    conclusion_fields_agree = all(
+        conclusions["fixed"][field] == conclusions["adaptive"][field]
+        for field in fields
+    )
+    claim_type = prereg["conclusion_contract"]["claim_type"]
+    if claim_type == "universal_refutation":
+        agrees = claim_fidelity["universal_refutation"]["agrees"]
+    elif claim_type == "first_observed_failure":
+        agrees = claim_fidelity["first_observed_failure"][
+            "failure_existence_agrees"
+        ]
+    elif claim_type == "first_observed_failure_with_paired_axis":
+        agrees = (
+            claim_fidelity["first_observed_failure"][
+                "failure_existence_agrees"
+            ]
+            and conclusions["fixed"]["weakness_axes"]
+            == conclusions["adaptive"]["weakness_axes"]
+        )
+    else:  # pragma: no cover - rebuilt preregistrations freeze known modes.
+        raise LivePaperProtocolError(
+            f"unsupported efficiency conclusion claim type: {claim_type}"
+        )
     act_saving = len(fixed["attempts"]) - len(adaptive["attempts"])
     wall_saving = fixed["wall_seconds"] - adaptive["wall_seconds"]
     policy_step_saving = fixed["policy_steps"] - adaptive["policy_steps"]
@@ -1338,6 +1528,7 @@ def evaluate_click_bell_efficiency(
             "toy_5to7act",
             "position_universal_3to4act",
             "four_candidate_universal_5to8act",
+            "four_candidate_universal_5to6act",
         }
         and technical_errors == 0
         and agrees
@@ -1356,7 +1547,10 @@ def evaluate_click_bell_efficiency(
         "claim_scope": prereg["claim_scope"],
         "arms": {"fixed": fixed, "adaptive": adaptive},
         "conclusions": conclusions,
+        "claim_fidelity": claim_fidelity,
+        "original_query_claim_type": claim_type,
         "conclusion_comparison_fields": fields,
+        "conclusion_fields_agree": conclusion_fields_agree,
         "original_query_conclusion_agrees": agrees,
         "resource_measurement": {
             "fixed_act_episode_starts": len(fixed["attempts"]),
@@ -1377,13 +1571,14 @@ def evaluate_click_bell_efficiency(
             "The five-to-seven-ACT mode is one task, one checkpoint, and one seed.",
             "The three-to-four-ACT universal mode covers only two frozen positions.",
             "The five-to-eight-ACT universal mode covers four frozen candidates on one task and seed.",
+            "The five-to-six-ACT universal mode may preserve refutation while leaving the full failure set unobserved.",
             "Policy steps are the shared simulator-sample proxy for this toy.",
             "This protocol does not reproduce the paper trial or agent-run counts.",
         ],
     }
 
 
-def _ranking_command_binding(
+def _ranking_policy_command(
     *,
     study_id: str,
     policy_id: str,
@@ -1393,11 +1588,14 @@ def _ranking_command_binding(
 ) -> dict[str, Any]:
     command_root = f"{artifact_root_ref}/commands/{policy_id}/seed_{seed}"
     live_root = f"{artifact_root_ref}/live_runs/{policy_id}/seed_{seed}"
+    shared_root = f"{artifact_root_ref}/shared_eligibility/seed_{seed}"
     seed_manifest = _seed_manifest(task_name="beat_block_hammer", seed=seed)
-    seed_manifest_ref = f"{command_root}/seed_manifest.json"
+    seed_manifest_ref = f"{shared_root}/seed_manifest.json"
+    shared_eligibility_ref = f"{shared_root}/eligibility.json"
     common_outputs = {
         "seed_manifest_ref": seed_manifest_ref,
         "seed_manifest_sha256": _bytes_sha256(_json_bytes(seed_manifest)),
+        "shared_eligibility_ref": shared_eligibility_ref,
         "expected_seed_results_ref": f"{live_root}/seed_results.json",
         "expected_telemetry_episode_ref": (
             f"{live_root}/telemetry/episode_000_seed_{seed}/episode.json"
@@ -1424,6 +1622,8 @@ def _ranking_command_binding(
             seed_manifest_ref,
             common_outputs["expected_seed_results_ref"],
             common_outputs["expected_output_dir"],
+            "",
+            shared_eligibility_ref,
         ]
         entrypoint = "policy/ACT/eval_mea.sh"
     elif policy_id == "dp3":
@@ -1466,11 +1666,13 @@ def _ranking_command_binding(
             common_outputs["expected_seed_results_ref"],
             "--output_dir",
             common_outputs["expected_output_dir"],
+            "--shared_eligibility_manifest",
+            shared_eligibility_ref,
         ]
         entrypoint = "script/eval_policy.py"
     else:  # pragma: no cover - only the frozen policies call this helper.
         raise LivePaperProtocolError(f"unsupported ranking policy: {policy_id}")
-    command = {
+    return {
         "schema_version": 1,
         "kind": "exact_seed_policy_n1_command_v1",
         "study_id": study_id,
@@ -1486,12 +1688,111 @@ def _ranking_command_binding(
         "argv": argv,
         **common_outputs,
     }
+
+
+def _ranking_command_binding(
+    *,
+    study_id: str,
+    policy_id: str,
+    seed: int,
+    checkpoint: Mapping[str, Any],
+    artifact_root_ref: str,
+) -> dict[str, Any]:
+    command = _ranking_policy_command(
+        study_id=study_id,
+        policy_id=policy_id,
+        seed=seed,
+        checkpoint=checkpoint,
+        artifact_root_ref=artifact_root_ref,
+    )
+    command_root = f"{artifact_root_ref}/commands/{policy_id}/seed_{seed}"
     return {
         "policy_id": policy_id,
         "seed": seed,
         "command_ref": f"{command_root}/command.json",
         "command_sha256": _bytes_sha256(_json_bytes(command)),
-        **common_outputs,
+        "seed_manifest_ref": command["seed_manifest_ref"],
+        "seed_manifest_sha256": command["seed_manifest_sha256"],
+        "shared_eligibility_ref": command["shared_eligibility_ref"],
+        "expected_seed_results_ref": command["expected_seed_results_ref"],
+        "expected_telemetry_episode_ref": command[
+            "expected_telemetry_episode_ref"
+        ],
+        "expected_output_dir": command["expected_output_dir"],
+    }
+
+
+def _ranking_eligibility_command(
+    *,
+    study_id: str,
+    seed: int,
+    artifact_root_ref: str,
+) -> dict[str, Any]:
+    shared_root = f"{artifact_root_ref}/shared_eligibility/seed_{seed}"
+    seed_manifest = _seed_manifest(task_name="beat_block_hammer", seed=seed)
+    seed_manifest_ref = f"{shared_root}/seed_manifest.json"
+    eligibility_ref = f"{shared_root}/eligibility.json"
+    return {
+        "schema_version": 1,
+        "kind": "shared_expert_eligibility_command_v1",
+        "study_id": study_id,
+        "seed": seed,
+        "entrypoint": "script/eval_policy.py",
+        "python_environment": ROBOTWIN_PYTHON,
+        "cwd": ".",
+        "environment": {},
+        "argv": [
+            ROBOTWIN_PYTHON,
+            "script/eval_policy.py",
+            "--config",
+            "policy/ACT/deploy_policy.yml",
+            "--overrides",
+            "--task_name",
+            "beat_block_hammer",
+            "--task_module",
+            "envs.beat_block_hammer",
+            "--task_config",
+            "demo_clean",
+            "--ckpt_setting",
+            "demo_clean",
+            "--seed",
+            "0",
+            "--policy_name",
+            "ACT",
+            "--num_episodes",
+            "1",
+            "--seed_manifest",
+            seed_manifest_ref,
+            "--shared_eligibility_output",
+            eligibility_ref,
+            "--output_dir",
+            f"{shared_root}/probe_output",
+        ],
+        "seed_manifest_ref": seed_manifest_ref,
+        "seed_manifest_sha256": _bytes_sha256(_json_bytes(seed_manifest)),
+        "expected_eligibility_ref": eligibility_ref,
+    }
+
+
+def _ranking_eligibility_binding(
+    *,
+    study_id: str,
+    seed: int,
+    artifact_root_ref: str,
+) -> dict[str, Any]:
+    shared_root = f"{artifact_root_ref}/shared_eligibility/seed_{seed}"
+    command = _ranking_eligibility_command(
+        study_id=study_id,
+        seed=seed,
+        artifact_root_ref=artifact_root_ref,
+    )
+    return {
+        "seed": seed,
+        "command_ref": f"{shared_root}/expert_command.json",
+        "command_sha256": _bytes_sha256(_json_bytes(command)),
+        "seed_manifest_ref": command["seed_manifest_ref"],
+        "seed_manifest_sha256": command["seed_manifest_sha256"],
+        "expected_eligibility_ref": command["expected_eligibility_ref"],
     }
 
 
@@ -1508,8 +1809,14 @@ def build_ranking_preregistration(
 ) -> dict[str, Any]:
     _utc(created_at_utc, field="created_at_utc")
     normalized_seeds = [_integer(seed, field="seeds[]") for seed in seeds]
-    if len(normalized_seeds) != 3 or len(set(normalized_seeds)) != 3:
-        raise LivePaperProtocolError("ranking pilot requires exactly three unique seeds")
+    seed_count = len(normalized_seeds)
+    if (
+        seed_count not in {3, 5}
+        or len(set(normalized_seeds)) != seed_count
+    ):
+        raise LivePaperProtocolError(
+            "ranking pilot requires exactly three or five unique seeds"
+        )
     if set(reference_scores) != {"act", "dp3"}:
         raise LivePaperProtocolError("reference_scores must contain exactly act and dp3")
     resolved_study_id = _identifier(study_id, field="study_id")
@@ -1543,6 +1850,14 @@ def build_ranking_preregistration(
         ]
         for policy_id in ("act", "dp3")
     }
+    eligibility_schedule = [
+        _ranking_eligibility_binding(
+            study_id=resolved_study_id,
+            seed=seed,
+            artifact_root_ref=resolved_artifact_root,
+        )
+        for seed in normalized_seeds
+    ]
     body = {
         "schema_version": 1,
         "protocol": RANKING_PROTOCOL,
@@ -1562,13 +1877,17 @@ def build_ranking_preregistration(
             "dp3": "script/eval_policy.py",
         },
         "execution_schedule": commands,
+        "eligibility_schedule": eligibility_schedule,
         "rollout_contract": {
-            "exact_trials_per_policy": 3,
-            "exact_total_policy_rollouts": 6,
+            "exact_shared_expert_probes": seed_count,
+            "exact_trials_per_policy": seed_count,
+            "exact_total_policy_rollouts": 2 * seed_count,
             "evidence_source": "live_policy_rollout",
             "tie_rule": "spearman_null_and_inconclusive",
         },
-        "claim_scope": "two_policy_three_seed_pair_order_pilot_not_table9",
+        "claim_scope": (
+            f"two_policy_{seed_count}_seed_pair_order_pilot_not_table9"
+        ),
         "calls_started_by_preregistration": {
             "provider": 0,
             "simulator": 0,
@@ -1627,6 +1946,21 @@ def validate_ranking_preregistration(
                     raise LivePaperProtocolError("ranking seed manifest hash mismatch")
                 if _file_sha256(command_path) != binding["command_sha256"]:
                     raise LivePaperProtocolError("ranking command hash mismatch")
+        for binding in row["eligibility_schedule"]:
+            seed_path = _bound_path(
+                root, binding["seed_manifest_ref"], field="seed_manifest_ref"
+            )
+            command_path = _bound_path(
+                root, binding["command_ref"], field="command_ref"
+            )
+            if _file_sha256(seed_path) != binding["seed_manifest_sha256"]:
+                raise LivePaperProtocolError(
+                    "ranking shared seed manifest hash mismatch"
+                )
+            if _file_sha256(command_path) != binding["command_sha256"]:
+                raise LivePaperProtocolError(
+                    "ranking expert command hash mismatch"
+                )
     return row
 
 
@@ -1635,16 +1969,35 @@ def materialize_ranking_preregistration(
 ) -> dict[str, Any]:
     root = Path(repo_root).expanduser().resolve()
     prereg = validate_ranking_preregistration(preregistration)
+    for binding in prereg["eligibility_schedule"]:
+        seed = binding["seed"]
+        _write_bound_file(
+            root,
+            binding["seed_manifest_ref"],
+            _json_bytes(
+                _seed_manifest(task_name="beat_block_hammer", seed=seed)
+            ),
+        )
+        rebuilt = _ranking_eligibility_binding(
+            study_id=prereg["study_id"],
+            seed=seed,
+            artifact_root_ref=prereg["artifact_root_ref"],
+        )
+        command = _ranking_eligibility_command(
+            study_id=prereg["study_id"],
+            seed=seed,
+            artifact_root_ref=prereg["artifact_root_ref"],
+        )
+        if rebuilt["command_sha256"] != binding["command_sha256"]:
+            raise LivePaperProtocolError(
+                "internal ranking expert command mismatch"
+            )
+        _write_bound_file(
+            root, binding["command_ref"], _json_bytes(command)
+        )
     for policy_id, rows in prereg["execution_schedule"].items():
         for binding in rows:
             seed = binding["seed"]
-            _write_bound_file(
-                root,
-                binding["seed_manifest_ref"],
-                _json_bytes(
-                    _seed_manifest(task_name="beat_block_hammer", seed=seed)
-                ),
-            )
             rebuilt = _ranking_command_binding(
                 study_id=prereg["study_id"],
                 policy_id=policy_id,
@@ -1652,97 +2005,13 @@ def materialize_ranking_preregistration(
                 checkpoint=prereg["policies"][policy_id],
                 artifact_root_ref=prereg["artifact_root_ref"],
             )
-            live_root = (
-                f"{prereg['artifact_root_ref']}/live_runs/{policy_id}/seed_{seed}"
+            command = _ranking_policy_command(
+                study_id=prereg["study_id"],
+                policy_id=policy_id,
+                seed=seed,
+                checkpoint=prereg["policies"][policy_id],
+                artifact_root_ref=prereg["artifact_root_ref"],
             )
-            if policy_id == "act":
-                environment = {"PYTHON_BIN": ROBOTWIN_PYTHON}
-                argv = [
-                    "bash",
-                    "policy/ACT/eval_mea.sh",
-                    "beat_block_hammer",
-                    "demo_clean",
-                    "demo_clean",
-                    "50",
-                    "0",
-                    "0",
-                    "1",
-                    "envs.beat_block_hammer",
-                    "",
-                    "",
-                    f"{live_root}/telemetry",
-                    "balanced_v1",
-                    binding["seed_manifest_ref"],
-                    binding["expected_seed_results_ref"],
-                    binding["expected_output_dir"],
-                ]
-                entrypoint = "policy/ACT/eval_mea.sh"
-            else:
-                environment = {"CUDA_VISIBLE_DEVICES": "0"}
-                argv = [
-                    DP3_PYTHON,
-                    "script/eval_policy.py",
-                    "--config",
-                    "policy/DP3/deploy_policy.yml",
-                    "--overrides",
-                    "--task_name",
-                    "beat_block_hammer",
-                    "--task_module",
-                    "envs.beat_block_hammer",
-                    "--task_config",
-                    "demo_clean",
-                    "--ckpt_setting",
-                    "demo_clean",
-                    "--expert_data_num",
-                    "50",
-                    "--seed",
-                    "0",
-                    "--policy_name",
-                    "DP3",
-                    "--config_name",
-                    "robot_dp3",
-                    "--checkpoint_num",
-                    "3000",
-                    "--use_rgb",
-                    "False",
-                    "--num_episodes",
-                    "1",
-                    "--seed_manifest",
-                    binding["seed_manifest_ref"],
-                    "--telemetry_dir",
-                    f"{live_root}/telemetry",
-                    "--telemetry_profile",
-                    "balanced_v1",
-                    "--seed_results_path",
-                    binding["expected_seed_results_ref"],
-                    "--output_dir",
-                    binding["expected_output_dir"],
-                ]
-                entrypoint = "script/eval_policy.py"
-            command = {
-                "schema_version": 1,
-                "kind": "exact_seed_policy_n1_command_v1",
-                "study_id": prereg["study_id"],
-                "policy_id": policy_id,
-                "seed": seed,
-                "checkpoint": prereg["policies"][policy_id],
-                "entrypoint": entrypoint,
-                "python_environment": (
-                    ROBOTWIN_PYTHON if policy_id == "act" else DP3_PYTHON
-                ),
-                "cwd": ".",
-                "environment": environment,
-                "argv": argv,
-                "seed_manifest_ref": binding["seed_manifest_ref"],
-                "seed_manifest_sha256": binding["seed_manifest_sha256"],
-                "expected_seed_results_ref": binding[
-                    "expected_seed_results_ref"
-                ],
-                "expected_telemetry_episode_ref": binding[
-                    "expected_telemetry_episode_ref"
-                ],
-                "expected_output_dir": binding["expected_output_dir"],
-            }
             if rebuilt["command_sha256"] != binding["command_sha256"]:
                 raise LivePaperProtocolError("internal ranking command mismatch")
             _write_bound_file(root, binding["command_ref"], _json_bytes(command))
@@ -1934,9 +2203,16 @@ def evaluate_exact_seed_ranking(
         if run_id in run_ids:
             raise LivePaperProtocolError("policy run ids must be independent")
         run_ids.add(run_id)
-        trials = _items(policy.get("trials"), field=f"{policy_id}.trials", minimum=3)
-        if len(trials) != 3:
-            raise LivePaperProtocolError("each policy requires exactly three trials")
+        expected_trial_count = len(prereg["seeds"])
+        trials = _items(
+            policy.get("trials"),
+            field=f"{policy_id}.trials",
+            minimum=expected_trial_count,
+        )
+        if len(trials) != expected_trial_count:
+            raise LivePaperProtocolError(
+                "each policy must cover the exact preregistered seed count"
+            )
         seen_seeds: set[int] = set()
         converted_trials: list[dict[str, Any]] = []
         for index, raw_trial in enumerate(trials):
@@ -1964,7 +2240,9 @@ def evaluate_exact_seed_ranking(
             if trial.get("evidence_source") != "live_policy_rollout":
                 raise LivePaperProtocolError("ranking trials must be live, never cached")
             if trial.get("status") != "completed" or trial.get("error") is not None:
-                raise LivePaperProtocolError("ranking requires six completed trials")
+                raise LivePaperProtocolError(
+                    "ranking requires every preregistered trial to complete"
+                )
             trial_id = _identifier(trial.get("trial_id"), field="trial.trial_id")
             if trial_id in trial_ids:
                 raise LivePaperProtocolError("ranking trial ids must be unique")
@@ -2081,12 +2359,13 @@ def evaluate_exact_seed_ranking(
         {
             "preregistration_sha256": prereg["preregistration_sha256"],
             "exact_seed_pair": True,
-            "exact_trials_per_policy": 3,
-            "exact_total_policy_rollouts": 6,
+            "exact_trials_per_policy": len(prereg["seeds"]),
+            "exact_total_policy_rollouts": 2 * len(prereg["seeds"]),
             "measured_trial_wall_seconds_total": total_wall,
             "paper_table9_eligible": False,
             "scope_limitation": (
-                "Two policies, one task, and three seeds; a tie leaves Spearman null."
+                "Two policies, one task, and "
+                f"{len(prereg['seeds'])} seeds; a tie leaves Spearman null."
             ),
         }
     )

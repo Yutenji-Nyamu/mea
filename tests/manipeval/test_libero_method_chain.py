@@ -7,14 +7,27 @@ import tempfile
 import unittest
 
 from mea.libero.benchmark import (
+    BATCH23_PARITY_ACTION_STEPS,
+    BATCH23_PARITY_HORIZON_STEPS,
+    BATCH23_PARITY_OBSERVATION_SIZE,
     EpisodeRecord,
     LiberoBenchmarkAdapter,
     LiberoContractError,
+    TaskContract,
     build_official_task_contract,
 )
-from mea.libero.chain import parse_bound_libero_task
+from mea.libero.chain import (
+    _method_chain_is_valid,
+    _planner_taskgen_misaligned_result,
+    parse_bound_libero_task,
+)
+from mea.libero.policy import LeRobotPolicyAdapter
 from mea.libero.retrieval import (
+    BDDLRetrieval,
+    BDDLTaskRecord,
     BDDLTaskIndex,
+    ControlledChangeContract,
+    PolicyTaskCompatibility,
     authorize_controlled_change,
     smolvla_policy_compatibility,
 )
@@ -102,8 +115,8 @@ def test_taskgen_state_compatible_and_tool_exact_reuse(tmp_path: Path) -> None:
         suite="libero_object",
         task_id="libero_object/task0/mea_custom",
         seed=100800,
-        horizon_steps=100,
-        executed_steps=100,
+        horizon_steps=BATCH23_PARITY_HORIZON_STEPS,
+        executed_steps=BATCH23_PARITY_HORIZON_STEPS,
         success=False,
         reward_sum=0.0,
         goal_predicate_satisfied=False,
@@ -140,17 +153,273 @@ def test_taskgen_state_compatible_and_tool_exact_reuse(tmp_path: Path) -> None:
 
 
 def test_custom_factory_is_not_stock_task_id() -> None:
-    adapter = LiberoBenchmarkAdapter(episode_length=100)
+    adapter = LiberoBenchmarkAdapter(
+        episode_length=BATCH23_PARITY_HORIZON_STEPS,
+        observation_size=BATCH23_PARITY_OBSERVATION_SIZE,
+    )
     official = adapter.make_official_env()
     official_path = official._task_bddl_file
     official.close()
     assert "libero_object" in official_path
 
 
+def test_batch23_parity_protocol_defaults_are_shared() -> None:
+    adapter = LiberoBenchmarkAdapter()
+    policy = LeRobotPolicyAdapter(checkpoint="/checkpoint")
+    assert adapter.episode_length == BATCH23_PARITY_HORIZON_STEPS == 280
+    assert adapter.observation_size == BATCH23_PARITY_OBSERVATION_SIZE == 360
+    assert policy.horizon_steps == BATCH23_PARITY_HORIZON_STEPS
+    assert policy.observation_size == BATCH23_PARITY_OBSERVATION_SIZE
+    assert policy.n_action_steps == BATCH23_PARITY_ACTION_STEPS == 10
+
+
+def test_method_chain_valid_is_mechanism_not_custom_outcome() -> None:
+    complete = dict(
+        official_success=True,
+        rollouts_executed=2,
+        planner_taskgen_alignment=True,
+        compatibility_probe_passed=True,
+        aggregate_status="passed",
+        exact_reuse=True,
+        final_planner_bundle_present=True,
+        episode_protocol_matches=True,
+    )
+    assert _method_chain_is_valid(**complete) is True
+    for key in complete:
+        broken = dict(complete)
+        broken[key] = (
+            1
+            if key == "rollouts_executed"
+            else "failed"
+            if key == "aggregate_status"
+            else False
+        )
+        assert _method_chain_is_valid(**broken) is False
+
+
+def test_planner_taskgen_misalignment_is_structured_and_rollout_bounded(
+    tmp_path: Path,
+) -> None:
+    task = BDDLTaskRecord(
+        suite="libero_object",
+        task_id=0,
+        problem_name="fixture_problem",
+        language="pick object",
+        bddl_path="/fixture/task0.bddl",
+        init_state_path="/fixture/task0.pruned_init",
+        objects=("object_1", "basket_1"),
+        goal_predicates=(("in", "object_1", "basket_1_contain_region"),),
+    )
+    retrieval = BDDLRetrieval(
+        query_concern="language robustness",
+        selected=task,
+        score=1.0,
+        authorized_candidate_count=1,
+        not_authorized_candidate_count=0,
+        selection_authorization="explicit_run_binding_only",
+    )
+    compatibility = PolicyTaskCompatibility(
+        policy_name="SmolVLA",
+        checkpoint="/checkpoint",
+        declared_scope="unknown",
+        authorized_task_ids={"libero_object": (0,)},
+        authorization_source="explicit_run_binding",
+        artifact_evidence={"fixture": True},
+    )
+    contract = ControlledChangeContract(
+        source_suite="libero_object",
+        source_task_id=0,
+        source_problem_name="fixture_problem",
+        query_concern="language robustness",
+        requested_change_roots=("language",),
+        allowed_change_roots=("language", "obj_of_interest", "goal"),
+        preserved_roots=("initial_state",),
+        status="unsupported",
+        reason="language-only is outside the Phase-1 TaskGen axis",
+    )
+    result = _planner_taskgen_misaligned_result(
+        request="test language only",
+        root=tmp_path,
+        official_success=True,
+        retrieval=retrieval,
+        compatibility=compatibility,
+        change_contract=contract,
+    )
+    assert result["status"] == "planner_taskgen_misaligned"
+    assert result["rollouts_executed"] == 1
+    assert result["custom_rollout_authorized"] is False
+    assert result["method_chain_valid"] is False
+    assert result["paper_performance_evidence"] is False
+    assert result["scientific_evidence_eligible"] is False
+
+
+def test_official_control_failure_short_circuits_custom_rollout(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    import mea.libero.chain as chain_module
+
+    task = BDDLTaskRecord(
+        suite="libero_object",
+        task_id=0,
+        problem_name="fixture_problem",
+        language="pick object",
+        bddl_path="/fixture/task0.bddl",
+        init_state_path="/fixture/task0.pruned_init",
+    )
+    retrieval = BDDLRetrieval(
+        query_concern="object identity",
+        selected=task,
+        score=1.0,
+        authorized_candidate_count=1,
+        not_authorized_candidate_count=0,
+        selection_authorization="explicit_run_binding_only",
+    )
+    compatibility = PolicyTaskCompatibility(
+        policy_name="SmolVLA",
+        checkpoint="/checkpoint",
+        declared_scope="unknown",
+        authorized_task_ids={"libero_object": (0,)},
+        authorization_source="explicit_run_binding",
+        artifact_evidence={"fixture": True},
+    )
+    pending = ControlledChangeContract(
+        source_suite="libero_object",
+        source_task_id=0,
+        source_problem_name="fixture_problem",
+        query_concern="object identity",
+        requested_change_roots=(),
+        allowed_change_roots=("language", "obj_of_interest", "goal"),
+        preserved_roots=("initial_state",),
+        status="pending",
+        reason="awaiting Planner",
+    )
+    official = TaskContract(
+        schema_version=1,
+        benchmark="libero",
+        suite="libero_object",
+        official_task_id=0,
+        bddl_path="/fixture/task0.bddl",
+        bddl_sha256="fixture",
+        problem_name="fixture_problem",
+        domain="robosuite",
+        language="pick object",
+        objects={"object": ["object_1"]},
+        regions=["basket_1_contain_region"],
+        initial_state_sha256="fixture",
+        goal_predicates=[["in", "object_1", "basket_1_contain_region"]],
+        python_problem_impl="fixture.Problem",
+        initial_state_source="/fixture/task0.pruned_init",
+    )
+
+    class FakeBenchmark:
+        def __init__(self, **_kwargs):
+            pass
+
+        def make_official_env(self):
+            raise AssertionError("fake policy must not construct the simulator")
+
+    class FakePolicy:
+        run_count = 0
+
+        def __init__(self, **_kwargs):
+            pass
+
+        def load(self):
+            return {"status": "passed"}
+
+        def run(self, **kwargs):
+            type(self).run_count += 1
+            return EpisodeRecord(
+                schema_version=1,
+                benchmark="libero",
+                policy_name="smolvla",
+                checkpoint="/checkpoint",
+                suite="libero_object",
+                task_id=kwargs["task_id"],
+                seed=kwargs["seed"],
+                horizon_steps=BATCH23_PARITY_HORIZON_STEPS,
+                executed_steps=BATCH23_PARITY_HORIZON_STEPS,
+                success=False,
+                reward_sum=0.0,
+                goal_predicate_satisfied=False,
+                elapsed_seconds=1.0,
+                bddl_path=kwargs["bddl_path"],
+                video_path=None,
+                task_contract_path=str(kwargs["task_contract_path"]),
+                actions_path="/fixture/actions.npy",
+            )
+
+        def unload(self):
+            pass
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("Planner/TaskGen must not run after control failure")
+
+    monkeypatch.setenv("UIUI_API_KEY", "fixture")
+    monkeypatch.setattr(
+        chain_module,
+        "build_official_task_contract",
+        lambda **_kwargs: official,
+    )
+    monkeypatch.setattr(
+        chain_module,
+        "_open_query_retrieval",
+        lambda **_kwargs: (compatibility, retrieval, pending),
+    )
+    monkeypatch.setattr(
+        chain_module,
+        "_gate0",
+        lambda **_kwargs: {"schema_version": 1, "status": "passed"},
+    )
+    monkeypatch.setattr(chain_module, "OpenAICompatibleProvider", lambda **_kwargs: object())
+    monkeypatch.setattr(chain_module, "LiberoBenchmarkAdapter", FakeBenchmark)
+    monkeypatch.setattr(chain_module, "LeRobotPolicyAdapter", FakePolicy)
+    monkeypatch.setattr(chain_module, "ClaimFirstOpenQueryAgent", forbidden)
+    monkeypatch.setattr(chain_module, "LiberoTaskGenBackend", forbidden)
+
+    result = chain_module.run_libero_method_chain(
+        repo_root=tmp_path,
+        request="object identity robustness",
+        evaluation_id="control_fail",
+        bound_suite="libero_object",
+        bound_task_id=0,
+    )
+    assert FakePolicy.run_count == 1
+    assert result["status"] == "control_failed"
+    assert result["custom_rollout_authorized"] is False
+    assert result["method_chain_valid"] is False
+    assert result["paper_performance_evidence"] is False
+
+
 def test_unknown_checkpoint_scope_requires_explicit_suite_task_binding() -> None:
     assert parse_bound_libero_task("libero_object/task0") == ("libero_object", 0)
     with unittest.TestCase().assertRaisesRegex(ValueError, "scope is unknown"):
         parse_bound_libero_task(None)
+
+
+def test_preserve_only_goal_text_is_not_a_change_authorization() -> None:
+    official = build_official_task_contract()
+    index = BDDLTaskIndex.from_contracts([official])
+    compatibility = smolvla_policy_compatibility(
+        checkpoint="/checkpoint",
+        explicit_task_binding=index.tasks[0],
+    )
+    retrieval = index.retrieve_nearest(
+        "object identity robustness",
+        compatibility=compatibility,
+    )
+    contract = authorize_controlled_change(
+        retrieval,
+        {
+            "proposal": {
+                "requested_perturbation": {
+                    "controlled_changes": ["preserve goal object identity"]
+                }
+            }
+        },
+    )
+    assert contract.status == "unsupported"
 
 
 def test_taskgen_rejects_planner_language_only_request(tmp_path: Path) -> None:

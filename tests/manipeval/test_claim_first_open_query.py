@@ -205,6 +205,53 @@ class ClaimFirstOpenQueryTest(unittest.TestCase):
             "scene_overlay",
         )
 
+    def test_runtime_projection_filters_to_query_bound_operation(self):
+        context = {
+            "policy_card": {"policy_name": "ACT", "task_name": "click_bell"},
+            "simulator_card": {
+                "simulator_name": "RoboTwin",
+                "task_name": "click_bell",
+                "available_aspect_ids": ["object_position", "robustness.distractor_avoidance"],
+            },
+            "adapter_view": {
+                "templates": [
+                    {
+                        "template_id": "object_position.left_fixed",
+                        "aspect_id": "object_position",
+                        "taskgen_operation": "scene_overlay",
+                        "controlled_axis": "position",
+                        "generation_mode": "bounded_overlay",
+                        "allowed_change_roots": ["scene"],
+                    },
+                    {
+                        "template_id": "robustness.distractor_avoidance.lookalike_bell",
+                        "aspect_id": "robustness.distractor_avoidance",
+                        "taskgen_operation": "provider_scene_checker_codegen",
+                        "controlled_axis": "robustness.distractor_avoidance",
+                        "generation_mode": "provider_scene_checker_codegen",
+                        "allowed_change_roots": ["distractor"],
+                    },
+                ]
+            },
+        }
+        projected = project_open_query_capabilities(
+            context,
+            allowed_aspect_ids=["robustness.distractor_avoidance"],
+        )
+
+        self.assertEqual(
+            projected["generation_card"]["taskgen_operations"],
+            [
+                {
+                    "operation": "provider_scene_checker_codegen",
+                    "controlled_axis": "robustness.distractor_avoidance",
+                    "generation_mode": "provider_scene_checker_codegen",
+                    "allowed_change_roots": ["distractor"],
+                }
+            ],
+        )
+        self.assertNotIn("aspect_id", json.dumps(projected))
+
     def test_success_failure_and_ambiguous_evidence_choose_different_next_tests(self):
         query = (
             "How does this ACT policy generalize across manipulated-object "

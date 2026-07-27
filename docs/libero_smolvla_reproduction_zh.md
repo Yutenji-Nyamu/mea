@@ -26,6 +26,7 @@ ManipEvalAgent（MEA）迁移到 LIBERO 的最小接口和协议。它不把 LIB
 - [100-step method-chain compact 结果](../experiments/paper/results/batch24_libero_method_chain_v2/compact_result.json)
 - [Planner–TaskGen 协议审计](../experiments/paper/results/batch24_libero_method_chain_v2/evidence/protocol_audit.json)
 - [batch24 四项结果索引](../experiments/paper/results/batch24_claim_closure/summary.json)
+- [batch26 严格 control 结果](../experiments/paper/results/batch26_claim_closure/libero_compact_result.json)
 
 ## 1. 已核实环境与产物
 
@@ -391,10 +392,12 @@ validation、register/reuse 与 Aggregate 继续走现有公共实现。VQA 只�
 ## 6. 最小 2-rollout 协议
 
 目标是验证 MEA 方法链能跨到 LIBERO，不验证效率、policy ranking 或跨模拟器一致性。
-论文协议默认每个生成 task 运行 5 trials，并让 LIBERO 与 RoboTwin 使用对齐的
-100-step horizon。本节为了最低成本只运行 official control N=1 与 generated
-variation N=1；实现必须在 adapter 中显式记录并限制每个 episode 为 100 steps。
-未实施该 horizon 或未记录实际 steps 时，结果只能叫 environment smoke。
+论文的对齐实验使用更严格的 trial/horizon 协议。本项目当前先复用已验证的
+LeRobot/SmolVLA adapter parity 设置：单 episode 最多 280 steps、observation delta
+360、action chunk 10、relative control。最低成本协议只允许 official control N=1
+与 generated variation N=1；因此即使两轮都合法完成，也只能叫
+`LIBERO basic-adaptation method-chain smoke`，并固定
+`paper_performance_evidence=false`。
 
 ### Gate 0：0 policy rollout
 
@@ -415,7 +418,7 @@ variation N=1；实现必须在 adapter 中显式记录并限制每个 episode �
 ### Rollout 1：official control
 
 - 冻结开放 Query、`QueryContract`、SmolVLA checkpoint、official task、seed、init index、
-  relative control、100-step horizon 和 rollout budget，再执行 official task 1 episode。
+  relative control、280-step 上限和 rollout budget，再执行 official task 1 episode。
 - `LiberoBenchmarkAdapter` 与 `LeRobotPolicyAdapter` 扩展现有 recorder，写入标准
   `episode.json` / `EpisodeRecord`，并投影到既有 telemetry root、video 与 keyframes。
 - Rule/VQA/Aggregate 消费同一 episode。
@@ -440,34 +443,32 @@ variation N=1；实现必须在 adapter 中显式记录并限制每个 episode �
   `OffScreenRenderEnv`/custom env factory；同一 `LeRobotPolicyAdapter` 复用 LeRobot
   policy processor/rollout。
 - 同一 checkpoint、seed 策略、通过 compatibility probe 的 initial-state source、
-  control mode 和 100-step budget 执行 state-compatible variation。
+  control mode 和 280-step 上限执行 state-compatible variation。
 - 至少一个 Query-induced detector/metric 得到非空 live 值，影响 Aggregate/Planner；
   第二次相同需要可在 0 additional SmolVLA rollout replay 中 exact reuse。
 - variation 成功或失败都可接受，但 simulator 必须合法完成，official 与 experimental
   semantics 必须分别报告。
 
-### 本批执行结果：机制通过，协议 fail-closed
+### batch26 执行结果：control 失败后严格短路
 
-batch24 v2 真实执行了同一 seed 的 official control 与 custom variation，各 100 steps，
-总计 2 episodes。Gate 0、provider-written BDDL、显式 `OffScreenRenderEnv` custom
-factory、确定性 predicate MetricSpec adapter 的非空 live 值及 0-rollout exact reuse
-均跑通；没有把 custom 文件伪装成 stock task id。该 adapter 来自有界 schema 编译，
-不是模型现场生成的新 Tool。
+`eval_20260727_batch26_libero_parity_live_v1` 绑定
+`libero_object/task0`、SmolVLA checkpoint 和 seed `100800`。Gate 0 与 policy load
+通过，official episode 按 280/360/action10/relative 协议合法写出 video、actions 与
+`episode.json`，但 official success 为 false。系统因此在第 1 个 rollout 后返回：
 
-但它不能支持 policy 结论，原因有两层：
+```text
+status=control_failed
+rollouts_executed=1 / rollout_budget=2
+stop_reason=official_control_failed
+custom_rollout_authorized=false
+method_chain_valid=false
+paper_performance_evidence=false
+```
 
-1. 未改变任务的 100-step official control 已失败，因此 custom failure 不能归因于
-   object identity。
-2. ClaimFirst Proposal 明确要求 language-only、semantics-preserving 变化，TaskGen
-   却把 goal object 改成 `salad_dressing_1`。`planner_taskgen_alignment=false`。
-
-因此 compact result 为 `completed_with_protocol_violation`，protocol audit 为
-`protocol_invalid`，AnswerScope 以 `pipeline_invalid` 停止；
-`query_contract_sufficient=false`、`scientific_evidence_eligible=false`。这两回合只能
-保留为 component mechanism smoke；Query contract sufficiency 与 scientific evidence
-eligibility 是两个独立字段。该历史运行早于 alignment gate；
-当前 runtime 已在 TaskGen provider 和 custom rollout 之前拒绝未授权 controlled
-change，不再为同类错配消耗第二回合。
+没有调用 TaskGen provider、没有生成 custom BDDL，也没有执行第二 rollout。这是
+fail-closed 协议的真实正证据，同时是 LIBERO 方法链的负结果。batch24 历史运行曾让
+official/custom 各跑 100 steps，但 control 失败且 Planner–TaskGen 变更不对齐；当前
+alignment gate 已把这类第二回合提前阻断。
 
 ### 验收条件
 
@@ -480,7 +481,7 @@ change，不再为同类错配消耗第二回合。
   custom 文件名误传给只支持 official suite 的 stock `--task_ids`。
 - Rule/VQA/Aggregate/Planner/AnswerScope 消费同一证据并回应原 Query；证据不足、冲突或
   control 失败时，`answered=false` / `inconclusive` 是合法且优先于强行作答的结果。
-- Answer 强制列出每个 condition N=1、总计 2 episodes、100-step limit 与实际 steps、
+- Answer 强制列出每个 condition N=1、最多 2 episodes、280-step 上限与实际 steps、
   单 policy、单 seed、未覆盖 suite/task/属性和停止原因。
 - 结论名称只能是 `LIBERO method-chain smoke`；不得写成 Tables 1/2/4/5/9 复现、
   sample saving、policy ranking 或 RoboTwin↔LIBERO 一致性。
@@ -496,7 +497,9 @@ change，不再为同类错配消耗第二回合。
 - 当前 1/1 SmolVLA success 只证明 official evaluator、LIBERO environment 与
   SmolVLA inference/eval 路径能端到端运行，不证明 MEA adapter。它不能与 RoboTwin
   ACT/DP3 数值直接比较，也不能支持效率、排名或泛化结论。
-- batch24 的 2×100-step method-chain 进一步证明 BDDL/custom env/确定性 predicate
+- batch24 的 2×100-step method-chain 只证明 BDDL/custom env/确定性 predicate
   MetricSpec adapter/reuse 机制可执行，但没有证明模型生成新 Tool；control failure
   与 Planner–TaskGen misalignment 使整条科学协议无效，它同样不能支持 SmolVLA
   robustness 或 RoboTwin↔LIBERO 一致性结论。
+- batch26 使用 adapter parity 参数重新执行后，official control 仍失败，并正确只消耗
+  1/2 rollout；因此当前仍没有有效的 LIBERO 两轮 MEA 方法链。

@@ -10,6 +10,8 @@ can be checked without another model call:
 
 * ``universal``: every required candidate passes;
 * ``existential``: at least one required candidate passes;
+* ``failure_enumeration``: every required candidate has a decisive outcome,
+  so the complete finite-domain failure set can be reported;
 * ``comparative``: two explicitly named groups have enough scored evidence;
 * ``diagnostic``: a failure has an evidence-backed diagnosis, or the entire
   required finite domain has been checked without observing a failure.
@@ -40,7 +42,13 @@ class QuerySufficiencyError(ValueError):
 
 
 CLAIM_TYPES = frozenset(
-    {"universal", "existential", "comparative", "diagnostic"}
+    {
+        "universal",
+        "existential",
+        "failure_enumeration",
+        "comparative",
+        "diagnostic",
+    }
 )
 OUTCOMES = frozenset({"pass", "fail", "unknown", "conflict"})
 
@@ -86,6 +94,16 @@ def infer_claim_type(user_query: str) -> str:
     query = _text(user_query, "user_query").casefold()
     patterns = (
         (
+            "failure_enumeration",
+            r"\b(?:enumerate|list|catalog(?:ue)?)\b.{0,48}"
+            r"\b(?:failures?|failing|failure\s+modes?)\b"
+            r"|\b(?:all|complete)\s+(?:observed\s+)?"
+            r"(?:failures?|failing\s+candidates?|failure\s+modes?)\b"
+            r"|(?:列出|枚举|汇总).{0,24}(?:失败|失效)"
+            r"|(?:哪些|全部|所有).{0,12}(?:候选|条件|模式).{0,12}"
+            r"(?:失败|失效)",
+        ),
+        (
             "comparative",
             r"\b(compare|comparison|versus|vs\.?|better|worse|difference)\b"
             r"|比较|对比|优于|劣于|差异",
@@ -130,7 +148,8 @@ def build_query_sufficiency_contract(
     resolved_minimum = (
         len(required)
         if minimum_evaluated is None
-        and resolved_type in {"universal", "existential"}
+        and resolved_type
+        in {"universal", "existential", "failure_enumeration"}
         else 1
         if minimum_evaluated is None
         else minimum_evaluated
@@ -210,6 +229,11 @@ def validate_query_sufficiency_contract(
         raise QuerySufficiencyError(
             "required_coverage.minimum_evaluated must be in "
             f"[1, {len(required)}]"
+        )
+    if claim_type == "failure_enumeration" and minimum != len(required):
+        raise QuerySufficiencyError(
+            "failure_enumeration requires every required candidate to be "
+            "decisively evaluated"
         )
     budget = contract.get("round_budget")
     if isinstance(budget, bool) or not isinstance(budget, int) or budget < 1:
@@ -438,6 +462,17 @@ def assess_query_sufficiency(
             rationale = (
                 "Every candidate in the finite required coverage failed."
             )
+    elif claim_type == "failure_enumeration":
+        statistics["failure_candidate_ids"] = list(failed)
+        statistics["passed_candidate_ids"] = list(passed)
+        if len(decisive) == len(required):
+            sufficient = True
+            verdict = "failure_set_enumerated"
+            rationale = (
+                "Every candidate in the finite required coverage has a "
+                "decisive outcome, so the complete finite-domain failure set "
+                "is known."
+            )
     elif claim_type == "comparative":
         group_statistics: dict[str, Any] = {}
         enough_groups = True
@@ -582,6 +617,11 @@ def assess_query_sufficiency(
         limitations.append(
             "Diagnosis strings are trusted upstream evidence labels; this "
             "contract does not independently infer or validate causality."
+        )
+    if claim_type == "failure_enumeration":
+        limitations.append(
+            "The enumerated failures are complete only for the explicitly "
+            "required finite candidate domain."
         )
     return {
         "schema_version": 1,

@@ -412,7 +412,7 @@ def _click_contracts() -> list[dict[str, Any]]:
             generation_mode="provider_scene_checker_codegen",
             allowed_change_roots=["distractor"],
             changes=_LOOKALIKE_BELL_DISTRACTOR,
-            request_factory_id="official_success_tool_request",
+            request_factory_id="click_bell_distractor_success_tool_request",
             metric="click_target_without_distractor_success",
             required_gates=[
                 "variant_spec",
@@ -878,6 +878,7 @@ def build_contract_tool_request(contract: Mapping[str, Any]) -> dict[str, Any]:
         bell_active_tcp_min_xy_error_tool_request,
         contact_tool_request,
         bbh_distractor_success_tool_request,
+        click_bell_distractor_success_tool_request,
         hammer_left_camera_contact_count_tool_request,
         official_success_tool_request,
         pickup_to_contact_tool_request,
@@ -891,6 +892,8 @@ def build_contract_tool_request(contract: Mapping[str, Any]) -> dict[str, Any]:
         request = contact_tool_request()
     elif factory_id == "bbh_distractor_success_tool_request":
         request = bbh_distractor_success_tool_request()
+    elif factory_id == "click_bell_distractor_success_tool_request":
+        request = click_bell_distractor_success_tool_request()
     elif factory_id == "pickup_to_contact_tool_request":
         request = pickup_to_contact_tool_request()
     elif factory_id == "bell_active_tcp_min_xy_error_tool_request":

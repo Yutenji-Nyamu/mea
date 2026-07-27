@@ -320,6 +320,41 @@ class ExecutionVQAQueryTests(unittest.TestCase):
             ],
         )
 
+    def test_click_distractor_capability_uses_click_specific_questions(self):
+        query = build_execution_vqa_query(
+            task_name="click_bell",
+            template_id=(
+                "robustness.distractor_avoidance.lookalike_bell"
+            ),
+            sub_aspect="robustness.distractor_avoidance",
+            tool_contract={
+                "metric": "click_target_without_distractor_success"
+            },
+        )
+        self.assertEqual(
+            query["phenomenon_ids"],
+            [
+                "lookalike_distractor_visible",
+                "distractor_not_clicked",
+                "bell_visibly_pressed",
+            ],
+        )
+        self.assertEqual(
+            query["selection_reasons"],
+            [
+                "capability_adapter:click_bell:"
+                "robustness.distractor_avoidance.lookalike_bell",
+                "task_metric:click_bell:"
+                "click_target_without_distractor_success",
+            ],
+        )
+        questions = {item["id"]: item for item in query["questions"]}
+        self.assertEqual(
+            questions["bell_visibly_pressed"]["numeric_authority"],
+            "official_core_predicate_is_authoritative_when_available_"
+            "else_official_check_success",
+        )
+
     def test_run_local_question_is_self_contained_and_revalidates(self):
         spec = run_local_question()
         query = build_execution_vqa_query(

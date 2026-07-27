@@ -193,6 +193,8 @@ def validate_open_query_capabilities(value: Mapping[str, Any]) -> dict[str, Any]
 
 def project_open_query_capabilities(
     planning_context: Mapping[str, Any],
+    *,
+    allowed_aspect_ids: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     """Remove catalog navigation from a trusted runtime PlanningContext.
 
@@ -218,11 +220,18 @@ def project_open_query_capabilities(
         raise ClaimFirstPlanError("PlanningContext adapter templates must be a list")
 
     operations: list[dict[str, Any]] = []
+    allowed = (
+        {_text(item, "allowed_aspect_ids[]") for item in allowed_aspect_ids}
+        if allowed_aspect_ids is not None
+        else None
+    )
     for index, template in enumerate(templates):
         if not isinstance(template, Mapping):
             raise ClaimFirstPlanError(
                 f"PlanningContext adapter template {index} must be an object"
             )
+        if allowed is not None and template.get("aspect_id") not in allowed:
+            continue
         item = {
             "operation": template.get("taskgen_operation"),
             "controlled_axis": template.get("controlled_axis"),
@@ -233,6 +242,10 @@ def project_open_query_capabilities(
         }
         if item not in operations:
             operations.append(item)
+    if allowed is not None and not operations:
+        raise ClaimFirstPlanError(
+            "allowed aspect domain has no projected TaskGen operation"
+        )
 
     projected_simulator = {
         key: deepcopy(nested)

@@ -103,6 +103,7 @@ from .claim_first_runtime import (
     build_control_anchor_proposal,
     control_template_id,
     render_query_answer,
+    resolve_concern_candidate_domain,
     resolve_semantic_proposal,
 )
 from .open_task_resolver import (
@@ -190,6 +191,7 @@ __all__ = [
     "build_control_anchor_proposal",
     "control_template_id",
     "render_query_answer",
+    "resolve_concern_candidate_domain",
     "resolve_semantic_proposal",
     "FreeConcernAgent",
     "discover_robotwin_task_inventory",

@@ -343,6 +343,15 @@ class ClickBellEfficiencyTests(unittest.TestCase):
             self.assertEqual(
                 result["resource_measurement"]["policy_step_saving"], 200
             )
+            self.assertEqual(
+                result["original_query_claim_type"],
+                "first_observed_failure_with_paired_axis",
+            )
+            first_failure = result["claim_fidelity"][
+                "first_observed_failure"
+            ]
+            self.assertTrue(first_failure["candidate_agrees"])
+            self.assertTrue(first_failure["axis_agrees"])
             self.assertTrue(result["original_query_conclusion_agrees"])
             self.assertTrue(result["toy_efficiency_evidence_passed"])
             self.assertFalse(result["cached_prefix_used"])
@@ -498,7 +507,16 @@ class ClickBellEfficiencyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             prereg = self.prereg(
-                root, "four_candidate_universal_5to8act"
+                root, "four_candidate_universal_5to6act"
+            )
+            self.assertEqual(
+                prereg["total_episode_start_contract"]["maximum"], 6
+            )
+            self.assertEqual(
+                prereg["adaptive_contract"]["max_episode_starts"], 2
+            )
+            self.assertEqual(
+                prereg["query_sufficiency_contract"]["round_budget"], 4
             )
             outcomes = (
                 ("object_position.left_fixed", False),
@@ -542,6 +560,20 @@ class ClickBellEfficiencyTests(unittest.TestCase):
             self.assertEqual(
                 result["conclusions"]["adaptive"]["claim_verdict"],
                 "refuted",
+            )
+            self.assertTrue(
+                result["claim_fidelity"]["universal_refutation"]["agrees"]
+            )
+            self.assertEqual(
+                result["original_query_claim_type"],
+                "universal_refutation",
+            )
+            self.assertEqual(
+                result["claim_fidelity"]["full_failure_set"]["status"],
+                "not_established_incomplete_coverage",
+            )
+            self.assertIsNone(
+                result["claim_fidelity"]["full_failure_set"]["agrees"]
             )
             self.assertEqual(
                 result["resource_measurement"]["act_episode_start_saving"],
@@ -626,9 +658,46 @@ class ProspectivePaperErrorStudyTests(unittest.TestCase):
             ],
         )
         self.assertTrue(result["evidence_complete"])
-        self.assertAlmostEqual(result["prospective_error_rate"], 1 / 3)
+        self.assertIsNone(result["prospective_error_rate"])
+        self.assertFalse(result["rate_reported"])
+        self.assertEqual(result["rate_reporting_minimum_denominator"], 10)
         self.assertEqual(result["paper_defined_error_numerator"], 1)
         self.assertFalse(result["paper_fig6_eligible"])
+
+    def test_rate_is_reported_at_the_frozen_minimum_denominator(self):
+        operations = [
+            {
+                "operation_id": f"plan_{index:02d}",
+                "run_id": "run_10",
+                "category": "plan_agent",
+                "paper_error_definition_id": "wrong_subaspect",
+            }
+            for index in range(10)
+        ]
+        study = build_paper_error_study_v2(
+            study_id="paper_error_n10",
+            frozen_at_utc="2026-07-24T00:00:00Z",
+            operations=operations,
+        )
+        statuses = [
+            {
+                "operation_id": row["operation_id"],
+                "status": (
+                    "paper_defined_error" if index == 0 else "passed"
+                ),
+                "evidence_ref": f"runs/{row['operation_id']}.json",
+                "observed_error_definition_id": (
+                    row["paper_error_definition_id"]
+                    if index == 0
+                    else None
+                ),
+            }
+            for index, row in enumerate(operations)
+        ]
+        result = summarize_paper_error_study_v2(study, statuses)
+        self.assertTrue(result["rate_reported"])
+        self.assertEqual(result["prospective_error_rate"], 0.1)
+        self.assertEqual(result["paper_defined_error_numerator"], 1)
 
     def test_exception_label_cannot_impersonate_a_paper_defined_error(self):
         with self.assertRaisesRegex(
@@ -648,7 +717,7 @@ class ProspectivePaperErrorStudyTests(unittest.TestCase):
 
 
 class ExactSeedRankingTests(unittest.TestCase):
-    def prereg(self, root):
+    def prereg(self, root, seeds=(101, 102, 103)):
         act_sha = write_bytes(
             root,
             (
@@ -666,7 +735,7 @@ class ExactSeedRankingTests(unittest.TestCase):
             b"test dp3 checkpoint",
         )
         prereg = build_ranking_preregistration(
-            study_id="act_dp3_n3",
+            study_id=f"act_dp3_n{len(seeds)}",
             act_checkpoint={
                 "checkpoint_id": "act",
                 "artifact_sha256": act_sha,
@@ -675,7 +744,7 @@ class ExactSeedRankingTests(unittest.TestCase):
                 "checkpoint_id": "dp3",
                 "artifact_sha256": dp3_sha,
             },
-            seeds=[101, 102, 103],
+            seeds=list(seeds),
             created_at_utc="2026-07-24T00:00:00Z",
             reference_source_ref="official_leaderboard_snapshot.json",
             reference_scores={"act": 0.56, "dp3": 0.72},
@@ -827,6 +896,31 @@ class ExactSeedRankingTests(unittest.TestCase):
             self.assertEqual(result["exact_total_policy_rollouts"], 6)
             self.assertFalse(result["paper_table9_eligible"])
             self.assertEqual(result["measured_trial_wall_seconds_total"], 36.0)
+
+    def test_five_seed_tie_leaves_spearman_null_and_counts_ten_rollouts(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            prereg = self.prereg(root, seeds=(101, 102, 103, 104, 105))
+            result = evaluate_exact_seed_ranking(
+                prereg,
+                self.runs(
+                    root,
+                    prereg,
+                    [0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0],
+                ),
+                repo_root=root,
+            )
+            self.assertIsNone(result["spearman_rho"])
+            self.assertEqual(
+                result["claim_status"], "toy_order_inconclusive_tie"
+            )
+            self.assertEqual(result["exact_trials_per_policy"], 5)
+            self.assertEqual(result["exact_total_policy_rollouts"], 10)
+            self.assertEqual(
+                prereg["rollout_contract"]["exact_total_policy_rollouts"],
+                10,
+            )
 
     def test_scores_and_rollout_refs_cannot_be_supplied_by_caller(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -1191,7 +1285,8 @@ class ProspectiveLedgerTests(unittest.TestCase):
             summary = ledger.summarize()
             self.assertEqual(summary["denominator_operation_starts"], 2)
             self.assertEqual(summary["numerator_terminal_errors"], 1)
-            self.assertEqual(summary["prospective_error_rate"], 0.5)
+            self.assertIsNone(summary["prospective_error_rate"])
+            self.assertFalse(summary["rate_reported"])
             self.assertEqual(summary["categories"]["taskgen"]["errors"], 1)
 
 

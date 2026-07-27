@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "decision": "retrieve_and_adapt",
+  "reason_code": "nearest_training_task",
+  "free_concern": {
+    "schema_version": 1,
+    "source_query": "Can this ACT policy click the intended bell without touching a nearby visually similar distractor bell?",
+    "sub_aspect": "Visual discrimination between the intended bell and a nearby similar distractor during clicking",
+    "hypothesis": "The ACT policy will click the intended bell while making no contact with or click on the nearby visually similar distractor bell.",
+    "task_intent": "Click the intended bell to activate it.",
+    "requested_variation": "Place a nearby visually similar distractor bell adjacent to the intended bell.",
+    "measurement_need": "Observe which bell is contacted and activated, including any contact with or activation of the distractor."
+  },
+  "policy_scope": {
+    "schema_version": 1,
+    "policy_name": "ACT",
+    "checkpoint_id": "act-click_bell/demo_clean-50",
+    "single_task_checkpoint": true,
+    "training_tasks": [
+      "click_bell"
+    ],
+    "language_conditioned": false,
+    "supports_unseen_tasks": false
+  },
+  "selected_base_task": {
+    "task_name": "click_bell",
+    "score": 0.729702,
+    "execution_status": "capability_registered",
+    "capability_aspects": [
+      "object_position",
+      "object_instance",
+      "robustness.distractor_avoidance",
+      "robustness.scene_clutter",
+      "scene_background_texture",
+      "scene_lighting",
+      "performance.completion_time_stability"
+    ]
+  },
+  "ranked_candidates": [
+    {
+      "task_name": "click_bell",
+      "score": 0.729702,
+      "execution_status": "capability_registered",
+      "capability_aspects": [
+        "object_position",
+        "object_instance",
+        "robustness.distractor_avoidance",
+        "robustness.scene_clutter",
+        "scene_background_texture",
+        "scene_lighting",
+        "performance.completion_time_stability"
+      ]
+    },
+    {
+      "task_name": "click_alarmclock",
+      "score": 0.370495,
+      "execution_status": "official_base_only",
+      "capability_aspects": []
+    },
+    {
+      "task_name": "turn_switch",
+      "score": 0.096825,
+      "execution_status": "official_base_only",
+      "capability_aspects": []
+    }
+  ],
+  "resolution_contract": {
+    "concern_created_before_inventory": true,
+    "catalog_role": "execution_capability_inventory_only",
+    "retrieval_field": "FreeConcern.task_intent",
+    "semantic_threshold": 0.2,
+    "semantic_near_tie_margin": 0.03,
+    "plausible_candidate_names": [
+      "click_bell"
+    ],
+    "preserve_base_task_semantics": true
+  }
+}

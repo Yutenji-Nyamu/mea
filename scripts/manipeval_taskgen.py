@@ -53,7 +53,6 @@ from mea.taskgen import (
     bbh_distractor_rollout_execution,
     build_bbh_distractor_module,
     materialize_bbh_distractor_candidate,
-    run_bbh_distractor_checker_fixtures,
     validate_bbh_distractor_methods,
     validate_bbh_distractor_proposal,
     validate_bbh_distractor_vision_observation,

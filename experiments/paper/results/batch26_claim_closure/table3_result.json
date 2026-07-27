@@ -1,0 +1,238 @@
+{
+  "schema_version": 1,
+  "protocol": "table3_scene_checker_codegen_ablation_pilot_v2_result",
+  "study_id": "batch24_table3_scene_checker_unseen5_v3",
+  "preregistration_sha256": "cacfda796d770f4e2db9ba131246a1cf893660a9f8c63c05374a23949140ba99",
+  "cell_count": 25,
+  "provider_generation_count": 25,
+  "development_proxy_review_count": 25,
+  "human_reviewer_count": 0,
+  "act_rollouts_started": 0,
+  "rows": [
+    {
+      "cell_id": "u03_bbh_teal_distractor_diagonal__complete",
+      "proposal_id": "u03_bbh_teal_distractor_diagonal",
+      "condition": "complete",
+      "success": true,
+      "execution_status": "completed",
+      "blind_proxy_review_passed": true,
+      "proxy_review_blind_to_condition": true
+    },
+    {
+      "cell_id": "u03_bbh_teal_distractor_diagonal__base",
+      "proposal_id": "u03_bbh_teal_distractor_diagonal",
+      "condition": "base",
+      "success": false,
+      "execution_status": "failed",
+      "blind_proxy_review_passed": false
+    },
+    {
+      "cell_id": "u03_bbh_teal_distractor_diagonal__no_rag",
+      "proposal_id": "u03_bbh_teal_distractor_diagonal",
+      "condition": "no_rag",
+      "success": false,
+      "execution_status": "failed",
+      "blind_proxy_review_passed": false
+    },
+    {
+      "cell_id": "u03_bbh_teal_distractor_diagonal__no_visual_self_check",
+      "proposal_id": "u03_bbh_teal_distractor_diagonal",
+      "condition": "no_visual_self_check",
+      "success": true,
+      "execution_status": "completed",
+      "blind_proxy_review_passed": true,
+      "proxy_review_blind_to_condition": true
+    },
+    {
+      "cell_id": "u03_bbh_teal_distractor_diagonal__no_readme_agent",
+      "proposal_id": "u03_bbh_teal_distractor_diagonal",
+      "condition": "no_readme_agent",
+      "success": true,
+      "execution_status": "completed",
+      "blind_proxy_review_passed": true,
+      "proxy_review_blind_to_condition": true
+    },
+    {
+      "cell_id": "u04_bbh_yellow_distractor_negative_diagonal__complete",
+      "proposal_id": "u04_bbh_yellow_distractor_negative_diagonal",
+      "condition": "complete",
+      "success": true,
+      "execution_status": "completed",
+      "blind_proxy_review_passed": true,
+      "proxy_review_blind_to_condition": true
+    },
+    {
+      "cell_id": "u04_bbh_yellow_distractor_negative_diagonal__base",
+      "proposal_id": "u04_bbh_yellow_distractor_negative_diagonal",
+      "condition": "base",
+      "success": false,
+      "execution_status": "failed",
+      "blind_proxy_review_passed": false
+    },
+    {
+      "cell_id": "u04_bbh_yellow_distractor_negative_diagonal__no_rag",
+      "proposal_id": "u04_bbh_yellow_distractor_negative_diagonal",
+      "condition": "no_rag",
+      "success": false,
+      "execution_status": "failed",
+      "blind_proxy_review_passed": false
+    },
+    {
+      "cell_id": "u04_bbh_yellow_distractor_negative_diagonal__no_visual_self_check",
+      "proposal_id": "u04_bbh_yellow_distractor_negative_diagonal",
+      "condition": "no_visual_self_check",
+      "success": true,
+      "execution_status": "completed",
+      "blind_proxy_review_passed": true,
+      "proxy_review_blind_to_condition": true
+    },
+    {
+      "cell_id": "u04_bbh_yellow_distractor_negative_diagonal__no_readme_agent",
+      "proposal_id": "u04_bbh_yellow_distractor_negative_diagonal",
+      "condition": "no_readme_agent",
+      "success": true,
+      "execution_status": "completed",
+      "blind_proxy_review_passed": true,
+      "proxy_review_blind_to_condition": true
+    },
+    {
+      "cell_id": "u05_bbh_magenta_distractor_near_negative_x__complete",
+      "proposal_id": "u05_bbh_magenta_distractor_near_negative_x",
+      "condition": "complete",
+      "success": true,
+      "execution_status": "completed",
+      "blind_proxy_review_passed": true,
+      "proxy_review_blind_to_condition": true
+    },
+    {
+      "cell_id": "u05_bbh_magenta_distractor_near_negative_x__base",
+      "proposal_id": "u05_bbh_magenta_distractor_near_negative_x",
+      "condition": "base",
+      "success": false,
+      "execution_status": "failed",
+      "blind_proxy_review_passed": false
+    },
+    {
+      "cell_id": "u05_bbh_magenta_distractor_near_negative_x__no_rag",
+      "proposal_id": "u05_bbh_magenta_distractor_near_negative_x",
+      "condition": "no_rag",
+      "success": false,
+      "execution_status": "failed",
+      "blind_proxy_review_passed": false
+    },
+    {
+      "cell_id": "u05_bbh_magenta_distractor_near_negative_x__no_visual_self_check",
+      "proposal_id": "u05_bbh_magenta_distractor_near_negative_x",
+      "condition": "no_visual_self_check",
+      "success": false,
+      "execution_status": "failed",
+      "blind_proxy_review_passed": false
+    },
+    {
+      "cell_id": "u05_bbh_magenta_distractor_near_negative_x__no_readme_agent",
+      "proposal_id": "u05_bbh_magenta_distractor_near_negative_x",
+      "condition": "no_readme_agent",
+      "success": true,
+      "execution_status": "completed",
+      "blind_proxy_review_passed": true,
+      "proxy_review_blind_to_condition": true
+    },
+    {
+      "cell_id": "u06_bbh_gray_distractor_far_negative_y_strict__complete",
+      "proposal_id": "u06_bbh_gray_distractor_far_negative_y_strict",
+      "condition": "complete",
+      "success": false,
+      "execution_status": "failed",
+      "blind_proxy_review_passed": false
+    },
+    {
+      "cell_id": "u06_bbh_gray_distractor_far_negative_y_strict__base",
+      "proposal_id": "u06_bbh_gray_distractor_far_negative_y_strict",
+      "condition": "base",
+      "success": false,
+      "execution_status": "failed",
+      "blind_proxy_review_passed": false
+    },
+    {
+      "cell_id": "u06_bbh_gray_distractor_far_negative_y_strict__no_rag",
+      "proposal_id": "u06_bbh_gray_distractor_far_negative_y_strict",
+      "condition": "no_rag",
+      "success": false,
+      "execution_status": "failed",
+      "blind_proxy_review_passed": false
+    },
+    {
+      "cell_id": "u06_bbh_gray_distractor_far_negative_y_strict__no_visual_self_check",
+      "proposal_id": "u06_bbh_gray_distractor_far_negative_y_strict",
+      "condition": "no_visual_self_check",
+      "success": false,
+      "execution_status": "failed",
+      "blind_proxy_review_passed": false
+    },
+    {
+      "cell_id": "u06_bbh_gray_distractor_far_negative_y_strict__no_readme_agent",
+      "proposal_id": "u06_bbh_gray_distractor_far_negative_y_strict",
+      "condition": "no_readme_agent",
+      "success": true,
+      "execution_status": "completed",
+      "blind_proxy_review_passed": true,
+      "proxy_review_blind_to_condition": true
+    },
+    {
+      "cell_id": "u07_bbh_orange_distractor_asymmetric_tolerance__complete",
+      "proposal_id": "u07_bbh_orange_distractor_asymmetric_tolerance",
+      "condition": "complete",
+      "success": true,
+      "execution_status": "completed",
+      "blind_proxy_review_passed": true,
+      "proxy_review_blind_to_condition": true
+    },
+    {
+      "cell_id": "u07_bbh_orange_distractor_asymmetric_tolerance__base",
+      "proposal_id": "u07_bbh_orange_distractor_asymmetric_tolerance",
+      "condition": "base",
+      "success": false,
+      "execution_status": "failed",
+      "blind_proxy_review_passed": false
+    },
+    {
+      "cell_id": "u07_bbh_orange_distractor_asymmetric_tolerance__no_rag",
+      "proposal_id": "u07_bbh_orange_distractor_asymmetric_tolerance",
+      "condition": "no_rag",
+      "success": false,
+      "execution_status": "failed",
+      "blind_proxy_review_passed": false
+    },
+    {
+      "cell_id": "u07_bbh_orange_distractor_asymmetric_tolerance__no_visual_self_check",
+      "proposal_id": "u07_bbh_orange_distractor_asymmetric_tolerance",
+      "condition": "no_visual_self_check",
+      "success": true,
+      "execution_status": "completed",
+      "blind_proxy_review_passed": true,
+      "proxy_review_blind_to_condition": true
+    },
+    {
+      "cell_id": "u07_bbh_orange_distractor_asymmetric_tolerance__no_readme_agent",
+      "proposal_id": "u07_bbh_orange_distractor_asymmetric_tolerance",
+      "condition": "no_readme_agent",
+      "success": true,
+      "execution_status": "completed",
+      "blind_proxy_review_passed": true,
+      "proxy_review_blind_to_condition": true
+    }
+  ],
+  "success_rates": {
+    "complete": 0.8,
+    "base": 0.0,
+    "no_rag": 0.0,
+    "no_visual_self_check": 0.6,
+    "no_readme_agent": 1.0
+  },
+  "paper_table3_eligible": false,
+  "claim_scope": "five_unseen_bbh_scene_checker_proposals_per_condition_condition_blind_development_proxy_not_table3",
+  "limitations": [
+    "The review is a condition-blind development-agent proxy, not independent human gold.",
+    "A 5-proposal ablation is not the paper-scale Table 3 experiment."
+  ]
+}

@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "task_proposal": {
+    "schema_version": 1,
+    "proposal_id": "robustness.distractor_avoidance.lookalike_bell",
+    "task_name": "click_bell",
+    "aspect_id": "robustness.distractor_avoidance",
+    "intent": "Can this ACT policy click the intended bell without touching a nearby visually similar distractor bell? Trusted bounded variant: One alternate official bell instance is placed 0.12 m from the target; success requires the correct-arm target press and forbids every latched distractor contact.",
+    "capability_id": "robustness.distractor_avoidance",
+    "reuse_first": true,
+    "changes": {
+      "distractor": {
+        "scene": {
+          "target_name": "050_bell",
+          "distractor_name": "distractor_bell",
+          "distractor_offset_xy_m": [
+            0.0,
+            0.12
+          ],
+          "instance_relation": "alternate_official_instance"
+        },
+        "success": {
+          "target_xy_threshold_m": [
+            0.025,
+            0.025
+          ],
+          "target_z_threshold_m": 0.03,
+          "require_correct_arm": true,
+          "forbid_distractor_contact": true,
+          "latch_distractor_contact": true
+        }
+      }
+    },
+    "preserve_success_semantics": false
+  },
+  "tool_proposal": {
+    "schema_version": 1,
+    "proposal_id": "robustness.distractor_avoidance.lookalike_bell.tool",
+    "task_name": "click_bell",
+    "aspect_id": "robustness.distractor_avoidance",
+    "evaluation_goal": "One alternate official bell instance is placed 0.12 m from the target; success requires the correct-arm target press and forbids every latched distractor contact.",
+    "metric": "click_target_without_distractor_success",
+    "question": "Did the rollout press the intended bell with the correct arm without any latched contact with the look-alike bell?",
+    "vqa_phenomenon_ids": [
+      "bell_visibly_pressed",
+      "lookalike_distractor_visible",
+      "distractor_not_clicked"
+    ],
+    "reuse_first": true
+  },
+  "tool_route_preview": {
+    "schema_version": 1,
+    "status": "unsupported",
+    "matching_policy": "strict_exact_metric_id",
+    "requested_route": "auto",
+    "resolved_route": null,
+    "task_name": "click_bell",
+    "metric": "click_target_without_distractor_success",
+    "exact_match": false,
+    "matched_registry": null,
+    "reference_tool": null,
+    "provider_required": false,
+    "reason": "metric did not exactly match an executable registry entry",
+    "catalog_snapshot_sha256": "78f925f08f786becc6a417c38706e484aa252b7618f7537b421bbcc026583f20"
+  },
+  "proposal_capability_mode": "registered_reuse",
+  "proposal_source": "runtime_bound_claim_first_semantics_to_registered_scene_checker",
+  "base_template_id": "robustness.distractor_avoidance.lookalike_bell",
+  "round_number": 2,
+  "attempt_count": 0,
+  "provider_or_validation_errors": [],
+  "bounded_repairs": [],
+  "semantic_plan_proposal": {
+    "schema_version": 1,
+    "action": "continue",
+    "sub_aspect": "robustness.distractor_avoidance.near_duplicate_bell",
+    "hypothesis": "With one visually similar non-target bell placed near the intended bell, ACT will achieve official success on the intended bell while recording zero contact with the distractor.",
+    "requested_perturbation": {
+      "description": "Add exactly one visually similar, nonfunctional distractor bell at a nearby non-overlapping position relative to the intended bell, leaving the intended bell and all other scene elements unchanged.",
+      "controlled_changes": [
+        "the presence and nearby placement of one visually similar distractor bell"
+      ],
+      "preserve": [
+        "task identity",
+        "policy checkpoint",
+        "intended bell pose and target contact",
+        "all non-distractor scene elements"
+      ]
+    },
+    "task_need": {
+      "required": true,
+      "description": "TaskGen must create the controlled distractor scene by adding one visually similar distractor bell under the allowed distractor change root and retain the official intended-bell success check."
+    },
+    "tool_need": {
+      "required": true,
+      "description": "ToolGen must retrieve or generate an observable rule metric that records any contact or click event involving the distractor bell, alongside official success for the intended bell.",
+      "reuse_first": true
+    },
+    "rationale": "The unchanged control succeeded but did not test distractor avoidance. A single nearby visually similar distractor directly probes the Query's remaining uncertainty, while a distractor-contact observable is required because official success alone cannot distinguish a clean intended click from touching both bells."
+  },
+  "semantic_need_binding": {
+    "taskgen_required": true,
+    "generated_success_requested": true,
+    "toolgen_required": false,
+    "taskgen_capability_mode": "registered_reuse",
+    "selected_taskgen_route": "provider_scene_checker_codegen",
+    "toolgen_requires_new_typed_metric": false,
+    "tool_satisfied_by_task_checker": true
+  }
+}

@@ -8,6 +8,8 @@
 - [论文 claim 与 gap](paper_claim_gap_zh.md)：论文声称、当前证据和下一步。
 - [开发者参考](developer_reference_zh.md)：扩展任务、生成器和工具时的最小接口。
 - [当前证据](evidence/current/README.md)：最近一次可审计运行的紧凑索引。
+- [batch26 claim closure](../experiments/paper/results/batch26_claim_closure/summary.json)：
+  无缓存旗舰、5-ACT 效率对照、LIBERO fail-closed、ACT/DP3 pilot 与零-ACT proxy。
 - [当前开放检索与第二任务结果](../experiments/paper/results/batch25_open_retrieval_taskgen/summary.json)：
   50-task discovery、正负 plan-only、ClickBell provider TaskGen 与 LIBERO scope 边界。
 - [上一批小型论文协议结果](../experiments/paper/results/batch24_claim_closure/summary.json)：

@@ -2,32 +2,32 @@
   "schema_version": 3,
   "action": "continue",
   "transition": "switch_aspect",
-  "next_aspect_id": "object_scale",
-  "next_template_id": "object_scale.bounded_1_2",
-  "observation_summary": "Testing robustness to object scale variation is critical to identifying potential weaknesses in the ACT policy, as changes in object dimensions may impact the policy's ability to achieve the task's success criteria.",
+  "next_aspect_id": "robustness.distractor_avoidance",
+  "next_template_id": "robustness.distractor_avoidance.lookalike_bell",
+  "observation_summary": "The unchanged control succeeded but did not test distractor avoidance. A single nearby visually similar distractor directly probes the Query's remaining uncertainty, while a distractor-contact observable is required because official success alone cannot distinguish a clean intended click from touching both bells.",
   "decision_reason": "provider_authored_plan_step",
   "answered_query": false,
   "plan_step_source": "provider_claim_first_open_query",
   "plan_step_proposal": {
     "schema_version": 1,
     "action": "propose",
-    "aspect_id": "object_scale",
-    "template_id": "object_scale.bounded_1_2",
-    "rationale": "Testing robustness to object scale variation is critical to identifying potential weaknesses in the ACT policy, as changes in object dimensions may impact the policy's ability to achieve the task's success criteria.",
+    "aspect_id": "robustness.distractor_avoidance",
+    "template_id": "robustness.distractor_avoidance.lookalike_bell",
+    "rationale": "The unchanged control succeeded but did not test distractor avoidance. A single nearby visually similar distractor directly probes the Query's remaining uncertainty, while a distractor-contact observable is required because official success alone cannot distinguish a clean intended click from touching both bells.",
     "answered_query": false
   },
-  "round_budget_before_decision": 2,
+  "round_budget_before_decision": 1,
   "evidence_assessment": {
     "schema_version": 1,
-    "task_name": "beat_block_hammer",
-    "checkpoint_id": "act-beat_block_hammer/demo_clean-50",
-    "current_aspect_id": "safety.hammer_left_camera_contact",
-    "round_budget_remaining": 2,
+    "task_name": "click_bell",
+    "checkpoint_id": "act-click_bell/demo_clean-50",
+    "current_aspect_id": "performance.completion_time_stability",
+    "round_budget_remaining": 1,
     "evidence_state": "sufficient",
     "evidence_packet": {
       "schema_version": 1,
       "round_id": "round_1",
-      "template_id": "safety.hammer_left_camera_contact.official",
+      "template_id": "performance.completion_time_stability.official",
       "pipeline": {
         "passed": true,
         "failure_stage": null
@@ -37,7 +37,7 @@
         "reported": true
       },
       "rule": {
-        "metric": "hammer_left_camera_contact_count",
+        "metric": "time_to_success",
         "expected_policy_episodes": 1,
         "aggregate_status": "passed",
         "input_issue_count": 0,
@@ -59,54 +59,64 @@
       "reason_codes": []
     },
     "initial_required_aspect_ids": [
-      "safety.hammer_left_camera_contact"
+      "performance.completion_time_stability"
     ],
     "covered_aspect_ids": [
-      "safety.hammer_left_camera_contact"
+      "performance.completion_time_stability"
     ],
     "uncovered_initial_required_aspect_ids": [],
     "discoverable_aspect_ids": [
-      "object_appearance.color",
+      "object_instance",
       "object_position",
-      "object_scale",
-      "performance.pickup_to_contact_timing",
-      "robustness.distractor_avoidance"
+      "robustness.distractor_avoidance",
+      "robustness.scene_clutter",
+      "scene_background_texture",
+      "scene_lighting"
     ],
     "available_steps": {
       "refine": [],
       "propose": [
         {
-          "aspect_id": "object_appearance.color",
+          "aspect_id": "object_instance",
           "template_ids": [
-            "object_appearance.color_blue"
+            "object_instance.base0",
+            "object_instance.base1"
           ],
           "initially_required": false
         },
         {
           "aspect_id": "object_position",
           "template_ids": [
-            "object_position.official_random"
-          ],
-          "initially_required": false
-        },
-        {
-          "aspect_id": "object_scale",
-          "template_ids": [
-            "object_scale.bounded_1_2"
-          ],
-          "initially_required": false
-        },
-        {
-          "aspect_id": "performance.pickup_to_contact_timing",
-          "template_ids": [
-            "performance.pickup_to_contact_timing"
+            "object_position.left_fixed",
+            "object_position.right_fixed"
           ],
           "initially_required": false
         },
         {
           "aspect_id": "robustness.distractor_avoidance",
           "template_ids": [
-            "robustness.distractor_avoidance.lookalike"
+            "robustness.distractor_avoidance.lookalike_bell"
+          ],
+          "initially_required": false
+        },
+        {
+          "aspect_id": "robustness.scene_clutter",
+          "template_ids": [
+            "robustness.scene_clutter.official_table"
+          ],
+          "initially_required": false
+        },
+        {
+          "aspect_id": "scene_background_texture",
+          "template_ids": [
+            "scene_background_texture.unseen"
+          ],
+          "initially_required": false
+        },
+        {
+          "aspect_id": "scene_lighting",
+          "template_ids": [
+            "scene_lighting.static_random"
           ],
           "initially_required": false
         }
@@ -126,49 +136,61 @@
   },
   "next_round": {
     "round_id": "round_2",
-    "template_id": "object_scale.bounded_1_2",
-    "capability_id": "object_scale.bounded",
-    "task_variant_id": "object_scale.query_generated_1",
+    "template_id": "robustness.distractor_avoidance.lookalike_bell",
+    "capability_id": "robustness.distractor_avoidance",
+    "task_variant_id": "robustness.distractor_avoidance.lookalike_bell",
     "capability_contract": {
       "schema_version": 1,
-      "task_name": "beat_block_hammer",
-      "template_id": "object_scale.bounded_1_2",
+      "task_name": "click_bell",
+      "template_id": "robustness.distractor_avoidance.lookalike_bell",
       "aspect": {
-        "aspect_id": "object_scale",
-        "semantic_scope": "object",
-        "target_role": "target_object"
+        "aspect_id": "robustness.distractor_avoidance",
+        "semantic_scope": "scene",
+        "target_role": "scene"
       },
       "taskgen": {
-        "operation": "force_codegen",
-        "capability_id": "object_scale.bounded",
-        "task_variant_id": "object_scale.bounded_1_2",
-        "controlled_axis": "object_scale",
-        "change_scope": "object",
-        "generation_mode": "force_codegen",
+        "operation": "provider_scene_checker_codegen",
+        "capability_id": "robustness.distractor_avoidance",
+        "task_variant_id": "robustness.distractor_avoidance.lookalike_bell",
+        "controlled_axis": "robustness.distractor_avoidance",
+        "change_scope": "scene",
+        "generation_mode": "provider_scene_checker_codegen",
         "allowed_change_roots": [
-          "block"
+          "distractor"
         ],
         "changes": {
-          "block": {
-            "position_mode": "official_random",
-            "yaw_mode": "official_random",
-            "scale": 1.2,
-            "color": [
-              1.0,
-              0.0,
-              0.0
-            ]
+          "distractor": {
+            "scene": {
+              "target_name": "050_bell",
+              "distractor_name": "distractor_bell",
+              "distractor_offset_xy_m": [
+                0.0,
+                0.12
+              ],
+              "instance_relation": "alternate_official_instance"
+            },
+            "success": {
+              "target_xy_threshold_m": [
+                0.025,
+                0.025
+              ],
+              "target_z_threshold_m": 0.03,
+              "require_correct_arm": true,
+              "forbid_distractor_contact": true,
+              "latch_distractor_contact": true
+            }
           }
         }
       },
       "tool": {
-        "request_factory_id": "contact_tool_request",
-        "metric": "hammer_block_contact_ever"
+        "request_factory_id": "click_bell_distractor_success_tool_request",
+        "metric": "click_target_without_distractor_success"
       },
       "vqa": {
         "phenomenon_ids": [
-          "hammer_visibly_lifted",
-          "block_visibly_displaced"
+          "bell_visibly_pressed",
+          "lookalike_distractor_visible",
+          "distractor_not_clicked"
         ]
       },
       "required_gates": [
@@ -177,35 +199,48 @@
         "render",
         "rule",
         "scene_variant",
-        "vision",
         "expert",
         "act",
         "toolkit",
-        "planned_tool",
-        "aggregate",
-        "execution_vqa"
+        "aggregate"
       ]
     },
-    "sub_aspect": "object_scale",
-    "rationale": "测试同一红色目标物在 1.2 倍有界尺度变化下的泛化。",
-    "task_instruction": "将 beat_block_hammer 的目标方块等比例放大到官方尺寸的 1.2 倍，保持红色、官方位置/朝向采样、成功语义和其余行为不变；先通过 render 与 expert gate。 Query-generated bounded variation: evaluate a query-relevant bounded variation",
-    "route": "force_codegen",
+    "sub_aspect": "robustness.distractor_avoidance",
+    "aspect_id": "robustness.distractor_avoidance",
+    "probe_role": "sentinel",
+    "rationale": "One alternate official bell instance is placed 0.12 m from the target; success requires the correct-arm target press and forbids every latched distractor contact.",
+    "task_instruction": "Can this ACT policy click the intended bell without touching a nearby visually similar distractor bell? Trusted bounded variant: One alternate official bell instance is placed 0.12 m from the target; success requires the correct-arm target press and forbids every latched distractor contact. Query-generated bounded variation: Can this ACT policy click the intended bell without touching a nearby visually similar distractor bell? Trusted bounded variant: One alternate official bell instance is placed 0.12 m from the target; success requires the correct-arm target press and forbids every latched distractor contact.",
+    "task_name": "click_bell",
+    "task_module": "mea.tasks.click_bell",
+    "telemetry_profile": "balanced_v1",
+    "route": "provider_scene_checker_codegen",
     "variant_hint": {
-      "block": {
-        "position_mode": "official_random",
-        "yaw_mode": "official_random",
-        "scale": 1.2,
-        "color": [
-          1.0,
-          0.0,
-          0.0
-        ]
+      "distractor": {
+        "scene": {
+          "target_name": "050_bell",
+          "distractor_name": "distractor_bell",
+          "distractor_offset_xy_m": [
+            0.0,
+            0.12
+          ],
+          "instance_relation": "alternate_official_instance"
+        },
+        "success": {
+          "target_xy_threshold_m": [
+            0.025,
+            0.025
+          ],
+          "target_z_threshold_m": 0.03,
+          "require_correct_arm": true,
+          "forbid_distractor_contact": true,
+          "latch_distractor_contact": true
+        }
       }
     },
     "execution": {
       "backend": "act",
       "seeds": [
-        100600
+        100405
       ],
       "num_episodes": 1,
       "gates": [
@@ -214,127 +249,105 @@
         "render",
         "rule",
         "scene_variant",
-        "vision",
         "expert",
         "act",
         "toolkit",
-        "planned_tool",
-        "aggregate",
-        "execution_vqa"
+        "aggregate"
       ]
     },
     "observations": [
       "scene_alignment",
-      "observed_color",
+      "bell_position",
+      "bell_instance_id",
+      "scene_clutter",
+      "scene_background_texture",
+      "scene_lighting",
       "expert_solvable",
-      "act_pipeline_status",
-      "policy_success"
+      "policy_success",
+      "trusted_tools",
+      "completion_time_statistics",
+      "execution_vqa"
     ],
     "tool_request": {
-      "schema_version": 2,
-      "task_name": "beat_block_hammer",
-      "metric": "query_right_tcp_target_xy_distance",
-      "question": "What was the minimum XY TCP-target distance?",
-      "metric_spec": {
-        "schema_version": 1,
-        "operation": "minimum_distance",
-        "left_signal": "right_tcp_position",
-        "right_signal": "block_position",
-        "dimensions": [
-          "x",
-          "y"
-        ],
-        "unit": "m",
-        "null_semantics": "null_if_no_finite_sample"
-      }
+      "schema_version": 1,
+      "task_name": "click_bell",
+      "metric": "click_target_without_distractor_success",
+      "question": "Did the rollout press the intended bell with the correct arm without any latched contact with the look-alike bell?"
     },
     "vqa_phenomenon_ids": [
-      "hammer_visibly_lifted",
-      "block_visibly_displaced",
-      "run_local.beat_block_hammer.object_scale.query_observation"
+      "bell_visibly_pressed",
+      "lookalike_distractor_visible",
+      "distractor_not_clicked"
     ],
     "task_proposal": {
       "schema_version": 1,
-      "proposal_id": "object_scale.query_generated_1",
-      "task_name": "beat_block_hammer",
-      "aspect_id": "object_scale",
-      "intent": "evaluate a query-relevant bounded variation",
-      "capability_id": "object_scale.bounded",
+      "proposal_id": "robustness.distractor_avoidance.lookalike_bell",
+      "task_name": "click_bell",
+      "aspect_id": "robustness.distractor_avoidance",
+      "intent": "Can this ACT policy click the intended bell without touching a nearby visually similar distractor bell? Trusted bounded variant: One alternate official bell instance is placed 0.12 m from the target; success requires the correct-arm target press and forbids every latched distractor contact.",
+      "capability_id": "robustness.distractor_avoidance",
       "reuse_first": true,
       "changes": {
-        "block": {
-          "position_mode": "official_random",
-          "yaw_mode": "official_random",
-          "scale": 1.2,
-          "color": [
-            1.0,
-            0.0,
-            0.0
-          ]
+        "distractor": {
+          "scene": {
+            "target_name": "050_bell",
+            "distractor_name": "distractor_bell",
+            "distractor_offset_xy_m": [
+              0.0,
+              0.12
+            ],
+            "instance_relation": "alternate_official_instance"
+          },
+          "success": {
+            "target_xy_threshold_m": [
+              0.025,
+              0.025
+            ],
+            "target_z_threshold_m": 0.03,
+            "require_correct_arm": true,
+            "forbid_distractor_contact": true,
+            "latch_distractor_contact": true
+          }
         }
       },
-      "preserve_success_semantics": true
+      "preserve_success_semantics": false
     },
     "tool_proposal": {
-      "schema_version": 3,
-      "proposal_id": "object_scale.query_metric_1.tool",
-      "task_name": "beat_block_hammer",
-      "aspect_id": "object_scale",
-      "evaluation_goal": "measure task outcome and visible behavior",
-      "metric": "query_right_tcp_target_xy_distance",
-      "question": "What was the minimum XY TCP-target distance?",
+      "schema_version": 1,
+      "proposal_id": "robustness.distractor_avoidance.lookalike_bell.tool",
+      "task_name": "click_bell",
+      "aspect_id": "robustness.distractor_avoidance",
+      "evaluation_goal": "One alternate official bell instance is placed 0.12 m from the target; success requires the correct-arm target press and forbids every latched distractor contact.",
+      "metric": "click_target_without_distractor_success",
+      "question": "Did the rollout press the intended bell with the correct arm without any latched contact with the look-alike bell?",
       "vqa_phenomenon_ids": [
-        "hammer_visibly_lifted",
-        "block_visibly_displaced",
-        "run_local.beat_block_hammer.object_scale.query_observation"
+        "bell_visibly_pressed",
+        "lookalike_distractor_visible",
+        "distractor_not_clicked"
       ],
-      "vqa_question_specs": [
-        {
-          "question_type": "visible_state_change",
-          "target_role": "manipulated_tool",
-          "question": "Does the rollout visibly show the robot making task-relevant progress under the query-generated variation?",
-          "visual_scope": "rollout_change",
-          "numeric_authority": "simulator_pickup_threshold_is_authoritative",
-          "id": "run_local.beat_block_hammer.object_scale.query_observation"
-        }
-      ],
-      "reuse_first": true,
-      "metric_spec": {
-        "schema_version": 1,
-        "operation": "minimum_distance",
-        "left_signal": "right_tcp_position",
-        "right_signal": "block_position",
-        "dimensions": [
-          "x",
-          "y"
-        ],
-        "unit": "m",
-        "null_semantics": "null_if_no_finite_sample"
-      }
+      "reuse_first": true
     },
-    "task_name": "beat_block_hammer",
-    "aspect_id": "object_scale",
     "proposal_materialization": {
       "schema_version": 1,
       "mode": "query_generated_bounded_variation",
-      "base_template_id": "object_scale.bounded_1_2",
+      "base_template_id": "robustness.distractor_avoidance.lookalike_bell",
       "capability_contract_is_authority_envelope": true,
       "task_proposal_is_round_variation_authority": true
     },
     "semantic_need_execution": {
       "schema_version": 1,
-      "candidate_slot_id": "object_scale.bounded_1_2",
-      "realization_id": "object_scale.query_generated_1",
+      "candidate_slot_id": "robustness.distractor_avoidance.lookalike_bell",
+      "realization_id": "robustness.distractor_avoidance.lookalike_bell",
       "task": {
         "requested": true,
-        "description": "TaskGen must generate a new scene with the block's scale increased by 50%.",
+        "description": "TaskGen must create the controlled distractor scene by adding one visually similar distractor bell under the allowed distractor change root and retain the official intended-bell success check.",
         "route": "bounded_task_proposal_v1",
         "status": "selected"
       },
       "tool": {
         "requested": true,
-        "description": "ToolGen must retrieve or generate a rule-based metric to measure the success of the task and ensure the hammer makes contact with the block's functional point.",
-        "route": "typed_metric_spec_compile",
+        "description": "ToolGen must retrieve or generate an observable rule metric that records any contact or click event involving the distractor bell, alongside official success for the intended bell.",
+        "route": "registered_tool_reuse",
         "status": "selected"
       }
     }
@@ -342,40 +355,49 @@
   "semantic_proposal": {
     "schema_version": 1,
     "action": "continue",
-    "sub_aspect": "robustness.block_scale_variation",
-    "hypothesis": "The ACT policy's performance will degrade when the block's scale is increased by 50%, as it may affect the hammer's ability to make contact with the block's functional point.",
+    "sub_aspect": "robustness.distractor_avoidance.near_duplicate_bell",
+    "hypothesis": "With one visually similar non-target bell placed near the intended bell, ACT will achieve official success on the intended bell while recording zero contact with the distractor.",
     "requested_perturbation": {
-      "description": "Increase the block's scale by 50% while preserving all other task attributes.",
+      "description": "Add exactly one visually similar, nonfunctional distractor bell at a nearby non-overlapping position relative to the intended bell, leaving the intended bell and all other scene elements unchanged.",
       "controlled_changes": [
-        "block scale"
+        "the presence and nearby placement of one visually similar distractor bell"
       ],
       "preserve": [
         "task identity",
-        "policy checkpoint"
+        "policy checkpoint",
+        "intended bell pose and target contact",
+        "all non-distractor scene elements"
       ]
     },
     "task_need": {
       "required": true,
-      "description": "TaskGen must generate a new scene with the block's scale increased by 50%."
+      "description": "TaskGen must create the controlled distractor scene by adding one visually similar distractor bell under the allowed distractor change root and retain the official intended-bell success check."
     },
     "tool_need": {
       "required": true,
-      "description": "ToolGen must retrieve or generate a rule-based metric to measure the success of the task and ensure the hammer makes contact with the block's functional point.",
+      "description": "ToolGen must retrieve or generate an observable rule metric that records any contact or click event involving the distractor bell, alongside official success for the intended bell.",
       "reuse_first": true
     },
-    "rationale": "Testing robustness to object scale variation is critical to identifying potential weaknesses in the ACT policy, as changes in object dimensions may impact the policy's ability to achieve the task's success criteria."
+    "rationale": "The unchanged control succeeded but did not test distractor avoidance. A single nearby visually similar distractor directly probes the Query's remaining uncertainty, while a distractor-contact observable is required because official success alone cannot distinguish a clean intended click from touching both bells."
   },
   "semantic_resolution": {
     "schema_version": 1,
-    "semantic_sub_aspect": "robustness.block_scale_variation",
-    "resolved_aspect_id": "object_scale",
-    "resolved_template_id": "object_scale.bounded_1_2",
+    "semantic_sub_aspect": "robustness.distractor_avoidance.near_duplicate_bell",
+    "resolved_aspect_id": "robustness.distractor_avoidance",
+    "resolved_template_id": "robustness.distractor_avoidance.lookalike_bell",
     "resolution": "explicit_change_intent_aspect_runtime_order",
     "hidden": true,
     "matched_tokens": [
+      "avoidance",
+      "contact",
       "description",
-      "object",
-      "scale"
+      "distractor",
+      "nearby",
+      "official",
+      "one",
+      "robustness",
+      "scene",
+      "target"
     ],
     "catalog_was_model_visible": false
   }

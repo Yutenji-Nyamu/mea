@@ -299,7 +299,16 @@ def authorize_controlled_change(
         str(item).strip() for item in raw_changes if str(item).strip()
     )
     normalized = " ".join(requested).casefold()
-    represents_goal_identity = "goal" in normalized or "object" in normalized
+    identity_change = re.search(
+        r"\b(?:goal\s+object|object\s+identity|goal\s+identity)\b",
+        normalized,
+    )
+    preserve_only = re.search(
+        r"\b(?:preserve|keep|retain|unchanged|do\s+not\s+change)\b.{0,32}"
+        r"\b(?:goal|object)\b",
+        normalized,
+    )
+    represents_goal_identity = bool(identity_change and not preserve_only)
     status = "authorized" if represents_goal_identity else "unsupported"
     reason = (
         "existing-object goal identity can be expressed by the Phase-1 BDDL contract"

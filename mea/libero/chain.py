@@ -16,6 +16,9 @@ from mea.providers import OpenAICompatibleProvider
 from mea.toolkit.aggregate import aggregate_tool_executions
 
 from .benchmark import (
+    BATCH23_PARITY_ACTION_STEPS,
+    BATCH23_PARITY_HORIZON_STEPS,
+    BATCH23_PARITY_OBSERVATION_SIZE,
     LiberoBenchmarkAdapter,
     TaskContract,
     build_official_task_contract,
@@ -36,7 +39,9 @@ from .tool import LiberoPredicateToolBackend
 
 DEFAULT_CHECKPOINT = Path("/root/autodl-tmp/checkpoints/libero/smolvla_libero")
 DEFAULT_SEED = 100800
-HORIZON_STEPS = 100
+HORIZON_STEPS = BATCH23_PARITY_HORIZON_STEPS
+OBSERVATION_SIZE = BATCH23_PARITY_OBSERVATION_SIZE
+N_ACTION_STEPS = BATCH23_PARITY_ACTION_STEPS
 _BOUND_TASK_RE = re.compile(r"^(libero_[a-z0-9_]+)/task([0-9]+)$")
 
 
@@ -99,10 +104,17 @@ def _gate0(
     init_path = Path(official.initial_state_source)
     official_env = LiberoBenchmarkAdapter(
         episode_length=HORIZON_STEPS,
+        observation_size=OBSERVATION_SIZE,
         suite_name=official.suite,
         task_id=official.official_task_id,
     ).make_official_env()
     state_observation_enabled = official_env.obs_type == "pixels_agent_pos"
+    observation_size_matches = (
+        getattr(official_env, "observation_height", None)
+        == OBSERVATION_SIZE
+        and getattr(official_env, "observation_width", None)
+        == OBSERVATION_SIZE
+    )
     official_env.close()
     checkpoint_config = json.loads(
         (checkpoint / "config.json").read_text(encoding="utf-8")
@@ -122,7 +134,9 @@ def _gate0(
             retrieval.selected
         ),
         "taskgen_change_awaits_planner": change_contract.status == "pending",
-        "explicit_horizon_100": official.horizon_steps == HORIZON_STEPS,
+        "batch23_parity_horizon_280": official.horizon_steps == HORIZON_STEPS,
+        "batch23_parity_observation_360": observation_size_matches,
+        "batch23_parity_action_chunk_10": N_ACTION_STEPS == 10,
         "relative_control": official.control_mode == "relative",
         "state_observation_enabled": state_observation_enabled,
         "checkpoint_requires_state": (
@@ -147,6 +161,8 @@ def _gate0(
         "controlled_change_contract": change_contract.to_dict(),
         "rollout_budget": 2,
         "horizon_steps_each": HORIZON_STEPS,
+        "observation_size": OBSERVATION_SIZE,
+        "n_action_steps": N_ACTION_STEPS,
     }
     if result["status"] != "passed":
         failed = [key for key, passed in checks.items() if not passed]
@@ -190,6 +206,11 @@ def _capabilities(
                         "obj_of_interest",
                         "goal",
                     ],
+                    "planner_contract": (
+                        "If action is continue, controlled_changes MUST include "
+                        "goal object identity. Language-only or semantics-preserving "
+                        "paraphrase proposals are unsupported."
+                    ),
                 }
             ],
             "toolgen": {
@@ -246,6 +267,61 @@ def _official_contract_artifact(root: Path, contract: TaskContract) -> Path:
     return _write_json(root / "round_01_official" / "task_contract.json", contract.to_dict())
 
 
+def _method_chain_is_valid(
+    *,
+    official_success: bool,
+    rollouts_executed: int,
+    planner_taskgen_alignment: bool,
+    compatibility_probe_passed: bool,
+    aggregate_status: str,
+    exact_reuse: bool,
+    final_planner_bundle_present: bool,
+    episode_protocol_matches: bool,
+) -> bool:
+    """Mechanism validity is independent of the custom policy outcome."""
+
+    return bool(
+        official_success
+        and rollouts_executed == 2
+        and planner_taskgen_alignment
+        and compatibility_probe_passed
+        and aggregate_status == "passed"
+        and exact_reuse
+        and final_planner_bundle_present
+        and episode_protocol_matches
+    )
+
+
+def _planner_taskgen_misaligned_result(
+    *,
+    request: str,
+    root: Path,
+    official_success: bool,
+    retrieval: BDDLRetrieval,
+    compatibility: PolicyTaskCompatibility,
+    change_contract: ControlledChangeContract,
+) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "status": "planner_taskgen_misaligned",
+        "benchmark": "libero",
+        "policy": "smolvla",
+        "query": request,
+        "rollouts_executed": 1,
+        "rollout_budget": 2,
+        "official_success": official_success,
+        "custom_rollout_authorized": False,
+        "stop_reason": "planner_change_not_expressible_by_taskgen",
+        "method_chain_valid": False,
+        "paper_performance_evidence": False,
+        "scientific_evidence_eligible": False,
+        "retrieval": retrieval.to_dict(),
+        "policy_task_compatibility": compatibility.to_dict(),
+        "controlled_change_contract": change_contract.to_dict(),
+        "raw_run_dir": str(root),
+    }
+
+
 def run_libero_method_chain(
     *,
     repo_root: str | Path,
@@ -266,6 +342,11 @@ def run_libero_method_chain(
         raise ValueError(
             "checkpoint task scope is unknown; an explicit LIBERO suite/task "
             "binding is required before retrieval or control"
+        )
+    if (bound_suite, int(bound_task_id)) != ("libero_object", 0):
+        raise ValueError(
+            "the current SmolVLA basic-adaptation protocol is validated only "
+            "for libero_object/task0"
         )
     root = repo / "mea" / "evaluation_runs" / evaluation_id
     root.mkdir(parents=True, exist_ok=False)
@@ -292,7 +373,9 @@ def run_libero_method_chain(
         result = {
             "schema_version": 1,
             "status": "plan_only_passed",
+            "method_chain_valid": False,
             "paper_performance_evidence": False,
+            "scientific_evidence_eligible": False,
             "provider_required": False,
             "rollouts_executed": 0,
             "gate0": str(root / "gate0.json"),
@@ -305,6 +388,19 @@ def run_libero_method_chain(
         return result
 
     if not os.getenv("UIUI_API_KEY"):
+        _write_json(
+            root / "compact_result.json",
+            {
+                "schema_version": 1,
+                "status": "startup_failed",
+                "error_type": "MissingProviderCredential",
+                "rollouts_executed": 0,
+                "rollout_budget": 2,
+                "method_chain_valid": False,
+                "paper_performance_evidence": False,
+                "scientific_evidence_eligible": False,
+            },
+        )
         raise RuntimeError(
             "live LIBERO evaluation requires UIUI_API_KEY in the current process"
         )
@@ -315,14 +411,16 @@ def run_libero_method_chain(
     )
     benchmark = LiberoBenchmarkAdapter(
         episode_length=HORIZON_STEPS,
+        observation_size=OBSERVATION_SIZE,
         suite_name=official_contract.suite,
         task_id=official_contract.official_task_id,
     )
     policy = LeRobotPolicyAdapter(
         checkpoint=checkpoint_path,
         device="cuda",
-        n_action_steps=10,
+        n_action_steps=N_ACTION_STEPS,
         horizon_steps=HORIZON_STEPS,
+        observation_size=OBSERVATION_SIZE,
     )
     rollouts_executed = 0
     try:
@@ -357,7 +455,7 @@ def run_libero_method_chain(
             ),
             limitations=[
                 "N=1 fixed seed",
-                "100-step protocol horizon",
+                "batch23-parity 280-step feasibility horizon",
             ],
         )
         _write_json(root / "round_01_official" / "evidence.json", control_evidence)
@@ -373,6 +471,7 @@ def run_libero_method_chain(
                 "official_success": False,
                 "custom_rollout_authorized": False,
                 "stop_reason": "official_control_failed",
+                "method_chain_valid": False,
                 "paper_performance_evidence": False,
                 "scientific_evidence_eligible": False,
                 "retrieval": query_retrieval.to_dict(),
@@ -422,6 +521,17 @@ def run_libero_method_chain(
                 "controlled_change_contract": controlled_change.to_dict(),
             },
         )
+        if not controlled_change.authorized:
+            result = _planner_taskgen_misaligned_result(
+                request=request,
+                root=root,
+                official_success=official_record.success,
+                retrieval=planner_retrieval,
+                compatibility=compatibility,
+                change_contract=controlled_change,
+            )
+            _write_json(root / "compact_result.json", result)
+            return result
         controlled_change.require_authorized()
 
         taskgen = LiberoTaskGenBackend(provider, model=taskgen_model)
@@ -525,17 +635,7 @@ def run_libero_method_chain(
             for item in values
             if item not in {"basket_1", "alphabet_soup_1", taskgen_result["selected_object"]}
         )
-        if not official_record.success:
-            sufficiency = {
-                "evidence_sufficient": False,
-                "should_stop": True,
-                "stop_reason": "control_baseline_failed",
-                "claim_verdict": (
-                    "The unchanged 100-step control failed; the custom outcome "
-                    "cannot be attributed to object identity."
-                ),
-            }
-        elif second_bundle is not None and second_bundle["proposal"]["action"] == "stop":
+        if second_bundle is not None and second_bundle["proposal"]["action"] == "stop":
             sufficiency = {
                 "evidence_sufficient": True,
                 "should_stop": True,
@@ -592,6 +692,34 @@ def run_libero_method_chain(
         _write_json(root / "answer_scope.json", answer_scope)
 
         conclusion = sufficiency["claim_verdict"]
+        compatibility_probe_passed = all(
+            bool(probe.get(key))
+            for key in (
+                "reset",
+                "robot_state_present",
+                "official_init_state_applied",
+                "render_nonempty",
+            )
+        )
+        exact_reuse = reuse["route"] == "exact_registry_reuse"
+        episode_protocol_matches = bool(
+            official_record.seed == custom_record.seed == seed
+            and official_record.horizon_steps
+            == custom_record.horizon_steps
+            == HORIZON_STEPS
+        )
+        method_chain_valid = _method_chain_is_valid(
+            official_success=official_record.success,
+            rollouts_executed=rollouts_executed,
+            planner_taskgen_alignment=bool(
+                taskgen_result["planner_taskgen_alignment"]
+            ),
+            compatibility_probe_passed=compatibility_probe_passed,
+            aggregate_status=str(aggregate["status"]),
+            exact_reuse=exact_reuse,
+            final_planner_bundle_present=second_bundle is not None,
+            episode_protocol_matches=episode_protocol_matches,
+        )
         compact = {
             "schema_version": 1,
             "status": "completed",
@@ -610,7 +738,7 @@ def run_libero_method_chain(
             "custom_env_route": "OffScreenRenderEnv via explicit custom factory",
             "stock_task_id_faked_for_custom": False,
             "tool_live_value": custom_record.goal_predicate_satisfied,
-            "tool_exact_reuse": reuse["route"] == "exact_registry_reuse",
+            "tool_exact_reuse": exact_reuse,
             "reuse_additional_rollouts": reuse["additional_rollouts"],
             "aggregate_status": aggregate["status"],
             "planner_final_action": (
@@ -622,6 +750,8 @@ def run_libero_method_chain(
             "query_contract_sufficient": bool(
                 sufficiency["evidence_sufficient"]
             ),
+            "method_chain_valid": method_chain_valid,
+            "episode_protocol_matches": episode_protocol_matches,
             "scientific_evidence_eligible": False,
             "paper_performance_evidence": False,
             "query_sufficiency": sufficiency,
@@ -678,6 +808,9 @@ def run_libero_method_chain(
             "error": str(exc),
             "rollouts_executed": rollouts_executed,
             "rollout_budget": 2,
+            "method_chain_valid": False,
+            "paper_performance_evidence": False,
+            "scientific_evidence_eligible": False,
             "elapsed_seconds": round(time.monotonic() - started, 3),
             "raw_run_dir": str(root),
         }

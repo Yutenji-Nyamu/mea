@@ -494,6 +494,10 @@ def run_ranking(
 
     prereg = read_json(prereg_path)
     output_root.mkdir(parents=True, exist_ok=True)
+    requested_shared_probes = len(prereg["eligibility_schedule"])
+    requested_policy_rollouts = sum(
+        len(rows) for rows in prereg["execution_schedule"].values()
+    )
     shared_by_seed: dict[int, dict[str, Any]] = {}
     eligibility_issues: list[dict[str, Any]] = []
     for binding in prereg["eligibility_schedule"]:
@@ -513,9 +517,9 @@ def run_ranking(
             "protocol": f"{prereg['protocol']}_incomplete_result",
             "status": "shared_expert_eligibility_incomplete",
             "preregistration_sha256": prereg["preregistration_sha256"],
-            "requested_shared_expert_probes": 3,
+            "requested_shared_expert_probes": requested_shared_probes,
             "completed_shared_expert_probes": len(shared_by_seed),
-            "requested_policy_rollouts": 6,
+            "requested_policy_rollouts": requested_policy_rollouts,
             "completed_policy_rollouts": 0,
             "issues": eligibility_issues,
             "pair_order": None,
@@ -567,9 +571,9 @@ def run_ranking(
             "protocol": f"{prereg['protocol']}_incomplete_result",
             "status": "incomplete_exact_seed_contract",
             "preregistration_sha256": prereg["preregistration_sha256"],
-            "requested_policy_rollouts": 6,
+            "requested_policy_rollouts": requested_policy_rollouts,
             "completed_policy_rollouts": sum(len(rows) for rows in observed.values()),
-            "requested_shared_expert_probes": 3,
+            "requested_shared_expert_probes": requested_shared_probes,
             "completed_shared_expert_probes": len(shared_by_seed),
             "observed_policy_outcomes": observed,
             "issues": issues,

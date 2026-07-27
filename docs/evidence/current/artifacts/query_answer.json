@@ -1,76 +1,57 @@
 {
   "schema_version": 1,
-  "original_query": "这个ACT策略最先在哪种被操作物体或场景变化上暴露弱点？",
-  "answered": false,
-  "stop_reason": "budget_exhausted",
+  "original_query": "Can this ACT policy click the intended bell without touching a nearby visually similar distractor bell?",
+  "answered": true,
+  "answer_scope": "bounded_experimental_query_semantics",
+  "official_benchmark_answered": false,
+  "stop_reason": "evidence_sufficient",
   "claim_type": "diagnostic",
-  "claim_verdict": "inconclusive",
-  "answer": "The bounded evidence does not yet satisfy the truth conditions needed to answer the original Query.",
+  "claim_verdict": "no_failure_observed",
+  "answer": "For the finite registered candidate domain, the Query verdict is no_failure_observed.",
   "tested_candidate_ids": [
-    "object_scale.bounded_1_2",
-    "robustness.distractor_avoidance.lookalike"
+    "robustness.distractor_avoidance.lookalike_bell"
   ],
-  "untested_candidate_ids": [
-    "object_appearance.color_blue",
-    "object_position.official_random",
-    "performance.pickup_to_contact_timing"
-  ],
+  "untested_candidate_ids": [],
   "limitations": [
     "This is a finite-domain stopping prototype, not a statistical generalization guarantee.",
     "Diagnosis strings are trusted upstream evidence labels; this contract does not independently infer or validate causality.",
-    "Untested finite-domain candidates: object_appearance.color_blue, object_position.official_random, performance.pickup_to_contact_timing",
     "This answer is limited to the bound task, checkpoint, variants, and recorded seeds.",
     "A finite-domain N-small result is not a broad generalization guarantee.",
-    "At least one candidate verdict uses generated_check_success; it must not be interpreted as official benchmark success."
+    "At least one candidate verdict uses generated_check_success; it must not be interpreted as official benchmark success.",
+    "At least one generated checker is an expected semantic extension of the official core predicate, not an official-equivalent result."
   ],
   "evidence_refs": [
     {
       "kind": "child_manifest",
-      "path": "mea/generated_tasks/run_20260726_batch23_open_query_live_n1_v5_round_1/manifest.json"
+      "path": "mea/generated_tasks/run_20260727_batch26_clean_online_click_live_v6_round_1/manifest.json"
     },
     {
       "kind": "round_aggregate",
-      "path": "mea/evaluation_runs/eval_20260726_batch23_open_query_live_n1_v5/execution/round_1/aggregate_result.json"
+      "path": "mea/evaluation_runs/eval_20260727_batch26_clean_online_click_live_v6/execution/round_1/aggregate_result.json"
     },
     {
       "kind": "tool_execution",
-      "path": "mea/evaluation_runs/eval_20260726_batch23_open_query_live_n1_v5/execution/round_1/planned_tool/tool_execution.json"
+      "path": "mea/evaluation_runs/eval_20260727_batch26_clean_online_click_live_v6/execution/round_1/planned_tool/tool_execution.json"
     },
     {
       "kind": "execution_vqa_result",
-      "path": "mea/evaluation_runs/eval_20260726_batch23_open_query_live_n1_v5/execution/round_1/execution_vqa/execution_vqa.json"
+      "path": "mea/evaluation_runs/eval_20260727_batch26_clean_online_click_live_v6/execution/round_1/execution_vqa/execution_vqa.json"
     },
     {
       "kind": "child_manifest",
-      "path": "mea/generated_tasks/run_20260726_batch23_open_query_live_n1_v5_round_2/manifest.json"
+      "path": "mea/generated_tasks/run_20260727_batch26_clean_online_click_live_v6_round_2/manifest.json"
     },
     {
       "kind": "round_aggregate",
-      "path": "mea/evaluation_runs/eval_20260726_batch23_open_query_live_n1_v5/execution/round_2/aggregate_result.json"
+      "path": "mea/evaluation_runs/eval_20260727_batch26_clean_online_click_live_v6/execution/round_2/aggregate_result.json"
     },
     {
       "kind": "tool_execution",
-      "path": "mea/evaluation_runs/eval_20260726_batch23_open_query_live_n1_v5/execution/round_2/planned_tool/tool_execution.json"
+      "path": "mea/evaluation_runs/eval_20260727_batch26_clean_online_click_live_v6/execution/round_2/planned_tool/tool_execution.json"
     },
     {
       "kind": "execution_vqa_result",
-      "path": "mea/evaluation_runs/eval_20260726_batch23_open_query_live_n1_v5/execution/round_2/execution_vqa/execution_vqa.json"
-    },
-    {
-      "kind": "child_manifest",
-      "path": "mea/generated_tasks/run_20260726_batch23_open_query_live_n1_v5_round_3/manifest.json"
-    },
-    {
-      "kind": "round_aggregate",
-      "path": "mea/evaluation_runs/eval_20260726_batch23_open_query_live_n1_v5/execution/round_3/aggregate_result.json"
-    },
-    {
-      "kind": "tool_execution",
-      "path": "mea/evaluation_runs/eval_20260726_batch23_open_query_live_n1_v5/execution/round_3/planned_tool/tool_execution.json"
-    },
-    {
-      "kind": "execution_vqa_result",
-      "path": "mea/evaluation_runs/eval_20260726_batch23_open_query_live_n1_v5/execution/round_3/execution_vqa/execution_vqa.json"
+      "path": "mea/evaluation_runs/eval_20260727_batch26_clean_online_click_live_v6/execution/round_2/execution_vqa/execution_vqa.json"
     }
   ],
   "evaluation_outcomes": [
@@ -80,28 +61,87 @@
       "binding": null,
       "value": 1.0,
       "official_equivalent": true,
-      "execution_scope": "official_equivalent"
+      "execution_scope": "official_equivalent",
+      "outcome_semantics": {
+        "schema_version": 1,
+        "status": "official_only",
+        "evidence_conflict": false,
+        "official_equivalent": true,
+        "outcome_authority": "official_check_success",
+        "episodes": [],
+        "reason_codes": [
+          "official_outcome_has_no_generated_checker"
+        ]
+      }
     },
     {
-      "metric": "official_check_success",
-      "authority": "compiled_success_spec_official_equivalent",
-      "binding": null,
-      "value": 1.0,
-      "official_equivalent": true,
-      "execution_scope": "official_equivalent"
-    },
-    {
-      "metric": "bbh_target_without_distractor_success",
+      "metric": "click_target_without_distractor_success",
       "authority": "llm_generated_python_ast_validated",
       "binding": {
-        "metric": "bbh_target_without_distractor_success",
+        "metric": "click_target_without_distractor_success",
         "authority": "llm_generated_python_ast_validated",
-        "module_sha256": "5cd3ae7bddc4d7fe6f287faac282f9007e648b4a620c29b9ef051d23532918ed",
-        "task_module": "mea.generated_tasks.run_20260726_batch23_open_query_live_n1_v5_round_3.task"
+        "module_sha256": "ff3e225dc5eb1e46ce2b5cf1a736cbf4148de222c5b35d0741513d40e6a4fbde",
+        "task_module": "mea.generated_tasks.run_20260727_batch26_clean_online_click_live_v6_round_2.task"
       },
       "value": 1.0,
       "official_equivalent": false,
-      "execution_scope": "provider_generated_checker"
+      "execution_scope": "provider_generated_checker",
+      "outcome_semantics": {
+        "schema_version": 1,
+        "status": "expected_semantic_extension",
+        "evidence_conflict": false,
+        "official_equivalent": false,
+        "outcome_authority": "llm_generated_python_ast_validated",
+        "episodes": [
+          {
+            "seed": 100405,
+            "generated_checker_success": true,
+            "official_success": false,
+            "official_core_predicate_satisfied": true,
+            "official_equivalent": false,
+            "status": "expected_semantic_extension",
+            "reason": "generated_checker_adds_constraints_beyond_official_core"
+          }
+        ],
+        "reason_codes": [
+          "generated_checker_adds_constraints_beyond_official_core"
+        ]
+      }
     }
-  ]
+  ],
+  "outcome_semantics": [
+    {
+      "schema_version": 1,
+      "status": "official_only",
+      "evidence_conflict": false,
+      "official_equivalent": true,
+      "outcome_authority": "official_check_success",
+      "episodes": [],
+      "reason_codes": [
+        "official_outcome_has_no_generated_checker"
+      ]
+    },
+    {
+      "schema_version": 1,
+      "status": "expected_semantic_extension",
+      "evidence_conflict": false,
+      "official_equivalent": false,
+      "outcome_authority": "llm_generated_python_ast_validated",
+      "episodes": [
+        {
+          "seed": 100405,
+          "generated_checker_success": true,
+          "official_success": false,
+          "official_core_predicate_satisfied": true,
+          "official_equivalent": false,
+          "status": "expected_semantic_extension",
+          "reason": "generated_checker_adds_constraints_beyond_official_core"
+        }
+      ],
+      "reason_codes": [
+        "generated_checker_adds_constraints_beyond_official_core"
+      ]
+    }
+  ],
+  "evidence_conflict": false
 }

@@ -6,6 +6,7 @@ from mea.planner.claim_first_runtime import (
     build_claim_first_evidence_record,
     build_control_anchor_proposal,
     control_template_id,
+    resolve_concern_candidate_domain,
     resolve_semantic_proposal,
 )
 
@@ -46,6 +47,15 @@ def target():
                     "robustness.scene_clutter.official_table",
                 ],
             },
+            {
+                "aspect_id": "robustness.distractor_avoidance",
+                "description": (
+                    "Robustness to one nearby physical look-alike bell."
+                ),
+                "template_ids": [
+                    "robustness.distractor_avoidance.lookalike_bell",
+                ],
+            },
         ],
     }
 
@@ -81,6 +91,7 @@ def summary(
     *,
     pipeline_passed=True,
     policy_outcome=None,
+    outcome_semantics=None,
 ):
     if policy_outcome is None:
         policy_outcome = {
@@ -101,6 +112,18 @@ def summary(
         "observations": {
             "policy_success": success_rate,
             "policy_outcome": policy_outcome,
+            "outcome_semantics": (
+                outcome_semantics
+                if outcome_semantics is not None
+                else {
+                    "schema_version": 1,
+                    "status": "official_only",
+                    "evidence_conflict": False,
+                    "official_equivalent": True,
+                    "episodes": [],
+                    "reason_codes": ["no_generated_checker_result"],
+                }
+            ),
             "aggregate": {
                 "status": "passed",
                 "input_issues": [],
@@ -235,12 +258,63 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
                 "object_instance.base0",
                 "object_instance.base1",
                 "robustness.scene_clutter.official_table",
+                "robustness.distractor_avoidance.lookalike_bell",
             },
         )
         self.assertNotIn(
             "performance.completion_time_stability.official",
             controller.query_contract["candidate_universe"],
         )
+
+    def test_online_concern_uniquely_binds_distractor_candidate(self):
+        resolution = resolve_concern_candidate_domain(
+            {
+                "source_query": (
+                    "Can it avoid a visually similar distractor bell?"
+                ),
+                "sub_aspect": (
+                    "Target selection with visually similar objects nearby."
+                ),
+                "hypothesis": (
+                    "The policy clicks the target without confusing a similar object."
+                ),
+                "requested_variation": (
+                    "Place a visually similar object beside the target."
+                ),
+                "measurement_need": (
+                    "Observe target success and any distractor contact."
+                ),
+            },
+            target=target(),
+        )
+
+        self.assertEqual(
+            resolution["candidate_aspect_ids"],
+            ["robustness.distractor_avoidance"],
+        )
+        self.assertEqual(
+            resolution["resolution"], "unique_query_supported_concern"
+        )
+        self.assertEqual(resolution["decision"], "bind_single_aspect")
+        self.assertFalse(resolution["catalog_was_model_visible"])
+
+    def test_broad_or_tied_concern_keeps_full_candidate_domain(self):
+        resolution = resolve_concern_candidate_domain(
+            {
+                "source_query": "How robust is this policy in general?",
+                "sub_aspect": "General task robustness.",
+                "hypothesis": "The policy may expose a weakness.",
+                "requested_variation": "Change an appropriate property.",
+                "measurement_need": "Measure task success.",
+            },
+            target=target(),
+        )
+
+        self.assertIsNone(resolution["candidate_aspect_ids"])
+        self.assertEqual(
+            resolution["resolution"], "broad_or_ambiguous"
+        )
+        self.assertEqual(resolution["decision"], "ambiguous")
 
     def test_tool_value_and_reuse_route_reach_next_planner_evidence(self):
         plan = round_plan(
@@ -535,6 +609,150 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
                 in item
                 for item in state["query_answer"]["limitations"]
             )
+        )
+
+    def test_expected_semantic_extension_is_explicit_but_can_diagnose(self):
+        controller = ClaimFirstRuntimeController(
+            "Where does this policy first expose a weakness?",
+            target(),
+        )
+        control = round_plan(
+            1, "performance.completion_time_stability.official"
+        )
+        candidate = round_plan(2, "object_position.left_fixed")
+        control_summary = summary(control, 1.0)
+        candidate_summary = summary(
+            candidate,
+            0.0,
+            policy_outcome={
+                "metric": "generated_check_success",
+                "authority": "llm_generated_python_ast_validated",
+                "binding": {"module_sha256": "b" * 64},
+                "value": 0.0,
+                "official_equivalent": False,
+                "execution_scope": "experimental_bounded",
+            },
+            outcome_semantics={
+                "schema_version": 1,
+                "status": "expected_semantic_extension",
+                "evidence_conflict": False,
+                "official_equivalent": False,
+                "episodes": [
+                    {
+                        "generated_checker_success": False,
+                        "official_success": True,
+                        "official_core_predicate_satisfied": True,
+                    }
+                ],
+                "reason_codes": [
+                    "generated_checker_adds_constraints_beyond_official_core"
+                ],
+            },
+        )
+
+        state = controller.observe(
+            [control, candidate],
+            [control_summary, candidate_summary],
+        )
+
+        self.assertTrue(state["assessment"]["evidence_sufficient"])
+        self.assertFalse(state["query_answer"]["evidence_conflict"])
+        self.assertEqual(
+            state["query_answer"]["answer_scope"],
+            "bounded_experimental_query_semantics",
+        )
+        self.assertFalse(state["query_answer"]["official_benchmark_answered"])
+        self.assertEqual(
+            state["query_answer"]["outcome_semantics"][1]["status"],
+            "expected_semantic_extension",
+        )
+        self.assertTrue(
+            any(
+                "expected semantic extension" in item
+                for item in state["query_answer"]["limitations"]
+            )
+        )
+
+    def test_outcome_semantics_conflict_blocks_query_sufficiency(self):
+        controller = ClaimFirstRuntimeController(
+            "Where does this policy first expose a weakness?",
+            target(),
+        )
+        control = round_plan(
+            1, "performance.completion_time_stability.official"
+        )
+        candidate = round_plan(2, "object_position.left_fixed")
+        control_summary = summary(control, 1.0)
+        candidate_summary = summary(
+            candidate,
+            0.0,
+            outcome_semantics={
+                "schema_version": 1,
+                "status": "conflict",
+                "evidence_conflict": True,
+                "official_equivalent": False,
+                "episodes": [
+                    {
+                        "generated_checker_success": True,
+                        "official_success": False,
+                        "official_core_predicate_satisfied": False,
+                    }
+                ],
+                "reason_codes": [
+                    "generated_success_without_official_core_predicate"
+                ],
+            },
+        )
+
+        state = controller.observe(
+            [control, candidate],
+            [control_summary, candidate_summary],
+        )
+
+        self.assertTrue(state["assessment"]["should_stop"])
+        self.assertFalse(state["assessment"]["evidence_sufficient"])
+        self.assertEqual(
+            state["assessment"]["stop_reason"],
+            "outcome_semantics_conflict",
+        )
+        self.assertEqual(
+            state["records"][1]["candidate_evidence"]["outcome"],
+            "conflict",
+        )
+        self.assertFalse(state["query_answer"]["answered"])
+        self.assertTrue(state["query_answer"]["evidence_conflict"])
+
+    def test_control_semantics_conflict_invalidates_baseline(self):
+        controller = ClaimFirstRuntimeController(
+            "Where does this policy first expose a weakness?",
+            target(),
+        )
+        control = round_plan(
+            1, "performance.completion_time_stability.official"
+        )
+        state = controller.observe(
+            [control],
+            [
+                summary(
+                    control,
+                    1.0,
+                    outcome_semantics={
+                        "schema_version": 1,
+                        "status": "conflict",
+                        "evidence_conflict": True,
+                        "official_equivalent": True,
+                        "episodes": [],
+                        "reason_codes": [
+                            "generated_and_official_equivalent_predicates_disagree"
+                        ],
+                    },
+                )
+            ],
+        )
+        self.assertFalse(state["control_passed"])
+        self.assertEqual(
+            state["assessment"]["stop_reason"],
+            "control_baseline_semantics_conflict",
         )
 
     def test_diagnostic_failure_stops_by_sufficiency_not_hard_cap(self):

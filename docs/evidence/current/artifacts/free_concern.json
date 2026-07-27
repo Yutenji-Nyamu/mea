@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "source": "provider_catalog_free_concern",
+  "concern": {
+    "schema_version": 1,
+    "source_query": "Can this ACT policy click the intended bell without touching a nearby visually similar distractor bell?",
+    "sub_aspect": "Visual discrimination between the intended bell and a nearby similar distractor during clicking",
+    "hypothesis": "The ACT policy will click the intended bell while making no contact with or click on the nearby visually similar distractor bell.",
+    "task_intent": "Click the intended bell to activate it.",
+    "requested_variation": "Place a nearby visually similar distractor bell adjacent to the intended bell.",
+    "measurement_need": "Observe which bell is contacted and activated, including any contact with or activation of the distractor."
+  },
+  "provider": {
+    "model_requested": "gpt-5.6-luna",
+    "called": true,
+    "attempt_count": 1,
+    "errors": [],
+    "last_metadata": {
+      "id": "resp_00d42481d655b965016a66dd90e8f0819b9579429015671c57",
+      "model": "gpt-5.6-luna",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 370,
+        "completion_tokens": 208,
+        "total_tokens": 578,
+        "completion_tokens_details": {
+          "reasoning_tokens": 75
+        }
+      },
+      "retry_count": 0
+    }
+  }
+}

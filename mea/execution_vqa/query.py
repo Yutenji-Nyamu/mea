@@ -90,12 +90,27 @@ QUESTION_CATALOG: dict[str, dict[str, Any]] = {
             "generated_checker_and_simulator_contacts_are_authoritative"
         ),
     },
+    "distractor_not_clicked": {
+        "question_type": "visible_unintended_contact",
+        "target_role": "distractor",
+        "question": (
+            "Does the robot avoid visibly pressing or contacting the "
+            "lookalike distractor bell while clicking the intended bell?"
+        ),
+        "visual_scope": "rollout_change",
+        "numeric_authority": (
+            "generated_checker_and_simulator_contacts_are_authoritative"
+        ),
+    },
     "bell_visibly_pressed": {
         "question_type": "visible_state_change",
         "target_role": "task_target",
         "question": "Does the robot visibly press or actuate the target bell?",
         "visual_scope": "rollout_change",
-        "numeric_authority": "official_check_success_is_authoritative",
+        "numeric_authority": (
+            "official_core_predicate_is_authoritative_when_available_"
+            "else_official_check_success"
+        ),
     },
     "bell_target_selected_among_clutter": {
         "question_type": "visible_target_selection",
@@ -172,6 +187,14 @@ TASK_TEMPLATE_QUESTION_RULES: dict[tuple[str, str], tuple[str, ...]] = {
     ("click_bell", "task_execution.official_baseline"): ("bell_visibly_pressed",),
     ("click_bell", "object_position.left_fixed"): ("bell_visibly_pressed",),
     ("click_bell", "object_position.right_fixed"): ("bell_visibly_pressed",),
+    (
+        "click_bell",
+        "robustness.distractor_avoidance.lookalike_bell",
+    ): (
+        "bell_visibly_pressed",
+        "lookalike_distractor_visible",
+        "distractor_not_clicked",
+    ),
     ("click_bell", "robustness.scene_clutter.official_table"): (
         "bell_visibly_pressed",
         "bell_target_selected_among_clutter",
@@ -218,6 +241,11 @@ METRIC_QUESTION_RULES: dict[str, tuple[str, ...]] = {
 TASK_METRIC_QUESTION_RULES: dict[tuple[str, str], tuple[str, ...]] = {
     ("click_bell", "official_check_success"): ("bell_visibly_pressed",),
     ("click_bell", "time_to_success"): ("bell_visibly_pressed",),
+    ("click_bell", "click_target_without_distractor_success"): (
+        "bell_visibly_pressed",
+        "lookalike_distractor_visible",
+        "distractor_not_clicked",
+    ),
     ("adjust_bottle", "official_check_success"): ("bottle_visibly_repositioned",),
     ("grab_roller", "official_check_success"): ("roller_visibly_lifted",),
 }

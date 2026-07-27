@@ -78,6 +78,7 @@ def main() -> None:
             "toy_5to7act",
             "position_universal_3to4act",
             "four_candidate_universal_5to8act",
+            "four_candidate_universal_5to6act",
         ),
         required=True,
     )

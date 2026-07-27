@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "batch_id": "batch26_claim_closure",
+  "date": "2026-07-27",
+  "scope": "bounded_claim_closure_not_full_paper_reproduction",
+  "results": {
+    "clean_robotwin_flagship": {
+      "artifact": "flagship_run_summary.json",
+      "evaluation_id": "eval_20260727_batch26_clean_online_click_live_v6",
+      "status": "completed",
+      "accepted": true,
+      "history_replay_disabled": true,
+      "cli_candidate_hint_used": false,
+      "candidate": "robustness.distractor_avoidance.lookalike_bell",
+      "act_rollouts": 2,
+      "routes": [
+        "official",
+        "provider_scene_checker_codegen"
+      ],
+      "stop_reason": "evidence_sufficient",
+      "answer_scope": "bounded_experimental_query_semantics",
+      "paper_scale_claim_established": false
+    },
+    "click_bell_efficiency": {
+      "artifact": "efficiency_result.json",
+      "protocol": "four_candidate_universal_5to6act",
+      "fixed_act_rollouts": 4,
+      "adaptive_act_rollouts": 1,
+      "saved_act_rollouts": 3,
+      "saved_wall_seconds": 170.72708754986525,
+      "original_query_conclusion_agrees": true,
+      "full_failure_set_agrees": null,
+      "toy_efficiency_evidence_passed": true,
+      "paper_tables_1_2_eligible": false
+    },
+    "libero_basic_adaptation": {
+      "artifact": "libero_compact_result.json",
+      "evaluation_id": "eval_20260727_batch26_libero_parity_live_v1",
+      "status": "control_failed",
+      "rollouts_executed": 1,
+      "rollout_budget": 2,
+      "stop_reason": "official_control_failed",
+      "custom_rollout_authorized": false,
+      "method_chain_valid": false,
+      "scientific_evidence": false
+    },
+    "act_dp3_pair_order": {
+      "artifact": "ranking_incomplete_result.json",
+      "protocol": "act_dp3_exact_seed_pair_v1_incomplete_result",
+      "requested_shared_expert_probes": 5,
+      "completed_shared_expert_probes": 2,
+      "requested_policy_rollouts": 10,
+      "completed_policy_rollouts": 0,
+      "status": "shared_expert_eligibility_incomplete",
+      "pair_order": null,
+      "spearman": null,
+      "paper_table9_eligible": false
+    },
+    "zero_act_claim_checks": {
+      "table3": {
+        "artifact": "table3_result.json",
+        "provider_generations": 25,
+        "success_rates": {
+          "complete": 0.8,
+          "base": 0.0,
+          "no_rag": 0.0,
+          "no_visual_self_check": 0.6,
+          "no_readme_agent": 1.0
+        },
+        "paper_table3_eligible": false
+      },
+      "plan_proxy": {
+        "artifact": "plan_proxy_score.json",
+        "sample_count": 30,
+        "human_reviewer_count": 0,
+        "micro_f1": 0.5194805194805194,
+        "paper_eligible": false
+      },
+      "vqa_proxy": {
+        "artifact": "vqa_proxy_score.json",
+        "sample_count": 8,
+        "human_reviewer_count": 0,
+        "accuracy": 0.875,
+        "auroc": 1.0,
+        "paper_eligible": false
+      },
+      "system_error_pilot": {
+        "artifact": "paper_error_summary.json",
+        "semantic_terminal_operations": 10,
+        "paper_defined_errors": 0,
+        "prospective_error_rate": 0.0,
+        "paper_fig6_eligible": false
+      }
+    }
+  },
+  "claim_boundary": [
+    "The flagship closes one finite ClickBell concern, not open-domain robot-policy generalization.",
+    "The efficiency result preserves a preregistered universal-refutation verdict on one task and seed; it does not preserve the complete failure set or reproduce Tables 1-2.",
+    "The LIBERO control failed and correctly prevented custom evaluation, so no cross-environment method evidence was produced.",
+    "ACT versus DP3 remains unranked; the N=5 gate stopped before policy rollouts because only two of five shared expert probes were eligible.",
+    "Plan, VQA, Table 3, and system-error results remain bounded development pilots rather than paper-scale independent evidence."
+  ]
+}

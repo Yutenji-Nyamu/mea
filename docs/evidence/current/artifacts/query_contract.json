@@ -2,23 +2,15 @@
   "schema_version": 1,
   "claim_type": "diagnostic",
   "candidate_universe": [
-    "object_appearance.color_blue",
-    "object_position.official_random",
-    "performance.pickup_to_contact_timing",
-    "object_scale.bounded_1_2",
-    "robustness.distractor_avoidance.lookalike"
+    "robustness.distractor_avoidance.lookalike_bell"
   ],
   "required_coverage": {
     "candidate_ids": [
-      "object_appearance.color_blue",
-      "object_position.official_random",
-      "performance.pickup_to_contact_timing",
-      "object_scale.bounded_1_2",
-      "robustness.distractor_avoidance.lookalike"
+      "robustness.distractor_avoidance.lookalike_bell"
     ],
     "minimum_evaluated": 1,
     "minimum_per_group": null
   },
-  "round_budget": 2,
+  "round_budget": 1,
   "comparison_groups": null
 }

@@ -1,0 +1,192 @@
+{
+  "schema_version": 1,
+  "model_requested": "gpt-5.6-luna",
+  "selection": {
+    "video_path": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260727_batch26_clean_online_click_live_v6_round_1/evaluation/telemetry/act/episode_000_seed_100405/video.mp4",
+    "frame_count": 64,
+    "fps": 10.0,
+    "selected_frames": [
+      {
+        "frame_id": "initial",
+        "frame_index": 0,
+        "source": "video_boundary"
+      },
+      {
+        "frame_id": "success_before",
+        "frame_index": 61,
+        "source": "official_success_event"
+      },
+      {
+        "frame_id": "success_after",
+        "frame_index": 62,
+        "source": "official_success_event"
+      },
+      {
+        "frame_id": "final",
+        "frame_index": 63,
+        "source": "video_boundary"
+      }
+    ],
+    "reference_scene": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260727_batch26_clean_online_click_live_v6_round_1/evidence/initial_head.png",
+    "montage_path": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_20260727_batch26_clean_online_click_live_v6/execution/round_1/execution_vqa/execution_montage.png"
+  },
+  "query": {
+    "schema_version": 1,
+    "profile": "dynamic_v1",
+    "task_name": "click_bell",
+    "template_id": "performance.completion_time_stability.official",
+    "sub_aspect": "performance.completion_time_stability",
+    "tool_metric": "time_to_success",
+    "phenomenon_ids": [
+      "bell_visibly_pressed"
+    ],
+    "questions": [
+      {
+        "id": "bell_visibly_pressed",
+        "question_type": "visible_state_change",
+        "target_role": "task_target",
+        "question": "Does the robot visibly press or actuate the target bell?",
+        "visual_scope": "rollout_change",
+        "numeric_authority": "official_core_predicate_is_authoritative_when_available_else_official_check_success"
+      }
+    ],
+    "selection_reasons": [
+      "tool_proposal:explicit_visual_assignment"
+    ],
+    "answer_contract": {
+      "required_response_keys": [
+        "phenomena",
+        "confidence",
+        "frame_ids",
+        "numeric_consistency",
+        "conflicts"
+      ],
+      "phenomenon_item_keys": [
+        "id",
+        "observed",
+        "description",
+        "confidence",
+        "frame_ids"
+      ],
+      "observed_type": "boolean_or_null",
+      "numeric_consistency_values": [
+        "consistent",
+        "conflict",
+        "uncertain"
+      ]
+    }
+  },
+  "numeric_tool_results": [
+    {
+      "tool": "official_check_success",
+      "version": 1,
+      "tool_sha256": "a81c64679f614717fa869b312e8e927bff9fbfae65c02f57bddcf14964285822",
+      "value": true,
+      "unit": null,
+      "evidence_steps": [
+        4424
+      ],
+      "evidence": [
+        {
+          "type": "success_transition",
+          "policy_step": 62,
+          "physics_step": 4424,
+          "simulation_time_seconds": 17.696,
+          "video_frame_index": 62
+        }
+      ],
+      "details": {
+        "latched_eval_success": true,
+        "success_transition_recorded": true
+      },
+      "passed": true
+    },
+    {
+      "tool": "time_to_success",
+      "version": 1,
+      "tool_sha256": "15b7e9522b6d4d018755674f6cf959233d80315bddeda7db0f49e039341b7104",
+      "value": 17.696,
+      "unit": "s",
+      "evidence_steps": [
+        4424
+      ],
+      "evidence": [
+        {
+          "type": "success_transition",
+          "policy_step": 62,
+          "physics_step": 4424,
+          "simulation_time_seconds": 17.696,
+          "video_frame_index": 62
+        }
+      ],
+      "details": {
+        "physics_step": 4424
+      }
+    }
+  ],
+  "observation": {
+    "phenomena": [
+      {
+        "id": "bell_visibly_pressed",
+        "observed": true,
+        "description": "The robot moves onto the bell and visibly actuates it between the pre-success and post-success frames.",
+        "confidence": 0.96,
+        "frame_ids": [
+          "success_before",
+          "success_after"
+        ]
+      }
+    ],
+    "confidence": 0.96,
+    "frame_ids": [
+      "success_before",
+      "success_after"
+    ],
+    "numeric_consistency": "consistent",
+    "conflicts": [],
+    "evidence_conflict": false
+  },
+  "evidence_conflict": false,
+  "provider_metadata": {
+    "id": "chatcmpl-E67D8kGc82xqbzVrb1cf0vbjkYHDs",
+    "model": "gpt-5.6-luna-2026-07-09",
+    "finish_reason": "stop",
+    "usage": {
+      "completion_tokens": 251,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 126,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 6,
+        "engine_ttft_ms": 475,
+        "engine_ttlt_ms": 2091,
+        "pre_inference_ms": 109,
+        "service_tbt_ms": 6,
+        "service_ttft_ms": 1155,
+        "service_ttlt_ms": 2765,
+        "total_duration_ms": 2666,
+        "user_visible_ttft_ms": 1046
+      },
+      "prompt_tokens": 1486,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 1737
+    },
+    "retry_count": 0
+  },
+  "artifacts": {
+    "result": "mea/evaluation_runs/eval_20260727_batch26_clean_online_click_live_v6/execution/round_1/execution_vqa/execution_vqa.json",
+    "prompt": "mea/evaluation_runs/eval_20260727_batch26_clean_online_click_live_v6/execution/round_1/execution_vqa/execution_vqa_prompt.md",
+    "response": "mea/evaluation_runs/eval_20260727_batch26_clean_online_click_live_v6/execution/round_1/execution_vqa/execution_vqa_response.txt",
+    "montage": "mea/evaluation_runs/eval_20260727_batch26_clean_online_click_live_v6/execution/round_1/execution_vqa/execution_montage.png",
+    "selection": "mea/evaluation_runs/eval_20260727_batch26_clean_online_click_live_v6/execution/round_1/execution_vqa/keyframe_selection.json",
+    "query": "mea/evaluation_runs/eval_20260727_batch26_clean_online_click_live_v6/execution/round_1/execution_vqa/execution_vqa_query.json"
+  },
+  "status": "passed",
+  "representative_episode": "mea/generated_tasks/run_20260727_batch26_clean_online_click_live_v6_round_1/evaluation/telemetry/act/episode_000_seed_100405"
+}

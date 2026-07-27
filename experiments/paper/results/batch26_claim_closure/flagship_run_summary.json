@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "evaluation_id": "eval_20260727_batch26_clean_online_click_live_v6",
+  "status": "completed",
+  "flagship_acceptance": {
+    "schema_version": 1,
+    "accepted": true,
+    "execution_entrypoint": "scripts/manipeval_agent.py",
+    "history_replay_disabled": true,
+    "online_free_concern": true,
+    "online_query_candidate_binding": true,
+    "cli_candidate_hint_used": false,
+    "candidate_domain_resolution": "unique_query_supported_concern",
+    "candidate_aspect_ids": [
+      "robustness.distractor_avoidance"
+    ],
+    "bound_candidate_templates": [
+      "robustness.distractor_avoidance.lookalike_bell"
+    ],
+    "singleton_query_candidate": true,
+    "runtime_bound_route": true,
+    "global_router_provider_calls": 0,
+    "act_rollouts": 2,
+    "required_act_rollouts": 2,
+    "round_routes": [
+      "official",
+      "provider_scene_checker_codegen"
+    ],
+    "stop_reason": "evidence_sufficient",
+    "evidence_sufficient": true,
+    "outcome_semantics_statuses": [
+      "official_only",
+      "expected_semantic_extension"
+    ],
+    "answer_scope": "bounded_experimental_query_semantics",
+    "same_bundle_bound_checker_reuse": true,
+    "bound_checker_metric": "click_target_without_distractor_success",
+    "bound_checker_module_sha256": "ff3e225dc5eb1e46ce2b5cf1a736cbf4148de222c5b35d0741513d40e6a4fbde",
+    "cross_query_registry_reuse_established": false
+  },
+  "answer": {
+    "answered": true,
+    "answer_scope": "bounded_experimental_query_semantics",
+    "official_benchmark_answered": false,
+    "stop_reason": "evidence_sufficient",
+    "claim_type": "diagnostic",
+    "claim_verdict": "no_failure_observed",
+    "answer": "For the finite registered candidate domain, the Query verdict is no_failure_observed.",
+    "tested_candidate_ids": [
+      "robustness.distractor_avoidance.lookalike_bell"
+    ],
+    "untested_candidate_ids": [],
+    "evidence_conflict": false,
+    "limitations": [
+      "This is a finite-domain stopping prototype, not a statistical generalization guarantee.",
+      "Diagnosis strings are trusted upstream evidence labels; this contract does not independently infer or validate causality.",
+      "This answer is limited to the bound task, checkpoint, variants, and recorded seeds.",
+      "A finite-domain N-small result is not a broad generalization guarantee.",
+      "At least one candidate verdict uses generated_check_success; it must not be interpreted as official benchmark success.",
+      "At least one generated checker is an expected semantic extension of the official core predicate, not an official-equivalent result."
+    ]
+  }
+}

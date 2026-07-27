@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "protocol": "act_dp3_exact_seed_pair_v1_incomplete_result",
+  "status": "shared_expert_eligibility_incomplete",
+  "preregistration_sha256": "c0c8c1b30a140991b0a1bcd36c3d699e5535b58742d163b8a287b660cbe69192",
+  "requested_shared_expert_probes": 5,
+  "completed_shared_expert_probes": 2,
+  "requested_policy_rollouts": 10,
+  "completed_policy_rollouts": 0,
+  "issues": [
+    {
+      "seed": 100603,
+      "reason": "shared_expert_runtime_error",
+      "returncode": 1,
+      "log_ref": "mea/protocol_runs/batch26_act_dp3_shared_expert_n5_seed100603_100607/preregistration_artifacts/shared_eligibility/seed_100603/expert.log"
+    },
+    {
+      "seed": 100606,
+      "reason": "shared_expert_runtime_error",
+      "returncode": 1,
+      "log_ref": "mea/protocol_runs/batch26_act_dp3_shared_expert_n5_seed100603_100607/preregistration_artifacts/shared_eligibility/seed_100606/expert.log"
+    },
+    {
+      "seed": 100607,
+      "reason": "shared_expert_runtime_error",
+      "returncode": 1,
+      "log_ref": "mea/protocol_runs/batch26_act_dp3_shared_expert_n5_seed100603_100607/preregistration_artifacts/shared_eligibility/seed_100607/expert.log"
+    }
+  ],
+  "pair_order": null,
+  "spearman": null,
+  "paper_table9_eligible": false,
+  "scope_limitation": "At least one shared expert probe failed, so no policy rollout was allowed to start."
+}

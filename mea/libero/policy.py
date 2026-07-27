@@ -10,7 +10,13 @@ from typing import Any, Callable
 
 import numpy as np
 
-from .benchmark import EpisodeRecord, TaskContract
+from .benchmark import (
+    BATCH23_PARITY_ACTION_STEPS,
+    BATCH23_PARITY_HORIZON_STEPS,
+    BATCH23_PARITY_OBSERVATION_SIZE,
+    EpisodeRecord,
+    TaskContract,
+)
 
 
 class LeRobotPolicyAdapter:
@@ -21,13 +27,15 @@ class LeRobotPolicyAdapter:
         *,
         checkpoint: str | Path,
         device: str = "cuda",
-        n_action_steps: int = 10,
-        horizon_steps: int = 100,
+        n_action_steps: int = BATCH23_PARITY_ACTION_STEPS,
+        horizon_steps: int = BATCH23_PARITY_HORIZON_STEPS,
+        observation_size: int = BATCH23_PARITY_OBSERVATION_SIZE,
     ):
         self.checkpoint = Path(checkpoint).expanduser().resolve()
         self.device = device
         self.n_action_steps = n_action_steps
         self.horizon_steps = horizon_steps
+        self.observation_size = observation_size
         self.policy: Any | None = None
         self.env_config: Any | None = None
         self.preprocessor: Any | None = None
@@ -53,8 +61,8 @@ class LeRobotPolicyAdapter:
             task_ids=[0],
             episode_length=self.horizon_steps,
             control_mode="relative",
-            observation_height=256,
-            observation_width=256,
+            observation_height=self.observation_size,
+            observation_width=self.observation_size,
             max_parallel_tasks=1,
         )
         policy = make_policy(cfg=policy_config, env_cfg=env_config)
@@ -82,6 +90,13 @@ class LeRobotPolicyAdapter:
             "checkpoint": str(self.checkpoint),
             "device": self.device,
             "n_action_steps": self.n_action_steps,
+            "horizon_steps": self.horizon_steps,
+            "observation_size": self.observation_size,
+            "control_mode": "relative",
+            "processor_artifacts": {
+                "preprocessor": str(self.checkpoint / "policy_preprocessor.json"),
+                "postprocessor": str(self.checkpoint / "policy_postprocessor.json"),
+            },
             "parameter_count": sum(parameter.numel() for parameter in policy.parameters()),
             "elapsed_seconds": round(time.monotonic() - started, 3),
             "torch_version": torch.__version__,

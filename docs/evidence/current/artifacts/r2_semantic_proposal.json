@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "source": "provider_claim_first_open_query",
+  "input_digest": "5309282b9acf07f2aa51e4af63138668365cd2c07e9d62728783490f867da385",
+  "proposal": {
+    "schema_version": 1,
+    "action": "continue",
+    "sub_aspect": "robustness.distractor_avoidance.near_duplicate_bell",
+    "hypothesis": "With one visually similar non-target bell placed near the intended bell, ACT will achieve official success on the intended bell while recording zero contact with the distractor.",
+    "requested_perturbation": {
+      "description": "Add exactly one visually similar, nonfunctional distractor bell at a nearby non-overlapping position relative to the intended bell, leaving the intended bell and all other scene elements unchanged.",
+      "controlled_changes": [
+        "the presence and nearby placement of one visually similar distractor bell"
+      ],
+      "preserve": [
+        "task identity",
+        "policy checkpoint",
+        "intended bell pose and target contact",
+        "all non-distractor scene elements"
+      ]
+    },
+    "task_need": {
+      "required": true,
+      "description": "TaskGen must create the controlled distractor scene by adding one visually similar distractor bell under the allowed distractor change root and retain the official intended-bell success check."
+    },
+    "tool_need": {
+      "required": true,
+      "description": "ToolGen must retrieve or generate an observable rule metric that records any contact or click event involving the distractor bell, alongside official success for the intended bell.",
+      "reuse_first": true
+    },
+    "rationale": "The unchanged control succeeded but did not test distractor avoidance. A single nearby visually similar distractor directly probes the Query's remaining uncertainty, while a distractor-contact observable is required because official success alone cannot distinguish a clean intended click from touching both bells."
+  },
+  "provider": {
+    "model_requested": "gpt-5.6-luna",
+    "called": true,
+    "attempt_count": 1,
+    "errors": [],
+    "last_metadata": {
+      "id": "resp_001c281c28f9624a016a66ddff9e18819a98824581801bd60f",
+      "model": "gpt-5.6-luna",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 1247,
+        "completion_tokens": 558,
+        "total_tokens": 1805,
+        "completion_tokens_details": {
+          "reasoning_tokens": 198
+        }
+      },
+      "retry_count": 0
+    }
+  }
+}

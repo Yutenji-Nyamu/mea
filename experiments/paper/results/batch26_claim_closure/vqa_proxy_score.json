@@ -1,0 +1,172 @@
+{
+  "schema_version": 1,
+  "protocol": "human_replaceable_annotation_score_v1",
+  "packet_id": "batch24_vqa_cached8_human_replaceable_v1",
+  "label_kind": "vqa_binary",
+  "annotation_set_id": "batch24_vqa_cached8_numeric_telemetry_proxy_v1",
+  "annotation_source": "codex_development_agent_proxy",
+  "human_reviewer_count": 0,
+  "reference_source": "codex_development_agent_proxy_not_human_gold",
+  "unscorable_ids": [],
+  "prediction_source": "experiments/paper/results/batch23_claim_closure/vqa_proxy_result_v1.json",
+  "sample_count": 8,
+  "calls_started_by_scorer": {
+    "provider": 0,
+    "simulator": 0,
+    "act": 0
+  },
+  "metrics": {
+    "count": 8,
+    "covered": 7,
+    "accuracy": 0.875,
+    "auroc": {
+      "value": 1.0,
+      "positive_count": 4,
+      "negative_count": 4,
+      "unavailable_reason": null
+    },
+    "by_condition": {
+      "clean": {
+        "count": 2,
+        "covered": 2,
+        "accuracy": 1.0,
+        "auroc": {
+          "value": 1.0,
+          "positive_count": 1,
+          "negative_count": 1,
+          "unavailable_reason": null
+        }
+      },
+      "clutter": {
+        "count": 2,
+        "covered": 1,
+        "accuracy": 0.5,
+        "auroc": {
+          "value": 1.0,
+          "positive_count": 1,
+          "negative_count": 1,
+          "unavailable_reason": null
+        }
+      },
+      "lighting": {
+        "count": 2,
+        "covered": 2,
+        "accuracy": 1.0,
+        "auroc": {
+          "value": 1.0,
+          "positive_count": 1,
+          "negative_count": 1,
+          "unavailable_reason": null
+        }
+      },
+      "texture": {
+        "count": 2,
+        "covered": 2,
+        "accuracy": 1.0,
+        "auroc": {
+          "value": 1.0,
+          "positive_count": 1,
+          "negative_count": 1,
+          "unavailable_reason": null
+        }
+      }
+    }
+  },
+  "rows": [
+    {
+      "id": "vqa_item_001",
+      "condition": "clean",
+      "reference_observed": false,
+      "predicted_observed": false,
+      "positive_score": 0.14,
+      "covered": true,
+      "scorable": true,
+      "correct": true
+    },
+    {
+      "id": "vqa_item_002",
+      "condition": "clean",
+      "reference_observed": true,
+      "predicted_observed": true,
+      "positive_score": 0.98,
+      "covered": true,
+      "scorable": true,
+      "correct": true
+    },
+    {
+      "id": "vqa_item_003",
+      "condition": "clutter",
+      "reference_observed": false,
+      "predicted_observed": null,
+      "positive_score": 0.5,
+      "covered": false,
+      "scorable": true,
+      "correct": false
+    },
+    {
+      "id": "vqa_item_004",
+      "condition": "clutter",
+      "reference_observed": true,
+      "predicted_observed": true,
+      "positive_score": 0.97,
+      "covered": true,
+      "scorable": true,
+      "correct": true
+    },
+    {
+      "id": "vqa_item_005",
+      "condition": "texture",
+      "reference_observed": false,
+      "predicted_observed": false,
+      "positive_score": 0.08999999999999997,
+      "covered": true,
+      "scorable": true,
+      "correct": true
+    },
+    {
+      "id": "vqa_item_006",
+      "condition": "texture",
+      "reference_observed": true,
+      "predicted_observed": true,
+      "positive_score": 0.97,
+      "covered": true,
+      "scorable": true,
+      "correct": true
+    },
+    {
+      "id": "vqa_item_007",
+      "condition": "lighting",
+      "reference_observed": false,
+      "predicted_observed": false,
+      "positive_score": 0.07999999999999996,
+      "covered": true,
+      "scorable": true,
+      "correct": true
+    },
+    {
+      "id": "vqa_item_008",
+      "condition": "lighting",
+      "reference_observed": true,
+      "predicted_observed": true,
+      "positive_score": 0.97,
+      "covered": true,
+      "scorable": true,
+      "correct": true
+    }
+  ],
+  "replacement_contract": {
+    "frozen_packet_and_predictions": true,
+    "replace_only_annotation_file_for_human_scoring": true
+  },
+  "paper_eligible": false,
+  "paper_ineligible_reasons": [
+    "codex_development_agent_proxy_is_not_human_gold",
+    "bounded_development_sample_does_not_reproduce_paper_scale",
+    "requires_four_complete_independent_human_annotations"
+  ],
+  "limitations": [
+    "References are one Codex development-agent proxy, not independent human gold.",
+    "Replacing annotations does not rerun frozen samples or predictions.",
+    "This bounded dataset is not the paper-scale validity study."
+  ]
+}

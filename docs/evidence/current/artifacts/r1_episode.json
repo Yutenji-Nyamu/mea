@@ -1,22 +1,22 @@
 {
   "schema_version": 1,
   "recorder_schema_version": 2,
-  "task_name": "beat_block_hammer",
-  "task_module": "envs.beat_block_hammer",
+  "task_name": "click_bell",
+  "task_module": "envs.click_bell",
   "task_config": "demo_clean",
   "checkpoint_setting": "demo_clean",
   "policy_name": "ACT",
-  "seed": 100600,
+  "seed": 100405,
   "episode_index": 0,
   "success": true,
-  "policy_steps": 99,
-  "physics_steps": 6995,
+  "policy_steps": 63,
+  "physics_steps": 4424,
   "physics_timestep_seconds": 0.004,
-  "simulation_duration_seconds": 27.98,
-  "wall_duration_seconds": 32.34830331802368,
-  "policy_state_rows": 101,
-  "semantic_trace_rows": 6996,
-  "dynamics_trace_rows": 1400,
+  "simulation_duration_seconds": 17.696,
+  "wall_duration_seconds": 19.729920148849487,
+  "policy_state_rows": 65,
+  "semantic_trace_rows": 4425,
+  "dynamics_trace_rows": 886,
   "telemetry_profile_id": "balanced_v1",
   "telemetry_profile_sha256": "f13e1b86e74d1f203bd9a889191203b4a1ff87d339e557aac864c027f715024c",
   "telemetry": {
@@ -27,77 +27,63 @@
       "policy_state": {
         "artifact": "states.csv",
         "sampling": "policy_boundary",
-        "rows": 101
+        "rows": 65
       },
       "semantic_trace": {
         "artifact": "semantic_trace.npz",
         "sampling": "physics_period",
         "every_physics_steps": 1,
-        "rows": 6996,
+        "rows": 4425,
         "arrays": {
-          "block_functional_position": {
+          "bell_contact_position": {
             "shape": [
-              6996,
+              4425,
               3
             ],
             "dtype": "float32"
           },
-          "block_position": {
+          "bell_position": {
             "shape": [
-              6996,
-              3
-            ],
-            "dtype": "float32"
-          },
-          "hammer_functional_position": {
-            "shape": [
-              6996,
-              3
-            ],
-            "dtype": "float32"
-          },
-          "hammer_position": {
-            "shape": [
-              6996,
+              4425,
               3
             ],
             "dtype": "float32"
           },
           "left_tcp_position": {
             "shape": [
-              6996,
+              4425,
               3
             ],
             "dtype": "float32"
           },
           "physics_step": {
             "shape": [
-              6996
+              4425
             ],
             "dtype": "float64"
           },
           "policy_step": {
             "shape": [
-              6996
+              4425
             ],
             "dtype": "float64"
           },
           "right_tcp_position": {
             "shape": [
-              6996,
+              4425,
               3
             ],
             "dtype": "float32"
           },
           "simulation_time_seconds": {
             "shape": [
-              6996
+              4425
             ],
             "dtype": "float64"
           },
           "success": {
             "shape": [
-              6996
+              4425
             ],
             "dtype": "bool"
           }
@@ -108,7 +94,7 @@
         "sampling": "physics_period",
         "every_physics_steps": 1,
         "mode": "interval_summary",
-        "rows": 7
+        "rows": 3
       },
       "dynamics_trace": {
         "artifact": "dynamics_trace.npz",
@@ -116,209 +102,139 @@
         "every_physics_steps": 5,
         "force_initial_sample": true,
         "force_final_sample": true,
-        "rows": 1400,
+        "rows": 886,
         "arrays": {
-          "actor.block.angular_velocity": {
+          "actor.bell.angular_velocity": {
             "shape": [
-              1400,
+              886,
               3
             ],
             "dtype": "float32"
           },
-          "actor.block.functional.0.position": {
+          "actor.bell.contact.0.position": {
             "shape": [
-              1400,
+              886,
               3
             ],
             "dtype": "float32"
           },
-          "actor.block.functional.0.quaternion": {
+          "actor.bell.contact.0.quaternion": {
             "shape": [
-              1400,
+              886,
               4
             ],
             "dtype": "float32"
           },
-          "actor.block.functional.1.position": {
+          "actor.bell.linear_velocity": {
             "shape": [
-              1400,
+              886,
               3
             ],
             "dtype": "float32"
           },
-          "actor.block.functional.1.quaternion": {
+          "actor.bell.position": {
             "shape": [
-              1400,
-              4
-            ],
-            "dtype": "float32"
-          },
-          "actor.block.linear_velocity": {
-            "shape": [
-              1400,
+              886,
               3
             ],
             "dtype": "float32"
           },
-          "actor.block.position": {
+          "actor.bell.quaternion": {
             "shape": [
-              1400,
-              3
-            ],
-            "dtype": "float32"
-          },
-          "actor.block.quaternion": {
-            "shape": [
-              1400,
-              4
-            ],
-            "dtype": "float32"
-          },
-          "actor.hammer.angular_velocity": {
-            "shape": [
-              1400,
-              3
-            ],
-            "dtype": "float32"
-          },
-          "actor.hammer.contact.0.position": {
-            "shape": [
-              1400,
-              3
-            ],
-            "dtype": "float32"
-          },
-          "actor.hammer.contact.0.quaternion": {
-            "shape": [
-              1400,
-              4
-            ],
-            "dtype": "float32"
-          },
-          "actor.hammer.functional.0.position": {
-            "shape": [
-              1400,
-              3
-            ],
-            "dtype": "float32"
-          },
-          "actor.hammer.functional.0.quaternion": {
-            "shape": [
-              1400,
-              4
-            ],
-            "dtype": "float32"
-          },
-          "actor.hammer.linear_velocity": {
-            "shape": [
-              1400,
-              3
-            ],
-            "dtype": "float32"
-          },
-          "actor.hammer.position": {
-            "shape": [
-              1400,
-              3
-            ],
-            "dtype": "float32"
-          },
-          "actor.hammer.quaternion": {
-            "shape": [
-              1400,
+              886,
               4
             ],
             "dtype": "float32"
           },
           "physics_step": {
             "shape": [
-              1400
+              886
             ],
             "dtype": "int64"
           },
           "policy_step": {
             "shape": [
-              1400
+              886
             ],
             "dtype": "int64"
           },
           "robot.left.ee_pose": {
             "shape": [
-              1400,
+              886,
               7
             ],
             "dtype": "float32"
           },
           "robot.left.gripper": {
             "shape": [
-              1400
+              886
             ],
             "dtype": "float32"
           },
           "robot.left.qpos": {
             "shape": [
-              1400,
+              886,
               38
             ],
             "dtype": "float32"
           },
           "robot.left.qvel": {
             "shape": [
-              1400,
+              886,
               38
             ],
             "dtype": "float32"
           },
           "robot.left.tcp_pose": {
             "shape": [
-              1400,
+              886,
               7
             ],
             "dtype": "float32"
           },
           "robot.right.ee_pose": {
             "shape": [
-              1400,
+              886,
               7
             ],
             "dtype": "float32"
           },
           "robot.right.gripper": {
             "shape": [
-              1400
+              886
             ],
             "dtype": "float32"
           },
           "robot.right.qpos": {
             "shape": [
-              1400,
+              886,
               38
             ],
             "dtype": "float32"
           },
           "robot.right.qvel": {
             "shape": [
-              1400,
+              886,
               38
             ],
             "dtype": "float32"
           },
           "robot.right.tcp_pose": {
             "shape": [
-              1400,
+              886,
               7
             ],
             "dtype": "float32"
           },
           "simulation_time_seconds": {
             "shape": [
-              1400
+              886
             ],
             "dtype": "float64"
           },
           "success": {
             "shape": [
-              1400
+              886
             ],
             "dtype": "bool"
           }
@@ -326,7 +242,7 @@
       }
     }
   },
-  "contact_interval_count": 6,
+  "contact_interval_count": 2,
   "error": null,
   "artifacts": {
     "policy_states": "states.csv",

@@ -56,8 +56,12 @@ CONTROL_TEMPLATE_BY_TASK = {
 
 _SEMANTIC_STOPWORDS = {
     "a",
+    "act",
     "an",
     "and",
+    "bell",
+    "can",
+    "click",
     "for",
     "in",
     "is",
@@ -65,9 +69,12 @@ _SEMANTIC_STOPWORDS = {
     "on",
     "or",
     "the",
+    "this",
     "to",
     "under",
     "with",
+    "while",
+    "without",
     "semantic",
     "sub",
     "aspect",
@@ -81,6 +88,48 @@ _ASPECT_GENERIC_TOKENS = {
     "scene",
     "performance",
     "robustness",
+}
+
+_CONCERN_GENERIC_TOKENS = _ASPECT_GENERIC_TOKENS | {
+    "ability",
+    "correct",
+    "evaluation",
+    "generalization",
+    "reliability",
+    "success",
+    "target",
+}
+
+_SEMANTIC_ALIASES = {
+    "distractor": (
+        "distractor",
+        "look alike",
+        "look-alike",
+        "lookalike",
+        "similar object",
+        "similar objects",
+        "visually similar",
+        "wrong target",
+        "confusion",
+        "干扰",
+        "相似",
+        "类似",
+        "混淆",
+    ),
+    "clutter": ("clutter", "cluttered", "tabletop objects", "杂物", "杂乱"),
+    "instance": ("instance", "identity", "appearance variant", "实例", "身份"),
+    "position": (
+        "position",
+        "location",
+        "left",
+        "right",
+        "workspace",
+        "位置",
+        "左侧",
+        "右侧",
+    ),
+    "lighting": ("lighting", "illumination", "light color", "光照", "照明"),
+    "texture": ("texture", "background", "wall appearance", "纹理", "背景"),
 }
 
 
@@ -189,6 +238,152 @@ def _semantic_tokens(value: Any) -> set[str]:
         token
         for token in re.findall(r"[A-Za-z0-9]+", value.casefold())
         if token not in _SEMANTIC_STOPWORDS and len(token) > 1
+    }
+
+
+def _expanded_semantic_tokens(value: Any) -> set[str]:
+    tokens = _semantic_tokens(value)
+    text = json.dumps(value, ensure_ascii=False).casefold().replace("_", " ")
+    for canonical, aliases in _SEMANTIC_ALIASES.items():
+        if any(alias in text for alias in aliases):
+            tokens.add(canonical)
+    return tokens
+
+
+def resolve_concern_candidate_domain(
+    concern: Mapping[str, Any],
+    *,
+    target: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Bind an online FreeConcern to a finite capability domain.
+
+    FreeConcern is authored before task/capability retrieval and never sees the
+    executable catalog.  The runtime may therefore use its semantic fields to
+    narrow a trusted capability inventory, but only on an exact or unique
+    lexical match.  Broad or tied concerns keep the complete non-control
+    domain; they are never silently turned into a one-candidate itinerary.
+    """
+
+    if not isinstance(concern, Mapping):
+        raise ClaimFirstRuntimeError("FreeConcern must be an object")
+    semantic_fields = {
+        field: _nonempty_text(concern.get(field), f"FreeConcern.{field}")
+        for field in (
+            "sub_aspect",
+            "hypothesis",
+            "requested_variation",
+            "measurement_need",
+        )
+    }
+    source_query = _nonempty_text(
+        concern.get("source_query"), "FreeConcern.source_query"
+    )
+    control_template = control_template_id(target)
+    concern_text = " ".join(semantic_fields.values()).casefold()
+    concern_tokens = (
+        _expanded_semantic_tokens(semantic_fields) - _CONCERN_GENERIC_TOKENS
+    )
+    source_query_tokens = (
+        _expanded_semantic_tokens(source_query) - _CONCERN_GENERIC_TOKENS
+    )
+    candidates: list[dict[str, Any]] = []
+    for raw_aspect in target.get("aspects", []):
+        if not isinstance(raw_aspect, Mapping):
+            continue
+        aspect_id = _nonempty_text(
+            raw_aspect.get("aspect_id"), "target.aspect.aspect_id"
+        )
+        template_ids = [
+            str(item)
+            for item in raw_aspect.get("template_ids", [])
+            if str(item) != control_template
+        ]
+        if not template_ids:
+            continue
+        exact = bool(
+            aspect_id.casefold() in concern_text
+            or any(template_id.casefold() in concern_text for template_id in template_ids)
+        )
+        aspect_tokens = (
+            _expanded_semantic_tokens(
+                {
+                    "aspect_id": aspect_id,
+                    "description": raw_aspect.get("description"),
+                    "template_ids": template_ids,
+                }
+            )
+            - _CONCERN_GENERIC_TOKENS
+        )
+        matched = sorted(concern_tokens & aspect_tokens)
+        query_matched = sorted(source_query_tokens & aspect_tokens)
+        candidates.append(
+            {
+                "aspect_id": aspect_id,
+                "template_ids": template_ids,
+                "exact": exact,
+                "score": len(matched),
+                "matched_tokens": matched,
+                "source_query_matched_tokens": query_matched,
+            }
+        )
+    if not candidates:
+        raise ClaimFirstRuntimeError(
+            "bound task has no non-control capability for the FreeConcern"
+        )
+
+    exact_matches = [item for item in candidates if item["exact"]]
+    selected: dict[str, Any] | None = None
+    resolution = "broad_or_ambiguous"
+    if len(exact_matches) == 1:
+        exact_candidate = exact_matches[0]
+        if exact_candidate["source_query_matched_tokens"]:
+            selected = exact_candidate
+            resolution = "exact_query_supported_concern"
+    elif not exact_matches:
+        top_score = max(int(item["score"]) for item in candidates)
+        top = [item for item in candidates if int(item["score"]) == top_score]
+        second_score = max(
+            (
+                int(item["score"])
+                for item in candidates
+                if item is not top[0]
+            ),
+            default=0,
+        ) if len(top) == 1 else top_score
+        if (
+            top_score >= 2
+            and top_score - second_score >= 1
+            and len(top) == 1
+            and top[0]["source_query_matched_tokens"]
+        ):
+            selected = top[0]
+            resolution = "unique_query_supported_concern"
+
+    return {
+        "schema_version": 1,
+        "decision": (
+            "bind_single_aspect" if selected is not None else "ambiguous"
+        ),
+        "resolution": resolution,
+        "candidate_aspect_ids": (
+            [str(selected["aspect_id"])] if selected is not None else None
+        ),
+        "selected_aspect_id": (
+            str(selected["aspect_id"]) if selected is not None else None
+        ),
+        "selected_template_ids": (
+            list(selected["template_ids"]) if selected is not None else []
+        ),
+        "ranked_aspects": sorted(
+            candidates,
+            key=lambda item: (
+                not bool(item["exact"]),
+                -int(item["score"]),
+                str(item["aspect_id"]),
+            ),
+        ),
+        "concern_created_before_catalog": True,
+        "catalog_was_model_visible": False,
     }
 
 
@@ -485,9 +680,30 @@ def build_claim_first_evidence_record(
             "execution_scope": "legacy_unspecified_official",
         }
     )
+    outcome_semantics = observations.get("outcome_semantics")
+    if not isinstance(outcome_semantics, Mapping):
+        outcome_semantics = policy_outcome.get("outcome_semantics")
+    outcome_semantics = (
+        deepcopy(dict(outcome_semantics))
+        if isinstance(outcome_semantics, Mapping)
+        else {
+            "schema_version": 1,
+            "status": "non_comparable",
+            "evidence_conflict": False,
+            "official_equivalent": policy_outcome.get("official_equivalent"),
+            "episodes": [],
+            "reason_codes": ["outcome_semantics_not_recorded"],
+        }
+    )
+    outcome_semantics_status = str(
+        outcome_semantics.get("status") or "non_comparable"
+    )
     strength = packet["evidence_strength"]
     success_rate = packet["policy"]["success_rate"]
-    if strength == "conflicting":
+    if outcome_semantics_status == "conflict":
+        semantic_outcome = "ambiguous"
+        candidate_outcome = "conflict"
+    elif strength == "conflicting":
         semantic_outcome = "ambiguous"
         candidate_outcome = "conflict"
     elif strength != "sufficient" or success_rate is None:
@@ -535,6 +751,16 @@ def build_claim_first_evidence_record(
             "This round is judged by the bounded generated_check_success "
             "predicate and is not an official RoboTwin success result."
         )
+    if outcome_semantics_status == "expected_semantic_extension":
+        limitations.append(
+            "The generated checker adds experimental constraints beyond the "
+            "official core predicate; its verdict is not official-equivalent."
+        )
+    elif outcome_semantics_status == "conflict":
+        limitations.append(
+            "Generated and official/core success semantics conflict; this "
+            "round cannot satisfy the Query sufficiency contract."
+        )
     planned_tool_evidence = _compact_planned_tool_evidence(observations)
     tool_summary = (
         json.dumps(
@@ -551,6 +777,7 @@ def build_claim_first_evidence_record(
         f"{success_rate}; Rule metric={packet['rule']['metric']}; "
         f"outcome_metric={policy_outcome.get('metric')}; "
         f"outcome_authority={policy_outcome.get('authority')}; "
+        f"outcome_semantics={outcome_semantics_status}; "
         f"VQA status={packet['vqa']['status']}; "
         f"planned_tool_measurements={tool_summary}."
     )
@@ -591,6 +818,7 @@ def build_claim_first_evidence_record(
         "open_query_evidence": open_query,
         "candidate_evidence": candidate,
         "evaluation_outcome": deepcopy(dict(policy_outcome)),
+        "outcome_semantics": outcome_semantics,
         "planned_tool_evidence": planned_tool_evidence,
         "evidence_packet": packet,
         "evidence_refs": refs,
@@ -671,10 +899,40 @@ def render_query_answer(
             "At least one candidate verdict uses generated_check_success; "
             "it must not be interpreted as official benchmark success."
         )
+    outcome_semantics = [
+        deepcopy(record["outcome_semantics"])
+        for record in records
+        if isinstance(record.get("outcome_semantics"), Mapping)
+    ]
+    semantic_conflicts = [
+        item for item in outcome_semantics if item.get("status") == "conflict"
+    ]
+    semantic_extensions = [
+        item
+        for item in outcome_semantics
+        if item.get("status") == "expected_semantic_extension"
+    ]
+    if semantic_conflicts:
+        limitations.append(
+            "At least one round has conflicting generated versus "
+            "official/core success semantics."
+        )
+    if semantic_extensions:
+        limitations.append(
+            "At least one generated checker is an expected semantic extension "
+            "of the official core predicate, not an official-equivalent result."
+        )
+    answer_scope = (
+        "bounded_experimental_query_semantics"
+        if non_official
+        else "official_equivalent"
+    )
     return {
         "schema_version": 1,
         "original_query": query,
         "answered": answered,
+        "answer_scope": answer_scope,
+        "official_benchmark_answered": bool(answered and not non_official),
         "stop_reason": stop_reason,
         "claim_type": assessment.get("contract", {}).get("claim_type"),
         "claim_verdict": verdict,
@@ -686,6 +944,8 @@ def render_query_answer(
         "limitations": list(dict.fromkeys(limitations)),
         "evidence_refs": refs,
         "evaluation_outcomes": outcome_authorities,
+        "outcome_semantics": outcome_semantics,
+        "evidence_conflict": bool(semantic_conflicts),
     }
 
 
@@ -786,9 +1046,11 @@ class ClaimFirstRuntimeController:
             )
         control_packet = records[0]["evidence_packet"]
         control_outcome = records[0]["evaluation_outcome"]
+        control_semantics = records[0].get("outcome_semantics") or {}
         control_authority_valid = bool(
             control_outcome.get("metric") == "official_check_success"
             and control_outcome.get("official_equivalent") is not False
+            and control_semantics.get("status") != "conflict"
         )
         control_pipeline_valid = bool(
             control_packet["pipeline"]["passed"]
@@ -811,8 +1073,41 @@ class ClaimFirstRuntimeController:
             candidate_evidence,
             completed_rounds=len(candidate_records),
         )
+        semantic_conflict_ids = [
+            record["template_id"]
+            for record in candidate_records
+            if (
+                record["template_id"]
+                in self.query_contract["candidate_universe"]
+                and record.get("outcome_semantics", {}).get("status")
+                == "conflict"
+            )
+        ]
+        if semantic_conflict_ids:
+            assessment = {
+                **assessment,
+                "should_stop": True,
+                "stop_reason": "outcome_semantics_conflict",
+                "evidence_sufficient": False,
+                "claim_verdict": "inconclusive",
+                "rationale": (
+                    "Generated and official/core success semantics disagree for "
+                    "a completed candidate; the Query cannot be answered from "
+                    "this evidence."
+                ),
+                "conflict_candidate_ids": list(
+                    dict.fromkeys(
+                        list(assessment.get("conflict_candidate_ids") or [])
+                        + semantic_conflict_ids
+                    )
+                ),
+                "recommended_candidate_ids": [],
+            }
         if not baseline_valid:
             reason = (
+                "control_baseline_semantics_conflict"
+                if control_semantics.get("status") == "conflict"
+                else
                 "control_baseline_non_official_outcome"
                 if not control_authority_valid
                 else
@@ -927,5 +1222,6 @@ __all__ = [
     "build_control_anchor_proposal",
     "control_template_id",
     "render_query_answer",
+    "resolve_concern_candidate_domain",
     "resolve_semantic_proposal",
 ]

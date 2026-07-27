@@ -1,59 +1,51 @@
-# 当前紧凑证据：宽泛 Query 三轮主链
+# 当前紧凑证据：无缓存的 ClickBell 两轮旗舰
 
-当前发布对应 `eval_20260726_batch23_open_query_live_n1_v5`。用户只问：
+本包对应 `eval_20260727_batch26_clean_online_click_live_v6`。唯一用户 Query 是：
 
-> 这个 ACT 策略最先在哪种被操作物体或场景变化上暴露弱点？
+> Can this ACT policy click the intended bell without touching a nearby visually similar distractor bell?
 
-Query 没有给 aspect 顺序。系统保留的论文式数据流是：
+没有从 CLI 指定 aspect、template 或后续分支，也没有历史缓存 replay。一个
+`scripts/manipeval_agent.py` 进程完成：
 
 ```text
 Query
-→ runtime-owned official control（ACT success）
-→ ClaimFirst 自主选择 1.2× object scale
-→ TaskGen + render/expert → ACT success
-→ 现场生成 XY-distance Tool，live value=0.024507 m
-→ evidence 驱动 Planner 选择 lookalike physical distractor
-→ provider 一次编写 scene + check_success()
-→ AST + 6/6 fixtures + render/visual/expert
-→ 第三次 ACT；生成 checker=true，official success=false
-→ Rule/VQA/Aggregate/Planner
-→ budget_exhausted / inconclusive / answered=false
+→ inventory-free FreeConcern
+→ policy-compatible task resolution
+→ QueryContract 绑定唯一 distractor 候选
+→ round 1 official control（ACT success）
+→ evidence-conditioned ClaimFirst proposal
+→ provider 编写 scene + check_success()
+→ AST + 6/6 fixtures + render/VQA + expert gate
+→ round 2 ACT
+→ generated checker Tool + Execution VQA + Aggregate
+→ evidence_sufficient stop
+→ bounded answer
 ```
 
-## 结果与边界
+## 结论边界
 
-- 三轮都使用 `beat_block_hammer`、ACT checkpoint
-  `act-beat_block_hammer/demo_clean-50`、seed `100600`，总 N=3。
-- Planner 在看到前一轮 evidence 后依次选择 scale 和 distractor；顺序不是 Query 预写的。
-- scale 使用 official-equivalent success；distractor 使用模型生成、AST/fixture 验证的实验
-  checker。后者判定成功，但 RoboTwin official success 为 false，不能当作 benchmark success。
-- scale 在 official-equivalent authority 下通过。distractor 只在生成的实验 checker 下
-  通过，而 RoboTwin official success=false；这是语义不一致，不能合并解释为“两个候选
-  都没有弱点”。color、official-random position、timing 尚未测试，因此系统没有回答
-  “最先在哪里失败”，而是以预算停止。
-- 本包证明受限主链能自动走通，不证明广泛泛化、证据充分、采样效率或 policy ranking。
+- 旗舰验收 `accepted=true`，两轮均为真实 ACT，seed 均为 `100405`，总 N=2。
+- official control 使用 RoboTwin official success；第二轮使用模型编写并验证的
+  `click_target_without_distractor_success`。
+- 第二轮 generated checker 为 true，且其 official core projection 为 true；RoboTwin
+  terminal official success 为 false。系统将二者标成
+  `official_only` 与 `expected_semantic_extension`，没有把实验 checker 冒充 official
+  benchmark success。
+- 对唯一有限候选，答案为 `no_failure_observed`，并因
+  `evidence_sufficient` 停止。这不是广泛泛化、统计效率或 benchmark 成功率结论。
 
-## 直接查看产物
+## 阅读顺序
 
-| 阶段 | 紧凑产物 |
+| 阶段 | 产物 |
 | --- | --- |
-| Query/停止合同 | [query_contract.json](artifacts/query_contract.json) |
-| evidence-conditioned decisions | [round 1](artifacts/decision_r1.json)、[round 2](artifacts/decision_r2.json)、[round 3](artifacts/decision_r3.json) |
-| official control | [Proposal](artifacts/r1_task_proposal.json)、[scene](artifacts/r1_scene.png)、[rollout](artifacts/r1_video.mp4)、[episode](artifacts/r1_episode.json) |
-| scale Proposal/TaskGen | [Proposal](artifacts/r2_task_proposal.json)、[proposal prompt](artifacts/r2_proposal_prompt.md)、[code prompt](artifacts/r2_code_prompt.md)、[task.py](artifacts/r2_task.py) |
-| scale rollout/Tool | [scene](artifacts/r2_scene.png)、[rollout](artifacts/r2_video.mp4)、[episode](artifacts/r2_episode.json)、[tool.py](artifacts/r2_tool.py)、[Tool result](artifacts/r2_tool_execution.json) |
-| distractor TaskGen | [Proposal](artifacts/r3_task_proposal.json)、[bounded proposal](artifacts/r3_bounded_proposal.json)、[code prompt](artifacts/r3_code_prompt.md)、[provider response](artifacts/r3_provider_response.json)、[task.py](artifacts/r3_task.py) |
-| distractor validation/rollout | [fixtures](artifacts/r3_checker_fixtures.json)、[scene](artifacts/r3_scene.png)、[rollout](artifacts/r3_video.mp4)、[episode](artifacts/r3_episode.json)、[checker result](artifacts/r3_checker_execution.json)、[checker aggregate](artifacts/r3_checker_aggregate.json) |
-| 最终回答 | [query_answer.json](artifacts/query_answer.json)、[feedback.json](artifacts/feedback.json) |
+| Query 与开放 concern | [request](artifacts/request.json)、[prompt](artifacts/free_concern_prompt.md)、[response](artifacts/free_concern_response.txt)、[concern](artifacts/free_concern.json) |
+| 检索与停止合同 | [task resolution](artifacts/open_task_resolution.json)、[candidate resolution](artifacts/concern_candidate_resolution.json)、[QueryContract](artifacts/query_contract.json) |
+| official control | [Proposal](artifacts/r1_task_proposal.json)、[render](artifacts/r1_scene.png)、[rollout](artifacts/r1_video.mp4)、[episode](artifacts/r1_episode.json)、[Tool](artifacts/r1_tool_execution.json)、[VQA](artifacts/r1_vqa.json)、[Aggregate](artifacts/r1_aggregate.json) |
+| evidence-conditioned proposal | [decision](artifacts/decision_r1.json)、[semantic proposal](artifacts/r2_semantic_proposal.json)、[bounded binding](artifacts/r2_bounded_proposal.json) |
+| provider TaskGen | [Proposal](artifacts/r2_task_proposal.json)、[code prompt](artifacts/r2_code_prompt.md)、[provider response](artifacts/r2_provider_response.json)、[task.py](artifacts/r2_task.py)、[fixtures](artifacts/r2_checker_fixtures.json) |
+| custom evaluation | [render](artifacts/r2_scene.png)、[rollout](artifacts/r2_video.mp4)、[episode](artifacts/r2_episode.json)、[tool.py](artifacts/r2_tool.py)、[Tool result](artifacts/r2_tool_execution.json)、[VQA](artifacts/r2_vqa.json)、[Aggregate](artifacts/r2_aggregate.json) |
+| 停止与回答 | [round-2 decision](artifacts/decision_r2.json)、[query answer](artifacts/query_answer.json)、[feedback](artifacts/feedback.json)、[run summary](run_summary.json) |
 
-完整 raw bundle 保留在 canonical AutoDL：
-
-```text
-/root/autodl-tmp/mea/mea/evaluation_runs/
-  eval_20260726_batch23_open_query_live_n1_v5/
-/root/autodl-tmp/mea/mea/generated_tasks/
-  run_20260726_batch23_open_query_live_n1_v5_round_{1,2,3}/
-```
-
-[manifest.json](manifest.json) 是公开证据的唯一索引。Git 未复制完整 telemetry、近 1MB
-Aggregate、VQA montage 或开发日志。
+[manifest.json](manifest.json) 是本包唯一文件索引，包含每个公开文件的来源、大小和
+SHA-256。完整 telemetry、raw logs、checkpoint 与生成任务目录仍保留在 manifest
+记录的 canonical AutoDL 路径中。

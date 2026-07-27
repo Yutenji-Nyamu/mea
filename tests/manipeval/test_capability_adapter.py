@@ -168,6 +168,20 @@ class CapabilityAdapterTests(unittest.TestCase):
             build_contract_tool_request(distractor)["metric"],
             "bbh_target_without_distractor_success",
         )
+        click_distractor = resolve_capability_contract(
+            "click_bell",
+            "robustness.distractor_avoidance.lookalike_bell",
+        )
+        self.assertEqual(
+            click_distractor["taskgen"]["operation"],
+            "provider_scene_checker_codegen",
+        )
+        click_request = build_contract_tool_request(click_distractor)
+        self.assertEqual(click_request["task_name"], "click_bell")
+        self.assertEqual(
+            click_request["metric"],
+            "click_target_without_distractor_success",
+        )
 
     def test_same_contract_shape_drives_taskgen_tool_vqa_and_gates(self):
         bbh = resolve_capability_contract(

@@ -43,6 +43,18 @@ class QuerySufficiencyTruthTableTests(unittest.TestCase):
             "existential",
         )
         self.assertEqual(
+            infer_claim_type("List all failing candidates in this suite."),
+            "failure_enumeration",
+        )
+        self.assertEqual(
+            infer_claim_type("Identify the first failing candidate."),
+            "diagnostic",
+        )
+        self.assertEqual(
+            infer_claim_type("列出全部候选中哪些条件失败。"),
+            "failure_enumeration",
+        )
+        self.assertEqual(
             infer_claim_type("Compare the left and right positions."),
             "comparative",
         )
@@ -108,6 +120,55 @@ class QuerySufficiencyTruthTableTests(unittest.TestCase):
         )
         self.assertEqual(all_failed["claim_verdict"], "refuted")
         self.assertEqual(all_failed["stop_reason"], "evidence_sufficient")
+
+    def test_failure_enumeration_requires_every_decisive_candidate(self):
+        contract = self.contract("failure_enumeration")
+        partial = assess_query_sufficiency(
+            contract, [evidence("left", "fail")]
+        )
+        self.assertFalse(partial["evidence_sufficient"])
+        self.assertEqual(partial["recommended_candidate_ids"], ["right"])
+
+        complete = assess_query_sufficiency(
+            contract,
+            [evidence("left", "fail"), evidence("right", "pass")],
+        )
+        self.assertTrue(complete["evidence_sufficient"])
+        self.assertEqual(
+            complete["claim_verdict"], "failure_set_enumerated"
+        )
+        self.assertEqual(
+            complete["statistics"]["failure_candidate_ids"], ["left"]
+        )
+
+        all_pass = assess_query_sufficiency(
+            contract,
+            [evidence("left", "pass"), evidence("right", "pass")],
+        )
+        self.assertTrue(all_pass["evidence_sufficient"])
+        self.assertEqual(
+            all_pass["statistics"]["failure_candidate_ids"], []
+        )
+
+    def test_failure_enumeration_conflict_is_not_sufficient(self):
+        contract = self.contract("failure_enumeration", round_budget=3)
+        result = assess_query_sufficiency(
+            contract,
+            [
+                evidence("left", "pass"),
+                evidence("left", "fail"),
+                evidence("right", "pass"),
+            ],
+        )
+        self.assertFalse(result["evidence_sufficient"])
+        self.assertEqual(result["stop_reason"], "budget_exhausted")
+        self.assertEqual(result["conflict_candidate_ids"], ["left"])
+
+    def test_failure_enumeration_rejects_partial_coverage_minimum(self):
+        with self.assertRaisesRegex(
+            QuerySufficiencyError, "every required candidate"
+        ):
+            self.contract("failure_enumeration", minimum_evaluated=1)
 
     def test_budget_exhaustion_is_not_evidence_sufficiency(self):
         contract = self.contract("universal", round_budget=1)

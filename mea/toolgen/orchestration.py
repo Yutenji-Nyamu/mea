@@ -167,6 +167,20 @@ def bbh_distractor_success_tool_request() -> dict[str, Any]:
     }
 
 
+def click_bell_distractor_success_tool_request() -> dict[str, Any]:
+    """Request the validated provider-written ClickBell checker outcome."""
+
+    return {
+        "schema_version": 1,
+        "task_name": "click_bell",
+        "metric": "click_target_without_distractor_success",
+        "question": (
+            "Did the rollout press the intended bell with the correct arm "
+            "without any latched contact with the look-alike bell?"
+        ),
+    }
+
+
 def hammer_left_camera_contact_count_tool_request() -> dict[str, Any]:
     """Request the bounded BBH unintended-contact proxy from Trusted Tools."""
 

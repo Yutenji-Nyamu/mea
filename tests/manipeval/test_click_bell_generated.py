@@ -61,6 +61,9 @@ class AdaptiveProvider:
         default_templates = {
             "object_position": "object_position.right_fixed",
             "object_instance": "object_instance.base0",
+            "robustness.distractor_avoidance": (
+                "robustness.distractor_avoidance.lookalike_bell"
+            ),
             "robustness.scene_clutter": (
                 "robustness.scene_clutter.official_table"
             ),
@@ -513,7 +516,60 @@ class ClickBellGeneratedTests(unittest.TestCase):
             self.assertIn("--run-act", command)
             self.assertNotIn("--expert", command)
             self.assertNotIn("--vision-check", command)
-            self.assertNotIn("--variant-hint-json", command)
+
+    def test_distractor_capability_materializes_provider_scene_checker(self):
+        proposal = {
+            "schema_version": 1,
+            "task_name": "click_bell",
+            "evaluation_goal": "test the intended bell against a look-alike",
+            "requested_aspect_ids": ["robustness.distractor_avoidance"],
+            "first_aspect_id": "robustness.distractor_avoidance",
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            make_repo(root)
+            planner = ClickBellAdaptivePlanAgent(
+                root,
+                SequenceProvider([]),
+                model="fake",
+                start_seed=100405,
+                num_episodes=1,
+                max_rounds=1,
+            )
+            manifest = planner.plan(
+                "Can it avoid a look-alike bell?",
+                evaluation_id="eval_bell_distractor",
+                validated_proposal=proposal,
+            )
+            round_plan = manifest["plan"]["rounds"][0]
+            self.assertEqual(
+                round_plan["template_id"],
+                "robustness.distractor_avoidance.lookalike_bell",
+            )
+            self.assertEqual(
+                round_plan["route"], "provider_scene_checker_codegen"
+            )
+            self.assertEqual(
+                round_plan["tool_request"]["metric"],
+                "click_target_without_distractor_success",
+            )
+            command, _ = build_taskgen_command(
+                root,
+                "eval_bell_distractor",
+                round_plan,
+                text_model="text",
+                vision_model="vision",
+                base_url=None,
+                gpu=0,
+                max_reflections=0,
+            )
+            mode_index = command.index("--mode") + 1
+            self.assertEqual(
+                command[mode_index], "provider_scene_checker_codegen"
+            )
+            self.assertIn("--run-act", command)
+            self.assertIn("--expert", command)
+            self.assertIn("--variant-hint-json", command)
 
     def test_planner_continues_left_to_right_with_same_seeds(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -1,61 +1,79 @@
-"""TaskGen output: generated load_actors and compiled check_success."""
+"""Provider-generated ClickBell distractor candidate."""
 
 import numpy as np
 import sapien
+from envs.click_bell import click_bell as OfficialClickBell
+from envs.utils import create_actor, rand_pose
 
-from envs.beat_block_hammer import beat_block_hammer as OfficialBeatBlockHammer
-from envs.utils import create_actor, create_box, rand_pose
+class click_bell(OfficialClickBell):
+    mea_telemetry_tracked_actors = (
+        {
+            "id": "distractor",
+            "task_attribute": "distractor",
+            "scene_name": "distractor_bell",
+            "functional_points": (),
+            "contact_points": (0,),
+            "contact_focus": True,
+        },
+    )
 
-
-class beat_block_hammer(OfficialBeatBlockHammer):
     def load_actors(self):
-        self.hammer = create_actor(
-            scene=self,
-            pose=sapien.Pose([0, -0.06, 0.783], [0, 0, 0.995, 0.105]),
-            modelname="020_hammer",
-            convex=True,
-            model_id=0,
-        )
-        block_pose = rand_pose(
-            xlim=[-0.25, 0.25],
-            ylim=[-0.05, 0.15],
-            zlim=[0.76],
-            qpos=[1, 0, 0, 0],
-            rotate_rand=True,
-            rotate_lim=[0, 0, 0.5],
-        )
-        while abs(block_pose.p[0]) < 0.05 or np.sum(pow(block_pose.p[:2], 2)) < 0.001:
-            block_pose = rand_pose(
+            rand_pos = rand_pose(
                 xlim=[-0.25, 0.25],
-                ylim=[-0.05, 0.15],
-                zlim=[0.76],
-                qpos=[1, 0, 0, 0],
-                rotate_rand=True,
-                rotate_lim=[0, 0, 0.5],
+                ylim=[-0.2, 0.0],
+                qpos=[0.5, 0.5, 0.5, 0.5],
+            )
+            while abs(rand_pos.p[0]) < 0.05:
+                rand_pos = rand_pose(
+                    xlim=[-0.25, 0.25],
+                    ylim=[-0.2, 0.0],
+                    qpos=[0.5, 0.5, 0.5, 0.5],
+                )
+
+            self.bell_id = np.random.choice([0, 1], 1)[0]
+            self.bell = create_actor(
+                scene=self,
+                pose=rand_pos,
+                modelname="050_bell",
+                convex=True,
+                model_id=self.bell_id,
+                is_static=True,
             )
 
-        self.block = create_box(
-            scene=self,
-            pose=block_pose,
-            half_size=(0.03, 0.03, 0.03),  # Scaled to 1.2 times the original size
-            color=(1.0, 0.0, 0.0),  # Red color
-            name="box",
-            is_static=True,
-        )
-        self.hammer.set_mass(0.001)
+            self.add_prohibit_area(self.bell, padding=0.07)
+            self.check_arm_function = self.is_left_gripper_close if self.bell.get_pose().p[0] < 0 else self.is_right_gripper_close
 
-        self.add_prohibit_area(self.hammer, padding=0.10)
-        self.prohibited_area.append([
-            block_pose.p[0] - 0.05,
-            block_pose.p[1] - 0.05,
-            block_pose.p[0] + 0.05,
-            block_pose.p[1] + 0.05,
-        ])
+            distractor_pose = sapien.Pose(
+                p=rand_pos.p + np.array([0.0, 0.12, 0.0]),
+                q=rand_pos.q,
+            )
+            self.distractor = create_actor(
+                scene=self,
+                pose=distractor_pose,
+                modelname="050_bell",
+                convex=True,
+                model_id=1 - self.bell_id,
+                is_static=True,
+            )
+            self.distractor.set_name("distractor_bell")
+            self.add_prohibit_area(self.distractor, padding=0.07)
+            self._mea_distractor_contact_seen = False
 
     def check_success(self):
-        hammer_target_pose = self.hammer.get_functional_point(0, "pose").p
-        block_pose = self.block.get_functional_point(1, "pose").p
-        eps = np.array([0.02, 0.02])
-        return np.all(abs(hammer_target_pose[:2] - block_pose[:2]) < eps) and self.check_actors_contact(
-            self.hammer.get_name(), self.block.get_name()
-        )
+            distractor_positions = self.get_gripper_actor_contact_position(self.distractor.get_name())
+            if distractor_positions:
+                self._mea_distractor_contact_seen = True
+            if self._mea_distractor_contact_seen:
+                return False
+            if self.stage_success_tag:
+                return True
+            if not self.check_arm_function():
+                return False
+            bell_pose = self.bell.get_contact_point(0)[:3]
+            positions = self.get_gripper_actor_contact_position("050_bell")
+            eps = [0.025, 0.025]
+            for position in positions:
+                if (np.all(np.abs(position[:2] - bell_pose[:2]) < eps) and abs(position[2] - bell_pose[2]) < 0.03):
+                    self.stage_success_tag = True
+                    return True
+            return False

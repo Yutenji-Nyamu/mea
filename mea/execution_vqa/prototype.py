@@ -734,7 +734,12 @@ The image is a labeled sheet containing an optional reference scene and selected
 rollout frames. The reference tile is comparison context only; all phenomena must
 describe the labeled rollout frame ids. The simulator-derived numeric Tool results
 below are authoritative. Do not overwrite or recalculate them. Report an apparent
-disagreement only as a conflict for the Feedback/Plan Agent.
+disagreement only as a conflict for the Feedback/Plan Agent. Compare each visual
+phenomenon only with the signal named by that question's numeric_authority. For a
+non-equivalent generated checker, official_success may encode different terminal
+semantics: use official_core_predicate_satisfied for visible target actuation when
+it is available. A generated/official terminal-result mismatch belongs in the
+separate outcome-semantics report and is not by itself a visual/numeric conflict.
 
 SELECTED FRAME IDS:
 {json.dumps(frame_ids, ensure_ascii=False)}

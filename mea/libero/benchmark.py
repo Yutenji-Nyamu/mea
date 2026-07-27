@@ -13,6 +13,11 @@ from pathlib import Path
 from typing import Any, Mapping
 
 
+BATCH23_PARITY_HORIZON_STEPS = 280
+BATCH23_PARITY_OBSERVATION_SIZE = 360
+BATCH23_PARITY_ACTION_STEPS = 10
+
+
 class LiberoContractError(ValueError):
     """Raised when a generated task crosses the Phase-1 compatibility boundary."""
 
@@ -45,7 +50,7 @@ class TaskContract:
     python_problem_impl: str
     initial_state_source: str
     control_mode: str = "relative"
-    horizon_steps: int = 100
+    horizon_steps: int = BATCH23_PARITY_HORIZON_STEPS
     source_query: str | None = None
     proposal_artifact: str | None = None
     validation: Mapping[str, Any] = field(default_factory=dict)
@@ -226,13 +231,17 @@ class LiberoBenchmarkAdapter:
     def __init__(
         self,
         *,
-        episode_length: int = 100,
+        episode_length: int = BATCH23_PARITY_HORIZON_STEPS,
+        observation_size: int = BATCH23_PARITY_OBSERVATION_SIZE,
         suite_name: str = "libero_object",
         task_id: int = 0,
     ):
-        if episode_length != 100:
-            raise LiberoContractError("batch24 protocol requires an explicit 100-step horizon")
+        if episode_length <= 0:
+            raise LiberoContractError("episode_length must be positive")
+        if observation_size <= 0:
+            raise LiberoContractError("observation_size must be positive")
         self.episode_length = episode_length
+        self.observation_size = observation_size
         self.suite_name = suite_name
         self.task_id = int(task_id)
 
@@ -286,8 +295,8 @@ class LiberoBenchmarkAdapter:
             episode_length=self.episode_length,
             control_mode="relative",
             obs_type="pixels_agent_pos",
-            observation_height=256,
-            observation_width=256,
+            observation_height=self.observation_size,
+            observation_width=self.observation_size,
         )
 
     def make_custom_env(self, contract: TaskContract):
@@ -304,8 +313,8 @@ class LiberoBenchmarkAdapter:
             episode_length=self.episode_length,
             control_mode="relative",
             obs_type="pixels_agent_pos",
-            observation_height=256,
-            observation_width=256,
+            observation_height=self.observation_size,
+            observation_width=self.observation_size,
         )
         if env._env is not None:
             raise LiberoContractError("custom BDDL must be bound before first reset")

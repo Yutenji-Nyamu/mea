@@ -1,0 +1,554 @@
+{
+  "schema_version": 1,
+  "protocol": "human_replaceable_annotation_score_v1",
+  "packet_id": "batch24_plan_query30_human_replaceable_v1",
+  "label_kind": "plan_sub_aspect",
+  "annotation_set_id": "batch24_plan_query30_codex_development_agent_proxy_v1",
+  "annotation_source": "codex_development_agent_proxy",
+  "human_reviewer_count": 0,
+  "reference_source": "codex_development_agent_proxy_not_human_gold",
+  "unscorable_ids": [],
+  "prediction_source": "mea/validation_runs/query_validation_20260726_proxy30_v1/validation_summary.json",
+  "sample_count": 30,
+  "calls_started_by_scorer": {
+    "provider": 0,
+    "simulator": 0,
+    "act": 0
+  },
+  "metrics": {
+    "case_count": 30,
+    "scorable_case_count": 30,
+    "table6_sub_aspect_precision": 0.5128205128205128,
+    "sub_aspect_micro_recall": 0.5263157894736842,
+    "sub_aspect_micro_f1": 0.5194805194805194,
+    "sub_aspect_exact_set_accuracy": 0.36666666666666664,
+    "by_paper_category": {
+      "generalization": {
+        "case_count": 6,
+        "sub_aspect_precision": 0.6428571428571429
+      },
+      "multi_task": {
+        "case_count": 6,
+        "sub_aspect_precision": 0.0
+      },
+      "performance": {
+        "case_count": 6,
+        "sub_aspect_precision": 0.5
+      },
+      "robustness": {
+        "case_count": 6,
+        "sub_aspect_precision": 0.75
+      },
+      "safety": {
+        "case_count": 6,
+        "sub_aspect_precision": 0.14285714285714285
+      }
+    }
+  },
+  "rows": [
+    {
+      "id": "q001",
+      "paper_category": "generalization",
+      "reference_sub_aspect_ids": [
+        "object_appearance.color",
+        "object_position",
+        "object_scale"
+      ],
+      "predicted_sub_aspect_ids": [
+        "object.physics.mass",
+        "object_appearance.color",
+        "object_appearance.material_gloss",
+        "object_appearance.texture",
+        "object_instance",
+        "object_position",
+        "object_scale"
+      ],
+      "schema_valid": true,
+      "scorable": true,
+      "true_positive": 3,
+      "false_positive": 4,
+      "false_negative": 0,
+      "exact_set_match": false
+    },
+    {
+      "id": "q002",
+      "paper_category": "generalization",
+      "reference_sub_aspect_ids": [
+        "object_instance",
+        "object_position",
+        "scene_background_texture",
+        "scene_lighting"
+      ],
+      "predicted_sub_aspect_ids": [
+        "object_instance",
+        "object_position",
+        "scene_background_texture"
+      ],
+      "schema_valid": true,
+      "scorable": true,
+      "true_positive": 3,
+      "false_positive": 0,
+      "false_negative": 1,
+      "exact_set_match": false
+    },
+    {
+      "id": "q003",
+      "paper_category": "generalization",
+      "reference_sub_aspect_ids": [
+        "object_appearance.color"
+      ],
+      "predicted_sub_aspect_ids": [
+        "object_appearance.color"
+      ],
+      "schema_valid": true,
+      "scorable": true,
+      "true_positive": 1,
+      "false_positive": 0,
+      "false_negative": 0,
+      "exact_set_match": true
+    },
+    {
+      "id": "q004",
+      "paper_category": "generalization",
+      "reference_sub_aspect_ids": [
+        "object_physics.mass"
+      ],
+      "predicted_sub_aspect_ids": [
+        "object.physics.mass"
+      ],
+      "schema_valid": true,
+      "scorable": true,
+      "true_positive": 0,
+      "false_positive": 1,
+      "false_negative": 1,
+      "exact_set_match": false
+    },
+    {
+      "id": "q005",
+      "paper_category": "performance",
+      "reference_sub_aspect_ids": [
+        "performance.completion_time_stability"
+      ],
+      "predicted_sub_aspect_ids": [
+        "performance.completion_time_stability"
+      ],
+      "schema_valid": true,
+      "scorable": true,
+      "true_positive": 1,
+      "false_positive": 0,
+      "false_negative": 0,
+      "exact_set_match": true
+    },
+    {
+      "id": "q006",
+      "paper_category": "performance",
+      "reference_sub_aspect_ids": [
+        "performance.pickup_to_contact_timing"
+      ],
+      "predicted_sub_aspect_ids": [
+        "performance.pickup_to_contact_timing"
+      ],
+      "schema_valid": true,
+      "scorable": true,
+      "true_positive": 1,
+      "false_positive": 0,
+      "false_negative": 0,
+      "exact_set_match": true
+    },
+    {
+      "id": "q007",
+      "paper_category": "performance",
+      "reference_sub_aspect_ids": [
+        "performance.contact_force_overshoot"
+      ],
+      "predicted_sub_aspect_ids": [
+        "performance.force_overshoot",
+        "performance.peak_impact_force"
+      ],
+      "schema_valid": true,
+      "scorable": true,
+      "true_positive": 0,
+      "false_positive": 2,
+      "false_negative": 1,
+      "exact_set_match": false
+    },
+    {
+      "id": "q008",
+      "paper_category": "performance",
+      "reference_sub_aspect_ids": [
+        "task_execution.official_baseline"
+      ],
+      "predicted_sub_aspect_ids": [
+        "task_execution.official_baseline"
+      ],
+      "schema_valid": true,
+      "scorable": true,
+      "true_positive": 1,
+      "false_positive": 0,
+      "false_negative": 0,
+      "exact_set_match": true
+    },
+    {
+      "id": "q009",
+      "paper_category": "safety",
+      "reference_sub_aspect_ids": [
+        "safety.hammer_left_camera_contact"
+      ],
+      "predicted_sub_aspect_ids": [
+        "safety.hammer_left_camera_contact"
+      ],
+      "schema_valid": true,
+      "scorable": true,
+      "true_positive": 1,
+      "false_positive": 0,
+      "false_negative": 0,
+      "exact_set_match": true
+    },
+    {
+      "id": "q010",
+      "paper_category": "safety",
+      "reference_sub_aspect_ids": [
+        "safety.minimum_clearance"
+      ],
+      "predicted_sub_aspect_ids": [
+        "safety.boundary_clearance",
+        "safety.unintended_contact"
+      ],
+      "schema_valid": true,
+      "scorable": true,
+      "true_positive": 0,
+      "false_positive": 2,
+      "false_negative": 1,
+      "exact_set_match": false
+    },
+    {
+      "id": "q011",
+      "paper_category": "safety",
+      "reference_sub_aspect_ids": [
+        "safety.unintended_object_contact"
+      ],
+      "predicted_sub_aspect_ids": [
+        "robustness.distractor_avoidance",
+        "safety.unintended_contact"
+      ],
+      "schema_valid": true,
+      "scorable": true,
+      "true_positive": 0,
+      "false_positive": 2,
+      "false_negative": 1,
+      "exact_set_match": false
+    },
+    {
+      "id": "q012",
+      "paper_category": "safety",
+      "reference_sub_aspect_ids": [
+        "safety.dual_arm_self_collision"
+      ],
+      "predicted_sub_aspect_ids": [
+        "safety.unintended_contact",
+        "task_execution.official_baseline"
+      ],
+      "schema_valid": true,
+      "scorable": true,
+      "true_positive": 0,
+      "false_positive": 2,
+      "false_negative": 1,
+      "exact_set_match": false
+    },
+    {
+      "id": "q013",
+      "paper_category": "robustness",
+      "reference_sub_aspect_ids": [
+        "robustness.distractor_avoidance"
+      ],
+      "predicted_sub_aspect_ids": [
+        "robustness.distractor_avoidance"
+      ],
+      "schema_valid": true,
+      "scorable": true,
+      "true_positive": 1,
+      "false_positive": 0,
+      "false_negative": 0,
+      "exact_set_match": true
+    },
+    {
+      "id": "q014",
+      "paper_category": "robustness",
+      "reference_sub_aspect_ids": [
+        "robustness.scene_clutter"
+      ],
+      "predicted_sub_aspect_ids": [
+        "robustness.scene_clutter"
+      ],
+      "schema_valid": true,
+      "scorable": true,
+      "true_positive": 1,
+      "false_positive": 0,
+      "false_negative": 0,
+      "exact_set_match": true
+    },
+    {
+      "id": "q015",
+      "paper_category": "robustness",
+      "reference_sub_aspect_ids": [
+        "scene_background_texture",
+        "scene_lighting"
+      ],
+      "predicted_sub_aspect_ids": [
+        "scene_background_texture",
+        "scene_lighting"
+      ],
+      "schema_valid": true,
+      "scorable": true,
+      "true_positive": 2,
+      "false_positive": 0,
+      "false_negative": 0,
+      "exact_set_match": true
+    },
+    {
+      "id": "q016",
+      "paper_category": "robustness",
+      "reference_sub_aspect_ids": [
+        "robustness.partial_occlusion"
+      ],
+      "predicted_sub_aspect_ids": [
+        "occlusion.target_contact"
+      ],
+      "schema_valid": true,
+      "scorable": true,
+      "true_positive": 0,
+      "false_positive": 1,
+      "false_negative": 1,
+      "exact_set_match": false
+    },
+    {
+      "id": "q017",
+      "paper_category": "multi_task",
+      "reference_sub_aspect_ids": [
+        "multi_task.cross_task_comparison"
+      ],
+      "predicted_sub_aspect_ids": [],
+      "schema_valid": false,
+      "scorable": true,
+      "true_positive": 0,
+      "false_positive": 0,
+      "false_negative": 1,
+      "exact_set_match": false
+    },
+    {
+      "id": "q018",
+      "paper_category": "multi_task",
+      "reference_sub_aspect_ids": [
+        "multi_task.official_baseline_comparison"
+      ],
+      "predicted_sub_aspect_ids": [],
+      "schema_valid": false,
+      "scorable": true,
+      "true_positive": 0,
+      "false_positive": 0,
+      "false_negative": 1,
+      "exact_set_match": false
+    },
+    {
+      "id": "q019",
+      "paper_category": "multi_task",
+      "reference_sub_aspect_ids": [
+        "language.instruction_paraphrase"
+      ],
+      "predicted_sub_aspect_ids": [],
+      "schema_valid": false,
+      "scorable": true,
+      "true_positive": 0,
+      "false_positive": 0,
+      "false_negative": 1,
+      "exact_set_match": false
+    },
+    {
+      "id": "q020",
+      "paper_category": "multi_task",
+      "reference_sub_aspect_ids": [
+        "multi_task.worst_case_search"
+      ],
+      "predicted_sub_aspect_ids": [],
+      "schema_valid": false,
+      "scorable": true,
+      "true_positive": 0,
+      "false_positive": 0,
+      "false_negative": 1,
+      "exact_set_match": false
+    },
+    {
+      "id": "q021",
+      "paper_category": "generalization",
+      "reference_sub_aspect_ids": [
+        "object_instance",
+        "object_position"
+      ],
+      "predicted_sub_aspect_ids": [
+        "object_instance",
+        "object_position"
+      ],
+      "schema_valid": true,
+      "scorable": true,
+      "true_positive": 2,
+      "false_positive": 0,
+      "false_negative": 0,
+      "exact_set_match": true
+    },
+    {
+      "id": "q022",
+      "paper_category": "generalization",
+      "reference_sub_aspect_ids": [
+        "object_appearance.material_gloss"
+      ],
+      "predicted_sub_aspect_ids": [],
+      "schema_valid": false,
+      "scorable": true,
+      "true_positive": 0,
+      "false_positive": 0,
+      "false_negative": 1,
+      "exact_set_match": false
+    },
+    {
+      "id": "q023",
+      "paper_category": "performance",
+      "reference_sub_aspect_ids": [
+        "performance.completion_time_stability"
+      ],
+      "predicted_sub_aspect_ids": [
+        "performance.completion_time_stability"
+      ],
+      "schema_valid": true,
+      "scorable": true,
+      "true_positive": 1,
+      "false_positive": 0,
+      "false_negative": 0,
+      "exact_set_match": true
+    },
+    {
+      "id": "q024",
+      "paper_category": "performance",
+      "reference_sub_aspect_ids": [
+        "performance.energy_efficiency"
+      ],
+      "predicted_sub_aspect_ids": [
+        "object_physics.mass",
+        "performance.path_efficiency"
+      ],
+      "schema_valid": true,
+      "scorable": true,
+      "true_positive": 0,
+      "false_positive": 2,
+      "false_negative": 1,
+      "exact_set_match": false
+    },
+    {
+      "id": "q025",
+      "paper_category": "safety",
+      "reference_sub_aspect_ids": [
+        "safety.hammer_left_camera_contact"
+      ],
+      "predicted_sub_aspect_ids": [],
+      "schema_valid": false,
+      "scorable": true,
+      "true_positive": 0,
+      "false_positive": 0,
+      "false_negative": 1,
+      "exact_set_match": false
+    },
+    {
+      "id": "q026",
+      "paper_category": "safety",
+      "reference_sub_aspect_ids": [
+        "safety.end_effector_speed_limit"
+      ],
+      "predicted_sub_aspect_ids": [],
+      "schema_valid": false,
+      "scorable": true,
+      "true_positive": 0,
+      "false_positive": 0,
+      "false_negative": 1,
+      "exact_set_match": false
+    },
+    {
+      "id": "q027",
+      "paper_category": "robustness",
+      "reference_sub_aspect_ids": [
+        "robustness.scene_clutter",
+        "scene_lighting"
+      ],
+      "predicted_sub_aspect_ids": [
+        "robustness.scene_clutter",
+        "scene_lighting"
+      ],
+      "schema_valid": true,
+      "scorable": true,
+      "true_positive": 2,
+      "false_positive": 0,
+      "false_negative": 0,
+      "exact_set_match": true
+    },
+    {
+      "id": "q028",
+      "paper_category": "robustness",
+      "reference_sub_aspect_ids": [
+        "robustness.camera_viewpoint_shift"
+      ],
+      "predicted_sub_aspect_ids": [
+        "camera_viewpoint"
+      ],
+      "schema_valid": true,
+      "scorable": true,
+      "true_positive": 0,
+      "false_positive": 1,
+      "false_negative": 1,
+      "exact_set_match": false
+    },
+    {
+      "id": "q029",
+      "paper_category": "multi_task",
+      "reference_sub_aspect_ids": [
+        "multi_task.average_success_comparison"
+      ],
+      "predicted_sub_aspect_ids": [
+        "conclusion.multi_task_consistency",
+        "task_execution.official_baseline"
+      ],
+      "schema_valid": true,
+      "scorable": true,
+      "true_positive": 0,
+      "false_positive": 2,
+      "false_negative": 1,
+      "exact_set_match": false
+    },
+    {
+      "id": "q030",
+      "paper_category": "multi_task",
+      "reference_sub_aspect_ids": [
+        "multi_task.shared_failure_axis"
+      ],
+      "predicted_sub_aspect_ids": [],
+      "schema_valid": false,
+      "scorable": true,
+      "true_positive": 0,
+      "false_positive": 0,
+      "false_negative": 1,
+      "exact_set_match": false
+    }
+  ],
+  "replacement_contract": {
+    "frozen_packet_and_predictions": true,
+    "replace_only_annotation_file_for_human_scoring": true
+  },
+  "paper_eligible": false,
+  "paper_ineligible_reasons": [
+    "codex_development_agent_proxy_is_not_human_gold",
+    "bounded_development_sample_does_not_reproduce_paper_scale",
+    "requires_four_complete_independent_human_annotations"
+  ],
+  "limitations": [
+    "References are one Codex development-agent proxy, not independent human gold.",
+    "Replacing annotations does not rerun frozen samples or predictions.",
+    "This bounded dataset is not the paper-scale validity study."
+  ]
+}

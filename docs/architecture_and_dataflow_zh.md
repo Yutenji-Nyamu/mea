@@ -84,15 +84,16 @@ Git 只发布一个最近运行的紧凑证据包 `docs/evidence/current/`：保
 - ACT official 入口覆盖 `beat_block_hammer`、`click_bell`、`adjust_bottle`、
   `grab_roller`；新增任务优先复用 official task、TaskSchema 和
   通用 recorder/tool，不复制整套 planner。
-- ClickBell 已有第二个 provider-written scene+checker 完整单例：首版因虚构 API 在
-  静态验证处失败；补齐 exact-code retrieval 后，独立一次生成通过 6/6 fixture、
-  render/expert gate，并裁决 official/custom 各 1 个同 seed ACT。它仍因单 seed、
-  单 distractor 几何而 `inconclusive`。本批 online resolver v2 实际以 unsupported
-  结束；之后的 0-provider near-tie/control handoff replay 与 standalone TaskGen/ACT
-  driver 是分开的证据，不是同一 CLI 自动完成的多轮闭环。
+- ClickBell 的 clean flagship 已由一个生产 CLI 完成：inventory-free FreeConcern
+  自动绑定唯一 distractor concern，official control 后由 evidence 触发 provider-written
+  scene+checker，经过 6/6 fixtures、render/expert、第二次 ACT、Tool/VQA/Aggregate，
+  最终以 `evidence_sufficient` 停止。全程无 aspect CLI hint、缓存 replay 或人工串接；
+  仍只覆盖 seed `100405` 和一个有限候选。
 - LIBERO/SmolVLA 由 `mea/libero/` 的独立 adapter/chain 负责，不进入 RoboTwin resolver。
   当前 checkpoint 未声明训练 task scope；未显式绑定时 fail closed，显式绑定只授权
-  official control，不证明 checkpoint 兼容。plan-only 为 0 rollout；live control 失败
-  时必须停止，不能继续 custom rollout。
+  official control，不证明 checkpoint 兼容。batch26 以已知 adapter parity 参数执行
+  `libero_object/task0` official control，1 个 rollout 失败后正确短路，未生成或执行
+  custom BDDL；因此只证明 fail-closed 协议，不是 LIBERO 方法链正例。
 - generated checker 是实验评价语义，必须与 RoboTwin official success 分开报告。
-- N=1–3 的 smoke 只能证明机制跑通，不能声称论文规模的泛化、效率或 ranking。
+- N=1–5 的 smoke 只能证明机制或受限有限域结论，不能声称论文规模的泛化、效率或
+  多策略 ranking。

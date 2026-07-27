@@ -54,6 +54,16 @@ CLICK_BELL_ADAPTIVE_ASPECTS = {
             "object_instance.base1",
         ],
     },
+    "robustness.distractor_avoidance": {
+        "description": (
+            "Robustness to one nearby physical look-alike bell. The generated "
+            "scene/checker preserves the official target-contact predicate and "
+            "adds a latched no-distractor-contact constraint."
+        ),
+        "template_ids": [
+            "robustness.distractor_avoidance.lookalike_bell"
+        ],
+    },
     "robustness.scene_clutter": {
         "description": (
             "Robustness to RoboTwin's simulator-native tabletop clutter while "
@@ -93,37 +103,30 @@ CLICK_BELL_ADAPTIVE_TEMPLATES = {
         "aspect_id": "object_position",
         "probe_role": "sentinel",
         "description": "Safe fixed left-workspace position.",
-        "variant_hint": {"bell": {"position_mode": "fixed", "xy": [-0.20, -0.08]}},
     },
     "object_position.right_fixed": {
         "aspect_id": "object_position",
         "probe_role": "counterfactual",
         "description": "Mirrored safe right-workspace position.",
-        "variant_hint": {"bell": {"position_mode": "fixed", "xy": [0.20, -0.08]}},
     },
     "object_instance.base0": {
         "aspect_id": "object_instance",
         "probe_role": "sentinel",
         "description": "Official larger white/black base0 bell instance.",
-        "variant_hint": {
-            "bell": {
-                "position_mode": "official_random",
-                "instance_mode": "fixed",
-                "bell_id": 0,
-            }
-        },
     },
     "object_instance.base1": {
         "aspect_id": "object_instance",
         "probe_role": "counterfactual",
         "description": "Official smaller blue/brown base1 bell instance.",
-        "variant_hint": {
-            "bell": {
-                "position_mode": "official_random",
-                "instance_mode": "fixed",
-                "bell_id": 1,
-            }
-        },
+    },
+    "robustness.distractor_avoidance.lookalike_bell": {
+        "aspect_id": "robustness.distractor_avoidance",
+        "probe_role": "sentinel",
+        "description": (
+            "One alternate official bell instance is placed 0.12 m from the "
+            "target; success requires the correct-arm target press and forbids "
+            "every latched distractor contact."
+        ),
     },
     "robustness.scene_clutter.official_table": {
         "aspect_id": "robustness.scene_clutter",
@@ -132,12 +135,6 @@ CLICK_BELL_ADAPTIVE_TEMPLATES = {
             "Official click_bell scene plus simulator-generated physical "
             "tabletop distractors."
         ),
-        "variant_hint": {
-            "domain_randomization": {
-                "cluttered_table": True,
-                "clean_background_rate": 0.0,
-            }
-        },
     },
     "scene_background_texture.unseen": {
         "aspect_id": "scene_background_texture",
@@ -146,12 +143,6 @@ CLICK_BELL_ADAPTIVE_TEMPLATES = {
             "RoboTwin random_background with clean_background_rate=0 and the "
             "unseen texture split selected by eval mode."
         ),
-        "variant_hint": {
-            "domain_randomization": {
-                "random_background": True,
-                "clean_background_rate": 0.0,
-            }
-        },
     },
     "scene_lighting.static_random": {
         "aspect_id": "scene_lighting",
@@ -160,12 +151,6 @@ CLICK_BELL_ADAPTIVE_TEMPLATES = {
             "RoboTwin random_light enabled with crazy_random_light_rate=0, "
             "yielding one static randomized light setup per episode."
         ),
-        "variant_hint": {
-            "domain_randomization": {
-                "random_light": True,
-                "crazy_random_light_rate": 0.0,
-            }
-        },
     },
     "performance.completion_time_stability.official": {
         "aspect_id": "performance.completion_time_stability",
@@ -174,8 +159,6 @@ CLICK_BELL_ADAPTIVE_TEMPLATES = {
             "Unchanged official click_bell scene measured with the trusted "
             "first-success timestamp over the requested ACT seed budget."
         ),
-        "route": "official",
-        "variant_hint": {},
     },
 }
 
@@ -524,12 +507,7 @@ class ClickBellAdaptivePlanAgent:
         except ValueError as exc:
             raise PlanAgentError(f"capability adapter invalid: {exc}") from exc
         route = taskgen_route(contract)
-        declared_route = str(template.get("route") or "reuse")
-        if (
-            contract["aspect"]["aspect_id"] != template["aspect_id"]
-            or contract["taskgen"]["changes"] != template["variant_hint"]
-            or route != declared_route
-        ):
+        if contract["aspect"]["aspect_id"] != template["aspect_id"]:
             raise PlanAgentError(
                 "click_bell planner template conflicts with capability adapter"
             )
@@ -555,7 +533,7 @@ class ClickBellAdaptivePlanAgent:
             ),
             "telemetry_profile": self.telemetry_profile,
             "route": route,
-            "variant_hint": deepcopy(template["variant_hint"]),
+            "variant_hint": deepcopy(contract["taskgen"]["changes"]),
             "execution": {
                 "backend": "act",
                 "seeds": seeds,
