@@ -15,8 +15,7 @@ from mea.aspects import (
 )
 
 from .catalog import catalog_task, validate_act_catalog
-from .click_bell import CLICK_BELL_ADAPTIVE_ASPECTS
-from .prototype import EXPECTED_POLICY, MAX_ROUNDS, SUB_ASPECT_CATALOG
+from .prototype import EXPECTED_POLICY, MAX_ROUNDS
 
 
 class GlobalRouteError(ValueError):
@@ -607,9 +606,12 @@ def route_to_click_proposal(
 ) -> dict[str, Any]:
     """Translate a validated route to ClickBellEvaluationProposal fields."""
 
-    route, _task = _validated_routed_task(selection, catalog, "click_bell")
+    route, task = _validated_routed_task(selection, catalog, "click_bell")
+    available_aspects = {
+        str(aspect["aspect_id"]) for aspect in task["aspects"]
+    }
     unknown = sorted(
-        set(route["requested_aspect_ids"]) - set(CLICK_BELL_ADAPTIVE_ASPECTS)
+        set(route["requested_aspect_ids"]) - available_aspects
     )
     if unknown:
         raise GlobalRouteError(f"click_bell proposal has unknown aspects: {unknown}")
@@ -637,10 +639,6 @@ def route_to_bbh_proposal(
         for template_id in aspect_map[aspect_id]
     ]
     first_template = aspect_map[route["first_aspect_id"]][0]
-    if any(
-        template_id not in SUB_ASPECT_CATALOG for template_id in requested_templates
-    ):
-        raise GlobalRouteError("BBH catalog route no longer matches SUB_ASPECT_CATALOG")
     return {
         "schema_version": 5,
         "task_name": "beat_block_hammer",

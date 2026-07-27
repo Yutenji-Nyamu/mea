@@ -255,6 +255,40 @@ class GlobalQueryRouterTests(unittest.TestCase):
                 )
                 self.assertEqual(dispatched["proposal"], routed)
 
+    def test_deep_task_neutral_controls_route_from_catalog(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            make_ready_repo(root, "beat_block_hammer", "click_bell")
+            catalog = build_act_catalog(root)
+            for task_name, profile in (
+                ("beat_block_hammer", "generated"),
+                ("click_bell", "adaptive_properties"),
+            ):
+                with self.subTest(task_name=task_name):
+                    route = {
+                        "schema_version": 2,
+                        "decision": "route",
+                        "task_name": task_name,
+                        "task_profile": profile,
+                        "evaluation_goal": "establish neutral official control",
+                        "requested_aspect_ids": [
+                            "task_execution.official_baseline"
+                        ],
+                        "first_aspect_id": "task_execution.official_baseline",
+                        "unsupported_capabilities": [],
+                    }
+                    proposal = route_to_planner_proposal(route, catalog)[
+                        "proposal"
+                    ]
+                    first = proposal.get(
+                        "first_template_id",
+                        proposal.get("first_aspect_id"),
+                    )
+                    self.assertEqual(
+                        first,
+                        "task_execution.official_baseline",
+                    )
+
     def test_extra_fields_and_catalog_violations_are_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

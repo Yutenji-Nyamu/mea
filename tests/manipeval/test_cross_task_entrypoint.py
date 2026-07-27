@@ -532,7 +532,7 @@ class CrossTaskEntrypointTests(unittest.TestCase):
         self.assertEqual(routed["task_name"], "click_bell")
         self.assertEqual(
             routed["proposal"]["first_aspect_id"],
-            "performance.completion_time_stability",
+            "task_execution.official_baseline",
         )
         self.assertIn(query, routed["proposal"]["evaluation_goal"])
 
@@ -732,7 +732,7 @@ class CrossTaskEntrypointTests(unittest.TestCase):
             self.assertEqual(plan["task_name"], "click_bell")
             self.assertEqual(
                 plan["rounds"][0]["template_id"],
-                "performance.completion_time_stability.official",
+                "task_execution.official_baseline",
             )
             manifest = json.loads(
                 (

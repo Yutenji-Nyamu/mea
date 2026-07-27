@@ -118,6 +118,43 @@ class CatalogPlanFacadeTests(unittest.TestCase):
             )
             self.assertFalse(manifest["planner"]["provider_called"])
 
+    def test_deep_tasks_share_neutral_official_control_materializer(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for task_name in ("beat_block_hammer", "click_bell"):
+                with self.subTest(task_name=task_name):
+                    copy_schema(root, task_name)
+                    control = {
+                        "schema_version": 1,
+                        "task_name": task_name,
+                        "evaluation_goal": "establish a neutral official control",
+                        "requested_aspect_ids": [
+                            "task_execution.official_baseline"
+                        ],
+                        "first_aspect_id": "task_execution.official_baseline",
+                    }
+                    manifest = CatalogPlanAgent(
+                        root,
+                        task_name=task_name,
+                        provider=None,
+                        execution_backend="act",
+                        start_seed=29,
+                    ).plan(
+                        "where does the policy first expose a weakness?",
+                        evaluation_id=f"eval_neutral_{task_name}",
+                        validated_proposal=control,
+                    )
+                    first_round = manifest["plan"]["rounds"][0]
+                    self.assertEqual(
+                        first_round["template_id"],
+                        "task_execution.official_baseline",
+                    )
+                    self.assertEqual(
+                        first_round["tool_request"]["metric"],
+                        "official_check_success",
+                    )
+                    self.assertFalse(manifest["planner"]["provider_called"])
+
     def test_cross_task_proposal_is_rejected_at_facade_boundary(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

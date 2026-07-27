@@ -157,6 +157,21 @@ class PlanMaterializer:
             execution_backend=self.execution_backend,
         )
 
+    def _build_official_delegate(self) -> OfficialTaskPlanAgent:
+        """Build the shared unchanged-task materializer for any bound task."""
+
+        return OfficialTaskPlanAgent(
+            self.repo_root,
+            task_name=self.task_name,
+            task_module=self.task_module,
+            start_seed=(
+                self.start_seed if self.start_seed is not None else 100000
+            ),
+            num_episodes=self.num_episodes,
+            telemetry_profile=self.telemetry_profile,
+            execution_backend=self.execution_backend,
+        )
+
     def materialize_plan_step(
         self,
         template_id: str,
@@ -174,6 +189,10 @@ class PlanMaterializer:
         request = str(user_request or "").strip()
         if not request:
             raise CatalogPlanError("user_request must be non-empty")
+        if template_id == OFFICIAL_TEMPLATE_ID:
+            result = deepcopy(self._build_official_delegate()._round(request))
+            result["round_id"] = f"round_{round_number}"
+            return result
         materialize = getattr(self._delegate, "materialize_plan_step", None)
         if callable(materialize):
             result = deepcopy(
@@ -216,6 +235,24 @@ class CatalogPlanAgent:
             validated_proposal,
             task_name=self.task_name,
         )
+        if proposal is not None and (
+            proposal.get("first_aspect_id") == OFFICIAL_TEMPLATE_ID
+            or proposal.get("first_template_id") == OFFICIAL_TEMPLATE_ID
+        ):
+            official_proposal = {
+                "schema_version": 1,
+                "task_name": self.task_name,
+                "evaluation_goal": proposal["evaluation_goal"],
+                "requested_aspect_ids": [OFFICIAL_TEMPLATE_ID],
+                "first_aspect_id": OFFICIAL_TEMPLATE_ID,
+            }
+            return self.materializer._build_official_delegate().plan(
+                user_request,
+                evaluation_id=evaluation_id,
+                history_context=history_context,
+                history_metadata=history_metadata,
+                validated_proposal=official_proposal,
+            )
         return self.materializer._delegate.plan(
             user_request,
             evaluation_id=evaluation_id,
