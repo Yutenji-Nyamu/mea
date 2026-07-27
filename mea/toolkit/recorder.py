@@ -82,14 +82,6 @@ def extend_task_schema_with_generated_actors(
             raise RecorderError(
                 f"generated tracked actor {index} has invalid identity"
             )
-        if (
-            actor_id in ids
-            or attribute in attributes
-            or scene_name in scene_names
-        ):
-            raise RecorderError(
-                f"generated tracked actor {index} duplicates the base schema"
-            )
         points: dict[str, list[int]] = {}
         for field in ("functional_points", "contact_points"):
             values = item[field]
@@ -114,6 +106,32 @@ def extend_task_schema_with_generated_actors(
         if not hasattr(task, attribute):
             raise RecorderError(
                 f"generated tracked actor attribute is missing: {attribute}"
+            )
+        if actor_id in ids:
+            existing = next(
+                actor for actor in actors if actor["id"] == actor_id
+            )
+            exact_redeclaration = bool(
+                existing["task_attribute"] == attribute
+                and existing["scene_name"] == scene_name
+                and list(existing.get("functional_points", []))
+                == points["functional_points"]
+                and list(existing.get("contact_points", []))
+                == points["contact_points"]
+                and (actor_id in focus) is item["contact_focus"]
+            )
+            if exact_redeclaration:
+                # A generated subclass may replace the official actor instance
+                # while keeping its public identity.  The base schema already
+                # records that attribute, so the declaration is an idempotent
+                # no-op rather than a new actor.
+                continue
+            raise RecorderError(
+                f"generated tracked actor {index} duplicates the base schema"
+            )
+        if attribute in attributes or scene_name in scene_names:
+            raise RecorderError(
+                f"generated tracked actor {index} duplicates the base schema"
             )
         actors.append(
             {

@@ -82,6 +82,14 @@ _GENERIC_DIRECT_CALLS = {
     "tuple",
     "zip",
 }
+_GENERIC_SAFE_MODULE_CALLS = {
+    ("np", "abs"),
+    ("np", "all"),
+    ("np", "any"),
+    ("np", "array"),
+    ("np", "asarray"),
+    ("np", "sum"),
+}
 
 
 @dataclass(frozen=True)
@@ -167,7 +175,9 @@ def _derived_ast_policy(
         source_path, class_name=class_name
     )
     safe_direct_calls = set(_GENERIC_DIRECT_CALLS)
-    safe_module_calls: set[tuple[str, ...]] = set()
+    safe_module_calls: set[tuple[str, ...]] = set(
+        _GENERIC_SAFE_MODULE_CALLS
+    )
     safe_method_calls: set[str] = set()
     allowed_private_attributes = {
         node.attr

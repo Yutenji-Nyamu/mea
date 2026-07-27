@@ -92,6 +92,45 @@ class ToolkitTests(unittest.TestCase):
             extended["contact_focus_actor_ids"],
         )
 
+    def test_exact_generated_actor_redeclaration_is_idempotent(self):
+        schema = {
+            "schema_version": 1,
+            "task_name": "click_bell",
+            "physics_timestep_seconds": 0.004,
+            "action_dimension": 14,
+            "tracked_actors": [
+                {
+                    "id": "bell",
+                    "task_attribute": "bell",
+                    "scene_name": "050_bell",
+                    "functional_points": [],
+                    "contact_points": [0],
+                }
+            ],
+            "contact_focus_actor_ids": ["bell"],
+            "semantic_fields": [
+                {
+                    "name": "bell_position",
+                    "source": "actor_position",
+                    "actor_id": "bell",
+                }
+            ],
+            "semantic_roles": {},
+        }
+        task = SimpleNamespace(
+            bell=object(),
+            mea_telemetry_tracked_actors=[
+                {
+                    **schema["tracked_actors"][0],
+                    "contact_focus": True,
+                }
+            ],
+        )
+
+        extended = extend_task_schema_with_generated_actors(schema, task)
+
+        self.assertEqual(extended, schema)
+
     @staticmethod
     def _write_episode(episode_dir):
         schema = {

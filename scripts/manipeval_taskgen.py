@@ -1352,7 +1352,10 @@ def create_generic_provider_taskgen_run(
             "also assign self.mea_telemetry_tracked_actors to a list of dicts "
             "with exactly id, task_attribute, scene_name, functional_points, "
             "contact_points, and contact_focus; task_attribute must name the "
-            "public self attribute holding that actor. "
+            "public self attribute holding that actor. Do not redeclare an "
+            "actor already present in the TASK TELEMETRY/EXECUTION SCHEMA; "
+            "that schema remains valid when the generated scene replaces the "
+            "same public actor attribute and scene name. "
             "The initial state must not satisfy check_success; the official "
             "expert terminal state must satisfy it."
         ),
@@ -1732,6 +1735,82 @@ def create_generic_provider_taskgen_run(
         "index_path": str(
             artifact_index.registry.index_path.relative_to(repo_root)
         ).replace("\\", "/"),
+    }
+    write_json(run_dir / "manifest.json", manifest)
+    return manifest
+
+
+def record_generic_taskgen_generation_failure(
+    repo_root: Path,
+    *,
+    run_id: str,
+    user_request: str,
+    experiment_candidate: Mapping[str, Any],
+    model: str,
+    telemetry_profile: str,
+    error: Exception,
+) -> dict[str, Any]:
+    """Leave a compact child manifest when generation exhausts its repair."""
+
+    candidate = validate_experiment_candidate(experiment_candidate)
+    run_dir = repo_root / "mea/generated_tasks" / run_id
+    for child in ("generation", "validation", "evidence", "evaluation"):
+        (run_dir / child).mkdir(parents=True, exist_ok=True)
+    write_json(run_dir / "request.json", {"user_request": user_request})
+    write_json(
+        run_dir / "generation/experiment_candidate.json",
+        candidate,
+    )
+    attempt_source = (
+        repo_root
+        / "mea/generated_task_attempts"
+        / run_id
+        / "task_generation_attempt_summary.json"
+    )
+    attempt_artifact = None
+    if attempt_source.is_file():
+        attempt_target = (
+            run_dir / "validation/task_generation_attempt_summary.json"
+        )
+        shutil.copy2(attempt_source, attempt_target)
+        attempt_artifact = str(
+            attempt_target.relative_to(repo_root)
+        ).replace("\\", "/")
+    try:
+        base_commit = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo_root,
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except (OSError, subprocess.CalledProcessError):
+        base_commit = None
+    manifest = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "status": "failed",
+        "created_at": datetime.now().astimezone().isoformat(),
+        "user_request": str(user_request),
+        "task_name": candidate["base_task"],
+        "task_module": None,
+        "mode": "generic_provider_scene_checker_codegen",
+        "generation_kind": "generic_provider_scene_checker_codegen",
+        "base_commit": base_commit,
+        "telemetry_profile": telemetry_profile,
+        "provider": {
+            "model_requested": model,
+            "called": True,
+        },
+        "experiment_candidate": candidate,
+        "experiment_candidate_path": (
+            "generation/experiment_candidate.json"
+        ),
+        "task_generation_attempts": attempt_artifact,
+        "failure": {
+            "stage": "provider_scene_checker_generation",
+            "type": type(error).__name__,
+            "message": str(error),
+        },
     }
     write_json(run_dir / "manifest.json", manifest)
     return manifest
@@ -3929,18 +4008,30 @@ def main() -> None:
                     "generic scene+checker codegen requires a provider, "
                     "ExperimentCandidate, and explicit --run-id"
                 )
-            manifest = create_generic_provider_taskgen_run(
-                repo_root,
-                user_request=args.request,
-                provider=provider,
-                model=args.text_model,
-                vision_model=args.vision_model,
-                experiment_candidate=experiment_candidate,
-                run_id=args.run_id,
-                seed=args.seed,
-                telemetry_profile=args.telemetry_profile,
-                ablation_switches=taskgen_ablation,
-            )
+            try:
+                manifest = create_generic_provider_taskgen_run(
+                    repo_root,
+                    user_request=args.request,
+                    provider=provider,
+                    model=args.text_model,
+                    vision_model=args.vision_model,
+                    experiment_candidate=experiment_candidate,
+                    run_id=args.run_id,
+                    seed=args.seed,
+                    telemetry_profile=args.telemetry_profile,
+                    ablation_switches=taskgen_ablation,
+                )
+            except Exception as exc:
+                record_generic_taskgen_generation_failure(
+                    repo_root,
+                    run_id=args.run_id,
+                    user_request=args.request,
+                    experiment_candidate=experiment_candidate,
+                    model=args.text_model,
+                    telemetry_profile=args.telemetry_profile,
+                    error=exc,
+                )
+                raise
         else:
             prototype = TaskGenPrototype(repo_root, provider, model=args.text_model)
             manifest = prototype.generate(

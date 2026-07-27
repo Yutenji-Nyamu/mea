@@ -20,6 +20,9 @@ from mea.taskgen.generic_backend import (
     validate_generic_task_methods,
 )
 from mea.taskgen.provider_scene_checker import validate_method_ast
+from scripts.manipeval_taskgen import (
+    record_generic_taskgen_generation_failure,
+)
 
 
 class _Provider:
@@ -273,6 +276,43 @@ def _adapter() -> GenericRoboTwinTaskAdapter:
 
 
 class GenericTaskGenBackendTests(unittest.TestCase):
+    def test_generation_failure_still_writes_child_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            run_id = "run_generic_failure_fixture"
+            attempt_dir = (
+                root / "mea/generated_task_attempts" / run_id
+            )
+            attempt_dir.mkdir(parents=True)
+            (attempt_dir / "task_generation_attempt_summary.json").write_text(
+                json.dumps({"status": "failed", "attempt_count": 2}) + "\n",
+                encoding="utf-8",
+            )
+
+            manifest = record_generic_taskgen_generation_failure(
+                root,
+                run_id=run_id,
+                user_request="Evaluate a shifted target.",
+                experiment_candidate=_candidate(),
+                model="fixture-model",
+                telemetry_profile="balanced_v1",
+                error=GenericTaskGenError("repair exhausted"),
+            )
+
+            run_dir = root / "mea/generated_tasks" / run_id
+            self.assertEqual(manifest["status"], "failed")
+            self.assertTrue((run_dir / "manifest.json").is_file())
+            self.assertTrue(
+                (
+                    run_dir
+                    / "validation/task_generation_attempt_summary.json"
+                ).is_file()
+            )
+            self.assertEqual(
+                manifest["failure"]["stage"],
+                "provider_scene_checker_generation",
+            )
+
     def test_loader_discovers_unknown_task_without_a_core_registry(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -463,6 +503,20 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                     official_source=root / f"envs/{task_name}.py",
                     official_class=task_name,
                 )
+            numpy_checker = {
+                **methods,
+                "check_success": (
+                    "def check_success(self):\n"
+                    "    return bool(np.asarray(["
+                    "self.target.is_ready()])[0])\n"
+                ),
+            }
+            report = validate_generic_task_methods(
+                numpy_checker,
+                official_source=root / f"envs/{task_name}.py",
+                official_class=task_name,
+            )
+            self.assertTrue(report["valid"])
 
     def test_semantic_reuse_ignores_query_wording_and_candidate_id(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
