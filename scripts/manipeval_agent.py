@@ -55,8 +55,16 @@ from mea.planner import (
 )
 from mea.planner.experiment_candidate import (
     build_experiment_candidate,
+    validate_experiment_candidate,
 )
-from mea.planner.query_contract import extend_query_candidate_universe
+from mea.planner.open_task_resolver import rank_official_tasks
+from mea.planner.query_contract import (
+    build_query_sufficiency_contract,
+    extend_query_candidate_universe,
+    infer_claim_type,
+    infer_control_requirement,
+    validate_query_sufficiency_contract,
+)
 from mea.proposals import (
     ProposalError,
     materialize_round_proposals,
@@ -212,6 +220,75 @@ def build_bound_claim_first_handoff(
         "global_router_provider_calls": 0,
     }
     return route_result, routed
+
+
+def build_pending_task_binding_policy_card() -> dict[str, Any]:
+    """Describe an unbound checkpoint portfolio without exposing its menu.
+
+    The FreeConcern call must happen before the official task inventory is
+    retrieved.  This neutral card makes that ordering explicit: it describes
+    the evaluation surface, but contains no executable task or aspect name.
+    """
+
+    return {
+        "policy_name": "ACT task-specific checkpoint portfolio",
+        "checkpoint_id": "selected_after_catalog_free_concern",
+        "single_task_checkpoint": False,
+        "training_tasks": ["withheld_until_semantic_task_retrieval"],
+        "language_conditioned": False,
+        "checkpoint_ready": True,
+        "supports_unseen_tasks": False,
+    }
+
+
+def bind_ready_task_after_free_concern(
+    concern: Mapping[str, Any],
+    *,
+    inventory: list[dict[str, Any]],
+    ready_task_names: list[str],
+    default_task_name: str,
+) -> dict[str, Any]:
+    """Bind a checkpoint only after a catalog-free semantic concern exists."""
+
+    ranked = rank_official_tasks(
+        concern,
+        inventory,
+        top_k=len(inventory),
+    )
+    ready = set(ready_task_names)
+    ranked_ready = [
+        item for item in ranked if str(item["task_name"]) in ready
+    ]
+    if not ranked_ready:
+        raise RuntimeError(
+            "no checkpoint-ready task remains after semantic task retrieval"
+        )
+    best = ranked_ready[0]
+    fallback_used = float(best["score"]) <= 0.0
+    if fallback_used:
+        selected_name = (
+            default_task_name
+            if default_task_name in ready
+            else sorted(ready)[0]
+        )
+        selected = next(
+            item
+            for item in ranked_ready
+            if str(item["task_name"]) == selected_name
+        )
+        reason = "task_underspecified_cli_default_after_free_concern"
+    else:
+        selected = best
+        reason = "semantic_task_intent_retrieval"
+    return {
+        "schema_version": 1,
+        "selected_task_name": str(selected["task_name"]),
+        "reason_code": reason,
+        "fallback_used": fallback_used,
+        "catalog_visible_to_concern_model": False,
+        "retrieval_field": "FreeConcern.task_intent",
+        "ranked_ready_tasks": ranked_ready,
+    }
 
 
 def initialize_registered_dynamic_runtime(
@@ -966,7 +1043,10 @@ def build_taskgen_command(
             ]
         )
     experiment_candidate = round_plan.get("experiment_candidate")
-    if experiment_candidate is not None:
+    if (
+        experiment_candidate is not None
+        and route == "generic_provider_scene_checker_codegen"
+    ):
         command.extend(
             [
                 "--experiment-candidate-json",
@@ -1056,59 +1136,95 @@ def materialize_open_world_round(
     candidate: Mapping[str, Any],
     control_execution: Mapping[str, Any],
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Bind TaskGen now and defer ToolGen until executed telemetry exists."""
+    """Materialize only the TaskGen and ToolGen stages requested by a candidate."""
 
+    normalized = validate_experiment_candidate(candidate)
+    scene_need = normalized["scene_need"]
+    checker_need = normalized["checker_need"]
+    tool_need = normalized["tool_need"]
+    taskgen_requested = scene_need is not None or checker_need is not None
+    toolgen_requested = tool_need is not None
+    route = (
+        "generic_provider_scene_checker_codegen"
+        if taskgen_requested
+        else "official"
+    )
+    outcome_metric = (
+        "generated_check_success"
+        if taskgen_requested
+        else "official_check_success"
+    )
     deferred_tool_request = {
         "schema_version": 1,
-        "task_name": str(candidate["base_task"]),
-        "metric": "generated_check_success",
-        "question": (
-            "Fallback only: did the validated Query-derived checker pass?"
-        ),
+        "task_name": str(normalized["base_task"]),
+        "metric": outcome_metric,
+        "question": "Fallback only: did the task success predicate pass?",
     }
     tool_bundle = {
         "schema_version": 1,
-        "source": "deferred_until_executed_telemetry_schema",
+        "source": (
+            "deferred_until_executed_telemetry_schema"
+            if toolgen_requested
+            else "task_checker_evidence_no_new_tool_requested"
+        ),
         "tool_request": deferred_tool_request,
     }
     artifact_dir = (
-        evaluation_dir / "plan/open_world_materialization"
+        evaluation_dir
+        / "plan/open_world_materialization"
         / f"round_{round_number:02d}"
     )
-    write_json(artifact_dir / "experiment_candidate.json", dict(candidate))
+    write_json(artifact_dir / "experiment_candidate.json", normalized)
     write_json(artifact_dir / "tool_request_bundle.json", tool_bundle)
     execution = deepcopy(dict(control_execution))
     execution["backend"] = "act"
-    execution["gates"] = [
-        "ast",
-        "render",
-        "expert",
-        "act",
-        "toolkit",
-        "planned_tool",
-        "aggregate",
-    ]
-    candidate_id = str(candidate["candidate_id"])
-    sub_aspect = str(candidate["semantic_concern"]).split(":", 1)[0].strip()
+    execution["gates"] = (
+        [
+            "ast",
+            "render",
+            "visual_diagnosis",
+            "expert",
+            "act",
+            "toolkit",
+            "planned_tool",
+            "aggregate",
+        ]
+        if taskgen_requested
+        else ["render", "act", "toolkit", "planned_tool", "aggregate"]
+    )
+    candidate_id = str(normalized["candidate_id"])
+    sub_aspect = str(normalized["semantic_concern"]).split(":", 1)[0].strip()
+
+    def need_description(need: Mapping[str, Any] | None) -> str:
+        return (
+            str(need["description"])
+            if need is not None
+            else "reuse the official implementation"
+        )
+
     round_plan = {
         "round_id": f"round_{round_number}",
         "template_id": None,
         "candidate_id": candidate_id,
-        "experiment_candidate": deepcopy(dict(candidate)),
+        "experiment_candidate": normalized,
         "sub_aspect": sub_aspect,
         "rationale": (
-            "Materialize the Query-derived concern through reuse-or-generate "
-            "TaskGen and ToolGen; no catalog template authorizes this round."
+            "Materialize only the Query-derived Task or Tool needs; no catalog "
+            "template authorizes this round."
         ),
         "task_instruction": (
-            f"{candidate['source_query']}\nScene need: "
-            f"{candidate['scene_need']}\nChecker need: "
-            f"{candidate['checker_need']}"
+            f"{normalized['source_query']}\nScene need: "
+            f"{need_description(scene_need)}\nChecker need: "
+            f"{need_description(checker_need)}"
         ),
-        "task_name": str(candidate["base_task"]),
-        "task_module": None,
+        "task_name": str(normalized["base_task"]),
+        "task_module": (
+            None
+            if taskgen_requested
+            else f"envs.{normalized['base_task']}"
+        ),
         "telemetry_profile": "balanced_v1",
-        "route": "generic_provider_scene_checker_codegen",
+        "route": route,
         "variant_hint": {},
         "execution": execution,
         "observations": [
@@ -1119,28 +1235,58 @@ def materialize_open_world_round(
             "aggregate",
         ],
         "tool_request": deepcopy(deferred_tool_request),
-        "open_tool_request_deferred": True,
+        "open_tool_request_deferred": toolgen_requested,
         "vqa_phenomenon_ids": [],
         "semantic_need_execution": {
             "schema_version": 2,
             "candidate_id": candidate_id,
             "task": {
-                "requested": True,
-                "description": str(candidate["scene_need"]),
-                "route": "generic_provider_scene_checker_codegen",
-                "status": "selected",
+                "requested": scene_need is not None,
+                "description": (
+                    str(scene_need["description"])
+                    if scene_need is not None
+                    else None
+                ),
+                "route": (
+                    "generic_provider_scene_checker_codegen"
+                    if scene_need is not None
+                    else "official_scene_reuse"
+                ),
+                "status": (
+                    "selected" if scene_need is not None else "not_requested"
+                ),
             },
             "checker": {
-                "requested": True,
-                "description": str(candidate["checker_need"]),
-                "route": "provider_written_python",
-                "status": "selected",
+                "requested": checker_need is not None,
+                "description": (
+                    str(checker_need["description"])
+                    if checker_need is not None
+                    else None
+                ),
+                "route": (
+                    "provider_written_python"
+                    if checker_need is not None
+                    else "official_checker_reuse"
+                ),
+                "status": (
+                    "selected" if checker_need is not None else "not_requested"
+                ),
             },
             "tool": {
-                "requested": True,
-                "description": str(candidate["tool_need"]),
-                "route": "after_taskgen_executed_telemetry_schema",
-                "status": "pending",
+                "requested": tool_need is not None,
+                "description": (
+                    str(tool_need["description"])
+                    if tool_need is not None
+                    else None
+                ),
+                "route": (
+                    "after_executed_telemetry_schema"
+                    if tool_need is not None
+                    else "task_checker_evidence"
+                ),
+                "status": (
+                    "pending" if tool_need is not None else "not_requested"
+                ),
             },
         },
     }
@@ -1237,9 +1383,11 @@ def materialize_open_world_tool_request(
     bundle = tool_agent.propose(
         source_query=str(candidate["source_query"]),
         semantic_concern=str(candidate["semantic_concern"]),
-        tool_need=str(candidate["tool_need"]),
+        tool_need=str(candidate["tool_need"]["description"]),
         task_name=str(candidate["base_task"]),
-        generated_checker_semantics=True,
+        generated_checker_semantics=bool(
+            candidate["checker_need"] is not None
+        ),
         runtime_schema=runtime_schema,
         reusable_tool_requests=reusable_tool_requests,
     )
@@ -2227,6 +2375,10 @@ def summarize_round(
     elif is_generic_provider:
         preflight = scene.get("generic_preflight") or {}
         fixtures = preflight.get("checker_fixtures") or []
+        acceptance = child_manifest.get("task_generation_acceptance") or {}
+        visual_required = acceptance.get(
+            "visual_self_check_required", True
+        )
         pipeline_passed = bool(
             child_manifest.get("status") == "completed"
             and taskgen_returncode == 0
@@ -2237,6 +2389,13 @@ def summarize_round(
             and preflight.get("render_passed") is True
             and preflight.get("expert_passed") is True
             and preflight.get("scene_change_passed") is True
+            and (
+                not visual_required
+                or (
+                    vision.get("status") == "passed"
+                    and vision.get("passed") is True
+                )
+            )
             and fixtures
             and all(item.get("passed") is True for item in fixtures)
             and positions.get("passed")
@@ -3282,8 +3441,10 @@ def parse_args() -> argparse.Namespace:
             "Resolve the Query before task-specific planning. With "
             "--bound-task-name, claim_first_v1 creates a catalog-free concern "
             "then checks it against the bound policy and the official RoboTwin "
-            "task library. Without a bound task this remains checkpoint-"
-            "portfolio selection, not one policy executing arbitrary tasks."
+            "task library. Without a bound task, the same catalog-free concern "
+            "is created first and only then retrieves a checkpoint-ready base "
+            "task; this portfolio convenience is not one policy executing "
+            "arbitrary tasks."
         ),
     )
     parser.add_argument(
@@ -3504,7 +3665,6 @@ def main() -> None:
 
         run_libero_agent_cli(args)
         return
-    requested_open_query_planner = args.open_query_planner
     if args.open_query_planner is None:
         args.open_query_planner = (
             "claim_first_v1" if args.auto_route else "catalog_step_v1"
@@ -3586,7 +3746,14 @@ def main() -> None:
             ) from exc
         if not isinstance(loaded_contract, dict):
             raise SystemExit("--query-sufficiency-contract must contain a JSON object")
-        query_sufficiency_contract = loaded_contract
+        try:
+            query_sufficiency_contract = (
+                validate_query_sufficiency_contract(loaded_contract)
+            )
+        except ValueError as exc:
+            raise SystemExit(
+                f"invalid --query-sufficiency-contract: {exc}"
+            ) from exc
     args.evaluation_id = args.evaluation_id or make_evaluation_id()
     registered_execution: dict[str, Any] | None = None
     if args.registered_strategy is not None:
@@ -3709,14 +3876,17 @@ def main() -> None:
             ).planning_context(repo_root)
             for task_name in ready_tasks
         }
-        if claim_first_mode and args.bound_task_name is not None:
+        if claim_first_mode:
             # The query-first acceptance path is intentionally fail-fast:
-            # one FreeConcern call and one bound route call, with no transport
-            # or schema-repair retry hiding provider instability.
+            # one FreeConcern call before any task/aspect inventory reaches the
+            # model, followed by deterministic semantic task retrieval.
             provider.max_retries = 0
-            bound_policy_card = global_planning_contexts[
-                args.bound_task_name
-            ]["policy_card"]
+            initially_bound_task = args.bound_task_name
+            concern_policy_card = (
+                global_planning_contexts[initially_bound_task]["policy_card"]
+                if initially_bound_task is not None
+                else build_pending_task_binding_policy_card()
+            )
             free_concern_agent = FreeConcernAgent(
                 provider,
                 model=models["planner"],
@@ -3724,17 +3894,72 @@ def main() -> None:
             )
             free_concern_bundle = free_concern_agent.propose(
                 args.request,
-                policy_card=bound_policy_card,
+                policy_card=concern_policy_card,
             )
             open_task_inventory = discover_robotwin_task_inventory(
                 repo_root,
                 capability_catalog=global_catalog,
             )
+            checkpoint_binding: dict[str, Any] | None = None
+            if initially_bound_task is None:
+                checkpoint_binding = bind_ready_task_after_free_concern(
+                    free_concern_bundle["concern"],
+                    inventory=open_task_inventory,
+                    ready_task_names=[str(item) for item in ready_tasks],
+                    default_task_name=str(args.task_name),
+                )
+                args.bound_task_name = checkpoint_binding["selected_task_name"]
+            assert args.bound_task_name is not None
+            bound_policy_card = global_planning_contexts[
+                args.bound_task_name
+            ]["policy_card"]
             open_task_resolution = resolve_open_task(
                 free_concern_bundle["concern"],
                 policy_card=bound_policy_card,
                 inventory=open_task_inventory,
                 can_generate_new_task=False,
+            )
+            if (
+                checkpoint_binding is not None
+                and checkpoint_binding["fallback_used"]
+                and open_task_resolution["reason_code"]
+                == "no_semantic_task_match"
+            ):
+                selected_inventory = next(
+                    item
+                    for item in open_task_inventory
+                    if item["task_name"] == args.bound_task_name
+                )
+                open_task_resolution["decision"] = "retrieve_and_adapt"
+                open_task_resolution["reason_code"] = checkpoint_binding[
+                    "reason_code"
+                ]
+                open_task_resolution["selected_base_task"] = {
+                    "task_name": selected_inventory["task_name"],
+                    "score": 0.0,
+                    "execution_status": selected_inventory["execution_status"],
+                    "capability_aspects": list(
+                        selected_inventory["capability_aspects"]
+                    ),
+                }
+                open_task_resolution["resolution_contract"][
+                    "preserve_base_task_semantics"
+                ] = True
+                open_task_resolution["resolution_contract"][
+                    "task_underspecified_fallback"
+                ] = True
+            open_task_resolution["checkpoint_binding"] = (
+                checkpoint_binding
+                if checkpoint_binding is not None
+                else {
+                    "schema_version": 1,
+                    "selected_task_name": args.bound_task_name,
+                    "reason_code": "explicit_bound_task",
+                    "fallback_used": False,
+                    "catalog_visible_to_concern_model": False,
+                    "retrieval_field": "explicit_policy_binding",
+                    "ranked_ready_tasks": [],
+                }
             )
             if open_task_resolution["decision"] != "retrieve_and_adapt":
                 unsupported = finish_unsupported_open_task_resolution(
@@ -3765,12 +3990,12 @@ def main() -> None:
             )
             candidate_domain_supported = bool(
                 concern_candidate_resolution.get("decision")
-                == "bind_single_aspect"
+                in {"bind_single_aspect", "discover_candidates"}
                 and isinstance(candidate_templates, list)
                 and candidate_templates
                 and (
                     candidate_budget is None
-                    or len(candidate_templates) <= candidate_budget
+                    or candidate_budget >= 1
                 )
             )
             if concern_candidate_resolution.get("decision") == "catalog_external":
@@ -3825,7 +4050,14 @@ def main() -> None:
                 user_request=args.request,
             )
             global_route_result["task_resolution_scope"] = {
-                "mode": "query_first_bound_policy_task",
+                "mode": (
+                    "query_first_bound_policy_task"
+                    if open_task_resolution["checkpoint_binding"][
+                        "reason_code"
+                    ]
+                    == "explicit_bound_task"
+                    else "query_first_then_checkpoint_binding"
+                ),
                 "artifact": "plan/open_task_resolution.json",
             }
         else:
@@ -3876,19 +4108,10 @@ def main() -> None:
             global_catalog,
             args.task_name,
         ):
-            if requested_open_query_planner is not None:
-                raise SystemExit(
-                    "claim_first_v1 requires a control plus at least one "
-                    f"candidate experiment; {args.task_name!r} currently "
-                    "exposes only one-round official execution"
-                )
-            global_route_result["planner_resolution"] = {
-                "requested": "claim_first_v1",
-                "executed": "catalog_step_v1",
-                "reason": "task_has_only_one_round_official_execution",
-            }
-            args.open_query_planner = "catalog_step_v1"
-            claim_first_mode = False
+            raise SystemExit(
+                "claim_first_v1 requires a ready checkpoint and official task "
+                f"binding; {args.task_name!r} is unavailable"
+            )
 
     legacy_click_bell = args.task_profile == "position_lr"
     adaptive_click_bell = args.task_profile == "adaptive_properties"
@@ -4025,22 +4248,94 @@ def main() -> None:
         planner_kwargs["validated_proposal"] = validated_proposal
     claim_first_pre_session: BoundTaskPlanSession | None = None
     claim_first_round_budget: int | None = None
+    claim_first_control_required = True
+    initial_open_candidate: dict[str, Any] | None = None
     if claim_first_mode:
         if global_catalog is None:
             raise RuntimeError("claim-first runtime requires the trusted ACT catalog")
-        claim_first_round_budget = (
-            int(args.max_agent_rounds)
-            if args.max_agent_rounds is not None
-            else max(2, int(args.generated_rounds))
-        )
-        if claim_first_round_budget < 2:
-            raise SystemExit(
-                "claim_first_v1 requires at least two rounds: control plus candidate"
-            )
         claim_first_pre_session = BoundTaskPlanSession.from_catalog(
             global_catalog,
             args.task_name,
         )
+        semantic_context = (
+            free_concern_bundle.get("concern")
+            if isinstance(free_concern_bundle, Mapping)
+            and isinstance(free_concern_bundle.get("concern"), Mapping)
+            else None
+        )
+        if query_sufficiency_contract is not None:
+            claim_first_control_required = (
+                query_sufficiency_contract["control_requirement"] == "required"
+            )
+        else:
+            claim_first_control_required = (
+                infer_control_requirement(
+                    args.request,
+                    semantic_context=semantic_context,
+                )
+                == "required"
+            )
+        claim_first_round_budget = (
+            int(args.max_agent_rounds)
+            if args.max_agent_rounds is not None
+            else max(
+                1 + int(claim_first_control_required),
+                int(args.generated_rounds),
+            )
+        )
+        minimum_rounds = 1 + int(claim_first_control_required)
+        if claim_first_round_budget < minimum_rounds:
+            raise SystemExit(
+                "claim_first_v1 round budget is smaller than the QueryContract "
+                "control plus candidate requirement"
+            )
+        if not claim_first_control_required:
+            if semantic_context is None:
+                raise SystemExit(
+                    "a no-control ClaimFirst run requires an online FreeConcern"
+                )
+            initial_open_candidate = build_experiment_candidate(
+                source_query=args.request,
+                base_task=args.task_name,
+                semantic_concern=(
+                    f"{semantic_context['sub_aspect']}: "
+                    f"{semantic_context['hypothesis']}"
+                ),
+                scene_need=None,
+                checker_need=None,
+                tool_need={
+                    "kind": "measure",
+                    "description": semantic_context["measurement_need"],
+                    "reuse_first": True,
+                },
+            )
+            if query_sufficiency_contract is None:
+                query_sufficiency_contract = (
+                    build_query_sufficiency_contract(
+                        args.request,
+                        candidate_universe=[
+                            initial_open_candidate["candidate_id"]
+                        ],
+                        round_budget=claim_first_round_budget,
+                        claim_type=infer_claim_type(args.request),
+                        candidate_universe_closed=True,
+                        control_requirement="not_required",
+                    )
+                )
+            elif (
+                initial_open_candidate["candidate_id"]
+                not in query_sufficiency_contract["candidate_universe"]
+            ):
+                if query_sufficiency_contract["candidate_universe_closed"]:
+                    raise SystemExit(
+                        "closed no-control QueryContract does not contain the "
+                        "runtime FreeConcern candidate"
+                    )
+                query_sufficiency_contract = extend_query_candidate_universe(
+                    query_sufficiency_contract,
+                    [initial_open_candidate["candidate_id"]],
+                    candidate_universe_closed=False,
+                )
         planner_kwargs["validated_proposal"] = build_control_anchor_proposal(
             claim_first_pre_session.target,
             args.request,
@@ -4088,6 +4383,33 @@ def main() -> None:
                 ),
             )
     plan = manifest["plan"]
+    if initial_open_candidate is not None:
+        if (
+            not isinstance(plan.get("rounds"), list)
+            or not plan["rounds"]
+            or not isinstance(plan["rounds"][0].get("execution"), Mapping)
+        ):
+            raise RuntimeError(
+                "ClaimFirst materializer did not provide an execution binding"
+            )
+        initial_round, initial_tool_bundle = materialize_open_world_round(
+            repo_root,
+            evaluation_dir=evaluation_dir,
+            round_number=1,
+            candidate=initial_open_candidate,
+            control_execution=plan["rounds"][0]["execution"],
+        )
+        plan["rounds"] = [initial_round]
+        plan["query_contract"] = deepcopy(query_sufficiency_contract)
+        plan["planning_state"] = "initial_query_derived_candidate_materialized"
+        write_json(evaluation_dir / "plan/evaluation_plan.json", plan)
+        update_manifest(
+            evaluation_dir,
+            status=plan["planning_state"],
+            plan=plan,
+            initial_candidate_source="online_free_concern_no_control",
+            initial_toolgen_route=initial_tool_bundle["source"],
+        )
     bound_plan_session: BoundTaskPlanSession | OpenWorldPlanSession | None = None
     bound_plan_session_path: str | None = None
     evaluation_target: dict[str, Any] | None = None
@@ -4118,11 +4440,14 @@ def main() -> None:
                     global_catalog,
                     args.task_name,
                     max_rounds=effective_round_budget,
-                    control_round=plan["rounds"][0],
+                    control_round=(
+                        plan["rounds"][0]
+                        if claim_first_control_required
+                        else None
+                    ),
                     query_contract=(
                         query_sufficiency_contract
                         if isinstance(query_sufficiency_contract, Mapping)
-                        and query_sufficiency_contract.get("schema_version") == 2
                         else None
                     ),
                 )
@@ -4202,6 +4527,7 @@ def main() -> None:
                     bound_plan_session.target,
                     query_contract=query_sufficiency_contract,
                     candidate_aspect_ids=resolved_candidate_aspect_ids,
+                    require_control_anchor=claim_first_control_required,
                 )
                 if not args.plan_only:
                     assert provider is not None
@@ -4220,7 +4546,9 @@ def main() -> None:
                 manifest.setdefault("planner", {}).update(
                     {
                         "public_planner": "ClaimFirstOpenQueryAgent",
-                        "control_anchor_owned_by_runtime": True,
+                        "control_anchor_owned_by_runtime": (
+                            claim_first_controller.require_control_anchor
+                        ),
                         "control_template_id": (
                             claim_first_controller.control_template
                         ),
@@ -4713,6 +5041,8 @@ def main() -> None:
                     perturbation = semantic_proposal[
                         "requested_perturbation"
                     ]
+                    task_need = semantic_proposal["task_need"]
+                    tool_need = semantic_proposal["tool_need"]
                     candidate = build_experiment_candidate(
                         source_query=args.request,
                         base_task=args.task_name,
@@ -4721,17 +5051,42 @@ def main() -> None:
                             f"{semantic_proposal['hypothesis']}"
                         ),
                         scene_need=(
-                            semantic_proposal["task_need"]["description"]
-                            or perturbation["description"]
+                            {
+                                "kind": "adapt",
+                                "description": (
+                                    task_need["description"]
+                                    or perturbation["description"]
+                                ),
+                                "reuse_first": True,
+                            }
+                            if task_need["required"]
+                            else None
                         ),
                         checker_need=(
-                            "Generate an experimental check_success predicate "
-                            f"that decides: {semantic_proposal['hypothesis']}"
+                            {
+                                "kind": "generate",
+                                "description": (
+                                    "Generate an experimental check_success "
+                                    "predicate that decides: "
+                                    f"{semantic_proposal['hypothesis']}"
+                                ),
+                                "reuse_first": True,
+                            }
+                            if task_need["required"]
+                            else None
                         ),
                         tool_need=(
-                            semantic_proposal["tool_need"]["description"]
-                            or "Measure evidence for: "
-                            + semantic_proposal["hypothesis"]
+                            {
+                                "kind": "measure",
+                                "description": (
+                                    tool_need["description"]
+                                    or "Measure evidence for: "
+                                    + semantic_proposal["hypothesis"]
+                                ),
+                                "reuse_first": True,
+                            }
+                            if tool_need["required"]
+                            else None
                         ),
                     )
                     claim_first_controller.query_contract = (

@@ -13,7 +13,7 @@ import json
 from copy import deepcopy
 from typing import Any, Mapping
 
-from mea.taskgen import extract_json_response
+from mea.providers.json_response import extract_json_response
 
 
 class AdaptiveStepError(ValueError):

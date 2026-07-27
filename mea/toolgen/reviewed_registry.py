@@ -392,7 +392,10 @@ def _load_reviewed_entry(
     review_manifest = validate_review_manifest(
         _read_json(paths["review_manifest_path"], label="review manifest")
     )
-    source = paths["source_path"].read_text(encoding="utf-8")
+    # Hashes pin the exact installed bytes.  Decode those same bytes so
+    # universal-newline translation on Windows cannot change the source that
+    # static validation hashes.
+    source = paths["source_path"].read_bytes().decode("utf-8")
     static = validate_generated_tool(source)
 
     checks = {

@@ -174,6 +174,81 @@ class OpenWorldPlanSessionTests(unittest.TestCase):
         )
         self.assertEqual(options["session_kind"], "open_world_claim_first")
 
+    def test_contract_can_start_with_tool_only_round_without_control(self):
+        contract = build_query_sufficiency_contract(
+            "Diagnose post-release angular velocity.",
+            candidate_universe=[],
+            round_budget=2,
+            claim_type="diagnostic",
+            candidate_universe_closed=False,
+            control_requirement="not_required",
+        )
+        session = OpenWorldPlanSession.from_catalog(
+            self.catalog,
+            "adjust_bottle",
+            max_rounds=2,
+            query_contract=contract,
+        )
+        plan = {
+            "schema_version": 1,
+            "task_name": session.target["task_name"],
+            "policy": deepcopy(session.target["policy"]),
+            "checkpoint": deepcopy(session.target["checkpoint"]),
+            "max_rounds": session.target["max_rounds"],
+            "evaluation_goal": "diagnose post-release motion",
+            "rounds": [],
+            "round_decisions": [],
+            "planning_state": "awaiting_candidate_discovery",
+            "query_contract": contract,
+        }
+        normalized = session.normalize_plan(plan)
+        self.assertEqual(normalized["rounds"], [])
+
+        candidate = build_experiment_candidate(
+            source_query="Diagnose post-release angular velocity.",
+            base_task="adjust_bottle",
+            semantic_concern="motion.post_release_wobble",
+            tool_need={
+                "kind": "measure",
+                "description": "Measure post-release angular velocity.",
+                "reuse_first": True,
+            },
+        )
+        generated_round = {
+            "round_id": "round_1",
+            "candidate_id": candidate["candidate_id"],
+            "experiment_candidate": candidate,
+            "execution": {
+                "checkpoint_id": session.target["checkpoint"][
+                    "checkpoint_id"
+                ],
+                "num_episodes": 1,
+                "seeds": [1001],
+            },
+        }
+        updated, _, _ = session.apply_plan_step(
+            plan,
+            [],
+            {
+                "schema_version": 2,
+                "action": "propose",
+                "candidate_id": candidate["candidate_id"],
+                "execution_mode": "reuse_or_generate",
+                "experiment_candidate": candidate,
+                "rationale": "The Query only needs trajectory telemetry.",
+                "answered_query": False,
+            },
+            materialized_round=generated_round,
+        )
+
+        self.assertEqual(len(updated["rounds"]), 1)
+        self.assertIsNone(
+            session.snapshot(
+                "Diagnose post-release angular velocity.",
+                updated,
+            )["control_round"]
+        )
+
     def test_runtime_candidate_cannot_change_task_or_checkpoint(self):
         candidate = {
             **_candidate(),

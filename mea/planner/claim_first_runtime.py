@@ -388,7 +388,9 @@ def resolve_concern_candidate_domain(
     executable catalog.  The runtime may therefore use its semantic fields to
     narrow a trusted capability inventory, but only on an exact or unique
     lexical match.  Broad or tied concerns keep the complete non-control
-    domain; they are never silently turned into a one-candidate itinerary.
+    domain and explicitly ask the Planner to discover the most informative
+    first candidate.  Ambiguity is therefore a planning state, not an
+    admission failure.
     """
 
     if not isinstance(concern, Mapping):
@@ -461,14 +463,17 @@ def resolve_concern_candidate_domain(
         if not external_specificity["specific"]:
             return {
                 "schema_version": 1,
-                "decision": "ambiguous",
-                "resolution": "no_registered_non_control_capability",
-                "candidate_aspect_ids": None,
+                "decision": "discover_candidates",
+                "resolution": "open_world_candidate_discovery_required",
+                "candidate_aspect_ids": [],
                 "selected_aspect_id": None,
                 "selected_template_ids": [],
                 "ranked_aspects": [],
                 "concern_created_before_catalog": True,
                 "catalog_was_model_visible": False,
+                "concern": deepcopy(dict(concern)),
+                "candidate_discovery_required": True,
+                "execution_authorized": False,
             }
         return {
             "schema_version": 1,
@@ -533,6 +538,14 @@ def resolve_concern_candidate_domain(
         )
         and external_specificity["specific"]
     )
+    ranked_aspects = sorted(
+        candidates,
+        key=lambda item: (
+            not bool(item["exact"]),
+            -int(item["score"]),
+            str(item["aspect_id"]),
+        ),
+    )
     result = {
         "schema_version": 1,
         "decision": (
@@ -540,7 +553,7 @@ def resolve_concern_candidate_domain(
             if selected is not None
             else "catalog_external"
             if catalog_external
-            else "ambiguous"
+            else "discover_candidates"
         ),
         "resolution": (
             "unsupported_or_generation_required"
@@ -548,7 +561,11 @@ def resolve_concern_candidate_domain(
             else resolution
         ),
         "candidate_aspect_ids": (
-            [str(selected["aspect_id"])] if selected is not None else None
+            [str(selected["aspect_id"])]
+            if selected is not None
+            else None
+            if catalog_external
+            else [str(item["aspect_id"]) for item in ranked_aspects]
         ),
         "selected_aspect_id": (
             str(selected["aspect_id"]) if selected is not None else None
@@ -556,14 +573,7 @@ def resolve_concern_candidate_domain(
         "selected_template_ids": (
             list(selected["template_ids"]) if selected is not None else []
         ),
-        "ranked_aspects": sorted(
-            candidates,
-            key=lambda item: (
-                not bool(item["exact"]),
-                -int(item["score"]),
-                str(item["aspect_id"]),
-            ),
-        ),
+        "ranked_aspects": ranked_aspects,
         "concern_created_before_catalog": True,
         "catalog_was_model_visible": False,
     }
@@ -584,6 +594,14 @@ def resolve_concern_candidate_domain(
                     "reuse_first": True,
                 },
                 "catalog_external_specificity": external_specificity,
+                "execution_authorized": False,
+            }
+        )
+    elif selected is None:
+        result.update(
+            {
+                "concern": deepcopy(dict(concern)),
+                "candidate_discovery_required": True,
                 "execution_authorized": False,
             }
         )
@@ -1188,13 +1206,16 @@ class ClaimFirstRuntimeController:
         *,
         query_contract: Mapping[str, Any] | None = None,
         candidate_aspect_ids: Sequence[str] | None = None,
-        require_control_anchor: bool = True,
+        require_control_anchor: bool | None = None,
     ):
         self.user_query = _nonempty_text(user_query, "user_query")
         self.target = deepcopy(dict(target))
-        if not isinstance(require_control_anchor, bool):
-            raise ClaimFirstRuntimeError("require_control_anchor must be bool")
-        self.require_control_anchor = require_control_anchor
+        if require_control_anchor is not None and not isinstance(
+            require_control_anchor, bool
+        ):
+            raise ClaimFirstRuntimeError(
+                "require_control_anchor must be bool or None"
+            )
         self.control_template = control_template_id(self.target)
         if candidate_aspect_ids is not None:
             allowed_aspects = {
@@ -1228,6 +1249,30 @@ class ClaimFirstRuntimeController:
             for template_id in self.template_to_aspect
             if template_id != self.control_template
         ]
+        supplied_contract = (
+            validate_query_sufficiency_contract(query_contract)
+            if query_contract is not None
+            else None
+        )
+        contract_requires_control = (
+            supplied_contract["control_requirement"] == "required"
+            if supplied_contract is not None
+            else (
+                True
+                if require_control_anchor is None
+                else require_control_anchor
+            )
+        )
+        if (
+            supplied_contract is not None
+            and require_control_anchor is not None
+            and require_control_anchor != contract_requires_control
+        ):
+            raise ClaimFirstRuntimeError(
+                "require_control_anchor conflicts with QueryContract "
+                "control_requirement"
+            )
+        self.require_control_anchor = contract_requires_control
         round_budget = int(self.target.get("max_rounds") or 0) - (
             1 if self.require_control_anchor else 0
         )
@@ -1262,11 +1307,17 @@ class ClaimFirstRuntimeController:
                 existential_witness_outcome=(
                     "fail" if failure_witness else None
                 ),
+                control_requirement=(
+                    "required"
+                    if self.require_control_anchor
+                    else "not_required"
+                ),
             )
         else:
-            contract = validate_query_sufficiency_contract(query_contract)
+            assert supplied_contract is not None
+            contract = supplied_contract
             if (
-                contract["schema_version"] == 1
+                contract["candidate_universe_closed"]
                 and set(contract["candidate_universe"]) - set(candidates)
             ):
                 raise ClaimFirstRuntimeError(
@@ -1276,13 +1327,6 @@ class ClaimFirstRuntimeController:
                 raise ClaimFirstRuntimeError(
                     "query contract spends rounds reserved for the control anchor"
                 )
-        if (
-            not self.require_control_anchor
-            and contract["claim_type"] != "diagnostic"
-        ):
-            raise ClaimFirstRuntimeError(
-                "control opt-out is limited to diagnostic/non-attribution Queries"
-            )
         self.query_contract = contract
         self.dynamic_candidates: dict[str, dict[str, Any]] = {}
 
@@ -1515,17 +1559,42 @@ class ClaimFirstRuntimeController:
                     f"{proposal['sub_aspect']}: {proposal['hypothesis']}"
                 ),
                 scene_need=(
-                    task_need.get("description")
-                    or perturbation["description"]
+                    {
+                        "kind": "adapt",
+                        "description": (
+                            task_need.get("description")
+                            or perturbation["description"]
+                        ),
+                        "reuse_first": True,
+                    }
+                    if task_need["required"]
+                    else None
                 ),
                 checker_need=(
-                    "Generate an experimental check_success predicate that "
-                    f"decides: {proposal['hypothesis']}"
+                    {
+                        "kind": "generate",
+                        "description": (
+                            "Generate an experimental check_success predicate "
+                            f"that decides: {proposal['hypothesis']}"
+                        ),
+                        "reuse_first": True,
+                    }
+                    if task_need["required"]
+                    else None
                 ),
                 tool_need=(
-                    tool_need.get("description")
-                    or "Measure evidence needed to decide the hypothesis: "
-                    + proposal["hypothesis"]
+                    {
+                        "kind": "measure",
+                        "description": (
+                            tool_need.get("description")
+                            or "Measure evidence needed to decide the "
+                            "hypothesis: "
+                            + proposal["hypothesis"]
+                        ),
+                        "reuse_first": True,
+                    }
+                    if tool_need["required"]
+                    else None
                 ),
             )
             candidate_id = candidate["candidate_id"]
@@ -1561,16 +1630,28 @@ class ClaimFirstRuntimeController:
                 "semantic_proposal_bundle": deepcopy(dict(proposal_bundle)),
                 "semantic_needs": {
                     "task_need": {
-                        "required": True,
-                        "description": candidate["scene_need"],
+                        "required": candidate["scene_need"] is not None,
+                        "description": (
+                            candidate["scene_need"]["description"]
+                            if candidate["scene_need"] is not None
+                            else None
+                        ),
                     },
                     "checker_need": {
-                        "required": True,
-                        "description": candidate["checker_need"],
+                        "required": candidate["checker_need"] is not None,
+                        "description": (
+                            candidate["checker_need"]["description"]
+                            if candidate["checker_need"] is not None
+                            else None
+                        ),
                     },
                     "tool_need": {
-                        "required": True,
-                        "description": candidate["tool_need"],
+                        "required": candidate["tool_need"] is not None,
+                        "description": (
+                            candidate["tool_need"]["description"]
+                            if candidate["tool_need"] is not None
+                            else None
+                        ),
                         "reuse_first": True,
                     },
                 },

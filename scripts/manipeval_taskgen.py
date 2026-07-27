@@ -70,6 +70,10 @@ from mea.taskgen.generic_backend import (
     GenericTaskGenError,
     load_generic_robotwin_task_adapter,
 )
+from mea.taskgen.generic_visual import (
+    GenericVisualDiagnosisError,
+    diagnose_generic_scene_render,
+)
 from mea.planner.experiment_candidate import (
     ExperimentCandidateError,
     validate_experiment_candidate,
@@ -1021,6 +1025,7 @@ def create_generic_provider_taskgen_run(
     user_request: str,
     provider: Any,
     model: str,
+    vision_model: str,
     experiment_candidate: Mapping[str, Any],
     run_id: str,
     seed: int,
@@ -1043,6 +1048,12 @@ def create_generic_provider_taskgen_run(
     if not request:
         raise GenericTaskGenError("user_request must be non-empty")
     accepted_preflight: dict[str, Any] = {}
+    visual_attempts: list[dict[str, Any]] = []
+    visual_self_check_enabled = bool(
+        True
+        if ablation_switches is None
+        else ablation_switches.get("visual_self_check")
+    )
 
     def scene_projection(scene: Mapping[str, Any]) -> dict[str, Any]:
         """Keep simulator-native fields that can prove a materialized change."""
@@ -1083,9 +1094,17 @@ def create_generic_provider_taskgen_run(
             and generated_image_sha256
             and official_image_sha256 != generated_image_sha256
         )
+        scene_change_expected = candidate["scene_need"] is not None
         return {
             "schema_version": 1,
-            "passed": bool(changed_components or image_changed),
+            "passed": bool(
+                changed_components or image_changed
+                if scene_change_expected
+                else not changed_components
+            ),
+            "expected_state": (
+                "changed" if scene_change_expected else "preserved"
+            ),
             "authority": (
                 "same_seed_official_vs_generated_simulator_state_and_render"
             ),
@@ -1204,6 +1223,55 @@ def create_generic_provider_taskgen_run(
             official_image=official_setup_image,
             generated_image=setup_image,
         )
+        visual: dict[str, Any]
+        if visual_self_check_enabled:
+            try:
+                visual = diagnose_generic_scene_render(
+                    provider,
+                    candidate,
+                    official_image=official_setup_image,
+                    generated_image=setup_image,
+                    output_dir=attempt_dir / "visual",
+                    model=vision_model,
+                    scene_change_passed=bool(scene_change["passed"]),
+                )
+            except GenericVisualDiagnosisError as exc:
+                visual_attempts.append(
+                    {
+                        "attempt": attempt_dir.name,
+                        "status": "invalid_response",
+                        "passed": False,
+                        "diagnosis": str(exc),
+                    }
+                )
+                raise GenericTaskGenError(
+                    f"visual diagnosis was invalid: {exc}"
+                ) from exc
+            visual_attempts.append(
+                {
+                    "attempt": attempt_dir.name,
+                    "status": "passed" if visual["passed"] else "failed",
+                    "passed": bool(visual["passed"]),
+                    "diagnosis": visual["diagnosis"],
+                    "repair_instructions": list(
+                        visual["repair_instructions"]
+                    ),
+                }
+            )
+            if not visual["passed"]:
+                repair = "; ".join(visual["repair_instructions"])
+                raise GenericTaskGenError(
+                    "visual diagnosis rejected the generated scene: "
+                    + visual["diagnosis"]
+                    + (f"; repair: {repair}" if repair else "")
+                )
+        else:
+            visual = {
+                "schema_version": 1,
+                "status": "disabled_by_ablation",
+                "passed": None,
+                "model_requested": vision_model,
+            }
         result = {
             "schema_version": 1,
             "render_passed": bool(
@@ -1214,6 +1282,7 @@ def create_generic_provider_taskgen_run(
             ),
             "scene_change_passed": scene_change["passed"],
             "scene_change": scene_change,
+            "vision_validation": visual,
             "checker_fixtures": fixtures,
             "official_setup_scene": str(
                 (
@@ -1236,6 +1305,16 @@ def create_generic_provider_taskgen_run(
                 (attempt_dir / "expert_head.png").relative_to(repo_root)
             ).replace("\\", "/"),
         }
+        if visual_self_check_enabled:
+            for key, name in (
+                ("visual_comparison_image", "official_vs_generated.png"),
+                ("visual_prompt", "vision_prompt.md"),
+                ("visual_response", "vision_response.txt"),
+                ("visual_result", "vision.json"),
+            ):
+                result[key] = str(
+                    (attempt_dir / "visual" / name).relative_to(repo_root)
+                ).replace("\\", "/")
         if not all(item["passed"] for item in fixtures):
             raise GenericTaskGenError(
                 "generated checker failed live negative/positive fixtures"
@@ -1265,7 +1344,10 @@ def create_generic_provider_taskgen_run(
             "Keep the official class identity and policy action interface. "
             "Use only assets and simulator APIs present in retrieved context. "
             "The generated initial scene must differ observably from the "
-            "same-seed official scene in simulator state or rendered pixels. "
+            "same-seed official scene in simulator state or rendered pixels "
+            "when scene_need is non-null; when scene_need is null, preserve "
+            "the official load_actors implementation exactly. When "
+            "checker_need is null, preserve official check_success exactly. "
             "If load_actors adds an actor that later measurement may need, "
             "also assign self.mea_telemetry_tracked_actors to a list of dicts "
             "with exactly id, task_attribute, scene_name, functional_points, "
@@ -1368,6 +1450,23 @@ def create_generic_provider_taskgen_run(
         "evidence/official_initial_head.png",
     )
     copy_preflight("expert_image", "evidence/expert_head.png")
+    if visual_self_check_enabled:
+        copy_preflight(
+            "visual_comparison_image",
+            "evidence/scene_comparison.png",
+        )
+        copy_preflight(
+            "visual_prompt",
+            "validation/vision_prompt.md",
+        )
+        copy_preflight(
+            "visual_response",
+            "validation/vision_response.txt",
+        )
+        copy_preflight(
+            "visual_result",
+            "validation/vision.json",
+        )
     run_local_preflight = deepcopy(accepted_preflight)
     run_local_preflight.update(
         {
@@ -1419,7 +1518,42 @@ def create_generic_provider_taskgen_run(
             "scene_change_authority": run_local_preflight[
                 "scene_change"
             ]["authority"],
+            "visual_self_check_required": visual_self_check_enabled,
+            "visual_self_check_passed": (
+                run_local_preflight["vision_validation"].get("passed")
+                if visual_self_check_enabled
+                else None
+            ),
         }
+        reused_manifest["vision_validation"] = (
+            {
+                **deepcopy(run_local_preflight["vision_validation"]),
+                "status": "passed",
+                "attempt_count": len(visual_attempts),
+                "repairs_triggered_by_visual_failure": 0,
+                "attempts": deepcopy(visual_attempts),
+                "artifacts": {
+                    "comparison_image": "evidence/scene_comparison.png",
+                    "prompt": "validation/vision_prompt.md",
+                    "response": "validation/vision_response.txt",
+                    "result": "validation/vision.json",
+                },
+            }
+            if visual_self_check_enabled
+            else {
+                "status": "disabled_by_ablation",
+                "passed": None,
+                "model_requested": vision_model,
+                "attempt_count": 0,
+                "repairs_triggered_by_visual_failure": 0,
+            }
+        )
+        reused_manifest.setdefault("provider", {}).update(
+            {
+                "vision_provider_call_count": len(visual_attempts),
+                "visual_model_requested": vision_model,
+            }
+        )
         write_json(run_dir / "manifest.json", reused_manifest)
         artifact_entry = artifact_index.mark_reuse(
             resolution["semantic_key"]
@@ -1497,14 +1631,33 @@ def create_generic_provider_taskgen_run(
             "setup_fixture": setup_scene,
             "generic_preflight": run_local_preflight,
         },
-        "vision_validation": {
-            "status": "not_run",
-            "passed": None,
-            "reason": (
-                "generic acceptance uses simulator render plus semantic "
-                "negative/positive fixtures; VQA remains an execution-stage Tool"
-            ),
-        },
+        "vision_validation": (
+            {
+                **deepcopy(accepted_preflight["vision_validation"]),
+                "status": "passed",
+                "attempt_count": len(visual_attempts),
+                "repairs_triggered_by_visual_failure": sum(
+                    1
+                    for item in visual_attempts[:-1]
+                    if item.get("passed") is False
+                ),
+                "attempts": deepcopy(visual_attempts),
+                "artifacts": {
+                    "comparison_image": "evidence/scene_comparison.png",
+                    "prompt": "validation/vision_prompt.md",
+                    "response": "validation/vision_response.txt",
+                    "result": "validation/vision.json",
+                },
+            }
+            if visual_self_check_enabled
+            else {
+                "status": "disabled_by_ablation",
+                "passed": None,
+                "model_requested": vision_model,
+                "attempt_count": 0,
+                "repairs_triggered_by_visual_failure": 0,
+            }
+        ),
         "provider": {
             "model_requested": model,
             "called": True,
@@ -1512,6 +1665,7 @@ def create_generic_provider_taskgen_run(
                 "local_regeneration_count"
             ],
             "provider_call_count": resolution["provider_call_count"],
+            "vision_provider_call_count": len(visual_attempts),
         },
         "taskgen_ablation_switches": candidate_manifest[
             "codegen_provenance"
@@ -1536,6 +1690,12 @@ def create_generic_provider_taskgen_run(
             "scene_change_authority": accepted_preflight[
                 "scene_change"
             ]["authority"],
+            "visual_self_check_required": visual_self_check_enabled,
+            "visual_self_check_passed": (
+                accepted_preflight["vision_validation"].get("passed")
+                if visual_self_check_enabled
+                else None
+            ),
         },
         "task_artifact_summary": {
             "scene_origin": "provider_generated_code",
@@ -3774,6 +3934,7 @@ def main() -> None:
                 user_request=args.request,
                 provider=provider,
                 model=args.text_model,
+                vision_model=args.vision_model,
                 experiment_candidate=experiment_candidate,
                 run_id=args.run_id,
                 seed=args.seed,
@@ -3879,6 +4040,10 @@ def main() -> None:
             or {}
         )
         fixtures = preflight.get("checker_fixtures") or []
+        vision = manifest.get("vision_validation") or {}
+        visual_required = acceptance.get(
+            "visual_self_check_required", True
+        )
         if (
             acceptance.get("status") != "accepted"
             or acceptance.get("act_rollouts_started_before_acceptance") != 0
@@ -3887,6 +4052,13 @@ def main() -> None:
             or preflight.get("scene_change_passed") is not True
             or not fixtures
             or any(item.get("passed") is not True for item in fixtures)
+            or (
+                visual_required
+                and (
+                    vision.get("status") != "passed"
+                    or vision.get("passed") is not True
+                )
+            )
         ):
             raise SystemExit(
                 "generic TaskGen ACT runtime gate failed: live fixture/render/"
@@ -3930,7 +4102,7 @@ def main() -> None:
                 "use expert, act, or both execution without scene codegen"
             )
         scene = None
-        if args.vision_check:
+        if args.vision_check and not generic_provider_mode:
             if provider is None:
                 raise RuntimeError("vision check 缺少 provider")
             reflection, reflected_scene, vision = run_visual_self_reflection(

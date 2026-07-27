@@ -185,7 +185,7 @@ class OpenWorldAgentIntegrationTest(unittest.TestCase):
         self.assertIn("--run-act", command)
         self.assertNotIn("--vision-check", command)
 
-    def test_generic_round_uses_preflight_not_legacy_visual_gate(self):
+    def test_generic_round_requires_generic_visual_diagnosis_not_legacy_gate(self):
         candidate = _candidate()
         round_plan = {
             "round_id": "round_2",
@@ -226,7 +226,21 @@ class OpenWorldAgentIntegrationTest(unittest.TestCase):
                     "checker_fixtures": [{"passed": True}, {"passed": True}],
                 },
             },
-            "vision_validation": {"status": "not_run", "passed": None},
+            "vision_validation": {
+                "status": "passed",
+                "passed": True,
+                "render_usable": True,
+                "key_task_actors_visible": True,
+                "requested_change_assessment": "consistent",
+                "visual_physical_plausibility": "plausible",
+                "unexpected_changes": [],
+                "diagnosis": "The generated scene is visible and plausible.",
+                "repair_instructions": [],
+                "confidence": 0.9,
+            },
+            "task_generation_acceptance": {
+                "visual_self_check_required": True,
+            },
             "position_samples": {"passed": True, "samples": [], "metrics": {}},
             "act_evaluation": {"passed": True, "actual_seeds": [100000]},
             "trusted_tool_evaluation": {

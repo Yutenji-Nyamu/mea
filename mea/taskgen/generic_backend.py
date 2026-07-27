@@ -233,8 +233,15 @@ def validate_generic_task_methods(
     *,
     official_source: str | Path,
     official_class: str,
+    required_method_changes: Mapping[str, bool] | None = None,
 ) -> dict[str, Any]:
-    """Apply one data-derived AST and compile boundary to a method pair."""
+    """Apply one data-derived AST and compile boundary to a method pair.
+
+    A generated experiment may need only a scene or only a checker.  Requested
+    methods must differ from the official implementation; unrequested methods
+    must remain bytecode-equivalent at the AST level.  Legacy callers default
+    to requiring both changes.
+    """
 
     if (
         not isinstance(methods, Mapping)
@@ -275,15 +282,37 @@ def validate_generic_task_methods(
         != ast.dump(official_methods[name], include_attributes=False)
         for name in ("load_actors", "check_success")
     }
-    if not all(changed_from_official.values()):
-        unchanged = sorted(
-            name
-            for name, changed in changed_from_official.items()
-            if not changed
-        )
+    required_changes = (
+        {"load_actors": True, "check_success": True}
+        if required_method_changes is None
+        else dict(required_method_changes)
+    )
+    if (
+        set(required_changes) != {"load_actors", "check_success"}
+        or any(not isinstance(value, bool) for value in required_changes.values())
+    ):
         raise GenericTaskGenError(
-            "generated methods copied the official implementation unchanged: "
-            f"{unchanged}"
+            "required_method_changes must map load_actors/check_success to bool"
+        )
+    missing_changes = sorted(
+        name
+        for name, required in required_changes.items()
+        if required and not changed_from_official[name]
+    )
+    unexpected_changes = sorted(
+        name
+        for name, required in required_changes.items()
+        if not required and changed_from_official[name]
+    )
+    if missing_changes:
+        raise GenericTaskGenError(
+            "generated methods copied requested official implementations "
+            f"unchanged: {missing_changes}"
+        )
+    if unexpected_changes:
+        raise GenericTaskGenError(
+            "generated methods changed unrequested official implementations: "
+            f"{unexpected_changes}"
         )
     for name in ("load_actors", "check_success"):
         compile(methods[name], f"<generic-{name}>", "exec")
@@ -299,6 +328,7 @@ def validate_generic_task_methods(
         "scene_sha256": text_sha256(methods["load_actors"]),
         "success_sha256": text_sha256(methods["check_success"]),
         "changed_from_official": changed_from_official,
+        "required_method_changes": required_changes,
     }
 
 
@@ -479,6 +509,10 @@ def load_generic_robotwin_task_adapter(
             methods,
             official_source=source_path,
             official_class=task_name,
+            required_method_changes={
+                "load_actors": candidate.get("scene_need") is not None,
+                "check_success": candidate.get("checker_need") is not None,
+            },
         )
         try:
             raw_fixtures = checker_fixtures(methods, candidate)
@@ -557,6 +591,14 @@ def _text(value: Any, *, field: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise GenericTaskGenError(f"{field} must be a non-empty string")
     return value.strip()
+
+
+def _need_description(value: Any, *, field: str) -> str:
+    """Normalize a typed need returned by an adapter hook."""
+
+    if isinstance(value, Mapping):
+        value = value.get("description")
+    return _text(value, field=field)
 
 
 def _relative_path(value: Any, *, field: str) -> str:
@@ -835,9 +877,12 @@ def _core_prompt(
         + "\n\nOUTPUT CONTRACT:\n"
         "Return one strict JSON object with exactly two string fields, "
         "load_actors and check_success. Each field must contain one complete "
-        "Python method with only self. The two methods must jointly implement "
-        "scene_need and checker_need. Do not return Markdown, a template id, "
-        "or an explanation."
+        "Python method with only self. A non-null scene_need requires a changed "
+        "load_actors method; a null scene_need requires the exact official "
+        "load_actors method from the retrieved source. A non-null checker_need "
+        "requires a changed check_success method; a null checker_need requires "
+        "the exact official check_success method. Do not return Markdown, a "
+        "template id, or an explanation."
     )
 
 
@@ -1047,7 +1092,7 @@ class GenericRoboTwinTaskGenBackend:
         )
         if "source" not in accepted_module:
             raise GenericTaskGenError("accepted TaskGen module source is missing")
-        metric = _text(
+        metric = _need_description(
             adapter.hooks.resolve_metric(normalized_candidate),
             field="generated metric",
         )

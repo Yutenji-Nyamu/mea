@@ -9,6 +9,7 @@ from mea.planner.claim_first_runtime import (
     resolve_concern_candidate_domain,
     resolve_semantic_proposal,
 )
+from mea.planner.query_contract import build_query_sufficiency_contract
 
 
 def target():
@@ -432,7 +433,7 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         self.assertTrue(resolution["tool_need"]["required"])
         self.assertFalse(resolution["execution_authorized"])
 
-    def test_catalog_external_detail_not_grounded_in_query_stays_ambiguous(self):
+    def test_catalog_external_detail_not_grounded_in_query_stays_discoverable(self):
         resolution = resolve_concern_candidate_domain(
             {
                 "source_query": "How robust is this policy in general?",
@@ -444,12 +445,14 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             target=target(),
         )
 
-        self.assertEqual(resolution["decision"], "ambiguous")
+        self.assertEqual(resolution["decision"], "discover_candidates")
         self.assertEqual(resolution["resolution"], "broad_or_ambiguous")
         self.assertNotIn("task_need", resolution)
         self.assertNotIn("tool_need", resolution)
+        self.assertTrue(resolution["candidate_discovery_required"])
+        self.assertFalse(resolution["execution_authorized"])
 
-    def test_tied_registered_concern_stays_ambiguous(self):
+    def test_tied_registered_concern_enters_candidate_discovery(self):
         resolution = resolve_concern_candidate_domain(
             {
                 "source_query": (
@@ -465,9 +468,9 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             target=target(),
         )
 
-        self.assertEqual(resolution["decision"], "ambiguous")
+        self.assertEqual(resolution["decision"], "discover_candidates")
         self.assertEqual(resolution["resolution"], "broad_or_ambiguous")
-        self.assertIsNone(resolution["candidate_aspect_ids"])
+        self.assertGreaterEqual(len(resolution["candidate_aspect_ids"]), 2)
         self.assertEqual(resolution["selected_template_ids"], [])
 
     def test_broad_or_tied_concern_keeps_full_candidate_domain(self):
@@ -482,11 +485,19 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             target=target(),
         )
 
-        self.assertIsNone(resolution["candidate_aspect_ids"])
+        self.assertEqual(
+            set(resolution["candidate_aspect_ids"]),
+            {
+                "object_position",
+                "object_instance",
+                "robustness.scene_clutter",
+                "robustness.distractor_avoidance",
+            },
+        )
         self.assertEqual(
             resolution["resolution"], "broad_or_ambiguous"
         )
-        self.assertEqual(resolution["decision"], "ambiguous")
+        self.assertEqual(resolution["decision"], "discover_candidates")
 
     def test_tool_value_and_reuse_route_reach_next_planner_evidence(self):
         plan = round_plan(
@@ -1103,7 +1114,7 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             "Where does pose-dependent clearance first expose a weakness?",
             official_only_target,
         )
-        self.assertEqual(controller.query_contract["schema_version"], 2)
+        self.assertEqual(controller.query_contract["schema_version"], 3)
         self.assertEqual(controller.query_contract["candidate_universe"], [])
         self.assertFalse(
             controller.query_contract["candidate_universe_closed"]
@@ -1221,7 +1232,7 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             bound["resolution"]["resolution"],
             "dynamic_experiment_candidate",
         )
-        self.assertEqual(controller.query_contract["schema_version"], 2)
+        self.assertEqual(controller.query_contract["schema_version"], 3)
         self.assertFalse(
             controller.query_contract["candidate_universe_closed"]
         )
@@ -1230,7 +1241,7 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             controller.query_contract["candidate_universe"],
         )
 
-    def test_diagnostic_protocol_can_explicitly_skip_control(self):
+    def test_query_contract_can_skip_control_for_tool_only_diagnostic(self):
         official_only_target = {
             "task_name": "adjust_bottle",
             "max_rounds": 1,
@@ -1243,10 +1254,18 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
                 }
             ],
         }
+        contract = build_query_sufficiency_contract(
+            "Diagnose post-release bottle wobble.",
+            candidate_universe=[],
+            round_budget=1,
+            claim_type="diagnostic",
+            candidate_universe_closed=False,
+            control_requirement="not_required",
+        )
         controller = ClaimFirstRuntimeController(
             "Diagnose post-release bottle wobble.",
             official_only_target,
-            require_control_anchor=False,
+            query_contract=contract,
         )
         state = controller.observe([], [])
         self.assertFalse(state["control_required"])
@@ -1257,6 +1276,15 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         bundle["proposal"]["hypothesis"] = (
             "The bottle oscillates after policy release."
         )
+        bundle["proposal"]["task_need"] = {
+            "required": False,
+            "description": None,
+        }
+        bundle["proposal"]["tool_need"] = {
+            "required": True,
+            "description": "Measure post-release angular velocity.",
+            "reuse_first": True,
+        }
         bound = controller.bind_semantic_step(
             bundle,
             state,
@@ -1266,15 +1294,49 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             bound["resolution"]["resolution"],
             "dynamic_experiment_candidate",
         )
+        candidate = bound["plan_step"]["experiment_candidate"]
+        self.assertIsNone(candidate["scene_need"])
+        self.assertIsNone(candidate["checker_need"])
+        self.assertEqual(candidate["tool_need"]["kind"], "measure")
 
-    def test_control_opt_out_rejects_attribution_claims(self):
+    def test_query_contract_can_skip_control_for_universal_trajectory_claim(self):
+        contract = build_query_sufficiency_contract(
+            "Do all observed trajectories stay below the jerk threshold?",
+            candidate_universe=[],
+            round_budget=3,
+            claim_type="universal",
+            candidate_universe_closed=False,
+            control_requirement="not_required",
+        )
+        controller = ClaimFirstRuntimeController(
+            "Do all observed trajectories stay below the jerk threshold?",
+            target(),
+            query_contract=contract,
+        )
+
+        self.assertFalse(controller.require_control_anchor)
+        self.assertEqual(
+            controller.query_contract["control_requirement"],
+            "not_required",
+        )
+
+    def test_legacy_control_flag_cannot_override_query_contract(self):
+        contract = build_query_sufficiency_contract(
+            "Diagnose post-release wobble.",
+            candidate_universe=[],
+            round_budget=1,
+            claim_type="diagnostic",
+            candidate_universe_closed=False,
+            control_requirement="not_required",
+        )
         with self.assertRaisesRegex(
-            ClaimFirstRuntimeError, "diagnostic/non-attribution"
+            ClaimFirstRuntimeError, "conflicts with QueryContract"
         ):
             ClaimFirstRuntimeController(
-                "Does every position remain successful?",
+                "Diagnose post-release wobble.",
                 target(),
-                require_control_anchor=False,
+                query_contract=contract,
+                require_control_anchor=True,
             )
 
 

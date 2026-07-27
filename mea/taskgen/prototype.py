@@ -19,6 +19,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Mapping
 
+from mea.providers.json_response import (
+    ProviderJSONError,
+    extract_json_response as extract_provider_json_response,
+)
 from mea.retrieval import KnowledgeRetriever, TaskRetriever
 from mea.taskgen.artifacts import write_task_artifact_bundle
 from mea.taskgen.capabilities import (
@@ -139,23 +143,12 @@ def make_run_id() -> str:
 
 
 def extract_json_response(response: str) -> dict[str, Any]:
-    """Parse a strict JSON object, tolerating a Markdown JSON fence."""
-    candidates = []
-    fenced = re.findall(r"```(?:json)?\s*(.*?)```", response, flags=re.DOTALL | re.IGNORECASE)
-    candidates.extend(fenced)
-    candidates.append(response.strip())
-    match = re.search(r"\{.*\}", response, flags=re.DOTALL)
-    if match:
-        candidates.append(match.group(0))
+    """Compatibility wrapper preserving TaskGen's historical error type."""
 
-    for candidate in candidates:
-        try:
-            value = json.loads(candidate.strip())
-        except json.JSONDecodeError:
-            continue
-        if isinstance(value, dict):
-            return value
-    raise TaskGenError("GPT 没有返回可解析的 JSON object")
+    try:
+        return extract_provider_json_response(response)
+    except ProviderJSONError as exc:
+        raise TaskGenError(str(exc)) from exc
 
 
 def _source_for_node(source: str, node: ast.AST) -> str:

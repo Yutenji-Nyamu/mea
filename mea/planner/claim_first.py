@@ -27,7 +27,7 @@ import re
 from copy import deepcopy
 from typing import Any, Mapping, Sequence
 
-from mea.taskgen import extract_json_response
+from mea.providers.json_response import extract_json_response
 
 
 class ClaimFirstPlanError(ValueError):

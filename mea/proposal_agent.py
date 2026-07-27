@@ -14,21 +14,24 @@ from copy import deepcopy
 from typing import Any, Mapping
 
 from mea.capability_adapter import registered_capability_contracts
-from mea.execution_vqa import QUESTION_CATALOG, validate_run_local_question_spec
+from mea.execution_vqa.query import (
+    QUESTION_CATALOG,
+    validate_run_local_question_spec,
+)
 from mea.proposals import (
     ProposalError,
     tool_request_from_proposal,
     validate_task_proposal,
     validate_tool_proposal,
 )
-from mea.taskgen import (
+from mea.providers.json_response import extract_json_response
+from mea.taskgen.success_spec import (
     default_bbh_success_spec_v2,
     experimental_bbh_success_spec_v2,
-    extract_json_response,
     success_spec_validation_report,
 )
 from mea.taskgen.click_bell import validate_click_bell_variant_hint
-from mea.toolgen import route_tool_request
+from mea.toolgen.router import route_tool_request
 
 
 class ProposalAgentError(RuntimeError):

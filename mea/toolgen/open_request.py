@@ -14,7 +14,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping
 
-from mea.taskgen import extract_json_response
+from mea.providers.json_response import extract_json_response
 from mea.toolkit.schema import load_task_schema, validate_task_schema
 
 from .metric_spec import MetricSpecError, metric_spec_tool_spec

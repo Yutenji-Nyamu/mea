@@ -6,10 +6,11 @@ retrieves one ACT-ready base task and its official control, while later rounds
 carry Query-derived :class:`ExperimentCandidate` objects rather than requiring
 an aspect or template registration.
 
-The session freezes task, policy, checkpoint, control round, and total rollout
-budget.  It does *not* treat the base task's catalog ``max_rounds`` as a
-generation limit; an official-only task can therefore run a control followed
-by bounded runtime-generated experiments without changing its checkpoint.
+The session freezes task, policy, checkpoint, and total rollout budget.  Its
+QueryContract decides whether an official control round is required.  It does
+*not* treat the base task's catalog ``max_rounds`` as a generation limit; an
+official-only task can therefore run bounded runtime-generated experiments
+without changing its checkpoint.
 """
 
 from __future__ import annotations
@@ -161,10 +162,14 @@ class OpenWorldPlanSession:
         )
         self._control_round: dict[str, Any] | None = None
         self._query_contract: dict[str, Any] | None = None
-        if control_round is not None:
-            self._control_round = self._validate_control_round(control_round)
         if query_contract is not None:
             self._query_contract = self._validate_query_contract(query_contract)
+        if control_round is not None:
+            if not self._control_required(self._query_contract):
+                raise OpenWorldSessionError(
+                    "QueryContract does not require an official control round"
+                )
+            self._control_round = self._validate_control_round(control_round)
 
     @classmethod
     def from_catalog(
@@ -264,20 +269,39 @@ class OpenWorldPlanSession:
             raise OpenWorldSessionError(
                 f"invalid open-world QueryContract: {exc}"
             ) from exc
-        if normalized["schema_version"] != 2:
+        if normalized["schema_version"] != 3:
             raise OpenWorldSessionError(
-                "open-world session requires QueryContract schema_version=2"
+                "open-world session requires normalized QueryContract "
+                "schema_version=3"
             )
-        candidate_budget = self.target["max_rounds"] - 1
+        candidate_budget = self.target["max_rounds"] - (
+            1 if self._control_required(normalized) else 0
+        )
         if normalized["round_budget"] > candidate_budget:
             raise OpenWorldSessionError(
-                "QueryContract spends rounds reserved for the official control"
+                "QueryContract exceeds the candidate-round budget after its "
+                "control requirement"
+            )
+        if (
+            not self._control_required(normalized)
+            and self._control_round is not None
+        ):
+            raise OpenWorldSessionError(
+                "QueryContract cannot disable an already bound control round"
             )
         if self._query_contract is not None:
             old = self._query_contract
             if normalized["claim_type"] != old["claim_type"]:
                 raise OpenWorldSessionError(
                     "QueryContract cannot change claim_type during a session"
+                )
+            if (
+                normalized["control_requirement"]
+                != old["control_requirement"]
+            ):
+                raise OpenWorldSessionError(
+                    "QueryContract cannot change control_requirement during a "
+                    "session"
                 )
             old_universe = list(old["candidate_universe"])
             new_universe = list(normalized["candidate_universe"])
@@ -286,6 +310,13 @@ class OpenWorldPlanSession:
                     "QueryContract cannot remove or reorder discovered candidates"
                 )
         return normalized
+
+    @staticmethod
+    def _control_required(contract: Mapping[str, Any] | None) -> bool:
+        return (
+            contract is None
+            or contract.get("control_requirement", "required") == "required"
+        )
 
     def _candidate_from_round(
         self,
@@ -339,8 +370,19 @@ class OpenWorldPlanSession:
         )
         if task_name != self.target["task_name"]:
             raise OpenWorldSessionError("plan cannot switch the bound task")
+        contract_value = normalized.get("query_contract")
+        contract = (
+            self._validate_query_contract(contract_value)
+            if contract_value is not None
+            else deepcopy(self._query_contract)
+        )
+        control_required = self._control_required(contract)
         rounds = normalized.get("rounds")
-        if not isinstance(rounds, list) or not rounds:
+        if not isinstance(rounds, list):
+            raise OpenWorldSessionError(
+                "open-world plan rounds must be a list"
+            )
+        if control_required and not rounds:
             raise OpenWorldSessionError(
                 "open-world plan must contain the official control round"
             )
@@ -349,13 +391,22 @@ class OpenWorldPlanSession:
                 "materialized rounds exceed the open-world round budget"
             )
 
-        normalized_rounds = [self._bind_control_round(rounds[0])]
+        normalized_rounds: list[dict[str, Any]] = []
         candidates: list[dict[str, Any]] = []
         candidate_ids: list[str] = []
-        round_ids = {
-            _text(normalized_rounds[0].get("round_id"), "rounds[0].round_id")
-        }
-        for index, raw_round in enumerate(rounds[1:], start=1):
+        round_ids: set[str] = set()
+        candidate_start = 0
+        if control_required:
+            control = self._bind_control_round(rounds[0])
+            normalized_rounds.append(control)
+            round_ids.add(
+                _text(control.get("round_id"), "rounds[0].round_id")
+            )
+            candidate_start = 1
+        for index, raw_round in enumerate(
+            rounds[candidate_start:],
+            start=candidate_start,
+        ):
             candidate = self._candidate_from_round(
                 raw_round, location=f"rounds[{index}]"
             )
@@ -380,12 +431,6 @@ class OpenWorldPlanSession:
             candidates.append(candidate)
             candidate_ids.append(candidate_id)
 
-        contract_value = normalized.get("query_contract")
-        contract = (
-            self._validate_query_contract(contract_value)
-            if contract_value is not None
-            else deepcopy(self._query_contract)
-        )
         if contract is not None:
             missing = [
                 candidate_id
@@ -518,7 +563,7 @@ class OpenWorldPlanSession:
             assessment = self.assess_query_sufficiency(
                 current,
                 evidence,
-                completed_rounds=max(len(current["rounds"]) - 1, 0),
+                completed_rounds=len(evidence),
             )
 
         updated = deepcopy(current)
@@ -659,17 +704,27 @@ class OpenWorldPlanSession:
             )
         assessment = None
         if isinstance(normalized.get("query_contract"), Mapping):
+            candidate_evidence = self._candidate_evidence_from_history(history)
             assessment = self.assess_query_sufficiency(
                 normalized,
-                self._candidate_evidence_from_history(history),
-                completed_rounds=max(len(history) - 1, 0),
+                candidate_evidence,
+                completed_rounds=len(candidate_evidence),
             )
+        control_required = self._control_required(
+            normalized.get("query_contract")
+            if isinstance(normalized.get("query_contract"), Mapping)
+            else None
+        )
         return {
             "schema_version": 2,
             "session_kind": "open_world_single_task_adaptive_evaluation",
             "user_query": query,
             "target": deepcopy(self.target),
-            "control_round": deepcopy(normalized["rounds"][0]),
+            "control_round": (
+                deepcopy(normalized["rounds"][0])
+                if control_required and normalized["rounds"]
+                else None
+            ),
             "experiment_candidates": deepcopy(
                 normalized["experiment_candidates"]
             ),

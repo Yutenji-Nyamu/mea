@@ -19,9 +19,11 @@ from mea.planner import (
 )
 from mea.taskgen import create_official_task_run
 from scripts.manipeval_agent import (
+    bind_ready_task_after_free_concern,
     build_compact_flagship_acceptance,
     build_evidence_bundle,
     build_bound_claim_first_handoff,
+    build_pending_task_binding_policy_card,
     build_taskgen_command,
     finish_unsupported_global_route,
     finish_unsupported_open_task_resolution,
@@ -532,6 +534,56 @@ class CrossTaskEntrypointTests(unittest.TestCase):
             "performance.completion_time_stability",
         )
         self.assertIn(query, routed["proposal"]["evaluation_goal"])
+
+    def test_unbound_query_discovers_concern_before_checkpoint_binding(self):
+        query = "Where does this policy first expose a task weakness?"
+        frozen_concern = {
+            "schema_version": 1,
+            "source_query": query,
+            "sub_aspect": "Object pose robustness.",
+            "hypothesis": "The policy fails when the bottle starts rotated.",
+            "task_intent": "Adjust a bottle into the required upright pose.",
+            "requested_variation": "Rotate the initial bottle pose.",
+            "measurement_need": "Measure final bottle orientation and success.",
+        }
+        provider = self.FrozenConcernProvider(frozen_concern)
+        concern_agent = FreeConcernAgent(
+            provider,
+            model="fixture",
+            max_attempts=1,
+        )
+        bundle = concern_agent.propose(
+            query,
+            policy_card=build_pending_task_binding_policy_card(),
+        )
+        inventory = [
+            {
+                "schema_version": 1,
+                "task_name": "adjust_bottle",
+                "description": "adjust a bottle into an upright target pose",
+                "execution_status": "official_base_only",
+                "capability_aspects": [],
+            },
+            {
+                "schema_version": 1,
+                "task_name": "click_bell",
+                "description": "click the top center of a bell",
+                "execution_status": "capability_registered",
+                "capability_aspects": ["object_position"],
+            },
+        ]
+        binding = bind_ready_task_after_free_concern(
+            bundle["concern"],
+            inventory=inventory,
+            ready_task_names=["adjust_bottle", "click_bell"],
+            default_task_name="click_bell",
+        )
+
+        self.assertEqual(binding["selected_task_name"], "adjust_bottle")
+        self.assertFalse(binding["fallback_used"])
+        self.assertFalse(binding["catalog_visible_to_concern_model"])
+        self.assertNotIn("adjust_bottle", concern_agent.last_prompt)
+        self.assertNotIn("click_bell", concern_agent.last_prompt)
 
     def test_official_plan_only_does_not_require_provider_key(self):
         with tempfile.TemporaryDirectory() as temporary:

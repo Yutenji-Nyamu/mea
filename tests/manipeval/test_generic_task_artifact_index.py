@@ -43,9 +43,10 @@ class GenericTaskArtifactIndexTests(unittest.TestCase):
                 (source / child).mkdir(parents=True, exist_ok=True)
             (source / "__init__.py").write_text("", encoding="utf-8")
             task_source = "class adjust_bottle:\n    pass\n"
-            (source / "task.py").write_text(task_source, encoding="utf-8")
+            task_path = source / "task.py"
+            task_path.write_text(task_source, encoding="utf-8")
             module_hash = hashlib.sha256(
-                task_source.encode("utf-8")
+                task_path.read_bytes()
             ).hexdigest()
             (source / "overlay.yml").write_text("{}\n", encoding="utf-8")
             (source / "candidate_manifest.json").write_text(

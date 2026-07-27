@@ -9,6 +9,8 @@ from mea.planner.query_contract import (
     assess_query_sufficiency,
     build_query_sufficiency_contract,
     extend_query_candidate_universe,
+    infer_control_requirement,
+    validate_query_sufficiency_contract,
 )
 
 
@@ -41,11 +43,59 @@ class ExperimentCandidateTests(unittest.TestCase):
         self.assertTrue(candidate["candidate_id"].startswith("dynamic."))
         self.assertIn("reflective.surface.confusion", candidate["candidate_id"])
         self.assertNotIn("template_id", candidate)
-        self.assertIn("pre-contact miss", candidate["checker_need"])
+        self.assertIn(
+            "pre-contact miss", candidate["checker_need"]["description"]
+        )
         self.assertEqual(
-            candidate["tool_need"],
+            candidate["tool_need"]["description"],
             "target contact and pre-contact trajectory",
         )
+        self.assertEqual(candidate["schema_version"], 2)
+
+    def test_tool_only_candidate_does_not_invent_scene_or_checker_work(self):
+        candidate = build_experiment_candidate(
+            source_query="Does the TCP jerk before contact?",
+            base_task="beat_block_hammer",
+            semantic_concern="observability.precontact_jerk",
+            tool_need={
+                "kind": "measure",
+                "description": "Measure peak jerk before first target contact.",
+                "reuse_first": True,
+            },
+        )
+
+        self.assertIsNone(candidate["scene_need"])
+        self.assertIsNone(candidate["checker_need"])
+        self.assertEqual(candidate["tool_need"]["kind"], "measure")
+
+    def test_candidate_requires_at_least_one_typed_need(self):
+        with self.assertRaisesRegex(
+            ExperimentCandidateError, "at least one"
+        ):
+            build_experiment_candidate(
+                source_query="Inspect this policy.",
+                base_task="beat_block_hammer",
+                semantic_concern="unspecified",
+            )
+
+    def test_v1_candidate_normalizes_to_typed_v2(self):
+        candidate = validate_experiment_candidate(
+            {
+                "schema_version": 1,
+                "candidate_id": "legacy.candidate",
+                "source_query": "Where does it fail?",
+                "base_task": "adjust_bottle",
+                "semantic_concern": "post-release stability",
+                "scene_need": "Reuse the official scene.",
+                "checker_need": "Check stable final pose.",
+                "tool_need": "Measure angular velocity.",
+            }
+        )
+
+        self.assertEqual(candidate["schema_version"], 2)
+        self.assertEqual(candidate["scene_need"]["kind"], "adapt")
+        self.assertEqual(candidate["checker_need"]["kind"], "generate")
+        self.assertEqual(candidate["tool_need"]["kind"], "measure")
 
     def test_candidate_identity_tracks_experiment_not_measurement_wording(self):
         base = {
@@ -87,6 +137,27 @@ class ExperimentCandidateTests(unittest.TestCase):
             validate_experiment_candidate(invalid)
 
 class OpenWorldQueryContractTests(unittest.TestCase):
+    def test_control_requirement_is_query_conditioned(self):
+        self.assertEqual(
+            infer_control_requirement(
+                "接触前是否存在抖动或急动？",
+                semantic_context={
+                    "measurement_need": "precontact jerk telemetry",
+                },
+            ),
+            "not_required",
+        )
+        self.assertEqual(
+            infer_control_requirement(
+                "这个策略对物体外观属性的泛化能力如何？"
+            ),
+            "required",
+        )
+        self.assertEqual(
+            infer_control_requirement("Diagnose this policy."),
+            "required",
+        )
+
     def test_open_contract_can_start_before_first_candidate_is_discovered(self):
         contract = build_query_sufficiency_contract(
             "Diagnose the first unsupported concern.",
@@ -232,19 +303,64 @@ class OpenWorldQueryContractTests(unittest.TestCase):
             extended["required_coverage"]["minimum_evaluated"], 2
         )
 
-    def test_v1_finite_contract_keeps_legacy_truth_semantics(self):
+    def test_finite_contract_keeps_legacy_truth_semantics(self):
         contract = build_query_sufficiency_contract(
             "Does every registered condition pass?",
             candidate_universe=["registered.left", "registered.right"],
             round_budget=2,
             claim_type="universal",
         )
-        self.assertEqual(contract["schema_version"], 1)
+        self.assertEqual(contract["schema_version"], 3)
+        self.assertEqual(contract["control_requirement"], "required")
         result = assess_query_sufficiency(
             contract, [evidence("registered.left", "fail")]
         )
         self.assertTrue(result["evidence_sufficient"])
         self.assertEqual(result["claim_verdict"], "refuted")
+
+    def test_candidate_extension_preserves_control_requirement(self):
+        contract = build_query_sufficiency_contract(
+            "Diagnose pre-contact motion.",
+            candidate_universe=[],
+            round_budget=2,
+            claim_type="diagnostic",
+            candidate_universe_closed=False,
+            control_requirement="not_required",
+        )
+
+        extended = extend_query_candidate_universe(contract, ["jerk"])
+
+        self.assertEqual(extended["schema_version"], 3)
+        self.assertEqual(
+            extended["control_requirement"], "not_required"
+        )
+
+    def test_legacy_contracts_normalize_to_control_required_v3(self):
+        finite = {
+            "schema_version": 1,
+            "claim_type": "diagnostic",
+            "candidate_universe": ["official"],
+            "required_coverage": {
+                "candidate_ids": ["official"],
+                "minimum_evaluated": 1,
+                "minimum_per_group": None,
+            },
+            "round_budget": 1,
+            "comparison_groups": None,
+        }
+        open_world = {
+            **finite,
+            "schema_version": 2,
+            "candidate_universe_closed": False,
+            "existential_witness_outcome": None,
+        }
+
+        for legacy in (finite, open_world):
+            normalized = validate_query_sufficiency_contract(legacy)
+            self.assertEqual(normalized["schema_version"], 3)
+            self.assertEqual(
+                normalized["control_requirement"], "required"
+            )
 
 
 if __name__ == "__main__":

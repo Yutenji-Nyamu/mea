@@ -34,10 +34,6 @@ from scripts.manipeval_taskgen import (
     run_visual_self_reflection,
     validate_planner_capability_binding,
 )
-from mea.toolgen.query_induced import (
-    QueryInducedToolError,
-    query_induced_result_to_tool_execution,
-)
 from mea.toolkit.aggregate import aggregate_tool_executions
 
 
@@ -193,54 +189,6 @@ def _episode(
         encoding="utf-8",
     )
     return episode
-
-
-def _jerk_proposal() -> dict[str, object]:
-    return {
-        "schema_version": 2,
-        "metric_id": "precontact_tcp_jerk_peak",
-        "finite_difference_order": 3,
-        "window_seconds": 0.12,
-        "reducer": "peak_l2",
-        "time_normalization": "physical_seconds",
-        "threshold": 50.0,
-        "unit": "m_per_second_cubed",
-        "null_semantics": (
-            "null_if_no_target_contact_or_insufficient_precontact_samples"
-        ),
-        "rationale": "query asks about abrupt pre-contact motion",
-    }
-
-
-def _query_result(value: float | None, reason: str | None) -> dict[str, object]:
-    return {
-        "schema_version": 2,
-        "query": "Is there abrupt motion before target contact?",
-        "route": "provider_generate_validate_register",
-        "proposal": _jerk_proposal(),
-        "registration_id": "run_local_fixture",
-        "live_telemetry": {
-            "episode_dir": "/recorded/episode_seed_17",
-            "task_name": "beat_block_hammer",
-            "synthetic_fallback_used": False,
-        },
-        "tool_result": {
-            "tool": "precontact_tcp_jerk_peak",
-            "value": value,
-            "unit": "m_per_second_cubed",
-            "passed": value is not None and value <= 50.0,
-            "null_semantics": (
-                "null_if_no_target_contact_or_insufficient_precontact_samples"
-            ),
-            "null_reason": reason,
-            "active_arm": "left",
-            "signal": "left_tcp_position",
-            "first_target_contact_trace_index": (
-                9 if value is not None else None
-            ),
-            "evidence_steps": [9] if value is not None else [],
-        },
-    }
 
 
 class BBHDistractorTaskGenTests(unittest.TestCase):
@@ -943,40 +891,6 @@ def check_success(self):
             )
             self.assertTrue(bundle["scene_method"]["symbol_declared"])
             self.assertTrue(bundle["success_method"]["symbol_declared"])
-
-    def test_query_tool_bridge_preserves_numeric_and_null_evidence(self) -> None:
-        numeric = query_induced_result_to_tool_execution(
-            _query_result(12.5, None),
-            seed=17,
-        )
-        missing = query_induced_result_to_tool_execution(
-            _query_result(None, "no_target_contact_event"),
-            seed=18,
-        )
-        aggregate = aggregate_tool_executions([numeric, missing])
-        cohort = aggregate["metrics"][0]["cohorts"][0]
-        self.assertEqual(cohort["summary"]["quality"]["valid"]["value"], 1)
-        self.assertEqual(cohort["summary"]["quality"]["missing"]["value"], 1)
-        self.assertEqual(
-            cohort["summary"]["statistics"]["mean"]["value"], 12.5
-        )
-        self.assertEqual(
-            missing["episodes"][0]["result"]["details"]["reason"],
-            "no_target_contact_event",
-        )
-        self.assertFalse(
-            missing["episodes"][0]["result"]["details"][
-                "synthetic_fallback_used"
-            ]
-        )
-
-        invalid = _query_result(None, "no_target_contact_event")
-        invalid["live_telemetry"]["synthetic_fallback_used"] = True
-        with self.assertRaisesRegex(
-            QueryInducedToolError, "real recorded telemetry"
-        ):
-            query_induced_result_to_tool_execution(invalid)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
-from mea.taskgen import extract_json_response
+from mea.providers.json_response import extract_json_response
 
 from .query import (
     LEGACY_PHENOMENON_IDS,

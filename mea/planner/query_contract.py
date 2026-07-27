@@ -22,6 +22,12 @@ concerns.  Existential searches may name either ``pass`` or ``fail`` as their
 witness outcome, while exhaustive and worst-case conclusions remain
 inconclusive until the candidate universe is explicitly closed.
 
+Version 3 also owns whether an official control is logically required.  This
+keeps the control decision with the Query truth contract instead of forcing
+every trajectory, observability, or Tool-only question through an unrelated
+policy-success control.  Version-1 and version-2 inputs remain accepted and
+normalize to version 3 with ``control_requirement="required"``.
+
 This is an MEA reliability extension, not a contract defined by the paper.
 The paper describes a small dynamically discovered aspect set and stopping
 after sufficient evidence, but does not formalize quantified truth conditions.
@@ -71,6 +77,7 @@ _OPEN_CONTRACT_KEYS = _CONTRACT_KEYS | {
     "candidate_universe_closed",
     "existential_witness_outcome",
 }
+_CONTROL_CONTRACT_KEYS = _OPEN_CONTRACT_KEYS | {"control_requirement"}
 _COVERAGE_KEYS = {
     "candidate_ids",
     "minimum_evaluated",
@@ -78,6 +85,19 @@ _COVERAGE_KEYS = {
 }
 _EVIDENCE_KEYS = {"candidate_id", "outcome", "score", "diagnosis"}
 _EXISTENTIAL_WITNESS_OUTCOMES = frozenset({"pass", "fail"})
+_CONTROL_REQUIREMENTS = frozenset({"required", "not_required"})
+_CONTROL_REQUIRED_QUERY = re.compile(
+    r"\b(?:generaliz|robust|attribute|appearance|pose|position|instance|"
+    r"variant|perturb|compare|comparison|versus|worst[- ]?case)\w*\b"
+    r"|泛化|鲁棒|属性|外观|姿态|位置|实例|变体|扰动|比较|对比|最差",
+    re.IGNORECASE,
+)
+_CONTROL_FREE_QUERY = re.compile(
+    r"\b(?:trajectory|telemetry|motion|jerk|oscillat|wobbl|smooth|"
+    r"velocity|acceleration|pre[- ]?contact|before contact)\w*\b"
+    r"|轨迹|遥测|运动|抖动|急动|平滑|速度|加速度|接触前",
+    re.IGNORECASE,
+)
 
 
 def _text(value: Any, field: str) -> str:
@@ -137,6 +157,40 @@ def infer_claim_type(user_query: str) -> str:
     return "diagnostic"
 
 
+def infer_control_requirement(
+    user_query: str,
+    *,
+    semantic_context: Mapping[str, Any] | None = None,
+) -> str:
+    """Decide whether the Query needs a separate official control rollout.
+
+    Trajectory and telemetry questions can measure the official scene directly.
+    Generalization, perturbation, and comparison claims still need a control
+    anchor. Ambiguous cases default to ``required``. This decision never rejects
+    a Query and an explicit QueryContract remains authoritative.
+    """
+
+    parts = [_text(user_query, "user_query")]
+    if semantic_context is not None:
+        if not isinstance(semantic_context, Mapping):
+            raise QuerySufficiencyError("semantic_context must be an object")
+        for field in (
+            "sub_aspect",
+            "hypothesis",
+            "requested_variation",
+            "measurement_need",
+        ):
+            value = semantic_context.get(field)
+            if isinstance(value, str) and value.strip():
+                parts.append(value.strip())
+    text = "\n".join(parts)
+    if _CONTROL_REQUIRED_QUERY.search(text):
+        return "required"
+    if _CONTROL_FREE_QUERY.search(text):
+        return "not_required"
+    return "required"
+
+
 def build_query_sufficiency_contract(
     user_query: str,
     *,
@@ -149,12 +203,12 @@ def build_query_sufficiency_contract(
     minimum_per_group: int | None = None,
     candidate_universe_closed: bool | None = None,
     existential_witness_outcome: str | None = None,
+    control_requirement: str = "required",
 ) -> dict[str, Any]:
     """Build and validate an explicit query-sufficiency contract.
 
-    Existing callers receive the unchanged finite-domain v1 schema.  Passing
-    ``candidate_universe_closed`` or ``existential_witness_outcome`` opts into
-    v2 open-world semantics.
+    The builder emits the canonical version-3 schema.  Legacy version-1 and
+    version-2 serialized contracts are accepted by the validator.
     """
 
     universe = [str(item) for item in candidate_universe]
@@ -171,7 +225,7 @@ def build_query_sufficiency_contract(
         raise QuerySufficiencyError(
             "existential_witness_outcome is only valid for existential claims"
         )
-    use_open_schema = (
+    use_open_semantics = (
         candidate_universe_closed is not None
         or existential_witness_outcome is not None
         or resolved_type == "worst_case"
@@ -180,7 +234,7 @@ def build_query_sufficiency_contract(
         0
         if minimum_evaluated is None
         and not required
-        and use_open_schema
+        and use_open_semantics
         and candidate_universe_closed is False
         else
         len(required)
@@ -205,7 +259,7 @@ def build_query_sufficiency_contract(
         else None
     )
     contract = {
-        "schema_version": 2 if use_open_schema else 1,
+        "schema_version": 3,
         "claim_type": resolved_type,
         "candidate_universe": universe,
         "required_coverage": {
@@ -215,18 +269,18 @@ def build_query_sufficiency_contract(
         },
         "round_budget": round_budget,
         "comparison_groups": groups,
-    }
-    if use_open_schema:
-        contract["candidate_universe_closed"] = (
+        "candidate_universe_closed": (
             True
             if candidate_universe_closed is None
             else candidate_universe_closed
-        )
-        contract["existential_witness_outcome"] = (
+        ),
+        "existential_witness_outcome": (
             str(existential_witness_outcome or "pass")
             if resolved_type == "existential"
             else None
-        )
+        ),
+        "control_requirement": control_requirement,
+    }
     return validate_query_sufficiency_contract(contract)
 
 
@@ -245,11 +299,13 @@ def validate_query_sufficiency_contract(
         if schema_version == 1
         else _OPEN_CONTRACT_KEYS
         if schema_version == 2
+        else _CONTROL_CONTRACT_KEYS
+        if schema_version == 3
         else None
     )
     if expected_keys is None:
         raise QuerySufficiencyError(
-            "QuerySufficiencyContract schema_version must be 1 or 2"
+            "QuerySufficiencyContract schema_version must be 1, 2, or 3"
         )
     if set(value) != expected_keys:
         raise QuerySufficiencyError(
@@ -257,14 +313,21 @@ def validate_query_sufficiency_contract(
             f"{sorted(expected_keys)} for schema_version {schema_version}"
         )
     contract = deepcopy(dict(value))
+    if schema_version == 1:
+        contract["candidate_universe_closed"] = True
+        contract["existential_witness_outcome"] = (
+            "pass" if contract.get("claim_type") == "existential" else None
+        )
+    if schema_version in {1, 2}:
+        contract["control_requirement"] = "required"
+    contract["schema_version"] = 3
     claim_type = contract.get("claim_type")
     if claim_type not in CLAIM_TYPES:
         raise QuerySufficiencyError(
             f"claim_type must be one of {sorted(CLAIM_TYPES)}"
         )
     allow_empty_open_universe = bool(
-        schema_version == 2
-        and contract.get("candidate_universe_closed") is False
+        contract.get("candidate_universe_closed") is False
     )
     universe = _unique_text_list(
         contract.get("candidate_universe"),
@@ -304,9 +367,10 @@ def validate_query_sufficiency_contract(
             "decisively evaluated"
         )
     if claim_type == "worst_case":
-        if schema_version != 2:
+        if schema_version == 1:
             raise QuerySufficiencyError(
-                "worst_case requires QuerySufficiencyContract schema_version 2"
+                "worst_case requires QuerySufficiencyContract schema_version "
+                "2 or 3"
             )
         if minimum != len(required):
             raise QuerySufficiencyError(
@@ -357,22 +421,26 @@ def validate_query_sufficiency_contract(
                 "comparative claims"
             )
 
-    if schema_version == 2:
-        universe_closed = contract.get("candidate_universe_closed")
-        if not isinstance(universe_closed, bool):
+    universe_closed = contract.get("candidate_universe_closed")
+    if not isinstance(universe_closed, bool):
+        raise QuerySufficiencyError(
+            "candidate_universe_closed must be bool"
+        )
+    witness = contract.get("existential_witness_outcome")
+    if claim_type == "existential":
+        if witness not in _EXISTENTIAL_WITNESS_OUTCOMES:
             raise QuerySufficiencyError(
-                "candidate_universe_closed must be bool"
+                "existential_witness_outcome must be pass or fail"
             )
-        witness = contract.get("existential_witness_outcome")
-        if claim_type == "existential":
-            if witness not in _EXISTENTIAL_WITNESS_OUTCOMES:
-                raise QuerySufficiencyError(
-                    "existential_witness_outcome must be pass or fail"
-                )
-        elif witness is not None:
-            raise QuerySufficiencyError(
-                "existential_witness_outcome is only valid for existential claims"
-            )
+    elif witness is not None:
+        raise QuerySufficiencyError(
+            "existential_witness_outcome is only valid for existential claims"
+        )
+    control_requirement = contract.get("control_requirement")
+    if control_requirement not in _CONTROL_REQUIREMENTS:
+        raise QuerySufficiencyError(
+            "control_requirement must be required or not_required"
+        )
 
     contract["candidate_universe"] = universe
     contract["required_coverage"] = {
@@ -392,7 +460,7 @@ def extend_query_candidate_universe(
 ) -> dict[str, Any]:
     """Append dynamically discovered candidates to an open-world contract.
 
-    A v1 finite contract is promoted to v2 and reopened.  Comparative
+    A legacy finite contract is promoted to v3 and reopened.  Comparative
     contracts are intentionally excluded because a new candidate also needs a
     preregistered group assignment, which this small API cannot infer.
     """
@@ -429,7 +497,7 @@ def extend_query_candidate_universe(
         minimum = len(required)
     promoted = {
         **normalized,
-        "schema_version": 2,
+        "schema_version": 3,
         "candidate_universe": universe,
         "candidate_universe_closed": (
             False
@@ -441,6 +509,7 @@ def extend_query_candidate_universe(
             if normalized["claim_type"] == "existential"
             else None
         ),
+        "control_requirement": normalized["control_requirement"],
         "required_coverage": {
             **normalized["required_coverage"],
             "candidate_ids": required,
@@ -880,5 +949,6 @@ __all__ = [
     "build_query_sufficiency_contract",
     "extend_query_candidate_universe",
     "infer_claim_type",
+    "infer_control_requirement",
     "validate_query_sufficiency_contract",
 ]

@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from mea.taskgen import extract_json_response
+from mea.providers.json_response import extract_json_response
 
 from .answer_scope import (
     build_answer_scope,
