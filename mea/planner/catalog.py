@@ -135,14 +135,52 @@ def _generic_official_aspects(task_name: str) -> list[dict[str, Any]]:
     ]
 
 
+def _with_control_aspect(
+    task_name: str,
+    aspects: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Ensure the TaskAdapter-owned neutral control is retrievable.
+
+    The catalog is an artifact-retrieval index, not a second authority for the
+    protocol control.  Deep-task legacy catalogs may omit the neutral baseline,
+    so derive that one entry from the same capability contract used at runtime.
+    """
+
+    adapter = resolve_task_adapter(task_name)
+    control_template = adapter["control_template_id"]
+    if any(
+        control_template in aspect["template_ids"]
+        for aspect in aspects
+    ):
+        return aspects
+    contract = resolve_capability_contract(task_name, control_template)
+    return [
+        *aspects,
+        {
+            "aspect_id": contract["aspect"]["aspect_id"],
+            "description": (
+                "Run the unchanged RoboTwin task and judge it only with the "
+                "official success predicate."
+            ),
+            "template_ids": [control_template],
+            "taskgen_capability_id": contract["taskgen"]["capability_id"],
+            "taskgen_route": taskgen_route(contract),
+            "default_metric": contract["tool"]["metric"],
+        },
+    ]
+
+
 def _trusted_task_entry(task_name: str, task_family: str) -> dict[str, Any]:
     adapter = resolve_task_adapter(task_name)
-    aspects = (
-        _bbh_aspects()
-        if adapter["planner_kind"] == "bounded_bbh_v1"
-        else _click_aspects()
-        if adapter["planner_kind"] == "model_click_bell_adaptive_v1"
-        else _generic_official_aspects(task_name)
+    aspects = _with_control_aspect(
+        task_name,
+        (
+            _bbh_aspects()
+            if adapter["planner_kind"] == "bounded_bbh_v1"
+            else _click_aspects()
+            if adapter["planner_kind"] == "model_click_bell_adaptive_v1"
+            else _generic_official_aspects(task_name)
+        ),
     )
     return {
         "task_name": task_name,
