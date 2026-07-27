@@ -2545,6 +2545,7 @@ def build_compact_flagship_acceptance(
     act_rollouts = 0
     round_routes: list[str] = []
     semantics_statuses: list[str] = []
+    runtime_candidate_ids: list[str] = []
     same_bundle_bound_checker_reuse = False
     bound_checker_metric: str | None = None
     bound_checker_module_sha256: str | None = None
@@ -2552,6 +2553,13 @@ def build_compact_flagship_acceptance(
         summary = run.get("round_summary")
         summary = summary if isinstance(summary, Mapping) else {}
         round_routes.append(str(summary.get("route") or ""))
+        semantic_execution = summary.get("semantic_need_execution")
+        if isinstance(semantic_execution, Mapping) and isinstance(
+            semantic_execution.get("candidate_id"), str
+        ):
+            runtime_candidate_ids.append(
+                str(semantic_execution["candidate_id"])
+            )
         observations = summary.get("observations")
         observations = observations if isinstance(observations, Mapping) else {}
         if observations.get("execution_backend") in {"ACT", "ACT+expert"}:
@@ -2666,7 +2674,7 @@ def build_compact_flagship_acceptance(
         == "runtime_bound_control_handoff"
         and global_route_result.get("provider_called") is False
     )
-    online_query_candidate_binding = bool(
+    exact_catalog_candidate_binding = bool(
         isinstance(concern_candidate_resolution, Mapping)
         and concern_candidate_resolution.get("decision")
         == "bind_single_aspect"
@@ -2688,6 +2696,22 @@ def build_compact_flagship_acceptance(
         )
         and len(concern_candidate_resolution["selected_template_ids"]) == 1
     )
+    runtime_candidate_discovery = bool(
+        isinstance(concern_candidate_resolution, Mapping)
+        and concern_candidate_resolution.get("decision")
+        == "discover_candidates"
+        and concern_candidate_resolution.get("resolution")
+        == "broad_or_ambiguous"
+        and concern_candidate_resolution.get("concern_created_before_catalog")
+        is True
+        and concern_candidate_resolution.get("catalog_was_model_visible")
+        is False
+        and concern_candidate_resolution.get("selected_template_ids") == []
+        and len(set(runtime_candidate_ids)) == 1
+    )
+    online_query_candidate_binding = bool(
+        exact_catalog_candidate_binding or runtime_candidate_discovery
+    )
     query_contract = (
         claim_first_runtime_state.get("query_contract")
         if isinstance(claim_first_runtime_state, Mapping)
@@ -2695,11 +2719,21 @@ def build_compact_flagship_acceptance(
     )
     query_contract = query_contract if isinstance(query_contract, Mapping) else {}
     bound_candidate_templates = query_contract.get("candidate_universe")
+    observed_candidate_ids = assessment.get("observed_candidate_ids")
     singleton_query_candidate = bool(
-        isinstance(bound_candidate_templates, list)
-        and len(bound_candidate_templates) == 1
-        and assessment.get("observed_candidate_ids")
-        == bound_candidate_templates
+        isinstance(observed_candidate_ids, list)
+        and len(observed_candidate_ids) == 1
+        and (
+            (
+                exact_catalog_candidate_binding
+                and isinstance(bound_candidate_templates, list)
+                and observed_candidate_ids[0] in bound_candidate_templates
+            )
+            or (
+                runtime_candidate_discovery
+                and observed_candidate_ids[0] in runtime_candidate_ids
+            )
+        )
     )
     answer = (
         claim_first_query_answer
@@ -2753,6 +2787,13 @@ def build_compact_flagship_acceptance(
         "history_replay_disabled": history_disabled,
         "online_free_concern": online_free_concern,
         "online_query_candidate_binding": online_query_candidate_binding,
+        "candidate_binding_mode": (
+            "exact_catalog_retrieval"
+            if exact_catalog_candidate_binding
+            else "online_runtime_discovery"
+            if runtime_candidate_discovery
+            else "unresolved"
+        ),
         "cli_candidate_hint_used": cli_candidate_hint_used,
         "candidate_domain_resolution": (
             concern_candidate_resolution.get("resolution")

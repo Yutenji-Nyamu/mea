@@ -334,6 +334,121 @@ class CrossTaskEntrypointTests(unittest.TestCase):
         )
         self.assertFalse(rejected["accepted"])
 
+    def test_compact_flagship_accepts_broad_runtime_candidate_discovery(self):
+        candidate_id = "dynamic.click_bell.lateral_translation"
+        module_sha256 = "b" * 64
+        acceptance = build_compact_flagship_acceptance(
+            [
+                {
+                    "round_summary": {
+                        "route": "official",
+                        "observations": {
+                            "execution_backend": "ACT",
+                            "actual_seeds": [100405],
+                            "outcome_semantics": {
+                                "status": "official_only"
+                            },
+                        },
+                    },
+                },
+                {
+                    "round_summary": {
+                        "route": "generic_provider_scene_checker_codegen",
+                        "semantic_need_execution": {
+                            "candidate_id": candidate_id
+                        },
+                        "observations": {
+                            "execution_backend": "ACT",
+                            "actual_seeds": [100405],
+                            "outcome_semantics": {
+                                "status": "expected_semantic_extension"
+                            },
+                        },
+                    },
+                    "tool_evaluation": {
+                        "route": "bound_child_trusted_checker",
+                        "route_decision": {
+                            "provider_called": False,
+                            "exact_match": True,
+                            "metric": "generated_check_success",
+                        },
+                        "source": {
+                            "authority": (
+                                "llm_generated_python_ast_validated"
+                            )
+                        },
+                        "validation": {
+                            "status": "passed",
+                            "exact_metric_match": True,
+                        },
+                        "episodes": [
+                            {
+                                "role": "policy_under_evaluation",
+                                "result": {
+                                    "tool": "generated_check_success",
+                                    "value": False,
+                                    "details": {
+                                        "authority": (
+                                            "llm_generated_python_ast_validated"
+                                        ),
+                                        "module_sha256": module_sha256,
+                                    },
+                                },
+                            }
+                        ],
+                    },
+                },
+            ],
+            global_route_result={
+                "global_router_provider_calls": 0,
+                "provider_called": False,
+                "route_source": "runtime_bound_control_handoff",
+            },
+            claim_first_runtime_state={
+                "assessment": {
+                    "stop_reason": "evidence_sufficient",
+                    "evidence_sufficient": True,
+                    "observed_candidate_ids": [candidate_id],
+                },
+                "query_contract": {
+                    "candidate_universe": [
+                        "object_position.left_fixed",
+                        candidate_id,
+                    ],
+                },
+            },
+            claim_first_query_answer={
+                "answered": True,
+                "stop_reason": "evidence_sufficient",
+                "answer_scope": "bounded_experimental_query_semantics",
+            },
+            free_concern_bundle={
+                "source": "provider_catalog_free_concern",
+                "provider": {
+                    "called": True,
+                    "attempt_count": 1,
+                    "errors": [],
+                },
+            },
+            open_task_resolution={"decision": "retrieve_and_adapt"},
+            concern_candidate_resolution={
+                "decision": "discover_candidates",
+                "resolution": "broad_or_ambiguous",
+                "candidate_aspect_ids": ["object_position"],
+                "selected_template_ids": [],
+                "concern_created_before_catalog": True,
+                "catalog_was_model_visible": False,
+            },
+            history_disabled=True,
+        )
+
+        self.assertTrue(acceptance["accepted"])
+        self.assertEqual(
+            acceptance["candidate_binding_mode"],
+            "online_runtime_discovery",
+        )
+        self.assertTrue(acceptance["singleton_query_candidate"])
+
     def test_claim_first_runtime_requires_only_checkpoint_bound_control(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
