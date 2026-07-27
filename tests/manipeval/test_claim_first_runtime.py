@@ -1,5 +1,6 @@
 import unittest
 
+from mea.capability_adapter import resolve_task_adapter
 from mea.planner.claim_first_runtime import (
     ClaimFirstRuntimeController,
     ClaimFirstRuntimeError,
@@ -227,6 +228,45 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
                 proposal["requested_aspect_ids"],
                 ["task_execution.official_baseline"],
             )
+
+    def test_deep_tasks_use_neutral_official_control_anchors(self):
+        for task_name, planner_kind in (
+            ("beat_block_hammer", "bounded_bbh_v1"),
+            ("click_bell", "model_click_bell_adaptive_v1"),
+        ):
+            adapter = resolve_task_adapter(task_name)
+            deep_target = {
+                "task_name": task_name,
+                "max_rounds": 3,
+                "policy": {"policy_name": "ACT"},
+                "aspects": [
+                    {
+                        "aspect_id": contract["aspect"]["aspect_id"],
+                        "description": "Registered capability.",
+                        "template_ids": [contract["template_id"]],
+                    }
+                    for contract in adapter["capability_contracts"]
+                ],
+            }
+            self.assertEqual(
+                control_template_id(deep_target),
+                "task_execution.official_baseline",
+            )
+            proposal = build_control_anchor_proposal(
+                deep_target,
+                "Where does this policy first expose a weakness?",
+            )
+            self.assertEqual(proposal["task_name"], task_name)
+            if planner_kind == "bounded_bbh_v1":
+                self.assertEqual(
+                    proposal["requested_template_ids"],
+                    ["task_execution.official_baseline"],
+                )
+            else:
+                self.assertEqual(
+                    proposal["requested_aspect_ids"],
+                    ["task_execution.official_baseline"],
+                )
 
     def test_routed_aspects_bound_query_candidate_universe(self):
         controller = ClaimFirstRuntimeController(

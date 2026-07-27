@@ -98,6 +98,7 @@ class CapabilityAdapterTests(unittest.TestCase):
                 "performance.pickup_to_contact_timing",
                 "robustness.distractor_avoidance.lookalike",
                 "safety.hammer_left_camera_contact.official",
+                "task_execution.official_baseline",
             ],
         )
         self.assertEqual(
@@ -134,8 +135,8 @@ class CapabilityAdapterTests(unittest.TestCase):
         )
         expected_controls = {
             "adjust_bottle": "task_execution.official_baseline",
-            "beat_block_hammer": "safety.hammer_left_camera_contact.official",
-            "click_bell": "performance.completion_time_stability.official",
+            "beat_block_hammer": "task_execution.official_baseline",
+            "click_bell": "task_execution.official_baseline",
             "grab_roller": "task_execution.official_baseline",
             "place_phone_stand": "task_execution.official_baseline",
         }
@@ -302,6 +303,7 @@ class CapabilityAdapterTests(unittest.TestCase):
             ("click_bell", "performance.completion_time_stability.official"),
             ("click_bell", "task_execution.official_baseline"),
             ("beat_block_hammer", "safety.hammer_left_camera_contact.official"),
+            ("beat_block_hammer", "task_execution.official_baseline"),
             ("adjust_bottle", "task_execution.official_baseline"),
             ("grab_roller", "task_execution.official_baseline"),
             ("place_phone_stand", "task_execution.official_baseline"),

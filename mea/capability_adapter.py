@@ -263,6 +263,27 @@ def _bbh_contracts() -> list[dict[str, Any]]:
     }
     return [
         _contract(
+            task_name="beat_block_hammer",
+            template_id="task_execution.official_baseline",
+            aspect_id="task_execution.official_baseline",
+            target_role="task_target",
+            operation="official_passthrough",
+            capability_id="task_execution.official_passthrough",
+            task_variant_id=None,
+            controlled_axis=None,
+            change_scope=None,
+            generation_mode=None,
+            allowed_change_roots=[],
+            changes={},
+            request_factory_id="official_success_tool_request",
+            metric="official_check_success",
+            required_gates=_OFFICIAL_ACT_GATES,
+            phenomenon_ids=[
+                "hammer_visibly_lifted",
+                "block_visibly_displaced",
+            ],
+        ),
+        _contract(
             **shared,
             template_id="object_appearance.color_blue",
             aspect_id="object_appearance.color",
@@ -660,7 +681,7 @@ for _item in [
 
 _TASK_ADAPTER_METADATA: dict[str, dict[str, Any]] = {
     "beat_block_hammer": {
-        "control_template_id": "safety.hammer_left_camera_contact.official",
+        "control_template_id": "task_execution.official_baseline",
         "task_profile": "generated",
         "planner_kind": "bounded_bbh_v1",
         "max_rounds": 3,
@@ -668,7 +689,7 @@ _TASK_ADAPTER_METADATA: dict[str, dict[str, Any]] = {
         "vqa_metric_rules": {},
     },
     "click_bell": {
-        "control_template_id": "performance.completion_time_stability.official",
+        "control_template_id": "task_execution.official_baseline",
         "task_profile": "adaptive_properties",
         "planner_kind": "model_click_bell_adaptive_v1",
         "max_rounds": 3,

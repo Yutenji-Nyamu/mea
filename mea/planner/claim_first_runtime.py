@@ -195,6 +195,18 @@ def control_template_id(target: Mapping[str, Any]) -> str:
         for item in aspect.get("template_ids", [])
     }
     if template_id not in available:
+        # Cached plans and older test fixtures may predate the neutral
+        # official-baseline contract.  Keep them readable by accepting only an
+        # already-bound unchanged-scene passthrough; newly built targets always
+        # expose ``task_execution.official_baseline``.
+        legacy_controls = [
+            contract["template_id"]
+            for contract in adapter["capability_contracts"]
+            if contract["template_id"] in available
+            and contract["taskgen"]["operation"] == "official_passthrough"
+        ]
+        if len(legacy_controls) == 1:
+            return legacy_controls[0]
         raise ClaimFirstRuntimeError(
             f"control template {template_id!r} is outside the bound task"
         )
@@ -234,6 +246,11 @@ def build_control_anchor_proposal(
     adapter = resolve_task_adapter(task_name)
     planner_kind = adapter["planner_kind"]
     if planner_kind == "model_click_bell_adaptive_v1":
+        control_aspect_id = next(
+            contract["aspect"]["aspect_id"]
+            for contract in adapter["capability_contracts"]
+            if contract["template_id"] == template_id
+        )
         return {
             "schema_version": 1,
             "task_name": "click_bell",
@@ -241,10 +258,8 @@ def build_control_anchor_proposal(
                 "establish_clean_control_before_claim_first_attribution: "
                 + query
             ),
-            "requested_aspect_ids": [
-                "performance.completion_time_stability"
-            ],
-            "first_aspect_id": "performance.completion_time_stability",
+            "requested_aspect_ids": [control_aspect_id],
+            "first_aspect_id": control_aspect_id,
         }
     if planner_kind == "bounded_bbh_v1":
         return {
