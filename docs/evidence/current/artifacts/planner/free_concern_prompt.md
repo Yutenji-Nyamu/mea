@@ -11,14 +11,14 @@ templates, aspect identifiers, or a capability catalog: those are deliberately
 not available until a later retrieval stage.
 
 ORIGINAL QUERY:
-Where does this ACT policy first expose a weakness when generalizing over manipulated-object properties?
+这个 ACT 策略执行调整瓶子任务时，对未见对象属性的泛化能力如何，最先在哪里暴露弱点？
 
 EVALUATED POLICY SCOPE (metadata, not a concern menu):
 {
-  "policy_name": "ACT",
-  "single_task_checkpoint": true,
+  "policy_name": "ACT task-specific checkpoint portfolio",
+  "single_task_checkpoint": false,
   "training_tasks": [
-    "click_bell"
+    "withheld_until_semantic_task_retrieval"
   ],
   "language_conditioned": false
 }
@@ -26,7 +26,7 @@ EVALUATED POLICY SCOPE (metadata, not a concern menu):
 Return strict JSON with exactly these fields:
 {
   "schema_version": 1,
-  "source_query": "Where does this ACT policy first expose a weakness when generalizing over manipulated-object properties?",
+  "source_query": "这个 ACT 策略执行调整瓶子任务时，对未见对象属性的泛化能力如何，最先在哪里暴露弱点？",
   "sub_aspect": "a precise concern discovered from the Query",
   "hypothesis": "one falsifiable policy-behavior hypothesis",
   "task_intent": "invariant base manipulation action and goal in English",

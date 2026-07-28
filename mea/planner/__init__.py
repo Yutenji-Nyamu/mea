@@ -1,4 +1,9 @@
-"""Outer planning agent for query-driven manipulation evaluation."""
+"""Outer planning API with legacy planners loaded only on explicit use."""
+
+from __future__ import annotations
+
+from importlib import import_module
+from typing import Any
 
 from .context import (
     PlanningContextError,
@@ -26,32 +31,12 @@ from .prototype import (
     validate_evaluation_plan,
     validate_next_round_decision,
 )
-from .official import (
-    OFFICIAL_GATES,
-    OFFICIAL_TEMPLATE_ID,
-    OfficialTaskPlanAgent,
-)
-from .click_bell import (
-    CLICK_BELL_ADAPTIVE_ASPECTS,
-    CLICK_BELL_ADAPTIVE_TEMPLATES,
-    CLICK_BELL_POSITIONS,
-    CLICK_BELL_TEMPLATE_IDS,
-    ClickBellAdaptivePlanAgent,
-    ClickBellFixedSuitePlanAgent,
-    ClickBellPositionPlanAgent,
-)
 from .catalog import (
     ACTCatalogError,
     ACT_ROUTE_TASKS,
     build_act_catalog,
     catalog_task,
     validate_act_catalog,
-)
-from .catalog_plan import (
-    CATALOG_PLAN_TASKS,
-    CatalogPlanAgent,
-    CatalogPlanError,
-    PlanMaterializer,
 )
 from .global_query import (
     GlobalQueryRouter,
@@ -110,6 +95,12 @@ from .claim_first_runtime import (
     resolve_concern_candidate_domain,
     resolve_semantic_proposal,
 )
+from .claim_first_initial import (
+    ClaimFirstInitialPlanBuilder,
+    ClaimFirstInitialPlanError,
+    build_claim_first_control_round,
+    build_claim_first_execution_binding,
+)
 from .open_task_resolver import (
     FreeConcernAgent,
     discover_robotwin_task_inventory,
@@ -121,6 +112,50 @@ from .open_world_session import (
     build_open_world_evaluation_target,
     validate_open_world_evaluation_target,
 )
+
+
+# These task-specific and catalog planners are compatibility/paper protocols.
+# Preserve the public import API while keeping normal ClaimFirst imports free of
+# their modules and construction side effects.
+_LEGACY_EXPORTS = {
+    "OFFICIAL_GATES": (".official", "OFFICIAL_GATES"),
+    "OFFICIAL_TEMPLATE_ID": (".official", "OFFICIAL_TEMPLATE_ID"),
+    "OfficialTaskPlanAgent": (".official", "OfficialTaskPlanAgent"),
+    "CLICK_BELL_ADAPTIVE_ASPECTS": (
+        ".click_bell_catalog",
+        "CLICK_BELL_ADAPTIVE_ASPECTS",
+    ),
+    "CLICK_BELL_ADAPTIVE_TEMPLATES": (
+        ".click_bell_catalog",
+        "CLICK_BELL_ADAPTIVE_TEMPLATES",
+    ),
+    "CLICK_BELL_POSITIONS": (".click_bell_catalog", "CLICK_BELL_POSITIONS"),
+    "CLICK_BELL_TEMPLATE_IDS": (".click_bell_catalog", "CLICK_BELL_TEMPLATE_IDS"),
+    "ClickBellAdaptivePlanAgent": (".click_bell", "ClickBellAdaptivePlanAgent"),
+    "ClickBellFixedSuitePlanAgent": (".click_bell", "ClickBellFixedSuitePlanAgent"),
+    "ClickBellPositionPlanAgent": (".click_bell", "ClickBellPositionPlanAgent"),
+    "CATALOG_PLAN_TASKS": (".catalog_plan", "CATALOG_PLAN_TASKS"),
+    "CatalogPlanAgent": (".catalog_plan", "CatalogPlanAgent"),
+    "CatalogPlanError": (".catalog_plan", "CatalogPlanError"),
+    "PlanMaterializer": (".catalog_plan", "PlanMaterializer"),
+}
+
+
+def __getattr__(name: str) -> Any:
+    """Resolve compatibility planner exports only when explicitly requested."""
+
+    target = _LEGACY_EXPORTS.get(name)
+    if target is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module_name, attribute_name = target
+    value = getattr(import_module(module_name, __name__), attribute_name)
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(_LEGACY_EXPORTS))
+
 
 __all__ = [
     "BLUE_TASK_INSTRUCTION",
@@ -205,6 +240,10 @@ __all__ = [
     "render_query_answer",
     "resolve_concern_candidate_domain",
     "resolve_semantic_proposal",
+    "ClaimFirstInitialPlanBuilder",
+    "ClaimFirstInitialPlanError",
+    "build_claim_first_control_round",
+    "build_claim_first_execution_binding",
     "FreeConcernAgent",
     "discover_robotwin_task_inventory",
     "resolve_open_task",

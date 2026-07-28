@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "profile": "dynamic_v1",
+  "task_name": "adjust_bottle",
+  "template_id": null,
+  "sub_aspect": "task_execution.success_margin_components",
+  "tool_metric": "query_derived_metric",
+  "phenomenon_ids": [
+    "bottle_visibly_repositioned"
+  ],
+  "questions": [
+    {
+      "id": "bottle_visibly_repositioned",
+      "question_type": "visible_state_change",
+      "target_role": "manipulated_object",
+      "question": "Is the target bottle visibly moved from its initial resting pose to the elevated side placement?",
+      "visual_scope": "rollout_change",
+      "numeric_authority": "official_check_success_is_authoritative"
+    }
+  ],
+  "selection_reasons": [
+    "task_owned_fallback:adjust_bottle"
+  ],
+  "answer_contract": {
+    "required_response_keys": [
+      "phenomena",
+      "confidence",
+      "frame_ids",
+      "numeric_consistency",
+      "conflicts"
+    ],
+    "phenomenon_item_keys": [
+      "id",
+      "observed",
+      "description",
+      "confidence",
+      "frame_ids"
+    ],
+    "observed_type": "boolean_or_null",
+    "numeric_consistency_values": [
+      "consistent",
+      "conflict",
+      "uncertain"
+    ]
+  }
+}

@@ -442,6 +442,7 @@ def _proposal_card(
                 "operations": [
                     "event_count",
                     "minimum_distance",
+                    "terminal_signal_component",
                     "time_between_events",
                 ],
                 "allowed_identifiers": typed_identifiers,
@@ -492,6 +493,21 @@ def _proposal_card(
                         ],
                         "unit": "s",
                         "null_semantics": "null_if_missing_or_reversed",
+                    },
+                    "terminal_signal_component": {
+                        "fields": [
+                            "schema_version",
+                            "operation",
+                            "signal",
+                            "component",
+                            "absolute",
+                            "unit",
+                            "null_semantics",
+                        ],
+                        "optional_fields": ["absolute"],
+                        "components": ["x", "y", "z"],
+                        "unit": "m",
+                        "null_semantics": "null_if_terminal_not_finite",
                     },
                 },
                 "authority": (
@@ -682,6 +698,12 @@ def _validate_typed_metric_identifiers(
         if not requested <= allowed_signals:
             raise ProposalError(
                 "MetricSpec trace signals are outside the bound TaskSchema"
+            )
+        return
+    if spec.get("operation") == "terminal_signal_component":
+        if spec.get("signal") not in allowed_signals:
+            raise ProposalError(
+                "MetricSpec trace signal is outside the bound TaskSchema"
             )
         return
     selector_fields = (

@@ -311,7 +311,7 @@ class CrossTaskEntrypointTests(unittest.TestCase):
             global_route_result={
                 "global_router_provider_calls": 0,
                 "provider_called": False,
-                "route_source": "runtime_bound_control_handoff",
+                "route_source": "runtime_task_checkpoint_binding",
             },
             claim_first_runtime_state={
                 "assessment": {
@@ -372,7 +372,7 @@ class CrossTaskEntrypointTests(unittest.TestCase):
             global_route_result={
                 "global_router_provider_calls": 0,
                 "provider_called": False,
-                "route_source": "runtime_bound_control_handoff",
+                "route_source": "runtime_task_checkpoint_binding",
             },
             claim_first_runtime_state={
                 "assessment": {
@@ -485,7 +485,7 @@ class CrossTaskEntrypointTests(unittest.TestCase):
             global_route_result={
                 "global_router_provider_calls": 0,
                 "provider_called": False,
-                "route_source": "runtime_bound_control_handoff",
+                "route_source": "runtime_task_checkpoint_binding",
             },
             claim_first_runtime_state={
                 "assessment": {
@@ -515,9 +515,9 @@ class CrossTaskEntrypointTests(unittest.TestCase):
             },
             open_task_resolution={"decision": "retrieve_and_adapt"},
             concern_candidate_resolution={
-                "decision": "discover_candidates",
-                "resolution": "broad_or_ambiguous",
-                "candidate_aspect_ids": ["object_position"],
+                "decision": "catalog_external",
+                "resolution": "open_world_candidate_discovery_required",
+                "candidate_aspect_ids": None,
                 "selected_template_ids": [],
                 "concern_created_before_catalog": True,
                 "catalog_was_model_visible": False,
@@ -728,11 +728,17 @@ class CrossTaskEntrypointTests(unittest.TestCase):
         self.assertEqual(route_result["global_router_provider_calls"], 0)
         self.assertEqual(route_result["attempt_count"], 0)
         self.assertEqual(routed["task_name"], "click_bell")
+        self.assertIsNone(routed["proposal"])
+        self.assertTrue(route_result["selection"]["binding_only"])
         self.assertEqual(
-            routed["proposal"]["first_aspect_id"],
-            "task_execution.official_baseline",
+            route_result["selection"]["requested_aspect_ids"],
+            [],
         )
-        self.assertIn(query, routed["proposal"]["evaluation_goal"])
+        self.assertIsNone(route_result["selection"]["first_aspect_id"])
+        self.assertIn(
+            query,
+            route_result["selection"]["evaluation_goal"],
+        )
 
     def test_unbound_query_discovers_concern_before_checkpoint_binding(self):
         query = "Where does this policy first expose a task weakness?"
@@ -845,7 +851,7 @@ class CrossTaskEntrypointTests(unittest.TestCase):
             )
         )
 
-    def test_official_plan_only_does_not_require_provider_key(self):
+    def test_explicit_legacy_official_plan_only_does_not_require_provider_key(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             schema_dir = root / "mea/toolkit/schemas"
@@ -868,6 +874,8 @@ class CrossTaskEntrypointTests(unittest.TestCase):
                     "click_bell",
                     "--evaluation-id",
                     "eval_click_bell_no_key",
+                    "--open-query-planner",
+                    "catalog_step_v1",
                     "--plan-only",
                     "--no-history",
                 ],
@@ -942,6 +950,13 @@ class CrossTaskEntrypointTests(unittest.TestCase):
             self.assertEqual(
                 manifest["planner"]["public_planner"],
                 "ClaimFirstOpenQueryAgent",
+            )
+            self.assertEqual(
+                manifest["planner"]["kind"],
+                "claim_first_direct_initial_v1",
+            )
+            self.assertFalse(
+                manifest["planner"]["task_specific_planner_used"]
             )
             self.assertFalse(manifest["planner"]["provider_called"])
 

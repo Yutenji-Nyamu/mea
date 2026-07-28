@@ -35,15 +35,13 @@ from mea.planner import (
     AdaptivePlanStepAgent,
     BoundTaskPlanSession,
     OpenWorldPlanSession,
-    CatalogPlanAgent,
+    ClaimFirstInitialPlanBuilder,
     ClaimFirstOpenQueryAgent,
     ClaimFirstRuntimeController,
-    ClickBellFixedSuitePlanAgent,
-    ClickBellPositionPlanAgent,
     FreeConcernAgent,
     GlobalQueryRouter,
     build_act_catalog,
-    build_control_anchor_proposal,
+    build_open_world_evaluation_target,
     control_template_id,
     discover_robotwin_task_inventory,
     make_evaluation_id,
@@ -90,12 +88,6 @@ from mea.toolgen import (
     route_tool_request,
 )
 from mea.toolkit import aggregate_tool_executions
-from mea.strategy_plan import (
-    StrategyPlanError,
-    load_registered_execution,
-)
-
-
 def write_json(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
@@ -164,56 +156,46 @@ def build_bound_claim_first_handoff(
     task_name: str,
     user_request: str,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Bind an already resolved task to its runtime-owned control proposal.
+    """Bind an already resolved task/checkpoint without choosing an aspect.
 
     FreeConcern and the policy compatibility gate have already selected the
-    executable task.  Choosing the unchanged control is a transport decision,
-    not another semantic provider decision, so the global checkpoint router is
-    deliberately skipped on this path.
+    executable task.  QueryContract and the direct ClaimFirst initial builder
+    decide whether an unchanged control is required later; this handoff must
+    not manufacture an aspect/template proposal.
     """
 
-    session = BoundTaskPlanSession.from_catalog(catalog, task_name)
-    target = session.target
-    proposal = build_control_anchor_proposal(target, user_request)
-    requested_aspects = proposal.get("requested_aspect_ids")
-    first_aspect = proposal.get("first_aspect_id")
-    if not isinstance(requested_aspects, list) or not requested_aspects:
-        template_to_aspect = {
-            str(template_id): str(aspect["aspect_id"])
-            for aspect in target["aspects"]
-            for template_id in aspect["template_ids"]
-        }
-        requested_templates = proposal.get("requested_template_ids")
-        first_template = proposal.get("first_template_id")
-        if not isinstance(requested_templates, list) or not requested_templates:
-            raise RuntimeError("bound control proposal has no selected target")
-        try:
-            requested_aspects = list(
-                dict.fromkeys(
-                    template_to_aspect[str(template_id)]
-                    for template_id in requested_templates
-                )
-            )
-            first_aspect = template_to_aspect[str(first_template)]
-        except KeyError as exc:
-            raise RuntimeError(
-                "bound control proposal is outside the selected task"
-            ) from exc
+    target = next(
+        (
+            deepcopy(item)
+            for item in catalog.get("tasks", [])
+            if item.get("task_name") == task_name
+        ),
+        None,
+    )
+    if target is None:
+        raise RuntimeError(f"bound task is not checkpoint-ready: {task_name!r}")
+    request = str(user_request or "").strip()
+    if not request:
+        raise RuntimeError("user_request must be non-empty")
 
     selection = {
-        "schema_version": 2,
+        "schema_version": 3,
         "decision": "route",
         "task_name": target["task_name"],
         "task_profile": target["task_profile"],
-        "evaluation_goal": proposal["evaluation_goal"],
-        "requested_aspect_ids": list(requested_aspects),
-        "first_aspect_id": str(first_aspect),
+        "evaluation_goal": f"answer_open_query_with_evidence: {request}",
+        "requested_aspect_ids": [],
+        "first_aspect_id": None,
         "unsupported_capabilities": [],
+        "binding_only": True,
     }
-    routed = route_to_planner_proposal(selection, catalog)
-    selected = set(selection["requested_aspect_ids"])
+    routed = {
+        "task_name": target["task_name"],
+        "task_profile": target["task_profile"],
+        "proposal": None,
+    }
     route_result = {
-        "schema_version": 1,
+        "schema_version": 2,
         "selection": selection,
         "resolved": {
             "task_name": target["task_name"],
@@ -221,18 +203,14 @@ def build_bound_claim_first_handoff(
             "task_profile": target["task_profile"],
             "planner_kind": target["planner_kind"],
             "checkpoint": deepcopy(target["checkpoint"]),
-            "aspects": [
-                deepcopy(aspect)
-                for aspect in target["aspects"]
-                if aspect["aspect_id"] in selected
-            ],
+            "aspects": [],
         },
         "catalog_sha256": catalog["catalog_sha256"],
         "provider_called": False,
         "attempt_count": 0,
         "validation_errors": [],
         "provider_metadata": {},
-        "route_source": "runtime_bound_control_handoff",
+        "route_source": "runtime_task_checkpoint_binding",
         "global_router_provider_calls": 0,
     }
     return route_result, routed
@@ -2691,7 +2669,10 @@ def build_compact_flagship_acceptance(
     runtime_bound_route = bool(
         isinstance(global_route_result, Mapping)
         and global_route_result.get("route_source")
-        == "runtime_bound_control_handoff"
+        in {
+            "runtime_task_checkpoint_binding",
+            "runtime_bound_control_handoff",
+        }
         and global_route_result.get("provider_called") is False
     )
     exact_catalog_candidate_binding = bool(
@@ -2719,9 +2700,12 @@ def build_compact_flagship_acceptance(
     runtime_candidate_discovery = bool(
         isinstance(concern_candidate_resolution, Mapping)
         and concern_candidate_resolution.get("decision")
-        == "discover_candidates"
+        in {"discover_candidates", "catalog_external"}
         and concern_candidate_resolution.get("resolution")
-        == "broad_or_ambiguous"
+        in {
+            "broad_or_ambiguous",
+            "open_world_candidate_discovery_required",
+        }
         and concern_candidate_resolution.get("concern_created_before_catalog")
         is True
         and concern_candidate_resolution.get("catalog_was_model_visible")
@@ -3524,7 +3508,9 @@ def parse_args() -> argparse.Namespace:
         "--auto-route",
         action="store_true",
         help=(
-            "Resolve the Query before task-specific planning. With "
+            "Explicitly request the production Query-first route (already the "
+            "default unless a hidden paper-compatibility protocol is selected). "
+            "With "
             "--bound-task-name, claim_first_v1 creates a catalog-free concern "
             "then checks it against the bound policy and the official RoboTwin "
             "task library. Without a bound task, the same catalog-free concern "
@@ -3545,25 +3531,13 @@ def parse_args() -> argparse.Namespace:
         "--bound-requested-aspect-id",
         dest="bound_requested_aspect_ids",
         action="append",
-        help=(
-            "Repeat to bind an auto-routed child evaluation to the exact "
-            "parent-selected aspect set. Requires --bound-task-name and "
-            "preserves the same task/checkpoint and rollout budget."
-        ),
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--proposal-mode",
         choices=["catalog", "novel_first_round", "bounded_each_round"],
         default="catalog",
-        help=(
-            "catalog uses the selected registered template unchanged. "
-            "novel_first_round asks the bounded Proposal Agent for one unseen "
-            "variation, then materializes it through the selected capability "
-            "envelope before any rollout. bounded_each_round repeats the "
-            "bounded Proposal step after every evidence-driven continue; axes "
-            "without a safe novel generator use registered_reuse. Requires "
-            "--auto-route."
-        ),
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--task-name",
@@ -3582,35 +3556,19 @@ def parse_args() -> argparse.Namespace:
         "--task-profile",
         choices=["official", "position_lr", "adaptive_properties", "fixed_suite"],
         default="official",
-        help=(
-            "official preserves the upstream task. position_lr enables the "
-            "legacy bounded two-round click_bell profile. adaptive_properties "
-            "uses model-selected position/object-instance aspects. fixed_suite "
-            "executes the selected trusted templates in a frozen order."
-        ),
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--planning-policy",
         choices=["dynamic_evidence_v1", "fixed_predeclared_v1"],
         default="dynamic_evidence_v1",
-        help=(
-            "For auto-routed click_bell, choose adaptive evidence routing or "
-            "a frozen predeclared schedule over the same selected candidates."
-        ),
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--open-query-planner",
         choices=["catalog_step_v1", "claim_first_v1"],
         default=None,
-        help=(
-            "For --auto-route, claim_first_v1 is the production default: it "
-            "first executes a "
-            "runtime-owned official-scene "
-            "control, then lets ClaimFirstOpenQueryAgent discover one semantic "
-            "next experiment from automatically bound evidence. Requires "
-            "--auto-route and dynamic planning. catalog_step_v1 is retained "
-            "only as a paper-ablation baseline."
-        ),
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--query-sufficiency-contract",
@@ -3726,22 +3684,77 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--evidence-manifest",
-        help="Repo-relative hash-pinned preregistration for a registered run.",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--command-plan",
-        help="Repo-relative inert fixed/dynamic command plan.",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--registered-route",
-        help="Repo-relative deterministic validated route produced by the command plan.",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--registered-strategy",
         choices=["fixed_predeclared_v1", "dynamic_evidence_v1"],
-        help="Strategy identity bound by the command plan.",
+        help=argparse.SUPPRESS,
     )
     return parser.parse_args()
+
+
+def resolve_default_open_query_planner(args: argparse.Namespace) -> str:
+    """Choose production ClaimFirst unless a paper protocol is explicit."""
+
+    selected = getattr(args, "open_query_planner", None)
+    if selected is not None:
+        return str(selected)
+    paper_compatibility = bool(
+        getattr(args, "registered_strategy", None) is not None
+        or getattr(args, "task_profile", "official") != "official"
+        or getattr(args, "planning_policy", "dynamic_evidence_v1")
+        != "dynamic_evidence_v1"
+        or getattr(args, "proposal_mode", "catalog") != "catalog"
+    )
+    return "catalog_step_v1" if paper_compatibility else "claim_first_v1"
+
+
+def resolve_claim_first_control_required(
+    user_request: str,
+    *,
+    query_contract: Mapping[str, Any] | None,
+    semantic_context: Mapping[str, Any] | None,
+) -> bool:
+    """Resolve the control cost before screening the candidate budget."""
+
+    if query_contract is not None:
+        return query_contract["control_requirement"] == "required"
+    return (
+        infer_control_requirement(
+            user_request,
+            semantic_context=semantic_context,
+        )
+        == "required"
+    )
+
+
+def resolve_claim_first_candidate_budget(
+    max_agent_rounds: int | None,
+    *,
+    user_request: str,
+    query_contract: Mapping[str, Any] | None,
+    semantic_context: Mapping[str, Any] | None,
+) -> int | None:
+    """Return candidate rounds after charging only a required control."""
+
+    if max_agent_rounds is None:
+        return None
+    return int(max_agent_rounds) - int(
+        resolve_claim_first_control_required(
+            user_request,
+            query_contract=query_contract,
+            semantic_context=semantic_context,
+        )
+    )
 
 
 def main() -> None:
@@ -3751,10 +3764,7 @@ def main() -> None:
 
         run_libero_agent_cli(args)
         return
-    if args.open_query_planner is None:
-        args.open_query_planner = (
-            "claim_first_v1" if args.auto_route else "catalog_step_v1"
-        )
+    args.open_query_planner = resolve_default_open_query_planner(args)
     claim_first_mode = args.open_query_planner == "claim_first_v1"
     claim_first_bound_plan_only = bool(
         claim_first_mode
@@ -3762,6 +3772,10 @@ def main() -> None:
         and args.bound_task_name is not None
         and not args.auto_route
     )
+    if claim_first_mode and not claim_first_bound_plan_only:
+        # Query-first routing is the production default.  ``--auto-route`` is
+        # retained as an explicit spelling for existing commands.
+        args.auto_route = True
     if args.num_episodes <= 0:
         raise SystemExit("--num-episodes must be positive")
     if args.auto_route and args.task_module is not None:
@@ -3843,8 +3857,13 @@ def main() -> None:
     args.evaluation_id = args.evaluation_id or make_evaluation_id()
     registered_execution: dict[str, Any] | None = None
     if args.registered_strategy is not None:
+        from experiments.paper.registered_execution_adapter import (
+            RegisteredExecutionAdapterError,
+            load_registered_execution_for_cli,
+        )
+
         try:
-            registered_execution = load_registered_execution(
+            registered_execution = load_registered_execution_for_cli(
                 repo_root,
                 evidence_manifest_path=str(args.evidence_manifest),
                 command_plan_path=str(args.command_plan),
@@ -3853,7 +3872,7 @@ def main() -> None:
                 evaluation_id=str(args.evaluation_id),
                 observed_argv=list(sys.argv),
             )
-        except StrategyPlanError as exc:
+        except RegisteredExecutionAdapterError as exc:
             raise SystemExit(f"registered execution preflight failed: {exc}") from exc
     models = resolve_model_profile(
         args.model_profile,
@@ -4076,10 +4095,17 @@ def main() -> None:
                     global_catalog, args.bound_task_name
                 ).target,
             )
-            candidate_budget = (
-                int(args.max_agent_rounds) - 1
-                if args.max_agent_rounds is not None
+            semantic_context_for_budget = (
+                free_concern_bundle.get("concern")
+                if isinstance(free_concern_bundle, Mapping)
+                and isinstance(free_concern_bundle.get("concern"), Mapping)
                 else None
+            )
+            candidate_budget = resolve_claim_first_candidate_budget(
+                args.max_agent_rounds,
+                user_request=args.request,
+                query_contract=query_sufficiency_contract,
+                semantic_context=semantic_context_for_budget,
             )
             candidate_domain_supported = (
                 concern_candidate_domain_is_executable(
@@ -4241,33 +4267,23 @@ def main() -> None:
             vision_model=models["vision"],
             timeout=180.0,
         )
-    if fixed_click_bell:
-        assert provider is not None
-        planner = ClickBellFixedSuitePlanAgent(
-            repo_root,
-            provider,
-            model=models["planner"],
-            start_seed=(
-                args.start_seed if args.start_seed is not None else 100401
-            ),
-            num_episodes=args.num_episodes,
-            telemetry_profile=args.telemetry_profile,
-            max_rounds=args.generated_rounds,
-        )
-    elif legacy_click_bell:
-        planner = ClickBellPositionPlanAgent(
-            repo_root,
-            start_seed=(
-                args.start_seed if args.start_seed is not None else 100401
-            ),
-            num_episodes=args.num_episodes,
-            telemetry_profile=args.telemetry_profile,
-            max_rounds=args.generated_rounds,
-        )
+    planner = None
+    if claim_first_mode:
+        # ClaimFirst owns initial planning directly below.  Legacy planners
+        # remain available only for explicit compatibility/experiment modes.
+        pass
     else:
-        planner = CatalogPlanAgent(
+        # Compatibility and paper-ablation planners live outside the
+        # production method path.  Import them lazily only when the caller
+        # explicitly selects a historical protocol.
+        from experiments.paper.legacy_planner_factory import (
+            build_legacy_planner,
+        )
+
+        planner = build_legacy_planner(
             repo_root,
             task_name=args.task_name,
+            task_profile=args.task_profile,
             provider=provider,
             model=models["planner"],
             task_module=args.task_module,
@@ -4276,7 +4292,6 @@ def main() -> None:
             telemetry_profile=args.telemetry_profile,
             max_rounds=args.generated_rounds,
             execution_backend=execution_backend,
-            task_profile=args.task_profile,
         )
     history_database = None
     history_context: list[dict[str, Any]] = []
@@ -4331,35 +4346,24 @@ def main() -> None:
     }
     if validated_proposal is not None:
         planner_kwargs["validated_proposal"] = validated_proposal
-    claim_first_pre_session: BoundTaskPlanSession | None = None
+    claim_first_initial_target: dict[str, Any] | None = None
     claim_first_round_budget: int | None = None
     claim_first_control_required = True
     initial_open_candidate: dict[str, Any] | None = None
     if claim_first_mode:
         if global_catalog is None:
             raise RuntimeError("claim-first runtime requires the trusted ACT catalog")
-        claim_first_pre_session = BoundTaskPlanSession.from_catalog(
-            global_catalog,
-            args.task_name,
-        )
         semantic_context = (
             free_concern_bundle.get("concern")
             if isinstance(free_concern_bundle, Mapping)
             and isinstance(free_concern_bundle.get("concern"), Mapping)
             else None
         )
-        if query_sufficiency_contract is not None:
-            claim_first_control_required = (
-                query_sufficiency_contract["control_requirement"] == "required"
-            )
-        else:
-            claim_first_control_required = (
-                infer_control_requirement(
-                    args.request,
-                    semantic_context=semantic_context,
-                )
-                == "required"
-            )
+        claim_first_control_required = resolve_claim_first_control_required(
+            args.request,
+            query_contract=query_sufficiency_contract,
+            semantic_context=semantic_context,
+        )
         claim_first_round_budget = (
             int(args.max_agent_rounds)
             if args.max_agent_rounds is not None
@@ -4421,11 +4425,38 @@ def main() -> None:
                     [initial_open_candidate["candidate_id"]],
                     candidate_universe_closed=False,
                 )
-        planner_kwargs["validated_proposal"] = build_control_anchor_proposal(
-            claim_first_pre_session.target,
-            args.request,
+        claim_first_initial_target = build_open_world_evaluation_target(
+            global_catalog,
+            args.task_name,
+            max_rounds=claim_first_round_budget,
         )
-    manifest = planner.plan(args.request, **planner_kwargs)
+    if claim_first_mode:
+        if claim_first_initial_target is None:
+            raise RuntimeError("claim-first runtime target was not initialized")
+        initial_builder = ClaimFirstInitialPlanBuilder(
+            repo_root,
+            target=claim_first_initial_target,
+            max_rounds=int(claim_first_round_budget),
+            start_seed=(
+                args.start_seed if args.start_seed is not None else 100000
+            ),
+            num_episodes=args.num_episodes,
+            execution_backend=execution_backend,
+            task_module=args.task_module,
+            telemetry_profile=args.telemetry_profile,
+        )
+        manifest = initial_builder.plan(
+            args.request,
+            evaluation_id=str(args.evaluation_id),
+            control_required=claim_first_control_required,
+            query_contract=query_sufficiency_contract,
+            history_context=history_context,
+            history_metadata=planner_kwargs["history_metadata"],
+        )
+    else:
+        if planner is None:
+            raise RuntimeError("legacy planner was not initialized")
+        manifest = planner.plan(args.request, **planner_kwargs)
     evaluation_id = manifest["evaluation_id"]
     evaluation_dir = repo_root / "mea/evaluation_runs" / evaluation_id
     if (
@@ -4471,8 +4502,9 @@ def main() -> None:
     if initial_open_candidate is not None:
         if (
             not isinstance(plan.get("rounds"), list)
-            or not plan["rounds"]
-            or not isinstance(plan["rounds"][0].get("execution"), Mapping)
+            or not isinstance(
+                manifest.get("initial_execution_binding"), Mapping
+            )
         ):
             raise RuntimeError(
                 "ClaimFirst materializer did not provide an execution binding"
@@ -4482,7 +4514,7 @@ def main() -> None:
             evaluation_dir=evaluation_dir,
             round_number=1,
             candidate=initial_open_candidate,
-            control_execution=plan["rounds"][0]["execution"],
+            control_execution=manifest["initial_execution_binding"],
         )
         plan["rounds"] = [initial_round]
         plan["query_contract"] = deepcopy(query_sufficiency_contract)
@@ -4521,10 +4553,12 @@ def main() -> None:
                     )
                 effective_round_budget = claim_first_round_budget
                 plan["max_rounds"] = effective_round_budget
-                bound_plan_session = OpenWorldPlanSession.from_catalog(
-                    global_catalog,
-                    args.task_name,
-                    max_rounds=effective_round_budget,
+                if claim_first_initial_target is None:
+                    raise RuntimeError(
+                        "claim-first runtime target was not initialized"
+                    )
+                bound_plan_session = OpenWorldPlanSession.from_target(
+                    claim_first_initial_target,
                     control_round=(
                         plan["rounds"][0]
                         if claim_first_control_required

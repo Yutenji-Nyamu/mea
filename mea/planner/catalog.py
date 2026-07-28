@@ -20,7 +20,7 @@ from mea.capability_adapter import (
     taskgen_route,
 )
 
-from .click_bell import (
+from .click_bell_catalog import (
     CLICK_BELL_ADAPTIVE_ASPECTS,
     CLICK_BELL_ADAPTIVE_TEMPLATES,
 )

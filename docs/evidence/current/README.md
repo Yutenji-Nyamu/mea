@@ -1,64 +1,71 @@
-# 当前紧凑证据：开放 Query 的 ClickBell 两轮闭环
+# 当前紧凑证据：AdjustBottle 开放主链与冲突保真
 
-本包对应 `eval_20260727_batch28_neutral_click_live_v4`。输入只有 broad Query：
+本包对应在线运行 `eval_20260728_adjust_bottle_open_live_v2` 及其追加式
+0-ACT 审计 `terminal_tool_plus_task_vqa_repair_v7`。
 
-> Where does this ACT policy first expose a weakness when generalizing over manipulated-object properties?
+输入只有开放 Query，没有提供 aspect、template 或候选顺序：
 
-CLI 没有提供 aspect、template 或候选顺序。一个生产命令完成了：
+> 这个 ACT 策略执行调整瓶子任务时，对未见对象属性的泛化能力如何，最先在哪里暴露弱点？
+
+## 在线数据流
 
 ```text
-Query
+开放 Query
 → inventory-free FreeConcern
-→ QueryContract 要求 neutral official control
-→ round 1 ACT official success
-→ evidence-conditioned ClaimFirst 产生 catalog 外 runtime candidate
-→ provider 编写 bell translation scene + check_success()
-→ AST / fixtures / state / render / VLM / expert gate
-→ round 2 ACT generated-checker success
-→ Rule / VQA / Aggregate
-→ budget_exhausted，evidence_sufficient=false
-→ 对原 Query 返回 inconclusive
+→ 运行时绑定 adjust_bottle / ACT checkpoint
+→ direct ClaimFirst initial plan
+→ round 1 official control：ACT success
+→ evidence-conditioned Planner 提出 catalog 外 runtime candidate
+→ Generic TaskGen 编写 scene/check_success()
+→ AST、2/2 fixtures、render、VLM visual diagnosis、expert gate
+→ round 2 ACT
+→ Rule / VQA / Aggregate / Planner / Answer
 ```
 
-两轮均为真实 ACT，seed 都是 `100405`。第二轮 checker 的
-`official_core_predicate_satisfied=true`，但它仍是实验语义扩展，不是
-official-equivalent benchmark 结果。系统没有把两次成功冒充“已找到首个弱点”或泛化保证。
+在线链共启动 2 次 ACT，seed 均为 `100201`。它证明第三个 RoboTwin
+任务可以走通通用生成式主链，且未新增 `adjust_bottle` 专属 Planner 或 TaskGen
+方言。
 
-## Tool 语义修复
+源在线结果仍是 `budget_exhausted` / `inconclusive`。原因不是隐去的策略成功：
 
-原运行中的 provider Tool 把 active-gripper 距离错误收缩为固定
-`left_tcp_position`；本场景实际 active arm 是 right。该 `0.513703 m` 数值现已明确排除，
-并保留为[被拒绝的原请求](artifacts/tool/rejected_left_tcp_request.json)，不能进入当前结论。
+- provider 生成的实验 checker 判定 round 2 为失败；它尚未经过
+  official-equivalent 认证，不能当作 official benchmark 成功率；
+- 当时 Tool 错选为 contact→success 时间，因没有 success event 得到 `null`；
+- 当时动态 VQA 错误继承 BBH 的 block/hammer 问题。
+- 原始 answer 把未认证 checker 写成 “expected semantic extension”；这是框架的
+  保守标签，不是代码等价性分析结论，canonical v7 已改为“尚未认证”。
 
-当前代码会 fail-closed。复核只复用了上面两条缓存真实 telemetry，新增 `0` 次 ACT：
+## 追加式方法修复
 
-- 生成并验证 `bell_active_tcp_min_xy_error`；
-- control 为 `0.0092059225 m`，translated 为 `0.0057088756 m`；
-- 两者均正确选择 right arm；
-- 第二个改写 Query 命中 `run_local_reuse`，没有再次调用 Tool codegen provider。
+修复后的代码不重跑 ACT，也不覆盖源 bundle，而是只复用已完成 telemetry：
 
-这修复了测量语义，不增加 policy 性能样本；原 Query 结论仍是 `inconclusive`。
+1. 通用 `terminal_signal_component` 首次编译并测得
+   `bottle_functional_position.z = 0.771909236907959 m`。
+2. 第二个完全相同 Tool Query 命中 `run_local_reuse`，provider 未再次调用。
+3. task-owned VQA 只问 `bottle_visibly_repositioned`，观察为 `true`
+   （confidence `0.98`）。
+4. 该视觉观察与 generated/official-core predicate 的 `false` 发生冲突。
+5. composed v7 重算 Aggregate、EvidencePacket 和 Planner：
+   `EvidencePacket=conflicting`，`stop_reason=evidence_conflict`，
+   `claim_verdict=inconclusive`，`evidence_sufficient=false`。
 
-原始 [answer.json](artifacts/answer.json) 还保留了另一个运行时元数据错误：round 1
-因 Task summary 未重复声明 official equivalence 而被写成 `non_comparable`。其 authority
-实际是 `official_check_success`，当前 normalizer 已修为 `official_only`；
-[corrected projection](corrected_aggregate.json) 使用修正后的语义。该元数据修复同样不改变
-最终的 inconclusive verdict。
+因此，v7 证明的是“新 Tool 的生成、验证、注册、复用以及冲突证据能够进入
+Planner 并触发 fail-closed 停止”，不是对原 Query 的正向泛化结论。
 
 ## 阅读顺序
 
-| 阶段 | 产物 |
+| 阶段 | 主要产物 |
 | --- | --- |
-| Query 与开放 concern | [request](artifacts/query/request.json)、[FreeConcern prompt](artifacts/planner/free_concern_prompt.md)、[response](artifacts/planner/free_concern_response.txt)、[concern](artifacts/planner/free_concern.json) |
-| evidence-conditioned proposal | [round-2 binding](artifacts/planner/round2_bound_proposal.json)，其中包含 runtime candidate 与更新后的开放 QueryContract |
-| provider TaskGen | [code prompt](artifacts/task/code_prompt.md)、[response](artifacts/task/provider_response.json)、[task.py](artifacts/task/task.py)、[6/6 fixtures](artifacts/task/checker_fixtures.json) |
-| 视觉验收 | [official/generated 对比图](artifacts/task/official_vs_generated.png)、[VLM prompt](artifacts/task/vision_prompt.md)、[response](artifacts/task/vision_response.txt)、[result](artifacts/task/vision.json) |
-| 两轮 ACT | [official video](artifacts/act/official_seed_100405.mp4)、[translated video](artifacts/act/translated_seed_100405.mp4) |
-| Tool repair | [request prompt](artifacts/tool/repair_request_prompt.md)、[rejected response](artifacts/tool/repair_request_response_rejected.txt)、[accepted response](artifacts/tool/repair_request_response_accepted.txt)、[generated code](artifacts/tool/generated_tool.py)、[validated execution](artifacts/tool/first_execution.json) |
-| Tool exact reuse | [second Query](artifacts/tool/reuse_query.json)、[run-local reuse execution](artifacts/tool/reuse_execution.json) |
-| Task exact reuse | [independent rephrased Query receipt](artifacts/reuse/exact_task_reuse.json)，provider call 为 0、ACT 为 0 |
-| 结论 | [corrected projection](corrected_aggregate.json)、[structured answer](artifacts/answer.json)、[Chinese feedback](artifacts/feedback.json)、[run summary](run_summary.json) |
+| Query 与任务绑定 | [request](artifacts/query/request.json)、[global route](artifacts/planner/global_query_route.json)、[FreeConcern prompt](artifacts/planner/free_concern_prompt.md)、[response](artifacts/planner/free_concern_response.txt)、[runtime binding](artifacts/planner/runtime_task_binding.json) |
+| evidence-conditioned planning | [round-1 prompt](artifacts/planner/after_round_1_prompt.md)、[response](artifacts/planner/after_round_1_response.txt)、[runtime candidate](artifacts/planner/experiment_candidate.json)、[decision](artifacts/planner/decision_after_round_1.json) |
+| TaskGen | [code prompt](artifacts/task/code_prompt.md)、[provider response](artifacts/task/provider_response.txt)、[task.py](artifacts/task/task.py)、[fixtures](artifacts/task/checker_fixtures.json)、[scene comparison](artifacts/task/official_vs_generated.png) |
+| visual diagnosis / expert | [vision prompt](artifacts/task/vision_prompt.md)、[response](artifacts/task/vision_response.txt)、[result](artifacts/task/vision.json)、[expert preflight](artifacts/task/expert_preflight.json) |
+| 两轮 rollout | [official video](artifacts/rollout/round_1_official_seed_100201.mp4)、[generated-task video](artifacts/rollout/round_2_generated_seed_100201.mp4)、[montage](artifacts/rollout/round_2_montage.png) |
+| 在线缺陷原貌 | [null Tool execution](artifacts/original/round_2_null_tool_execution.json)、[错误 VQA Query](artifacts/original/round_2_vqa_wrong_query.json)、[原始 answer](artifacts/planner/answer_original.json) |
+| 修复 Tool 与 exact reuse | [MetricSpec](artifacts/repair/terminal_metric_spec.json)、[generated Tool](artifacts/repair/terminal_tool.py)、[execution](artifacts/repair/terminal_tool_execution.json)、[exact reuse](artifacts/repair/terminal_tool_exact_reuse.json) |
+| task-owned VQA | [query](artifacts/repair/vqa_query.json)、[prompt](artifacts/repair/vqa_prompt.md)、[response](artifacts/repair/vqa_response.txt)、[result](artifacts/repair/vqa_result.json) |
+| composed 结论 | [Aggregate](artifacts/repair/aggregate.json)、[Evidence record](artifacts/repair/evidence_record.json)、[Planner replay](artifacts/repair/planner_replay.json)、[result](artifacts/repair/result.json) |
 
-[manifest.json](manifest.json) 是本包的文件、来源、大小与 SHA-256 索引。完整 telemetry、
-raw logs 和 checkpoint 只保留在 manifest 指向的 canonical AutoDL 目录；Git 只跟踪这份
-紧凑数据流。上一份 current bundle 可由 Git 历史恢复。
+完整 telemetry、raw logs、checkpoint 和中间 repair v1–v5 只保留在服务器 canonical
+目录；Git 只跟踪本包中的无重复紧凑数据流。上一份 ClickBell current bundle 可由
+Git 历史恢复。

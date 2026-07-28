@@ -1,0 +1,21 @@
+{
+  "phenomena": [
+    {
+      "id": "bottle_visibly_repositioned",
+      "observed": true,
+      "description": "The bottle shifts from its initial central resting pose to an elevated position near the upper edge of the scene.",
+      "confidence": 0.98,
+      "frame_ids": ["initial", "context_2", "final"]
+    }
+  ],
+  "confidence": 0.98,
+  "frame_ids": ["initial", "context_2", "final"],
+  "numeric_consistency": "conflict",
+  "conflicts": [
+    {
+      "phenomenon": "bottle_visibly_repositioned",
+      "description": "The bottle is visibly repositioned, but the authoritative official core predicate reports false.",
+      "frame_ids": ["initial", "context_2", "final"]
+    }
+  ]
+}

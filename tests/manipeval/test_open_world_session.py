@@ -117,6 +117,21 @@ class OpenWorldPlanSessionTests(unittest.TestCase):
         )
         self.assertEqual(normalized["requested_candidate_ids"], [])
 
+    def test_production_session_starts_from_frozen_target_without_catalog(self):
+        direct = OpenWorldPlanSession.from_target(
+            self.session.target,
+            control_round=_control_round(self.session),
+            query_contract=self.contract,
+        )
+        normalized = direct.normalize_plan(self.plan)
+
+        self.assertIsNone(direct.catalog)
+        self.assertEqual(normalized["task_name"], "adjust_bottle")
+        self.assertEqual(
+            normalized["checkpoint"],
+            self.session.target["checkpoint"],
+        )
+
     def test_control_round_is_frozen_after_first_normalization(self):
         self.session.normalize_plan(self.plan)
         changed = deepcopy(self.plan)

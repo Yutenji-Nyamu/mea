@@ -2,23 +2,23 @@ Generate one RoboTwin experiment from the open Query-derived candidate below. Re
 
 EXPERIMENT CANDIDATE:
 {
-  "base_task": "click_bell",
-  "candidate_id": "dynamic.click.bell.object.generalization.position.translation.the.act.policy.s.first.weakness.in.manipulated.object.generalization.is.spatial.translating.the.bell.within.a.bounded.reachable.workspace.will.reduce.official.press.success.or.increase.final.bell.contact.distance.relative.to.the.unchanged.control.5142e88b1d4d",
+  "base_task": "adjust_bottle",
+  "candidate_id": "dynamic.adjust.bottle.task.execution.success.margin.components.act.50450b5e2502",
   "checker_need": {
-    "description": "Generate an experimental check_success predicate that decides: The ACT policy's first weakness in manipulated-object generalization is spatial: translating the bell within a bounded reachable workspace will reduce official press success or increase final bell-contact distance relative to the unchanged control.",
+    "description": "Generate an experimental check_success predicate that decides: 在保持官方场景与 ACT 检查点不变的情况下，基线成功主要由瓶子的高度达标或横向越界裕量之一决定；分解后的轨迹观测将显示最先接近失败的成功条件，从而定位潜在弱点。",
     "kind": "generate",
     "reuse_first": true
   },
   "scene_need": {
-    "description": "TaskGen must create a bounded object_position variant overlay for the bell and preserve the official click_bell success contract.",
+    "description": "TaskGen must retrieve or generate a scene checker that preserves official success while exposing bottle functional-point height and absolute-x margin components.",
     "kind": "adapt",
     "reuse_first": true
   },
   "schema_version": 2,
-  "semantic_concern": "object_generalization.position_translation: The ACT policy's first weakness in manipulated-object generalization is spatial: translating the bell within a bounded reachable workspace will reduce official press success or increase final bell-contact distance relative to the unchanged control.",
-  "source_query": "Where does this ACT policy first expose a weakness when generalizing over manipulated-object properties?",
+  "semantic_concern": "task_execution.success_margin_components: 在保持官方场景与 ACT 检查点不变的情况下，基线成功主要由瓶子的高度达标或横向越界裕量之一决定；分解后的轨迹观测将显示最先接近失败的成功条件，从而定位潜在弱点。",
+  "source_query": "这个 ACT 策略执行调整瓶子任务时，对未见对象属性的泛化能力如何，最先在哪里暴露弱点？",
   "tool_need": {
-    "description": "ToolGen should reuse the official success checker and generate a rule metric reporting the final target-contact distance and whether the active gripper is closed, so partial spatial degradation is observable even if the binary outcome remains successful.",
+    "description": "ToolGen must retrieve or generate observable rule metrics for final bottle functional-point height, absolute x, height margin, x margin, and official success, reusing the official checker where possible.",
     "kind": "measure",
     "reuse_first": true
   }
@@ -27,12 +27,32 @@ EXPERIMENT CANDIDATE:
 THIN TASK ADAPTER:
 {
   "asset_paths": [
-    "description/objects_description/050_bell/base0.json",
-    "description/objects_description/050_bell/base1.json"
+    "description/objects_description/001_bottle/base0.json",
+    "description/objects_description/001_bottle/base1.json",
+    "description/objects_description/001_bottle/base10.json",
+    "description/objects_description/001_bottle/base11.json",
+    "description/objects_description/001_bottle/base12.json",
+    "description/objects_description/001_bottle/base13.json",
+    "description/objects_description/001_bottle/base14.json",
+    "description/objects_description/001_bottle/base15.json",
+    "description/objects_description/001_bottle/base16.json",
+    "description/objects_description/001_bottle/base17.json",
+    "description/objects_description/001_bottle/base18.json",
+    "description/objects_description/001_bottle/base19.json",
+    "description/objects_description/001_bottle/base2.json",
+    "description/objects_description/001_bottle/base20.json",
+    "description/objects_description/001_bottle/base21.json",
+    "description/objects_description/001_bottle/base22.json",
+    "description/objects_description/001_bottle/base3.json",
+    "description/objects_description/001_bottle/base4.json",
+    "description/objects_description/001_bottle/base5.json",
+    "description/objects_description/001_bottle/base6.json",
+    "description/objects_description/001_bottle/base7.json",
+    "description/objects_description/001_bottle/base8.json",
+    "description/objects_description/001_bottle/base9.json"
   ],
   "documentation_paths": [
-    "description/task_instruction/click_bell.json",
-    "mea/knowledge/tasks/click_bell.md"
+    "description/task_instruction/adjust_bottle.json"
   ],
   "generation_hook_contract": {
     "expert_preflight": true,
@@ -44,31 +64,28 @@ THIN TASK ADAPTER:
     "render_preflight": true,
     "static_and_fixture_validation": true
   },
-  "official_class": "click_bell",
-  "official_source": "envs/click_bell.py",
+  "official_class": "adjust_bottle",
+  "official_source": "envs/adjust_bottle.py",
   "schema_version": 1,
-  "task_name": "click_bell",
+  "task_name": "adjust_bottle",
   "task_schema": {
     "action_dimension": 14,
     "contact_focus_actor_ids": [
-      "bell"
+      "bottle"
     ],
     "physics_timestep_seconds": 0.004,
-    "probe_task_attributes": [
-      "bell_id"
-    ],
     "schema_version": 1,
     "semantic_fields": [
       {
-        "actor_id": "bell",
-        "name": "bell_position",
+        "actor_id": "bottle",
+        "name": "bottle_position",
         "source": "actor_position"
       },
       {
-        "actor_id": "bell",
-        "name": "bell_contact_position",
+        "actor_id": "bottle",
+        "name": "bottle_functional_position",
         "point_id": 0,
-        "source": "actor_contact_position"
+        "source": "actor_functional_position"
       },
       {
         "name": "left_tcp_position",
@@ -83,32 +100,30 @@ THIN TASK ADAPTER:
     ],
     "semantic_roles": {
       "left_tcp_position": "left_tcp_position",
-      "manipulated_object_position": "bell_position",
-      "right_tcp_position": "right_tcp_position",
-      "target_contact_position": "bell_contact_position"
+      "manipulated_functional_position": "bottle_functional_position",
+      "manipulated_object_position": "bottle_position",
+      "right_tcp_position": "right_tcp_position"
     },
     "success_contract": {
-      "requires_closed_active_gripper": true,
-      "target_actor_id": "bell",
-      "target_contact_point": 0,
-      "type": "official_check_success",
-      "xy_tolerance_m": [
-        0.025,
-        0.025
-      ],
-      "z_tolerance_m": 0.03
+      "minimum_absolute_x_m": 0.15,
+      "minimum_height_m": 0.9,
+      "target_actor_id": "bottle",
+      "target_functional_point": 0,
+      "target_side_semantic_field": "bottle_functional_position",
+      "target_side_source": "initial_bottle_x_sign",
+      "type": "official_check_success"
     },
-    "task_family": "press_contact",
-    "task_name": "click_bell",
+    "task_family": "object_reposition",
+    "task_name": "adjust_bottle",
     "tracked_actors": [
       {
-        "contact_points": [
+        "contact_points": [],
+        "functional_points": [
           0
         ],
-        "functional_points": [],
-        "id": "bell",
-        "scene_name": "050_bell",
-        "task_attribute": "bell"
+        "id": "bottle",
+        "scene_name": "001_bottle",
+        "task_attribute": "bottle"
       }
     ],
     "trusted_tool_profile": "generic_success"
@@ -143,68 +158,55 @@ RETRIEVED ROBOTWIN API AND TASK CONTEXT:
 OFFICIAL BASE TASK METHODS:
 ```python
 def load_actors(self):
-        rand_pos = rand_pose(
-            xlim=[-0.25, 0.25],
-            ylim=[-0.2, 0.0],
-            qpos=[0.5, 0.5, 0.5, 0.5],
-        )
-        while abs(rand_pos.p[0]) < 0.05:
-            rand_pos = rand_pose(
-                xlim=[-0.25, 0.25],
-                ylim=[-0.2, 0.0],
-                qpos=[0.5, 0.5, 0.5, 0.5],
-            )
+        self.qpose_tag = np.random.randint(0, 2)
+        qposes = [[0.707, 0.0, 0.0, -0.707], [0.707, 0.0, 0.0, 0.707]]
+        xlims = [[-0.12, -0.08], [0.08, 0.12]]
 
-        self.bell_id = np.random.choice([0, 1], 1)[0]
-        self.bell = create_actor(
-            scene=self,
-            pose=rand_pos,
-            modelname="050_bell",
+        self.model_id = np.random.choice([13, 16])
+
+        self.bottle = rand_create_actor(
+            self,
+            xlim=xlims[self.qpose_tag],
+            ylim=[-0.13, -0.08],
+            zlim=[0.752],
+            rotate_rand=True,
+            qpos=qposes[self.qpose_tag],
+            modelname="001_bottle",
             convex=True,
-            model_id=self.bell_id,
-            is_static=True,
+            rotate_lim=(0, 0, 0.4),
+            model_id=self.model_id,
         )
-
-        self.add_prohibit_area(self.bell, padding=0.07)
-        self.check_arm_function = self.is_left_gripper_close if self.bell.get_pose().p[0] < 0 else self.is_right_gripper_close
+        self.delay(4)
+        self.add_prohibit_area(self.bottle, padding=0.15)
+        self.left_target_pose = [-0.25, -0.12, 0.95, 0, 1, 0, 0]
+        self.right_target_pose = [0.25, -0.12, 0.95, 0, 1, 0, 0]
 
 def check_success(self):
-        if self.stage_success_tag:
-            return True
-        if not self.check_arm_function():
-            return False
-        bell_pose = self.bell.get_contact_point(0)[:3]
-        positions = self.get_gripper_actor_contact_position("050_bell")
-        eps = [0.025, 0.025]
-        for position in positions:
-            if (np.all(np.abs(position[:2] - bell_pose[:2]) < eps) and abs(position[2] - bell_pose[2]) < 0.03):
-                self.stage_success_tag = True
-                return True
-        return False
+        target_hight = 0.9
+        bottle_pose = self.bottle.get_functional_point(0)
+        return ((self.qpose_tag == 0 and bottle_pose[0] < -0.15) or
+                (self.qpose_tag == 1 and bottle_pose[0] > 0.15)) and bottle_pose[2] > target_hight
 ```
 
 TASK TELEMETRY/EXECUTION SCHEMA:
 {
   "action_dimension": 14,
   "contact_focus_actor_ids": [
-    "bell"
+    "bottle"
   ],
   "physics_timestep_seconds": 0.004,
-  "probe_task_attributes": [
-    "bell_id"
-  ],
   "schema_version": 1,
   "semantic_fields": [
     {
-      "actor_id": "bell",
-      "name": "bell_position",
+      "actor_id": "bottle",
+      "name": "bottle_position",
       "source": "actor_position"
     },
     {
-      "actor_id": "bell",
-      "name": "bell_contact_position",
+      "actor_id": "bottle",
+      "name": "bottle_functional_position",
       "point_id": 0,
-      "source": "actor_contact_position"
+      "source": "actor_functional_position"
     },
     {
       "name": "left_tcp_position",
@@ -219,132 +221,221 @@ TASK TELEMETRY/EXECUTION SCHEMA:
   ],
   "semantic_roles": {
     "left_tcp_position": "left_tcp_position",
-    "manipulated_object_position": "bell_position",
-    "right_tcp_position": "right_tcp_position",
-    "target_contact_position": "bell_contact_position"
+    "manipulated_functional_position": "bottle_functional_position",
+    "manipulated_object_position": "bottle_position",
+    "right_tcp_position": "right_tcp_position"
   },
   "success_contract": {
-    "requires_closed_active_gripper": true,
-    "target_actor_id": "bell",
-    "target_contact_point": 0,
-    "type": "official_check_success",
-    "xy_tolerance_m": [
-      0.025,
-      0.025
-    ],
-    "z_tolerance_m": 0.03
+    "minimum_absolute_x_m": 0.15,
+    "minimum_height_m": 0.9,
+    "target_actor_id": "bottle",
+    "target_functional_point": 0,
+    "target_side_semantic_field": "bottle_functional_position",
+    "target_side_source": "initial_bottle_x_sign",
+    "type": "official_check_success"
   },
-  "task_family": "press_contact",
-  "task_name": "click_bell",
+  "task_family": "object_reposition",
+  "task_name": "adjust_bottle",
   "tracked_actors": [
     {
-      "contact_points": [
+      "contact_points": [],
+      "functional_points": [
         0
       ],
-      "functional_points": [],
-      "id": "bell",
-      "scene_name": "050_bell",
-      "task_attribute": "bell"
+      "id": "bottle",
+      "scene_name": "001_bottle",
+      "task_attribute": "bottle"
     }
   ],
   "trusted_tool_profile": "generic_success"
 }
 
-DOCUMENTATION `description/task_instruction/click_bell.json`:
+DOCUMENTATION `description/task_instruction/adjust_bottle.json`:
 {
-  "full_description": "click the <bell's top center> on the table",
-  "schema": "{A} notifies the bell, {a} notifies the arm to click the bell",
-  "preference": "num of words should not exceed 10",
+  "full_description": "Pick up the bottle on the table headup with the correct arm",
+  "schema": "{A} notifies the bottle, {a} notifies the arm to manipulate the bottle",
+  "preference": "num of words should not exceed 15",
   "seen": [
-    "Press <bell's top center> using {a} on the table",
-    "Instruct {a} to press <bell's top center>",
-    "Push <bell's top center> on the table",
-    "Click {A}'s <top center> using {a}",
-    "Make {a} press <bell's top center>",
-    "Press the <bell's top center> directly",
-    "Direct {a} to click <bell's top center>",
-    "Push {A}'s <top center> on the table",
-    "Click <bell's top center> using {a}",
-    "Press <bell's top center> placed on the table",
-    "Press the center top of {A}.",
-    "Command {a} to press {A}'s top.",
-    "Click at the bell's top center.",
-    "Direct {a} to touch {A}'s top.",
-    "Press down on the bell's top.",
-    "Guide {a} to click the bell's top.",
-    "Click the designated center of {A}.",
-    "Request {a} to press the bell's top.",
-    "Press the specified top area of {A}.",
-    "Ask {a} to interact with {A}'s top.",
-    "Press the center of {A} using {a}.",
-    "Click the bell's center on the table.",
-    "Tap {A}'s top center with {a}.",
-    "Tap the top center of {A}.",
-    "Press {A}'s top center on the table.",
-    "Click using {a} on {A}'s center.",
-    "Push the center of {A} using {a}.",
-    "Push the bell's center on the table.",
-    "Press down {A}'s top center gently.",
-    "Press down the top of {A} using {a}.",
-    "Click the top center of {A} on table.",
-    "Direct {a} to click the top of {A}.",
-    "Pinpoint {A} and click its top center.",
-    "Have {a} click at {A}'s top center.",
-    "Press the top center of {A} on table.",
-    "Make {a} interact with {A}'s top center.",
-    "Click {A} at its top center on table.",
-    "Guide {a} to click {A}'s top center.",
-    "Locate {A} and click its top center.",
-    "Use {a} to press {A}'s top section.",
-    "Engage the top center of the bell.",
-    "Click {A}'s top center using {a}.",
-    "Press the bell's top center on the table.",
-    "Tap {A}'s top center with {a}.",
-    "Touch the bell at its top center.",
-    "Use {a} to touch {A}'s top center.",
-    "Engage the bell's top center gently.",
-    "Activate {A} by pressing its top center.",
-    "Press {A}'s top center with {a} firmly.",
-    "Tap the bell's top center on the table."
+    "Lift {A} head-up from the table.",
+    "Pick {A} up with {a} ensuring it stays head-up.",
+    "Grab {A} from the table and hold it head-up.",
+    "Utilize {a} to lift {A} while keeping it head-up.",
+    "Lift {A} ensuring it remains upright.",
+    "Grab {A} head-up using {a} from the table.",
+    "Hold {A} head-up after lifting it.",
+    "Use {a} to pick {A} up and keep it head-up.",
+    "Pick {A} head-up and hold it steady.",
+    "Use {a} to grab and lift {A} head-up.",
+    "Grab {A} from the table with {a}",
+    "Lift the bottle {A} headup from the table",
+    "Raise {A} in a head-up position",
+    "Use {a} to lift {A} head-up",
+    "Position {A} head-up and lift it",
+    "Grab {A} with {a} in a head-up way",
+    "Lift the bottle {A} up from the table",
+    "Pick {A} head-up using the right arm",
+    "Grab {A} and lift it into a head-up position",
+    "Use {a} to pick up {A} in the correct orientation",
+    "Lift {A} from the table upright",
+    "Use {a} to hold {A} from the table",
+    "Identify {A} and grab it with {a}",
+    "Pick {A} upright from the table",
+    "Lift {A} using {a} and hold upright",
+    "Take {A} from the table and keep upright",
+    "Grab {A} and lift it with {a}",
+    "Pick up {A} upright from the table",
+    "Hold {A} upright after lifting with {a}",
+    "Lift {A} from the table and secure upright",
+    "Lift {A} from the table with {a}",
+    "Pick {A} upright from the table",
+    "Grab {A} and lift it upright",
+    "Lift {A} head-up from the table",
+    "Using {a}, pick {A} upright",
+    "Secure {A} upright with {a}",
+    "Hold {A} upright from the table",
+    "Pick {A} and keep it upright",
+    "Lift {A} upright carefully using {a}",
+    "Carefully grab {A} head-up",
+    "Pick up {A} from the table carefully.",
+    "Use {a} to pick up {A} from the table.",
+    "Locate {A} and lift it upright with {a}.",
+    "Raise {A} from the table using the correct arm, {a}.",
+    "Grab {A} and lift it upward from the table.",
+    "Use the correct arm to pick up {A}.",
+    "Lift {A} off the table and hold it upright.",
+    "Pick up {A} from the table using {a}.",
+    "Lift {A} from the table without mentioning the arm.",
+    "Find {A} on the table and raise it using {a}."
   ],
   "unseen": [
-    "Click the <bell's top center> on the table",
-    "Tap the <bell's top center> placed on the table",
-    "Click the top center of {A}.",
-    "Direct {a} to click {A}'s top.",
-    "Click {A}'s top center on the table.",
-    "Use {a} to press {A}'s top center.",
-    "Find {A} and click its top center.",
-    "Use {a} to press {A}'s top center.",
-    "Click the bell at its top center.",
-    "Use {a} to press {A}'s top center."
+    "Pick up {A} from the table head-up.",
+    "Use {a} to grab {A} head-up.",
+    "Use {a} to grab the bottle {A}",
+    "Pick up {A} using the correct arm",
+    "Grab {A} from the table with {a}",
+    "Pick up {A} carefully using {a}",
+    "Pick up {A} using {a} in an upright position",
+    "Use {a} to grab {A} upright",
+    "Lift {A} from the table using {a}.",
+    "Grab {A} on the table and raise it."
   ]
 }
-
-DOCUMENTATION `mea/knowledge/tasks/click_bell.md`:
-# ClickBell scene contract
-
-`click_bell.load_actors()` creates exactly one static `050_bell`, records its
-`bell_id`, and selects the arm from the sign of the bell X coordinate. Position
-variants must remain inside the official workspace and consume the official
-pose and instance RNG before applying a bounded override.
-
-`check_success()` remains the upstream RoboTwin authority. It requires the
-selected gripper to close and contact the bell's functional point. TaskGen may
-change only the declared position, instance, or simulator-native scene axis;
-it must preserve `play_once()`, `check_success()`, actor identity, and policy
-checkpoint semantics.
 
 AVAILABLE ASSETS:
 [
   {
-    "path": "description/objects_description/050_bell/base0.json",
-    "sha256": "543240a1b5b88f5a2ec5975dcbfd865c2eb9b8eda7546775ef3069359225b09f",
-    "size_bytes": 639
+    "path": "description/objects_description/001_bottle/base0.json",
+    "sha256": "4927366c88ece99e61bb06c4ae78303825e97011b01e0f164a0b346f8ebb6049",
+    "size_bytes": 634
   },
   {
-    "path": "description/objects_description/050_bell/base1.json",
-    "sha256": "6c4efb216f006a833724dfe4a760c914f305921c850aae457ac48575754f8ea2",
-    "size_bytes": 565
+    "path": "description/objects_description/001_bottle/base1.json",
+    "sha256": "a983d35344e69c2a723f14c48940340855d678809b9b3d2f6a5c5bb208a8343a",
+    "size_bytes": 618
+  },
+  {
+    "path": "description/objects_description/001_bottle/base10.json",
+    "sha256": "b1d2a1d2f9bbf3420d4c570bb58cee5bd09b7bc090ba242696c0bfd8d7815200",
+    "size_bytes": 745
+  },
+  {
+    "path": "description/objects_description/001_bottle/base11.json",
+    "sha256": "931e15d76717f420cceb94ec693500ab4d4e7b63bd2a0cb4afefb74768860bca",
+    "size_bytes": 692
+  },
+  {
+    "path": "description/objects_description/001_bottle/base12.json",
+    "sha256": "bcd691a0d6cc3e9fe643e858f66d1bda402cde9275db1ce84f1a64d14a52bc51",
+    "size_bytes": 696
+  },
+  {
+    "path": "description/objects_description/001_bottle/base13.json",
+    "sha256": "49da9966fd4e19adaaea661f76c9e70bd6d876b81ae027b5fceb8365b9be7544",
+    "size_bytes": 590
+  },
+  {
+    "path": "description/objects_description/001_bottle/base14.json",
+    "sha256": "13bbd355a3aad2aaad23c652589a49f5b33b51edc1967249858f679d0c67af93",
+    "size_bytes": 572
+  },
+  {
+    "path": "description/objects_description/001_bottle/base15.json",
+    "sha256": "7d9b9506ef0e9f4907f120948f258e4bc9027538a93dd0ed034471f79f8c3d1d",
+    "size_bytes": 696
+  },
+  {
+    "path": "description/objects_description/001_bottle/base16.json",
+    "sha256": "d9d44cf675f0d6f6253447de31f29ecb0eed829a365adc1af2f9bf54e42015a5",
+    "size_bytes": 634
+  },
+  {
+    "path": "description/objects_description/001_bottle/base17.json",
+    "sha256": "8fd5f1fba205322d28d60a282e79999def98c842a54ea18b6ee605b9deebbaba",
+    "size_bytes": 616
+  },
+  {
+    "path": "description/objects_description/001_bottle/base18.json",
+    "sha256": "4b9263e19a00accb3b4cc9f56502d8938cdc2a3010c594bb8786b22aba0cb3c2",
+    "size_bytes": 698
+  },
+  {
+    "path": "description/objects_description/001_bottle/base19.json",
+    "sha256": "43fbb4b53560eca8d170fe541e119b639be27ee40a3ddec35da0fd39b547f5c9",
+    "size_bytes": 685
+  },
+  {
+    "path": "description/objects_description/001_bottle/base2.json",
+    "sha256": "adbd5b0e14e2ea67e841f2d1716b20367802ee59dea1bc94e2182e0129898d3d",
+    "size_bytes": 725
+  },
+  {
+    "path": "description/objects_description/001_bottle/base20.json",
+    "sha256": "4d5779917bb88f245d9216528e23496bddcb9ce1232fcb2029666749c3289fe5",
+    "size_bytes": 718
+  },
+  {
+    "path": "description/objects_description/001_bottle/base21.json",
+    "sha256": "45f26d6372df9190621e897154d4fbaa9ae33889fa1bfd849b6345aa52a6cd33",
+    "size_bytes": 591
+  },
+  {
+    "path": "description/objects_description/001_bottle/base22.json",
+    "sha256": "4cbd73bb645c30a942947025a49b9ef7c23fb08ec20487b88a94823c88d5c201",
+    "size_bytes": 706
+  },
+  {
+    "path": "description/objects_description/001_bottle/base3.json",
+    "sha256": "dbaee62ec1b04e8046dcd70e97b79273ada76cbad3c5168dd3e8dee11dcb2c87",
+    "size_bytes": 594
+  },
+  {
+    "path": "description/objects_description/001_bottle/base4.json",
+    "sha256": "b260cd25881b1dcdf8402602f434acfb639e63337ae1584a3fa7ea38642bb9ec",
+    "size_bytes": 658
+  },
+  {
+    "path": "description/objects_description/001_bottle/base5.json",
+    "sha256": "d5b8d6563bec2f4d8fb0cc834aeec613721a6398faa157fdb83ca0940cfda9cb",
+    "size_bytes": 651
+  },
+  {
+    "path": "description/objects_description/001_bottle/base6.json",
+    "sha256": "7408422fdb5626ae9048bb5018d7407123779a08fa8c98f6c8ee0f70bbf26c73",
+    "size_bytes": 632
+  },
+  {
+    "path": "description/objects_description/001_bottle/base7.json",
+    "sha256": "6068368b228990ff6733e015b7a2f1dc97392c622e20ea2966db2f1692ab8c1d",
+    "size_bytes": 731
+  },
+  {
+    "path": "description/objects_description/001_bottle/base8.json",
+    "sha256": "3737b823ad0d39e9fd52f009c0416e992e2e5916b9bdfde67c604253ca0d8f0e",
+    "size_bytes": 649
+  },
+  {
+    "path": "description/objects_description/001_bottle/base9.json",
+    "sha256": "53f23e1da33b59807e01b77e352562f1d39ee8a872096e2ff19c365a42d80987",
+    "size_bytes": 697
   }
 ]

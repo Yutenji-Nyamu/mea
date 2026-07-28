@@ -3,12 +3,12 @@
   "source": "provider_catalog_free_concern",
   "concern": {
     "schema_version": 1,
-    "source_query": "Where does this ACT policy first expose a weakness when generalizing over manipulated-object properties?",
-    "sub_aspect": "Robustness to a target object's visual appearance changing while its identity, position, and affordance remain unchanged",
-    "hypothesis": "The ACT policy's click success rate decreases when the bell's color or texture is changed from training appearance, despite the bell remaining in the same location and retaining the same clickable shape.",
-    "task_intent": "Locate the bell and click it.",
-    "requested_variation": "Change only the bell's color or surface texture, keeping its geometry, pose, location, size, background, and distractors fixed.",
-    "measurement_need": "Compare target-click success rate and click-coordinate error between the original and appearance-changed bell conditions."
+    "source_query": "这个 ACT 策略执行调整瓶子任务时，对未见对象属性的泛化能力如何，最先在哪里暴露弱点？",
+    "sub_aspect": "Generalization to an unseen bottle geometry while the task layout and target remain unchanged",
+    "hypothesis": "The ACT policy will show its first significant weakness on bottles with an unseen shape or aspect ratio, with lower adjustment success and larger final pose error than on familiar bottle geometries.",
+    "task_intent": "Adjust the bottle to the task-specified target configuration.",
+    "requested_variation": "Use a bottle with a novel shape or aspect ratio, while keeping its color, initial placement, and target configuration fixed.",
+    "measurement_need": "Compare success rate, final pose error, and contact or grasp failures between the novel-geometry bottle and a matched familiar-geometry bottle."
   },
   "provider": {
     "model_requested": "gpt-5.6-luna",
@@ -16,34 +16,61 @@
     "attempt_count": 1,
     "errors": [],
     "last_metadata": {
-      "id": "chatcmpl-E6I0P0sm9HrX75fkc6HpOzN9OPJbP",
-      "model": "gpt-5.6-luna-2026-07-09",
+      "id": "chatcmpl-202607280714129869464118268d9d65lPq7GUe",
+      "model": "gpt-5.6-luna",
       "finish_reason": "stop",
       "usage": {
-        "completion_tokens": 433,
-        "completion_tokens_details": {
-          "accepted_prediction_tokens": 0,
-          "audio_tokens": 0,
-          "reasoning_tokens": 246,
-          "rejected_prediction_tokens": 0
+        "prompt_tokens": 401,
+        "completion_tokens": 500,
+        "total_tokens": 901,
+        "billing_usage": {
+          "source": "oai_responses",
+          "semantic": "openai",
+          "openai_usage": {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 901,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "text_tokens": 0,
+              "audio_tokens": 0,
+              "image_tokens": 0
+            },
+            "completion_tokens_details": {
+              "text_tokens": 0,
+              "audio_tokens": 0,
+              "image_tokens": 0,
+              "reasoning_tokens": 0
+            },
+            "input_tokens": 401,
+            "output_tokens": 500,
+            "input_tokens_details": {
+              "cached_tokens": 0,
+              "text_tokens": 0,
+              "audio_tokens": 0,
+              "image_tokens": 0
+            },
+            "claude_cache_creation_5_m_tokens": 0,
+            "claude_cache_creation_1_h_tokens": 0
+          }
         },
-        "latency_checkpoint": {
-          "engine_tbt_ms": 7,
-          "engine_ttft_ms": 80,
-          "engine_ttlt_ms": 3247,
-          "pre_inference_ms": 47,
-          "service_tbt_ms": 7,
-          "service_ttft_ms": 697,
-          "service_ttlt_ms": 3850,
-          "total_duration_ms": 3810,
-          "user_visible_ttft_ms": 650
-        },
-        "prompt_tokens": 364,
         "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 0,
           "audio_tokens": 0,
-          "cached_tokens": 0
+          "image_tokens": 0
         },
-        "total_tokens": 797
+        "completion_tokens_details": {
+          "text_tokens": 0,
+          "audio_tokens": 0,
+          "image_tokens": 0,
+          "reasoning_tokens": 0
+        },
+        "input_tokens": 401,
+        "output_tokens": 500,
+        "input_tokens_details": null,
+        "claude_cache_creation_5_m_tokens": 0,
+        "claude_cache_creation_1_h_tokens": 0
       },
       "retry_count": 0
     }

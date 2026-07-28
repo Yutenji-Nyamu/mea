@@ -3,8 +3,9 @@
 The Plan Agent and ToolGen outputs are not allowed to inject arbitrary Vision
 prompts.  This module maps audited identifiers to a small committed catalog and
 admits only tightly bounded, self-contained ``run_local.*`` question specs.
-Unknown context still falls back to the legacy three-question profile so
-existing callers keep the previous behaviour.
+Calls without context still preserve the legacy three-question profile.
+Dynamic/open-world context instead uses task-owned questions when available,
+then a bounded task-neutral tracked-object question.
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from mea.capability_adapter import (
     CapabilityAdapterError,
     registered_task_vqa_questions,
     resolve_capability_contract,
+    resolve_task_retrieval_index,
     task_vqa_metric_phenomena,
 )
 
@@ -149,6 +151,20 @@ LEGACY_PHENOMENON_IDS = (
     "hammer_visibly_lifted",
     "block_visibly_displaced",
 )
+GENERIC_TRACKED_OBJECT_PHENOMENON_ID = (
+    "run_local.tracked_object_visible_state_change"
+)
+GENERIC_TRACKED_OBJECT_QUESTION = {
+    "id": GENERIC_TRACKED_OBJECT_PHENOMENON_ID,
+    "question_type": "visible_state_change",
+    "target_role": "manipulated_object",
+    "question": (
+        "Does the tracked task object visibly change state or pose during "
+        "the rollout?"
+    ),
+    "visual_scope": "rollout_change",
+    "numeric_authority": "no_numeric_oracle",
+}
 ALL_PHENOMENON_IDS = tuple(QUESTION_CATALOG)
 
 # Exact, trusted identifiers only.  Neither a model-produced task instruction
@@ -327,6 +343,18 @@ def _append_unique(destination: list[str], values: Sequence[str]) -> None:
             destination.append(value)
 
 
+def _task_owned_fallback_phenomena(task_name: str | None) -> list[str]:
+    """Return task-owned visual questions without granting execution authority."""
+
+    if task_name is None:
+        return []
+    try:
+        retrieval_index = resolve_task_retrieval_index(task_name)
+    except CapabilityAdapterError:
+        return []
+    return list(retrieval_index["vqa_questions"])
+
+
 def build_execution_vqa_query(
     *,
     task_name: str | None = None,
@@ -343,7 +371,8 @@ def build_execution_vqa_query(
     supply strictly validated ``run_local.*`` question specs; those specs are
     embedded in the query so the saved artifact can be validated without an
     external registry.  Calling this function without context returns the
-    original three phenomena in their original order.
+    original three phenomena in their original order.  A dynamic context that
+    has no exact catalog rule never inherits task-specific legacy questions.
     """
 
     task = _optional_identifier(task_name, field="task_name")
@@ -483,13 +512,22 @@ def build_execution_vqa_query(
                 f"{reviewed['spec']['spec_id']}:{reviewed['spec_sha256']}"
             ]
 
+    if not selected and context_supplied:
+        task_owned_ids = _task_owned_fallback_phenomena(task)
+        if task_owned_ids:
+            _append_unique(selected, task_owned_ids)
+            reasons.append(f"task_owned_fallback:{task}")
+        else:
+            generic_question = validate_run_local_question_spec(
+                GENERIC_TRACKED_OBJECT_QUESTION
+            )
+            local_questions[generic_question["id"]] = generic_question
+            selected.append(generic_question["id"])
+            reasons.append("generic_fallback:tracked_object_visible_state_change")
+
     if not selected:
         selected = list(LEGACY_PHENOMENON_IDS)
-        reasons.append(
-            "legacy_default:no_context"
-            if not context_supplied
-            else "legacy_fallback:no_allowlisted_rule"
-        )
+        reasons.append("legacy_default:no_context")
 
     questions = []
     for phenomenon_id in ALL_PHENOMENON_IDS:

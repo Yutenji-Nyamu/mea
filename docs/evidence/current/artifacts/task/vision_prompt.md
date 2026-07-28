@@ -3,13 +3,13 @@ The image shows the same-seed official scene on the left and the generated
 Query-derived scene on the right.
 
 SEMANTIC CONCERN:
-object_generalization.position_translation: The ACT policy's first weakness in manipulated-object generalization is spatial: translating the bell within a bounded reachable workspace will reduce official press success or increase final bell-contact distance relative to the unchanged control.
+task_execution.success_margin_components: 在保持官方场景与 ACT 检查点不变的情况下，基线成功主要由瓶子的高度达标或横向越界裕量之一决定；分解后的轨迹观测将显示最先接近失败的成功条件，从而定位潜在弱点。
 
 REQUESTED SCENE NEED:
-TaskGen must create a bounded object_position variant overlay for the bell and preserve the official click_bell success contract.
+TaskGen must retrieve or generate a scene checker that preserves official success while exposing bottle functional-point height and absolute-x margin components.
 
 CHECKER NEED (context only; RGB cannot validate success logic):
-Generate an experimental check_success predicate that decides: The ACT policy's first weakness in manipulated-object generalization is spatial: translating the bell within a bounded reachable workspace will reduce official press success or increase final bell-contact distance relative to the unchanged control.
+Generate an experimental check_success predicate that decides: 在保持官方场景与 ACT 检查点不变的情况下，基线成功主要由瓶子的高度达标或横向越界裕量之一决定；分解后的轨迹观测将显示最先接近失败的成功条件，从而定位潜在弱点。
 
 Judge only visible facts: render usability, whether key task actors are visible,
 whether the requested visible change is consistent or contradicted, obvious

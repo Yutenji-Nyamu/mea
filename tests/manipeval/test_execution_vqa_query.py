@@ -247,6 +247,25 @@ class ExecutionVQAQueryTests(unittest.TestCase):
                     query["selection_reasons"],
                 )
 
+    def test_dynamic_adjust_bottle_without_template_uses_task_owned_question(self):
+        query = build_execution_vqa_query(
+            task_name="adjust_bottle",
+            template_id=None,
+            sub_aspect="object_state.open_world_candidate",
+            tool_contract={"metric": "runtime_generated_state_change"},
+        )
+        self.assertEqual(
+            query["phenomenon_ids"],
+            ["bottle_visibly_repositioned"],
+        )
+        self.assertEqual(
+            query["selection_reasons"],
+            ["task_owned_fallback:adjust_bottle"],
+        )
+        serialized = json.dumps(query).lower()
+        self.assertNotIn("block", serialized)
+        self.assertNotIn("hammer", serialized)
+
     def test_timing_context_selects_only_relevant_visual_questions(self):
         query = build_execution_vqa_query(
             task_name="beat_block_hammer",
@@ -467,7 +486,7 @@ class ExecutionVQAQueryTests(unittest.TestCase):
         )
         self.assertIn(spec["question"], provider.calls[0][0])
 
-    def test_unknown_context_uses_explicit_legacy_fallback(self):
+    def test_unknown_dynamic_context_uses_generic_tracked_object_fallback(self):
         query = build_execution_vqa_query(
             task_name="future_task",
             sub_aspect="unregistered.aspect",
@@ -476,8 +495,15 @@ class ExecutionVQAQueryTests(unittest.TestCase):
         self.assertEqual(query["profile"], "dynamic_v1")
         self.assertEqual(
             query["selection_reasons"],
-            ["legacy_fallback:no_allowlisted_rule"],
+            ["generic_fallback:tracked_object_visible_state_change"],
         )
+        self.assertEqual(
+            query["phenomenon_ids"],
+            ["run_local.tracked_object_visible_state_change"],
+        )
+        serialized = json.dumps(query).lower()
+        self.assertNotIn("block", serialized)
+        self.assertNotIn("hammer", serialized)
 
     def test_query_validator_rejects_catalog_tampering(self):
         query = build_execution_vqa_query()

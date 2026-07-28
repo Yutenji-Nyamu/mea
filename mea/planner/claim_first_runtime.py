@@ -478,9 +478,14 @@ def resolve_concern_candidate_domain(
         if not external_specificity["specific"]:
             return {
                 "schema_version": 1,
-                "decision": "discover_candidates",
+                # There is no registered non-control domain to discover
+                # inside.  Admit the Query to the open-world Planner instead
+                # of treating an empty catalog as an unsupported request.
+                # The later semantic proposal, not this broad FreeConcern,
+                # decides which scene/checker/tool needs materialization.
+                "decision": "catalog_external",
                 "resolution": "open_world_candidate_discovery_required",
-                "candidate_aspect_ids": [],
+                "candidate_aspect_ids": None,
                 "selected_aspect_id": None,
                 "selected_template_ids": [],
                 "ranked_aspects": [],
@@ -790,25 +795,41 @@ def _round_artifact_refs(
     execution_dir = str(
         round_summary.get("execution_artifact_dir") or ""
     ).strip().rstrip("/\\")
+    explicit_artifacts = round_summary.get("evidence_artifact_paths")
+    explicit_artifacts = (
+        explicit_artifacts
+        if isinstance(explicit_artifacts, Mapping)
+        else {}
+    )
     observations = round_summary.get("observations")
     observations = observations if isinstance(observations, Mapping) else {}
-    if execution_dir and isinstance(observations.get("aggregate"), Mapping):
+    aggregate_path = str(
+        explicit_artifacts.get("round_aggregate") or ""
+    ).strip()
+    if not aggregate_path and execution_dir:
+        aggregate_path = f"{execution_dir}/aggregate_result.json"
+    if aggregate_path and isinstance(observations.get("aggregate"), Mapping):
         refs.append(
             {
                 "kind": "round_aggregate",
-                "path": f"{execution_dir}/aggregate_result.json",
+                "path": aggregate_path,
             }
         )
     planned_tool = observations.get("planned_tool")
+    tool_path = str(
+        explicit_artifacts.get("tool_execution") or ""
+    ).strip()
+    if not tool_path and execution_dir:
+        tool_path = f"{execution_dir}/planned_tool/tool_execution.json"
     if (
-        execution_dir
+        tool_path
         and isinstance(planned_tool, Mapping)
         and planned_tool.get("status") != "skipped"
     ):
         refs.append(
             {
                 "kind": "tool_execution",
-                "path": f"{execution_dir}/planned_tool/tool_execution.json",
+                "path": tool_path,
             }
         )
     execution_vqa = observations.get("execution_vqa")
@@ -1005,8 +1026,9 @@ def build_claim_first_evidence_record(
         )
     if outcome_semantics_status == "expected_semantic_extension":
         limitations.append(
-            "The generated checker adds experimental constraints beyond the "
-            "official core predicate; its verdict is not official-equivalent."
+            "The generated checker has not been certified as equivalent to "
+            "the official core predicate; its verdict must be treated as "
+            "experimental."
         )
     elif outcome_semantics_status == "conflict":
         limitations.append(
@@ -1181,8 +1203,8 @@ def render_query_answer(
         )
     if semantic_extensions:
         limitations.append(
-            "At least one generated checker is an expected semantic extension "
-            "of the official core predicate, not an official-equivalent result."
+            "At least one generated checker has not been certified as "
+            "official-equivalent; its verdict must be treated as experimental."
         )
     answer_scope = (
         "bounded_experimental_query_semantics"
@@ -1405,6 +1427,42 @@ class ClaimFirstRuntimeController:
             candidate_evidence,
             completed_rounds=len(candidate_records),
         )
+        transport_conflict_ids = [
+            record["candidate_id"]
+            for record in candidate_records
+            if (
+                record["candidate_id"]
+                in self.query_contract["candidate_universe"]
+                and (
+                    record.get("candidate_evidence", {}).get("outcome")
+                    == "conflict"
+                    or record.get("evidence_packet", {}).get(
+                        "evidence_strength"
+                    )
+                    == "conflicting"
+                )
+            )
+        ]
+        if transport_conflict_ids:
+            assessment = {
+                **assessment,
+                "should_stop": True,
+                "stop_reason": "evidence_conflict",
+                "evidence_sufficient": False,
+                "claim_verdict": "inconclusive",
+                "rationale": (
+                    "Rule, VQA, or execution evidence conflicts for a "
+                    "completed candidate; the Query cannot be answered from "
+                    "this evidence."
+                ),
+                "conflict_candidate_ids": list(
+                    dict.fromkeys(
+                        list(assessment.get("conflict_candidate_ids") or [])
+                        + transport_conflict_ids
+                    )
+                ),
+                "recommended_candidate_ids": [],
+            }
         semantic_conflict_ids = [
             record["candidate_id"]
             for record in candidate_records

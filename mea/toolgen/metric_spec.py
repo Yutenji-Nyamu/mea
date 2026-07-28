@@ -54,11 +54,23 @@ _TIME_BETWEEN_EVENTS_KEYS = {
     "unit",
     "null_semantics",
 }
+_TERMINAL_SIGNAL_COMPONENT_REQUIRED_KEYS = {
+    "schema_version",
+    "operation",
+    "signal",
+    "component",
+    "unit",
+    "null_semantics",
+}
+_TERMINAL_SIGNAL_COMPONENT_KEYS = (
+    _TERMINAL_SIGNAL_COMPONENT_REQUIRED_KEYS | {"absolute"}
+)
 _EVENT_SELECTOR_KEYS = {"event_type", "actors", "physical_only"}
 _OPERATIONS = {
     "minimum_distance",
     "event_count",
     "time_between_events",
+    "terminal_signal_component",
 }
 _EVENT_TYPES = {"contact_interval", "success_transition"}
 _SIGNAL = re.compile(r"^[a-z][a-z0-9_]{1,79}$")
@@ -153,9 +165,48 @@ def validate_metric_spec(value: Any) -> dict[str, Any]:
     operation = spec.get("operation")
     if not isinstance(operation, str) or operation not in _OPERATIONS:
         raise MetricSpecError(
-            "MetricSpec.operation must be minimum_distance, event_count, or "
-            "time_between_events"
+            "MetricSpec.operation must be event_count, minimum_distance, "
+            "terminal_signal_component, or time_between_events"
         )
+    if operation == "terminal_signal_component":
+        keys = set(spec)
+        if keys not in {
+            frozenset(_TERMINAL_SIGNAL_COMPONENT_REQUIRED_KEYS),
+            frozenset(_TERMINAL_SIGNAL_COMPONENT_KEYS),
+        }:
+            raise MetricSpecError(
+                "MetricSpec fields for terminal_signal_component must be exactly "
+                f"{sorted(_TERMINAL_SIGNAL_COMPONENT_REQUIRED_KEYS)} with "
+                "optional absolute"
+            )
+        signal = spec.get("signal")
+        if not isinstance(signal, str) or not _SIGNAL.fullmatch(signal):
+            raise MetricSpecError(
+                "MetricSpec.signal is not a safe trace signal"
+            )
+        component = spec.get("component")
+        if component not in _DIMENSION_INDEX:
+            raise MetricSpecError(
+                "terminal_signal_component requires component=x, y, or z"
+            )
+        absolute = spec.get("absolute", False)
+        if type(absolute) is not bool:
+            raise MetricSpecError(
+                "MetricSpec.absolute must be a boolean when provided"
+            )
+        if spec.get("unit") != "m":
+            raise MetricSpecError(
+                "terminal_signal_component currently requires unit=m"
+            )
+        if spec.get("null_semantics") != "null_if_terminal_not_finite":
+            raise MetricSpecError(
+                "terminal_signal_component requires "
+                "null_semantics=null_if_terminal_not_finite"
+            )
+        spec["signal"] = signal
+        spec["component"] = component
+        spec["absolute"] = absolute
+        return spec
     expected_keys = {
         "minimum_distance": _MINIMUM_DISTANCE_KEYS,
         "event_count": _EVENT_COUNT_KEYS,
@@ -236,6 +287,13 @@ def metric_spec_tool_spec(
         ]
         value_type = "number_or_null"
         evidence_kind = "argmin_physics_step"
+    elif spec["operation"] == "terminal_signal_component":
+        required = [
+            f"semantic_trace.{spec['signal']}",
+            "semantic_trace.physics_step",
+        ]
+        value_type = "number_or_null"
+        evidence_kind = "terminal_physics_step"
     elif spec["operation"] == "event_count":
         required = [f"events.{spec['event']['event_type']}"]
         value_type = "integer"
@@ -281,6 +339,50 @@ def evaluate_metric_spec(
     """Evaluate the private deterministic oracle for a typed metric."""
 
     spec = validate_metric_spec(metric_spec)
+    if spec["operation"] == "terminal_signal_component":
+        try:
+            signal = np.asarray(trajectory.trace[spec["signal"]], dtype=float)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise MetricSpecError(
+                f"trajectory is missing a declared signal: {exc}"
+            ) from exc
+        component_index = _DIMENSION_INDEX[spec["component"]]
+        if signal.ndim != 2:
+            raise MetricSpecError(
+                "declared signal must be a two-dimensional array"
+            )
+        if not len(signal) or component_index >= signal.shape[1]:
+            raise MetricSpecError(
+                "declared signal does not contain the requested terminal component"
+            )
+        terminal_index = len(signal) - 1
+        raw_value = float(signal[terminal_index, component_index])
+        physics = np.asarray(
+            trajectory.trace.get(
+                "physics_step", np.arange(len(signal))
+            ),
+            dtype=int,
+        )
+        if physics.ndim != 1 or len(physics) != len(signal):
+            raise MetricSpecError(
+                "physics_step must align with the declared signal"
+            )
+        finite = math.isfinite(raw_value)
+        value = abs(raw_value) if finite and spec["absolute"] else raw_value
+        return {
+            "value": value if finite else None,
+            "unit": spec["unit"],
+            "passed": None,
+            "evidence_steps": [int(physics[terminal_index])] if finite else [],
+            "details": {
+                "operation": spec["operation"],
+                "signal": spec["signal"],
+                "component": spec["component"],
+                "absolute": spec["absolute"],
+                "terminal_index": terminal_index,
+                "reason": "measured" if finite else "terminal_not_finite",
+            },
+        }
     if spec["operation"] == "event_count":
         selector = spec["event"]
         matches = [
@@ -543,6 +645,33 @@ def _compile_time_between_events_source(spec: Mapping[str, Any]) -> str:
 '''
 
 
+def _compile_terminal_signal_component_source(spec: Mapping[str, Any]) -> str:
+    component_index = _DIMENSION_INDEX[spec["component"]]
+    value_expression = "abs(raw_value)" if spec["absolute"] else "raw_value"
+    return f'''def generated_tool(trajectory):
+    signal = np.asarray(trajectory.trace[{spec["signal"]!r}], dtype=float)
+    terminal_index = len(signal) - 1
+    raw_value = float(signal[terminal_index, {component_index}])
+    finite = bool(np.isfinite(raw_value))
+    value = {value_expression} if finite else None
+    physics = np.asarray(trajectory.trace["physics_step"], dtype=int)
+    return {{
+        "value": value,
+        "unit": {spec["unit"]!r},
+        "passed": None,
+        "evidence_steps": [int(physics[terminal_index])] if finite else [],
+        "details": {{
+            "operation": {spec["operation"]!r},
+            "signal": {spec["signal"]!r},
+            "component": {spec["component"]!r},
+            "absolute": {spec["absolute"]!r},
+            "terminal_index": terminal_index,
+            "reason": "measured" if finite else "terminal_not_finite",
+        }},
+    }}
+'''
+
+
 def compile_metric_spec_source(metric_spec: Mapping[str, Any]) -> str:
     """Compile a MetricSpec to auditable Python accepted by ToolGen's AST gate."""
 
@@ -551,6 +680,8 @@ def compile_metric_spec_source(metric_spec: Mapping[str, Any]) -> str:
         return _compile_event_count_source(spec)
     if spec["operation"] == "time_between_events":
         return _compile_time_between_events_source(spec)
+    if spec["operation"] == "terminal_signal_component":
+        return _compile_terminal_signal_component_source(spec)
     indices = [_DIMENSION_INDEX[item] for item in spec["dimensions"]]
     return f'''def generated_tool(trajectory):
     left = np.asarray(trajectory.trace[{spec["left_signal"]!r}], dtype=float)
@@ -680,8 +811,12 @@ def execute_metric_spec(
             or trajectory.schema.get("task_name") != task_name
         ):
             raise MetricSpecError("MetricSpec episode task/schema does not match")
-    if spec["operation"] == "minimum_distance":
-        required_signals = {spec["left_signal"], spec["right_signal"]}
+    if spec["operation"] in {"minimum_distance", "terminal_signal_component"}:
+        required_signals = (
+            {spec["left_signal"], spec["right_signal"]}
+            if spec["operation"] == "minimum_distance"
+            else {spec["signal"]}
+        )
         for trajectory in trajectories:
             missing = sorted(required_signals - set(trajectory.trace))
             if missing:
@@ -807,7 +942,7 @@ def execute_metric_spec(
             public_registration_summary(registration) if registration else None
         ),
         "limitations": [
-            "three bounded typed operators only",
+            "four bounded typed operators only",
             "development compiler path, not arbitrary Python generation",
             (
                 "compiled output is checked twice against the trusted "

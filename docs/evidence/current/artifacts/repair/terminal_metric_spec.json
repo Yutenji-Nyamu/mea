@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "operation": "terminal_signal_component",
+  "signal": "bottle_functional_position",
+  "component": "z",
+  "absolute": false,
+  "unit": "m",
+  "null_semantics": "null_if_terminal_not_finite"
+}

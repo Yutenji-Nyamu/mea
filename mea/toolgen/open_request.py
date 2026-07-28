@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping
@@ -152,6 +153,15 @@ def tool_generation_context(
                 "unit": "s",
                 "null_semantics": "null_if_missing_or_reversed",
             },
+            "terminal_signal_component": {
+                "schema_version": 1,
+                "operation": "terminal_signal_component",
+                "signal": "<advertised_semantic_field_name>",
+                "component": "<x_or_y_or_z>",
+                "absolute": False,
+                "unit": "m",
+                "null_semantics": "null_if_terminal_not_finite",
+            },
         },
         "outcome_semantics": (
             "generated_checker_experimental"
@@ -213,6 +223,12 @@ def validate_open_tool_request(
             "target, or compile a typed MetricSpec"
         )
     metric_spec = request.get("metric_spec")
+    if available_signal_names is not None and measurement_need:
+        _validate_terminal_signal_alignment(
+            metric_spec if isinstance(metric_spec, Mapping) else None,
+            measurement_need=measurement_need,
+            available_signal_names=available_signal_names,
+        )
     if isinstance(metric_spec, Mapping):
         try:
             metric_spec_tool_spec(
@@ -224,16 +240,28 @@ def validate_open_tool_request(
         except MetricSpecError as exc:
             raise OpenToolRequestError(str(exc)) from exc
         operation = metric_spec["operation"]
-        if operation == "minimum_distance" and available_signal_names is not None:
-            requested_signals = {
-                str(metric_spec["left_signal"]),
-                str(metric_spec["right_signal"]),
-            }
+        if (
+            operation in {"minimum_distance", "terminal_signal_component"}
+            and available_signal_names is not None
+        ):
+            requested_signals = (
+                {
+                    str(metric_spec["left_signal"]),
+                    str(metric_spec["right_signal"]),
+                }
+                if operation == "minimum_distance"
+                else {str(metric_spec["signal"])}
+            )
             missing = sorted(requested_signals - available_signal_names)
             if missing:
                 raise OpenToolRequestError(
                     f"MetricSpec uses unavailable telemetry signals: {missing}"
                 )
+        if operation == "minimum_distance" and available_signal_names is not None:
+            requested_signals = {
+                str(metric_spec["left_signal"]),
+                str(metric_spec["right_signal"]),
+            }
             need = (measurement_need or "").casefold()
             active_side_requested = any(
                 phrase in need
@@ -281,6 +309,112 @@ def validate_open_tool_request(
                         f"{missing_actors}"
                     )
     return request
+
+
+def _normalized_words(value: str) -> set[str]:
+    return {
+        item
+        for item in re.sub(r"[^a-z0-9]+", " ", value.casefold()).split()
+        if item
+    }
+
+
+def _validate_terminal_signal_alignment(
+    metric_spec: Mapping[str, Any] | None,
+    *,
+    measurement_need: str,
+    available_signal_names: set[str],
+) -> None:
+    """Prevent an event metric from evading an explicit terminal field need.
+
+    This is deliberately schema-driven: task names and semantic roles are not
+    enumerated.  It activates only when the need contains a terminal cue, an
+    x/y/z component cue, and enough words to identify one advertised signal.
+    """
+
+    need = measurement_need.casefold()
+    terminal_requested = any(
+        cue in need
+        for cue in (
+            "final",
+            "terminal",
+            "end-of-rollout",
+            "end of rollout",
+            "最终",
+            "终端",
+            "结束时",
+        )
+    )
+    component_cues = {
+        "x": (" x ", "x-axis", "x axis", "x-coordinate", "x coordinate", "x分量", "x轴"),
+        "y": (" y ", "y-axis", "y axis", "y-coordinate", "y coordinate", "y分量", "y轴"),
+        "z": (" z ", "z-axis", "z axis", "z-coordinate", "z coordinate", "height", "高度", "z分量", "z轴"),
+    }
+    padded_need = f" {need} "
+    requested_components = {
+        component
+        for component, cues in component_cues.items()
+        if any(cue in padded_need for cue in cues)
+    }
+    if not terminal_requested or not requested_components:
+        return
+
+    need_words = _normalized_words(need)
+    scored: list[tuple[int, str]] = []
+    for signal in sorted(available_signal_names):
+        signal_words = _normalized_words(signal)
+        distinctive = signal_words - {"position", "pose", "point"}
+        score = len(distinctive & need_words)
+        if signal.replace("_", " ").casefold() in need:
+            score += len(signal_words) + 1
+        if score:
+            scored.append((score, signal))
+    if not scored:
+        return
+    best_score = max(score for score, _signal in scored)
+    matched_signals = {
+        signal for score, signal in scored if score == best_score
+    }
+    if not isinstance(metric_spec, Mapping):
+        raise OpenToolRequestError(
+            "an explicit terminal semantic-field/component need requires a "
+            "schema_version=2 terminal_signal_component contract; an unrelated "
+            "schema_version=1 Tool reuse is not aligned"
+        )
+    if metric_spec.get("operation") != "terminal_signal_component":
+        raise OpenToolRequestError(
+            "an explicit terminal semantic-field/component need requires "
+            "terminal_signal_component rather than an event or distance metric"
+        )
+    if metric_spec.get("signal") not in matched_signals:
+        raise OpenToolRequestError(
+            "terminal_signal_component must consume the advertised semantic "
+            f"field referenced by the measurement need: {sorted(matched_signals)}"
+        )
+    requested_component = metric_spec.get("component")
+    if requested_component not in requested_components:
+        raise OpenToolRequestError(
+            "terminal_signal_component component does not match the explicit "
+            f"measurement need: {sorted(requested_components)}"
+        )
+    absolute_requested = any(
+        cue in padded_need
+        for cue in (
+            f"absolute {requested_component}",
+            f"absolute-{requested_component}",
+            f"{requested_component} magnitude",
+            f"{requested_component}-magnitude",
+            f"{requested_component} 绝对",
+            f"{requested_component}绝对",
+            f"绝对 {requested_component}",
+            f"绝对{requested_component}",
+        )
+    )
+    if absolute_requested and metric_spec.get("absolute") is not True:
+        raise OpenToolRequestError(
+            "terminal_signal_component must set absolute=true for an explicit "
+            "absolute-component measurement need"
+        )
 
 
 class OpenToolRequestAgent:
@@ -338,7 +472,11 @@ class OpenToolRequestAgent:
             "when no compatible registration exists. A fixed left/right signal "
             "does not satisfy an active-arm or active-gripper need when both "
             "sides are advertised. Do not invent an unavailable signal, task "
-            "name, template, or aspect. Return strict JSON only.\n\n"
+            "name, template, or aspect. When MEASUREMENT NEED explicitly asks "
+            "for a final/terminal x, y, z, height, or absolute component of an "
+            "advertised semantic field, use terminal_signal_component with "
+            "that exact signal and component; an event metric is not aligned. "
+            "Return strict JSON only.\n\n"
             f"ORIGINAL QUERY:\n{source_query}\n\n"
             f"SEMANTIC CONCERN:\n{semantic_concern}\n\n"
             f"MEASUREMENT NEED:\n{tool_need}\n\n"

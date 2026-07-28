@@ -116,9 +116,15 @@ def build_open_world_evaluation_target(
 
 def validate_open_world_evaluation_target(
     value: Mapping[str, Any],
-    catalog: Mapping[str, Any],
+    catalog: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Validate an open target against catalog identity, not catalog budget."""
+    """Validate a frozen runtime target.
+
+    The production ClaimFirst path validates the already bound target directly;
+    the catalog is only needed by the compatibility constructor that still
+    performs task/checkpoint discovery.  Runtime candidates are never admitted
+    by catalog membership.
+    """
 
     if not isinstance(value, Mapping) or set(value) != _TARGET_KEYS:
         raise OpenWorldSessionError(
@@ -133,10 +139,46 @@ def validate_open_world_evaluation_target(
         raise OpenWorldSessionError(
             "OpenWorldEvaluationTarget.binding_mode is invalid"
         )
+    task_name = _text(target.get("task_name"), "target.task_name")
+    for field in ("task_family", "task_profile", "planner_kind"):
+        target[field] = _text(target.get(field), f"target.{field}")
+    target["max_rounds"] = _positive_int(
+        target.get("max_rounds"), "target.max_rounds"
+    )
+    target["catalog_max_rounds"] = _positive_int(
+        target.get("catalog_max_rounds"), "target.catalog_max_rounds"
+    )
+    if not isinstance(target.get("policy"), Mapping):
+        raise OpenWorldSessionError("target.policy must be an object")
+    if not isinstance(target.get("checkpoint"), Mapping):
+        raise OpenWorldSessionError("target.checkpoint must be an object")
+    target["policy"] = deepcopy(dict(target["policy"]))
+    target["checkpoint"] = deepcopy(dict(target["checkpoint"]))
+    if target["checkpoint"].get("ready") is not True:
+        raise OpenWorldSessionError("target.checkpoint must be ready")
+    adapter = resolve_task_adapter(task_name)
+    control_template = _text(
+        target.get("control_template_id"), "target.control_template_id"
+    )
+    if control_template != adapter["control_template_id"]:
+        raise OpenWorldSessionError(
+            "target control template differs from the TaskAdapter"
+        )
+    aspects = target.get("aspects")
+    if not isinstance(aspects, list) or not aspects:
+        raise OpenWorldSessionError("target.aspects must be a non-empty list")
+    available_templates = _catalog_templates({"aspects": aspects})
+    if control_template not in available_templates:
+        raise OpenWorldSessionError(
+            "target aspects must retain the official control retrieval entry"
+        )
+    target["aspects"] = deepcopy(aspects)
+    if catalog is None:
+        return target
     expected = build_open_world_evaluation_target(
         catalog,
-        _text(target.get("task_name"), "target.task_name"),
-        max_rounds=_positive_int(target.get("max_rounds"), "target.max_rounds"),
+        task_name,
+        max_rounds=target["max_rounds"],
     )
     if target != expected:
         raise OpenWorldSessionError(
@@ -150,13 +192,15 @@ class OpenWorldPlanSession:
 
     def __init__(
         self,
-        catalog: Mapping[str, Any],
+        catalog: Mapping[str, Any] | None,
         target: Mapping[str, Any],
         *,
         control_round: Mapping[str, Any] | None = None,
         query_contract: Mapping[str, Any] | None = None,
     ):
-        self.catalog = validate_act_catalog(catalog)
+        self.catalog = (
+            validate_act_catalog(catalog) if catalog is not None else None
+        )
         self.target = validate_open_world_evaluation_target(
             target, self.catalog
         )
@@ -186,6 +230,28 @@ class OpenWorldPlanSession:
             build_open_world_evaluation_target(
                 catalog, task_name, max_rounds=max_rounds
             ),
+            control_round=control_round,
+            query_contract=query_contract,
+        )
+
+    @classmethod
+    def from_target(
+        cls,
+        target: Mapping[str, Any],
+        *,
+        control_round: Mapping[str, Any] | None = None,
+        query_contract: Mapping[str, Any] | None = None,
+    ) -> "OpenWorldPlanSession":
+        """Start from an already frozen runtime binding.
+
+        This is the production constructor.  It keeps task/checkpoint discovery
+        outside the Plan session and makes the catalog a retrieval concern
+        rather than a planning or execution authorization boundary.
+        """
+
+        return cls(
+            None,
+            target,
             control_round=control_round,
             query_contract=query_contract,
         )

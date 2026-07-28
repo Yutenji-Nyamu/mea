@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "repair_id": "terminal_tool_plus_task_vqa_repair_v7",
+  "source_evaluation_id": "eval_20260728_adjust_bottle_open_live_v2",
+  "source_round_id": "round_2",
+  "created_at": "2026-07-28T16:36:06.105160+08:00",
+  "mode": "completed_act_tool_aggregate_planner_replay",
+  "act_rollouts_started": 0,
+  "source_artifacts_immutable": true,
+  "source_artifacts": [
+    {
+      "path": "mea/evaluation_runs/eval_20260728_adjust_bottle_open_live_v2/manifest.json",
+      "sha256": "790b2bdcd56b869d98a94e86717a0d570e91363f303c401f7641fef127a9930a"
+    },
+    {
+      "path": "mea/evaluation_runs/eval_20260728_adjust_bottle_open_live_v2/plan/evaluation_plan.json",
+      "sha256": "030254c6e092bb207e25cd93ad6e2e2ba795ff76aa23728db447abbc5c383023"
+    },
+    {
+      "path": "mea/evaluation_runs/eval_20260728_adjust_bottle_open_live_v2/plan/query_sufficiency_contract.json",
+      "sha256": "e1d1ff4eeebe33b47693acddf522bcfe372b8b42588a978dc383aaf3cb741fbb"
+    },
+    {
+      "path": "mea/evaluation_runs/eval_20260728_adjust_bottle_open_live_v2/summary/round_2.json",
+      "sha256": "dc1de161b47ed53a7c2cd7b3df50b508ccdcbab5e7976cc0b57fcdc5dfe1dcf7"
+    },
+    {
+      "path": "mea/generated_tasks/run_20260728_adjust_bottle_open_live_v2_round_2/manifest.json",
+      "sha256": "91ccc2cc939da052edeea857f0aee553593a2336c79bfe7d519788daa8d61e56"
+    },
+    {
+      "path": "mea/generated_tasks/run_20260728_adjust_bottle_open_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100201/episode.json",
+      "sha256": "1a5b2096f9082a3269fd43dd4731796f04ce0b41e0495a24a58a4346410b7fb5"
+    },
+    {
+      "path": "mea/evaluation_runs/eval_20260728_adjust_bottle_open_live_v2/execution/round_2/open_tool_request/tool_request_bundle.json",
+      "sha256": "2ed40e3f0500b41fa3db47b46e8f84ad4f74e141cd5c77adb20d61d3b6f2c1f6"
+    },
+    {
+      "path": "mea/evaluation_runs/eval_20260728_adjust_bottle_open_live_v2/repairs/vqa_task_owned_replay_v1/replay_manifest.json",
+      "sha256": "c37898148b346ca41e405183927bc91bd98fae92967e5cf2c342e1adcc1f99f5"
+    }
+  ],
+  "original_tool_request": {
+    "status": "recorded",
+    "path": "mea/evaluation_runs/eval_20260728_adjust_bottle_open_live_v2/execution/round_2/open_tool_request/tool_request_bundle.json",
+    "sha256": "2ed40e3f0500b41fa3db47b46e8f84ad4f74e141cd5c77adb20d61d3b6f2c1f6"
+  },
+  "repaired_tool_request": {
+    "path": "experiments/paper/inputs/batch29_adjust_bottle_terminal_height_tool_request.json",
+    "sha256": "160530e681ee3307d78309abf9636d8bc34caadb77baf05c5a293e6815315d9b",
+    "request": {
+      "schema_version": 2,
+      "task_name": "adjust_bottle",
+      "metric": "terminal_bottle_functional_height",
+      "question": "What is the final bottle functional-point height?",
+      "metric_spec": {
+        "schema_version": 1,
+        "operation": "terminal_signal_component",
+        "signal": "bottle_functional_position",
+        "component": "z",
+        "absolute": false,
+        "unit": "m",
+        "null_semantics": "null_if_terminal_not_finite"
+      }
+    }
+  },
+  "execution_vqa": {
+    "source": "append_only_replay",
+    "path": "mea/evaluation_runs/eval_20260728_adjust_bottle_open_live_v2/repairs/vqa_task_owned_replay_v1/replay_manifest.json",
+    "sha256": "c37898148b346ca41e405183927bc91bd98fae92967e5cf2c342e1adcc1f99f5"
+  },
+  "status": "completed",
+  "completed_at": "2026-07-28T16:36:07.775352+08:00",
+  "result_path": "mea/evaluation_runs/eval_20260728_adjust_bottle_open_live_v2/repairs/terminal_tool_plus_task_vqa_repair_v7/result.json"
+}

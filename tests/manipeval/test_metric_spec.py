@@ -56,6 +56,14 @@ TIME_BETWEEN_EVENTS_SPEC = {
     "unit": "s",
     "null_semantics": "null_if_missing_or_reversed",
 }
+TERMINAL_Z_SPEC = {
+    "schema_version": 1,
+    "operation": "terminal_signal_component",
+    "signal": "bottle_functional_position",
+    "component": "z",
+    "unit": "m",
+    "null_semantics": "null_if_terminal_not_finite",
+}
 
 
 class MetricSpecTests(unittest.TestCase):
@@ -93,7 +101,12 @@ class MetricSpecTests(unittest.TestCase):
         self.assertFalse(routing["route_decision"]["provider_required"])
         self.assertEqual(
             routing["catalog_snapshot"]["typed_metric_spec"]["operations"],
-            ["event_count", "minimum_distance", "time_between_events"],
+            [
+                "event_count",
+                "minimum_distance",
+                "terminal_signal_component",
+                "time_between_events",
+            ],
         )
 
     def test_unbounded_operator_and_registry_collision_are_rejected(self):
@@ -462,6 +475,89 @@ class MetricSpecTests(unittest.TestCase):
                     for item in result["episodes"]
                 ],
                 [0.004, 0.008],
+            )
+
+    def test_terminal_signal_component_normalizes_and_differentially_executes(self):
+        normalized = validate_metric_spec(TERMINAL_Z_SPEC)
+        self.assertFalse(normalized["absolute"])
+        self.assertTrue(
+            validate_generated_tool(
+                compile_metric_spec_source(TERMINAL_Z_SPEC)
+            )["valid"]
+        )
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            episode = root / "adjust_bottle_act"
+            write_episode(episode, policy_name="ACT", physical_contact=False)
+            for filename in ("episode.json", "schema.json"):
+                path = episode / filename
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                payload["task_name"] = "adjust_bottle"
+                path.write_text(json.dumps(payload), encoding="utf-8")
+            trace = dict(np.load(episode / "semantic_trace.npz"))
+            trace["bottle_functional_position"] = np.asarray(
+                [
+                    [-0.04, 0.02, 0.78],
+                    [-0.12, 0.02, 0.86],
+                    [-0.19, 0.02, 0.93],
+                ],
+                dtype=np.float32,
+            )
+            np.savez_compressed(episode / "semantic_trace.npz", **trace)
+
+            terminal_z = evaluate_metric_spec(
+                TERMINAL_Z_SPEC, TrajectoryView(episode)
+            )
+            self.assertAlmostEqual(terminal_z["value"], 0.93, places=6)
+            self.assertEqual(terminal_z["evidence_steps"], [2])
+
+            absolute_x_spec = {
+                **TERMINAL_Z_SPEC,
+                "component": "x",
+                "absolute": True,
+            }
+            absolute_x = evaluate_metric_spec(
+                absolute_x_spec, TrajectoryView(episode)
+            )
+            self.assertAlmostEqual(absolute_x["value"], 0.19, places=6)
+
+            result = execute_metric_spec(
+                task_name="adjust_bottle",
+                metric="query_terminal_bottle_height",
+                question="What was the final bottle functional-point height?",
+                metric_spec=TERMINAL_Z_SPEC,
+                episode_dirs=[episode],
+                output_dir=root / "terminal_z",
+                registry_dir=root / "registry",
+            )
+            self.assertEqual(result["route"], "typed_metric_spec_compile")
+            self.assertAlmostEqual(
+                result["episodes"][0]["generated_result"]["value"],
+                0.93,
+                places=6,
+            )
+            self.assertEqual(
+                result["tool_spec"]["required_signals"],
+                [
+                    "semantic_trace.bottle_functional_position",
+                    "semantic_trace.physics_step",
+                ],
+            )
+
+    def test_terminal_signal_component_rejects_invalid_shape_and_contract(self):
+        with self.assertRaisesRegex(MetricSpecError, "component=x, y, or z"):
+            validate_metric_spec({**TERMINAL_Z_SPEC, "component": "height"})
+        with self.assertRaisesRegex(MetricSpecError, "absolute must be a boolean"):
+            validate_metric_spec({**TERMINAL_Z_SPEC, "absolute": 1})
+        with self.assertRaisesRegex(
+            MetricSpecError, "null_if_terminal_not_finite"
+        ):
+            validate_metric_spec(
+                {
+                    **TERMINAL_Z_SPEC,
+                    "null_semantics": "null_if_no_finite_sample",
+                }
             )
 
 

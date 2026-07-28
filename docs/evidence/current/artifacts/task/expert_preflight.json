@@ -1,0 +1,190 @@
+{
+  "task_name": "adjust_bottle",
+  "task_module": "mea.generated_task_attempts.run_20260728_adjust_bottle_open_live_v2_round_2.attempt_01.candidate_task",
+  "seed": 100201,
+  "setup_success": true,
+  "render_success": true,
+  "expert_requested": true,
+  "telemetry_requested": false,
+  "eval_mode": false,
+  "execution_receipt_requested": false,
+  "task_schema": {
+    "schema_version": 1,
+    "task_name": "adjust_bottle",
+    "task_family": "object_reposition",
+    "trusted_tool_profile": "generic_success",
+    "tracked_actor_ids": [
+      "bottle"
+    ],
+    "semantic_field_names": [
+      "bottle_position",
+      "bottle_functional_position",
+      "left_tcp_position",
+      "right_tcp_position"
+    ]
+  },
+  "domain_randomization": {
+    "cluttered_table": false,
+    "clean_background_rate": 1.0,
+    "cluttered_object_count": 0,
+    "cluttered_objects": [],
+    "authority": "simulator_task_info:cluttered_table_info",
+    "random_background": false,
+    "wall_texture": null,
+    "table_texture": null,
+    "texture_split": null,
+    "background_authority": "simulator_task_info:texture_info",
+    "random_light": false,
+    "crazy_random_light_rate": 0.0,
+    "crazy_random_light": false,
+    "direction_light_count": 1,
+    "point_light_count": 2,
+    "direction_light_colors": [
+      [
+        0.5,
+        0.5,
+        0.5
+      ]
+    ],
+    "point_light_colors": [
+      [
+        1.0,
+        1.0,
+        1.0
+      ],
+      [
+        1.0,
+        1.0,
+        1.0
+      ]
+    ],
+    "lighting_authority": "simulator_task_attributes:random_light,crazy_random_light_rate,crazy_random_light;simulator_light_components:get_color"
+  },
+  "actors": [
+    {
+      "name": "001_bottle",
+      "position": [
+        -0.09388823062181473,
+        -0.19089052081108093,
+        0.7753041386604309
+      ],
+      "quaternion": [
+        0.6531305313110352,
+        0.25421708822250366,
+        0.2467157393693924,
+        -0.6692724227905273
+      ]
+    },
+    {
+      "name": "ground",
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "quaternion": [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name": "wall",
+      "position": [
+        0.0,
+        1.0,
+        1.5
+      ],
+      "quaternion": [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name": "table",
+      "position": [
+        0.0,
+        0.0,
+        0.7400000095367432
+      ],
+      "quaternion": [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "tracked_actors": [
+    {
+      "id": "bottle",
+      "task_attribute": "bottle",
+      "scene_name": "001_bottle",
+      "position": [
+        -0.09388823062181473,
+        -0.19089052081108093,
+        0.7753041386604309
+      ],
+      "quaternion": [
+        0.6531305313110352,
+        0.25421708822250366,
+        0.2467157393693924,
+        -0.6692724227905273
+      ],
+      "functional_points": {
+        "0": {
+          "position": [
+            0.03195026516914368,
+            -0.19405055046081543,
+            0.775534987449646
+          ],
+          "quaternion": [
+            0.28207436203956604,
+            0.6415916085243225,
+            -0.29879269003868103,
+            -0.6477014422416687
+          ]
+        }
+      },
+      "contact_points": {}
+    }
+  ],
+  "task_attributes": {},
+  "image": "/root/autodl-tmp/mea/mea/generated_task_attempts/run_20260728_adjust_bottle_open_live_v2_round_2/attempt_01/expert_head.png",
+  "rule_check": {
+    "all_tracked_actor_attributes_present": true,
+    "declared_scene_names_present": true,
+    "finite_tracked_actor_state": true,
+    "official_check_success_callable": true,
+    "passed": true,
+    "tracked_actor_ids": [
+      "bottle"
+    ],
+    "declared_scene_names": [
+      "001_bottle"
+    ]
+  },
+  "initial_check_success": false,
+  "expert": {
+    "plan_success": true,
+    "check_success": true,
+    "passed": true,
+    "attempts_used": 1
+  },
+  "expert_attempts": [
+    {
+      "attempt_index": 0,
+      "returncode": 0,
+      "expert": {
+        "plan_success": true,
+        "check_success": true,
+        "passed": true,
+        "attempts_used": 1
+      }
+    }
+  ],
+  "returncode": 0
+}

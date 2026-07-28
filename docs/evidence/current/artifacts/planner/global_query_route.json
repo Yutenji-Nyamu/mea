@@ -1,0 +1,44 @@
+{
+  "schema_version": 2,
+  "selection": {
+    "schema_version": 3,
+    "decision": "route",
+    "task_name": "adjust_bottle",
+    "task_profile": "official",
+    "evaluation_goal": "answer_open_query_with_evidence: 这个 ACT 策略执行调整瓶子任务时，对未见对象属性的泛化能力如何，最先在哪里暴露弱点？",
+    "requested_aspect_ids": [],
+    "first_aspect_id": null,
+    "unsupported_capabilities": [],
+    "binding_only": true
+  },
+  "resolved": {
+    "task_name": "adjust_bottle",
+    "task_family": "object_reposition",
+    "task_profile": "official",
+    "planner_kind": "deterministic_official_task",
+    "checkpoint": {
+      "policy_name": "ACT",
+      "checkpoint_setting": "demo_clean",
+      "expert_data_num": 50,
+      "checkpoint_id": "act-adjust_bottle/demo_clean-50",
+      "ready": true
+    },
+    "aspects": []
+  },
+  "catalog_sha256": "84d6c7311621cd227c2cc519a6b74e1ac83c357708e4aa2bbdb952aeba87fc7f",
+  "provider_called": false,
+  "attempt_count": 0,
+  "validation_errors": [],
+  "provider_metadata": {},
+  "route_source": "runtime_task_checkpoint_binding",
+  "global_router_provider_calls": 0,
+  "task_resolution_scope": {
+    "mode": "query_first_then_checkpoint_binding",
+    "artifact": "plan/open_task_resolution.json"
+  },
+  "history_retrieval": {
+    "schema_version": 1,
+    "status": "disabled",
+    "candidates": []
+  }
+}

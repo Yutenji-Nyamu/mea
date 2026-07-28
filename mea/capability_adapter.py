@@ -1,11 +1,15 @@
-"""Pure declarative task and capability adapters for RoboTwin MEA.
+"""Pure declarative retrieval index for RoboTwin MEA.
 
 Each trusted template resolves to one immutable-by-copy contract spanning the
 Plan/TaskGen boundary and the later Tool, Execution VQA, and gate selection.
-The task-level registry is the single source for public task membership,
-control templates, compatibility planner delegates, and official-task visual
-contracts.  It contains identifiers and JSON-compatible values only: importing
-this module never calls a provider, simulator, Tool, or planner.
+This module is retained as the compatibility/retrieval index for known
+artifacts.  Membership here is never execution authorization and must not
+constrain the concerns a production open-world Planner may propose.  The
+production simulator boundary remains the thin, source/schema-backed
+``GenericRoboTwinTaskAdapter`` in ``mea.taskgen.generic_backend``.
+
+The index contains identifiers and JSON-compatible values only: importing this
+module never calls a provider, simulator, Tool, or planner.
 """
 
 from __future__ import annotations
@@ -1131,12 +1135,39 @@ def validate_task_adapter(value: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def resolve_task_adapter(task_name: Any) -> dict[str, Any]:
-    """Resolve all trusted planning/evaluation capabilities for one task."""
+    """Resolve the legacy complete compatibility view for one task.
+
+    New production callers should normally use
+    :func:`resolve_task_retrieval_index` and treat its entries as optional
+    retrieval hints.  This complete view remains public because legacy paper
+    protocols and audited VQA selection still have real callers.
+    """
 
     normalized = _text(task_name, field="task_name")
     if normalized not in _TASK_ADAPTER_METADATA:
         raise CapabilityAdapterError(f"unknown task adapter: {normalized!r}")
     return validate_task_adapter(_raw_task_adapter(normalized))
+
+
+def resolve_task_retrieval_index(task_name: Any) -> dict[str, Any]:
+    """Project known artifacts into an explicitly non-authoritative index.
+
+    The projection deliberately omits ``planner_kind``, ``task_profile`` and
+    ``max_rounds``.  Those legacy fields describe old protocols, not what a
+    Query may ask or what a runtime-generated candidate may execute.
+    """
+
+    adapter = resolve_task_adapter(task_name)
+    return {
+        "schema_version": 1,
+        "index_role": "retrieval_only",
+        "execution_authority": False,
+        "task_name": adapter["task_name"],
+        "control_template_id": adapter["control_template_id"],
+        "entries": deepcopy(adapter["capability_contracts"]),
+        "vqa_questions": deepcopy(adapter["vqa_questions"]),
+        "vqa_metric_rules": deepcopy(adapter["vqa_metric_rules"]),
+    }
 
 
 def registered_task_adapters() -> list[dict[str, Any]]:

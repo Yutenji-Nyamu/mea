@@ -1,0 +1,551 @@
+{
+  "schema_version": 1,
+  "status": "completed",
+  "source_evaluation_id": "eval_20260728_adjust_bottle_open_live_v2",
+  "source_round_id": "round_2",
+  "repair_id": "terminal_tool_plus_task_vqa_repair_v7",
+  "act_rollouts_started": 0,
+  "first_query_route": "typed_metric_spec_compile",
+  "first_query_provider_called": false,
+  "first_query_measurements": [
+    0.771909236907959
+  ],
+  "exact_reuse_route": "run_local_reuse",
+  "exact_reuse_provider_called": false,
+  "aggregate_status": "passed",
+  "aggregate": {
+    "schema_version": 1,
+    "status": "passed",
+    "source_count": 2,
+    "unique_episode_count": 2,
+    "input_issues": [],
+    "metrics": [
+      {
+        "metric": "generated_check_success",
+        "value_kind": "boolean",
+        "unit": null,
+        "cohorts": [
+          {
+            "role": "policy_under_evaluation",
+            "policy_names": [
+              "ACT"
+            ],
+            "summary": {
+              "episode_result_count": 1,
+              "quality": {
+                "valid": 1,
+                "missing": 0,
+                "invalid": 0
+              },
+              "statistics": {
+                "true_count": {
+                  "value": 0
+                },
+                "true_rate": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 1
+                },
+                "false_count": {
+                  "value": 1
+                },
+                "false_rate": {
+                  "value": 1.0,
+                  "numerator": 1,
+                  "denominator": 1
+                }
+              }
+            },
+            "passed_summary": {
+              "episode_result_count": 1,
+              "quality": {
+                "valid": 1,
+                "missing": 0,
+                "invalid": 0
+              },
+              "statistics": {
+                "true_count": {
+                  "value": 0
+                },
+                "true_rate": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 1
+                },
+                "false_count": {
+                  "value": 1
+                },
+                "false_rate": {
+                  "value": 1.0,
+                  "numerator": 1,
+                  "denominator": 1
+                }
+              }
+            },
+            "groups": {
+              "seed": [
+                {
+                  "value": 100201,
+                  "summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "true_count": {
+                        "value": 0
+                      },
+                      "true_rate": {
+                        "value": 0.0,
+                        "numerator": 0,
+                        "denominator": 1
+                      },
+                      "false_count": {
+                        "value": 1
+                      },
+                      "false_rate": {
+                        "value": 1.0,
+                        "numerator": 1,
+                        "denominator": 1
+                      }
+                    }
+                  },
+                  "passed_summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "true_count": {
+                        "value": 0
+                      },
+                      "true_rate": {
+                        "value": 0.0,
+                        "numerator": 0,
+                        "denominator": 1
+                      },
+                      "false_count": {
+                        "value": 1
+                      },
+                      "false_rate": {
+                        "value": 1.0,
+                        "numerator": 1,
+                        "denominator": 1
+                      }
+                    }
+                  }
+                }
+              ],
+              "round_id": [
+                {
+                  "value": "round_2",
+                  "summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "true_count": {
+                        "value": 0
+                      },
+                      "true_rate": {
+                        "value": 0.0,
+                        "numerator": 0,
+                        "denominator": 1
+                      },
+                      "false_count": {
+                        "value": 1
+                      },
+                      "false_rate": {
+                        "value": 1.0,
+                        "numerator": 1,
+                        "denominator": 1
+                      }
+                    }
+                  },
+                  "passed_summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "true_count": {
+                        "value": 0
+                      },
+                      "true_rate": {
+                        "value": 0.0,
+                        "numerator": 0,
+                        "denominator": 1
+                      },
+                      "false_count": {
+                        "value": 1
+                      },
+                      "false_rate": {
+                        "value": 1.0,
+                        "numerator": 1,
+                        "denominator": 1
+                      }
+                    }
+                  }
+                }
+              ],
+              "variant": [
+                {
+                  "value": "task_execution.success_margin_components",
+                  "summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "true_count": {
+                        "value": 0
+                      },
+                      "true_rate": {
+                        "value": 0.0,
+                        "numerator": 0,
+                        "denominator": 1
+                      },
+                      "false_count": {
+                        "value": 1
+                      },
+                      "false_rate": {
+                        "value": 1.0,
+                        "numerator": 1,
+                        "denominator": 1
+                      }
+                    }
+                  },
+                  "passed_summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "true_count": {
+                        "value": 0
+                      },
+                      "true_rate": {
+                        "value": 0.0,
+                        "numerator": 0,
+                        "denominator": 1
+                      },
+                      "false_count": {
+                        "value": 1
+                      },
+                      "false_rate": {
+                        "value": 1.0,
+                        "numerator": 1,
+                        "denominator": 1
+                      }
+                    }
+                  }
+                }
+              ],
+              "policy_name": [
+                {
+                  "value": "ACT",
+                  "summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "true_count": {
+                        "value": 0
+                      },
+                      "true_rate": {
+                        "value": 0.0,
+                        "numerator": 0,
+                        "denominator": 1
+                      },
+                      "false_count": {
+                        "value": 1
+                      },
+                      "false_rate": {
+                        "value": 1.0,
+                        "numerator": 1,
+                        "denominator": 1
+                      }
+                    }
+                  },
+                  "passed_summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "true_count": {
+                        "value": 0
+                      },
+                      "true_rate": {
+                        "value": 0.0,
+                        "numerator": 0,
+                        "denominator": 1
+                      },
+                      "false_count": {
+                        "value": 1
+                      },
+                      "false_rate": {
+                        "value": 1.0,
+                        "numerator": 1,
+                        "denominator": 1
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "metric": "terminal_bottle_functional_height",
+        "value_kind": "numeric",
+        "unit": "m",
+        "cohorts": [
+          {
+            "role": "policy_under_evaluation",
+            "policy_names": [
+              "ACT"
+            ],
+            "summary": {
+              "episode_result_count": 1,
+              "quality": {
+                "valid": 1,
+                "missing": 0,
+                "invalid": 0
+              },
+              "statistics": {
+                "mean": {
+                  "value": 0.771909236907959
+                },
+                "median": {
+                  "value": 0.771909236907959
+                },
+                "min": {
+                  "value": 0.771909236907959
+                },
+                "max": {
+                  "value": 0.771909236907959
+                },
+                "population_stddev": {
+                  "value": 0.0
+                }
+              }
+            },
+            "passed_summary": null,
+            "groups": {
+              "seed": [
+                {
+                  "value": 100201,
+                  "summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "mean": {
+                        "value": 0.771909236907959
+                      },
+                      "median": {
+                        "value": 0.771909236907959
+                      },
+                      "min": {
+                        "value": 0.771909236907959
+                      },
+                      "max": {
+                        "value": 0.771909236907959
+                      },
+                      "population_stddev": {
+                        "value": 0.0
+                      }
+                    }
+                  },
+                  "passed_summary": null
+                }
+              ],
+              "round_id": [
+                {
+                  "value": "round_2",
+                  "summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "mean": {
+                        "value": 0.771909236907959
+                      },
+                      "median": {
+                        "value": 0.771909236907959
+                      },
+                      "min": {
+                        "value": 0.771909236907959
+                      },
+                      "max": {
+                        "value": 0.771909236907959
+                      },
+                      "population_stddev": {
+                        "value": 0.0
+                      }
+                    }
+                  },
+                  "passed_summary": null
+                }
+              ],
+              "variant": [
+                {
+                  "value": "task_execution.success_margin_components",
+                  "summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "mean": {
+                        "value": 0.771909236907959
+                      },
+                      "median": {
+                        "value": 0.771909236907959
+                      },
+                      "min": {
+                        "value": 0.771909236907959
+                      },
+                      "max": {
+                        "value": 0.771909236907959
+                      },
+                      "population_stddev": {
+                        "value": 0.0
+                      }
+                    }
+                  },
+                  "passed_summary": null
+                }
+              ],
+              "policy_name": [
+                {
+                  "value": "ACT",
+                  "summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "mean": {
+                        "value": 0.771909236907959
+                      },
+                      "median": {
+                        "value": 0.771909236907959
+                      },
+                      "min": {
+                        "value": 0.771909236907959
+                      },
+                      "max": {
+                        "value": 0.771909236907959
+                      },
+                      "population_stddev": {
+                        "value": 0.0
+                      }
+                    }
+                  },
+                  "passed_summary": null
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "evidence_strength": "conflicting",
+  "query_contract_source": "round_decision.query_assessment.contract",
+  "execution_vqa_source": {
+    "source": "append_only_replay",
+    "path": "mea/evaluation_runs/eval_20260728_adjust_bottle_open_live_v2/repairs/vqa_task_owned_replay_v1/replay_manifest.json",
+    "sha256": "c37898148b346ca41e405183927bc91bd98fae92967e5cf2c342e1adcc1f99f5"
+  },
+  "planner_assessment": {
+    "schema_version": 1,
+    "contract": {
+      "schema_version": 3,
+      "claim_type": "diagnostic",
+      "candidate_universe": [
+        "dynamic.adjust.bottle.task.execution.success.margin.components.act.50450b5e2502"
+      ],
+      "required_coverage": {
+        "candidate_ids": [
+          "dynamic.adjust.bottle.task.execution.success.margin.components.act.50450b5e2502"
+        ],
+        "minimum_evaluated": 1,
+        "minimum_per_group": null
+      },
+      "round_budget": 1,
+      "comparison_groups": null,
+      "candidate_universe_closed": false,
+      "existential_witness_outcome": null,
+      "control_requirement": "required"
+    },
+    "should_stop": true,
+    "stop_reason": "evidence_conflict",
+    "claim_verdict": "inconclusive",
+    "evidence_sufficient": false,
+    "completed_rounds": 1,
+    "round_budget": 1,
+    "budget_remaining": 0,
+    "candidate_universe_closed": false,
+    "candidate_discovery_required": false,
+    "observed_candidate_ids": [
+      "dynamic.adjust.bottle.task.execution.success.margin.components.act.50450b5e2502"
+    ],
+    "decisive_candidate_ids": [],
+    "conflict_candidate_ids": [
+      "dynamic.adjust.bottle.task.execution.success.margin.components.act.50450b5e2502"
+    ],
+    "unknown_candidate_ids": [],
+    "untested_required_candidate_ids": [],
+    "untested_candidate_ids": [],
+    "recommended_candidate_ids": [],
+    "rationale": "Rule, VQA, or execution evidence conflicts for a completed candidate; the Query cannot be answered from this evidence.",
+    "statistics": {
+      "diagnosed_failure_candidate_ids": []
+    },
+    "limitations": [
+      "This is a finite-domain stopping prototype, not a statistical generalization guarantee.",
+      "The candidate universe is open; exhaustive, no-counterexample, and worst-case conclusions are not licensed.",
+      "Diagnosis strings are trusted upstream evidence labels; this contract does not independently infer or validate causality."
+    ]
+  },
+  "artifacts": {
+    "repair_provenance": "mea/evaluation_runs/eval_20260728_adjust_bottle_open_live_v2/repairs/terminal_tool_plus_task_vqa_repair_v7/repair_provenance.json",
+    "first_tool": "mea/evaluation_runs/eval_20260728_adjust_bottle_open_live_v2/repairs/terminal_tool_plus_task_vqa_repair_v7/first_query/planned_tool/tool_execution.json",
+    "exact_reuse_tool": "mea/evaluation_runs/eval_20260728_adjust_bottle_open_live_v2/repairs/terminal_tool_plus_task_vqa_repair_v7/second_query_exact_reuse/planned_tool/tool_execution.json",
+    "aggregate": "mea/evaluation_runs/eval_20260728_adjust_bottle_open_live_v2/repairs/terminal_tool_plus_task_vqa_repair_v7/aggregate_result.json",
+    "evidence_record": "mea/evaluation_runs/eval_20260728_adjust_bottle_open_live_v2/repairs/terminal_tool_plus_task_vqa_repair_v7/claim_first_evidence_record.json",
+    "planner_replay": "mea/evaluation_runs/eval_20260728_adjust_bottle_open_live_v2/repairs/terminal_tool_plus_task_vqa_repair_v7/claim_first_planner_replay.json"
+  }
+}

@@ -1,0 +1,223 @@
+{
+  "schema_version": 2,
+  "action": "continue",
+  "transition": "switch_concern",
+  "candidate_id": "dynamic.adjust.bottle.task.execution.success.margin.components.act.50450b5e2502",
+  "observation_summary": "基线在未扰动官方场景上成功，但只能证明一次执行通过，无法判断最先暴露的属性泛化弱点。能力卡没有提供可执行的未见对象属性场景扰动轴，因此下一步最有信息量的是在不改变任务和策略的前提下分解成功条件，定位高度或横向控制中哪一项的裕量最小，并避免把二值成功误解为稳健泛化。",
+  "decision_reason": "provider_authored_open_world_step",
+  "answered_query": false,
+  "plan_step_source": "provider_claim_first_open_query",
+  "plan_step_proposal": {
+    "schema_version": 2,
+    "action": "propose",
+    "aspect_id": "task_execution.success_margin_components",
+    "candidate_id": "dynamic.adjust.bottle.task.execution.success.margin.components.act.50450b5e2502",
+    "execution_mode": "reuse_or_generate",
+    "experiment_candidate": {
+      "schema_version": 2,
+      "candidate_id": "dynamic.adjust.bottle.task.execution.success.margin.components.act.50450b5e2502",
+      "source_query": "这个 ACT 策略执行调整瓶子任务时，对未见对象属性的泛化能力如何，最先在哪里暴露弱点？",
+      "base_task": "adjust_bottle",
+      "semantic_concern": "task_execution.success_margin_components: 在保持官方场景与 ACT 检查点不变的情况下，基线成功主要由瓶子的高度达标或横向越界裕量之一决定；分解后的轨迹观测将显示最先接近失败的成功条件，从而定位潜在弱点。",
+      "scene_need": {
+        "kind": "adapt",
+        "description": "TaskGen must retrieve or generate a scene checker that preserves official success while exposing bottle functional-point height and absolute-x margin components.",
+        "reuse_first": true
+      },
+      "checker_need": {
+        "kind": "generate",
+        "description": "Generate an experimental check_success predicate that decides: 在保持官方场景与 ACT 检查点不变的情况下，基线成功主要由瓶子的高度达标或横向越界裕量之一决定；分解后的轨迹观测将显示最先接近失败的成功条件，从而定位潜在弱点。",
+        "reuse_first": true
+      },
+      "tool_need": {
+        "kind": "measure",
+        "description": "ToolGen must retrieve or generate observable rule metrics for final bottle functional-point height, absolute x, height margin, x margin, and official success, reusing the official checker where possible.",
+        "reuse_first": true
+      }
+    },
+    "rationale": "基线在未扰动官方场景上成功，但只能证明一次执行通过，无法判断最先暴露的属性泛化弱点。能力卡没有提供可执行的未见对象属性场景扰动轴，因此下一步最有信息量的是在不改变任务和策略的前提下分解成功条件，定位高度或横向控制中哪一项的裕量最小，并避免把二值成功误解为稳健泛化。",
+    "answered_query": false
+  },
+  "round_budget_before_decision": 1,
+  "query_assessment": {
+    "schema_version": 1,
+    "contract": {
+      "schema_version": 3,
+      "claim_type": "diagnostic",
+      "candidate_universe": [
+        "dynamic.adjust.bottle.task.execution.success.margin.components.act.50450b5e2502"
+      ],
+      "required_coverage": {
+        "candidate_ids": [
+          "dynamic.adjust.bottle.task.execution.success.margin.components.act.50450b5e2502"
+        ],
+        "minimum_evaluated": 1,
+        "minimum_per_group": null
+      },
+      "round_budget": 1,
+      "comparison_groups": null,
+      "candidate_universe_closed": false,
+      "existential_witness_outcome": null,
+      "control_requirement": "required"
+    },
+    "should_stop": false,
+    "stop_reason": "continue",
+    "claim_verdict": "inconclusive",
+    "evidence_sufficient": false,
+    "completed_rounds": 0,
+    "round_budget": 1,
+    "budget_remaining": 1,
+    "candidate_universe_closed": false,
+    "candidate_discovery_required": true,
+    "observed_candidate_ids": [],
+    "decisive_candidate_ids": [],
+    "conflict_candidate_ids": [],
+    "unknown_candidate_ids": [],
+    "untested_required_candidate_ids": [
+      "dynamic.adjust.bottle.task.execution.success.margin.components.act.50450b5e2502"
+    ],
+    "untested_candidate_ids": [
+      "dynamic.adjust.bottle.task.execution.success.margin.components.act.50450b5e2502"
+    ],
+    "recommended_candidate_ids": [
+      "dynamic.adjust.bottle.task.execution.success.margin.components.act.50450b5e2502"
+    ],
+    "rationale": "The query contract still has unresolved required evidence.",
+    "statistics": {
+      "diagnosed_failure_candidate_ids": []
+    },
+    "limitations": [
+      "This is a finite-domain stopping prototype, not a statistical generalization guarantee.",
+      "The candidate universe is open; exhaustive, no-counterexample, and worst-case conclusions are not licensed.",
+      "Diagnosis strings are trusted upstream evidence labels; this contract does not independently infer or validate causality."
+    ]
+  },
+  "next_round": {
+    "round_id": "round_2",
+    "template_id": null,
+    "candidate_id": "dynamic.adjust.bottle.task.execution.success.margin.components.act.50450b5e2502",
+    "experiment_candidate": {
+      "schema_version": 2,
+      "candidate_id": "dynamic.adjust.bottle.task.execution.success.margin.components.act.50450b5e2502",
+      "source_query": "这个 ACT 策略执行调整瓶子任务时，对未见对象属性的泛化能力如何，最先在哪里暴露弱点？",
+      "base_task": "adjust_bottle",
+      "semantic_concern": "task_execution.success_margin_components: 在保持官方场景与 ACT 检查点不变的情况下，基线成功主要由瓶子的高度达标或横向越界裕量之一决定；分解后的轨迹观测将显示最先接近失败的成功条件，从而定位潜在弱点。",
+      "scene_need": {
+        "kind": "adapt",
+        "description": "TaskGen must retrieve or generate a scene checker that preserves official success while exposing bottle functional-point height and absolute-x margin components.",
+        "reuse_first": true
+      },
+      "checker_need": {
+        "kind": "generate",
+        "description": "Generate an experimental check_success predicate that decides: 在保持官方场景与 ACT 检查点不变的情况下，基线成功主要由瓶子的高度达标或横向越界裕量之一决定；分解后的轨迹观测将显示最先接近失败的成功条件，从而定位潜在弱点。",
+        "reuse_first": true
+      },
+      "tool_need": {
+        "kind": "measure",
+        "description": "ToolGen must retrieve or generate observable rule metrics for final bottle functional-point height, absolute x, height margin, x margin, and official success, reusing the official checker where possible.",
+        "reuse_first": true
+      }
+    },
+    "sub_aspect": "task_execution.success_margin_components",
+    "rationale": "Materialize only the Query-derived Task or Tool needs; no catalog template authorizes this round.",
+    "task_instruction": "这个 ACT 策略执行调整瓶子任务时，对未见对象属性的泛化能力如何，最先在哪里暴露弱点？\nScene need: TaskGen must retrieve or generate a scene checker that preserves official success while exposing bottle functional-point height and absolute-x margin components.\nChecker need: Generate an experimental check_success predicate that decides: 在保持官方场景与 ACT 检查点不变的情况下，基线成功主要由瓶子的高度达标或横向越界裕量之一决定；分解后的轨迹观测将显示最先接近失败的成功条件，从而定位潜在弱点。",
+    "task_name": "adjust_bottle",
+    "task_module": null,
+    "telemetry_profile": "balanced_v1",
+    "route": "generic_provider_scene_checker_codegen",
+    "variant_hint": {},
+    "execution": {
+      "backend": "act",
+      "seeds": [
+        100201
+      ],
+      "num_episodes": 1,
+      "gates": [
+        "ast",
+        "render",
+        "visual_diagnosis",
+        "expert",
+        "act",
+        "toolkit",
+        "planned_tool",
+        "aggregate"
+      ]
+    },
+    "observations": [
+      "scene_alignment",
+      "expert_solvable",
+      "trusted_tools",
+      "planned_tool",
+      "aggregate"
+    ],
+    "tool_request": {
+      "schema_version": 1,
+      "task_name": "adjust_bottle",
+      "metric": "generated_check_success",
+      "question": "Fallback only: did the task success predicate pass?"
+    },
+    "open_tool_request_deferred": true,
+    "vqa_phenomenon_ids": [],
+    "semantic_need_execution": {
+      "schema_version": 2,
+      "candidate_id": "dynamic.adjust.bottle.task.execution.success.margin.components.act.50450b5e2502",
+      "task": {
+        "requested": true,
+        "description": "TaskGen must retrieve or generate a scene checker that preserves official success while exposing bottle functional-point height and absolute-x margin components.",
+        "route": "generic_provider_scene_checker_codegen",
+        "status": "selected"
+      },
+      "checker": {
+        "requested": true,
+        "description": "Generate an experimental check_success predicate that decides: 在保持官方场景与 ACT 检查点不变的情况下，基线成功主要由瓶子的高度达标或横向越界裕量之一决定；分解后的轨迹观测将显示最先接近失败的成功条件，从而定位潜在弱点。",
+        "route": "provider_written_python",
+        "status": "selected"
+      },
+      "tool": {
+        "requested": true,
+        "description": "ToolGen must retrieve or generate observable rule metrics for final bottle functional-point height, absolute x, height margin, x margin, and official success, reusing the official checker where possible.",
+        "route": "after_executed_telemetry_schema",
+        "status": "pending"
+      }
+    }
+  },
+  "semantic_proposal": {
+    "schema_version": 1,
+    "action": "continue",
+    "sub_aspect": "task_execution.success_margin_components",
+    "hypothesis": "在保持官方场景与 ACT 检查点不变的情况下，基线成功主要由瓶子的高度达标或横向越界裕量之一决定；分解后的轨迹观测将显示最先接近失败的成功条件，从而定位潜在弱点。",
+    "requested_perturbation": {
+      "description": "将二值官方成功判定替换为一次性的分解式场景检查：分别记录瓶子功能点的最终高度、绝对横向位置及其相对阈值的裕量，同时保留官方成功结果。",
+      "controlled_changes": [
+        "仅改变成功检查器的可观测输出，将官方二值判定分解为高度与横向位置指标"
+      ],
+      "preserve": [
+        "task identity",
+        "policy checkpoint",
+        "official scene"
+      ]
+    },
+    "task_need": {
+      "required": true,
+      "description": "TaskGen must retrieve or generate a scene checker that preserves official success while exposing bottle functional-point height and absolute-x margin components."
+    },
+    "tool_need": {
+      "required": true,
+      "description": "ToolGen must retrieve or generate observable rule metrics for final bottle functional-point height, absolute x, height margin, x margin, and official success, reusing the official checker where possible.",
+      "reuse_first": true
+    },
+    "rationale": "基线在未扰动官方场景上成功，但只能证明一次执行通过，无法判断最先暴露的属性泛化弱点。能力卡没有提供可执行的未见对象属性场景扰动轴，因此下一步最有信息量的是在不改变任务和策略的前提下分解成功条件，定位高度或横向控制中哪一项的裕量最小，并避免把二值成功误解为稳健泛化。"
+  },
+  "semantic_resolution": {
+    "schema_version": 1,
+    "semantic_sub_aspect": "task_execution.success_margin_components",
+    "resolved_aspect_id": null,
+    "resolved_template_id": null,
+    "resolved_candidate_id": "dynamic.adjust.bottle.task.execution.success.margin.components.act.50450b5e2502",
+    "resolution": "dynamic_experiment_candidate",
+    "hidden": false,
+    "matched_tokens": [],
+    "catalog_was_model_visible": false,
+    "catalog_resolution_error": "no unexecuted non-control template remains in the bound task"
+  }
+}

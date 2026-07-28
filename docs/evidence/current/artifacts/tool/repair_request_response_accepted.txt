@@ -1,1 +1,0 @@
-{"schema_version":1,"task_name":"click_bell","metric":"bell_active_tcp_min_xy_error","question":"What is the minimum XY distance between the official active-arm TCP and the bell contact point during the episode?"}

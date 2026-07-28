@@ -1,0 +1,143 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "requested_route": "auto",
+  "route": "typed_metric_spec_compile",
+  "reference_tool": null,
+  "tool_spec": {
+    "schema_version": 1,
+    "task_name": "adjust_bottle",
+    "metric": "query_derived_metric",
+    "question": "What is the elapsed simulator time from the first recorded physical contact interval to the success transition, with null indicating that either event is absent or reversed?",
+    "route": "force_codegen",
+    "reference_tool": null,
+    "required_signals": [
+      "events.contact_interval",
+      "events.success_transition"
+    ],
+    "output_contract": {
+      "source": "typed_metric_spec_v1",
+      "metric_spec": {
+        "schema_version": 1,
+        "operation": "time_between_events",
+        "start_event": {
+          "actors": null,
+          "event_type": "contact_interval",
+          "physical_only": true
+        },
+        "end_event": {
+          "actors": null,
+          "event_type": "success_transition",
+          "physical_only": false
+        },
+        "unit": "s",
+        "null_semantics": "null_if_missing_or_reversed"
+      },
+      "value_type": "number_or_null",
+      "unit": "s",
+      "passed": null,
+      "evidence": "boundary_event_physics_steps"
+    },
+    "validation_requirements": {
+      "min_episodes": 1,
+      "distinct_reference_values": false,
+      "required_reference_values": []
+    }
+  },
+  "tool_request": {
+    "schema_version": 2,
+    "task_name": "adjust_bottle",
+    "metric": "query_derived_metric",
+    "question": "What is the elapsed simulator time from the first recorded physical contact interval to the success transition, with null indicating that either event is absent or reversed?",
+    "metric_spec": {
+      "schema_version": 1,
+      "operation": "time_between_events",
+      "start_event": {
+        "actors": null,
+        "event_type": "contact_interval",
+        "physical_only": true
+      },
+      "end_event": {
+        "actors": null,
+        "event_type": "success_transition",
+        "physical_only": false
+      },
+      "unit": "s",
+      "null_semantics": "null_if_missing_or_reversed"
+    }
+  },
+  "route_decision": {
+    "schema_version": 1,
+    "status": "resolved",
+    "matching_policy": "strict_exact_metric_id",
+    "requested_route": "auto",
+    "resolved_route": "typed_metric_spec_compile",
+    "task_name": "adjust_bottle",
+    "metric": "query_derived_metric",
+    "exact_match": true,
+    "matched_registry": "typed_metric_spec_v1",
+    "reference_tool": null,
+    "provider_required": false,
+    "reason": "validated typed MetricSpec can be compiled and differentially gated",
+    "catalog_snapshot_sha256": "c35f99f0c082170aafc4b6fdf5c8a32dbff174a2545810c06908283f103a1430",
+    "provider_called": false
+  },
+  "source": {
+    "scope": "run_local_generated",
+    "tool": "query_derived_metric",
+    "reference_tool": null,
+    "artifact": "mea/evaluation_runs/eval_20260728_adjust_bottle_open_live_v2/execution/round_2/planned_tool/typed_metric_spec/generated_tool.py",
+    "registration_id": "runlocal_ebd4454dd60ff20b5824"
+  },
+  "episodes": [
+    {
+      "episode_dir": "mea/generated_tasks/run_20260728_adjust_bottle_open_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100201",
+      "policy_name": "ACT",
+      "seed": 100201,
+      "role": "policy_under_evaluation",
+      "result": {
+        "tool": "query_derived_metric",
+        "value": null,
+        "unit": "s",
+        "passed": null,
+        "evidence_steps": [
+          1
+        ],
+        "details": {
+          "operation": "time_between_events",
+          "start_event": {
+            "actors": null,
+            "event_type": "contact_interval",
+            "physical_only": true
+          },
+          "end_event": {
+            "actors": null,
+            "event_type": "success_transition",
+            "physical_only": false
+          },
+          "start_simulation_time_seconds": 0.004,
+          "end_simulation_time_seconds": null,
+          "start_physics_step": 1,
+          "end_physics_step": null,
+          "reason": "end_event_missing"
+        },
+        "tool_sha256": "2e1e1ab0bf474fe3ae56d2f6afbf0a84a74f44845776c142ec46a931f7a819ce"
+      }
+    }
+  ],
+  "validation": {
+    "provider_called": false,
+    "typed_metric_spec": true,
+    "task_code_context_consumed": true,
+    "episode_count": 1,
+    "differential_gates_passed": true
+  },
+  "artifacts": {
+    "tool_request": "mea/evaluation_runs/eval_20260728_adjust_bottle_open_live_v2/execution/round_2/planned_tool/tool_request.json",
+    "catalog_snapshot": "mea/evaluation_runs/eval_20260728_adjust_bottle_open_live_v2/execution/round_2/planned_tool/catalog_snapshot.json",
+    "route_decision": "mea/evaluation_runs/eval_20260728_adjust_bottle_open_live_v2/execution/round_2/planned_tool/route_decision.json",
+    "metric_spec_execution": "mea/evaluation_runs/eval_20260728_adjust_bottle_open_live_v2/execution/round_2/planned_tool/typed_metric_spec/execution.json",
+    "resolved_tool_spec": "mea/evaluation_runs/eval_20260728_adjust_bottle_open_live_v2/execution/round_2/planned_tool/resolved_tool_spec.json",
+    "tool_execution": "mea/evaluation_runs/eval_20260728_adjust_bottle_open_live_v2/execution/round_2/planned_tool/tool_execution.json"
+  }
+}

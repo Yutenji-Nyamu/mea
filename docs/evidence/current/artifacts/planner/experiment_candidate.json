@@ -1,0 +1,22 @@
+{
+  "schema_version": 2,
+  "candidate_id": "dynamic.adjust.bottle.task.execution.success.margin.components.act.50450b5e2502",
+  "source_query": "这个 ACT 策略执行调整瓶子任务时，对未见对象属性的泛化能力如何，最先在哪里暴露弱点？",
+  "base_task": "adjust_bottle",
+  "semantic_concern": "task_execution.success_margin_components: 在保持官方场景与 ACT 检查点不变的情况下，基线成功主要由瓶子的高度达标或横向越界裕量之一决定；分解后的轨迹观测将显示最先接近失败的成功条件，从而定位潜在弱点。",
+  "scene_need": {
+    "kind": "adapt",
+    "description": "TaskGen must retrieve or generate a scene checker that preserves official success while exposing bottle functional-point height and absolute-x margin components.",
+    "reuse_first": true
+  },
+  "checker_need": {
+    "kind": "generate",
+    "description": "Generate an experimental check_success predicate that decides: 在保持官方场景与 ACT 检查点不变的情况下，基线成功主要由瓶子的高度达标或横向越界裕量之一决定；分解后的轨迹观测将显示最先接近失败的成功条件，从而定位潜在弱点。",
+    "reuse_first": true
+  },
+  "tool_need": {
+    "kind": "measure",
+    "description": "ToolGen must retrieve or generate observable rule metrics for final bottle functional-point height, absolute x, height margin, x margin, and official success, reusing the official checker where possible.",
+    "reuse_first": true
+  }
+}

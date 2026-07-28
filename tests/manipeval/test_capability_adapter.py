@@ -16,6 +16,7 @@ from mea.capability_adapter import (
     registered_templates,
     resolve_capability_contract,
     resolve_task_adapter,
+    resolve_task_retrieval_index,
     task_vqa_metric_phenomena,
     validate_capability_contract,
     validate_contract_changes,
@@ -152,6 +153,18 @@ class CapabilityAdapterTests(unittest.TestCase):
                     ],
                 )
                 self.assertEqual(validate_task_adapter(adapter), adapter)
+
+    def test_production_retrieval_projection_is_explicitly_non_authoritative(self):
+        index = resolve_task_retrieval_index("click_bell")
+        self.assertEqual(index["index_role"], "retrieval_only")
+        self.assertIs(index["execution_authority"], False)
+        self.assertNotIn("planner_kind", index)
+        self.assertNotIn("task_profile", index)
+        self.assertNotIn("max_rounds", index)
+        self.assertIn(
+            "object_position.left_fixed",
+            [entry["template_id"] for entry in index["entries"]],
+        )
 
     def test_official_vqa_rules_are_task_owned(self):
         questions = registered_task_vqa_questions()

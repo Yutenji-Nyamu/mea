@@ -440,6 +440,46 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         self.assertTrue(resolution["task_need"]["required"])
         self.assertFalse(resolution["execution_authorized"])
 
+    def test_official_only_task_admits_broad_concern_to_open_planner(self):
+        official_only_target = {
+            "task_name": "adjust_bottle",
+            "max_rounds": 2,
+            "policy": {"policy_name": "ACT"},
+            "aspects": [
+                {
+                    "aspect_id": "task_execution.official_baseline",
+                    "description": "Unchanged official task.",
+                    "template_ids": ["task_execution.official_baseline"],
+                }
+            ],
+        }
+        concern = {
+            "schema_version": 1,
+            "source_query": (
+                "How does this policy generalize, and where is its first weakness?"
+            ),
+            "sub_aspect": "General manipulation robustness.",
+            "hypothesis": "A yet-undiscovered object property may expose a weakness.",
+            "task_intent": "Adjust the bottle to the requested state.",
+            "requested_variation": "Choose one informative bounded variation.",
+            "measurement_need": "Measure task success and the causal failure signal.",
+        }
+
+        resolution = resolve_concern_candidate_domain(
+            concern, target=official_only_target
+        )
+
+        self.assertEqual(resolution["decision"], "catalog_external")
+        self.assertEqual(
+            resolution["resolution"],
+            "open_world_candidate_discovery_required",
+        )
+        self.assertIsNone(resolution["candidate_aspect_ids"])
+        self.assertTrue(resolution["candidate_discovery_required"])
+        self.assertFalse(resolution["execution_authorized"])
+        self.assertNotIn("task_need", resolution)
+        self.assertNotIn("tool_need", resolution)
+
     def test_provider_incidental_catalog_words_do_not_hide_external_mass_concern(self):
         resolution = resolve_concern_candidate_domain(
             {
@@ -589,6 +629,34 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         self.assertIn('"value": 0.031', evidence_summary)
         self.assertIn('"provider_called": false', evidence_summary)
 
+    def test_explicit_evidence_artifact_paths_override_shared_round_directory(self):
+        plan = round_plan(
+            1,
+            "performance.completion_time_stability.official",
+        )
+        observed = summary(plan, 1.0)
+        observed["evidence_artifact_paths"] = {
+            "round_aggregate": "repair/aggregate_result.json",
+            "tool_execution": "repair/first_query/tool_execution.json",
+        }
+
+        record = build_claim_first_evidence_record(plan, observed)
+
+        self.assertIn(
+            {
+                "kind": "round_aggregate",
+                "path": "repair/aggregate_result.json",
+            },
+            record["evidence_refs"],
+        )
+        self.assertIn(
+            {
+                "kind": "tool_execution",
+                "path": "repair/first_query/tool_execution.json",
+            },
+            record["evidence_refs"],
+        )
+
     def test_flat_compact_tool_value_reaches_next_planner_evidence(self):
         plan = round_plan(
             1,
@@ -730,6 +798,40 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         self.assertEqual(
             state["records"][0]["evidence_packet"]["evidence_strength"],
             "conflicting",
+        )
+
+    def test_candidate_vqa_conflict_stops_with_explicit_conflict_reason(self):
+        controller = ClaimFirstRuntimeController(
+            "Where does this policy first expose a weakness?",
+            target(),
+        )
+        control = round_plan(
+            1, "performance.completion_time_stability.official"
+        )
+        candidate = round_plan(2, "object_position.left_fixed")
+        candidate_summary = summary(candidate, 0.0)
+        candidate_summary["observations"]["execution_vqa"][
+            "evidence_conflict"
+        ] = True
+
+        state = controller.observe(
+            [control, candidate],
+            [summary(control, 1.0), candidate_summary],
+        )
+
+        self.assertTrue(state["assessment"]["should_stop"])
+        self.assertFalse(state["assessment"]["evidence_sufficient"])
+        self.assertEqual(
+            state["assessment"]["stop_reason"],
+            "evidence_conflict",
+        )
+        self.assertEqual(
+            state["records"][1]["candidate_evidence"]["outcome"],
+            "conflict",
+        )
+        self.assertEqual(
+            state["assessment"]["conflict_candidate_ids"],
+            ["object_position.left_fixed"],
         )
 
     def test_exact_aspect_uses_hidden_runtime_order_then_next_variant(self):
@@ -958,7 +1060,7 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         )
         self.assertTrue(
             any(
-                "expected semantic extension" in item
+                "not been certified as official-equivalent" in item
                 for item in state["query_answer"]["limitations"]
             )
         )

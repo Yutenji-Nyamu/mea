@@ -5,7 +5,7 @@
   "requested_change_assessment": "consistent",
   "visual_physical_plausibility": "plausible",
   "unexpected_changes": [],
-  "diagnosis": "The generated scene is visible and physically plausible, with the bell visibly translated within the workspace while the surrounding scene remains unchanged.",
+  "diagnosis": "Both scenes visibly contain the bottle in a comparable placement and orientation, with no obvious unintended changes. Checker success logic and exact functional-point margins are not visually decidable from RGB.",
   "repair_instructions": [],
-  "confidence": 0.95
+  "confidence": 0.88
 }

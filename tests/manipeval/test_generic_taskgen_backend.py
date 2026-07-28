@@ -431,6 +431,94 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                 module,
             )
 
+    def test_official_only_tasks_share_the_generic_cold_start_contract(
+        self,
+    ) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+
+        def fixtures(
+            _methods: Mapping[str, str],
+            _candidate_value: Mapping[str, Any],
+        ) -> list[Mapping[str, Any]]:
+            return [{"fixture": "live_hook_owned", "passed": True}]
+
+        for task_name in (
+            "adjust_bottle",
+            "grab_roller",
+            "place_phone_stand",
+        ):
+            with self.subTest(task_name=task_name):
+                adapter = load_generic_robotwin_task_adapter(
+                    repo_root,
+                    task_name,
+                    checker_fixtures=fixtures,
+                    preflight_candidate=(
+                        lambda _path, _source, _candidate_value: {
+                            "render_passed": True,
+                            "expert_passed": True,
+                            "scene_change_passed": True,
+                        }
+                    ),
+                    resolve_metric=lambda _candidate_value: (
+                        "query_derived_metric"
+                    ),
+                    resolve_checker_contract=lambda candidate_value: {
+                        "semantic_concern": candidate_value[
+                            "semantic_concern"
+                        ]
+                    },
+                )
+                candidate = build_experiment_candidate(
+                    source_query=(
+                        "Where does object-pose robustness first fail?"
+                    ),
+                    base_task=task_name,
+                    semantic_concern=(
+                        "cold-start object-pose robustness"
+                    ),
+                    scene_need=(
+                        "Adapt one existing object pose inside the official "
+                        "workspace."
+                    ),
+                    checker_need=(
+                        "Check completion under only that adapted scene."
+                    ),
+                    tool_need=(
+                        "Measure target-relative clearance and completion."
+                    ),
+                )
+                semantic_key = generic_task_semantic_key(
+                    candidate,
+                    adapter,
+                    repo_root=repo_root,
+                )
+
+                self.assertEqual(adapter.task_name, task_name)
+                self.assertEqual(
+                    adapter.official_source,
+                    f"envs/{task_name}.py",
+                )
+                self.assertEqual(
+                    adapter.task_schema["task_name"],
+                    task_name,
+                )
+                self.assertTrue(adapter.documentation_paths)
+                self.assertTrue(adapter.asset_paths)
+                self.assertEqual(
+                    semantic_key["base_task"],
+                    task_name,
+                )
+                self.assertIsNotNone(semantic_key["scene_need"])
+                self.assertIsNotNone(semantic_key["checker_need"])
+                self.assertIsNotNone(candidate["tool_need"])
+                serialized = json.dumps(
+                    semantic_key,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
+                self.assertNotIn("template_id", serialized)
+                self.assertNotIn("aspect_id", serialized)
+
     def test_loader_requires_real_preflight_hook(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

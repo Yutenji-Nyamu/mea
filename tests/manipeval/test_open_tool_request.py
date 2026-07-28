@@ -52,6 +52,24 @@ def _typed(task_name: str = "runtime_task"):
     }
 
 
+def _terminal(task_name: str = "adjust_bottle"):
+    return {
+        "schema_version": 2,
+        "task_name": task_name,
+        "metric": "terminal_functional_height",
+        "question": "What was the final functional-point height?",
+        "metric_spec": {
+            "schema_version": 1,
+            "operation": "terminal_signal_component",
+            "signal": "bottle_functional_position",
+            "component": "z",
+            "absolute": False,
+            "unit": "m",
+            "null_semantics": "null_if_terminal_not_finite",
+        },
+    }
+
+
 class OpenToolRequestTest(unittest.TestCase):
     def test_novel_metric_requires_typed_spec(self):
         with self.assertRaisesRegex(OpenToolRequestError, "typed MetricSpec"):
@@ -128,6 +146,192 @@ class OpenToolRequestTest(unittest.TestCase):
                 tool_need="measure actor proximity",
                 task_name="adjust_bottle",
             )
+
+    def test_agent_exposes_and_accepts_terminal_signal_component(self):
+        root = Path(__file__).resolve().parents[2]
+        provider = _Provider(_terminal())
+        agent = OpenToolRequestAgent(root, provider, model="fixture-model")
+
+        bundle = agent.propose(
+            source_query="How high is the object at the end?",
+            semantic_concern="terminal object state",
+            tool_need=(
+                "Measure the final bottle functional-point height."
+            ),
+            task_name="adjust_bottle",
+        )
+
+        self.assertEqual(
+            bundle["tool_request"]["metric_spec"]["operation"],
+            "terminal_signal_component",
+        )
+        self.assertIn(
+            "terminal_signal_component",
+            bundle["context"]["typed_operator_contracts"],
+        )
+        self.assertIn("final/terminal", agent.last_prompt)
+
+    def test_terminal_semantic_need_rejects_event_metric_and_wrong_component(self):
+        available = {
+            "bottle_position",
+            "bottle_functional_position",
+            "left_tcp_position",
+        }
+        event_request = {
+            "schema_version": 2,
+            "task_name": "adjust_bottle",
+            "metric": "contact_to_success_time",
+            "question": "How long from contact to success?",
+            "metric_spec": {
+                "schema_version": 1,
+                "operation": "time_between_events",
+                "start_event": {
+                    "event_type": "contact_interval",
+                    "actors": None,
+                    "physical_only": True,
+                },
+                "end_event": {
+                    "event_type": "success_transition",
+                    "actors": None,
+                    "physical_only": False,
+                },
+                "unit": "s",
+                "null_semantics": "null_if_missing_or_reversed",
+            },
+        }
+        need = "Measure the final bottle functional-point height."
+        with self.assertRaisesRegex(
+            OpenToolRequestError, "requires terminal_signal_component"
+        ):
+            validate_open_tool_request(
+                event_request,
+                task_name="adjust_bottle",
+                available_signal_names=available,
+                measurement_need=need,
+            )
+
+        schema_v1_reuse = {
+            "schema_version": 1,
+            "task_name": "adjust_bottle",
+            "metric": "official_check_success",
+            "question": "Did the official task report success?",
+        }
+        with self.assertRaisesRegex(
+            OpenToolRequestError, "schema_version=2 terminal_signal_component"
+        ):
+            validate_open_tool_request(
+                schema_v1_reuse,
+                task_name="adjust_bottle",
+                available_signal_names=available,
+                measurement_need=need,
+            )
+
+        wrong_component = _terminal()
+        wrong_component["metric_spec"]["component"] = "x"
+        with self.assertRaisesRegex(
+            OpenToolRequestError, "component does not match"
+        ):
+            validate_open_tool_request(
+                wrong_component,
+                task_name="adjust_bottle",
+                available_signal_names=available,
+                measurement_need=need,
+            )
+
+    def test_absolute_terminal_component_requires_absolute_flag(self):
+        request = _terminal()
+        request["metric_spec"]["component"] = "x"
+        need = (
+            "Measure the final absolute x component of the "
+            "bottle functional position."
+        )
+        with self.assertRaisesRegex(OpenToolRequestError, "absolute=true"):
+            validate_open_tool_request(
+                request,
+                task_name="adjust_bottle",
+                available_signal_names={
+                    "bottle_position",
+                    "bottle_functional_position",
+                },
+                measurement_need=need,
+            )
+        request["metric_spec"]["absolute"] = True
+        validated = validate_open_tool_request(
+            request,
+            task_name="adjust_bottle",
+            available_signal_names={
+                "bottle_position",
+                "bottle_functional_position",
+            },
+            measurement_need=need,
+        )
+        self.assertTrue(validated["metric_spec"]["absolute"])
+
+    def test_multi_component_terminal_need_cannot_escape_to_event_metric(self):
+        need = (
+            "Measure final bottle functional-point height, absolute x, "
+            "height margin, and x margin."
+        )
+        available = {
+            "bottle_position",
+            "bottle_functional_position",
+        }
+        event_request = {
+            "schema_version": 2,
+            "task_name": "adjust_bottle",
+            "metric": "contact_to_success_time",
+            "question": "How long from contact to success?",
+            "metric_spec": {
+                "schema_version": 1,
+                "operation": "time_between_events",
+                "start_event": {
+                    "event_type": "contact_interval",
+                    "actors": None,
+                    "physical_only": True,
+                },
+                "end_event": {
+                    "event_type": "success_transition",
+                    "actors": None,
+                    "physical_only": False,
+                },
+                "unit": "s",
+                "null_semantics": "null_if_missing_or_reversed",
+            },
+        }
+        with self.assertRaisesRegex(
+            OpenToolRequestError, "requires terminal_signal_component"
+        ):
+            validate_open_tool_request(
+                event_request,
+                task_name="adjust_bottle",
+                available_signal_names=available,
+                measurement_need=need,
+            )
+
+        terminal_x = _terminal()
+        terminal_x["metric_spec"].update(
+            {"component": "x", "absolute": True}
+        )
+        self.assertEqual(
+            validate_open_tool_request(
+                terminal_x,
+                task_name="adjust_bottle",
+                available_signal_names=available,
+                measurement_need=need,
+            )["metric_spec"]["component"],
+            "x",
+        )
+
+        terminal_z = _terminal()
+        self.assertEqual(
+            validate_open_tool_request(
+                terminal_z,
+                task_name="adjust_bottle",
+                available_signal_names=available,
+                measurement_need=need,
+            )["metric_spec"]["component"],
+            "z",
+        )
 
     def test_invalid_metric_id_is_repaired_inside_provider_loop(self):
         root = Path(__file__).resolve().parents[2]
