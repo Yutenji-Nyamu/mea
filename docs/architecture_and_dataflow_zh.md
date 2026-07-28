@@ -1,21 +1,25 @@
 # 架构与干净数据流
 
 当前项目是在 RoboTwin 上复现 ManipEvalAgent 论文方法的受限实现。`--auto-route`
-开放 Query 的生产路径只保留一条：
+开放 Query 的唯一生产主链是 `FreeConcern → ClaimFirst`；official inventory/catalog
+只负责发现与绑定，legacy task-specific planner 也不是并行生产入口：
 
 ```text
 原始 Query
   → FreeConcern（先抽取任务意图与待测变化，不向模型展示 task inventory）
   → official task discovery + retrieve/generate decision
-  → policy/control binding（checkpoint、official control 与 task identity）
+  → policy binding（checkpoint 与 task identity）
   → policy/checkpoint compatibility gate
       ├─ 语义相近且 checkpoint 可执行：retrieve and adapt
       ├─ open-policy 且确有新任务需求：generate new
       └─ 不可执行或 scope 不明：unsupported
-  → ClaimFirst Planner + QueryContract（选择本轮要区分的 claim）
+  → ClaimFirst Planner + QueryContract（选择 claim，并决定是否需要 control）
+      ├─ Query 需要对照：materialize neutral official control
+      └─ Query 不需要对照：直接进入首个 Query-derived candidate
   → runtime ExperimentCandidate（scene/checker/tool need；不要求 template id）
   → TaskGen（精确检索；miss 时生成 scene + check_success）
-  → render + 一次局部 visual repair + expert/fixture gate
+  → VLM + simulator state/checker fixture + render + expert gate
+    （只允许一次局部 visual repair）
   → policy rollout（当前生产主链为 ACT；DP3 只用于 ranking pilot）
   → 从实际 telemetry schema 生成或精确复用 Rule Tool / VQA
   → Aggregate
@@ -43,6 +47,12 @@ open-policy scope。若原始 Query 提出 catalog 外 concern，Planner 会保�
 `ExperimentCandidate` 的 scene/checker/tool need；generic backend 可以在已绑定 base
 task 上 exact reuse 或生成并验证。只有生成、当前 seed preflight 和 rollout 全部完成后，
 该 concern 才能成为评价证据。
+neutral official control 只是 QueryContract 在 claim 需要对照时调用的 unchanged-scene
+materialization，不是每个 Query 的默认首轮。generic TaskGen 若要从同一采样 Pose 派生
+另一个 actor 的位置，必须复制位置数组并新建
+`sapien.Pose(new_position, old_pose.q)`；禁止复用原 Pose 后修改 `Pose.p/q` 的元素或做
+`+=/-=`。VLM 判断不能单独放行，simulator state/checker fixture、render 与 expert gate
+必须同时通过。
 论文消融、效率比较、人类/VQA
 有效性和 policy ranking 属于 `experiments/paper/`，不得被生产入口隐式调用。
 
@@ -98,19 +108,20 @@ Git 只发布一个最近运行的紧凑证据包 `docs/evidence/current/`：保
   弱点或成功率结论。
 - catalog-external concern 已不再因缺少 template id 直接终止：运行时会形成稳定
   `ExperimentCandidate`，catalog 仅提供相近工件检索提示，随后进入通用
-  scene/checker/Tool materialization。该路径已有 provider fixture 与主 CLI 组合测试，
-  但本批尚无一次新的 provider+ACT 同 bundle live 验收，因此不能写成新的实验正例。
+  scene/checker/Tool materialization。batch28 v4 已从 broad Query 在线产生一个
+  position-translation candidate，经过 provider scene+checker 与第二次 ACT；两轮后因
+  coverage 不足返回 inconclusive。这是单任务/单 seed 的接线验收，不是开放域泛化正结论。
 - generic TaskGen 会自动发现任意 source/schema-backed RoboTwin base task；新增 concern
   不再要求修改 BBH/ClickBell 方言。它目前只接受能由相同 seed simulator state 或 render
   观察到的 scene 变化；纯隐式物理变化仍需新的 simulator measurement hook。
 - generated actor 会扩展本次 rollout 的 telemetry schema；ToolGen 在 ACT 后读取该实际
-  schema。evaluation-local Tool 可同会话复用，显式 reviewed 的 typed Tool 可在新 Query
-  中 exact reuse，并在当前 episode 上再次做确定性与 oracle 校验。
-- ClickBell 的 clean flagship 已由一个生产 CLI 完成：inventory-free FreeConcern
-  自动绑定唯一 distractor concern，official control 后由 evidence 触发 provider-written
-  scene+checker，经过 6/6 fixtures、render/expert、第二次 ACT、Tool/VQA/Aggregate，
-  最终以 `evidence_sufficient` 停止。全程无 aspect CLI hint、缓存 replay 或人工串接；
-  仍只覆盖 seed `100405` 和一个有限候选。
+  schema。evaluation-local Tool 可在同一 evaluation 的后续 Query 中 exact reuse；
+  跨独立 evaluation 的复用必须来自显式 reviewed registry，并在当前 episode 上再次做
+  确定性与 oracle 校验。
+- ClickBell 现有两个互补旗舰：batch26 的 singleton distractor Query 在有限合同下以
+  `evidence_sufficient` 停止；batch28 v4 从 broad Query 在线发现 position translation，
+  完成两次 ACT 后以 `budget_exhausted`/inconclusive 停止。二者均无 aspect CLI hint 或
+  缓存 replay，但都只覆盖 seed `100405`，不能合并成广泛泛化证据。
 - LIBERO/SmolVLA 由 `mea/libero/` 的 benchmark adapter/chain 负责，不进入 RoboTwin
   resolver。batch27 在 `libero_object/task0` 完成两回合结构闭环：official control
   成功，evidence 触发一个 state-compatible custom BDDL；custom rollout 失败，但合法

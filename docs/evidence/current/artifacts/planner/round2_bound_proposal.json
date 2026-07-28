@@ -1,0 +1,182 @@
+{
+  "schema_version": 2,
+  "semantic_proposal_bundle": {
+    "schema_version": 1,
+    "source": "provider_claim_first_open_query",
+    "input_digest": "9c5d2c53ae5f325cd1dee7712cfa1091969019a0e6c701c8fba2e6310c68a603",
+    "proposal": {
+      "schema_version": 1,
+      "action": "continue",
+      "sub_aspect": "object_generalization.position_translation",
+      "hypothesis": "The ACT policy's first weakness in manipulated-object generalization is spatial: translating the bell within a bounded reachable workspace will reduce official press success or increase final bell-contact distance relative to the unchanged control.",
+      "requested_perturbation": {
+        "description": "Create one scene variant that translates the bell to a bounded, reachable position while leaving its appearance, geometry, contact point, and all other scene elements unchanged.",
+        "controlled_changes": [
+          "bell_position"
+        ],
+        "preserve": [
+          "task identity",
+          "policy checkpoint",
+          "bell appearance and geometry",
+          "bell contact-point definition",
+          "scene lighting and background",
+          "gripper and robot initial conditions"
+        ]
+      },
+      "task_need": {
+        "required": true,
+        "description": "TaskGen must create a bounded object_position variant overlay for the bell and preserve the official click_bell success contract."
+      },
+      "tool_need": {
+        "required": true,
+        "description": "ToolGen should reuse the official success checker and generate a rule metric reporting the final target-contact distance and whether the active gripper is closed, so partial spatial degradation is observable even if the binary outcome remains successful.",
+        "reuse_first": true
+      },
+      "rationale": "The unchanged control succeeds, so it does not reveal a generalization boundary. A bounded bell translation is the most direct supported test of whether ACT depends on the demonstrated object location, while preserving object identity and appearance and adding contact-distance observability to distinguish spatial degradation from unrelated failure."
+    },
+    "provider": {
+      "model_requested": "gpt-5.6-luna",
+      "called": true,
+      "attempt_count": 1,
+      "errors": [],
+      "last_metadata": {
+        "id": "chatcmpl-E6I2ZaObSIB6xn2mfC02XKlBS3ZfP",
+        "model": "gpt-5.6-luna-2026-07-09",
+        "finish_reason": "stop",
+        "usage": {
+          "completion_tokens": 731,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": 0,
+            "audio_tokens": 0,
+            "reasoning_tokens": 367,
+            "rejected_prediction_tokens": 0
+          },
+          "latency_checkpoint": {
+            "engine_tbt_ms": 8,
+            "engine_ttft_ms": 92,
+            "engine_ttlt_ms": 5991,
+            "pre_inference_ms": 75,
+            "service_tbt_ms": 8,
+            "service_ttft_ms": 690,
+            "service_ttlt_ms": 6585,
+            "total_duration_ms": 6519,
+            "user_visible_ttft_ms": 615
+          },
+          "prompt_tokens": 1596,
+          "prompt_tokens_details": {
+            "audio_tokens": 0,
+            "cached_tokens": 0
+          },
+          "total_tokens": 2327
+        },
+        "retry_count": 0
+      }
+    }
+  },
+  "semantic_needs": {
+    "task_need": {
+      "required": true,
+      "description": "TaskGen must create a bounded object_position variant overlay for the bell and preserve the official click_bell success contract."
+    },
+    "tool_need": {
+      "required": true,
+      "description": "ToolGen should reuse the official success checker and generate a rule metric reporting the final target-contact distance and whether the active gripper is closed, so partial spatial degradation is observable even if the binary outcome remains successful.",
+      "reuse_first": true
+    }
+  },
+  "resolution": {
+    "schema_version": 1,
+    "semantic_sub_aspect": "object_generalization.position_translation",
+    "resolved_aspect_id": "object_position",
+    "resolved_template_id": null,
+    "resolution": "catalog_retrieval_hint_then_reuse_or_generate",
+    "hidden": true,
+    "matched_tokens": [
+      "description",
+      "generalization",
+      "object",
+      "official",
+      "position",
+      "workspace"
+    ],
+    "catalog_was_model_visible": false,
+    "retrieval_template_id": "object_position.left_fixed",
+    "resolved_candidate_id": "dynamic.click.bell.object.generalization.position.translation.the.act.policy.s.first.weakness.in.manipulated.object.generalization.is.spatial.translating.the.bell.within.a.bounded.reachable.workspace.will.reduce.official.press.success.or.increase.final.bell.contact.distance.relative.to.the.unchanged.control.5142e88b1d4d"
+  },
+  "plan_step": {
+    "schema_version": 2,
+    "action": "propose",
+    "aspect_id": "object_generalization.position_translation",
+    "candidate_id": "dynamic.click.bell.object.generalization.position.translation.the.act.policy.s.first.weakness.in.manipulated.object.generalization.is.spatial.translating.the.bell.within.a.bounded.reachable.workspace.will.reduce.official.press.success.or.increase.final.bell.contact.distance.relative.to.the.unchanged.control.5142e88b1d4d",
+    "execution_mode": "reuse_or_generate",
+    "experiment_candidate": {
+      "schema_version": 2,
+      "candidate_id": "dynamic.click.bell.object.generalization.position.translation.the.act.policy.s.first.weakness.in.manipulated.object.generalization.is.spatial.translating.the.bell.within.a.bounded.reachable.workspace.will.reduce.official.press.success.or.increase.final.bell.contact.distance.relative.to.the.unchanged.control.5142e88b1d4d",
+      "source_query": "Where does this ACT policy first expose a weakness when generalizing over manipulated-object properties?",
+      "base_task": "click_bell",
+      "semantic_concern": "object_generalization.position_translation: The ACT policy's first weakness in manipulated-object generalization is spatial: translating the bell within a bounded reachable workspace will reduce official press success or increase final bell-contact distance relative to the unchanged control.",
+      "scene_need": {
+        "kind": "adapt",
+        "description": "TaskGen must create a bounded object_position variant overlay for the bell and preserve the official click_bell success contract.",
+        "reuse_first": true
+      },
+      "checker_need": {
+        "kind": "generate",
+        "description": "Generate an experimental check_success predicate that decides: The ACT policy's first weakness in manipulated-object generalization is spatial: translating the bell within a bounded reachable workspace will reduce official press success or increase final bell-contact distance relative to the unchanged control.",
+        "reuse_first": true
+      },
+      "tool_need": {
+        "kind": "measure",
+        "description": "ToolGen should reuse the official success checker and generate a rule metric reporting the final target-contact distance and whether the active gripper is closed, so partial spatial degradation is observable even if the binary outcome remains successful.",
+        "reuse_first": true
+      }
+    },
+    "rationale": "The unchanged control succeeds, so it does not reveal a generalization boundary. A bounded bell translation is the most direct supported test of whether ACT depends on the demonstrated object location, while preserving object identity and appearance and adding contact-distance observability to distinguish spatial degradation from unrelated failure.",
+    "answered_query": false
+  },
+  "query_contract": {
+    "schema_version": 3,
+    "claim_type": "diagnostic",
+    "candidate_universe": [
+      "object_position.left_fixed",
+      "object_position.right_fixed",
+      "object_instance.base0",
+      "object_instance.base1",
+      "robustness.distractor_avoidance.lookalike_bell",
+      "robustness.scene_clutter.official_table",
+      "scene_background_texture.unseen",
+      "scene_lighting.static_random",
+      "performance.completion_time_stability.official",
+      "dynamic.click.bell.object.generalization.position.translation.the.act.policy.s.first.weakness.in.manipulated.object.generalization.is.spatial.translating.the.bell.within.a.bounded.reachable.workspace.will.reduce.official.press.success.or.increase.final.bell.contact.distance.relative.to.the.unchanged.control.5142e88b1d4d"
+    ],
+    "required_coverage": {
+      "candidate_ids": [
+        "object_position.left_fixed",
+        "object_position.right_fixed",
+        "object_instance.base0",
+        "object_instance.base1",
+        "robustness.distractor_avoidance.lookalike_bell",
+        "robustness.scene_clutter.official_table",
+        "scene_background_texture.unseen",
+        "scene_lighting.static_random",
+        "performance.completion_time_stability.official",
+        "dynamic.click.bell.object.generalization.position.translation.the.act.policy.s.first.weakness.in.manipulated.object.generalization.is.spatial.translating.the.bell.within.a.bounded.reachable.workspace.will.reduce.official.press.success.or.increase.final.bell.contact.distance.relative.to.the.unchanged.control.5142e88b1d4d"
+      ],
+      "minimum_evaluated": 1,
+      "minimum_per_group": null
+    },
+    "round_budget": 1,
+    "comparison_groups": null,
+    "candidate_universe_closed": false,
+    "existential_witness_outcome": null,
+    "control_requirement": "required"
+  },
+  "execution_binding": {
+    "schema_version": 2,
+    "candidate_id": "dynamic.click.bell.object.generalization.position.translation.the.act.policy.s.first.weakness.in.manipulated.object.generalization.is.spatial.translating.the.bell.within.a.bounded.reachable.workspace.will.reduce.official.press.success.or.increase.final.bell.contact.distance.relative.to.the.unchanged.control.5142e88b1d4d",
+    "materialization_path": "plan/open_world_materialization/round_02",
+    "taskgen_route": "generic_provider_scene_checker_codegen",
+    "toolgen_route": "deferred_until_executed_telemetry_schema",
+    "catalog_template_used": false
+  }
+}

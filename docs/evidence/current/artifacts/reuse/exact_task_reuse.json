@@ -1,0 +1,274 @@
+{
+  "schema_version": 1,
+  "status": "reused",
+  "route": "exact_generated_task_reuse",
+  "candidate": {
+    "base_task": "click_bell",
+    "candidate_id": "dynamic.click_bell.rephrased_lateral_translation",
+    "checker_need": {
+      "description": "Generate an experimental check_success predicate that decides: The ACT policy's first weakness in manipulated-object generalization is spatial: translating the bell within a bounded reachable workspace will reduce official press success or increase final bell-contact distance relative to the unchanged control.",
+      "kind": "generate",
+      "reuse_first": true
+    },
+    "scene_need": {
+      "description": "TaskGen must create a bounded object_position variant overlay for the bell and preserve the official click_bell success contract.",
+      "kind": "adapt",
+      "reuse_first": true
+    },
+    "schema_version": 2,
+    "semantic_concern": "object_generalization.position_translation: The ACT policy's first weakness in manipulated-object generalization is spatial: translating the bell within a bounded reachable workspace will reduce official press success or increase final bell-contact distance relative to the unchanged control.",
+    "source_query": "Does a bounded bell translation preserve reliable ACT clicking?",
+    "tool_need": {
+      "description": "ToolGen should reuse the official success checker and generate a rule metric reporting the final target-contact distance and whether the active gripper is closed, so partial spatial degradation is observable even if the binary outcome remains successful.",
+      "kind": "measure",
+      "reuse_first": true
+    }
+  },
+  "semantic_key": {
+    "schema_version": 1,
+    "base_task": "click_bell",
+    "semantic_concern": "object_generalization.position_translation: The ACT policy's first weakness in manipulated-object generalization is spatial: translating the bell within a bounded reachable workspace will reduce official press success or increase final bell-contact distance relative to the unchanged control.",
+    "scene_need": {
+      "description": "TaskGen must create a bounded object_position variant overlay for the bell and preserve the official click_bell success contract.",
+      "kind": "adapt",
+      "reuse_first": true
+    },
+    "checker_need": {
+      "description": "Generate an experimental check_success predicate that decides: The ACT policy's first weakness in manipulated-object generalization is spatial: translating the bell within a bounded reachable workspace will reduce official press success or increase final bell-contact distance relative to the unchanged control.",
+      "kind": "generate",
+      "reuse_first": true
+    },
+    "adapter_contract": {
+      "official_source": "envs/click_bell.py",
+      "official_source_sha256": "a0b7673e6ef842738999acbccaaa3d01f86d62a147bb8387cb92163218db48ac",
+      "official_class": "click_bell",
+      "task_schema": {
+        "schema_version": 1,
+        "task_name": "click_bell",
+        "task_family": "press_contact",
+        "trusted_tool_profile": "generic_success",
+        "physics_timestep_seconds": 0.004,
+        "action_dimension": 14,
+        "probe_task_attributes": [
+          "bell_id"
+        ],
+        "tracked_actors": [
+          {
+            "id": "bell",
+            "task_attribute": "bell",
+            "scene_name": "050_bell",
+            "functional_points": [],
+            "contact_points": [
+              0
+            ]
+          }
+        ],
+        "contact_focus_actor_ids": [
+          "bell"
+        ],
+        "semantic_fields": [
+          {
+            "name": "bell_position",
+            "source": "actor_position",
+            "actor_id": "bell"
+          },
+          {
+            "name": "bell_contact_position",
+            "source": "actor_contact_position",
+            "actor_id": "bell",
+            "point_id": 0
+          },
+          {
+            "name": "left_tcp_position",
+            "source": "robot_tcp_position",
+            "side": "left"
+          },
+          {
+            "name": "right_tcp_position",
+            "source": "robot_tcp_position",
+            "side": "right"
+          }
+        ],
+        "semantic_roles": {
+          "manipulated_object_position": "bell_position",
+          "target_contact_position": "bell_contact_position",
+          "left_tcp_position": "left_tcp_position",
+          "right_tcp_position": "right_tcp_position"
+        },
+        "success_contract": {
+          "type": "official_check_success",
+          "target_actor_id": "bell",
+          "target_contact_point": 0,
+          "xy_tolerance_m": [
+            0.025,
+            0.025
+          ],
+          "z_tolerance_m": 0.03,
+          "requires_closed_active_gripper": true
+        }
+      },
+      "asset_dependencies": [
+        {
+          "path": "description/objects_description/050_bell/base0.json",
+          "sha256": "543240a1b5b88f5a2ec5975dcbfd865c2eb9b8eda7546775ef3069359225b09f"
+        },
+        {
+          "path": "description/objects_description/050_bell/base1.json",
+          "sha256": "6c4efb216f006a833724dfe4a760c914f305921c850aae457ac48575754f8ea2"
+        }
+      ],
+      "documentation_dependencies": [
+        {
+          "path": "description/task_instruction/click_bell.json",
+          "sha256": "226f74cb0691ab1954cf77ac1a7672afb1d709525f22e5dbe17f8ed3ae247f39"
+        },
+        {
+          "path": "mea/knowledge/tasks/click_bell.md",
+          "sha256": "93b81659cd36670aa614153760e4cb5da69de8a22b7c7f3929b70e43cda6e938"
+        }
+      ],
+      "taskgen_readme_sha256": "2a52c838277506e5241b89ac4c3f93a5a57132a66ac8e725f87e370e72710f5d",
+      "prompt_constraints_sha256": "996ddc6e8e1e864f230d794af3049b2d08d293f802805f313c0c3ddab1d3dd15",
+      "ast_policy": "generic_official_api_ast_v1:93af91133db18dbb",
+      "generation_hook_contract": {
+        "methods": [
+          "load_actors",
+          "check_success"
+        ],
+        "static_and_fixture_validation": true,
+        "render_preflight": true,
+        "expert_preflight": true,
+        "local_regeneration_limit": 1
+      }
+    }
+  },
+  "semantic_key_sha256": "82d15164d77b89702f005361d688f82f915db83b919badcc5b4a2d9cd49abfad",
+  "provider_required": false,
+  "provider_call_count": 0,
+  "exact_match": {
+    "schema_version": 1,
+    "status": "approved",
+    "semantic_key": {
+      "schema_version": 1,
+      "base_task": "click_bell",
+      "semantic_concern": "object_generalization.position_translation: The ACT policy's first weakness in manipulated-object generalization is spatial: translating the bell within a bounded reachable workspace will reduce official press success or increase final bell-contact distance relative to the unchanged control.",
+      "scene_need": {
+        "description": "TaskGen must create a bounded object_position variant overlay for the bell and preserve the official click_bell success contract.",
+        "kind": "adapt",
+        "reuse_first": true
+      },
+      "checker_need": {
+        "description": "Generate an experimental check_success predicate that decides: The ACT policy's first weakness in manipulated-object generalization is spatial: translating the bell within a bounded reachable workspace will reduce official press success or increase final bell-contact distance relative to the unchanged control.",
+        "kind": "generate",
+        "reuse_first": true
+      },
+      "adapter_contract": {
+        "official_source": "envs/click_bell.py",
+        "official_source_sha256": "a0b7673e6ef842738999acbccaaa3d01f86d62a147bb8387cb92163218db48ac",
+        "official_class": "click_bell",
+        "task_schema": {
+          "schema_version": 1,
+          "task_name": "click_bell",
+          "task_family": "press_contact",
+          "trusted_tool_profile": "generic_success",
+          "physics_timestep_seconds": 0.004,
+          "action_dimension": 14,
+          "probe_task_attributes": [
+            "bell_id"
+          ],
+          "tracked_actors": [
+            {
+              "id": "bell",
+              "task_attribute": "bell",
+              "scene_name": "050_bell",
+              "functional_points": [],
+              "contact_points": [
+                0
+              ]
+            }
+          ],
+          "contact_focus_actor_ids": [
+            "bell"
+          ],
+          "semantic_fields": [
+            {
+              "name": "bell_position",
+              "source": "actor_position",
+              "actor_id": "bell"
+            },
+            {
+              "name": "bell_contact_position",
+              "source": "actor_contact_position",
+              "actor_id": "bell",
+              "point_id": 0
+            },
+            {
+              "name": "left_tcp_position",
+              "source": "robot_tcp_position",
+              "side": "left"
+            },
+            {
+              "name": "right_tcp_position",
+              "source": "robot_tcp_position",
+              "side": "right"
+            }
+          ],
+          "semantic_roles": {
+            "manipulated_object_position": "bell_position",
+            "target_contact_position": "bell_contact_position",
+            "left_tcp_position": "left_tcp_position",
+            "right_tcp_position": "right_tcp_position"
+          },
+          "success_contract": {
+            "type": "official_check_success",
+            "target_actor_id": "bell",
+            "target_contact_point": 0,
+            "xy_tolerance_m": [
+              0.025,
+              0.025
+            ],
+            "z_tolerance_m": 0.03,
+            "requires_closed_active_gripper": true
+          }
+        },
+        "asset_dependencies": [
+          {
+            "path": "description/objects_description/050_bell/base0.json",
+            "sha256": "543240a1b5b88f5a2ec5975dcbfd865c2eb9b8eda7546775ef3069359225b09f"
+          },
+          {
+            "path": "description/objects_description/050_bell/base1.json",
+            "sha256": "6c4efb216f006a833724dfe4a760c914f305921c850aae457ac48575754f8ea2"
+          }
+        ],
+        "documentation_dependencies": [
+          {
+            "path": "description/task_instruction/click_bell.json",
+            "sha256": "226f74cb0691ab1954cf77ac1a7672afb1d709525f22e5dbe17f8ed3ae247f39"
+          },
+          {
+            "path": "mea/knowledge/tasks/click_bell.md",
+            "sha256": "93b81659cd36670aa614153760e4cb5da69de8a22b7c7f3929b70e43cda6e938"
+          }
+        ],
+        "taskgen_readme_sha256": "2a52c838277506e5241b89ac4c3f93a5a57132a66ac8e725f87e370e72710f5d",
+        "prompt_constraints_sha256": "996ddc6e8e1e864f230d794af3049b2d08d293f802805f313c0c3ddab1d3dd15",
+        "ast_policy": "generic_official_api_ast_v1:93af91133db18dbb",
+        "generation_hook_contract": {
+          "methods": [
+            "load_actors",
+            "check_success"
+          ],
+          "static_and_fixture_validation": true,
+          "render_preflight": true,
+          "expert_preflight": true,
+          "local_regeneration_limit": 1
+        }
+      }
+    },
+    "semantic_key_sha256": "82d15164d77b89702f005361d688f82f915db83b919badcc5b4a2d9cd49abfad",
+    "artifact_id": "mea/generated_tasks/run_20260727_batch28_neutral_click_live_v4_round_2/manifest.json",
+    "artifact_manifest": "mea/generated_tasks/run_20260727_batch28_neutral_click_live_v4_round_2/manifest.json",
+    "reuse_count": 0
+  }
+}

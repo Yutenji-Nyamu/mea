@@ -1,0 +1,155 @@
+{
+  "schema_version": 1,
+  "original_query": "Where does this ACT policy first expose a weakness when generalizing over manipulated-object properties?",
+  "answered": false,
+  "answer_scope": "bounded_experimental_query_semantics",
+  "official_benchmark_answered": false,
+  "stop_reason": "budget_exhausted",
+  "claim_type": "diagnostic",
+  "claim_verdict": "inconclusive",
+  "answer": "The bounded evidence does not yet satisfy the truth conditions needed to answer the original Query.",
+  "tested_candidate_ids": [
+    "dynamic.click.bell.object.generalization.position.translation.the.act.policy.s.first.weakness.in.manipulated.object.generalization.is.spatial.translating.the.bell.within.a.bounded.reachable.workspace.will.reduce.official.press.success.or.increase.final.bell.contact.distance.relative.to.the.unchanged.control.5142e88b1d4d"
+  ],
+  "untested_candidate_ids": [
+    "object_position.left_fixed",
+    "object_position.right_fixed",
+    "object_instance.base0",
+    "object_instance.base1",
+    "robustness.distractor_avoidance.lookalike_bell",
+    "robustness.scene_clutter.official_table",
+    "scene_background_texture.unseen",
+    "scene_lighting.static_random",
+    "performance.completion_time_stability.official"
+  ],
+  "limitations": [
+    "This is a finite-domain stopping prototype, not a statistical generalization guarantee.",
+    "The candidate universe is open; exhaustive, no-counterexample, and worst-case conclusions are not licensed.",
+    "Diagnosis strings are trusted upstream evidence labels; this contract does not independently infer or validate causality.",
+    "Untested candidates: object_position.left_fixed, object_position.right_fixed, object_instance.base0, object_instance.base1, robustness.distractor_avoidance.lookalike_bell, robustness.scene_clutter.official_table, scene_background_texture.unseen, scene_lighting.static_random, performance.completion_time_stability.official",
+    "This answer is limited to the bound task, checkpoint, variants, and recorded seeds.",
+    "A finite-domain N-small result is not a broad generalization guarantee.",
+    "At least one candidate verdict uses generated_check_success; it must not be interpreted as official benchmark success.",
+    "At least one generated checker is an expected semantic extension of the official core predicate, not an official-equivalent result."
+  ],
+  "evidence_refs": [
+    {
+      "kind": "child_manifest",
+      "path": "mea/generated_tasks/run_20260727_batch28_neutral_click_live_v4_round_1/manifest.json"
+    },
+    {
+      "kind": "round_aggregate",
+      "path": "mea/evaluation_runs/eval_20260727_batch28_neutral_click_live_v4/execution/round_1/aggregate_result.json"
+    },
+    {
+      "kind": "tool_execution",
+      "path": "mea/evaluation_runs/eval_20260727_batch28_neutral_click_live_v4/execution/round_1/planned_tool/tool_execution.json"
+    },
+    {
+      "kind": "execution_vqa_result",
+      "path": "mea/evaluation_runs/eval_20260727_batch28_neutral_click_live_v4/execution/round_1/execution_vqa/execution_vqa.json"
+    },
+    {
+      "kind": "child_manifest",
+      "path": "mea/generated_tasks/run_20260727_batch28_neutral_click_live_v4_round_2/manifest.json"
+    },
+    {
+      "kind": "round_aggregate",
+      "path": "mea/evaluation_runs/eval_20260727_batch28_neutral_click_live_v4/execution/round_2/aggregate_result.json"
+    },
+    {
+      "kind": "tool_execution",
+      "path": "mea/evaluation_runs/eval_20260727_batch28_neutral_click_live_v4/execution/round_2/planned_tool/tool_execution.json"
+    },
+    {
+      "kind": "execution_vqa_result",
+      "path": "mea/evaluation_runs/eval_20260727_batch28_neutral_click_live_v4/execution/round_2/execution_vqa/execution_vqa.json"
+    }
+  ],
+  "evaluation_outcomes": [
+    {
+      "metric": "official_check_success",
+      "authority": "official_check_success",
+      "binding": null,
+      "value": 1.0,
+      "official_equivalent": true,
+      "execution_scope": "official_equivalent",
+      "outcome_semantics": {
+        "schema_version": 1,
+        "status": "non_comparable",
+        "evidence_conflict": false,
+        "official_equivalent": null,
+        "outcome_authority": "official_check_success",
+        "episodes": [],
+        "reason_codes": []
+      }
+    },
+    {
+      "metric": "generated_check_success",
+      "authority": "llm_generated_python_ast_validated",
+      "binding": {
+        "metric": "generated_check_success",
+        "authority": "llm_generated_python_ast_validated",
+        "module_sha256": "041c69ab3d66cb4127face7c0b003360a00a2135d56d6094f55ff6b135d8994f",
+        "task_module": "mea.generated_tasks.run_20260727_batch28_neutral_click_live_v4_round_2.task"
+      },
+      "value": 1.0,
+      "official_equivalent": false,
+      "execution_scope": "provider_generated_checker",
+      "outcome_semantics": {
+        "schema_version": 1,
+        "status": "expected_semantic_extension",
+        "evidence_conflict": false,
+        "official_equivalent": false,
+        "outcome_authority": "llm_generated_python_ast_validated",
+        "episodes": [
+          {
+            "seed": 100405,
+            "generated_checker_success": true,
+            "official_success": null,
+            "official_core_predicate_satisfied": true,
+            "official_equivalent": false,
+            "status": "expected_semantic_extension",
+            "reason": "generated_checker_adds_constraints_beyond_official_core"
+          }
+        ],
+        "reason_codes": [
+          "generated_checker_adds_constraints_beyond_official_core"
+        ]
+      }
+    }
+  ],
+  "outcome_semantics": [
+    {
+      "schema_version": 1,
+      "status": "non_comparable",
+      "evidence_conflict": false,
+      "official_equivalent": null,
+      "outcome_authority": "official_check_success",
+      "episodes": [],
+      "reason_codes": []
+    },
+    {
+      "schema_version": 1,
+      "status": "expected_semantic_extension",
+      "evidence_conflict": false,
+      "official_equivalent": false,
+      "outcome_authority": "llm_generated_python_ast_validated",
+      "episodes": [
+        {
+          "seed": 100405,
+          "generated_checker_success": true,
+          "official_success": null,
+          "official_core_predicate_satisfied": true,
+          "official_equivalent": false,
+          "status": "expected_semantic_extension",
+          "reason": "generated_checker_adds_constraints_beyond_official_core"
+        }
+      ],
+      "reason_codes": [
+        "generated_checker_adds_constraints_beyond_official_core"
+      ]
+    }
+  ],
+  "evidence_conflict": false
+}

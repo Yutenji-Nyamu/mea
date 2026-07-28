@@ -1,0 +1,173 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "route": "force_codegen",
+  "reference_tool": null,
+  "tool_spec": {
+    "schema_version": 1,
+    "task_name": "click_bell",
+    "metric": "bell_active_tcp_min_xy_error",
+    "question": "What is the minimum XY distance between the official active-arm TCP and the bell contact point during the episode?",
+    "route": "force_codegen",
+    "reference_tool": null,
+    "required_signals": [
+      "semantic_trace.bell_position",
+      "semantic_trace.bell_contact_position",
+      "semantic_trace.left_tcp_position",
+      "semantic_trace.right_tcp_position",
+      "semantic_trace.physics_step",
+      "semantic_trace.simulation_time_seconds"
+    ],
+    "output_contract": {
+      "value_type": "number",
+      "unit": "m",
+      "passed_rule": "always_null",
+      "evidence_rule": "minimum_error_physics_step",
+      "details_keys": [
+        "active_arm",
+        "min_error_physics_step",
+        "simulation_time_seconds"
+      ]
+    },
+    "validation_requirements": {
+      "min_episodes": 2,
+      "distinct_reference_values": true,
+      "required_reference_values": []
+    }
+  },
+  "source": {
+    "scope": "run_local_generated",
+    "tool": "generated_bell_active_tcp_min_xy_error",
+    "reference_tool": null,
+    "tool_sha256": "fe6677462b653dfa722cdc6bfce2b682869259f445c6df1e308ad20a45c69844",
+    "artifact": "mea/evaluation_runs/eval_20260727_batch28_neutral_click_live_v4/posthoc/tool_semantic_repair_v2/first_execution/generated/generated_tool.py",
+    "registration_id": "runlocal_97ccae2aa09b691f5194",
+    "registration_scope": "run_local"
+  },
+  "episodes": [
+    {
+      "episode_dir": "mea/generated_tasks/run_20260727_batch28_neutral_click_live_v4_round_1/evaluation/telemetry/act/episode_000_seed_100405",
+      "policy_name": "ACT",
+      "seed": 100405,
+      "role": "policy_under_evaluation",
+      "result": {
+        "tool": "generated_bell_active_tcp_min_xy_error",
+        "value": 0.009205922484397888,
+        "unit": "m",
+        "passed": null,
+        "evidence_steps": [
+          3804
+        ],
+        "details": {
+          "active_arm": "right",
+          "min_error_physics_step": 3804,
+          "simulation_time_seconds": 15.216000000000001
+        },
+        "tool_sha256": "fe6677462b653dfa722cdc6bfce2b682869259f445c6df1e308ad20a45c69844"
+      }
+    },
+    {
+      "episode_dir": "mea/generated_tasks/run_20260727_batch28_neutral_click_live_v4_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+      "policy_name": "ACT",
+      "seed": 100405,
+      "role": "policy_under_evaluation",
+      "result": {
+        "tool": "generated_bell_active_tcp_min_xy_error",
+        "value": 0.005708875600248575,
+        "unit": "m",
+        "passed": null,
+        "evidence_steps": [
+          4111
+        ],
+        "details": {
+          "active_arm": "right",
+          "min_error_physics_step": 4111,
+          "simulation_time_seconds": 16.444
+        },
+        "tool_sha256": "fe6677462b653dfa722cdc6bfce2b682869259f445c6df1e308ad20a45c69844"
+      }
+    }
+  ],
+  "validation": {
+    "provider_called": true,
+    "successful_attempt": 0,
+    "all_gates_passed": true,
+    "episodes": [
+      {
+        "episode_dir": "mea/generated_tasks/run_20260727_batch28_neutral_click_live_v4_round_1/evaluation/telemetry/act/episode_000_seed_100405",
+        "deterministic": true,
+        "oracle_agreement": true,
+        "artifacts_unchanged": true
+      },
+      {
+        "episode_dir": "mea/generated_tasks/run_20260727_batch28_neutral_click_live_v4_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+        "deterministic": true,
+        "oracle_agreement": true,
+        "artifacts_unchanged": true
+      }
+    ]
+  },
+  "artifacts": {
+    "tool_spec": "mea/evaluation_runs/eval_20260727_batch28_neutral_click_live_v4/posthoc/tool_semantic_repair_v2/first_execution/tool_spec.json",
+    "resolved_tool_spec": "mea/evaluation_runs/eval_20260727_batch28_neutral_click_live_v4/posthoc/tool_semantic_repair_v2/first_execution/resolved_tool_spec.json",
+    "toolgen_manifest": "mea/evaluation_runs/eval_20260727_batch28_neutral_click_live_v4/posthoc/tool_semantic_repair_v2/first_execution/generated/manifest.json",
+    "registration": "mea/evaluation_runs/eval_20260727_batch28_neutral_click_live_v4/posthoc/tool_semantic_repair_v2/first_execution/generated/registration.json",
+    "execution_results": "mea/evaluation_runs/eval_20260727_batch28_neutral_click_live_v4/posthoc/tool_semantic_repair_v2/first_execution/generated/execution_results.json",
+    "property_validation": "mea/evaluation_runs/eval_20260727_batch28_neutral_click_live_v4/posthoc/tool_semantic_repair_v2/first_execution/generated/property_validation.json",
+    "generated_tool": "mea/evaluation_runs/eval_20260727_batch28_neutral_click_live_v4/posthoc/tool_semantic_repair_v2/first_execution/generated/generated_tool.py",
+    "tool_execution": "mea/evaluation_runs/eval_20260727_batch28_neutral_click_live_v4/posthoc/tool_semantic_repair_v2/first_execution/tool_execution.json",
+    "run_local_registry": "mea/evaluation_runs/eval_20260727_batch28_neutral_click_live_v4/posthoc/tool_semantic_repair_v2/tool_registry/index.json",
+    "run_local_registration": "mea/evaluation_runs/eval_20260727_batch28_neutral_click_live_v4/posthoc/tool_semantic_repair_v2/tool_registry/entries/runlocal_97ccae2aa09b691f5194/registration.json",
+    "run_local_generated_tool": "mea/evaluation_runs/eval_20260727_batch28_neutral_click_live_v4/posthoc/tool_semantic_repair_v2/tool_registry/entries/runlocal_97ccae2aa09b691f5194/generated_tool.py",
+    "tool_request": "mea/evaluation_runs/eval_20260727_batch28_neutral_click_live_v4/posthoc/tool_semantic_repair_v2/first_execution/tool_request.json",
+    "catalog_snapshot": "mea/evaluation_runs/eval_20260727_batch28_neutral_click_live_v4/posthoc/tool_semantic_repair_v2/first_execution/catalog_snapshot.json",
+    "route_decision": "mea/evaluation_runs/eval_20260727_batch28_neutral_click_live_v4/posthoc/tool_semantic_repair_v2/first_execution/route_decision.json"
+  },
+  "run_local_registration": {
+    "registration_id": "runlocal_97ccae2aa09b691f5194",
+    "scope": "run_local",
+    "status": "validated",
+    "tool_id": "generated_bell_active_tcp_min_xy_error",
+    "version": 1,
+    "target_metric": "bell_active_tcp_min_xy_error",
+    "contract_sha256": "0ac1e5220f995693faa655ade4e4f6e5797009e8e456abe70041af3b5de7b80d",
+    "telemetry_schema_sha256": "5e6fedd690f90833635aafd33bad1e0a4745c182ec1253cc00768f77fc4e93d3",
+    "code_sha256": "fe6677462b653dfa722cdc6bfce2b682869259f445c6df1e308ad20a45c69844",
+    "promotion": {
+      "current_scope": "run_local",
+      "candidate": {
+        "status": "not_requested"
+      },
+      "trusted": {
+        "status": "not_requested"
+      }
+    }
+  },
+  "requested_route": "auto",
+  "tool_request": {
+    "schema_version": 1,
+    "task_name": "click_bell",
+    "metric": "bell_active_tcp_min_xy_error",
+    "question": "What is the minimum XY distance between the official active-arm TCP and the bell contact point during the episode?"
+  },
+  "route_decision": {
+    "schema_version": 1,
+    "status": "resolved",
+    "matching_policy": "strict_exact_metric_id",
+    "requested_route": "auto",
+    "resolved_route": "force_codegen",
+    "task_name": "click_bell",
+    "metric": "bell_active_tcp_min_xy_error",
+    "exact_match": true,
+    "matched_registry": "composite_target_registry",
+    "reference_tool": null,
+    "provider_required": true,
+    "reason": "exact metric identifier matched a registered composite target",
+    "catalog_snapshot_sha256": "c35f99f0c082170aafc4b6fdf5c8a32dbff174a2545810c06908283f103a1430",
+    "run_local_lookup": {
+      "status": "miss",
+      "registry_dir": "mea/evaluation_runs/eval_20260727_batch28_neutral_click_live_v4/posthoc/tool_semantic_repair_v2/tool_registry"
+    },
+    "provider_called": true
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "kind": "posthoc_semantic_projection",
+  "original_runtime_aggregate_replaced": false,
+  "new_policy_episodes": 0,
+  "outcomes": [
+    {
+      "round_id": "round_1",
+      "metric": "official_check_success",
+      "value": true,
+      "authority": "official_check_success",
+      "official_equivalent": true,
+      "semantics": "official_only"
+    },
+    {
+      "round_id": "round_2",
+      "metric": "generated_check_success",
+      "value": true,
+      "authority": "llm_generated_python_ast_validated",
+      "official_equivalent": false,
+      "official_core_predicate_satisfied": true,
+      "semantics": "expected_semantic_extension"
+    }
+  ],
+  "spatial_measurement": {
+    "metric": "bell_active_tcp_min_xy_error",
+    "unit": "m",
+    "control": {
+      "value": 0.009205922484397888,
+      "active_arm": "right",
+      "physics_step": 3804
+    },
+    "translated": {
+      "value": 0.005708875600248575,
+      "active_arm": "right",
+      "physics_step": 4111
+    },
+    "validation": {
+      "deterministic": true,
+      "oracle_agreement": true,
+      "artifacts_unchanged": true,
+      "second_query_route": "run_local_reuse",
+      "second_query_codegen_provider_called": false
+    }
+  },
+  "excluded_inputs": [
+    {
+      "metric": "query_derived_metric",
+      "value": 0.5137032439309296,
+      "reason": "The provider hard-coded left_tcp_position although the executed scene required the right active arm.",
+      "used_for_current_claim": false
+    }
+  ],
+  "claim": {
+    "verdict": "inconclusive",
+    "evidence_sufficient": false,
+    "stop_reason": "budget_exhausted"
+  }
+}

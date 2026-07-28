@@ -1,7 +1,10 @@
 # 运行指南
 
 所有依赖 simulator、checkpoint、GPU 或 provider 的验证在 canonical AutoDL
-`/root/autodl-tmp/mea` 执行。根 README 不包含付费运行命令。
+`/root/autodl-tmp/mea` 执行。服务器 live 必须使用
+`/root/autodl-tmp/conda/envs/RoboTwin/bin/python`；base `python` 只适合不 import
+SAPIEN/RoboTwin、也不执行 setup/render/expert/rollout 的纯单测。根 README 不包含
+付费运行命令。
 
 ## 1. 运行前检查
 
@@ -9,18 +12,25 @@
 cd /root/autodl-tmp/mea
 git status --short
 git rev-parse HEAD
+/root/autodl-tmp/conda/envs/RoboTwin/bin/python -c \
+  "import sys, sapien; print(sys.executable)"
 nvidia-smi
 ```
 
 确认要评估的 RoboTwin task、policy checkpoint、seed、最大轮数和 ACT 预算。不要在本地
 Windows 下载 checkpoint 或启动 simulator。
 
+batch28 v2 类错误按两层预检归因：base Python 的 import/setup 失败是解释器错误；在
+正确解释器下，若生成代码用 `pose.p[i] += ...` 或复用同一 Pose 后场景仍与 control
+相同，则是 TaskGen Pose no-op，必须复制位置并新建 `sapien.Pose`。两者都不要归因给
+policy、provider 或 VLM；修正后仍须通过 state/checker、render、VLM 与 expert gate。
+
 ## 2. Plan-only
 
 单任务 checkpoint 的 query-first 入口必须显式给出执行边界。例如：
 
 ```bash
-python scripts/manipeval_agent.py \
+/root/autodl-tmp/conda/envs/RoboTwin/bin/python scripts/manipeval_agent.py \
   --request "这个策略在目标旁存在相似物体时，还能可靠地点击正确目标吗？" \
   --auto-route \
   --bound-task-name click_bell \
@@ -38,10 +48,10 @@ provider/repair/retry 计数，以及最终是 `retrieve_and_adapt`、`generate_
 `unsupported`。
 
 若原始 Query 提出 catalog 外 concern，plan-only 应保存 FreeConcern、
-candidate-domain resolution、control anchor 与 QueryContract，并明确它没有执行
-scene/checker/tool materialization。runtime `ExperimentCandidate` 只能在 live control
-evidence 后产生；因此 plan-only 不能预测后续一定 exact reuse 或 generation，更不得
-写成 policy evidence。
+candidate-domain resolution 与 QueryContract，并明确它没有执行 scene/checker/tool
+materialization。只有 `control_requirement=required` 才绑定 neutral official control；
+`not_required` 的 live 可直接从 FreeConcern 形成首个 Query-derived candidate。因此
+plan-only 不能预测后续一定 exact reuse 或 generation，更不得写成 policy evidence。
 
 若 online resolver 已输出 `unsupported`，之后基于冻结 concern 的 0-provider
 replay 只能证明确定性 resolver/control handoff，不能倒推成一次在线成功。当前
@@ -56,7 +66,9 @@ task，但 discovery 不等于 checkpoint-ready。语义相近却与单任务 ch
 
 ## 3. Live evaluation
 
-以 `python scripts/manipeval_agent.py --help` 为当前参数真值。live 命令应显式传入：
+以
+`/root/autodl-tmp/conda/envs/RoboTwin/bin/python scripts/manipeval_agent.py --help`
+为当前参数真值。live 命令应显式传入：
 
 - 原始 Query；
 - policy 与 checkpoint；
@@ -68,7 +80,7 @@ task，但 discovery 不等于 checkpoint-ready。语义相近却与单任务 ch
 task-specific planner、whole-round recovery 或 fault injection。TaskGen/ToolGen 各允许
 一次局部修复。执行后至少核对：
 
-1. QueryContract 与首轮 proposal；
+1. QueryContract 的 `control_requirement` 与首轮 proposal；
 2. scene/checker、render 和 gate；
 3. 实际 rollout seed、video、telemetry；
 4. Rule/VQA 与 Aggregate 是否消费同一 episode；
@@ -76,20 +88,22 @@ task-specific planner、whole-round recovery 或 fault injection。TaskGen/ToolG
 6. stop 是 evidence sufficient、unsupported 还是 budget exhausted；
 7. Answer 是否列出 N、未覆盖候选和限制。
 
-open-world round 的顺序固定为：先用 `ExperimentCandidate` 做 Task exact lookup；miss
-才调用 provider。无论生成还是复用，都必须在当前 seed 重跑 setup、render、expert 与
-checker fixtures。ACT 完成后再从实际 telemetry schema 生成 Tool request，避免为尚未
-出现的 actor/signal 预写 metric。生成 checker 与 official success 必须并列记录；二者
-冲突或不可比较时，Answer 不得把实验语义写成 official benchmark 结论。
+open-world round 先由 QueryContract 决定是否需要 neutral official control；仅 Query
+需要对照时才执行。随后用 `ExperimentCandidate` 做 Task exact lookup，miss 才调用
+provider。无论生成还是复用，都必须在当前 seed 重跑 state/checker、render、VLM 与
+expert gate；从同一采样 Pose 派生新 actor 时必须复制位置并新建 `sapien.Pose`。ACT
+完成后再从实际 telemetry schema 生成 Tool request，避免为尚未出现的 actor/signal
+预写 metric。生成 checker 与 official success 必须并列记录；二者冲突或不可比较时，
+Answer 不得把实验语义写成 official benchmark 结论。
 
-跨 Query 的 Tool 复用只接受显式 approved 的 reviewed registry 条目；检索命中后仍会
-在当前 episode 上重复执行并与 typed MetricSpec oracle 比较。普通生成不会自动晋升成
-跨 evaluation 的可信 Tool。
+同一 evaluation 内的后续 Query 可 exact reuse 其 run-local Tool；跨独立 evaluation
+只接受显式 approved 的 reviewed registry 条目。两类检索命中后都必须在当前 episode
+上重复执行并做确定性/oracle 校验。普通生成不会自动晋升成跨 evaluation 的可信 Tool。
 
 ## 4. 查看证据
 
-最近一次公开索引见 `docs/evidence/current/manifest.json`。原始 bundle 在 manifest 的
-`server_run_root` 下。阅读顺序：
+最近一次公开索引见 `docs/evidence/current/manifest.json`。原始 bundle 根目录由
+manifest 的 `source_roots` 记录。阅读顺序：
 
 ```text
 query

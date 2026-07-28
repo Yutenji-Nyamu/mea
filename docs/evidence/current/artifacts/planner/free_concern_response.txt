@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "source_query": "Where does this ACT policy first expose a weakness when generalizing over manipulated-object properties?",
+  "sub_aspect": "Robustness to a target object's visual appearance changing while its identity, position, and affordance remain unchanged",
+  "hypothesis": "The ACT policy's click success rate decreases when the bell's color or texture is changed from training appearance, despite the bell remaining in the same location and retaining the same clickable shape.",
+  "task_intent": "Locate the bell and click it.",
+  "requested_variation": "Change only the bell's color or surface texture, keeping its geometry, pose, location, size, background, and distractors fixed.",
+  "measurement_need": "Compare target-click success rate and click-coordinate error between the original and appearance-changed bell conditions."
+}

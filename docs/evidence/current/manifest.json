@@ -1,0 +1,279 @@
+{
+  "schema_version": 1,
+  "evidence_id": "batch28_neutral_click_live_v4",
+  "created_at": "2026-07-28",
+  "rollout_source_commit": "b971b58",
+  "source_roots": {
+    "evaluation": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_20260727_batch28_neutral_click_live_v4",
+    "generated_task": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260727_batch28_neutral_click_live_v4_round_2",
+    "task_reuse": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260728_batch28_neutral_click_task_reuse_v1",
+    "tool_repair": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_20260727_batch28_neutral_click_live_v4/posthoc/tool_semantic_repair_v2",
+    "derived": "docs/evidence/current"
+  },
+  "artifact_count": 32,
+  "total_bytes": 291613,
+  "artifacts": [
+    {
+      "path": "README.md",
+      "source_root": "derived",
+      "source_path": "README.md",
+      "bytes": 3996,
+      "sha256": "fef27b42d86f2ae2c0ed2e3fc4be832cac2a29a18224e73861af30e0b961761f",
+      "media_type": "text/markdown"
+    },
+    {
+      "path": "artifacts/act/official_seed_100405.mp4",
+      "source_root": "evaluation",
+      "source_path": "assets/round_1_act.mp4",
+      "bytes": 37891,
+      "sha256": "4afcd73e444a592c6668b97f037cbe11d77d2ddc2f287544adf59b3d58bf9405",
+      "media_type": "video/mp4"
+    },
+    {
+      "path": "artifacts/act/translated_seed_100405.mp4",
+      "source_root": "evaluation",
+      "source_path": "assets/round_2_act.mp4",
+      "bytes": 41516,
+      "sha256": "4b53f4754f21ecb75affc21611203d2a79eb289cbf6b545644c3255a9ba59b3d",
+      "media_type": "video/mp4"
+    },
+    {
+      "path": "artifacts/answer.json",
+      "source_root": "evaluation",
+      "source_path": "plan/claim_first_runtime/query_answer.json",
+      "bytes": 6582,
+      "sha256": "a22a03c90b36703e04ca8cad39c7c956f14c2a4bfb0870b7f7eb85d4eec48600",
+      "media_type": "application/json"
+    },
+    {
+      "path": "artifacts/feedback.json",
+      "source_root": "evaluation",
+      "source_path": "feedback/feedback.json",
+      "bytes": 5998,
+      "sha256": "cd0b25e983a83d82125f768ef17dae18e3384bde1605c55dca9643feed755015",
+      "media_type": "application/json"
+    },
+    {
+      "path": "artifacts/planner/free_concern.json",
+      "source_root": "evaluation",
+      "source_path": "plan/free_concern.json",
+      "bytes": 2039,
+      "sha256": "4b7dacf3b169eede1dd8eac9cd0c11ebab61ad8d784a9f8947cc9d8c4bedfeee",
+      "media_type": "application/json"
+    },
+    {
+      "path": "artifacts/planner/free_concern_prompt.md",
+      "source_root": "evaluation",
+      "source_path": "plan/free_concern_prompt.md",
+      "bytes": 1641,
+      "sha256": "b89e4fea87374d0015344727f739e56d2117304ef2d2b3688593c3ee2f364611",
+      "media_type": "text/markdown"
+    },
+    {
+      "path": "artifacts/planner/free_concern_response.txt",
+      "source_root": "evaluation",
+      "source_path": "plan/free_concern_response_1.txt",
+      "bytes": 868,
+      "sha256": "e744a59906ba9b1f411ec69910b6ee2d277a03a477cf55e56b0c31e0221e0fc5",
+      "media_type": "text/plain"
+    },
+    {
+      "path": "artifacts/planner/round2_bound_proposal.json",
+      "source_root": "evaluation",
+      "source_path": "plan/claim_first_steps/after_round_01/bound_semantic_step.json",
+      "bytes": 10127,
+      "sha256": "2551f2487ddc1d9e171e51f7dcf676b678536391d259456ae010f98e4a0bf7a3",
+      "media_type": "application/json"
+    },
+    {
+      "path": "artifacts/query/request.json",
+      "source_root": "evaluation",
+      "source_path": "request.json",
+      "bytes": 129,
+      "sha256": "1f4d8e35550696b0ce26e5ff796fb04f9c83fd1ffd8db726e083dd318137cafb",
+      "media_type": "application/json"
+    },
+    {
+      "path": "artifacts/reuse/exact_task_reuse.json",
+      "source_root": "task_reuse",
+      "source_path": "generic_taskgen_resolution.json",
+      "bytes": 11372,
+      "sha256": "6d459d0974c4e7b2adf60c00b67045b5c7177c5c526b08351b53a07aee68825f",
+      "media_type": "application/json"
+    },
+    {
+      "path": "artifacts/task/checker_fixtures.json",
+      "source_root": "generated_task",
+      "source_path": "validation/checker_fixtures.json",
+      "bytes": 359,
+      "sha256": "0aa3acf99a3d8a6fd119da2ec14bd7d24b91a500b16bdbdfb3598e870b181f0c",
+      "media_type": "application/json"
+    },
+    {
+      "path": "artifacts/task/code_prompt.md",
+      "source_root": "generated_task",
+      "source_path": "generation/code_prompt.md",
+      "bytes": 13992,
+      "sha256": "afb6e29331d096614538bcdb20d0b2e66bc1e789f95d59052bbee4aba1f422bb",
+      "media_type": "text/markdown"
+    },
+    {
+      "path": "artifacts/task/official_vs_generated.png",
+      "source_root": "generated_task",
+      "source_path": "evidence/scene_comparison.png",
+      "bytes": 77688,
+      "sha256": "dfccfb5a072da379f14b11f986893732d92426cee4a726d40f06335d8630974c",
+      "media_type": "image/png"
+    },
+    {
+      "path": "artifacts/task/provider_response.json",
+      "source_root": "generated_task",
+      "source_path": "generation/provider_response.json",
+      "bytes": 2119,
+      "sha256": "a15a2dd067b0c57338e45940d37ed8e70ff1c8aeb9b3bea0a8d90588a89a10be",
+      "media_type": "application/json"
+    },
+    {
+      "path": "artifacts/task/task.py",
+      "source_root": "generated_task",
+      "source_path": "task.py",
+      "bytes": 2574,
+      "sha256": "041c69ab3d66cb4127face7c0b003360a00a2135d56d6094f55ff6b135d8994f",
+      "media_type": "text/x-python"
+    },
+    {
+      "path": "artifacts/task/vision.json",
+      "source_root": "generated_task",
+      "source_path": "validation/vision.json",
+      "bytes": 1474,
+      "sha256": "c38a30fbcab11f9c591e3cfd9d367988b244c52d6200a6857e7db7e60916859c",
+      "media_type": "application/json"
+    },
+    {
+      "path": "artifacts/task/vision_prompt.md",
+      "source_root": "generated_task",
+      "source_path": "validation/vision_prompt.md",
+      "bytes": 1821,
+      "sha256": "bb9dd32219cb7ec744b2872bd06c3407c18f4e18ae5bd2d4bd6690d7553b8d01",
+      "media_type": "text/markdown"
+    },
+    {
+      "path": "artifacts/task/vision_response.txt",
+      "source_root": "generated_task",
+      "source_path": "validation/vision_response.txt",
+      "bytes": 435,
+      "sha256": "c1c40d6e50406696d3cb2402eac203a47730b8d3a8ad33e8e16a0ef2f426c0f1",
+      "media_type": "text/plain"
+    },
+    {
+      "path": "artifacts/tool/code_prompt.md",
+      "source_root": "tool_repair",
+      "source_path": "first_execution/generated/attempts/attempt_0/prompt.md",
+      "bytes": 6571,
+      "sha256": "9f79b9309e26bba006af39da75801e9b735296d390e18fa25dddee5664b2617d",
+      "media_type": "text/markdown"
+    },
+    {
+      "path": "artifacts/tool/code_response.txt",
+      "source_root": "tool_repair",
+      "source_path": "first_execution/generated/attempts/attempt_0/response.txt",
+      "bytes": 1352,
+      "sha256": "a10734294df2e8f54e6deb6255b31643bf8acf5ad87ef11c55a2b4461d191ae9",
+      "media_type": "text/plain"
+    },
+    {
+      "path": "artifacts/tool/first_execution.json",
+      "source_root": "tool_repair",
+      "source_path": "first_execution/tool_execution.json",
+      "bytes": 7916,
+      "sha256": "c47c7fa5dc461d255a4b381002efc1d47ae9449c90f964c72dfafda8c933d887",
+      "media_type": "application/json"
+    },
+    {
+      "path": "artifacts/tool/generated_tool.py",
+      "source_root": "tool_repair",
+      "source_path": "first_execution/generated/generated_tool.py",
+      "bytes": 1338,
+      "sha256": "fe6677462b653dfa722cdc6bfce2b682869259f445c6df1e308ad20a45c69844",
+      "media_type": "text/x-python"
+    },
+    {
+      "path": "artifacts/tool/rejected_left_tcp_request.json",
+      "source_root": "evaluation",
+      "source_path": "execution/round_2/open_tool_request/tool_request_bundle.json",
+      "bytes": 10945,
+      "sha256": "2a3fc54f2350c3547941c7ce58f6b6e485c1f106782b5235099bb17116e4ed77",
+      "media_type": "application/json"
+    },
+    {
+      "path": "artifacts/tool/repair_request_prompt.md",
+      "source_root": "tool_repair",
+      "source_path": "first_query/prompt.md",
+      "bytes": 9987,
+      "sha256": "a8640d94bb4c2ee99959843edcf82e71723a3e8522fdfe0c36e4f246a532a66b",
+      "media_type": "text/markdown"
+    },
+    {
+      "path": "artifacts/tool/repair_request_response_accepted.txt",
+      "source_root": "tool_repair",
+      "source_path": "first_query/response_2.txt",
+      "bytes": 214,
+      "sha256": "c311d1400ba1b4660c21bf7bccf9d03af147e8125196d913a5e80832ffd94a2e",
+      "media_type": "text/plain"
+    },
+    {
+      "path": "artifacts/tool/repair_request_response_rejected.txt",
+      "source_root": "tool_repair",
+      "source_path": "first_query/response_1.txt",
+      "bytes": 86,
+      "sha256": "64cf111b355f476c360035d3969d9819d52fd3dee7b188b68aa7f65bb86322ab",
+      "media_type": "text/plain"
+    },
+    {
+      "path": "artifacts/tool/repaired_request.json",
+      "source_root": "tool_repair",
+      "source_path": "first_query/tool_request_bundle.json",
+      "bytes": 9406,
+      "sha256": "ab09a979261ab618b9f4165500a18d92c1944f908950fd7bd631acffcdbd0314",
+      "media_type": "application/json"
+    },
+    {
+      "path": "artifacts/tool/reuse_execution.json",
+      "source_root": "tool_repair",
+      "source_path": "second_execution/tool_execution.json",
+      "bytes": 6921,
+      "sha256": "da1fb73dfc069dc6eaf91da53c7d0dcf577fc90d944a458b8e4d40d6d4151444",
+      "media_type": "application/json"
+    },
+    {
+      "path": "artifacts/tool/reuse_query.json",
+      "source_root": "tool_repair",
+      "source_path": "second_query/tool_request_bundle.json",
+      "bytes": 9895,
+      "sha256": "e7aa179c9ea0d3f4dd97b35404240bad340c834892026097367220911007d0f6",
+      "media_type": "application/json"
+    },
+    {
+      "path": "corrected_aggregate.json",
+      "source_root": "derived",
+      "source_path": "corrected_aggregate.json",
+      "bytes": 1649,
+      "sha256": "4c892460ae0461283995818ae84590d6dc939abe7aca212ccdf7ab5b8226cb12",
+      "media_type": "application/json"
+    },
+    {
+      "path": "run_summary.json",
+      "source_root": "derived",
+      "source_path": "run_summary.json",
+      "bytes": 2712,
+      "sha256": "60befcd79785a1f79fa8876bfa297c783724638308dd447bf5516271f92f4fce",
+      "media_type": "application/json"
+    }
+  ],
+  "boundaries": [
+    "Two ACT policy episodes at one seed; claim verdict is inconclusive.",
+    "The original fixed-left-TCP metric is retained only as rejected evidence.",
+    "The active-arm Tool repair and exact reuse use cached telemetry and add zero ACT episodes.",
+    "Raw telemetry, logs, checkpoints, and full manifests remain server-side."
+  ]
+}

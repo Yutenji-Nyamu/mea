@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "source": "provider_catalog_free_concern",
+  "concern": {
+    "schema_version": 1,
+    "source_query": "Where does this ACT policy first expose a weakness when generalizing over manipulated-object properties?",
+    "sub_aspect": "Robustness to a target object's visual appearance changing while its identity, position, and affordance remain unchanged",
+    "hypothesis": "The ACT policy's click success rate decreases when the bell's color or texture is changed from training appearance, despite the bell remaining in the same location and retaining the same clickable shape.",
+    "task_intent": "Locate the bell and click it.",
+    "requested_variation": "Change only the bell's color or surface texture, keeping its geometry, pose, location, size, background, and distractors fixed.",
+    "measurement_need": "Compare target-click success rate and click-coordinate error between the original and appearance-changed bell conditions."
+  },
+  "provider": {
+    "model_requested": "gpt-5.6-luna",
+    "called": true,
+    "attempt_count": 1,
+    "errors": [],
+    "last_metadata": {
+      "id": "chatcmpl-E6I0P0sm9HrX75fkc6HpOzN9OPJbP",
+      "model": "gpt-5.6-luna-2026-07-09",
+      "finish_reason": "stop",
+      "usage": {
+        "completion_tokens": 433,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 246,
+          "rejected_prediction_tokens": 0
+        },
+        "latency_checkpoint": {
+          "engine_tbt_ms": 7,
+          "engine_ttft_ms": 80,
+          "engine_ttlt_ms": 3247,
+          "pre_inference_ms": 47,
+          "service_tbt_ms": 7,
+          "service_ttft_ms": 697,
+          "service_ttlt_ms": 3850,
+          "total_duration_ms": 3810,
+          "user_visible_ttft_ms": 650
+        },
+        "prompt_tokens": 364,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0
+        },
+        "total_tokens": 797
+      },
+      "retry_count": 0
+    }
+  }
+}

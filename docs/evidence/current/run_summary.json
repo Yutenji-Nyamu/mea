@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "evidence_id": "batch28_neutral_click_live_v4",
+  "rollout_source_commit": "b971b58",
+  "evaluation_id": "eval_20260727_batch28_neutral_click_live_v4",
+  "task_name": "click_bell",
+  "policy_name": "ACT",
+  "checkpoint_setting": "demo_clean",
+  "query": "Where does this ACT policy first expose a weakness when generalizing over manipulated-object properties?",
+  "seed": 100405,
+  "policy_episode_count": 2,
+  "new_policy_episodes_during_tool_repair": 0,
+  "rounds": [
+    {
+      "round_id": "round_1",
+      "role": "neutral_official_control",
+      "scene": "official",
+      "outcome_metric": "official_check_success",
+      "outcome": true,
+      "outcome_semantics": "official_only",
+      "simulation_time_seconds": 17.696
+    },
+    {
+      "round_id": "round_2",
+      "role": "runtime_discovered_position_translation",
+      "scene": "provider_generated",
+      "outcome_metric": "generated_check_success",
+      "outcome": true,
+      "official_core_predicate_satisfied": true,
+      "outcome_semantics": "expected_semantic_extension",
+      "simulation_time_seconds": 18.888
+    }
+  ],
+  "query_contract": {
+    "claim_type": "diagnostic",
+    "control_requirement": "required",
+    "candidate_universe_closed_after_runtime_discovery": false
+  },
+  "termination": {
+    "stop_reason": "budget_exhausted",
+    "evidence_sufficient": false,
+    "claim_verdict": "inconclusive",
+    "answered": false
+  },
+  "task_reuse": {
+    "route": "exact_generated_task_reuse",
+    "provider_call_count": 0,
+    "new_policy_episodes": 0
+  },
+  "tool_semantic_repair": {
+    "excluded_metric": "query_derived_metric",
+    "excluded_reason": "fixed left TCP did not satisfy the active-gripper measurement need",
+    "accepted_metric": "bell_active_tcp_min_xy_error",
+    "generation_route": "force_codegen",
+    "control_value_m": 0.009205922484397888,
+    "translated_value_m": 0.005708875600248575,
+    "active_arm": "right",
+    "reuse_route": "run_local_reuse",
+    "reuse_codegen_provider_called": false,
+    "new_policy_episodes": 0
+  },
+  "flagship_acceptance": false,
+  "limitations": [
+    "The two policy episodes share one seed and do not establish statistical generalization.",
+    "The runtime candidate universe is open and the run stopped because its round budget was exhausted.",
+    "The generated checker is an experimental semantic extension, not an official-equivalent RoboTwin outcome.",
+    "The repaired Tool uses cached live telemetry; it repairs measurement semantics but adds no policy-performance evidence.",
+    "The repaired scalar reports minimum XY distance. Active-gripper closure is supported by the success predicate rather than this scalar Tool."
+  ]
+}
