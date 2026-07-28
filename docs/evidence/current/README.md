@@ -39,6 +39,12 @@ official-equivalent benchmark 结果。系统没有把两次成功冒充“已�
 
 这修复了测量语义，不增加 policy 性能样本；原 Query 结论仍是 `inconclusive`。
 
+原始 [answer.json](artifacts/answer.json) 还保留了另一个运行时元数据错误：round 1
+因 Task summary 未重复声明 official equivalence 而被写成 `non_comparable`。其 authority
+实际是 `official_check_success`，当前 normalizer 已修为 `official_only`；
+[corrected projection](corrected_aggregate.json) 使用修正后的语义。该元数据修复同样不改变
+最终的 inconclusive verdict。
+
 ## 阅读顺序
 
 | 阶段 | 产物 |

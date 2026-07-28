@@ -11,14 +11,14 @@
     "derived": "docs/evidence/current"
   },
   "artifact_count": 32,
-  "total_bytes": 291613,
+  "total_bytes": 292042,
   "artifacts": [
     {
       "path": "README.md",
       "source_root": "derived",
       "source_path": "README.md",
-      "bytes": 3996,
-      "sha256": "fef27b42d86f2ae2c0ed2e3fc4be832cac2a29a18224e73861af30e0b961761f",
+      "bytes": 4425,
+      "sha256": "cf96ce61ab04c9bf8b356c92915b6fb6acd5dbfe73cbeb68b2084f287c407c14",
       "media_type": "text/markdown"
     },
     {
