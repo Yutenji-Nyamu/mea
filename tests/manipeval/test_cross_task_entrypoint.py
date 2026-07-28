@@ -30,6 +30,7 @@ from scripts.manipeval_agent import (
     finish_unsupported_open_task_resolution,
     run_round_execution_vqa,
     normalize_outcome_semantics,
+    persist_query_contract,
     summarize_round,
     supports_claim_first_runtime,
     taskgen_ast_gate_passed,
@@ -205,6 +206,49 @@ class CrossTaskEntrypointTests(unittest.TestCase):
                             "official_equivalent"
                         ]
                     )
+
+    def test_runtime_query_contract_artifact_tracks_open_discovery(self):
+        contract = {
+            "schema_version": 3,
+            "claim_type": "diagnostic",
+            "candidate_universe": ["catalog_candidate", "dynamic_candidate"],
+            "required_coverage": {
+                "candidate_ids": [
+                    "catalog_candidate",
+                    "dynamic_candidate",
+                ],
+                "minimum_evaluated": 1,
+                "minimum_per_group": None,
+            },
+            "round_budget": 2,
+            "comparison_groups": None,
+            "candidate_universe_closed": False,
+            "existential_witness_outcome": None,
+            "control_requirement": "required",
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            evaluation = Path(temporary)
+            plan = {"query_contract": {"candidate_universe_closed": True}}
+
+            persisted = persist_query_contract(
+                evaluation,
+                plan,
+                contract,
+            )
+
+            artifact = json.loads(
+                (
+                    evaluation
+                    / "plan/query_sufficiency_contract.json"
+                ).read_text(encoding="utf-8")
+            )
+            self.assertEqual(artifact, persisted)
+            self.assertEqual(plan["query_contract"], persisted)
+            self.assertFalse(artifact["candidate_universe_closed"])
+            self.assertIn(
+                "dynamic_candidate",
+                artifact["candidate_universe"],
+            )
 
     def test_compact_flagship_acceptance_requires_online_sufficient_reuse(self):
         module_sha256 = "a" * 64

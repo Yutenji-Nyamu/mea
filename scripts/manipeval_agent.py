@@ -104,6 +104,22 @@ def write_json(path: Path, value: Any) -> None:
     )
 
 
+def persist_query_contract(
+    evaluation_dir: Path,
+    plan: dict[str, Any],
+    contract: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Keep the public contract artifact aligned with runtime discoveries."""
+
+    normalized = validate_query_sufficiency_contract(contract)
+    plan["query_contract"] = deepcopy(normalized)
+    write_json(
+        evaluation_dir / "plan/query_sufficiency_contract.json",
+        normalized,
+    )
+    return normalized
+
+
 def should_enable_adaptive_plan_step(
     *,
     fixed_click_bell: bool,
@@ -4608,8 +4624,9 @@ def main() -> None:
                     evaluation_dir / "plan/claim_first_capabilities.json",
                     claim_first_capabilities,
                 )
-                write_json(
-                    evaluation_dir / "plan/query_sufficiency_contract.json",
+                claim_first_controller.query_contract = persist_query_contract(
+                    evaluation_dir,
+                    plan,
                     claim_first_controller.query_contract,
                 )
                 manifest.setdefault("planner", {}).update(
@@ -5163,6 +5180,13 @@ def main() -> None:
                             claim_first_controller.query_contract,
                             [candidate["candidate_id"]],
                             candidate_universe_closed=False,
+                        )
+                    )
+                    claim_first_controller.query_contract = (
+                        persist_query_contract(
+                            evaluation_dir,
+                            plan,
+                            claim_first_controller.query_contract,
                         )
                     )
                     bound_semantic_step = {
