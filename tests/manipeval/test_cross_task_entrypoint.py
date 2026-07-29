@@ -32,7 +32,6 @@ from scripts.manipeval_agent import (
     normalize_outcome_semantics,
     persist_query_contract,
     summarize_round,
-    supports_claim_first_runtime,
     taskgen_ast_gate_passed,
 )
 from scripts.manipeval_taskgen import (
@@ -48,7 +47,13 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 def make_schema_repo(root: Path) -> None:
     (root / "envs").mkdir(parents=True)
     (root / "envs/click_bell.py").write_text(
-        "class click_bell:\n    pass\n", encoding="utf-8"
+        "class click_bell:\n"
+        "    def load_actors(self):\n"
+        "        return None\n"
+        "\n"
+        "    def check_success(self):\n"
+        "        return False\n",
+        encoding="utf-8",
     )
     schema_dir = root / "mea/toolkit/schemas"
     schema_dir.mkdir(parents=True)
@@ -651,43 +656,6 @@ class CrossTaskEntrypointTests(unittest.TestCase):
         self.assertTrue(acceptance["query_candidates_bound"])
         self.assertEqual(acceptance["act_rollouts"], 3)
 
-    def test_claim_first_runtime_requires_only_checkpoint_bound_control(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            schema_dir = root / "mea/toolkit/schemas"
-            schema_dir.mkdir(parents=True)
-            for task_name in (
-                "beat_block_hammer",
-                "click_bell",
-                "adjust_bottle",
-                "grab_roller",
-            ):
-                shutil.copy2(
-                    REPO_ROOT / f"mea/toolkit/schemas/{task_name}.json",
-                    schema_dir / f"{task_name}.json",
-                )
-                checkpoint_dir = (
-                    root
-                    / "policy/ACT/act_ckpt"
-                    / f"act-{task_name}/demo_clean-50"
-                )
-                checkpoint_dir.mkdir(parents=True, exist_ok=True)
-                (checkpoint_dir / "dataset_stats.pkl").write_bytes(b"stats")
-                (checkpoint_dir / "policy_last.ckpt").write_bytes(b"checkpoint")
-            catalog = build_act_catalog(root)
-            self.assertTrue(
-                supports_claim_first_runtime(catalog, "beat_block_hammer")
-            )
-            self.assertTrue(
-                supports_claim_first_runtime(catalog, "click_bell")
-            )
-            self.assertTrue(
-                supports_claim_first_runtime(catalog, "adjust_bottle")
-            )
-            self.assertTrue(
-                supports_claim_first_runtime(catalog, "grab_roller")
-            )
-
     def test_auto_route_rejects_task_module_override_before_provider_setup(self):
         with tempfile.TemporaryDirectory() as temporary:
             environment = dict(os.environ)
@@ -1012,6 +980,17 @@ class CrossTaskEntrypointTests(unittest.TestCase):
     def test_bound_claim_first_plan_only_is_providerless_control_plan(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
+            env_dir = root / "envs"
+            env_dir.mkdir(parents=True)
+            (env_dir / "click_bell.py").write_text(
+                "class click_bell:\n"
+                "    def load_actors(self):\n"
+                "        return None\n"
+                "\n"
+                "    def check_success(self):\n"
+                "        return False\n",
+                encoding="utf-8",
+            )
             schema_dir = root / "mea/toolkit/schemas"
             schema_dir.mkdir(parents=True)
             shutil.copy2(
@@ -1078,6 +1057,74 @@ class CrossTaskEntrypointTests(unittest.TestCase):
                 manifest["planner"]["task_specific_planner_used"]
             )
             self.assertFalse(manifest["planner"]["provider_called"])
+
+    def test_bound_claim_first_accepts_runtime_task_outside_catalog(self):
+        task_name = "novel_runtime_task"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            env_dir = root / "envs"
+            env_dir.mkdir(parents=True)
+            (env_dir / f"{task_name}.py").write_text(
+                f"class {task_name}:\n"
+                "    def load_actors(self):\n"
+                "        return None\n"
+                "\n"
+                "    def check_success(self):\n"
+                "        return False\n",
+                encoding="utf-8",
+            )
+            schema_dir = root / "mea/toolkit/schemas"
+            schema_dir.mkdir(parents=True)
+            schema = json.loads(
+                (
+                    REPO_ROOT / "mea/toolkit/schemas/adjust_bottle.json"
+                ).read_text(encoding="utf-8")
+            )
+            schema["task_name"] = task_name
+            (schema_dir / f"{task_name}.json").write_text(
+                json.dumps(schema),
+                encoding="utf-8",
+            )
+            checkpoint_dir = (
+                root
+                / "policy/ACT/act_ckpt"
+                / f"act-{task_name}/demo_clean-50"
+            )
+            checkpoint_dir.mkdir(parents=True)
+            (checkpoint_dir / "policy_last.ckpt").write_bytes(b"checkpoint")
+            (checkpoint_dir / "dataset_stats.pkl").write_bytes(b"stats")
+            environment = dict(os.environ)
+            environment.pop("UIUI_API_KEY", None)
+            process = subprocess.run(
+                [
+                    sys.executable,
+                    str(REPO_ROOT / "scripts/manipeval_agent.py"),
+                    "--repo-root",
+                    str(root),
+                    "--request",
+                    "Where does this policy first expose a weakness?",
+                    "--bound-task-name",
+                    task_name,
+                    "--evaluation-id",
+                    "eval_runtime_task_outside_catalog",
+                    "--plan-only",
+                    "--no-history",
+                ],
+                cwd=REPO_ROOT,
+                env=environment,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertEqual(process.returncode, 0, process.stderr)
+            plan = json.loads(process.stdout)
+            self.assertEqual(plan["task_name"], task_name)
+            self.assertEqual(
+                plan["rounds"][0]["template_id"],
+                "task_execution.official_baseline",
+            )
 
     def test_official_task_run_records_no_codegen(self):
         with tempfile.TemporaryDirectory() as temporary:

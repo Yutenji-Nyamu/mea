@@ -11,6 +11,7 @@ from mea.planner.open_world_session import (
     OpenWorldSessionError,
     build_open_world_evaluation_target,
 )
+from mea.planner.policy_task_binding import build_policy_task_binding
 from mea.planner.query_contract import build_query_sufficiency_contract
 
 
@@ -150,6 +151,33 @@ class OpenWorldPlanSessionTests(unittest.TestCase):
             normalized["checkpoint"],
             self.session.checkpoint,
         )
+
+    def test_runtime_binding_does_not_require_retrieval_registration(self):
+        task_name = "runtime_schema_task"
+        target = {
+            "schema_version": 3,
+            "binding_mode": "single_task_single_checkpoint_open_world",
+            "policy_task_binding": build_policy_task_binding(
+                task_name=task_name,
+                task_family="runtime_discovered",
+                policy={"name": "ACT", "language_conditioned": False},
+                checkpoint={
+                    "checkpoint_id": f"act-{task_name}/demo_clean-50",
+                    "checkpoint_setting": "demo_clean",
+                    "expert_data_num": 50,
+                    "ready": True,
+                },
+            ),
+            "max_rounds": 2,
+        }
+        session = OpenWorldPlanSession.from_target(target)
+
+        self.assertEqual(session.task_name, task_name)
+        self.assertEqual(
+            session.control_template_id,
+            "task_execution.official_baseline",
+        )
+        self.assertEqual(session.retrieval_aspects, [])
 
     def test_control_round_is_frozen_after_first_normalization(self):
         self.session.normalize_plan(self.plan)

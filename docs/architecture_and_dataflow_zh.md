@@ -1,10 +1,25 @@
 # 架构与干净数据流
 
+## 当前生产边界
+
+ClaimFirst 的任务执行许可不再来自五任务 catalog。生产入口先从
+`envs/<task>.py` 与 `mea/toolkit/schemas/<task>.json` 发现任务，再验证同名 ACT
+checkpoint 的 `dataset_stats.pkl` 和 `policy_last.ckpt`，由
+`mea/planner/runtime_task_binding.py` 生成 catalog-free
+`PolicyTaskBinding/OpenWorldEvaluationTarget`。因此新增一个数据完备任务时，不需要在
+Planner、TaskGen 或 CapabilityAdapter 增加任务名分支。
+
+catalog/CapabilityAdapter 目前仍作为已审查 Task/Tool/VQA artifact 的检索索引，并为
+旧论文协议生成兼容 trace；它不决定 Query 能问什么、候选能否生成或 checkpoint 是否
+可执行。真正的物理边界仍然是 official task source、TaskSchema、policy checkpoint
+以及 simulator validation hooks。
+
 当前项目是在 RoboTwin 上复现 ManipEvalAgent 论文方法的受限实现。`--auto-route`
 开放 Query 的唯一生产主链是
 `FreeConcern → runtime binding → direct ClaimFirst`。首轮计划由
 `ClaimFirstInitialPlanBuilder` 直接创建，不再以 `CatalogPlanAgent` 或任务专属 Planner
-生成壳计划；official inventory/catalog 只负责检索与绑定，不决定 Query 能问什么或
+生成壳计划；official inventory/catalog 只负责发现与检索提示，runtime binding 独立验证
+source/schema/checkpoint，不由 catalog 决定 Query 能问什么或
 runtime candidate 能否执行。legacy task-specific planner 仅由论文消融/兼容入口延迟加载：
 
 ```text
@@ -44,9 +59,9 @@ runtime candidate 能否执行。legacy task-specific planner 仅由论文消融
 | 阶段 | 主要位置 | 最小职责 |
 | --- | --- | --- |
 | 编排 | `scripts/manipeval_agent.py`、`mea/agent_cli.py`、`mea/agent_acceptance.py` | 主脚本编排 evaluation；参数/预算/领域选择与旗舰 acceptance 已拆成可测试模块 |
-| 任务执行边界 | `mea/taskgen/generic_backend.py` | `GenericRoboTwinTaskAdapter` 从 official source、TaskSchema、文档和资产发现薄适配；不枚举 aspect、variant、metric 或 planner route |
+| 任务执行边界 | `mea/planner/runtime_task_binding.py`、`mea/taskgen/generic_backend.py` | runtime binding 验证 source/schema/checkpoint；`GenericRoboTwinTaskAdapter` 从 official source、TaskSchema、文档和资产发现薄适配；两者都不枚举 aspect、variant、metric 或 planner route |
 | 兼容性检索 | `mea/capability_adapter.py` | 旧任务/模板的 retrieval index 与消融兼容层；生产 open-world round 只把它当检索提示，不把成员关系当执行许可 |
-| 开放任务解析 | `mea/planner/open_task_resolver.py`、`global_query.py` | Query-first 抽取 concern；从 official inventory 检索候选；在 policy scope 边界内决定复用、生成或 unsupported |
+| 开放任务解析 | `mea/planner/open_task_resolver.py` | Query-first 抽取 concern；从 official inventory 检索候选；在 policy scope 边界内决定复用、生成或 unsupported。`global_query.py` 仅保留旧 portfolio 兼容 |
 | Claim 规划 | `mea/planner/claim_first_initial.py`、`claim_first_runtime.py`、`claim_first.py`、`query_contract.py`、`open_world_session.py` | 直接创建首轮计划；严格在 completed evidence 后产生/绑定下一 candidate，并冻结 lineage；按 claim truth condition 判断继续或停止 |
 | TaskGen | `mea/taskgen/generic_backend.py`、`artifact_index.py`、`mea/taskgen/act_runtime.py`、`scripts/manipeval_taskgen.py` | 仅在 typed need 要求 scene/checker 时运行；ACT 命令/产物对齐已从 CLI 抽离；exact reuse 仍重跑当前 seed 验证 |
 | Policy | `policy/ACT/eval_mea.sh` 及 paper experiment adapter | ACT 主链在明确 task、checkpoint、seed 下产生 rollout、video 与 telemetry；ranking pilot 让 ACT/DP3 共享同一 expert scene gate |

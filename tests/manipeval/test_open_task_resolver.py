@@ -251,6 +251,32 @@ class InventoryTests(unittest.TestCase):
         self.assertEqual(discovered[0]["execution_status"], "capability_registered")
         self.assertEqual(discovered[1]["execution_status"], "official_base_only")
 
+    def test_runtime_inventory_requires_source_and_schema_not_registration(self):
+        root = Path(__file__).resolve().parents[2]
+        discovered = resolver.discover_robotwin_runtime_task_inventory(root)
+        names = {item["task_name"] for item in discovered}
+
+        self.assertTrue(
+            {
+                "adjust_bottle",
+                "beat_block_hammer",
+                "click_bell",
+                "grab_roller",
+                "place_phone_stand",
+            }.issubset(names)
+        )
+        for task_name in names:
+            self.assertTrue((root / "envs" / f"{task_name}.py").is_file())
+            self.assertTrue(
+                (
+                    root
+                    / "mea"
+                    / "toolkit"
+                    / "schemas"
+                    / f"{task_name}.json"
+                ).is_file()
+            )
+
     def test_catalog_capabilities_do_not_change_semantic_ranking(self):
         base = inventory()
         changed = [dict(item) for item in base]

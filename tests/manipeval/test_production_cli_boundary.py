@@ -152,6 +152,8 @@ class ProductionCliBoundaryTests(unittest.TestCase):
     def test_default_production_mode_is_claim_first(self) -> None:
         probe = (
             "import argparse,importlib.util,json,pathlib;"
+            "from experiments.paper.compat_agent_profile "
+            "import resolve_compat_agent_profile;"
             "path=pathlib.Path('scripts/manipeval_agent.py');"
             "spec=importlib.util.spec_from_file_location('agent_defaults',path);"
             "module=importlib.util.module_from_spec(spec);"
@@ -162,8 +164,10 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             "production=module.resolve_default_open_query_planner("
             "argparse.Namespace(**base));"
             "base['planning_policy']='fixed_predeclared_v1';"
-            "paper=module.resolve_default_open_query_planner("
-            "argparse.Namespace(**base));"
+            "paper=resolve_compat_agent_profile("
+            "argparse.Namespace(auto_route=False,evidence_manifest=None,"
+            "command_plan=None,registered_route=None,evaluation_id=None,**base),"
+            "requested_open_query_planner=None)['open_query_planner'];"
             "print(json.dumps({'production':production,'paper':paper}))"
         )
         self.assertEqual(

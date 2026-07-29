@@ -232,19 +232,17 @@ def parse_args() -> argparse.Namespace:
 
 
 def resolve_default_open_query_planner(args: argparse.Namespace) -> str:
-    """Choose production ClaimFirst unless a paper protocol is explicit."""
+    """Choose the explicit planner or the production ClaimFirst default.
+
+    Hidden paper-profile overrides live in
+    ``experiments.paper.compat_agent_profile`` and are applied lazily by the
+    executable entry point.
+    """
 
     selected = getattr(args, "open_query_planner", None)
     if selected is not None:
         return str(selected)
-    paper_compatibility = bool(
-        getattr(args, "registered_strategy", None) is not None
-        or getattr(args, "task_profile", "official") != "official"
-        or getattr(args, "planning_policy", "dynamic_evidence_v1")
-        != "dynamic_evidence_v1"
-        or getattr(args, "proposal_mode", "catalog") != "catalog"
-    )
-    return "catalog_step_v1" if paper_compatibility else "claim_first_v1"
+    return "claim_first_v1"
 
 
 def resolve_claim_first_control_required(

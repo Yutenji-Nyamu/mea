@@ -16,6 +16,7 @@ from scripts.manipeval_taskgen import collect_position_samples, newest_eval_dir
 ROUND_2 = {
     "round_id": "round_2",
     "template_id": "object_position.left_fixed",
+    "task_name": "click_bell",
     "task_instruction": "position variation",
     "route": "reuse",
     "execution": {

@@ -13,6 +13,7 @@ from mea.planner.claim_first_runtime import (
     resolve_concern_candidate_domain,
     resolve_semantic_proposal,
 )
+from mea.planner.policy_task_binding import build_policy_task_binding
 from mea.planner.query_contract import build_query_sufficiency_contract
 from mea.planner.semantic_coverage import build_evaluation_intent
 
@@ -265,6 +266,49 @@ class EvidenceConditionedPlanner:
 
 
 class ClaimFirstRuntimeTests(unittest.TestCase):
+    def test_unregistered_runtime_task_uses_official_control_anchor(self):
+        task_name = "runtime_schema_task"
+        runtime_target = {
+            "schema_version": 3,
+            "binding_mode": "single_task_single_checkpoint_open_world",
+            "policy_task_binding": build_policy_task_binding(
+                task_name=task_name,
+                task_family="runtime_discovered",
+                policy={"name": "ACT", "language_conditioned": False},
+                checkpoint={
+                    "checkpoint_id": f"act-{task_name}/demo_clean-50",
+                    "checkpoint_setting": "demo_clean",
+                    "expert_data_num": 50,
+                    "ready": True,
+                },
+            ),
+            "max_rounds": 2,
+        }
+
+        self.assertEqual(
+            control_template_id(runtime_target),
+            "task_execution.official_baseline",
+        )
+        proposal = build_control_anchor_proposal(
+            runtime_target,
+            "Where does this policy first expose a weakness?",
+        )
+        self.assertEqual(proposal["task_name"], task_name)
+        self.assertEqual(
+            proposal["requested_aspect_ids"],
+            ["task_execution.official_baseline"],
+        )
+
+        plan = round_plan(1, "task_execution.official_baseline")
+        plan["task_name"] = task_name
+        plan["task_proposal"]["changes"] = {}
+        observed = summary(plan, 1.0)
+        record = build_claim_first_evidence_record(plan, observed)
+        self.assertEqual(
+            record["open_query_evidence"]["tested_perturbation"],
+            "unchanged official-scene control",
+        )
+
     def test_each_dynamic_candidate_keeps_its_own_preservation_contract(
         self,
     ):

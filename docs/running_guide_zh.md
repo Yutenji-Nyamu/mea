@@ -1,7 +1,7 @@
 # 运行指南
 
-所有依赖 simulator、checkpoint、GPU 或 provider 的验证在 canonical AutoDL
-`/root/autodl-tmp/mea` 执行。服务器 live 必须使用
+所有依赖 simulator、checkpoint、GPU 或 provider 的验证在 canonical AutoDL 的一份
+clean MEA clone/worktree 执行；不要使用服务器上已有 dirty/stale clone。服务器 live 必须使用
 `/root/autodl-tmp/conda/envs/RoboTwin/bin/python`；base `python` 只适合不 import
 SAPIEN/RoboTwin、也不执行 setup/render/expert/rollout 的纯单测。根 README 不包含
 付费运行命令。
@@ -9,7 +9,8 @@ SAPIEN/RoboTwin、也不执行 setup/render/expert/rollout 的纯单测。根 RE
 ## 1. 运行前检查
 
 ```bash
-cd /root/autodl-tmp/mea
+MEA_REPO=/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime
+cd "$MEA_REPO"
 git status --short
 git rev-parse HEAD
 /root/autodl-tmp/conda/envs/RoboTwin/bin/python -c \
@@ -174,7 +175,8 @@ rollout 在构造 custom env 前恢复捕获的 RNG state，避免把初始化�
 dataset 路径，不能被解释为代码回归：
 
 ```bash
-cd /root/autodl-tmp/mea
+MEA_REPO=/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime
+cd "$MEA_REPO"
 . /root/autodl-tmp/envs/mea-libero/etc/conda/activate.d/10_mea_libero_paths.sh
 /root/autodl-tmp/envs/mea-libero/bin/python -m pytest -q tests/manipeval
 ```

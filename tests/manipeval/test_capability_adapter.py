@@ -177,6 +177,22 @@ class CapabilityAdapterTests(unittest.TestCase):
             [entry["template_id"] for entry in index["entries"]],
         )
 
+    def test_unregistered_task_can_have_empty_retrieval_hints(self):
+        index = resolve_task_retrieval_index(
+            "runtime_schema_task",
+            allow_unregistered=True,
+        )
+        self.assertEqual(index["task_name"], "runtime_schema_task")
+        self.assertEqual(
+            index["control_template_id"],
+            "task_execution.official_baseline",
+        )
+        self.assertEqual(index["entries"], [])
+        self.assertEqual(index["vqa_questions"], {})
+        self.assertIs(index["execution_authority"], False)
+        with self.assertRaises(CapabilityAdapterError):
+            resolve_task_retrieval_index("runtime_schema_task")
+
     def test_official_vqa_rules_are_task_owned(self):
         questions = registered_task_vqa_questions()
         self.assertIn("phone_visibly_placed_on_stand", questions)

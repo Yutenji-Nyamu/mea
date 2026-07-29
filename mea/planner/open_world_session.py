@@ -19,7 +19,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from mea.capability_adapter import resolve_task_adapter
+from mea.capability_adapter import resolve_task_retrieval_index
 
 from .catalog import catalog_task, validate_act_catalog
 from .context import build_planning_context
@@ -176,9 +176,12 @@ def _catalog_templates(task: Mapping[str, Any]) -> set[str]:
 def _retrieval_aspects(task_name: str) -> list[dict[str, Any]]:
     """Project legacy capability contracts into non-authoritative hints."""
 
-    adapter = resolve_task_adapter(task_name)
+    retrieval_index = resolve_task_retrieval_index(
+        task_name,
+        allow_unregistered=True,
+    )
     grouped: dict[str, dict[str, Any]] = {}
-    for contract in adapter["capability_contracts"]:
+    for contract in retrieval_index["entries"]:
         aspect = contract["aspect"]
         aspect_id = str(aspect["aspect_id"])
         entry = grouped.setdefault(
@@ -213,10 +216,13 @@ def build_open_world_evaluation_target(
     trusted_catalog = validate_act_catalog(catalog)
     task = catalog_task(trusted_catalog, _text(task_name, "task_name"))
     budget = _positive_int(max_rounds, "max_rounds")
-    adapter = resolve_task_adapter(task["task_name"])
+    retrieval_index = resolve_task_retrieval_index(
+        task["task_name"],
+        allow_unregistered=True,
+    )
     control_template = _text(
-        adapter.get("control_template_id"),
-        "TaskAdapter.control_template_id",
+        retrieval_index.get("control_template_id"),
+        "TaskRetrievalIndex.control_template_id",
     )
     if control_template not in _catalog_templates(task):
         raise OpenWorldSessionError(
@@ -310,8 +316,9 @@ class OpenWorldPlanSession:
         self.task_name = self.binding["task_name"]
         self.policy = self.binding["policy"]
         self.checkpoint = self.binding["checkpoint"]
-        self.control_template_id = resolve_task_adapter(
-            self.task_name
+        self.control_template_id = resolve_task_retrieval_index(
+            self.task_name,
+            allow_unregistered=True,
         )["control_template_id"]
         self.retrieval_aspects = _retrieval_aspects(self.task_name)
         self._control_round: dict[str, Any] | None = None

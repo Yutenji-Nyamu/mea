@@ -1,8 +1,11 @@
-"""Fail-closed, no-execution protocols for the next paper-evidence runs.
+"""Fail-closed, no-execution protocols for paper-specific evidence runs.
 
 The builders in this module preregister experiments.  The evaluators only
 consume receipts from runs that happened elsewhere; they never start a
 provider, simulator, expert, probe, or policy rollout.
+
+This module belongs to the explicit paper experiment layer, not the production
+``mea`` runtime.
 """
 
 from __future__ import annotations
@@ -2393,9 +2396,7 @@ def _table3_proposals(
         return tuple(deepcopy(dict(item)) for item in TABLE3_PROPOSALS)
     resolved = _identifier(proposal_set_id, field="proposal_set_id")
     path = (
-        Path(__file__).resolve().parents[1]
-        / "experiments"
-        / "paper"
+        Path(__file__).resolve().parent
         / "inputs"
         / "table3_proposal_sets"
         / f"{resolved}.json"

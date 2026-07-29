@@ -16,6 +16,7 @@ from mea.taskgen.generic_backend import (
     GenericTaskGenError,
     GenericTaskGenHooks,
     build_generic_task_subclass_module,
+    discover_generic_robotwin_task_identity,
     generic_task_semantic_key,
     load_generic_robotwin_task_adapter,
     validate_generic_task_methods,
@@ -929,6 +930,16 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             root = Path(temp_dir)
             task_name = "runtime_novel_task"
             _write_discoverable_task_repo(root, task_name)
+            identity = discover_generic_robotwin_task_identity(
+                root,
+                task_name,
+            )
+            self.assertEqual(identity["task_name"], task_name)
+            self.assertEqual(
+                identity["official_source"],
+                f"envs/{task_name}.py",
+            )
+            self.assertEqual(identity["task_schema"]["task_name"], task_name)
 
             def fixtures(
                 methods: Mapping[str, str],

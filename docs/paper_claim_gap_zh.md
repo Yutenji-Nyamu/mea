@@ -10,17 +10,20 @@
 [current evidence](evidence/current/README.md) 对应的
 `eval_20260729_b30_refinement_live_v2`。该运行从未指定 aspect/template 的开放 Query
 出发：round 1 只执行 official control；Planner 读取该轮 evidence 后才提出
-`object_position`；读取前两轮累计 evidence 后又转向 `object_instance`。第三轮首次失败，
-QueryContract 随后以 `evidence_sufficient` 停止。全程共 3 次真实 ACT，
+`object_position`；读取前两轮累计 evidence 后又转向名义上的 `object_instance`。
+第三轮实际 materialization 是 `scale_multiplier=1.2` 的 bell，而不是穷举或固定新的
+instance id；该具体 variant 首次失败，QueryContract 随后以 `evidence_sufficient`
+停止。全程共 3 次真实 ACT，
 `flagship_acceptance.accepted=true`，无 history/cache replay 或人工串接。这证明了一个
 有限域、单 task、单 seed 的 evidence-conditioned refinement 正例，不证明统计泛化。
+停止时三轮预算也恰好耗尽，因此本例不能作为 early-stop sampling saving 证据。
 
 ## 方法 claim
 
 | 论文 claim | 当前项目证据 | 判断 |
 | --- | --- | --- |
-| Fig. 2/5：开放 Query 驱动，Plan Agent 自主提出 sub-aspect | 生产入口由 `ClaimFirstInitialPlanBuilder` 直接建立首轮计划，不再调用 catalog/task-specific Planner。最新 Query 未给 aspect/template；control 前没有冻结候选，Planner 在 evidence 后依次提出 position、instance | **受限正例完成**。catalog/capability 只提供全域检索提示，不再充当执行许可；但真实证据仍只有一个 task/query |
-| 上一轮 evidence 决定下一轮，并在充分时停止 | R1→R2 lineage 为 `[round_1]`，R2→R3 为 `[round_1, round_2]`，输入摘要不同；position 成功后才转向 instance，instance 失败后按 diagnostic Query 合同停止 | **Fig. 5 的关键机制已有一个干净 live 正验收**。它只支持冻结有限域中的首个弱点诊断；开放世界的 `all`、`worst-case` 仍必须保持 inconclusive |
+| Fig. 2/5：开放 Query 驱动，Plan Agent 自主提出 sub-aspect | 生产入口由 `ClaimFirstInitialPlanBuilder` 直接建立首轮计划，不再调用 catalog/task-specific Planner。任务执行 target 也已改由 official source + TaskSchema + 同名 ACT checkpoint 建立，不要求 CapabilityAdapter/catalog 成员资格。最新 Query 未给 aspect/template；control 前没有冻结候选，Planner 在 evidence 后依次提出 position、instance | **受限正例完成**。catalog/capability 只提供 artifact 检索提示；但真实 evidence-conditioned 正例仍只有一个 task/query。`place_phone_stand` 的 catalog-free target 已做 0-ACT plan-only 验收，不是 policy 性能证据 |
+| 上一轮 evidence 决定下一轮，并在充分时停止 | R1→R2 lineage 为 `[round_1]`，R2→R3 为 `[round_1, round_2]`，输入摘要不同；position 成功后才转向下一 concern，实际执行的 1.2× scale variant 失败后按 diagnostic Query 合同停止 | **Fig. 5 的关键时序已有一个干净 live 正验收**。它只支持该有限执行域中的弱点诊断；Planner 标签与 materialization 仍需更严格对齐，且本例在用尽预算时停止，不能证明 early-stop saving |
 | Fig. 3：Proposal → retrieve/generate scene + `check_success()` → rollout | 最新 round 2/3 由通用 provider 路径生成 scene，但 `checker_need=null`，运行时精确保留 official `check_success()`；scene 经过 AST、simulator state、render、VLM、expert 后直接进入 ACT。此前 BBH 有同一 Proposal 生成 scene+checker 并裁决 rollout 的真实案例 | **组件均有真实案例，但尚未在本次干净旗舰中合一**。下一步应在原本 official-only task 上无专属分支地生成 scene+checker |
 | 首帧视觉诊断，失败时局部重生成 | 通用 TaskGen 已运行真实 VLM visual diagnosis，并只允许一次局部 repair；preservation 仍由 simulator state、collision geometry、AST/checker fixture 与 frozen binding 独立裁决 | **职责边界已完成**。最新旗舰没有触发 repair，因此尚缺“视觉发现问题→一次修复→通过”的在线正例；视觉不能替代数值 authority |
 | Fig. 4：ToolGen retrieve/generate/validate/register/reuse | round 2 由 Query 诱发 typed MetricSpec，编译、差分验证并注册 `query_derived_metric`，真实值 `0.021466 m` 进入 Aggregate/Planner；round 3 按相同 code hash 走 `run_local_reuse`，得到非空 `0.002753 m` | **同一干净案例内闭合**。本例 `provider_called=false`，生成空间仍受 MetricSpec DSL 限制；另缺第二个独立 Query/evaluation 从 reviewed registry exact reuse |
@@ -39,17 +42,18 @@ QueryContract 随后以 `evidence_sufficient` 停止。全程共 3 次真实 ACT
 | Table 9：少样本保持 ACT/DP/DP3/RDT/π0 排名 | ACT/DP3 三 seed pilot 为 2/3 对 2/3，平局；Spearman 不可计算 | **未复现**。暂不为制造排名扩大策略 |
 | Fig. 6：约 5% 系统错误率与模块分布 | 冻结 10 个 terminal operations，10/10 pass | **分母不足，未复现** |
 | 数百条、五类、人工 sub-aspect Query 数据集 | 30 条中文 proxy Query、五类各 6 条 | **最小协议样本，不是论文数据贡献** |
-| 多任务、跨 policy、RoboTwin/LIBERO 一致性 | RoboTwin 有五个数据化 TaskAdapter；SmolVLA 统一 checkpoint 在五任务 N=1 顺序 pilot 为 4/5，但未进入 MEA 方法链。LIBERO task0 为 official-positive/custom-negative basic adaptation | **跨任务/跨环境结论未复现**。多任务 policy 可运行性不等于生成式闭环证据或 50-task 成功率 |
+| 多任务、跨 policy、RoboTwin/LIBERO 一致性 | RoboTwin 当前有五份数据完备 TaskSchema 和相应 checkpoint；生产 binding 已不要求五任务 TaskAdapter。SmolVLA 统一 checkpoint 在五任务 N=1 顺序 pilot 为 4/5，但未进入 MEA 方法链。LIBERO task0 为 official-positive/custom-negative basic adaptation | **跨任务/跨环境结论未复现**。代码通用边界与多任务 policy 可运行性都不等于跨任务生成式闭环证据或 50-task 成功率 |
 
 ## 当前最重要的 gap
 
 1. **把 evidence-conditioned refinement 从单一 ClickBell 正例推广到一次真正冷启动。**
    下一步优先在一个原本 official-only task 上，由第一轮 evidence 决定第二轮 concern；
    不得新增任务名专属 Planner/TaskGen 分支。
-2. **继续压缩检索层的任务菜单耦合。** 生产 target 已不携带 aspect/template，但
-   `OpenWorldPlanSession.retrieval_aspects` 仍由 `CapabilityAdapter` 的预注册 contracts
-   投影。下一步应允许语义检索直接返回相似 artifact/unsupported，而不是先形成任务内
-   aspect 菜单。
+2. **统一已知与未知 concern 的 materialization。** catalog 外 concern 已走
+   `ExperimentCandidate → GenericRoboTwinTaskGenBackend`；但命中旧 template 时仍可能进入
+   `BoundedProposalAgent` 与 BBH/ClickBell dialect。下一步应先做语义 artifact exact
+   retrieval，miss 后统一走 generic backend，使 task-specific dialect 只留在
+   `experiments/paper/`。
 3. **把共享 `MethodRuntime` 从兼容投影变成原生执行边界。** 当前 projection 不重复
    TaskGen/ACT，但真正生产 mechanics 仍在旧 child pipeline；应逐阶段迁移，而不是再加一套编排。
 4. **让跨 evaluation Tool reuse 成为正常 Query 路径。** 当前已证明同一在线 evaluation
@@ -63,8 +67,9 @@ QueryContract 随后以 `evidence_sufficient` 停止。全程共 3 次真实 ACT
 
 - 生产路径只保留 ClaimFirst；fixed/catalog/task-specific Planner 仅作为
   `experiments/paper/` 消融兼容层。
-- `CapabilityAdapter` 只应保存 task identity、checkpoint、schema、official success、
-  render/rollout hooks；aspect/metric 菜单属于 retrieval index。
+- `CapabilityAdapter` 现在只应被理解为 known artifact retrieval/兼容索引；task identity、
+  schema、checkpoint 与 official runtime hooks 已由 runtime binding 单独验证。后续应迁移
+  caller 后改名或拆分，不能再把其五任务成员资格当执行许可。
 - TaskGen/ToolGen 各保留一次局部 repair；不恢复中央 whole-round restart。
 - `ArtifactIndex` 是迁移 façade。旧 Task/Tool/VQA registry 仍有真实 caller，在 caller
   迁移前不能直接删除或声称已统一。

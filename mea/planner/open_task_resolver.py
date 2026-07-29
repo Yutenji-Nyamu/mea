@@ -23,6 +23,12 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from mea.toolkit.schema import (
+    TaskSchemaError,
+    load_task_schema,
+    task_schema_path,
+)
+
 
 class OpenTaskResolutionError(ValueError):
     """Raised when an open concern or task-resolution contract is invalid."""
@@ -541,15 +547,26 @@ def discover_robotwin_task_inventory(
     repo_root: str | Path,
     *,
     capability_catalog: Mapping[str, Any] | None = None,
+    schema_backed_only: bool = False,
 ) -> list[dict[str, Any]]:
-    """Discover official task bases without turning them into a concern menu."""
+    """Discover official task bases without turning them into a concern menu.
+
+    The default preserves the public 50-task discovery behavior.  Runtime
+    callers may request ``schema_backed_only`` so every returned task already
+    has the validated telemetry/execution schema required by generic TaskGen.
+    Capability catalog membership only enriches the returned retrieval hints.
+    """
 
     root = Path(repo_root).expanduser().resolve()
+    if not isinstance(schema_backed_only, bool):
+        raise OpenTaskResolutionError("schema_backed_only must be bool")
     env_root = root / "envs"
     instruction_root = root / "description" / "task_instruction"
     capabilities = _capability_index(capability_catalog)
     entries: list[dict[str, Any]] = []
-    if not env_root.is_dir() or not instruction_root.is_dir():
+    if not env_root.is_dir() or (
+        not schema_backed_only and not instruction_root.is_dir()
+    ):
         raise OpenTaskResolutionError(
             "RoboTwin envs and description/task_instruction directories are required"
         )
@@ -558,27 +575,53 @@ def discover_robotwin_task_inventory(
         if task_name.startswith("_"):
             continue
         instruction_path = instruction_root / f"{task_name}.json"
-        if not instruction_path.is_file():
-            continue
-        try:
-            instruction = json.loads(instruction_path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-            raise OpenTaskResolutionError(
-                f"invalid official task instruction: {task_name}"
-            ) from exc
-        if not isinstance(instruction, Mapping):
-            raise OpenTaskResolutionError(
-                f"official task instruction must be an object: {task_name}"
+        schema: Mapping[str, Any] | None = None
+        if schema_backed_only:
+            schema_path = task_schema_path(root, task_name)
+            if not schema_path.is_file():
+                continue
+            try:
+                schema = load_task_schema(root, task_name)
+            except TaskSchemaError as exc:
+                raise OpenTaskResolutionError(
+                    f"invalid runtime TaskSchema: {task_name}: {exc}"
+                ) from exc
+        if instruction_path.is_file():
+            try:
+                instruction = json.loads(
+                    instruction_path.read_text(encoding="utf-8")
+                )
+            except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+                raise OpenTaskResolutionError(
+                    f"invalid official task instruction: {task_name}"
+                ) from exc
+            if not isinstance(instruction, Mapping):
+                raise OpenTaskResolutionError(
+                    f"official task instruction must be an object: {task_name}"
+                )
+            description = _text(
+                instruction.get("full_description"),
+                f"{task_name}.full_description",
             )
+        elif schema_backed_only:
+            family = (
+                str(schema.get("task_family")).strip()
+                if isinstance(schema, Mapping)
+                and isinstance(schema.get("task_family"), str)
+                else "manipulation"
+            )
+            description = (
+                f"RoboTwin {family} task "
+                f"{task_name.replace('_', ' ')}."
+            )
+        else:
+            continue
         aspects = capabilities.get(task_name, [])
         entries.append(
             {
                 "schema_version": 1,
                 "task_name": task_name,
-                "description": _text(
-                    instruction.get("full_description"),
-                    f"{task_name}.full_description",
-                ),
+                "description": description,
                 "execution_status": (
                     "capability_registered" if aspects else "official_base_only"
                 ),
@@ -588,6 +631,20 @@ def discover_robotwin_task_inventory(
     if not entries:
         raise OpenTaskResolutionError("no official RoboTwin tasks were discovered")
     return validate_task_inventory(entries)
+
+
+def discover_robotwin_runtime_task_inventory(
+    repo_root: str | Path,
+    *,
+    capability_catalog: Mapping[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """Discover every source/schema-backed task eligible for runtime binding."""
+
+    return discover_robotwin_task_inventory(
+        repo_root,
+        capability_catalog=capability_catalog,
+        schema_backed_only=True,
+    )
 
 
 def _tokens(value: str) -> list[str]:
@@ -772,6 +829,7 @@ __all__ = [
     "FreeConcernAgent",
     "OpenTaskResolutionError",
     "build_free_concern_prompt",
+    "discover_robotwin_runtime_task_inventory",
     "discover_robotwin_task_inventory",
     "policy_task_scope_from_card",
     "rank_official_tasks",

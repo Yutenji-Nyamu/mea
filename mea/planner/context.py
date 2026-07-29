@@ -13,7 +13,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping
 
-from mea.capability_adapter import registered_capability_contracts
+from mea.capability_adapter import resolve_task_retrieval_index
 from mea.toolkit import load_task_schema
 from .policy_task_binding import (
     PolicyTaskBindingError,
@@ -95,7 +95,11 @@ def _retrieval_aspects(task_name: str) -> list[dict[str, Any]]:
     """Group the artifact index without making it an execution boundary."""
 
     grouped: dict[str, dict[str, Any]] = {}
-    for contract in registered_capability_contracts(task_name):
+    retrieval_index = resolve_task_retrieval_index(
+        task_name,
+        allow_unregistered=True,
+    )
+    for contract in retrieval_index["entries"]:
         aspect = contract["aspect"]
         aspect_id = str(aspect["aspect_id"])
         entry = grouped.setdefault(
@@ -187,9 +191,13 @@ def _build_planning_context(
             "EvaluationTarget task_family differs from the trusted TaskSchema"
         )
 
+    retrieval_index = resolve_task_retrieval_index(
+        task_name,
+        allow_unregistered=True,
+    )
     registered = {
         str(contract["template_id"]): contract
-        for contract in registered_capability_contracts(task_name)
+        for contract in retrieval_index["entries"]
     }
     templates: list[dict[str, Any]] = []
     aspect_ids: list[str] = []
@@ -342,8 +350,13 @@ def validate_planning_context(
                 f"{name} fields must be exactly {sorted(keys)}"
             )
     templates = context["adapter_view"].get("templates")
-    if not isinstance(templates, list) or not templates:
-        raise PlanningContextError("adapter_view.templates must be non-empty")
+    production_binding = "policy_task_binding" in target
+    if not isinstance(templates, list):
+        raise PlanningContextError("adapter_view.templates must be a list")
+    if not production_binding and not templates:
+        raise PlanningContextError(
+            "legacy adapter_view.templates must be non-empty"
+        )
     for template in templates:
         if not isinstance(template, Mapping) or set(template) != _TEMPLATE_KEYS:
             raise PlanningContextError(

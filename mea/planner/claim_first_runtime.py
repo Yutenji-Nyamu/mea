@@ -28,7 +28,10 @@ from copy import deepcopy
 from typing import Any, Mapping, Sequence
 
 from mea.aspects import public_aspect_ontology
-from mea.capability_adapter import resolve_task_adapter
+from mea.capability_adapter import (
+    resolve_task_adapter,
+    resolve_task_retrieval_index,
+)
 
 from .claim_first import (
     ClaimFirstPlanError,
@@ -408,9 +411,12 @@ def _target_policy(target: Mapping[str, Any]) -> dict[str, Any]:
 def _adapter_retrieval_aspects(task_name: str) -> list[dict[str, Any]]:
     """Project registered artifacts without adding them to the binding."""
 
-    adapter = resolve_task_adapter(task_name)
+    retrieval_index = resolve_task_retrieval_index(
+        task_name,
+        allow_unregistered=True,
+    )
     grouped: dict[str, dict[str, Any]] = {}
-    for contract in adapter["capability_contracts"]:
+    for contract in retrieval_index["entries"]:
         aspect = contract["aspect"]
         aspect_id = str(aspect["aspect_id"])
         entry = grouped.setdefault(
@@ -432,13 +438,11 @@ def control_template_id(target: Mapping[str, Any]) -> str:
     """Return the trusted official-scene control for a bound task."""
 
     task_name = _target_task_name(target)
-    try:
-        adapter = resolve_task_adapter(task_name)
-    except ValueError as exc:
-        raise ClaimFirstRuntimeError(
-            f"claim-first control anchor is not defined for {task_name!r}"
-        ) from exc
-    template_id = adapter["control_template_id"]
+    retrieval_index = resolve_task_retrieval_index(
+        task_name,
+        allow_unregistered=True,
+    )
+    template_id = retrieval_index["control_template_id"]
     if "policy_task_binding" in target:
         return template_id
     available = {
@@ -454,7 +458,7 @@ def control_template_id(target: Mapping[str, Any]) -> str:
         # expose ``task_execution.official_baseline``.
         legacy_controls = [
             contract["template_id"]
-            for contract in adapter["capability_contracts"]
+            for contract in retrieval_index["entries"]
             if contract["template_id"] in available
             and contract["taskgen"]["operation"] == "official_passthrough"
         ]
@@ -477,10 +481,13 @@ def _uses_task_control_template(round_plan: Mapping[str, Any]) -> bool:
     ):
         return False
     try:
-        adapter = resolve_task_adapter(task_name)
+        retrieval_index = resolve_task_retrieval_index(
+            task_name.strip(),
+            allow_unregistered=True,
+        )
     except ValueError:
         return False
-    return template_id.strip() == adapter["control_template_id"]
+    return template_id.strip() == retrieval_index["control_template_id"]
 
 
 def build_control_anchor_proposal(
@@ -496,8 +503,18 @@ def build_control_anchor_proposal(
     query = _nonempty_text(user_query, "user_query")
     task_name = _target_task_name(target)
     template_id = control_template_id(target)
-    adapter = resolve_task_adapter(task_name)
-    planner_kind = adapter["planner_kind"]
+    retrieval_index = resolve_task_retrieval_index(
+        task_name,
+        allow_unregistered=True,
+    )
+    adapter = (
+        resolve_task_adapter(task_name)
+        if retrieval_index["entries"]
+        else None
+    )
+    planner_kind = (
+        adapter["planner_kind"] if adapter is not None else None
+    )
     if planner_kind == "model_click_bell_adaptive_v1":
         control_aspect_id = next(
             contract["aspect"]["aspect_id"]
@@ -527,7 +544,7 @@ def build_control_anchor_proposal(
             "first_template_id": template_id,
             "max_rounds": int(target["max_rounds"]),
         }
-    if planner_kind == "deterministic_official_task":
+    if planner_kind in {None, "deterministic_official_task"}:
         return {
             "schema_version": 1,
             "task_name": task_name,
@@ -1585,15 +1602,19 @@ class ClaimFirstRuntimeController:
                 )
         else:
             raw_retrieval_aspects = list(retrieval_aspects)
-        if (
-            not raw_retrieval_aspects
-            or any(
-                not isinstance(aspect, Mapping)
-                for aspect in raw_retrieval_aspects
-            )
+        if any(
+            not isinstance(aspect, Mapping)
+            for aspect in raw_retrieval_aspects
         ):
             raise ClaimFirstRuntimeError(
-                "retrieval_aspects must contain artifact hints"
+                "retrieval_aspects must contain only artifact-hint objects"
+            )
+        if (
+            not raw_retrieval_aspects
+            and "policy_task_binding" not in self.target
+        ):
+            raise ClaimFirstRuntimeError(
+                "legacy retrieval_aspects must contain artifact hints"
             )
         self.retrieval_aspects = [
             deepcopy(dict(aspect)) for aspect in raw_retrieval_aspects

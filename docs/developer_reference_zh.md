@@ -37,9 +37,11 @@
 1. 确认 official task 可以由 expert 在若干固定 seed 初始化并完成。
 2. 增加 TaskSchema：actor、接触点、单位、official success 和可用 generic metrics。
 3. 下载服务器端 ACT/DP3 checkpoint 与 stats；记录来源和 revision。
-4. 只为 official control/checkpoint binding 增加数据化条目；generated round 由
-   `load_generic_robotwin_task_adapter()` 从 source/schema 自动发现，不增加任务名分支、
-   planner kind、aspect、metric 或 VQA 菜单。
+4. 不为生产 Planner/TaskGen 增加任务名条目。`runtime_task_binding.py` 从
+   source/schema/checkpoint 自动建立执行边界，
+   `load_generic_robotwin_task_adapter()` 再从 source/schema 自动发现生成 hooks。
+   只有确有已审查 artifact 需要复用时，才向 retrieval index 增加数据化条目；它不能
+   携带 planner kind、执行许可或预排 aspect 顺序。
 5. 用 generic recorder、Rule Tool 和 VQA 跑一个 N=1 official smoke；这只能把任务标成
    `official-only`。
 6. 只有 Query 确实需要新场景，且 model-written scene/checker、fixture/render、

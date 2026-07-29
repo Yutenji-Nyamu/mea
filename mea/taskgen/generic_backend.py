@@ -700,6 +700,53 @@ def _discover_asset_descriptions(
     return tuple(paths)
 
 
+def discover_generic_robotwin_task_identity(
+    repo_root: str | Path,
+    task_name: str,
+) -> dict[str, Any]:
+    """Discover one executable RoboTwin base without a task-name registry.
+
+    This hook-free identity is the authority boundary shared by routing and
+    TaskGen.  A task is discoverable only when its official source declares
+    the expected class and its repository-owned TaskSchema validates.  Known
+    capability entries may later enrich retrieval, but are not membership
+    requirements here.
+    """
+
+    if not isinstance(task_name, str) or not _TASK_NAME.fullmatch(task_name):
+        raise GenericTaskGenError("task_name is not a RoboTwin identifier")
+    root = Path(repo_root).expanduser().resolve()
+    relative_source = f"envs/{task_name}.py"
+    source_path = _resolve_repo_file(
+        root, relative_source, label="official task source"
+    )
+    _official_class(source_path, class_name=task_name)
+    try:
+        schema = load_task_schema(root, task_name)
+    except TaskSchemaError as exc:
+        raise GenericTaskGenError(
+            f"task toolkit schema is unavailable: {exc}"
+        ) from exc
+    return {
+        "schema_version": 1,
+        "task_name": task_name,
+        "official_source": relative_source,
+        "official_class": task_name,
+        "task_schema": deepcopy(schema),
+        "documentation_paths": list(
+            _discover_task_documents(root, task_name=task_name)
+        ),
+        "asset_paths": list(
+            _discover_asset_descriptions(
+                root,
+                source_path=source_path,
+                class_name=task_name,
+                task_schema=schema,
+            )
+        ),
+    }
+
+
 def load_generic_robotwin_task_adapter(
     repo_root: str | Path,
     task_name: str,
@@ -734,17 +781,12 @@ def load_generic_robotwin_task_adapter(
             "metric and checker contract resolvers must be callable"
         )
     root = Path(repo_root).expanduser().resolve()
-    relative_source = f"envs/{task_name}.py"
+    identity = discover_generic_robotwin_task_identity(root, task_name)
+    relative_source = str(identity["official_source"])
     source_path = _resolve_repo_file(
         root, relative_source, label="official task source"
     )
-    _official_class(source_path, class_name=task_name)
-    try:
-        schema = load_task_schema(root, task_name)
-    except TaskSchemaError as exc:
-        raise GenericTaskGenError(
-            f"task toolkit schema is unavailable: {exc}"
-        ) from exc
+    schema = deepcopy(identity["task_schema"])
     readme = root / "mea/taskgen/README.Agent.md"
     if not readme.is_file():
         raise GenericTaskGenError(
@@ -813,19 +855,12 @@ def load_generic_robotwin_task_adapter(
         prompt_constraints=prompt_constraints,
     )
     return GenericRoboTwinTaskAdapter(
-        task_name=task_name,
+        task_name=str(identity["task_name"]),
         official_source=relative_source,
-        official_class=task_name,
+        official_class=str(identity["official_class"]),
         task_schema=schema,
-        documentation_paths=_discover_task_documents(
-            root, task_name=task_name
-        ),
-        asset_paths=_discover_asset_descriptions(
-            root,
-            source_path=source_path,
-            class_name=task_name,
-            task_schema=schema,
-        ),
+        documentation_paths=tuple(identity["documentation_paths"]),
+        asset_paths=tuple(identity["asset_paths"]),
         hooks=hooks,
     )
 
@@ -1535,6 +1570,7 @@ __all__ = [
     "GenericTaskGenError",
     "GenericTaskGenHooks",
     "build_generic_task_subclass_module",
+    "discover_generic_robotwin_task_identity",
     "generic_task_semantic_key",
     "load_generic_robotwin_task_adapter",
     "validate_generic_task_methods",
