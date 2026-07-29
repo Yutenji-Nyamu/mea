@@ -3,20 +3,17 @@ The image shows the same-seed official scene on the left and the generated
 Query-derived scene on the right.
 
 SEMANTIC CONCERN:
-robustness of the policy to positional variation of the bell: The ACT policy can successfully complete the click_bell task when the bell is shifted to a new position within a bounded range.
+task_execution.object_position_variation: The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds.
 
 REQUESTED SCENE NEED:
-Shift the bell's position horizontally by a small, bounded distance while keeping its size, shape, material, and the overall scene layout unchanged. Preserve unchanged: 任务目标与接触几何语义; size; shape; material; the overall scene layout.
+Introduce a bounded variation in the bell's position. Preserve unchanged: task identity; policy checkpoint.
 
 CHECKER NEED (context only; RGB cannot validate success logic):
 No change requested; preserve the official implementation.
 
 DECLARED CONDITIONS TO PRESERVE:
-- 任务目标与接触几何语义
-- size
-- shape
-- material
-- the overall scene layout
+- task identity
+- policy checkpoint
 
 Judge only visible facts: render usability, whether key task actors are visible,
 whether the requested visible change is consistent or contradicted, obvious

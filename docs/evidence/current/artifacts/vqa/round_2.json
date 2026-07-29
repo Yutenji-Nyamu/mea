@@ -2,8 +2,8 @@
   "schema_version": 1,
   "model_requested": "gpt-4o-2024-11-20",
   "selection": {
-    "video_path": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405/video.mp4",
-    "frame_count": 70,
+    "video_path": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000/video.mp4",
+    "frame_count": 76,
     "fps": 10.0,
     "selected_frames": [
       {
@@ -13,29 +13,29 @@
       },
       {
         "frame_id": "success_before",
-        "frame_index": 67,
+        "frame_index": 73,
         "source": "official_success_event"
       },
       {
         "frame_id": "success_after",
-        "frame_index": 68,
+        "frame_index": 74,
         "source": "official_success_event"
       },
       {
         "frame_id": "final",
-        "frame_index": 69,
+        "frame_index": 75,
         "source": "video_boundary"
       }
     ],
-    "reference_scene": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evidence/initial_head.png",
-    "montage_path": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa/execution_montage.png"
+    "reference_scene": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evidence/initial_head.png",
+    "montage_path": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/execution_vqa/execution_montage.png"
   },
   "query": {
     "schema_version": 1,
     "profile": "dynamic_v1",
     "task_name": "click_bell",
     "template_id": null,
-    "sub_aspect": "robustness of the policy to positional variation of the bell",
+    "sub_aspect": "task_execution.object_position_variation",
     "tool_metric": "query_derived_metric",
     "phenomenon_ids": [
       "bell_visibly_pressed"
@@ -84,15 +84,15 @@
       "value": true,
       "unit": null,
       "evidence_steps": [
-        4675
+        5514
       ],
       "evidence": [
         {
           "type": "success_transition",
-          "policy_step": 68,
-          "physics_step": 4675,
-          "simulation_time_seconds": 18.7,
-          "video_frame_index": 68
+          "policy_step": 74,
+          "physics_step": 5514,
+          "simulation_time_seconds": 22.056,
+          "video_frame_index": 74
         }
       ],
       "details": {
@@ -105,22 +105,22 @@
       "tool": "time_to_success",
       "version": 1,
       "tool_sha256": "15b7e9522b6d4d018755674f6cf959233d80315bddeda7db0f49e039341b7104",
-      "value": 18.7,
+      "value": 22.056,
       "unit": "s",
       "evidence_steps": [
-        4675
+        5514
       ],
       "evidence": [
         {
           "type": "success_transition",
-          "policy_step": 68,
-          "physics_step": 4675,
-          "simulation_time_seconds": 18.7,
-          "video_frame_index": 68
+          "policy_step": 74,
+          "physics_step": 5514,
+          "simulation_time_seconds": 22.056,
+          "video_frame_index": 74
         }
       ],
       "details": {
-        "physics_step": 4675
+        "physics_step": 5514
       }
     }
   ],
@@ -129,7 +129,7 @@
       {
         "id": "bell_visibly_pressed",
         "observed": true,
-        "description": "The robot visibly presses the target bell.",
+        "description": "The robot visibly presses the bell in the rollout.",
         "confidence": 1.0,
         "frame_ids": [
           "success_before",
@@ -148,11 +148,11 @@
   },
   "evidence_conflict": false,
   "provider_metadata": {
-    "id": "chatcmpl-E6r37kttATwHSnaKzxLIo6YQXIxAu",
+    "id": "chatcmpl-E6tTiafUxzXgBmBQ5Eid1otcikbV6",
     "model": "gpt-4o-2024-11-20",
     "finish_reason": "stop",
     "usage": {
-      "completion_tokens": 108,
+      "completion_tokens": 110,
       "completion_tokens_details": {
         "accepted_prediction_tokens": 0,
         "audio_tokens": 0,
@@ -160,33 +160,33 @@
         "rejected_prediction_tokens": 0
       },
       "latency_checkpoint": {
-        "engine_tbt_ms": 14,
-        "engine_ttft_ms": 589,
-        "engine_ttlt_ms": 2135,
-        "pre_inference_ms": 261,
-        "service_tbt_ms": 14,
-        "service_ttft_ms": 1494,
-        "service_ttlt_ms": 3036,
-        "total_duration_ms": 2784,
-        "user_visible_ttft_ms": 1234
+        "engine_tbt_ms": 15,
+        "engine_ttft_ms": 607,
+        "engine_ttlt_ms": 2249,
+        "pre_inference_ms": 311,
+        "service_tbt_ms": 15,
+        "service_ttft_ms": 1573,
+        "service_ttlt_ms": 3211,
+        "total_duration_ms": 2906,
+        "user_visible_ttft_ms": 1262
       },
       "prompt_tokens": 1500,
       "prompt_tokens_details": {
         "audio_tokens": 0,
         "cached_tokens": 0
       },
-      "total_tokens": 1608
+      "total_tokens": 1610
     },
     "retry_count": 0
   },
   "artifacts": {
-    "result": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa/execution_vqa.json",
-    "prompt": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa/execution_vqa_prompt.md",
-    "response": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa/execution_vqa_response.txt",
-    "montage": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa/execution_montage.png",
-    "selection": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa/keyframe_selection.json",
-    "query": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa/execution_vqa_query.json"
+    "result": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/execution_vqa/execution_vqa.json",
+    "prompt": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/execution_vqa/execution_vqa_prompt.md",
+    "response": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/execution_vqa/execution_vqa_response.txt",
+    "montage": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/execution_vqa/execution_montage.png",
+    "selection": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/execution_vqa/keyframe_selection.json",
+    "query": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/execution_vqa/execution_vqa_query.json"
   },
   "status": "passed",
-  "representative_episode": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405"
+  "representative_episode": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000"
 }

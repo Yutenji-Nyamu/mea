@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "evaluation_id": "eval_20260729_batch31_open_flagship_live_v13",
+  "evaluation_id": "eval_20260729_b30_refinement_live_v2",
   "status": "completed",
   "rounds": [
     {
@@ -16,14 +16,14 @@
         "passed": true
       },
       "sub_aspect": "task_execution.official_baseline",
-      "task_instruction": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。",
+      "task_instruction": "Where does this ACT policy first expose a weakness under manipulated-object property changes, and what evidence supports that conclusion?",
       "route": "official",
-      "taskgen_run_id": "run_20260729_batch31_open_flagship_live_v13_round_1",
+      "taskgen_run_id": "run_20260729_b30_refinement_live_v2_round_1",
       "taskgen_returncode": 0,
       "execution": {
         "backend": "act",
         "seeds": [
-          100405
+          100000
         ],
         "num_episodes": 1,
         "gates": [
@@ -38,10 +38,10 @@
       "observations": {
         "execution_backend": "ACT",
         "requested_seeds": [
-          100405
+          100000
         ],
         "actual_seeds": [
-          100405
+          100000
         ],
         "scene_alignment": true,
         "observed_color": null,
@@ -96,9 +96,9 @@
         },
         "trusted_tools": [
           {
-            "episode_dir": "act/episode_000_seed_100405",
+            "episode_dir": "act/episode_000_seed_100000",
             "policy_name": "ACT",
-            "seed": 100405,
+            "seed": 100000,
             "success": true,
             "results": [
               {
@@ -107,7 +107,7 @@
                 "unit": null,
                 "passed": true,
                 "evidence_steps": [
-                  4424
+                  5505
                 ],
                 "details": {
                   "latched_eval_success": true,
@@ -116,14 +116,14 @@
               },
               {
                 "tool": "time_to_success",
-                "value": 17.696,
+                "value": 22.02,
                 "unit": "s",
                 "passed": null,
                 "evidence_steps": [
-                  4424
+                  5505
                 ],
                 "details": {
-                  "physics_step": 4424
+                  "physics_step": 5505
                 }
               }
             ]
@@ -160,14 +160,14 @@
           "episodes": [
             {
               "policy_name": "ACT",
-              "seed": 100405,
+              "seed": 100000,
               "role": "policy_under_evaluation",
               "metric": "official_check_success",
               "value": true,
               "unit": null,
               "passed": true,
               "evidence_steps": [
-                4424
+                5505
               ],
               "details": {
                 "latched_eval_success": true,
@@ -262,7 +262,7 @@
                   "groups": {
                     "seed": [
                       {
-                        "value": 100405,
+                        "value": 100000,
                         "summary": {
                           "episode_result_count": 1,
                           "quality": {
@@ -543,16 +543,16 @@
                     },
                     "statistics": {
                       "mean": {
-                        "value": 17.696
+                        "value": 22.02
                       },
                       "median": {
-                        "value": 17.696
+                        "value": 22.02
                       },
                       "min": {
-                        "value": 17.696
+                        "value": 22.02
                       },
                       "max": {
-                        "value": 17.696
+                        "value": 22.02
                       },
                       "population_stddev": {
                         "value": 0.0
@@ -563,7 +563,7 @@
                   "groups": {
                     "seed": [
                       {
-                        "value": 100405,
+                        "value": 100000,
                         "summary": {
                           "episode_result_count": 1,
                           "quality": {
@@ -573,16 +573,16 @@
                           },
                           "statistics": {
                             "mean": {
-                              "value": 17.696
+                              "value": 22.02
                             },
                             "median": {
-                              "value": 17.696
+                              "value": 22.02
                             },
                             "min": {
-                              "value": 17.696
+                              "value": 22.02
                             },
                             "max": {
-                              "value": 17.696
+                              "value": 22.02
                             },
                             "population_stddev": {
                               "value": 0.0
@@ -604,16 +604,16 @@
                           },
                           "statistics": {
                             "mean": {
-                              "value": 17.696
+                              "value": 22.02
                             },
                             "median": {
-                              "value": 17.696
+                              "value": 22.02
                             },
                             "min": {
-                              "value": 17.696
+                              "value": 22.02
                             },
                             "max": {
-                              "value": 17.696
+                              "value": 22.02
                             },
                             "population_stddev": {
                               "value": 0.0
@@ -635,16 +635,16 @@
                           },
                           "statistics": {
                             "mean": {
-                              "value": 17.696
+                              "value": 22.02
                             },
                             "median": {
-                              "value": 17.696
+                              "value": 22.02
                             },
                             "min": {
-                              "value": 17.696
+                              "value": 22.02
                             },
                             "max": {
-                              "value": 17.696
+                              "value": 22.02
                             },
                             "population_stddev": {
                               "value": 0.0
@@ -666,16 +666,16 @@
                           },
                           "statistics": {
                             "mean": {
-                              "value": 17.696
+                              "value": 22.02
                             },
                             "median": {
-                              "value": 17.696
+                              "value": 22.02
                             },
                             "min": {
-                              "value": 17.696
+                              "value": 22.02
                             },
                             "max": {
-                              "value": 17.696
+                              "value": 22.02
                             },
                             "population_stddev": {
                               "value": 0.0
@@ -694,7 +694,7 @@
         "execution_vqa": {
           "status": "passed",
           "model_requested": "gpt-4o-2024-11-20",
-          "representative_episode": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/evaluation/telemetry/act/episode_000_seed_100405",
+          "representative_episode": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_1/evaluation/telemetry/act/episode_000_seed_100000",
           "evidence_conflict": false,
           "observation": {
             "phenomena": [
@@ -726,27 +726,27 @@
             },
             {
               "frame_id": "success_before",
-              "frame_index": 61,
+              "frame_index": 75,
               "source": "official_success_event"
             },
             {
               "frame_id": "success_after",
-              "frame_index": 62,
+              "frame_index": 76,
               "source": "official_success_event"
             },
             {
               "frame_id": "final",
-              "frame_index": 63,
+              "frame_index": 77,
               "source": "video_boundary"
             }
           ],
           "artifacts": {
-            "result": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa/execution_vqa.json",
-            "prompt": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa/execution_vqa_prompt.md",
-            "response": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa/execution_vqa_response.txt",
-            "montage": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa/execution_montage.png",
-            "selection": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa/keyframe_selection.json",
-            "query": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa/execution_vqa_query.json"
+            "result": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_1/execution_vqa/execution_vqa.json",
+            "prompt": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_1/execution_vqa/execution_vqa_prompt.md",
+            "response": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_1/execution_vqa/execution_vqa_response.txt",
+            "montage": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_1/execution_vqa/execution_montage.png",
+            "selection": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_1/execution_vqa/keyframe_selection.json",
+            "query": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_1/execution_vqa/execution_vqa_query.json"
           },
           "reason": null,
           "query": {
@@ -865,7 +865,7 @@
       "pipeline_passed": true,
       "interpretation": "任务路由与执行后端分别记录；ACT 策略结果和流水线状态分开报告，策略失败不会被误记为 pipeline failure。",
       "round_attempt_index": 1,
-      "execution_artifact_dir": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1"
+      "execution_artifact_dir": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_1"
     },
     {
       "round_id": "round_2",
@@ -875,10 +875,10 @@
       "capability_contract": null,
       "semantic_need_execution": {
         "schema_version": 2,
-        "candidate_id": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
+        "candidate_id": "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23",
         "task": {
           "requested": true,
-          "description": "Shift the bell's position horizontally by a small, bounded distance while keeping its size, shape, material, and the overall scene layout unchanged. Preserve unchanged: 任务目标与接触几何语义; size; shape; material; the overall scene layout.",
+          "description": "Introduce a bounded variation in the bell's position. Preserve unchanged: task identity; policy checkpoint.",
           "route": "generic_provider_scene_checker_codegen",
           "status": "selected"
         },
@@ -890,10 +890,10 @@
         },
         "rule_tool": {
           "requested": true,
-          "description": "Determine whether the policy successfully activates the bell in the new position. Hypothesis: The ACT policy can successfully complete the click_bell task when the bell is shifted to a new position within a bounded range.",
+          "description": "Numeric or symbolic Rule Tool observable needed. Hypothesis: The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds.",
           "route": "typed_metric_spec_compile",
           "status": "passed",
-          "request_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/open_tool_request/tool_request_bundle.json"
+          "request_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/open_tool_request/tool_request_bundle.json"
         },
         "vqa_tool": {
           "requested": false,
@@ -907,15 +907,15 @@
         "by_gate": {},
         "passed": true
       },
-      "sub_aspect": "robustness of the policy to positional variation of the bell",
-      "task_instruction": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。\nScene need: Shift the bell's position horizontally by a small, bounded distance while keeping its size, shape, material, and the overall scene layout unchanged. Preserve unchanged: 任务目标与接触几何语义; size; shape; material; the overall scene layout.\nChecker need: reuse the official implementation",
+      "sub_aspect": "task_execution.object_position_variation",
+      "task_instruction": "Where does this ACT policy first expose a weakness under manipulated-object property changes, and what evidence supports that conclusion?\nScene need: Introduce a bounded variation in the bell's position. Preserve unchanged: task identity; policy checkpoint.\nChecker need: reuse the official implementation",
       "route": "generic_provider_scene_checker_codegen",
-      "taskgen_run_id": "run_20260729_batch31_open_flagship_live_v13_round_2",
+      "taskgen_run_id": "run_20260729_b30_refinement_live_v2_round_2",
       "taskgen_returncode": 0,
       "execution": {
         "backend": "act",
         "seeds": [
-          100405
+          100000
         ],
         "num_episodes": 1,
         "gates": [
@@ -932,10 +932,10 @@
       "observations": {
         "execution_backend": "ACT",
         "requested_seeds": [
-          100405
+          100000
         ],
         "actual_seeds": [
-          100405
+          100000
         ],
         "scene_alignment": true,
         "observed_color": null,
@@ -976,10 +976,10 @@
         },
         "semantic_need_execution": {
           "schema_version": 2,
-          "candidate_id": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
+          "candidate_id": "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23",
           "task": {
             "requested": true,
-            "description": "Shift the bell's position horizontally by a small, bounded distance while keeping its size, shape, material, and the overall scene layout unchanged. Preserve unchanged: 任务目标与接触几何语义; size; shape; material; the overall scene layout.",
+            "description": "Introduce a bounded variation in the bell's position. Preserve unchanged: task identity; policy checkpoint.",
             "route": "generic_provider_scene_checker_codegen",
             "status": "selected"
           },
@@ -991,10 +991,10 @@
           },
           "rule_tool": {
             "requested": true,
-            "description": "Determine whether the policy successfully activates the bell in the new position. Hypothesis: The ACT policy can successfully complete the click_bell task when the bell is shifted to a new position within a bounded range.",
+            "description": "Numeric or symbolic Rule Tool observable needed. Hypothesis: The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds.",
             "route": "typed_metric_spec_compile",
             "status": "passed",
-            "request_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/open_tool_request/tool_request_bundle.json"
+            "request_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/open_tool_request/tool_request_bundle.json"
           },
           "vqa_tool": {
             "requested": false,
@@ -1018,9 +1018,9 @@
         },
         "trusted_tools": [
           {
-            "episode_dir": "act/episode_000_seed_100405",
+            "episode_dir": "act/episode_000_seed_100000",
             "policy_name": "ACT",
-            "seed": 100405,
+            "seed": 100000,
             "success": true,
             "results": [
               {
@@ -1029,7 +1029,7 @@
                 "unit": null,
                 "passed": true,
                 "evidence_steps": [
-                  4675
+                  5514
                 ],
                 "details": {
                   "latched_eval_success": true,
@@ -1038,14 +1038,14 @@
               },
               {
                 "tool": "time_to_success",
-                "value": 18.7,
+                "value": 22.056,
                 "unit": "s",
                 "passed": null,
                 "evidence_steps": [
-                  4675
+                  5514
                 ],
                 "details": {
-                  "physics_step": 4675
+                  "physics_step": 5514
                 }
               }
             ]
@@ -1076,30 +1076,30 @@
             "scope": "run_local_generated",
             "tool": "query_derived_metric",
             "reference_tool": null,
-            "artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/typed_metric_spec/generated_tool.py",
-            "registration_id": "runlocal_6e7c5dc558a8dad45199"
+            "artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/typed_metric_spec/generated_tool.py",
+            "registration_id": "runlocal_d36e2786c1eeba5f5c20"
           },
           "episodes": [
             {
               "policy_name": "ACT",
-              "seed": 100405,
+              "seed": 100000,
               "role": "policy_under_evaluation",
               "metric": "query_derived_metric",
-              "value": 0.4100531050769832,
+              "value": 0.021466496280102353,
               "unit": "m",
               "passed": null,
               "evidence_steps": [
-                4238
+                5514
               ],
               "details": {
                 "operation": "minimum_distance",
-                "left_signal": "left_tcp_position",
+                "left_signal": "right_tcp_position",
                 "right_signal": "bell_contact_position",
                 "dimensions": [
                   "x",
                   "y"
                 ],
-                "min_index": 4238,
+                "min_index": 5514,
                 "reason": "measured"
               }
             }
@@ -1192,7 +1192,7 @@
                   "groups": {
                     "seed": [
                       {
-                        "value": 100405,
+                        "value": 100000,
                         "summary": {
                           "episode_result_count": 1,
                           "quality": {
@@ -1322,7 +1322,7 @@
                     ],
                     "variant": [
                       {
-                        "value": "robustness of the policy to positional variation of the bell",
+                        "value": "task_execution.object_position_variation",
                         "summary": {
                           "episode_result_count": 1,
                           "quality": {
@@ -1473,16 +1473,16 @@
                     },
                     "statistics": {
                       "mean": {
-                        "value": 0.4100531050769832
+                        "value": 0.021466496280102353
                       },
                       "median": {
-                        "value": 0.4100531050769832
+                        "value": 0.021466496280102353
                       },
                       "min": {
-                        "value": 0.4100531050769832
+                        "value": 0.021466496280102353
                       },
                       "max": {
-                        "value": 0.4100531050769832
+                        "value": 0.021466496280102353
                       },
                       "population_stddev": {
                         "value": 0.0
@@ -1493,7 +1493,7 @@
                   "groups": {
                     "seed": [
                       {
-                        "value": 100405,
+                        "value": 100000,
                         "summary": {
                           "episode_result_count": 1,
                           "quality": {
@@ -1503,16 +1503,16 @@
                           },
                           "statistics": {
                             "mean": {
-                              "value": 0.4100531050769832
+                              "value": 0.021466496280102353
                             },
                             "median": {
-                              "value": 0.4100531050769832
+                              "value": 0.021466496280102353
                             },
                             "min": {
-                              "value": 0.4100531050769832
+                              "value": 0.021466496280102353
                             },
                             "max": {
-                              "value": 0.4100531050769832
+                              "value": 0.021466496280102353
                             },
                             "population_stddev": {
                               "value": 0.0
@@ -1534,16 +1534,16 @@
                           },
                           "statistics": {
                             "mean": {
-                              "value": 0.4100531050769832
+                              "value": 0.021466496280102353
                             },
                             "median": {
-                              "value": 0.4100531050769832
+                              "value": 0.021466496280102353
                             },
                             "min": {
-                              "value": 0.4100531050769832
+                              "value": 0.021466496280102353
                             },
                             "max": {
-                              "value": 0.4100531050769832
+                              "value": 0.021466496280102353
                             },
                             "population_stddev": {
                               "value": 0.0
@@ -1555,7 +1555,7 @@
                     ],
                     "variant": [
                       {
-                        "value": "robustness of the policy to positional variation of the bell",
+                        "value": "task_execution.object_position_variation",
                         "summary": {
                           "episode_result_count": 1,
                           "quality": {
@@ -1565,16 +1565,16 @@
                           },
                           "statistics": {
                             "mean": {
-                              "value": 0.4100531050769832
+                              "value": 0.021466496280102353
                             },
                             "median": {
-                              "value": 0.4100531050769832
+                              "value": 0.021466496280102353
                             },
                             "min": {
-                              "value": 0.4100531050769832
+                              "value": 0.021466496280102353
                             },
                             "max": {
-                              "value": 0.4100531050769832
+                              "value": 0.021466496280102353
                             },
                             "population_stddev": {
                               "value": 0.0
@@ -1596,16 +1596,16 @@
                           },
                           "statistics": {
                             "mean": {
-                              "value": 0.4100531050769832
+                              "value": 0.021466496280102353
                             },
                             "median": {
-                              "value": 0.4100531050769832
+                              "value": 0.021466496280102353
                             },
                             "min": {
-                              "value": 0.4100531050769832
+                              "value": 0.021466496280102353
                             },
                             "max": {
-                              "value": 0.4100531050769832
+                              "value": 0.021466496280102353
                             },
                             "population_stddev": {
                               "value": 0.0
@@ -1638,16 +1638,16 @@
                     },
                     "statistics": {
                       "mean": {
-                        "value": 18.7
+                        "value": 22.056
                       },
                       "median": {
-                        "value": 18.7
+                        "value": 22.056
                       },
                       "min": {
-                        "value": 18.7
+                        "value": 22.056
                       },
                       "max": {
-                        "value": 18.7
+                        "value": 22.056
                       },
                       "population_stddev": {
                         "value": 0.0
@@ -1658,7 +1658,7 @@
                   "groups": {
                     "seed": [
                       {
-                        "value": 100405,
+                        "value": 100000,
                         "summary": {
                           "episode_result_count": 1,
                           "quality": {
@@ -1668,16 +1668,16 @@
                           },
                           "statistics": {
                             "mean": {
-                              "value": 18.7
+                              "value": 22.056
                             },
                             "median": {
-                              "value": 18.7
+                              "value": 22.056
                             },
                             "min": {
-                              "value": 18.7
+                              "value": 22.056
                             },
                             "max": {
-                              "value": 18.7
+                              "value": 22.056
                             },
                             "population_stddev": {
                               "value": 0.0
@@ -1699,16 +1699,16 @@
                           },
                           "statistics": {
                             "mean": {
-                              "value": 18.7
+                              "value": 22.056
                             },
                             "median": {
-                              "value": 18.7
+                              "value": 22.056
                             },
                             "min": {
-                              "value": 18.7
+                              "value": 22.056
                             },
                             "max": {
-                              "value": 18.7
+                              "value": 22.056
                             },
                             "population_stddev": {
                               "value": 0.0
@@ -1720,7 +1720,7 @@
                     ],
                     "variant": [
                       {
-                        "value": "robustness of the policy to positional variation of the bell",
+                        "value": "task_execution.object_position_variation",
                         "summary": {
                           "episode_result_count": 1,
                           "quality": {
@@ -1730,16 +1730,16 @@
                           },
                           "statistics": {
                             "mean": {
-                              "value": 18.7
+                              "value": 22.056
                             },
                             "median": {
-                              "value": 18.7
+                              "value": 22.056
                             },
                             "min": {
-                              "value": 18.7
+                              "value": 22.056
                             },
                             "max": {
-                              "value": 18.7
+                              "value": 22.056
                             },
                             "population_stddev": {
                               "value": 0.0
@@ -1761,16 +1761,16 @@
                           },
                           "statistics": {
                             "mean": {
-                              "value": 18.7
+                              "value": 22.056
                             },
                             "median": {
-                              "value": 18.7
+                              "value": 22.056
                             },
                             "min": {
-                              "value": 18.7
+                              "value": 22.056
                             },
                             "max": {
-                              "value": 18.7
+                              "value": 22.056
                             },
                             "population_stddev": {
                               "value": 0.0
@@ -1789,14 +1789,14 @@
         "execution_vqa": {
           "status": "passed",
           "model_requested": "gpt-4o-2024-11-20",
-          "representative_episode": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+          "representative_episode": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
           "evidence_conflict": false,
           "observation": {
             "phenomena": [
               {
                 "id": "bell_visibly_pressed",
                 "observed": true,
-                "description": "The robot visibly presses the target bell.",
+                "description": "The robot visibly presses the bell in the rollout.",
                 "confidence": 1.0,
                 "frame_ids": [
                   "success_before",
@@ -1821,27 +1821,27 @@
             },
             {
               "frame_id": "success_before",
-              "frame_index": 67,
+              "frame_index": 73,
               "source": "official_success_event"
             },
             {
               "frame_id": "success_after",
-              "frame_index": 68,
+              "frame_index": 74,
               "source": "official_success_event"
             },
             {
               "frame_id": "final",
-              "frame_index": 69,
+              "frame_index": 75,
               "source": "video_boundary"
             }
           ],
           "artifacts": {
-            "result": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa/execution_vqa.json",
-            "prompt": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa/execution_vqa_prompt.md",
-            "response": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa/execution_vqa_response.txt",
-            "montage": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa/execution_montage.png",
-            "selection": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa/keyframe_selection.json",
-            "query": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa/execution_vqa_query.json"
+            "result": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/execution_vqa/execution_vqa.json",
+            "prompt": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/execution_vqa/execution_vqa_prompt.md",
+            "response": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/execution_vqa/execution_vqa_response.txt",
+            "montage": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/execution_vqa/execution_montage.png",
+            "selection": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/execution_vqa/keyframe_selection.json",
+            "query": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/execution_vqa/execution_vqa_query.json"
           },
           "reason": null,
           "query": {
@@ -1849,7 +1849,7 @@
             "profile": "dynamic_v1",
             "task_name": "click_bell",
             "template_id": null,
-            "sub_aspect": "robustness of the policy to positional variation of the bell",
+            "sub_aspect": "task_execution.object_position_variation",
             "tool_metric": "query_derived_metric",
             "phenomenon_ids": [
               "bell_visibly_pressed"
@@ -1893,8 +1893,8 @@
         },
         "implementation_trace": {
           "schema_version": 1,
-          "intent_id": "intent.c7b8b7a89baaba20",
-          "candidate_id": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
+          "intent_id": "intent.fbdf63ddcef3951b",
+          "candidate_id": "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23",
           "stage": "execution",
           "relationship": "direct",
           "rationale": "Candidate preserves the requested change, hypothesis, and observation semantics.",
@@ -1924,7 +1924,7 @@
         "evidence_aggregate": {
           "schema_version": 1,
           "round_id": "round_2",
-          "execution_id": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
+          "execution_id": "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23",
           "pipeline": {
             "passed": true,
             "failure_stage": null
@@ -1978,25 +1978,1091 @@
           "evidence_conflict": false,
           "evidence_strength": "sufficient",
           "reason_codes": []
+        },
+        "method_runtime": {
+          "status": "validated",
+          "runtime": "MethodRuntime",
+          "backend": "robotwin_executed_child_projection",
+          "execution_reused": true,
+          "taskgen_reinvoked": false,
+          "policy_rollout_reinvoked": false,
+          "candidate_id": "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23",
+          "outcome": "success",
+          "artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/method_runtime_projection.json"
         }
       },
       "pipeline_passed": true,
       "interpretation": "任务路由与执行后端分别记录；ACT 策略结果和流水线状态分开报告，策略失败不会被误记为 pipeline failure。",
       "round_attempt_index": 1,
-      "execution_artifact_dir": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2",
+      "execution_artifact_dir": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2",
       "candidate_evidence": {
-        "candidate_id": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
+        "candidate_id": "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23",
         "outcome": "pass",
         "score": 1.0,
         "diagnosis": null
+      }
+    },
+    {
+      "round_id": "round_3",
+      "variant_id": null,
+      "template_id": null,
+      "capability_id": null,
+      "capability_contract": null,
+      "semantic_need_execution": {
+        "schema_version": 2,
+        "candidate_id": "dynamic.click.bell.task.execution.object.instance.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.object.instance.is.perturbed.within.allowable.bounds.5cc7bb074cee",
+        "task": {
+          "requested": true,
+          "description": "Introduce a bounded variation in the bell's object instance. Preserve unchanged: task identity; policy checkpoint.",
+          "route": "generic_provider_scene_checker_codegen",
+          "status": "selected"
+        },
+        "checker": {
+          "requested": false,
+          "description": null,
+          "route": "official_checker_reuse",
+          "status": "not_requested"
+        },
+        "rule_tool": {
+          "requested": true,
+          "description": "Numeric or symbolic Rule Tool observable needed. Hypothesis: The ACT policy fails to achieve success when the bell's object instance is perturbed within allowable bounds.",
+          "route": "run_local_reuse",
+          "status": "passed",
+          "request_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_3/open_tool_request/tool_request_bundle.json"
+        },
+        "vqa_tool": {
+          "requested": false,
+          "description": null,
+          "route": "not_requested",
+          "status": "not_requested"
+        }
+      },
+      "required_gate_status": {
+        "required": [],
+        "by_gate": {},
+        "passed": true
+      },
+      "sub_aspect": "task_execution.object_instance_variation",
+      "task_instruction": "Where does this ACT policy first expose a weakness under manipulated-object property changes, and what evidence supports that conclusion?\nScene need: Introduce a bounded variation in the bell's object instance. Preserve unchanged: task identity; policy checkpoint.\nChecker need: reuse the official implementation",
+      "route": "generic_provider_scene_checker_codegen",
+      "taskgen_run_id": "run_20260729_b30_refinement_live_v2_round_3",
+      "taskgen_returncode": 0,
+      "execution": {
+        "backend": "act",
+        "seeds": [
+          100000
+        ],
+        "num_episodes": 1,
+        "gates": [
+          "ast",
+          "render",
+          "visual_diagnosis",
+          "expert",
+          "act",
+          "toolkit",
+          "planned_tool",
+          "aggregate"
+        ]
+      },
+      "observations": {
+        "execution_backend": "ACT",
+        "requested_seeds": [
+          100000
+        ],
+        "actual_seeds": [
+          100000
+        ],
+        "scene_alignment": true,
+        "observed_color": null,
+        "bell_visible": null,
+        "position_authority": null,
+        "expert_solvable": true,
+        "act_pipeline_status": true,
+        "policy_success": 0.0,
+        "policy_outcome": {
+          "metric": "official_check_success",
+          "authority": "official_check_success_reused",
+          "binding": null,
+          "value": 0.0,
+          "official_equivalent": true,
+          "execution_scope": "official_equivalent",
+          "outcome_semantics": {
+            "schema_version": 1,
+            "status": "official_only",
+            "evidence_conflict": false,
+            "official_equivalent": true,
+            "outcome_authority": "official_check_success_reused",
+            "episodes": [],
+            "reason_codes": [
+              "official_outcome_has_no_generated_checker"
+            ]
+          }
+        },
+        "outcome_semantics": {
+          "schema_version": 1,
+          "status": "official_only",
+          "evidence_conflict": false,
+          "official_equivalent": true,
+          "outcome_authority": "official_check_success_reused",
+          "episodes": [],
+          "reason_codes": [
+            "official_outcome_has_no_generated_checker"
+          ]
+        },
+        "semantic_need_execution": {
+          "schema_version": 2,
+          "candidate_id": "dynamic.click.bell.task.execution.object.instance.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.object.instance.is.perturbed.within.allowable.bounds.5cc7bb074cee",
+          "task": {
+            "requested": true,
+            "description": "Introduce a bounded variation in the bell's object instance. Preserve unchanged: task identity; policy checkpoint.",
+            "route": "generic_provider_scene_checker_codegen",
+            "status": "selected"
+          },
+          "checker": {
+            "requested": false,
+            "description": null,
+            "route": "official_checker_reuse",
+            "status": "not_requested"
+          },
+          "rule_tool": {
+            "requested": true,
+            "description": "Numeric or symbolic Rule Tool observable needed. Hypothesis: The ACT policy fails to achieve success when the bell's object instance is perturbed within allowable bounds.",
+            "route": "run_local_reuse",
+            "status": "passed",
+            "request_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_3/open_tool_request/tool_request_bundle.json"
+          },
+          "vqa_tool": {
+            "requested": false,
+            "description": null,
+            "route": "not_requested",
+            "status": "not_requested"
+          }
+        },
+        "position_samples": [],
+        "position_metrics": {},
+        "controlled_axis": null,
+        "variant_samples": [],
+        "variant_metrics": {},
+        "observed_bell_ids": [],
+        "bell_instance_id": null,
+        "scene_clutter": {
+          "expected": false,
+          "counts": [],
+          "all_matched": null,
+          "authority": null
+        },
+        "trusted_tools": [
+          {
+            "episode_dir": "act/episode_000_seed_100000",
+            "policy_name": "ACT",
+            "seed": 100000,
+            "success": false,
+            "results": [
+              {
+                "tool": "official_check_success",
+                "value": false,
+                "unit": null,
+                "passed": false,
+                "evidence_steps": [],
+                "details": {
+                  "latched_eval_success": false,
+                  "success_transition_recorded": false
+                }
+              },
+              {
+                "tool": "time_to_success",
+                "value": null,
+                "unit": "s",
+                "passed": null,
+                "evidence_steps": [],
+                "details": {
+                  "physics_step": null
+                }
+              }
+            ]
+          }
+        ],
+        "planned_tool": {
+          "status": "passed",
+          "requested_route": "auto",
+          "route": "run_local_reuse",
+          "reference_tool": null,
+          "route_decision": {
+            "schema_version": 1,
+            "status": "resolved",
+            "matching_policy": "strict_exact_metric_id",
+            "requested_route": "auto",
+            "resolved_route": "run_local_reuse",
+            "task_name": "click_bell",
+            "metric": "query_derived_metric",
+            "exact_match": true,
+            "matched_registry": "evaluation_local_tool_registry",
+            "reference_tool": null,
+            "provider_required": false,
+            "reason": "exact typed MetricSpec, task, and telemetry schema matched a validated evaluation-local Tool",
+            "catalog_snapshot_sha256": "f68d3894ea38589f958c78ac1b226f633955d0480d35b4987e6e145341c897be",
+            "provider_called": false
+          },
+          "source": {
+            "scope": "run_local_registry",
+            "tool": "query_derived_metric",
+            "reference_tool": null,
+            "artifact": null,
+            "registration_id": "runlocal_d36e2786c1eeba5f5c20"
+          },
+          "episodes": [
+            {
+              "policy_name": "ACT",
+              "seed": 100000,
+              "role": "policy_under_evaluation",
+              "metric": "query_derived_metric",
+              "value": 0.0027531830083962435,
+              "unit": "m",
+              "passed": null,
+              "evidence_steps": [
+                3880
+              ],
+              "details": {
+                "operation": "minimum_distance",
+                "left_signal": "right_tcp_position",
+                "right_signal": "bell_contact_position",
+                "dimensions": [
+                  "x",
+                  "y"
+                ],
+                "min_index": 3880,
+                "reason": "measured"
+              }
+            }
+          ],
+          "validation": {
+            "provider_called": false,
+            "typed_metric_spec": true,
+            "task_code_context_consumed": true,
+            "episode_count": 1,
+            "differential_gates_passed": true
+          }
+        },
+        "aggregate": {
+          "schema_version": 1,
+          "status": "passed",
+          "source_count": 2,
+          "unique_episode_count": 2,
+          "input_issues": [],
+          "metrics": [
+            {
+              "metric": "official_check_success",
+              "value_kind": "boolean",
+              "unit": null,
+              "cohorts": [
+                {
+                  "role": "policy_under_evaluation",
+                  "policy_names": [
+                    "ACT"
+                  ],
+                  "summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "true_count": {
+                        "value": 0
+                      },
+                      "true_rate": {
+                        "value": 0.0,
+                        "numerator": 0,
+                        "denominator": 1
+                      },
+                      "false_count": {
+                        "value": 1
+                      },
+                      "false_rate": {
+                        "value": 1.0,
+                        "numerator": 1,
+                        "denominator": 1
+                      },
+                      "success_count": {
+                        "value": 0
+                      },
+                      "success_rate": {
+                        "value": 0.0,
+                        "numerator": 0,
+                        "denominator": 1
+                      }
+                    }
+                  },
+                  "passed_summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "true_count": {
+                        "value": 0
+                      },
+                      "true_rate": {
+                        "value": 0.0,
+                        "numerator": 0,
+                        "denominator": 1
+                      },
+                      "false_count": {
+                        "value": 1
+                      },
+                      "false_rate": {
+                        "value": 1.0,
+                        "numerator": 1,
+                        "denominator": 1
+                      }
+                    }
+                  },
+                  "groups": {
+                    "seed": [
+                      {
+                        "value": 100000,
+                        "summary": {
+                          "episode_result_count": 1,
+                          "quality": {
+                            "valid": 1,
+                            "missing": 0,
+                            "invalid": 0
+                          },
+                          "statistics": {
+                            "true_count": {
+                              "value": 0
+                            },
+                            "true_rate": {
+                              "value": 0.0,
+                              "numerator": 0,
+                              "denominator": 1
+                            },
+                            "false_count": {
+                              "value": 1
+                            },
+                            "false_rate": {
+                              "value": 1.0,
+                              "numerator": 1,
+                              "denominator": 1
+                            },
+                            "success_count": {
+                              "value": 0
+                            },
+                            "success_rate": {
+                              "value": 0.0,
+                              "numerator": 0,
+                              "denominator": 1
+                            }
+                          }
+                        },
+                        "passed_summary": {
+                          "episode_result_count": 1,
+                          "quality": {
+                            "valid": 1,
+                            "missing": 0,
+                            "invalid": 0
+                          },
+                          "statistics": {
+                            "true_count": {
+                              "value": 0
+                            },
+                            "true_rate": {
+                              "value": 0.0,
+                              "numerator": 0,
+                              "denominator": 1
+                            },
+                            "false_count": {
+                              "value": 1
+                            },
+                            "false_rate": {
+                              "value": 1.0,
+                              "numerator": 1,
+                              "denominator": 1
+                            }
+                          }
+                        }
+                      }
+                    ],
+                    "round_id": [
+                      {
+                        "value": "round_3",
+                        "summary": {
+                          "episode_result_count": 1,
+                          "quality": {
+                            "valid": 1,
+                            "missing": 0,
+                            "invalid": 0
+                          },
+                          "statistics": {
+                            "true_count": {
+                              "value": 0
+                            },
+                            "true_rate": {
+                              "value": 0.0,
+                              "numerator": 0,
+                              "denominator": 1
+                            },
+                            "false_count": {
+                              "value": 1
+                            },
+                            "false_rate": {
+                              "value": 1.0,
+                              "numerator": 1,
+                              "denominator": 1
+                            },
+                            "success_count": {
+                              "value": 0
+                            },
+                            "success_rate": {
+                              "value": 0.0,
+                              "numerator": 0,
+                              "denominator": 1
+                            }
+                          }
+                        },
+                        "passed_summary": {
+                          "episode_result_count": 1,
+                          "quality": {
+                            "valid": 1,
+                            "missing": 0,
+                            "invalid": 0
+                          },
+                          "statistics": {
+                            "true_count": {
+                              "value": 0
+                            },
+                            "true_rate": {
+                              "value": 0.0,
+                              "numerator": 0,
+                              "denominator": 1
+                            },
+                            "false_count": {
+                              "value": 1
+                            },
+                            "false_rate": {
+                              "value": 1.0,
+                              "numerator": 1,
+                              "denominator": 1
+                            }
+                          }
+                        }
+                      }
+                    ],
+                    "variant": [
+                      {
+                        "value": "task_execution.object_instance_variation",
+                        "summary": {
+                          "episode_result_count": 1,
+                          "quality": {
+                            "valid": 1,
+                            "missing": 0,
+                            "invalid": 0
+                          },
+                          "statistics": {
+                            "true_count": {
+                              "value": 0
+                            },
+                            "true_rate": {
+                              "value": 0.0,
+                              "numerator": 0,
+                              "denominator": 1
+                            },
+                            "false_count": {
+                              "value": 1
+                            },
+                            "false_rate": {
+                              "value": 1.0,
+                              "numerator": 1,
+                              "denominator": 1
+                            },
+                            "success_count": {
+                              "value": 0
+                            },
+                            "success_rate": {
+                              "value": 0.0,
+                              "numerator": 0,
+                              "denominator": 1
+                            }
+                          }
+                        },
+                        "passed_summary": {
+                          "episode_result_count": 1,
+                          "quality": {
+                            "valid": 1,
+                            "missing": 0,
+                            "invalid": 0
+                          },
+                          "statistics": {
+                            "true_count": {
+                              "value": 0
+                            },
+                            "true_rate": {
+                              "value": 0.0,
+                              "numerator": 0,
+                              "denominator": 1
+                            },
+                            "false_count": {
+                              "value": 1
+                            },
+                            "false_rate": {
+                              "value": 1.0,
+                              "numerator": 1,
+                              "denominator": 1
+                            }
+                          }
+                        }
+                      }
+                    ],
+                    "policy_name": [
+                      {
+                        "value": "ACT",
+                        "summary": {
+                          "episode_result_count": 1,
+                          "quality": {
+                            "valid": 1,
+                            "missing": 0,
+                            "invalid": 0
+                          },
+                          "statistics": {
+                            "true_count": {
+                              "value": 0
+                            },
+                            "true_rate": {
+                              "value": 0.0,
+                              "numerator": 0,
+                              "denominator": 1
+                            },
+                            "false_count": {
+                              "value": 1
+                            },
+                            "false_rate": {
+                              "value": 1.0,
+                              "numerator": 1,
+                              "denominator": 1
+                            },
+                            "success_count": {
+                              "value": 0
+                            },
+                            "success_rate": {
+                              "value": 0.0,
+                              "numerator": 0,
+                              "denominator": 1
+                            }
+                          }
+                        },
+                        "passed_summary": {
+                          "episode_result_count": 1,
+                          "quality": {
+                            "valid": 1,
+                            "missing": 0,
+                            "invalid": 0
+                          },
+                          "statistics": {
+                            "true_count": {
+                              "value": 0
+                            },
+                            "true_rate": {
+                              "value": 0.0,
+                              "numerator": 0,
+                              "denominator": 1
+                            },
+                            "false_count": {
+                              "value": 1
+                            },
+                            "false_rate": {
+                              "value": 1.0,
+                              "numerator": 1,
+                              "denominator": 1
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "metric": "query_derived_metric",
+              "value_kind": "numeric",
+              "unit": "m",
+              "cohorts": [
+                {
+                  "role": "policy_under_evaluation",
+                  "policy_names": [
+                    "ACT"
+                  ],
+                  "summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "mean": {
+                        "value": 0.0027531830083962435
+                      },
+                      "median": {
+                        "value": 0.0027531830083962435
+                      },
+                      "min": {
+                        "value": 0.0027531830083962435
+                      },
+                      "max": {
+                        "value": 0.0027531830083962435
+                      },
+                      "population_stddev": {
+                        "value": 0.0
+                      }
+                    }
+                  },
+                  "passed_summary": null,
+                  "groups": {
+                    "seed": [
+                      {
+                        "value": 100000,
+                        "summary": {
+                          "episode_result_count": 1,
+                          "quality": {
+                            "valid": 1,
+                            "missing": 0,
+                            "invalid": 0
+                          },
+                          "statistics": {
+                            "mean": {
+                              "value": 0.0027531830083962435
+                            },
+                            "median": {
+                              "value": 0.0027531830083962435
+                            },
+                            "min": {
+                              "value": 0.0027531830083962435
+                            },
+                            "max": {
+                              "value": 0.0027531830083962435
+                            },
+                            "population_stddev": {
+                              "value": 0.0
+                            }
+                          }
+                        },
+                        "passed_summary": null
+                      }
+                    ],
+                    "round_id": [
+                      {
+                        "value": "round_3",
+                        "summary": {
+                          "episode_result_count": 1,
+                          "quality": {
+                            "valid": 1,
+                            "missing": 0,
+                            "invalid": 0
+                          },
+                          "statistics": {
+                            "mean": {
+                              "value": 0.0027531830083962435
+                            },
+                            "median": {
+                              "value": 0.0027531830083962435
+                            },
+                            "min": {
+                              "value": 0.0027531830083962435
+                            },
+                            "max": {
+                              "value": 0.0027531830083962435
+                            },
+                            "population_stddev": {
+                              "value": 0.0
+                            }
+                          }
+                        },
+                        "passed_summary": null
+                      }
+                    ],
+                    "variant": [
+                      {
+                        "value": "task_execution.object_instance_variation",
+                        "summary": {
+                          "episode_result_count": 1,
+                          "quality": {
+                            "valid": 1,
+                            "missing": 0,
+                            "invalid": 0
+                          },
+                          "statistics": {
+                            "mean": {
+                              "value": 0.0027531830083962435
+                            },
+                            "median": {
+                              "value": 0.0027531830083962435
+                            },
+                            "min": {
+                              "value": 0.0027531830083962435
+                            },
+                            "max": {
+                              "value": 0.0027531830083962435
+                            },
+                            "population_stddev": {
+                              "value": 0.0
+                            }
+                          }
+                        },
+                        "passed_summary": null
+                      }
+                    ],
+                    "policy_name": [
+                      {
+                        "value": "ACT",
+                        "summary": {
+                          "episode_result_count": 1,
+                          "quality": {
+                            "valid": 1,
+                            "missing": 0,
+                            "invalid": 0
+                          },
+                          "statistics": {
+                            "mean": {
+                              "value": 0.0027531830083962435
+                            },
+                            "median": {
+                              "value": 0.0027531830083962435
+                            },
+                            "min": {
+                              "value": 0.0027531830083962435
+                            },
+                            "max": {
+                              "value": 0.0027531830083962435
+                            },
+                            "population_stddev": {
+                              "value": 0.0
+                            }
+                          }
+                        },
+                        "passed_summary": null
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "metric": "time_to_success",
+              "value_kind": "unknown",
+              "unit": null,
+              "cohorts": [
+                {
+                  "role": "policy_under_evaluation",
+                  "policy_names": [
+                    "ACT"
+                  ],
+                  "summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 0,
+                      "missing": 1,
+                      "invalid": 0
+                    },
+                    "statistics": {}
+                  },
+                  "passed_summary": null,
+                  "groups": {
+                    "seed": [
+                      {
+                        "value": 100000,
+                        "summary": {
+                          "episode_result_count": 1,
+                          "quality": {
+                            "valid": 0,
+                            "missing": 1,
+                            "invalid": 0
+                          },
+                          "statistics": {}
+                        },
+                        "passed_summary": null
+                      }
+                    ],
+                    "round_id": [
+                      {
+                        "value": "round_3",
+                        "summary": {
+                          "episode_result_count": 1,
+                          "quality": {
+                            "valid": 0,
+                            "missing": 1,
+                            "invalid": 0
+                          },
+                          "statistics": {}
+                        },
+                        "passed_summary": null
+                      }
+                    ],
+                    "variant": [
+                      {
+                        "value": "task_execution.object_instance_variation",
+                        "summary": {
+                          "episode_result_count": 1,
+                          "quality": {
+                            "valid": 0,
+                            "missing": 1,
+                            "invalid": 0
+                          },
+                          "statistics": {}
+                        },
+                        "passed_summary": null
+                      }
+                    ],
+                    "policy_name": [
+                      {
+                        "value": "ACT",
+                        "summary": {
+                          "episode_result_count": 1,
+                          "quality": {
+                            "valid": 0,
+                            "missing": 1,
+                            "invalid": 0
+                          },
+                          "statistics": {}
+                        },
+                        "passed_summary": null
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "execution_vqa": {
+          "status": "passed",
+          "model_requested": "gpt-4o-2024-11-20",
+          "representative_episode": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_3/evaluation/telemetry/act/episode_000_seed_100000",
+          "evidence_conflict": false,
+          "observation": {
+            "phenomena": [
+              {
+                "id": "bell_visibly_pressed",
+                "observed": false,
+                "description": "The robot does not visibly press or actuate the target bell.",
+                "confidence": 0.95,
+                "frame_ids": [
+                  "initial",
+                  "context_1",
+                  "context_2",
+                  "final"
+                ]
+              }
+            ],
+            "confidence": 0.95,
+            "frame_ids": [
+              "initial",
+              "context_1",
+              "context_2",
+              "final"
+            ],
+            "numeric_consistency": "consistent",
+            "conflicts": [],
+            "evidence_conflict": false
+          },
+          "selected_frames": [
+            {
+              "frame_id": "initial",
+              "frame_index": 0,
+              "source": "video_boundary"
+            },
+            {
+              "frame_id": "context_1",
+              "frame_index": 133,
+              "source": "uniform_fallback"
+            },
+            {
+              "frame_id": "context_2",
+              "frame_index": 266,
+              "source": "uniform_fallback"
+            },
+            {
+              "frame_id": "final",
+              "frame_index": 399,
+              "source": "video_boundary"
+            }
+          ],
+          "artifacts": {
+            "result": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_3/execution_vqa/execution_vqa.json",
+            "prompt": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_3/execution_vqa/execution_vqa_prompt.md",
+            "response": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_3/execution_vqa/execution_vqa_response.txt",
+            "montage": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_3/execution_vqa/execution_montage.png",
+            "selection": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_3/execution_vqa/keyframe_selection.json",
+            "query": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_3/execution_vqa/execution_vqa_query.json"
+          },
+          "reason": null,
+          "query": {
+            "schema_version": 1,
+            "profile": "dynamic_v1",
+            "task_name": "click_bell",
+            "template_id": null,
+            "sub_aspect": "task_execution.object_instance_variation",
+            "tool_metric": "query_derived_metric",
+            "phenomenon_ids": [
+              "bell_visibly_pressed"
+            ],
+            "questions": [
+              {
+                "id": "bell_visibly_pressed",
+                "question_type": "visible_state_change",
+                "target_role": "task_target",
+                "question": "Does the robot visibly press or actuate the target bell?",
+                "visual_scope": "rollout_change",
+                "numeric_authority": "official_core_predicate_is_authoritative_when_available_else_official_check_success"
+              }
+            ],
+            "selection_reasons": [
+              "task_owned_fallback:click_bell"
+            ],
+            "answer_contract": {
+              "required_response_keys": [
+                "phenomena",
+                "confidence",
+                "frame_ids",
+                "numeric_consistency",
+                "conflicts"
+              ],
+              "phenomenon_item_keys": [
+                "id",
+                "observed",
+                "description",
+                "confidence",
+                "frame_ids"
+              ],
+              "observed_type": "boolean_or_null",
+              "numeric_consistency_values": [
+                "consistent",
+                "conflict",
+                "uncertain"
+              ]
+            }
+          }
+        },
+        "implementation_trace": {
+          "schema_version": 1,
+          "intent_id": "intent.6f8ac1db644ae8b0",
+          "candidate_id": "dynamic.click.bell.task.execution.object.instance.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.object.instance.is.perturbed.within.allowable.bounds.5cc7bb074cee",
+          "stage": "execution",
+          "relationship": "direct",
+          "rationale": "Candidate preserves the requested change, hypothesis, and observation semantics.",
+          "covered_intent_fields": [
+            "requested_change",
+            "preserved_conditions",
+            "hypothesis",
+            "required_observation"
+          ],
+          "uncovered_intent_fields": [],
+          "pending_intent_fields": [],
+          "coverage_status": "complete",
+          "repair_required": false,
+          "validation_evidence": {
+            "scene_change_passed": true,
+            "checker_fixtures_passed": true,
+            "visual_diagnosis_passed": true,
+            "preserved_conditions_verified": true,
+            "tool_evaluation_passed": true
+          }
+        },
+        "required_gate_status": {
+          "required": [],
+          "by_gate": {},
+          "passed": true
+        },
+        "evidence_aggregate": {
+          "schema_version": 1,
+          "round_id": "round_3",
+          "execution_id": "dynamic.click.bell.task.execution.object.instance.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.object.instance.is.perturbed.within.allowable.bounds.5cc7bb074cee",
+          "pipeline": {
+            "passed": true,
+            "failure_stage": null
+          },
+          "policy": {
+            "success_rate": 0.0,
+            "reported": true
+          },
+          "rule": {
+            "metric": "query_derived_metric",
+            "expected_policy_episodes": 1,
+            "aggregate_status": "passed",
+            "input_issue_count": 0,
+            "valid": 1,
+            "missing": 0,
+            "invalid": 0,
+            "semantic_missing": 0,
+            "semantic_missing_reasons": [],
+            "observed_policy_episodes": 1,
+            "complete": true,
+            "reasons": []
+          },
+          "tool": {
+            "requested": true,
+            "status": "passed",
+            "metric": "query_derived_metric",
+            "route": "run_local_reuse",
+            "provider_called": false
+          },
+          "vqa": {
+            "required": false,
+            "status": "passed",
+            "evidence_conflict": false
+          },
+          "outcome_semantics": {
+            "status": "official_only",
+            "evidence_conflict": false
+          },
+          "coverage": {
+            "expected_policy_episodes": 1,
+            "observed_policy_episodes": 1,
+            "rule_complete": true,
+            "tool_required": true,
+            "tool_complete": true,
+            "vqa_required": false,
+            "vqa_observed": true,
+            "intent_required": true,
+            "intent_complete": true,
+            "complete": true
+          },
+          "evidence_conflict": false,
+          "evidence_strength": "sufficient",
+          "reason_codes": []
+        },
+        "method_runtime": {
+          "status": "validated",
+          "runtime": "MethodRuntime",
+          "backend": "robotwin_executed_child_projection",
+          "execution_reused": true,
+          "taskgen_reinvoked": false,
+          "policy_rollout_reinvoked": false,
+          "candidate_id": "dynamic.click.bell.task.execution.object.instance.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.object.instance.is.perturbed.within.allowable.bounds.5cc7bb074cee",
+          "outcome": "failure",
+          "artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_3/method_runtime_projection.json"
+        }
+      },
+      "pipeline_passed": true,
+      "interpretation": "任务路由与执行后端分别记录；ACT 策略结果和流水线状态分开报告，策略失败不会被误记为 pipeline failure。",
+      "round_attempt_index": 1,
+      "execution_artifact_dir": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_3",
+      "candidate_evidence": {
+        "candidate_id": "dynamic.click.bell.task.execution.object.instance.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.object.instance.is.perturbed.within.allowable.bounds.5cc7bb074cee",
+        "outcome": "fail",
+        "score": 0.0,
+        "diagnosis": "Observed policy success_rate=0 for dynamic.click.bell.task.execution.object.instance.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.object.instance.is.perturbed.within.allowable.bounds.5cc7bb074cee with complete Rule metric query_derived_metric; this localizes an observed weakness but does not establish a causal mechanism."
       }
     }
   ],
   "aggregate": {
     "schema_version": 1,
     "status": "passed",
-    "source_count": 3,
-    "unique_episode_count": 3,
+    "source_count": 5,
+    "unique_episode_count": 5,
     "input_issues": [],
     "metrics": [
       {
@@ -2010,9 +3076,9 @@
               "ACT"
             ],
             "summary": {
-              "episode_result_count": 2,
+              "episode_result_count": 3,
               "quality": {
-                "valid": 2,
+                "valid": 3,
                 "missing": 0,
                 "invalid": 0
               },
@@ -2021,32 +3087,32 @@
                   "value": 2
                 },
                 "true_rate": {
-                  "value": 1.0,
+                  "value": 0.6666666666666666,
                   "numerator": 2,
-                  "denominator": 2
+                  "denominator": 3
                 },
                 "false_count": {
-                  "value": 0
+                  "value": 1
                 },
                 "false_rate": {
-                  "value": 0.0,
-                  "numerator": 0,
-                  "denominator": 2
+                  "value": 0.3333333333333333,
+                  "numerator": 1,
+                  "denominator": 3
                 },
                 "success_count": {
                   "value": 2
                 },
                 "success_rate": {
-                  "value": 1.0,
+                  "value": 0.6666666666666666,
                   "numerator": 2,
-                  "denominator": 2
+                  "denominator": 3
                 }
               }
             },
             "passed_summary": {
-              "episode_result_count": 2,
+              "episode_result_count": 3,
               "quality": {
-                "valid": 2,
+                "valid": 3,
                 "missing": 0,
                 "invalid": 0
               },
@@ -2055,28 +3121,28 @@
                   "value": 2
                 },
                 "true_rate": {
-                  "value": 1.0,
+                  "value": 0.6666666666666666,
                   "numerator": 2,
-                  "denominator": 2
+                  "denominator": 3
                 },
                 "false_count": {
-                  "value": 0
+                  "value": 1
                 },
                 "false_rate": {
-                  "value": 0.0,
-                  "numerator": 0,
-                  "denominator": 2
+                  "value": 0.3333333333333333,
+                  "numerator": 1,
+                  "denominator": 3
                 }
               }
             },
             "groups": {
               "seed": [
                 {
-                  "value": 100405,
+                  "value": 100000,
                   "summary": {
-                    "episode_result_count": 2,
+                    "episode_result_count": 3,
                     "quality": {
-                      "valid": 2,
+                      "valid": 3,
                       "missing": 0,
                       "invalid": 0
                     },
@@ -2085,32 +3151,32 @@
                         "value": 2
                       },
                       "true_rate": {
-                        "value": 1.0,
+                        "value": 0.6666666666666666,
                         "numerator": 2,
-                        "denominator": 2
+                        "denominator": 3
                       },
                       "false_count": {
-                        "value": 0
+                        "value": 1
                       },
                       "false_rate": {
-                        "value": 0.0,
-                        "numerator": 0,
-                        "denominator": 2
+                        "value": 0.3333333333333333,
+                        "numerator": 1,
+                        "denominator": 3
                       },
                       "success_count": {
                         "value": 2
                       },
                       "success_rate": {
-                        "value": 1.0,
+                        "value": 0.6666666666666666,
                         "numerator": 2,
-                        "denominator": 2
+                        "denominator": 3
                       }
                     }
                   },
                   "passed_summary": {
-                    "episode_result_count": 2,
+                    "episode_result_count": 3,
                     "quality": {
-                      "valid": 2,
+                      "valid": 3,
                       "missing": 0,
                       "invalid": 0
                     },
@@ -2119,17 +3185,17 @@
                         "value": 2
                       },
                       "true_rate": {
-                        "value": 1.0,
+                        "value": 0.6666666666666666,
                         "numerator": 2,
-                        "denominator": 2
+                        "denominator": 3
                       },
                       "false_count": {
-                        "value": 0
+                        "value": 1
                       },
                       "false_rate": {
-                        "value": 0.0,
-                        "numerator": 0,
-                        "denominator": 2
+                        "value": 0.3333333333333333,
+                        "numerator": 1,
+                        "denominator": 3
                       }
                     }
                   }
@@ -2261,11 +3327,137 @@
                       }
                     }
                   }
+                },
+                {
+                  "value": "round_3",
+                  "summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "true_count": {
+                        "value": 0
+                      },
+                      "true_rate": {
+                        "value": 0.0,
+                        "numerator": 0,
+                        "denominator": 1
+                      },
+                      "false_count": {
+                        "value": 1
+                      },
+                      "false_rate": {
+                        "value": 1.0,
+                        "numerator": 1,
+                        "denominator": 1
+                      },
+                      "success_count": {
+                        "value": 0
+                      },
+                      "success_rate": {
+                        "value": 0.0,
+                        "numerator": 0,
+                        "denominator": 1
+                      }
+                    }
+                  },
+                  "passed_summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "true_count": {
+                        "value": 0
+                      },
+                      "true_rate": {
+                        "value": 0.0,
+                        "numerator": 0,
+                        "denominator": 1
+                      },
+                      "false_count": {
+                        "value": 1
+                      },
+                      "false_rate": {
+                        "value": 1.0,
+                        "numerator": 1,
+                        "denominator": 1
+                      }
+                    }
+                  }
                 }
               ],
               "variant": [
                 {
-                  "value": "robustness of the policy to positional variation of the bell",
+                  "value": "task_execution.object_instance_variation",
+                  "summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "true_count": {
+                        "value": 0
+                      },
+                      "true_rate": {
+                        "value": 0.0,
+                        "numerator": 0,
+                        "denominator": 1
+                      },
+                      "false_count": {
+                        "value": 1
+                      },
+                      "false_rate": {
+                        "value": 1.0,
+                        "numerator": 1,
+                        "denominator": 1
+                      },
+                      "success_count": {
+                        "value": 0
+                      },
+                      "success_rate": {
+                        "value": 0.0,
+                        "numerator": 0,
+                        "denominator": 1
+                      }
+                    }
+                  },
+                  "passed_summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "true_count": {
+                        "value": 0
+                      },
+                      "true_rate": {
+                        "value": 0.0,
+                        "numerator": 0,
+                        "denominator": 1
+                      },
+                      "false_count": {
+                        "value": 1
+                      },
+                      "false_rate": {
+                        "value": 1.0,
+                        "numerator": 1,
+                        "denominator": 1
+                      }
+                    }
+                  }
+                },
+                {
+                  "value": "task_execution.object_position_variation",
                   "summary": {
                     "episode_result_count": 1,
                     "quality": {
@@ -2395,9 +3587,9 @@
                 {
                   "value": "ACT",
                   "summary": {
-                    "episode_result_count": 2,
+                    "episode_result_count": 3,
                     "quality": {
-                      "valid": 2,
+                      "valid": 3,
                       "missing": 0,
                       "invalid": 0
                     },
@@ -2406,32 +3598,32 @@
                         "value": 2
                       },
                       "true_rate": {
-                        "value": 1.0,
+                        "value": 0.6666666666666666,
                         "numerator": 2,
-                        "denominator": 2
+                        "denominator": 3
                       },
                       "false_count": {
-                        "value": 0
+                        "value": 1
                       },
                       "false_rate": {
-                        "value": 0.0,
-                        "numerator": 0,
-                        "denominator": 2
+                        "value": 0.3333333333333333,
+                        "numerator": 1,
+                        "denominator": 3
                       },
                       "success_count": {
                         "value": 2
                       },
                       "success_rate": {
-                        "value": 1.0,
+                        "value": 0.6666666666666666,
                         "numerator": 2,
-                        "denominator": 2
+                        "denominator": 3
                       }
                     }
                   },
                   "passed_summary": {
-                    "episode_result_count": 2,
+                    "episode_result_count": 3,
                     "quality": {
-                      "valid": 2,
+                      "valid": 3,
                       "missing": 0,
                       "invalid": 0
                     },
@@ -2440,17 +3632,17 @@
                         "value": 2
                       },
                       "true_rate": {
-                        "value": 1.0,
+                        "value": 0.6666666666666666,
                         "numerator": 2,
-                        "denominator": 2
+                        "denominator": 3
                       },
                       "false_count": {
-                        "value": 0
+                        "value": 1
                       },
                       "false_rate": {
-                        "value": 0.0,
-                        "numerator": 0,
-                        "denominator": 2
+                        "value": 0.3333333333333333,
+                        "numerator": 1,
+                        "denominator": 3
                       }
                     }
                   }
@@ -2471,27 +3663,27 @@
               "ACT"
             ],
             "summary": {
-              "episode_result_count": 1,
+              "episode_result_count": 2,
               "quality": {
-                "valid": 1,
+                "valid": 2,
                 "missing": 0,
                 "invalid": 0
               },
               "statistics": {
                 "mean": {
-                  "value": 0.4100531050769832
+                  "value": 0.012109839644249299
                 },
                 "median": {
-                  "value": 0.4100531050769832
+                  "value": 0.012109839644249299
                 },
                 "min": {
-                  "value": 0.4100531050769832
+                  "value": 0.0027531830083962435
                 },
                 "max": {
-                  "value": 0.4100531050769832
+                  "value": 0.021466496280102353
                 },
                 "population_stddev": {
-                  "value": 0.0
+                  "value": 0.009356656635853054
                 }
               }
             },
@@ -2499,29 +3691,29 @@
             "groups": {
               "seed": [
                 {
-                  "value": 100405,
+                  "value": 100000,
                   "summary": {
-                    "episode_result_count": 1,
+                    "episode_result_count": 2,
                     "quality": {
-                      "valid": 1,
+                      "valid": 2,
                       "missing": 0,
                       "invalid": 0
                     },
                     "statistics": {
                       "mean": {
-                        "value": 0.4100531050769832
+                        "value": 0.012109839644249299
                       },
                       "median": {
-                        "value": 0.4100531050769832
+                        "value": 0.012109839644249299
                       },
                       "min": {
-                        "value": 0.4100531050769832
+                        "value": 0.0027531830083962435
                       },
                       "max": {
-                        "value": 0.4100531050769832
+                        "value": 0.021466496280102353
                       },
                       "population_stddev": {
-                        "value": 0.0
+                        "value": 0.009356656635853054
                       }
                     }
                   },
@@ -2540,16 +3732,45 @@
                     },
                     "statistics": {
                       "mean": {
-                        "value": 0.4100531050769832
+                        "value": 0.021466496280102353
                       },
                       "median": {
-                        "value": 0.4100531050769832
+                        "value": 0.021466496280102353
                       },
                       "min": {
-                        "value": 0.4100531050769832
+                        "value": 0.021466496280102353
                       },
                       "max": {
-                        "value": 0.4100531050769832
+                        "value": 0.021466496280102353
+                      },
+                      "population_stddev": {
+                        "value": 0.0
+                      }
+                    }
+                  },
+                  "passed_summary": null
+                },
+                {
+                  "value": "round_3",
+                  "summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "mean": {
+                        "value": 0.0027531830083962435
+                      },
+                      "median": {
+                        "value": 0.0027531830083962435
+                      },
+                      "min": {
+                        "value": 0.0027531830083962435
+                      },
+                      "max": {
+                        "value": 0.0027531830083962435
                       },
                       "population_stddev": {
                         "value": 0.0
@@ -2561,7 +3782,7 @@
               ],
               "variant": [
                 {
-                  "value": "robustness of the policy to positional variation of the bell",
+                  "value": "task_execution.object_instance_variation",
                   "summary": {
                     "episode_result_count": 1,
                     "quality": {
@@ -2571,16 +3792,45 @@
                     },
                     "statistics": {
                       "mean": {
-                        "value": 0.4100531050769832
+                        "value": 0.0027531830083962435
                       },
                       "median": {
-                        "value": 0.4100531050769832
+                        "value": 0.0027531830083962435
                       },
                       "min": {
-                        "value": 0.4100531050769832
+                        "value": 0.0027531830083962435
                       },
                       "max": {
-                        "value": 0.4100531050769832
+                        "value": 0.0027531830083962435
+                      },
+                      "population_stddev": {
+                        "value": 0.0
+                      }
+                    }
+                  },
+                  "passed_summary": null
+                },
+                {
+                  "value": "task_execution.object_position_variation",
+                  "summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "mean": {
+                        "value": 0.021466496280102353
+                      },
+                      "median": {
+                        "value": 0.021466496280102353
+                      },
+                      "min": {
+                        "value": 0.021466496280102353
+                      },
+                      "max": {
+                        "value": 0.021466496280102353
                       },
                       "population_stddev": {
                         "value": 0.0
@@ -2594,27 +3844,27 @@
                 {
                   "value": "ACT",
                   "summary": {
-                    "episode_result_count": 1,
+                    "episode_result_count": 2,
                     "quality": {
-                      "valid": 1,
+                      "valid": 2,
                       "missing": 0,
                       "invalid": 0
                     },
                     "statistics": {
                       "mean": {
-                        "value": 0.4100531050769832
+                        "value": 0.012109839644249299
                       },
                       "median": {
-                        "value": 0.4100531050769832
+                        "value": 0.012109839644249299
                       },
                       "min": {
-                        "value": 0.4100531050769832
+                        "value": 0.0027531830083962435
                       },
                       "max": {
-                        "value": 0.4100531050769832
+                        "value": 0.021466496280102353
                       },
                       "population_stddev": {
-                        "value": 0.0
+                        "value": 0.009356656635853054
                       }
                     }
                   },
@@ -2636,27 +3886,27 @@
               "ACT"
             ],
             "summary": {
-              "episode_result_count": 2,
+              "episode_result_count": 3,
               "quality": {
                 "valid": 2,
-                "missing": 0,
+                "missing": 1,
                 "invalid": 0
               },
               "statistics": {
                 "mean": {
-                  "value": 18.198
+                  "value": 22.038
                 },
                 "median": {
-                  "value": 18.198
+                  "value": 22.038
                 },
                 "min": {
-                  "value": 17.696
+                  "value": 22.02
                 },
                 "max": {
-                  "value": 18.7
+                  "value": 22.056
                 },
                 "population_stddev": {
-                  "value": 0.5019999999999989
+                  "value": 0.018000000000000682
                 }
               }
             },
@@ -2664,29 +3914,29 @@
             "groups": {
               "seed": [
                 {
-                  "value": 100405,
+                  "value": 100000,
                   "summary": {
-                    "episode_result_count": 2,
+                    "episode_result_count": 3,
                     "quality": {
                       "valid": 2,
-                      "missing": 0,
+                      "missing": 1,
                       "invalid": 0
                     },
                     "statistics": {
                       "mean": {
-                        "value": 18.198
+                        "value": 22.038
                       },
                       "median": {
-                        "value": 18.198
+                        "value": 22.038
                       },
                       "min": {
-                        "value": 17.696
+                        "value": 22.02
                       },
                       "max": {
-                        "value": 18.7
+                        "value": 22.056
                       },
                       "population_stddev": {
-                        "value": 0.5019999999999989
+                        "value": 0.018000000000000682
                       }
                     }
                   },
@@ -2705,16 +3955,16 @@
                     },
                     "statistics": {
                       "mean": {
-                        "value": 17.696
+                        "value": 22.02
                       },
                       "median": {
-                        "value": 17.696
+                        "value": 22.02
                       },
                       "min": {
-                        "value": 17.696
+                        "value": 22.02
                       },
                       "max": {
-                        "value": 17.696
+                        "value": 22.02
                       },
                       "population_stddev": {
                         "value": 0.0
@@ -2734,19 +3984,48 @@
                     },
                     "statistics": {
                       "mean": {
-                        "value": 18.7
+                        "value": 22.056
                       },
                       "median": {
-                        "value": 18.7
+                        "value": 22.056
                       },
                       "min": {
-                        "value": 18.7
+                        "value": 22.056
                       },
                       "max": {
-                        "value": 18.7
+                        "value": 22.056
                       },
                       "population_stddev": {
                         "value": 0.0
+                      }
+                    }
+                  },
+                  "passed_summary": null
+                },
+                {
+                  "value": "round_3",
+                  "summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 0,
+                      "missing": 1,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "mean": {
+                        "value": null
+                      },
+                      "median": {
+                        "value": null
+                      },
+                      "min": {
+                        "value": null
+                      },
+                      "max": {
+                        "value": null
+                      },
+                      "population_stddev": {
+                        "value": null
                       }
                     }
                   },
@@ -2755,7 +4034,36 @@
               ],
               "variant": [
                 {
-                  "value": "robustness of the policy to positional variation of the bell",
+                  "value": "task_execution.object_instance_variation",
+                  "summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 0,
+                      "missing": 1,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "mean": {
+                        "value": null
+                      },
+                      "median": {
+                        "value": null
+                      },
+                      "min": {
+                        "value": null
+                      },
+                      "max": {
+                        "value": null
+                      },
+                      "population_stddev": {
+                        "value": null
+                      }
+                    }
+                  },
+                  "passed_summary": null
+                },
+                {
+                  "value": "task_execution.object_position_variation",
                   "summary": {
                     "episode_result_count": 1,
                     "quality": {
@@ -2765,16 +4073,16 @@
                     },
                     "statistics": {
                       "mean": {
-                        "value": 18.7
+                        "value": 22.056
                       },
                       "median": {
-                        "value": 18.7
+                        "value": 22.056
                       },
                       "min": {
-                        "value": 18.7
+                        "value": 22.056
                       },
                       "max": {
-                        "value": 18.7
+                        "value": 22.056
                       },
                       "population_stddev": {
                         "value": 0.0
@@ -2794,16 +4102,16 @@
                     },
                     "statistics": {
                       "mean": {
-                        "value": 17.696
+                        "value": 22.02
                       },
                       "median": {
-                        "value": 17.696
+                        "value": 22.02
                       },
                       "min": {
-                        "value": 17.696
+                        "value": 22.02
                       },
                       "max": {
-                        "value": 17.696
+                        "value": 22.02
                       },
                       "population_stddev": {
                         "value": 0.0
@@ -2817,27 +4125,27 @@
                 {
                   "value": "ACT",
                   "summary": {
-                    "episode_result_count": 2,
+                    "episode_result_count": 3,
                     "quality": {
                       "valid": 2,
-                      "missing": 0,
+                      "missing": 1,
                       "invalid": 0
                     },
                     "statistics": {
                       "mean": {
-                        "value": 18.198
+                        "value": 22.038
                       },
                       "median": {
-                        "value": 18.198
+                        "value": 22.038
                       },
                       "min": {
-                        "value": 17.696
+                        "value": 22.02
                       },
                       "max": {
-                        "value": 18.7
+                        "value": 22.056
                       },
                       "population_stddev": {
-                        "value": 0.5019999999999989
+                        "value": 0.018000000000000682
                       }
                     }
                   },
@@ -2856,27 +4164,30 @@
     "execution_entrypoint": "scripts/manipeval_agent.py",
     "history_replay_disabled": true,
     "online_free_concern": true,
+    "free_concern_attempt_count": 1,
+    "free_concern_bounded_repair_used": false,
     "online_query_candidate_binding": true,
     "candidate_binding_mode": "online_runtime_discovery",
     "cli_candidate_hint_used": false,
     "candidate_domain_resolution": "broad_or_ambiguous",
     "candidate_aspect_ids": [
       "object_position",
+      "robustness.scene_clutter",
+      "scene_background_texture",
       "object_instance",
       "performance.completion_time_stability",
       "robustness.distractor_avoidance",
-      "robustness.scene_clutter",
-      "scene_background_texture",
       "scene_lighting"
     ],
     "bound_candidate_templates": [
-      "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+      "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23",
+      "dynamic.click.bell.task.execution.object.instance.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.object.instance.is.perturbed.within.allowable.bounds.5cc7bb074cee"
     ],
-    "singleton_query_candidate": true,
+    "singleton_query_candidate": false,
     "query_candidates_bound": true,
     "runtime_bound_route": true,
     "global_router_provider_calls": 0,
-    "act_rollouts": 2,
+    "act_rollouts": 3,
     "required_act_rollouts": 2,
     "accepted_act_rollout_range": [
       2,
@@ -2884,6 +4195,7 @@
     ],
     "round_routes": [
       "official",
+      "generic_provider_scene_checker_codegen",
       "generic_provider_scene_checker_codegen"
     ],
     "stop_reason": "evidence_sufficient",

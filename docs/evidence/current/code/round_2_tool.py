@@ -1,5 +1,5 @@
 def generated_tool(trajectory):
-    left = np.asarray(trajectory.trace['left_tcp_position'], dtype=float)
+    left = np.asarray(trajectory.trace['right_tcp_position'], dtype=float)
     right = np.asarray(trajectory.trace['bell_contact_position'], dtype=float)
     left_view = left[:, [0, 1]]
     right_view = right[:, [0, 1]]
@@ -16,7 +16,7 @@ def generated_tool(trajectory):
             "evidence_steps": [],
             "details": {
                 "operation": 'minimum_distance',
-                "left_signal": 'left_tcp_position',
+                "left_signal": 'right_tcp_position',
                 "right_signal": 'bell_contact_position',
                 "dimensions": ['x', 'y'],
                 "min_index": None,
@@ -32,7 +32,7 @@ def generated_tool(trajectory):
         "evidence_steps": [step],
         "details": {
             "operation": 'minimum_distance',
-            "left_signal": 'left_tcp_position',
+            "left_signal": 'right_tcp_position',
             "right_signal": 'bell_contact_position',
             "dimensions": ['x', 'y'],
             "min_index": index,

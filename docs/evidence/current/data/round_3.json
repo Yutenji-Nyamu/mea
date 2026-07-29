@@ -1,0 +1,121 @@
+{
+  "round_id": "round_3",
+  "aspect_id": "task_execution.object_instance_variation",
+  "template_id": null,
+  "taskgen_route": "generic_provider_scene_checker_codegen",
+  "taskgen_kind": "generic_provider_scene_checker_codegen",
+  "execution_backend": "ACT",
+  "seeds": [
+    100000
+  ],
+  "pipeline_passed": true,
+  "policy_success": 0.0,
+  "tool_metric": "query_derived_metric",
+  "tool_route": "run_local_reuse",
+  "tool_rows": [
+    {
+      "role": "policy_under_evaluation",
+      "policy_name": "ACT",
+      "seed": 100000,
+      "value": 0.0027531830083962435,
+      "unit": "m",
+      "passed": null
+    }
+  ],
+  "vqa": {
+    "status": "passed",
+    "questions": [
+      {
+        "id": "bell_visibly_pressed",
+        "question": "Does the robot visibly press or actuate the target bell?"
+      }
+    ],
+    "phenomena": [
+      {
+        "id": "bell_visibly_pressed",
+        "observed": false,
+        "description": "The robot does not visibly press or actuate the target bell.",
+        "confidence": 0.95,
+        "frame_ids": [
+          "initial",
+          "context_1",
+          "context_2",
+          "final"
+        ]
+      }
+    ],
+    "numeric_consistency": "consistent",
+    "evidence_conflict": false
+  },
+  "aggregate_status": "passed",
+  "next_decision": {
+    "schema_version": 3,
+    "action": "stop",
+    "transition": "stop",
+    "next_aspect_id": null,
+    "next_template_id": null,
+    "observation_summary": "A measured failure has an evidence-backed diagnosis and the minimum diagnostic coverage is met.",
+    "decision_reason": "claim_first_query_sufficiency_contract",
+    "answered_query": true,
+    "plan_step_source": "deterministic_query_sufficiency_contract",
+    "round_budget_before_decision": 0,
+    "evidence_assessment": {
+      "schema_version": 1,
+      "contract": {
+        "schema_version": 3,
+        "claim_type": "diagnostic",
+        "candidate_universe": [
+          "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23",
+          "dynamic.click.bell.task.execution.object.instance.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.object.instance.is.perturbed.within.allowable.bounds.5cc7bb074cee"
+        ],
+        "required_coverage": {
+          "candidate_ids": [
+            "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23",
+            "dynamic.click.bell.task.execution.object.instance.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.object.instance.is.perturbed.within.allowable.bounds.5cc7bb074cee"
+          ],
+          "minimum_evaluated": 1,
+          "minimum_per_group": null
+        },
+        "round_budget": 2,
+        "comparison_groups": null,
+        "candidate_universe_closed": false,
+        "existential_witness_outcome": null,
+        "control_requirement": "required"
+      },
+      "should_stop": true,
+      "stop_reason": "evidence_sufficient",
+      "claim_verdict": "diagnosed",
+      "evidence_sufficient": true,
+      "completed_rounds": 2,
+      "round_budget": 2,
+      "budget_remaining": 0,
+      "candidate_universe_closed": false,
+      "candidate_discovery_required": false,
+      "observed_candidate_ids": [
+        "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23",
+        "dynamic.click.bell.task.execution.object.instance.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.object.instance.is.perturbed.within.allowable.bounds.5cc7bb074cee"
+      ],
+      "decisive_candidate_ids": [
+        "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23",
+        "dynamic.click.bell.task.execution.object.instance.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.object.instance.is.perturbed.within.allowable.bounds.5cc7bb074cee"
+      ],
+      "conflict_candidate_ids": [],
+      "unknown_candidate_ids": [],
+      "untested_required_candidate_ids": [],
+      "untested_candidate_ids": [],
+      "recommended_candidate_ids": [],
+      "rationale": "A measured failure has an evidence-backed diagnosis and the minimum diagnostic coverage is met.",
+      "statistics": {
+        "diagnosed_failure_candidate_ids": [
+          "dynamic.click.bell.task.execution.object.instance.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.object.instance.is.perturbed.within.allowable.bounds.5cc7bb074cee"
+        ]
+      },
+      "limitations": [
+        "This is a finite-domain stopping prototype, not a statistical generalization guarantee.",
+        "The candidate universe is open; exhaustive, no-counterexample, and worst-case conclusions are not licensed.",
+        "Diagnosis strings are trusted upstream evidence labels; this contract does not independently infer or validate causality."
+      ]
+    },
+    "next_round": null
+  }
+}

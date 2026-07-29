@@ -1,20 +1,20 @@
 {
   "schema_version": 1,
-  "run_id": "run_20260729_batch31_open_flagship_live_v13_round_2",
+  "run_id": "run_20260729_b30_refinement_live_v2_round_2",
   "status": "completed",
-  "created_at": "2026-07-29T13:22:13.189217+08:00",
-  "user_request": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。\nScene need: Shift the bell's position horizontally by a small, bounded distance while keeping its size, shape, material, and the overall scene layout unchanged. Preserve unchanged: 任务目标与接触几何语义; size; shape; material; the overall scene layout.\nChecker need: reuse the official implementation",
+  "created_at": "2026-07-29T15:57:41.185176+08:00",
+  "user_request": "Where does this ACT policy first expose a weakness under manipulated-object property changes, and what evidence supports that conclusion?\nScene need: Introduce a bounded variation in the bell's position. Preserve unchanged: task identity; policy checkpoint.\nChecker need: reuse the official implementation",
   "task_name": "click_bell",
-  "task_module": "mea.generated_tasks.run_20260729_batch31_open_flagship_live_v13_round_2.task",
+  "task_module": "mea.generated_tasks.run_20260729_b30_refinement_live_v2_round_2.task",
   "mode": "generic_provider_scene_checker_codegen",
   "generation_kind": "generic_provider_scene_checker_codegen",
-  "base_commit": "1455852adbfdb2931d142739c13c4c6beb3be4c1",
+  "base_commit": "ea03ddfbb624def181ba2587f9c785a6ca01689f",
   "protected_hashes_before": {
     "envs/beat_block_hammer.py": "90269f15f9ce274fb5bcad703c47b0b552ff5a2f0a3ff62d12dbe9a553018014",
     "policy/ACT/eval.sh": "65fa39ced68bae149dec3d0194d044cbefc7ea48870803fe94889211435f4b4d",
     "script/eval_policy.py": "b7138c259c790d2013ede0edfdb138a56ddc11bf664abd3baa57f19fa8933c2e"
   },
-  "overlay": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/overlay.yml",
+  "overlay": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/overlay.yml",
   "telemetry_profile": "balanced_v1",
   "static_validation": {
     "provider_scene_checker": {
@@ -28,8 +28,8 @@
   },
   "scene_validation": {
     "task_name": "click_bell",
-    "task_module": "mea.generated_task_attempts.run_20260729_batch31_open_flagship_live_v13_round_2.attempt_01.candidate_task",
-    "seed": 100405,
+    "task_module": "mea.generated_task_attempts.run_20260729_b30_refinement_live_v2_round_2.attempt_01.candidate_task",
+    "seed": 100000,
     "setup_success": true,
     "render_success": true,
     "expert_requested": true,
@@ -134,9 +134,9 @@
       {
         "name": "050_bell",
         "position": [
-          0.10803410410881042,
-          -0.150938019156456,
-          0.7409999966621399
+          0.06159507855772972,
+          -0.11331125348806381,
+          0.7359002232551575
         ],
         "quaternion": [
           0.5,
@@ -152,9 +152,9 @@
         "task_attribute": "bell",
         "scene_name": "050_bell",
         "position": [
-          0.10803410410881042,
-          -0.150938019156456,
-          0.7409999966621399
+          0.06159507855772972,
+          -0.11331125348806381,
+          0.7359002232551575
         ],
         "quaternion": [
           0.5,
@@ -166,24 +166,24 @@
           {
             "geometry_type": "create_actor_asset",
             "modelname": "050_bell",
-            "model_id": 0,
-            "collision_asset": "assets/objects/050_bell/collision/base0.glb",
+            "model_id": 1,
+            "collision_asset": "assets/objects/050_bell/collision/base1.glb",
             "convex": true,
             "is_static": true,
             "scale": [
-              0.05,
-              0.05,
-              0.05
+              0.04,
+              0.04,
+              0.04
             ],
             "extents": [
-              2.6062153508915715,
-              1.3512622824846536,
-              2.6047822115776125
+              2.5883968548477228,
+              1.3250785247084105,
+              2.5887140724986057
             ],
             "center": [
-              5.9123290448562685e-05,
-              0.6583665104244772,
-              0.00011460309493964425
+              8.667908080472183e-05,
+              0.6445632287777463,
+              0.0006842777984963255
             ]
           }
         ],
@@ -191,14 +191,14 @@
         "contact_points": {
           "0": {
             "position": [
-              0.10803410410881042,
-              -0.150938019156456,
-              0.7790379971265793
+              0.06159507855772972,
+              -0.11331125348806381,
+              0.7616906237602233
             ],
             "raw": [
-              0.10803410410881042,
-              -0.150938019156456,
-              0.7790379971265793,
+              0.06159507855772972,
+              -0.11331125348806381,
+              0.7616906237602233,
               0.5000000000000001,
               0.5,
               0.5000000000000001,
@@ -209,9 +209,9 @@
       }
     ],
     "task_attributes": {
-      "bell_id": 0
+      "bell_id": 1
     },
-    "image": "/root/autodl-tmp/mea/mea/generated_task_attempts/run_20260729_batch31_open_flagship_live_v13_round_2/attempt_01/expert_head.png",
+    "image": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_task_attempts/run_20260729_b30_refinement_live_v2_round_2/attempt_01/expert_head.png",
     "rule_check": {
       "all_tracked_actor_attributes_present": true,
       "tracked_actor_runtime_names_match": true,
@@ -248,8 +248,8 @@
     "returncode": 0,
     "setup_fixture": {
       "task_name": "click_bell",
-      "task_module": "mea.generated_task_attempts.run_20260729_batch31_open_flagship_live_v13_round_2.attempt_01.candidate_task",
-      "seed": 100405,
+      "task_module": "mea.generated_task_attempts.run_20260729_b30_refinement_live_v2_round_2.attempt_01.candidate_task",
+      "seed": 100000,
       "setup_success": true,
       "render_success": true,
       "expert_requested": false,
@@ -354,9 +354,9 @@
         {
           "name": "050_bell",
           "position": [
-            0.10803410410881042,
-            -0.150938019156456,
-            0.7409999966621399
+            0.06159507855772972,
+            -0.11331125348806381,
+            0.7359002232551575
           ],
           "quaternion": [
             0.5,
@@ -372,9 +372,9 @@
           "task_attribute": "bell",
           "scene_name": "050_bell",
           "position": [
-            0.10803410410881042,
-            -0.150938019156456,
-            0.7409999966621399
+            0.06159507855772972,
+            -0.11331125348806381,
+            0.7359002232551575
           ],
           "quaternion": [
             0.5,
@@ -386,24 +386,24 @@
             {
               "geometry_type": "create_actor_asset",
               "modelname": "050_bell",
-              "model_id": 0,
-              "collision_asset": "assets/objects/050_bell/collision/base0.glb",
+              "model_id": 1,
+              "collision_asset": "assets/objects/050_bell/collision/base1.glb",
               "convex": true,
               "is_static": true,
               "scale": [
-                0.05,
-                0.05,
-                0.05
+                0.04,
+                0.04,
+                0.04
               ],
               "extents": [
-                2.6062153508915715,
-                1.3512622824846536,
-                2.6047822115776125
+                2.5883968548477228,
+                1.3250785247084105,
+                2.5887140724986057
               ],
               "center": [
-                5.9123290448562685e-05,
-                0.6583665104244772,
-                0.00011460309493964425
+                8.667908080472183e-05,
+                0.6445632287777463,
+                0.0006842777984963255
               ]
             }
           ],
@@ -411,14 +411,14 @@
           "contact_points": {
             "0": {
               "position": [
-                0.10803410410881042,
-                -0.150938019156456,
-                0.7790379971265793
+                0.06159507855772972,
+                -0.11331125348806381,
+                0.7616906237602233
               ],
               "raw": [
-                0.10803410410881042,
-                -0.150938019156456,
-                0.7790379971265793,
+                0.06159507855772972,
+                -0.11331125348806381,
+                0.7616906237602233,
                 0.5000000000000001,
                 0.5,
                 0.5000000000000001,
@@ -429,9 +429,9 @@
         }
       ],
       "task_attributes": {
-        "bell_id": 0
+        "bell_id": 1
       },
-      "image": "/root/autodl-tmp/mea/mea/generated_task_attempts/run_20260729_batch31_open_flagship_live_v13_round_2/attempt_01/setup_head.png",
+      "image": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_task_attempts/run_20260729_b30_refinement_live_v2_round_2/attempt_01/setup_head.png",
       "rule_check": {
         "all_tracked_actor_attributes_present": true,
         "tracked_actor_runtime_names_match": true,
@@ -464,10 +464,10 @@
           "tracked_actors"
         ],
         "render_changed": true,
-        "official_render_sha256": "ce65c4133a86d27b8eddd7a1bdb2993447b072b7b9d9b7d58decc19c599971bf",
-        "generated_render_sha256": "d03d39fd49ea7436c21b4f3e6e3c7a52f65622ad455e26c6cbe19a4a8274432e",
+        "official_render_sha256": "0fe101e82ac32633018e0b0622eb3f62bd7a8bc878521172e41b97a094d3f55e",
+        "generated_render_sha256": "8de34fef59f4565b1499214ee3afc3a26c2d8bfde029cb34b7ca900e1872fb8b",
         "scene_need": {
-          "description": "Shift the bell's position horizontally by a small, bounded distance while keeping its size, shape, material, and the overall scene layout unchanged. Preserve unchanged: 任务目标与接触几何语义; size; shape; material; the overall scene layout.",
+          "description": "Introduce a bounded variation in the bell's position. Preserve unchanged: task identity; policy checkpoint.",
           "kind": "adapt",
           "reuse_first": true
         },
@@ -487,34 +487,34 @@
         "passed": true,
         "model_requested": "gpt-4o-2024-11-20",
         "provider_metadata": {
-          "id": "chatcmpl-E6r21Lnop83PoCEb7jrYan97ESSG9",
+          "id": "chatcmpl-E6tSVvYZ6LOCkihryjtxoD9Gjlgkh",
           "model": "gpt-4o-2024-11-20",
           "finish_reason": "stop",
           "usage": {
-            "prompt_tokens": 745,
             "completion_tokens": 94,
-            "total_tokens": 839,
-            "prompt_tokens_details": {
-              "cached_tokens": 0,
-              "audio_tokens": 0
-            },
             "completion_tokens_details": {
-              "reasoning_tokens": 0,
-              "audio_tokens": 0,
               "accepted_prediction_tokens": 0,
+              "audio_tokens": 0,
+              "reasoning_tokens": 0,
               "rejected_prediction_tokens": 0
             },
             "latency_checkpoint": {
-              "engine_tbt_ms": 12,
-              "engine_ttft_ms": 379,
-              "engine_ttlt_ms": 1492,
-              "pre_inference_ms": 239,
-              "service_tbt_ms": 12,
-              "service_ttft_ms": 1137,
-              "service_ttlt_ms": 2256,
-              "total_duration_ms": 2019,
-              "user_visible_ttft_ms": 898
-            }
+              "engine_tbt_ms": 10,
+              "engine_ttft_ms": 453,
+              "engine_ttlt_ms": 1358,
+              "pre_inference_ms": 350,
+              "service_tbt_ms": 10,
+              "service_ttft_ms": 1070,
+              "service_ttlt_ms": 1973,
+              "total_duration_ms": 1660,
+              "user_visible_ttft_ms": 720
+            },
+            "prompt_tokens": 681,
+            "prompt_tokens_details": {
+              "audio_tokens": 0,
+              "cached_tokens": 0
+            },
+            "total_tokens": 775
           },
           "retry_count": 0
         },
@@ -522,43 +522,22 @@
       },
       "preserved_conditions_verified": true,
       "preserved_conditions": [
-        "任务目标与接触几何语义",
-        "size",
-        "shape",
-        "material",
-        "the overall scene layout"
+        "task identity",
+        "policy checkpoint"
       ],
       "preservation_status": "verified",
       "preservation_checks": [
         {
-          "condition": "任务目标与接触几何语义",
-          "kind": "checker_semantics+geometry",
+          "condition": "task identity",
+          "kind": "frozen_runtime_binding",
           "verified": true,
-          "authority": "exact_official_check_success_reuse+same_seed_simulator_state:tracked_actors.collision_geometry"
+          "authority": "frozen_task_policy_seed_and_action_binding"
         },
         {
-          "condition": "size",
-          "kind": "geometry",
+          "condition": "policy checkpoint",
+          "kind": "frozen_runtime_binding",
           "verified": true,
-          "authority": "same_seed_simulator_state:tracked_actors.collision_geometry"
-        },
-        {
-          "condition": "shape",
-          "kind": "geometry",
-          "verified": true,
-          "authority": "same_seed_simulator_state:tracked_actors.collision_geometry"
-        },
-        {
-          "condition": "material",
-          "kind": "visual",
-          "verified": true,
-          "authority": "same_seed_visual_diagnosis"
-        },
-        {
-          "condition": "the overall scene layout",
-          "kind": "visual",
-          "verified": true,
-          "authority": "same_seed_visual_diagnosis"
+          "authority": "frozen_task_policy_seed_and_action_binding"
         }
       ],
       "preservation_authority": "per_condition_authority",
@@ -578,16 +557,16 @@
           "authority": "official_expert_terminal_state"
         }
       ],
-      "official_setup_scene": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/validation/official_setup_preflight.json",
-      "official_setup_image": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evidence/official_initial_head.png",
-      "setup_scene": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/validation/setup_preflight.json",
-      "expert_scene": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/validation/expert_preflight.json",
-      "setup_image": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evidence/initial_head.png",
-      "expert_image": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evidence/expert_head.png",
-      "visual_comparison_image": "mea/generated_task_attempts/run_20260729_batch31_open_flagship_live_v13_round_2/attempt_01/visual/official_vs_generated.png",
-      "visual_prompt": "mea/generated_task_attempts/run_20260729_batch31_open_flagship_live_v13_round_2/attempt_01/visual/vision_prompt.md",
-      "visual_response": "mea/generated_task_attempts/run_20260729_batch31_open_flagship_live_v13_round_2/attempt_01/visual/vision_response.txt",
-      "visual_result": "mea/generated_task_attempts/run_20260729_batch31_open_flagship_live_v13_round_2/attempt_01/visual/vision.json"
+      "official_setup_scene": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/validation/official_setup_preflight.json",
+      "official_setup_image": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evidence/official_initial_head.png",
+      "setup_scene": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/validation/setup_preflight.json",
+      "expert_scene": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/validation/expert_preflight.json",
+      "setup_image": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evidence/initial_head.png",
+      "expert_image": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evidence/expert_head.png",
+      "visual_comparison_image": "mea/generated_task_attempts/run_20260729_b30_refinement_live_v2_round_2/attempt_01/visual/official_vs_generated.png",
+      "visual_prompt": "mea/generated_task_attempts/run_20260729_b30_refinement_live_v2_round_2/attempt_01/visual/vision_prompt.md",
+      "visual_response": "mea/generated_task_attempts/run_20260729_b30_refinement_live_v2_round_2/attempt_01/visual/vision_response.txt",
+      "visual_result": "mea/generated_task_attempts/run_20260729_b30_refinement_live_v2_round_2/attempt_01/visual/vision.json"
     }
   },
   "vision_validation": {
@@ -604,34 +583,34 @@
     "passed": true,
     "model_requested": "gpt-4o-2024-11-20",
     "provider_metadata": {
-      "id": "chatcmpl-E6r21Lnop83PoCEb7jrYan97ESSG9",
+      "id": "chatcmpl-E6tSVvYZ6LOCkihryjtxoD9Gjlgkh",
       "model": "gpt-4o-2024-11-20",
       "finish_reason": "stop",
       "usage": {
-        "prompt_tokens": 745,
         "completion_tokens": 94,
-        "total_tokens": 839,
-        "prompt_tokens_details": {
-          "cached_tokens": 0,
-          "audio_tokens": 0
-        },
         "completion_tokens_details": {
-          "reasoning_tokens": 0,
-          "audio_tokens": 0,
           "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 0,
           "rejected_prediction_tokens": 0
         },
         "latency_checkpoint": {
-          "engine_tbt_ms": 12,
-          "engine_ttft_ms": 379,
-          "engine_ttlt_ms": 1492,
-          "pre_inference_ms": 239,
-          "service_tbt_ms": 12,
-          "service_ttft_ms": 1137,
-          "service_ttlt_ms": 2256,
-          "total_duration_ms": 2019,
-          "user_visible_ttft_ms": 898
-        }
+          "engine_tbt_ms": 10,
+          "engine_ttft_ms": 453,
+          "engine_ttlt_ms": 1358,
+          "pre_inference_ms": 350,
+          "service_tbt_ms": 10,
+          "service_ttft_ms": 1070,
+          "service_ttlt_ms": 1973,
+          "total_duration_ms": 1660,
+          "user_visible_ttft_ms": 720
+        },
+        "prompt_tokens": 681,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0
+        },
+        "total_tokens": 775
       },
       "retry_count": 0
     },
@@ -675,42 +654,39 @@
   },
   "experiment_candidate": {
     "schema_version": 2,
-    "candidate_id": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
-    "source_query": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。",
+    "candidate_id": "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23",
+    "source_query": "Where does this ACT policy first expose a weakness under manipulated-object property changes, and what evidence supports that conclusion?",
     "base_task": "click_bell",
-    "semantic_concern": "robustness of the policy to positional variation of the bell: The ACT policy can successfully complete the click_bell task when the bell is shifted to a new position within a bounded range.",
+    "semantic_concern": "task_execution.object_position_variation: The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds.",
     "scene_need": {
-      "description": "Shift the bell's position horizontally by a small, bounded distance while keeping its size, shape, material, and the overall scene layout unchanged. Preserve unchanged: 任务目标与接触几何语义; size; shape; material; the overall scene layout.",
+      "description": "Introduce a bounded variation in the bell's position. Preserve unchanged: task identity; policy checkpoint.",
       "kind": "adapt",
       "reuse_first": true
     },
     "checker_need": null,
     "rule_tool_need": {
-      "description": "Determine whether the policy successfully activates the bell in the new position. Hypothesis: The ACT policy can successfully complete the click_bell task when the bell is shifted to a new position within a bounded range.",
+      "description": "Numeric or symbolic Rule Tool observable needed. Hypothesis: The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds.",
       "kind": "measure",
       "reuse_first": true
     },
     "vqa_tool_need": null,
     "tool_need": {
-      "description": "Determine whether the policy successfully activates the bell in the new position. Hypothesis: The ACT policy can successfully complete the click_bell task when the bell is shifted to a new position within a bounded range.",
+      "description": "Numeric or symbolic Rule Tool observable needed. Hypothesis: The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds.",
       "kind": "measure",
       "reuse_first": true
     },
     "evaluation_intent": {
-      "hypothesis": "The ACT policy can successfully complete the click_bell task when the bell is shifted to a new position within a bounded range.",
-      "intent_id": "intent.c7b8b7a89baaba20",
-      "original_concern": "robustness of the policy to positional variation of the bell",
+      "hypothesis": "The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds.",
+      "intent_id": "intent.fbdf63ddcef3951b",
+      "original_concern": "task_execution.object_position_variation",
       "preserved_conditions": [
-        "任务目标与接触几何语义",
-        "size",
-        "shape",
-        "material",
-        "the overall scene layout"
+        "task identity",
+        "policy checkpoint"
       ],
-      "requested_change": "Shift the bell's position horizontally by a small, bounded distance while keeping its size, shape, material, and the overall scene layout unchanged.",
-      "required_observation": "Determine whether the policy successfully activates the bell in the new position.",
+      "requested_change": "Introduce a bounded variation in the bell's position.",
+      "required_observation": "Numeric or symbolic Rule Tool observable needed.",
       "schema_version": 1,
-      "source_query": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。"
+      "source_query": "Where does this ACT policy first expose a weakness under manipulated-object property changes, and what evidence supports that conclusion?"
     },
     "intent_alignment": {
       "schema_version": 1,
@@ -728,8 +704,8 @@
   "experiment_candidate_path": "generation/experiment_candidate.json",
   "implementation_trace": {
     "schema_version": 1,
-    "intent_id": "intent.c7b8b7a89baaba20",
-    "candidate_id": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
+    "intent_id": "intent.fbdf63ddcef3951b",
+    "candidate_id": "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23",
     "stage": "taskgen",
     "relationship": "direct",
     "rationale": "Candidate preserves the requested change, hypothesis, and observation semantics.",
@@ -765,7 +741,7 @@
     "fixture_count": 2,
     "fixture_pass_count": 2
   },
-  "candidate_module_sha256": "41a9383f6ac1bb0851478c2dd12ecac8e7e95c082b2161fdafa242afd96896fd",
+  "candidate_module_sha256": "d736c84050ce47efca0037e2094130071675159ec1c48a1bcd00d6088ae531ba",
   "candidate_manifest": "candidate_manifest.json",
   "generic_taskgen_resolution": "generic_taskgen_resolution.json",
   "task_generation_acceptance": {
@@ -899,14 +875,14 @@
       "base_task": "click_bell",
       "checker_need": null,
       "scene_need": {
-        "description": "Shift the bell's position horizontally by a small, bounded distance while keeping its size, shape, material, and the overall scene layout unchanged. Preserve unchanged: 任务目标与接触几何语义; size; shape; material; the overall scene layout.",
+        "description": "Introduce a bounded variation in the bell's position. Preserve unchanged: task identity; policy checkpoint.",
         "kind": "adapt",
         "reuse_first": true
       },
       "schema_version": 1,
-      "semantic_concern": "robustness of the policy to positional variation of the bell: The ACT policy can successfully complete the click_bell task when the bell is shifted to a new position within a bounded range."
+      "semantic_concern": "task_execution.object_position_variation: The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds."
     },
-    "artifact_path": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/manifest.json",
+    "artifact_path": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/manifest.json",
     "reuse_count": 0,
     "index_path": "mea/artifacts/index.json"
   },
@@ -931,14 +907,14 @@
       "0",
       "0",
       "1",
-      "mea.generated_tasks.run_20260729_batch31_open_flagship_live_v13_round_2.task",
-      "/root/autodl-tmp/mea/mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/overlay.yml",
-      "100405",
-      "/root/autodl-tmp/mea/mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act",
+      "mea.generated_tasks.run_20260729_b30_refinement_live_v2_round_2.task",
+      "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/overlay.yml",
+      "100000",
+      "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act",
       "balanced_v1"
     ],
-    "started_at": "2026-07-29T13:22:13.218819+08:00",
-    "finished_at": "2026-07-29T13:23:11.052955+08:00",
+    "started_at": "2026-07-29T15:57:41.200211+08:00",
+    "finished_at": "2026-07-29T15:58:40.750158+08:00",
     "returncode": 0,
     "task_name": "click_bell",
     "task_config": "demo_clean",
@@ -947,7 +923,7 @@
     "policy_seed": 0,
     "num_episodes": 1,
     "actual_seeds": [
-      100405
+      100000
     ],
     "checkpoint": {
       "directory": "policy/ACT/act_ckpt/act-click_bell/demo_clean-50",
@@ -958,18 +934,18 @@
       "preflight_passed": true
     },
     "execution_receipt": null,
-    "source_eval_dir": "/root/autodl-tmp/mea/eval_result/click_bell/ACT/demo_clean/demo_clean/2026-07-29 13:22:18",
+    "source_eval_dir": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/eval_result/click_bell/ACT/demo_clean/demo_clean/2026-07-29 15:57:46",
     "copied_artifacts": [
-      "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/episode0.mp4",
-      "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/_result.txt"
+      "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/episode0.mp4",
+      "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/_result.txt"
     ],
     "copied_video_count": 1,
-    "telemetry_root": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act",
+    "telemetry_root": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act",
     "telemetry_episode_count": 1,
     "video_associations": [
       {
-        "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
-        "video": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405/video.mp4",
+        "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+        "video": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000/video.mp4",
         "episode_index": 0
       }
     ],
@@ -992,7 +968,7 @@
     "reason": "paired expert/ACT execution was not requested",
     "expert_seeds": [],
     "act_seeds": [
-      100405
+      100000
     ]
   },
   "failure": null,
@@ -1005,7 +981,7 @@
     "controlled_variation_samples"
   ],
   "trusted_tool_evaluation": {
-    "artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+    "artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
     "episode_count": 1,
     "outcome_metric": "official_check_success",
     "outcome_authority": "official_check_success_reused",
@@ -1016,9 +992,9 @@
     },
     "episodes": [
       {
-        "episode_dir": "act/episode_000_seed_100405",
+        "episode_dir": "act/episode_000_seed_100000",
         "policy_name": "ACT",
-        "seed": 100405,
+        "seed": 100000,
         "success": true,
         "tool_results": [
           {
@@ -1028,15 +1004,15 @@
             "value": true,
             "unit": null,
             "evidence_steps": [
-              4675
+              5514
             ],
             "evidence": [
               {
                 "type": "success_transition",
-                "policy_step": 68,
-                "physics_step": 4675,
-                "simulation_time_seconds": 18.7,
-                "video_frame_index": 68
+                "policy_step": 74,
+                "physics_step": 5514,
+                "simulation_time_seconds": 22.056,
+                "video_frame_index": 74
               }
             ],
             "details": {
@@ -1049,22 +1025,22 @@
             "tool": "time_to_success",
             "version": 1,
             "tool_sha256": "15b7e9522b6d4d018755674f6cf959233d80315bddeda7db0f49e039341b7104",
-            "value": 18.7,
+            "value": 22.056,
             "unit": "s",
             "evidence_steps": [
-              4675
+              5514
             ],
             "evidence": [
               {
                 "type": "success_transition",
-                "policy_step": 68,
-                "physics_step": 4675,
-                "simulation_time_seconds": 18.7,
-                "video_frame_index": 68
+                "policy_step": 74,
+                "physics_step": 5514,
+                "simulation_time_seconds": 22.056,
+                "video_frame_index": 74
               }
             ],
             "details": {
-              "physics_step": 4675
+              "physics_step": 5514
             }
           }
         ]

@@ -406,9 +406,27 @@ class EvidenceReportTests(unittest.TestCase):
                 publish=True,
             )
             report = destination.read_text(encoding="utf-8")
-            self.assertIn("### Legacy plan intent", report)
-            self.assertIn("### Legacy Tool request", report)
-            self.assertIn('"proposal_status": "missing_legacy_projection"', report)
+            published_manifest = json.loads(
+                (
+                    destination.parent / "evidence_bundle_manifest.json"
+                ).read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                published_manifest["source_server_path"],
+                str(evaluation.resolve()),
+            )
+            self.assertIn(
+                "### Compatibility task projection (not used for planning)",
+                report,
+            )
+            self.assertIn(
+                "### Compatibility Tool projection (not used for planning)",
+                report,
+            )
+            self.assertIn(
+                '"proposal_status": "not_projected_in_compatibility_view"',
+                report,
+            )
             self.assertNotIn("### Plan -> TaskProposal", report)
             self.assertNotIn("### ToolProposal -> ToolGen / reuse", report)
 

@@ -29,7 +29,7 @@ VQA Tool only for a visual judgment.  A Tool-only Query must not invent a scene
 or checker.  Every Tool need must retrieve before generating.
 
 ORIGINAL QUERY:
-这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。
+Where does this ACT policy first expose a weakness under manipulated-object property changes, and what evidence supports that conclusion?
 
 EVALUATED POLICY SCOPE (metadata, not a concern menu):
 {
@@ -44,7 +44,7 @@ EVALUATED POLICY SCOPE (metadata, not a concern menu):
 Return strict JSON with exactly these fields:
 {
   "schema_version": 1,
-  "source_query": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。",
+  "source_query": "Where does this ACT policy first expose a weakness under manipulated-object property changes, and what evidence supports that conclusion?",
   "sub_aspect": "a precise concern discovered from the Query",
   "hypothesis": "one falsifiable policy-behavior hypothesis",
   "task_intent": "invariant base manipulation action and goal in English",

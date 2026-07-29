@@ -1,22 +1,19 @@
 {
   "base_task": "click_bell",
-  "candidate_id": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
+  "candidate_id": "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23",
   "checker_need": null,
   "evaluation_intent": {
-    "hypothesis": "The ACT policy can successfully complete the click_bell task when the bell is shifted to a new position within a bounded range.",
-    "intent_id": "intent.c7b8b7a89baaba20",
-    "original_concern": "robustness of the policy to positional variation of the bell",
+    "hypothesis": "The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds.",
+    "intent_id": "intent.fbdf63ddcef3951b",
+    "original_concern": "task_execution.object_position_variation",
     "preserved_conditions": [
-      "任务目标与接触几何语义",
-      "size",
-      "shape",
-      "material",
-      "the overall scene layout"
+      "task identity",
+      "policy checkpoint"
     ],
-    "requested_change": "Shift the bell's position horizontally by a small, bounded distance while keeping its size, shape, material, and the overall scene layout unchanged.",
-    "required_observation": "Determine whether the policy successfully activates the bell in the new position.",
+    "requested_change": "Introduce a bounded variation in the bell's position.",
+    "required_observation": "Numeric or symbolic Rule Tool observable needed.",
     "schema_version": 1,
-    "source_query": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。"
+    "source_query": "Where does this ACT policy first expose a weakness under manipulated-object property changes, and what evidence supports that conclusion?"
   },
   "intent_alignment": {
     "matched_intent_fields": [
@@ -31,20 +28,20 @@
     "unmatched_intent_fields": []
   },
   "rule_tool_need": {
-    "description": "Determine whether the policy successfully activates the bell in the new position. Hypothesis: The ACT policy can successfully complete the click_bell task when the bell is shifted to a new position within a bounded range.",
+    "description": "Numeric or symbolic Rule Tool observable needed. Hypothesis: The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds.",
     "kind": "measure",
     "reuse_first": true
   },
   "scene_need": {
-    "description": "Shift the bell's position horizontally by a small, bounded distance while keeping its size, shape, material, and the overall scene layout unchanged. Preserve unchanged: 任务目标与接触几何语义; size; shape; material; the overall scene layout.",
+    "description": "Introduce a bounded variation in the bell's position. Preserve unchanged: task identity; policy checkpoint.",
     "kind": "adapt",
     "reuse_first": true
   },
   "schema_version": 2,
-  "semantic_concern": "robustness of the policy to positional variation of the bell: The ACT policy can successfully complete the click_bell task when the bell is shifted to a new position within a bounded range.",
-  "source_query": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。",
+  "semantic_concern": "task_execution.object_position_variation: The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds.",
+  "source_query": "Where does this ACT policy first expose a weakness under manipulated-object property changes, and what evidence supports that conclusion?",
   "tool_need": {
-    "description": "Determine whether the policy successfully activates the bell in the new position. Hypothesis: The ACT policy can successfully complete the click_bell task when the bell is shifted to a new position within a bounded range.",
+    "description": "Numeric or symbolic Rule Tool observable needed. Hypothesis: The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds.",
     "kind": "measure",
     "reuse_first": true
   },

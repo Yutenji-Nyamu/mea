@@ -34,17 +34,17 @@
                     "valid": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1
@@ -60,17 +60,17 @@
                       "numerator": 0,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 0.0
@@ -78,17 +78,17 @@
                     "true_count": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1
@@ -98,17 +98,17 @@
                       "numerator": 1,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1.0
@@ -131,17 +131,17 @@
                     "valid": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1
@@ -157,17 +157,17 @@
                       "numerator": 0,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 0.0
@@ -175,17 +175,17 @@
                     "success_count": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1
@@ -195,17 +195,17 @@
                       "numerator": 1,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1.0
@@ -213,17 +213,17 @@
                     "true_count": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1
@@ -233,17 +233,17 @@
                       "numerator": 1,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1.0
@@ -271,17 +271,17 @@
                     "valid": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1
@@ -297,17 +297,17 @@
                       "numerator": 0,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 0.0
@@ -315,17 +315,17 @@
                     "true_count": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1
@@ -335,17 +335,17 @@
                       "numerator": 1,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1.0
@@ -368,17 +368,17 @@
                     "valid": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1
@@ -394,17 +394,17 @@
                       "numerator": 0,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 0.0
@@ -412,17 +412,17 @@
                     "success_count": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1
@@ -432,17 +432,17 @@
                       "numerator": 1,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1.0
@@ -450,17 +450,17 @@
                     "true_count": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1
@@ -470,17 +470,17 @@
                       "numerator": 1,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1.0
@@ -508,17 +508,17 @@
                     "valid": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1
@@ -534,17 +534,17 @@
                       "numerator": 0,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 0.0
@@ -552,17 +552,17 @@
                     "true_count": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1
@@ -572,17 +572,17 @@
                       "numerator": 1,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1.0
@@ -605,17 +605,17 @@
                     "valid": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1
@@ -631,17 +631,17 @@
                       "numerator": 0,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 0.0
@@ -649,17 +649,17 @@
                     "success_count": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1
@@ -669,17 +669,17 @@
                       "numerator": 1,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1.0
@@ -687,17 +687,17 @@
                     "true_count": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1
@@ -707,17 +707,17 @@
                       "numerator": 1,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1.0
@@ -726,7 +726,7 @@
                   "unit": null,
                   "value_kind": "boolean"
                 },
-                "value": 100405
+                "value": 100000
               }
             ],
             "variant": [
@@ -745,17 +745,17 @@
                     "valid": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1
@@ -771,17 +771,17 @@
                       "numerator": 0,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 0.0
@@ -789,17 +789,17 @@
                     "true_count": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1
@@ -809,17 +809,17 @@
                       "numerator": 1,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1.0
@@ -842,17 +842,17 @@
                     "valid": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1
@@ -868,17 +868,17 @@
                       "numerator": 0,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 0.0
@@ -886,17 +886,17 @@
                     "success_count": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1
@@ -906,17 +906,17 @@
                       "numerator": 1,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1.0
@@ -924,17 +924,17 @@
                     "true_count": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1
@@ -944,17 +944,17 @@
                       "numerator": 1,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1.0
@@ -963,7 +963,7 @@
                   "unit": null,
                   "value_kind": "boolean"
                 },
-                "value": "robustness of the policy to positional variation of the bell"
+                "value": "task_execution.object_position_variation"
               }
             ]
           },
@@ -981,17 +981,17 @@
               "valid": {
                 "provenance": [
                   {
-                    "episode_dir": "act/episode_000_seed_100405",
+                    "episode_dir": "act/episode_000_seed_100000",
                     "evidence_steps": [
-                      4675
+                      5514
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100405,
-                    "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                    "seed": 100000,
+                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                     "value": true,
-                    "variant": "robustness of the policy to positional variation of the bell"
+                    "variant": "task_execution.object_position_variation"
                   }
                 ],
                 "value": 1
@@ -1007,17 +1007,17 @@
                 "numerator": 0,
                 "provenance": [
                   {
-                    "episode_dir": "act/episode_000_seed_100405",
+                    "episode_dir": "act/episode_000_seed_100000",
                     "evidence_steps": [
-                      4675
+                      5514
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100405,
-                    "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                    "seed": 100000,
+                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                     "value": true,
-                    "variant": "robustness of the policy to positional variation of the bell"
+                    "variant": "task_execution.object_position_variation"
                   }
                 ],
                 "value": 0.0
@@ -1025,17 +1025,17 @@
               "true_count": {
                 "provenance": [
                   {
-                    "episode_dir": "act/episode_000_seed_100405",
+                    "episode_dir": "act/episode_000_seed_100000",
                     "evidence_steps": [
-                      4675
+                      5514
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100405,
-                    "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                    "seed": 100000,
+                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                     "value": true,
-                    "variant": "robustness of the policy to positional variation of the bell"
+                    "variant": "task_execution.object_position_variation"
                   }
                 ],
                 "value": 1
@@ -1045,17 +1045,17 @@
                 "numerator": 1,
                 "provenance": [
                   {
-                    "episode_dir": "act/episode_000_seed_100405",
+                    "episode_dir": "act/episode_000_seed_100000",
                     "evidence_steps": [
-                      4675
+                      5514
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100405,
-                    "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                    "seed": 100000,
+                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                     "value": true,
-                    "variant": "robustness of the policy to positional variation of the bell"
+                    "variant": "task_execution.object_position_variation"
                   }
                 ],
                 "value": 1.0
@@ -1082,17 +1082,17 @@
               "valid": {
                 "provenance": [
                   {
-                    "episode_dir": "act/episode_000_seed_100405",
+                    "episode_dir": "act/episode_000_seed_100000",
                     "evidence_steps": [
-                      4675
+                      5514
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100405,
-                    "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                    "seed": 100000,
+                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                     "value": true,
-                    "variant": "robustness of the policy to positional variation of the bell"
+                    "variant": "task_execution.object_position_variation"
                   }
                 ],
                 "value": 1
@@ -1108,17 +1108,17 @@
                 "numerator": 0,
                 "provenance": [
                   {
-                    "episode_dir": "act/episode_000_seed_100405",
+                    "episode_dir": "act/episode_000_seed_100000",
                     "evidence_steps": [
-                      4675
+                      5514
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100405,
-                    "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                    "seed": 100000,
+                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                     "value": true,
-                    "variant": "robustness of the policy to positional variation of the bell"
+                    "variant": "task_execution.object_position_variation"
                   }
                 ],
                 "value": 0.0
@@ -1126,17 +1126,17 @@
               "success_count": {
                 "provenance": [
                   {
-                    "episode_dir": "act/episode_000_seed_100405",
+                    "episode_dir": "act/episode_000_seed_100000",
                     "evidence_steps": [
-                      4675
+                      5514
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100405,
-                    "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                    "seed": 100000,
+                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                     "value": true,
-                    "variant": "robustness of the policy to positional variation of the bell"
+                    "variant": "task_execution.object_position_variation"
                   }
                 ],
                 "value": 1
@@ -1146,17 +1146,17 @@
                 "numerator": 1,
                 "provenance": [
                   {
-                    "episode_dir": "act/episode_000_seed_100405",
+                    "episode_dir": "act/episode_000_seed_100000",
                     "evidence_steps": [
-                      4675
+                      5514
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100405,
-                    "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                    "seed": 100000,
+                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                     "value": true,
-                    "variant": "robustness of the policy to positional variation of the bell"
+                    "variant": "task_execution.object_position_variation"
                   }
                 ],
                 "value": 1.0
@@ -1164,17 +1164,17 @@
               "true_count": {
                 "provenance": [
                   {
-                    "episode_dir": "act/episode_000_seed_100405",
+                    "episode_dir": "act/episode_000_seed_100000",
                     "evidence_steps": [
-                      4675
+                      5514
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100405,
-                    "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                    "seed": 100000,
+                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                     "value": true,
-                    "variant": "robustness of the policy to positional variation of the bell"
+                    "variant": "task_execution.object_position_variation"
                   }
                 ],
                 "value": 1
@@ -1184,17 +1184,17 @@
                 "numerator": 1,
                 "provenance": [
                   {
-                    "episode_dir": "act/episode_000_seed_100405",
+                    "episode_dir": "act/episode_000_seed_100000",
                     "evidence_steps": [
-                      4675
+                      5514
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100405,
-                    "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+                    "seed": 100000,
+                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
                     "value": true,
-                    "variant": "robustness of the policy to positional variation of the bell"
+                    "variant": "task_execution.object_position_variation"
                   }
                 ],
                 "value": 1.0
@@ -1233,17 +1233,17 @@
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4238
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.4100531050769832,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.021466496280102353,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1
@@ -1254,93 +1254,93 @@
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4238
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.4100531050769832,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.021466496280102353,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 0.4100531050769832
+                      "value": 0.021466496280102353
                     },
                     "mean": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4238
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.4100531050769832,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.021466496280102353,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 0.4100531050769832
+                      "value": 0.021466496280102353
                     },
                     "median": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4238
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.4100531050769832,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.021466496280102353,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 0.4100531050769832
+                      "value": 0.021466496280102353
                     },
                     "min": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4238
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.4100531050769832,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.021466496280102353,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 0.4100531050769832
+                      "value": 0.021466496280102353
                     },
                     "population_stddev": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4238
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.4100531050769832,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.021466496280102353,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 0.0
@@ -1369,17 +1369,17 @@
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4238
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.4100531050769832,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.021466496280102353,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1
@@ -1390,93 +1390,93 @@
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4238
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.4100531050769832,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.021466496280102353,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 0.4100531050769832
+                      "value": 0.021466496280102353
                     },
                     "mean": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4238
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.4100531050769832,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.021466496280102353,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 0.4100531050769832
+                      "value": 0.021466496280102353
                     },
                     "median": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4238
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.4100531050769832,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.021466496280102353,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 0.4100531050769832
+                      "value": 0.021466496280102353
                     },
                     "min": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4238
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.4100531050769832,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.021466496280102353,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 0.4100531050769832
+                      "value": 0.021466496280102353
                     },
                     "population_stddev": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4238
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.4100531050769832,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.021466496280102353,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 0.0
@@ -1505,17 +1505,17 @@
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4238
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.4100531050769832,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.021466496280102353,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1
@@ -1526,93 +1526,93 @@
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4238
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.4100531050769832,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.021466496280102353,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 0.4100531050769832
+                      "value": 0.021466496280102353
                     },
                     "mean": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4238
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.4100531050769832,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.021466496280102353,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 0.4100531050769832
+                      "value": 0.021466496280102353
                     },
                     "median": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4238
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.4100531050769832,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.021466496280102353,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 0.4100531050769832
+                      "value": 0.021466496280102353
                     },
                     "min": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4238
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.4100531050769832,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.021466496280102353,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 0.4100531050769832
+                      "value": 0.021466496280102353
                     },
                     "population_stddev": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4238
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.4100531050769832,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.021466496280102353,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 0.0
@@ -1621,7 +1621,7 @@
                   "unit": "m",
                   "value_kind": "numeric"
                 },
-                "value": 100405
+                "value": 100000
               }
             ],
             "variant": [
@@ -1641,17 +1641,17 @@
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4238
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.4100531050769832,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.021466496280102353,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1
@@ -1662,93 +1662,93 @@
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4238
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.4100531050769832,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.021466496280102353,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 0.4100531050769832
+                      "value": 0.021466496280102353
                     },
                     "mean": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4238
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.4100531050769832,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.021466496280102353,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 0.4100531050769832
+                      "value": 0.021466496280102353
                     },
                     "median": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4238
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.4100531050769832,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.021466496280102353,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 0.4100531050769832
+                      "value": 0.021466496280102353
                     },
                     "min": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4238
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.4100531050769832,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.021466496280102353,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 0.4100531050769832
+                      "value": 0.021466496280102353
                     },
                     "population_stddev": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4238
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.4100531050769832,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.021466496280102353,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 0.0
@@ -1757,7 +1757,7 @@
                   "unit": "m",
                   "value_kind": "numeric"
                 },
-                "value": "robustness of the policy to positional variation of the bell"
+                "value": "task_execution.object_position_variation"
               }
             ]
           },
@@ -1780,17 +1780,17 @@
                 "provenance": [
                   {
                     "details_reason": "measured",
-                    "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+                    "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
                     "evidence_steps": [
-                      4238
+                      5514
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100405,
-                    "source_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
-                    "value": 0.4100531050769832,
-                    "variant": "robustness of the policy to positional variation of the bell"
+                    "seed": 100000,
+                    "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
+                    "value": 0.021466496280102353,
+                    "variant": "task_execution.object_position_variation"
                   }
                 ],
                 "value": 1
@@ -1801,93 +1801,93 @@
                 "provenance": [
                   {
                     "details_reason": "measured",
-                    "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+                    "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
                     "evidence_steps": [
-                      4238
+                      5514
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100405,
-                    "source_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
-                    "value": 0.4100531050769832,
-                    "variant": "robustness of the policy to positional variation of the bell"
+                    "seed": 100000,
+                    "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
+                    "value": 0.021466496280102353,
+                    "variant": "task_execution.object_position_variation"
                   }
                 ],
-                "value": 0.4100531050769832
+                "value": 0.021466496280102353
               },
               "mean": {
                 "provenance": [
                   {
                     "details_reason": "measured",
-                    "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+                    "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
                     "evidence_steps": [
-                      4238
+                      5514
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100405,
-                    "source_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
-                    "value": 0.4100531050769832,
-                    "variant": "robustness of the policy to positional variation of the bell"
+                    "seed": 100000,
+                    "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
+                    "value": 0.021466496280102353,
+                    "variant": "task_execution.object_position_variation"
                   }
                 ],
-                "value": 0.4100531050769832
+                "value": 0.021466496280102353
               },
               "median": {
                 "provenance": [
                   {
                     "details_reason": "measured",
-                    "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+                    "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
                     "evidence_steps": [
-                      4238
+                      5514
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100405,
-                    "source_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
-                    "value": 0.4100531050769832,
-                    "variant": "robustness of the policy to positional variation of the bell"
+                    "seed": 100000,
+                    "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
+                    "value": 0.021466496280102353,
+                    "variant": "task_execution.object_position_variation"
                   }
                 ],
-                "value": 0.4100531050769832
+                "value": 0.021466496280102353
               },
               "min": {
                 "provenance": [
                   {
                     "details_reason": "measured",
-                    "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+                    "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
                     "evidence_steps": [
-                      4238
+                      5514
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100405,
-                    "source_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
-                    "value": 0.4100531050769832,
-                    "variant": "robustness of the policy to positional variation of the bell"
+                    "seed": 100000,
+                    "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
+                    "value": 0.021466496280102353,
+                    "variant": "task_execution.object_position_variation"
                   }
                 ],
-                "value": 0.4100531050769832
+                "value": 0.021466496280102353
               },
               "population_stddev": {
                 "provenance": [
                   {
                     "details_reason": "measured",
-                    "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+                    "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
                     "evidence_steps": [
-                      4238
+                      5514
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100405,
-                    "source_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
-                    "value": 0.4100531050769832,
-                    "variant": "robustness of the policy to positional variation of the bell"
+                    "seed": 100000,
+                    "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
+                    "value": 0.021466496280102353,
+                    "variant": "task_execution.object_position_variation"
                   }
                 ],
                 "value": 0.0
@@ -1925,17 +1925,17 @@
                     "valid": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 18.7,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "value": 22.056,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1
@@ -1945,89 +1945,89 @@
                     "max": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 18.7,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "value": 22.056,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 18.7
+                      "value": 22.056
                     },
                     "mean": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 18.7,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "value": 22.056,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 18.7
+                      "value": 22.056
                     },
                     "median": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 18.7,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "value": 22.056,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 18.7
+                      "value": 22.056
                     },
                     "min": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 18.7,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "value": 22.056,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 18.7
+                      "value": 22.056
                     },
                     "population_stddev": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 18.7,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "value": 22.056,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 0.0
@@ -2055,17 +2055,17 @@
                     "valid": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 18.7,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "value": 22.056,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1
@@ -2075,89 +2075,89 @@
                     "max": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 18.7,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "value": 22.056,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 18.7
+                      "value": 22.056
                     },
                     "mean": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 18.7,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "value": 22.056,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 18.7
+                      "value": 22.056
                     },
                     "median": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 18.7,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "value": 22.056,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 18.7
+                      "value": 22.056
                     },
                     "min": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 18.7,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "value": 22.056,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 18.7
+                      "value": 22.056
                     },
                     "population_stddev": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 18.7,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "value": 22.056,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 0.0
@@ -2185,17 +2185,17 @@
                     "valid": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 18.7,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "value": 22.056,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1
@@ -2205,89 +2205,89 @@
                     "max": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 18.7,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "value": 22.056,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 18.7
+                      "value": 22.056
                     },
                     "mean": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 18.7,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "value": 22.056,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 18.7
+                      "value": 22.056
                     },
                     "median": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 18.7,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "value": 22.056,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 18.7
+                      "value": 22.056
                     },
                     "min": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 18.7,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "value": 22.056,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 18.7
+                      "value": 22.056
                     },
                     "population_stddev": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 18.7,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "value": 22.056,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 0.0
@@ -2296,7 +2296,7 @@
                   "unit": "s",
                   "value_kind": "numeric"
                 },
-                "value": 100405
+                "value": 100000
               }
             ],
             "variant": [
@@ -2315,17 +2315,17 @@
                     "valid": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 18.7,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "value": 22.056,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 1
@@ -2335,89 +2335,89 @@
                     "max": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 18.7,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "value": 22.056,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 18.7
+                      "value": 22.056
                     },
                     "mean": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 18.7,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "value": 22.056,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 18.7
+                      "value": 22.056
                     },
                     "median": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 18.7,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "value": 22.056,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 18.7
+                      "value": 22.056
                     },
                     "min": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 18.7,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "value": 22.056,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
-                      "value": 18.7
+                      "value": 22.056
                     },
                     "population_stddev": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100405",
+                          "episode_dir": "act/episode_000_seed_100000",
                           "evidence_steps": [
-                            4675
+                            5514
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100405,
-                          "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 18.7,
-                          "variant": "robustness of the policy to positional variation of the bell"
+                          "seed": 100000,
+                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "value": 22.056,
+                          "variant": "task_execution.object_position_variation"
                         }
                       ],
                       "value": 0.0
@@ -2426,7 +2426,7 @@
                   "unit": "s",
                   "value_kind": "numeric"
                 },
-                "value": "robustness of the policy to positional variation of the bell"
+                "value": "task_execution.object_position_variation"
               }
             ]
           },
@@ -2448,17 +2448,17 @@
               "valid": {
                 "provenance": [
                   {
-                    "episode_dir": "act/episode_000_seed_100405",
+                    "episode_dir": "act/episode_000_seed_100000",
                     "evidence_steps": [
-                      4675
+                      5514
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100405,
-                    "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
-                    "value": 18.7,
-                    "variant": "robustness of the policy to positional variation of the bell"
+                    "seed": 100000,
+                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                    "value": 22.056,
+                    "variant": "task_execution.object_position_variation"
                   }
                 ],
                 "value": 1
@@ -2468,89 +2468,89 @@
               "max": {
                 "provenance": [
                   {
-                    "episode_dir": "act/episode_000_seed_100405",
+                    "episode_dir": "act/episode_000_seed_100000",
                     "evidence_steps": [
-                      4675
+                      5514
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100405,
-                    "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
-                    "value": 18.7,
-                    "variant": "robustness of the policy to positional variation of the bell"
+                    "seed": 100000,
+                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                    "value": 22.056,
+                    "variant": "task_execution.object_position_variation"
                   }
                 ],
-                "value": 18.7
+                "value": 22.056
               },
               "mean": {
                 "provenance": [
                   {
-                    "episode_dir": "act/episode_000_seed_100405",
+                    "episode_dir": "act/episode_000_seed_100000",
                     "evidence_steps": [
-                      4675
+                      5514
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100405,
-                    "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
-                    "value": 18.7,
-                    "variant": "robustness of the policy to positional variation of the bell"
+                    "seed": 100000,
+                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                    "value": 22.056,
+                    "variant": "task_execution.object_position_variation"
                   }
                 ],
-                "value": 18.7
+                "value": 22.056
               },
               "median": {
                 "provenance": [
                   {
-                    "episode_dir": "act/episode_000_seed_100405",
+                    "episode_dir": "act/episode_000_seed_100000",
                     "evidence_steps": [
-                      4675
+                      5514
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100405,
-                    "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
-                    "value": 18.7,
-                    "variant": "robustness of the policy to positional variation of the bell"
+                    "seed": 100000,
+                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                    "value": 22.056,
+                    "variant": "task_execution.object_position_variation"
                   }
                 ],
-                "value": 18.7
+                "value": 22.056
               },
               "min": {
                 "provenance": [
                   {
-                    "episode_dir": "act/episode_000_seed_100405",
+                    "episode_dir": "act/episode_000_seed_100000",
                     "evidence_steps": [
-                      4675
+                      5514
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100405,
-                    "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
-                    "value": 18.7,
-                    "variant": "robustness of the policy to positional variation of the bell"
+                    "seed": 100000,
+                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                    "value": 22.056,
+                    "variant": "task_execution.object_position_variation"
                   }
                 ],
-                "value": 18.7
+                "value": 22.056
               },
               "population_stddev": {
                 "provenance": [
                   {
-                    "episode_dir": "act/episode_000_seed_100405",
+                    "episode_dir": "act/episode_000_seed_100000",
                     "evidence_steps": [
-                      4675
+                      5514
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100405,
-                    "source_artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
-                    "value": 18.7,
-                    "variant": "robustness of the policy to positional variation of the bell"
+                    "seed": 100000,
+                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                    "value": 22.056,
+                    "variant": "task_execution.object_position_variation"
                   }
                 ],
                 "value": 0.0

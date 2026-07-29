@@ -72,6 +72,11 @@ def _decision_planning_lineage(
 
     raw = step.get("planning_lineage")
     if raw is None:
+        if step.get("action") in {"propose", "refine"}:
+            raise OpenWorldSessionError(
+                "continuing open-world PlanStepProposal requires "
+                "planning_lineage"
+            )
         return None
     if not isinstance(raw, Mapping):
         raise OpenWorldSessionError(
@@ -143,9 +148,14 @@ def _decision_planning_lineage(
                 "evidence exists"
             )
     elif decision_kind == "pre_evidence_query_candidate":
-        if lineage.get("evidence_conditioned") is not False or raw_ids:
+        if (
+            lineage.get("evidence_conditioned") is not False
+            or raw_ids
+            or observed_ids
+        ):
             raise OpenWorldSessionError(
-                "pre-evidence planning lineage cannot cite completed evidence"
+                "pre-evidence planning is valid only before any round "
+                "evidence exists"
             )
     else:
         raise OpenWorldSessionError(

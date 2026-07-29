@@ -1,15 +1,22 @@
 ```json
 {
-  "schema_version": 1,
-  "source_query": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。",
-  "sub_aspect": "robustness of the policy to positional variation of the bell",
-  "hypothesis": "The ACT policy can successfully complete the click_bell task when the bell is shifted to a new position within a bounded range.",
-  "task_intent": "The agent must press the bell to complete the click_bell task, maintaining the contact geometry required for activation.",
-  "requested_variation": "Shift the bell's position horizontally by a small, bounded distance while keeping its size, shape, material, and the overall scene layout unchanged.",
-  "measurement_need": "Determine whether the policy successfully activates the bell in the new position.",
+  "schema_version": 2,
+  "action": "continue",
+  "sub_aspect": "task_execution.object_position_variation",
+  "hypothesis": "The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds.",
+  "requested_perturbation": {
+    "description": "Introduce a bounded variation in the bell's position.",
+    "controlled_changes": [
+      "object_position"
+    ],
+    "preserve": [
+      "task identity",
+      "policy checkpoint"
+    ]
+  },
   "scene_need": {
     "required": true,
-    "description": "The bell's position must be shifted horizontally within a small, bounded range, while preserving its size, shape, material, and the overall scene layout."
+    "description": "Scene construction or adaptation needed to modify the bell's position."
   },
   "checker_need": {
     "required": false,
@@ -17,13 +24,14 @@
   },
   "rule_tool_need": {
     "required": true,
-    "description": "The numeric evidence of whether the bell was successfully activated in the new position.",
+    "description": "Numeric or symbolic Rule Tool observable needed.",
     "reuse_first": true
   },
   "vqa_tool_need": {
     "required": false,
     "description": null,
     "reuse_first": true
-  }
+  },
+  "rationale": "Testing object position variation directly probes the robustness of the ACT policy under manipulated-object property changes, addressing a key uncertainty in the original Query."
 }
 ```

@@ -265,6 +265,62 @@ class OpenWorldPlanSessionTests(unittest.TestCase):
                 source="provider_claim_first_open_query",
             )
 
+    def test_continuing_step_requires_lineage(self):
+        candidate = _candidate()
+        with self.assertRaisesRegex(
+            OpenWorldSessionError,
+            "requires planning_lineage",
+        ):
+            self.session.apply_plan_step(
+                self.plan,
+                [{"round_id": "round_1"}],
+                {
+                    "schema_version": 2,
+                    "action": "propose",
+                    "candidate_id": candidate["candidate_id"],
+                    "experiment_candidate": candidate,
+                    "rationale": "Unbound continuing proposal.",
+                    "answered_query": False,
+                },
+                materialized_round={
+                    "round_id": "round_2",
+                    "candidate_id": candidate["candidate_id"],
+                    "experiment_candidate": candidate,
+                },
+            )
+
+    def test_pre_evidence_lineage_rejected_after_an_observation(self):
+        candidate = _candidate()
+        with self.assertRaisesRegex(
+            OpenWorldSessionError,
+            "valid only before any round evidence exists",
+        ):
+            self.session.apply_plan_step(
+                self.plan,
+                [{"round_id": "round_1"}],
+                {
+                    "schema_version": 2,
+                    "action": "propose",
+                    "candidate_id": candidate["candidate_id"],
+                    "experiment_candidate": candidate,
+                    "rationale": "Stale query-only proposal.",
+                    "answered_query": False,
+                    "planning_lineage": {
+                        "schema_version": 1,
+                        "decision_kind": "pre_evidence_query_candidate",
+                        "evidence_conditioned": False,
+                        "completed_round_ids": [],
+                        "completed_round_count": 0,
+                        "input_digest": "0" * 64,
+                    },
+                },
+                materialized_round={
+                    "round_id": "round_2",
+                    "candidate_id": candidate["candidate_id"],
+                    "experiment_candidate": candidate,
+                },
+            )
+
     def test_contract_can_start_with_tool_only_round_without_control(self):
         contract = build_query_sufficiency_contract(
             "Diagnose post-release angular velocity.",
@@ -328,6 +384,14 @@ class OpenWorldPlanSessionTests(unittest.TestCase):
                 "experiment_candidate": candidate,
                 "rationale": "The Query only needs trajectory telemetry.",
                 "answered_query": False,
+                "planning_lineage": {
+                    "schema_version": 1,
+                    "decision_kind": "pre_evidence_query_candidate",
+                    "evidence_conditioned": False,
+                    "completed_round_ids": [],
+                    "completed_round_count": 0,
+                    "input_digest": "0" * 64,
+                },
             },
             materialized_round=generated_round,
         )
@@ -358,6 +422,14 @@ class OpenWorldPlanSessionTests(unittest.TestCase):
                     "experiment_candidate": candidate,
                     "rationale": "invalid task switch",
                     "answered_query": False,
+                    "planning_lineage": {
+                        "schema_version": 1,
+                        "decision_kind": "evidence_conditioned_refinement",
+                        "evidence_conditioned": True,
+                        "completed_round_ids": ["round_1"],
+                        "completed_round_count": 1,
+                        "input_digest": "a" * 64,
+                    },
                 },
                 materialized_round={
                     "round_id": "round_2",
@@ -379,6 +451,14 @@ class OpenWorldPlanSessionTests(unittest.TestCase):
                     "experiment_candidate": valid_candidate,
                     "rationale": "invalid checkpoint switch",
                     "answered_query": False,
+                    "planning_lineage": {
+                        "schema_version": 1,
+                        "decision_kind": "evidence_conditioned_refinement",
+                        "evidence_conditioned": True,
+                        "completed_round_ids": ["round_1"],
+                        "completed_round_count": 1,
+                        "input_digest": "a" * 64,
+                    },
                 },
                 materialized_round={
                     "round_id": "round_2",

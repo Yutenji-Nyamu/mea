@@ -1,0 +1,18 @@
+{
+  "schema_version": 2,
+  "task_name": "click_bell",
+  "metric": "query_derived_metric",
+  "question": "Reuse the validated query_derived_metric measurement.",
+  "metric_spec": {
+    "schema_version": 1,
+    "operation": "minimum_distance",
+    "left_signal": "right_tcp_position",
+    "right_signal": "bell_contact_position",
+    "dimensions": [
+      "x",
+      "y"
+    ],
+    "unit": "m",
+    "null_semantics": "null_if_no_finite_sample"
+  }
+}

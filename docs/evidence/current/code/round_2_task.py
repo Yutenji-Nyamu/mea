@@ -7,16 +7,21 @@ from envs.click_bell import *
 class click_bell(_official_task_module.click_bell):
     def load_actors(self):
             rand_pos = rand_pose(
-                xlim=[-0.15, 0.15],
+                xlim=[-0.25, 0.25],
                 ylim=[-0.2, 0.0],
                 qpos=[0.5, 0.5, 0.5, 0.5],
             )
             while abs(rand_pos.p[0]) < 0.05:
                 rand_pos = rand_pose(
-                    xlim=[-0.15, 0.15],
+                    xlim=[-0.25, 0.25],
                     ylim=[-0.2, 0.0],
                     qpos=[0.5, 0.5, 0.5, 0.5],
                 )
+
+            # Introduce bounded variation in the bell's position
+            perturbation = np.random.uniform(-0.02, 0.02, size=3)
+            perturbed_position = rand_pos.p + perturbation
+            rand_pos = sapien.Pose(p=perturbed_position, q=rand_pos.q)
 
             self.bell_id = np.random.choice([0, 1], 1)[0]
             self.bell = create_actor(

@@ -710,9 +710,11 @@ def write_evidence_report(
             task_proposal_heading = "### Plan -> TaskProposal"
             task_proposal_payload = persisted_task_proposal
         else:
-            task_proposal_heading = "### Legacy plan intent"
+            task_proposal_heading = (
+                "### Compatibility task projection (not used for planning)"
+            )
             task_proposal_payload = {
-                "proposal_status": "missing_legacy_projection",
+                "proposal_status": "not_projected_in_compatibility_view",
                 "task_name": round_plan.get("task_name") or target.get("task_name"),
                 "aspect_id": compact["aspect_id"],
                 "task_instruction": round_plan.get("task_instruction"),
@@ -722,9 +724,11 @@ def write_evidence_report(
             tool_proposal_heading = "### ToolProposal -> ToolGen / reuse"
             tool_proposal_payload = persisted_tool_proposal
         else:
-            tool_proposal_heading = "### Legacy Tool request"
+            tool_proposal_heading = (
+                "### Compatibility Tool projection (not used for planning)"
+            )
             tool_proposal_payload = {
-                "proposal_status": "missing_legacy_projection",
+                "proposal_status": "not_projected_in_compatibility_view",
                 "tool_request": tool.get("tool_request") or None,
             }
 
@@ -976,6 +980,7 @@ def write_evidence_report(
         "schema_version": 1,
         "evaluation_id": manifest.get("evaluation_id"),
         "source_evaluation": str(evaluation.relative_to(root)).replace("\\", "/"),
+        "source_server_path": str(evaluation.resolve()) if publish else None,
         "report": str(report_path.relative_to(root)).replace("\\", "/"),
         "publish_mode": bool(publish),
         "files": sorted(set(published_files)),

@@ -24,6 +24,11 @@
   position、orientation 分量全部验证并合取。
 - TaskGen/ToolGen 各允许一次局部 regenerate/repair；policy failure 不自动重跑。
 - 生产运行只写一份 `manifest.json`；实验 hash 放在 `experiments/paper/`。
+- control-required Query 在 control evidence 完成前不得生成、缓存或冻结下一
+  semantic candidate。后续 candidate 必须由 `ClaimFirstRuntimeController` 使用完整
+  completed-round evidence 生成，并携带 round lineage 与 input digest。
+- `mea/robotwin/executed_projection.py` 只用于迁移期校验已执行 child bundle；它不得
+  重跑 TaskGen/provider/ACT，也不能被描述成 native backend 已接管生产 mechanics。
 - 五个被运行时读取的 `mea/*/README.Agent.md`（feedback、retrieval、planner、taskgen、
   toolgen）是生成上下文，不能按普通文档删除；Table 3 当前只消融 TaskGen 的一份。
 
@@ -44,6 +49,11 @@
 [论文 claim 与 gap](paper_claim_gap_zh.md)和[当前证据](evidence/current/README.md)。
 新增 task 不应复制 task-specific planner，也不应仅因 checkpoint 存在或事后 replay
 通过就宣称干净在线方法闭环。
+
+统一多任务 SmolVLA checkpoint 的 server-only 安装与 runner 见
+[RoboTwin / SmolVLA 复现](robotwin_smolvla_reproduction_zh.md)。该 runner 动态导入
+`envs.<task>`，不维护任务 allowlist；它只增加 policy backend 广度，不替代上述
+Query→TaskGen/ToolGen→evidence planning 验收。
 
 ## 扩展 TaskGen
 

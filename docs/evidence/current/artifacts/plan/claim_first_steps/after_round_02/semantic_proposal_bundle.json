@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "source": "provider_claim_first_open_query",
+  "input_digest": "c0aea84e3ddc811ceecb455e7e5f8556adec93e518669fa41c398efcc283d2f3",
+  "planning_lineage": {
+    "schema_version": 1,
+    "decision_kind": "evidence_conditioned_refinement",
+    "evidence_conditioned": true,
+    "completed_round_ids": [
+      "round_1",
+      "round_2"
+    ],
+    "completed_round_count": 2,
+    "input_digest": "c0aea84e3ddc811ceecb455e7e5f8556adec93e518669fa41c398efcc283d2f3"
+  },
+  "proposal": {
+    "schema_version": 2,
+    "action": "continue",
+    "sub_aspect": "task_execution.object_instance_variation",
+    "hypothesis": "The ACT policy fails to achieve success when the bell's object instance is perturbed within allowable bounds.",
+    "requested_perturbation": {
+      "description": "Introduce a bounded variation in the bell's object instance.",
+      "controlled_changes": [
+        "object_instance"
+      ],
+      "preserve": [
+        "task identity",
+        "policy checkpoint"
+      ]
+    },
+    "scene_need": {
+      "required": true,
+      "description": "Scene construction or adaptation needed to introduce a new object instance for the bell."
+    },
+    "checker_need": {
+      "required": false,
+      "description": null
+    },
+    "rule_tool_need": {
+      "required": true,
+      "description": "Numeric or symbolic Rule Tool observable needed.",
+      "reuse_first": true
+    },
+    "vqa_tool_need": {
+      "required": false,
+      "description": null,
+      "reuse_first": true
+    },
+    "rationale": "Testing object instance variation is the next most informative step to identify potential weaknesses in the ACT policy under manipulated-object property changes, as it isolates a new causal factor not yet tested.",
+    "task_need": {
+      "required": true,
+      "description": "Scene construction or adaptation needed to introduce a new object instance for the bell."
+    },
+    "tool_need": {
+      "required": true,
+      "description": "Numeric or symbolic Rule Tool observable needed.",
+      "reuse_first": true
+    }
+  },
+  "provider": {
+    "model_requested": "gpt-4o-2024-11-20",
+    "called": true,
+    "attempt_count": 1,
+    "errors": [],
+    "last_metadata": {
+      "id": "chatcmpl-E6tTmoF8lfyNPflXoM5FnmZSTrxlD",
+      "model": "gpt-4o-2024-11-20",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 1990,
+        "completion_tokens": 279,
+        "total_tokens": 2269,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "audio_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "audio_tokens": 0,
+          "accepted_prediction_tokens": 0,
+          "rejected_prediction_tokens": 0
+        },
+        "latency_checkpoint": {
+          "engine_tbt_ms": 17,
+          "engine_ttft_ms": 166,
+          "engine_ttlt_ms": 4926,
+          "pre_inference_ms": 127,
+          "service_tbt_ms": 17,
+          "service_ttft_ms": 814,
+          "service_ttlt_ms": 5564,
+          "total_duration_ms": 5447,
+          "user_visible_ttft_ms": 687
+        }
+      },
+      "retry_count": 0
+    }
+  }
+}

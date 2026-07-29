@@ -2,8 +2,8 @@
   "schema_version": 1,
   "model_requested": "gpt-4o-2024-11-20",
   "selection": {
-    "video_path": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/evaluation/telemetry/act/episode_000_seed_100405/video.mp4",
-    "frame_count": 64,
+    "video_path": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_1/evaluation/telemetry/act/episode_000_seed_100000/video.mp4",
+    "frame_count": 78,
     "fps": 10.0,
     "selected_frames": [
       {
@@ -13,22 +13,22 @@
       },
       {
         "frame_id": "success_before",
-        "frame_index": 61,
+        "frame_index": 75,
         "source": "official_success_event"
       },
       {
         "frame_id": "success_after",
-        "frame_index": 62,
+        "frame_index": 76,
         "source": "official_success_event"
       },
       {
         "frame_id": "final",
-        "frame_index": 63,
+        "frame_index": 77,
         "source": "video_boundary"
       }
     ],
-    "reference_scene": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/evidence/initial_head.png",
-    "montage_path": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa/execution_montage.png"
+    "reference_scene": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_1/evidence/initial_head.png",
+    "montage_path": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_1/execution_vqa/execution_montage.png"
   },
   "query": {
     "schema_version": 1,
@@ -85,15 +85,15 @@
       "value": true,
       "unit": null,
       "evidence_steps": [
-        4424
+        5505
       ],
       "evidence": [
         {
           "type": "success_transition",
-          "policy_step": 62,
-          "physics_step": 4424,
-          "simulation_time_seconds": 17.696,
-          "video_frame_index": 62
+          "policy_step": 76,
+          "physics_step": 5505,
+          "simulation_time_seconds": 22.02,
+          "video_frame_index": 76
         }
       ],
       "details": {
@@ -106,22 +106,22 @@
       "tool": "time_to_success",
       "version": 1,
       "tool_sha256": "15b7e9522b6d4d018755674f6cf959233d80315bddeda7db0f49e039341b7104",
-      "value": 17.696,
+      "value": 22.02,
       "unit": "s",
       "evidence_steps": [
-        4424
+        5505
       ],
       "evidence": [
         {
           "type": "success_transition",
-          "policy_step": 62,
-          "physics_step": 4424,
-          "simulation_time_seconds": 17.696,
-          "video_frame_index": 62
+          "policy_step": 76,
+          "physics_step": 5505,
+          "simulation_time_seconds": 22.02,
+          "video_frame_index": 76
         }
       ],
       "details": {
-        "physics_step": 4424
+        "physics_step": 5505
       }
     }
   ],
@@ -149,7 +149,7 @@
   },
   "evidence_conflict": false,
   "provider_metadata": {
-    "id": "chatcmpl-E6qzyWSNO3z4qqHAC0y839Qm7OcYi",
+    "id": "chatcmpl-E6tQKeNkLf3mYV8VCCSTXWgveFWU5",
     "model": "gpt-4o-2024-11-20",
     "finish_reason": "stop",
     "usage": {
@@ -168,26 +168,26 @@
       },
       "latency_checkpoint": {
         "engine_tbt_ms": 10,
-        "engine_ttft_ms": 776,
-        "engine_ttlt_ms": 1839,
-        "pre_inference_ms": 265,
+        "engine_ttft_ms": 642,
+        "engine_ttlt_ms": 1726,
+        "pre_inference_ms": 272,
         "service_tbt_ms": 10,
-        "service_ttft_ms": 1904,
-        "service_ttlt_ms": 2960,
-        "total_duration_ms": 2707,
-        "user_visible_ttft_ms": 1639
+        "service_ttft_ms": 1250,
+        "service_ttlt_ms": 2331,
+        "total_duration_ms": 2067,
+        "user_visible_ttft_ms": 978
       }
     },
     "retry_count": 0
   },
   "artifacts": {
-    "result": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa/execution_vqa.json",
-    "prompt": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa/execution_vqa_prompt.md",
-    "response": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa/execution_vqa_response.txt",
-    "montage": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa/execution_montage.png",
-    "selection": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa/keyframe_selection.json",
-    "query": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa/execution_vqa_query.json"
+    "result": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_1/execution_vqa/execution_vqa.json",
+    "prompt": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_1/execution_vqa/execution_vqa_prompt.md",
+    "response": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_1/execution_vqa/execution_vqa_response.txt",
+    "montage": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_1/execution_vqa/execution_montage.png",
+    "selection": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_1/execution_vqa/keyframe_selection.json",
+    "query": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_1/execution_vqa/execution_vqa_query.json"
   },
   "status": "passed",
-  "representative_episode": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/evaluation/telemetry/act/episode_000_seed_100405"
+  "representative_episode": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_1/evaluation/telemetry/act/episode_000_seed_100000"
 }

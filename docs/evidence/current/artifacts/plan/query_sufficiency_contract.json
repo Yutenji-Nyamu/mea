@@ -1,19 +1,21 @@
 {
   "schema_version": 3,
-  "claim_type": "existential",
+  "claim_type": "diagnostic",
   "candidate_universe": [
-    "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+    "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23",
+    "dynamic.click.bell.task.execution.object.instance.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.object.instance.is.perturbed.within.allowable.bounds.5cc7bb074cee"
   ],
   "required_coverage": {
     "candidate_ids": [
-      "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+      "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23",
+      "dynamic.click.bell.task.execution.object.instance.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.object.instance.is.perturbed.within.allowable.bounds.5cc7bb074cee"
     ],
     "minimum_evaluated": 1,
     "minimum_per_group": null
   },
-  "round_budget": 1,
+  "round_budget": 2,
   "comparison_groups": null,
   "candidate_universe_closed": false,
-  "existential_witness_outcome": "pass",
+  "existential_witness_outcome": null,
   "control_requirement": "required"
 }

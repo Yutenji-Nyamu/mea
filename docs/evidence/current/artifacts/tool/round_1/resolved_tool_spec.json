@@ -23,9 +23,9 @@
     {
       "role": "policy_under_evaluation",
       "policy_name": "ACT",
-      "seed": 100405,
+      "seed": 100000,
       "oracle_value": true,
-      "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/evaluation/telemetry/act/episode_000_seed_100405"
+      "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_1/evaluation/telemetry/act/episode_000_seed_100000"
     }
   ],
   "requested_route": "auto",

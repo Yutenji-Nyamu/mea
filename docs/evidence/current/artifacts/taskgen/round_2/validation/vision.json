@@ -7,7 +7,7 @@
   "passed": true,
   "provider_metadata": {
     "finish_reason": "stop",
-    "id": "chatcmpl-E6r21Lnop83PoCEb7jrYan97ESSG9",
+    "id": "chatcmpl-E6tSVvYZ6LOCkihryjtxoD9Gjlgkh",
     "model": "gpt-4o-2024-11-20",
     "retry_count": 0,
     "usage": {
@@ -19,22 +19,22 @@
         "rejected_prediction_tokens": 0
       },
       "latency_checkpoint": {
-        "engine_tbt_ms": 12,
-        "engine_ttft_ms": 379,
-        "engine_ttlt_ms": 1492,
-        "pre_inference_ms": 239,
-        "service_tbt_ms": 12,
-        "service_ttft_ms": 1137,
-        "service_ttlt_ms": 2256,
-        "total_duration_ms": 2019,
-        "user_visible_ttft_ms": 898
+        "engine_tbt_ms": 10,
+        "engine_ttft_ms": 453,
+        "engine_ttlt_ms": 1358,
+        "pre_inference_ms": 350,
+        "service_tbt_ms": 10,
+        "service_ttft_ms": 1070,
+        "service_ttlt_ms": 1973,
+        "total_duration_ms": 1660,
+        "user_visible_ttft_ms": 720
       },
-      "prompt_tokens": 745,
+      "prompt_tokens": 681,
       "prompt_tokens_details": {
         "audio_tokens": 0,
         "cached_tokens": 0
       },
-      "total_tokens": 839
+      "total_tokens": 775
     }
   },
   "render_usable": true,

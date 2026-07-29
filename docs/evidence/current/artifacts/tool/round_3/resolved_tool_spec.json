@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "task_name": "click_bell",
+  "metric": "query_derived_metric",
+  "question": "Reuse the validated query_derived_metric measurement.",
+  "route": "force_codegen",
+  "reference_tool": null,
+  "required_signals": [
+    "semantic_trace.right_tcp_position",
+    "semantic_trace.bell_contact_position",
+    "semantic_trace.physics_step"
+  ],
+  "output_contract": {
+    "source": "typed_metric_spec_v1",
+    "metric_spec": {
+      "schema_version": 1,
+      "operation": "minimum_distance",
+      "left_signal": "right_tcp_position",
+      "right_signal": "bell_contact_position",
+      "dimensions": [
+        "x",
+        "y"
+      ],
+      "unit": "m",
+      "null_semantics": "null_if_no_finite_sample"
+    },
+    "value_type": "number_or_null",
+    "unit": "m",
+    "passed": null,
+    "evidence": "argmin_physics_step"
+  },
+  "validation_requirements": {
+    "min_episodes": 1,
+    "distinct_reference_values": false,
+    "required_reference_values": []
+  }
+}

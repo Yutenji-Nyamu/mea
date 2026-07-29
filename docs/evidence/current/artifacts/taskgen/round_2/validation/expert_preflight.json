@@ -1,7 +1,7 @@
 {
   "task_name": "click_bell",
-  "task_module": "mea.generated_task_attempts.run_20260729_batch31_open_flagship_live_v13_round_2.attempt_01.candidate_task",
-  "seed": 100405,
+  "task_module": "mea.generated_task_attempts.run_20260729_b30_refinement_live_v2_round_2.attempt_01.candidate_task",
+  "seed": 100000,
   "setup_success": true,
   "render_success": true,
   "expert_requested": true,
@@ -106,9 +106,9 @@
     {
       "name": "050_bell",
       "position": [
-        0.10803410410881042,
-        -0.150938019156456,
-        0.7409999966621399
+        0.06159507855772972,
+        -0.11331125348806381,
+        0.7359002232551575
       ],
       "quaternion": [
         0.5,
@@ -124,9 +124,9 @@
       "task_attribute": "bell",
       "scene_name": "050_bell",
       "position": [
-        0.10803410410881042,
-        -0.150938019156456,
-        0.7409999966621399
+        0.06159507855772972,
+        -0.11331125348806381,
+        0.7359002232551575
       ],
       "quaternion": [
         0.5,
@@ -138,24 +138,24 @@
         {
           "geometry_type": "create_actor_asset",
           "modelname": "050_bell",
-          "model_id": 0,
-          "collision_asset": "assets/objects/050_bell/collision/base0.glb",
+          "model_id": 1,
+          "collision_asset": "assets/objects/050_bell/collision/base1.glb",
           "convex": true,
           "is_static": true,
           "scale": [
-            0.05,
-            0.05,
-            0.05
+            0.04,
+            0.04,
+            0.04
           ],
           "extents": [
-            2.6062153508915715,
-            1.3512622824846536,
-            2.6047822115776125
+            2.5883968548477228,
+            1.3250785247084105,
+            2.5887140724986057
           ],
           "center": [
-            5.9123290448562685e-05,
-            0.6583665104244772,
-            0.00011460309493964425
+            8.667908080472183e-05,
+            0.6445632287777463,
+            0.0006842777984963255
           ]
         }
       ],
@@ -163,14 +163,14 @@
       "contact_points": {
         "0": {
           "position": [
-            0.10803410410881042,
-            -0.150938019156456,
-            0.7790379971265793
+            0.06159507855772972,
+            -0.11331125348806381,
+            0.7616906237602233
           ],
           "raw": [
-            0.10803410410881042,
-            -0.150938019156456,
-            0.7790379971265793,
+            0.06159507855772972,
+            -0.11331125348806381,
+            0.7616906237602233,
             0.5000000000000001,
             0.5,
             0.5000000000000001,
@@ -181,9 +181,9 @@
     }
   ],
   "task_attributes": {
-    "bell_id": 0
+    "bell_id": 1
   },
-  "image": "/root/autodl-tmp/mea/mea/generated_task_attempts/run_20260729_batch31_open_flagship_live_v13_round_2/attempt_01/expert_head.png",
+  "image": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_task_attempts/run_20260729_b30_refinement_live_v2_round_2/attempt_01/expert_head.png",
   "rule_check": {
     "all_tracked_actor_attributes_present": true,
     "tracked_actor_runtime_names_match": true,

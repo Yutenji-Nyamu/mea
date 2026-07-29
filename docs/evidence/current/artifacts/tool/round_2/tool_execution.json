@@ -8,11 +8,11 @@
     "schema_version": 1,
     "task_name": "click_bell",
     "metric": "query_derived_metric",
-    "question": "Does the ACT policy successfully activate the bell when its position is shifted within a bounded range?",
+    "question": "Where does the ACT policy first expose a weakness under manipulated-object property changes, and what evidence supports that conclusion?",
     "route": "force_codegen",
     "reference_tool": null,
     "required_signals": [
-      "semantic_trace.left_tcp_position",
+      "semantic_trace.right_tcp_position",
       "semantic_trace.bell_contact_position",
       "semantic_trace.physics_step"
     ],
@@ -21,7 +21,7 @@
       "metric_spec": {
         "schema_version": 1,
         "operation": "minimum_distance",
-        "left_signal": "left_tcp_position",
+        "left_signal": "right_tcp_position",
         "right_signal": "bell_contact_position",
         "dimensions": [
           "x",
@@ -45,11 +45,11 @@
     "schema_version": 2,
     "task_name": "click_bell",
     "metric": "query_derived_metric",
-    "question": "Does the ACT policy successfully activate the bell when its position is shifted within a bounded range?",
+    "question": "Where does the ACT policy first expose a weakness under manipulated-object property changes, and what evidence supports that conclusion?",
     "metric_spec": {
       "schema_version": 1,
       "operation": "minimum_distance",
-      "left_signal": "left_tcp_position",
+      "left_signal": "right_tcp_position",
       "right_signal": "bell_contact_position",
       "dimensions": [
         "x",
@@ -79,35 +79,35 @@
     "scope": "run_local_generated",
     "tool": "query_derived_metric",
     "reference_tool": null,
-    "artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/typed_metric_spec/generated_tool.py",
-    "registration_id": "runlocal_6e7c5dc558a8dad45199"
+    "artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/typed_metric_spec/generated_tool.py",
+    "registration_id": "runlocal_d36e2786c1eeba5f5c20"
   },
   "episodes": [
     {
-      "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+      "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
       "policy_name": "ACT",
-      "seed": 100405,
+      "seed": 100000,
       "role": "policy_under_evaluation",
       "result": {
         "tool": "query_derived_metric",
-        "value": 0.4100531050769832,
+        "value": 0.021466496280102353,
         "unit": "m",
         "passed": null,
         "evidence_steps": [
-          4238
+          5514
         ],
         "details": {
           "operation": "minimum_distance",
-          "left_signal": "left_tcp_position",
+          "left_signal": "right_tcp_position",
           "right_signal": "bell_contact_position",
           "dimensions": [
             "x",
             "y"
           ],
-          "min_index": 4238,
+          "min_index": 5514,
           "reason": "measured"
         },
-        "tool_sha256": "26bffe98e03f11e1c382b8ecee7f7e2d35740a311bbfa8d81d4d109fe119db97"
+        "tool_sha256": "756aebac84595121665f4e8fed7855286f057ae9e56cb3e9b3019ae4b176e518"
       }
     }
   ],
@@ -119,11 +119,11 @@
     "differential_gates_passed": true
   },
   "artifacts": {
-    "tool_request": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_request.json",
-    "catalog_snapshot": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/catalog_snapshot.json",
-    "route_decision": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/route_decision.json",
-    "metric_spec_execution": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/typed_metric_spec/execution.json",
-    "resolved_tool_spec": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/resolved_tool_spec.json",
-    "tool_execution": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json"
+    "tool_request": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_request.json",
+    "catalog_snapshot": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/catalog_snapshot.json",
+    "route_decision": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/route_decision.json",
+    "metric_spec_execution": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/typed_metric_spec/execution.json",
+    "resolved_tool_spec": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/resolved_tool_spec.json",
+    "tool_execution": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json"
   }
 }

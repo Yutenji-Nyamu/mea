@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "status": "resolved",
+  "matching_policy": "strict_exact_metric_id",
+  "requested_route": "auto",
+  "resolved_route": "run_local_reuse",
+  "task_name": "click_bell",
+  "metric": "query_derived_metric",
+  "exact_match": true,
+  "matched_registry": "evaluation_local_tool_registry",
+  "reference_tool": null,
+  "provider_required": false,
+  "reason": "exact typed MetricSpec, task, and telemetry schema matched a validated evaluation-local Tool",
+  "catalog_snapshot_sha256": "f68d3894ea38589f958c78ac1b226f633955d0480d35b4987e6e145341c897be",
+  "provider_called": false
+}

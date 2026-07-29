@@ -29,9 +29,9 @@
   },
   "episodes": [
     {
-      "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/evaluation/telemetry/act/episode_000_seed_100405",
+      "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_1/evaluation/telemetry/act/episode_000_seed_100000",
       "policy_name": "ACT",
-      "seed": 100405,
+      "seed": 100000,
       "role": "policy_under_evaluation",
       "result": {
         "tool": "official_check_success",
@@ -39,7 +39,7 @@
         "unit": null,
         "passed": true,
         "evidence_steps": [
-          4424
+          5505
         ],
         "details": {
           "latched_eval_success": true,
@@ -56,12 +56,12 @@
     "required_reference_values_observed": true
   },
   "artifacts": {
-    "tool_spec": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/planned_tool/tool_spec.json",
-    "resolved_tool_spec": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/planned_tool/resolved_tool_spec.json",
-    "tool_execution": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/planned_tool/tool_execution.json",
-    "tool_request": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/planned_tool/tool_request.json",
-    "catalog_snapshot": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/planned_tool/catalog_snapshot.json",
-    "route_decision": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/planned_tool/route_decision.json"
+    "tool_spec": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_1/planned_tool/tool_spec.json",
+    "resolved_tool_spec": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_1/planned_tool/resolved_tool_spec.json",
+    "tool_execution": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_1/planned_tool/tool_execution.json",
+    "tool_request": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_1/planned_tool/tool_request.json",
+    "catalog_snapshot": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_1/planned_tool/catalog_snapshot.json",
+    "route_decision": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_1/planned_tool/route_decision.json"
   },
   "requested_route": "auto",
   "tool_request": {

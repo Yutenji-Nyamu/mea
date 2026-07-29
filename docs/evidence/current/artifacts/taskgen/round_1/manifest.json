@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "run_id": "run_20260729_batch31_open_flagship_live_v13_round_1",
+  "run_id": "run_20260729_b30_refinement_live_v2_round_1",
   "status": "completed",
-  "created_at": "2026-07-29T13:18:22.748754+08:00",
-  "user_request": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。",
+  "created_at": "2026-07-29T15:53:17.463167+08:00",
+  "user_request": "Where does this ACT policy first expose a weakness under manipulated-object property changes, and what evidence supports that conclusion?",
   "task_name": "click_bell",
   "task_module": "envs.click_bell",
   "mode": "official",
   "generation_kind": "official_passthrough",
-  "base_commit": "1455852adbfdb2931d142739c13c4c6beb3be4c1",
-  "overlay": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/overlay.yml",
+  "base_commit": "ea03ddfbb624def181ba2587f9c785a6ca01689f",
+  "overlay": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_1/overlay.yml",
   "telemetry_profile": "balanced_v1",
   "static_validation": {
     "official_passthrough": {
@@ -46,7 +46,7 @@
   "scene_validation": {
     "task_name": "click_bell",
     "task_module": "envs.click_bell",
-    "seed": 100405,
+    "seed": 100000,
     "setup_success": true,
     "render_success": true,
     "expert_requested": false,
@@ -151,8 +151,8 @@
       {
         "name": "050_bell",
         "position": [
-          0.1800568401813507,
-          -0.150938019156456,
+          0.07269548624753952,
+          -0.11030896753072739,
           0.7409999966621399
         ],
         "quaternion": [
@@ -169,8 +169,8 @@
         "task_attribute": "bell",
         "scene_name": "050_bell",
         "position": [
-          0.1800568401813507,
-          -0.150938019156456,
+          0.07269548624753952,
+          -0.11030896753072739,
           0.7409999966621399
         ],
         "quaternion": [
@@ -183,24 +183,24 @@
           {
             "geometry_type": "create_actor_asset",
             "modelname": "050_bell",
-            "model_id": 0,
-            "collision_asset": "assets/objects/050_bell/collision/base0.glb",
+            "model_id": 1,
+            "collision_asset": "assets/objects/050_bell/collision/base1.glb",
             "convex": true,
             "is_static": true,
             "scale": [
-              0.05,
-              0.05,
-              0.05
+              0.04,
+              0.04,
+              0.04
             ],
             "extents": [
-              2.6062153508915715,
-              1.3512622824846536,
-              2.6047822115776125
+              2.5883968548477228,
+              1.3250785247084105,
+              2.5887140724986057
             ],
             "center": [
-              5.9123290448562685e-05,
-              0.6583665104244772,
-              0.00011460309493964425
+              8.667908080472183e-05,
+              0.6445632287777463,
+              0.0006842777984963255
             ]
           }
         ],
@@ -208,14 +208,14 @@
         "contact_points": {
           "0": {
             "position": [
-              0.1800568401813507,
-              -0.150938019156456,
-              0.7790379971265793
+              0.07269548624753952,
+              -0.11030896753072739,
+              0.7667903971672058
             ],
             "raw": [
-              0.1800568401813507,
-              -0.150938019156456,
-              0.7790379971265793,
+              0.07269548624753952,
+              -0.11030896753072739,
+              0.7667903971672058,
               0.5000000000000001,
               0.5,
               0.5000000000000001,
@@ -226,9 +226,9 @@
       }
     ],
     "task_attributes": {
-      "bell_id": 0
+      "bell_id": 1
     },
-    "image": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/evidence/initial_head.png",
+    "image": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_1/evidence/initial_head.png",
     "rule_check": {
       "all_tracked_actor_attributes_present": true,
       "tracked_actor_runtime_names_match": true,
@@ -272,13 +272,13 @@
       "0",
       "1",
       "envs.click_bell",
-      "/root/autodl-tmp/mea/mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/overlay.yml",
-      "100405",
-      "/root/autodl-tmp/mea/mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/evaluation/telemetry/act",
+      "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_1/overlay.yml",
+      "100000",
+      "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_1/evaluation/telemetry/act",
       "balanced_v1"
     ],
-    "started_at": "2026-07-29T13:19:02.441782+08:00",
-    "finished_at": "2026-07-29T13:19:59.821173+08:00",
+    "started_at": "2026-07-29T15:53:56.583056+08:00",
+    "finished_at": "2026-07-29T15:55:20.709302+08:00",
     "returncode": 0,
     "task_name": "click_bell",
     "task_config": "demo_clean",
@@ -287,7 +287,7 @@
     "policy_seed": 0,
     "num_episodes": 1,
     "actual_seeds": [
-      100405
+      100000
     ],
     "checkpoint": {
       "directory": "policy/ACT/act_ckpt/act-click_bell/demo_clean-50",
@@ -298,18 +298,18 @@
       "preflight_passed": true
     },
     "execution_receipt": null,
-    "source_eval_dir": "/root/autodl-tmp/mea/eval_result/click_bell/ACT/demo_clean/demo_clean/2026-07-29 13:19:07",
+    "source_eval_dir": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/eval_result/click_bell/ACT/demo_clean/demo_clean/2026-07-29 15:54:01",
     "copied_artifacts": [
-      "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/evaluation/episode0.mp4",
-      "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/evaluation/_result.txt"
+      "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_1/evaluation/episode0.mp4",
+      "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_1/evaluation/_result.txt"
     ],
     "copied_video_count": 1,
-    "telemetry_root": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/evaluation/telemetry/act",
+    "telemetry_root": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_1/evaluation/telemetry/act",
     "telemetry_episode_count": 1,
     "video_associations": [
       {
-        "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/evaluation/telemetry/act/episode_000_seed_100405",
-        "video": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/evaluation/telemetry/act/episode_000_seed_100405/video.mp4",
+        "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_1/evaluation/telemetry/act/episode_000_seed_100000",
+        "video": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_1/evaluation/telemetry/act/episode_000_seed_100000/video.mp4",
         "episode_index": 0
       }
     ],
@@ -332,7 +332,7 @@
     "reason": "paired expert/ACT execution was not requested",
     "expert_seeds": [],
     "act_seeds": [
-      100405
+      100000
     ]
   },
   "failure": null,
@@ -343,7 +343,7 @@
     "setup_render_rule"
   ],
   "trusted_tool_evaluation": {
-    "artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/evaluation/telemetry/tool_results.json",
+    "artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_1/evaluation/telemetry/tool_results.json",
     "episode_count": 1,
     "outcome_metric": "official_check_success",
     "outcome_authority": "official_check_success",
@@ -548,9 +548,9 @@
     },
     "episodes": [
       {
-        "episode_dir": "act/episode_000_seed_100405",
+        "episode_dir": "act/episode_000_seed_100000",
         "policy_name": "ACT",
-        "seed": 100405,
+        "seed": 100000,
         "success": true,
         "tool_results": [
           {
@@ -560,15 +560,15 @@
             "value": true,
             "unit": null,
             "evidence_steps": [
-              4424
+              5505
             ],
             "evidence": [
               {
                 "type": "success_transition",
-                "policy_step": 62,
-                "physics_step": 4424,
-                "simulation_time_seconds": 17.696,
-                "video_frame_index": 62
+                "policy_step": 76,
+                "physics_step": 5505,
+                "simulation_time_seconds": 22.02,
+                "video_frame_index": 76
               }
             ],
             "details": {
@@ -581,22 +581,22 @@
             "tool": "time_to_success",
             "version": 1,
             "tool_sha256": "15b7e9522b6d4d018755674f6cf959233d80315bddeda7db0f49e039341b7104",
-            "value": 17.696,
+            "value": 22.02,
             "unit": "s",
             "evidence_steps": [
-              4424
+              5505
             ],
             "evidence": [
               {
                 "type": "success_transition",
-                "policy_step": 62,
-                "physics_step": 4424,
-                "simulation_time_seconds": 17.696,
-                "video_frame_index": 62
+                "policy_step": 76,
+                "physics_step": 5505,
+                "simulation_time_seconds": 22.02,
+                "video_frame_index": 76
               }
             ],
             "details": {
-              "physics_step": 4424
+              "physics_step": 5505
             }
           }
         ]

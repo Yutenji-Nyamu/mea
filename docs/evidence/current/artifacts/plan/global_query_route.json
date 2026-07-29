@@ -5,7 +5,7 @@
     "decision": "route",
     "task_name": "click_bell",
     "task_profile": "adaptive_properties",
-    "evaluation_goal": "answer_open_query_with_evidence: 这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。",
+    "evaluation_goal": "answer_open_query_with_evidence: Where does this ACT policy first expose a weakness under manipulated-object property changes, and what evidence supports that conclusion?",
     "requested_aspect_ids": [],
     "first_aspect_id": null,
     "unsupported_capabilities": [],

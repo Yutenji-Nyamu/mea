@@ -2,29 +2,36 @@
   "schema_version": 2,
   "semantic_proposal_bundle": {
     "schema_version": 1,
-    "source": "provider_free_concern_direct_materialization",
-    "input_intent_id": "intent.c7b8b7a89baaba20",
+    "source": "provider_claim_first_open_query",
+    "input_digest": "ec67ceece3e66171cc151cd19cab45bb8c2e73af05f6995d2f3570c78db34d1a",
+    "planning_lineage": {
+      "schema_version": 1,
+      "decision_kind": "evidence_conditioned_refinement",
+      "evidence_conditioned": true,
+      "completed_round_ids": [
+        "round_1"
+      ],
+      "completed_round_count": 1,
+      "input_digest": "ec67ceece3e66171cc151cd19cab45bb8c2e73af05f6995d2f3570c78db34d1a"
+    },
     "proposal": {
       "schema_version": 2,
       "action": "continue",
-      "sub_aspect": "free_concern.robustness.of.the.policy.to.positional.variation.of.the.bell",
-      "hypothesis": "The ACT policy can successfully complete the click_bell task when the bell is shifted to a new position within a bounded range.",
+      "sub_aspect": "task_execution.object_position_variation",
+      "hypothesis": "The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds.",
       "requested_perturbation": {
-        "description": "Shift the bell's position horizontally by a small, bounded distance while keeping its size, shape, material, and the overall scene layout unchanged.",
+        "description": "Introduce a bounded variation in the bell's position.",
         "controlled_changes": [
-          "Shift the bell's position horizontally by a small, bounded distance while keeping its size, shape, material, and the overall scene layout unchanged."
+          "object_position"
         ],
         "preserve": [
-          "任务目标与接触几何语义",
-          "size",
-          "shape",
-          "material",
-          "the overall scene layout"
+          "task identity",
+          "policy checkpoint"
         ]
       },
       "scene_need": {
         "required": true,
-        "description": "The bell's position must be shifted horizontally within a small, bounded range, while preserving its size, shape, material, and the overall scene layout."
+        "description": "Scene construction or adaptation needed to modify the bell's position."
       },
       "checker_need": {
         "required": false,
@@ -32,7 +39,7 @@
       },
       "rule_tool_need": {
         "required": true,
-        "description": "The numeric evidence of whether the bell was successfully activated in the new position.",
+        "description": "Numeric or symbolic Rule Tool observable needed.",
         "reuse_first": true
       },
       "vqa_tool_need": {
@@ -40,14 +47,14 @@
         "description": null,
         "reuse_first": true
       },
-      "rationale": "Directly execute the catalog-free first concern selected for the original Query; no second Planner may replace it before the control evidence is observed.",
+      "rationale": "Testing object position variation directly probes the robustness of the ACT policy under manipulated-object property changes, addressing a key uncertainty in the original Query.",
       "task_need": {
         "required": true,
-        "description": "The bell's position must be shifted horizontally within a small, bounded range, while preserving its size, shape, material, and the overall scene layout."
+        "description": "Scene construction or adaptation needed to modify the bell's position."
       },
       "tool_need": {
         "required": true,
-        "description": "The numeric evidence of whether the bell was successfully activated in the new position.",
+        "description": "Numeric or symbolic Rule Tool observable needed.",
         "reuse_first": true
       }
     },
@@ -57,26 +64,34 @@
       "attempt_count": 1,
       "errors": [],
       "last_metadata": {
-        "id": "chatcmpl-E6qyI5cDkBC7gPDnNgBIICwY5GXJG",
+        "id": "chatcmpl-E6tQNpyAj5mekw5dqpPpygoUoxCNT",
         "model": "gpt-4o-2024-11-20",
         "finish_reason": "stop",
         "usage": {
-          "prompt_tokens": 776,
-          "completion_tokens": 346,
-          "total_tokens": 1122,
-          "prompt_tokens_details": {
-            "cached_tokens": 0,
-            "audio_tokens": 0
-          },
+          "completion_tokens": 267,
           "completion_tokens_details": {
+            "accepted_prediction_tokens": 0,
             "audio_tokens": 0,
             "reasoning_tokens": 0,
-            "accepted_prediction_tokens": 0,
             "rejected_prediction_tokens": 0
           },
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "input_tokens_details": null
+          "latency_checkpoint": {
+            "engine_tbt_ms": 7,
+            "engine_ttft_ms": 102,
+            "engine_ttlt_ms": 1950,
+            "pre_inference_ms": 133,
+            "service_tbt_ms": 7,
+            "service_ttft_ms": 449,
+            "service_ttlt_ms": 2290,
+            "total_duration_ms": 2168,
+            "user_visible_ttft_ms": 315
+          },
+          "prompt_tokens": 1684,
+          "prompt_tokens_details": {
+            "audio_tokens": 0,
+            "cached_tokens": 0
+          },
+          "total_tokens": 1951
         },
         "retry_count": 0
       }
@@ -85,7 +100,7 @@
   "semantic_needs": {
     "scene_need": {
       "required": true,
-      "description": "Shift the bell's position horizontally by a small, bounded distance while keeping its size, shape, material, and the overall scene layout unchanged. Preserve unchanged: 任务目标与接触几何语义; size; shape; material; the overall scene layout."
+      "description": "Scene construction or adaptation needed to modify the bell's position."
     },
     "checker_need": {
       "required": false,
@@ -93,7 +108,7 @@
     },
     "rule_tool_need": {
       "required": true,
-      "description": "Determine whether the policy successfully activates the bell in the new position. Hypothesis: The ACT policy can successfully complete the click_bell task when the bell is shifted to a new position within a bounded range.",
+      "description": "Numeric or symbolic Rule Tool observable needed.",
       "reuse_first": true
     },
     "vqa_tool_need": {
@@ -103,89 +118,71 @@
     },
     "task_need": {
       "required": true,
-      "description": "The bell's position must be shifted horizontally within a small, bounded range, while preserving its size, shape, material, and the overall scene layout."
+      "description": "Scene construction or adaptation needed to modify the bell's position."
     },
     "tool_need": {
       "required": true,
-      "description": "The numeric evidence of whether the bell was successfully activated in the new position.",
+      "description": "Numeric or symbolic Rule Tool observable needed.",
       "reuse_first": true
     }
   },
   "resolution": {
     "schema_version": 1,
-    "semantic_sub_aspect": "free_concern.robustness.of.the.policy.to.positional.variation.of.the.bell",
-    "resolved_aspect_id": null,
+    "semantic_sub_aspect": "task_execution.object_position_variation",
+    "resolved_aspect_id": "object_position",
     "resolved_template_id": null,
-    "resolved_candidate_id": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
-    "resolution": "frozen_free_concern_candidate",
-    "hidden": false,
-    "matched_tokens": [],
-    "catalog_was_model_visible": false,
-    "catalog_resolution_error": null
-  },
-  "query_contract": {
-    "schema_version": 3,
-    "claim_type": "existential",
-    "candidate_universe": [
-      "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+    "resolution": "catalog_retrieval_hint_then_reuse_or_generate",
+    "hidden": true,
+    "matched_tokens": [
+      "description",
+      "object",
+      "position"
     ],
-    "required_coverage": {
-      "candidate_ids": [
-        "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
-      ],
-      "minimum_evaluated": 1,
-      "minimum_per_group": null
-    },
-    "round_budget": 1,
-    "comparison_groups": null,
-    "candidate_universe_closed": false,
-    "existential_witness_outcome": "pass",
-    "control_requirement": "required"
+    "catalog_was_model_visible": false,
+    "retrieval_template_id": "object_position.left_fixed",
+    "resolved_candidate_id": "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23"
   },
   "plan_step": {
     "schema_version": 2,
     "action": "propose",
-    "aspect_id": "free_concern.robustness.of.the.policy.to.positional.variation.of.the.bell",
-    "candidate_id": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
+    "aspect_id": "task_execution.object_position_variation",
+    "candidate_id": "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23",
     "execution_mode": "reuse_or_generate",
     "experiment_candidate": {
       "schema_version": 2,
-      "candidate_id": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
-      "source_query": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。",
+      "candidate_id": "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23",
+      "source_query": "Where does this ACT policy first expose a weakness under manipulated-object property changes, and what evidence supports that conclusion?",
       "base_task": "click_bell",
-      "semantic_concern": "robustness of the policy to positional variation of the bell: The ACT policy can successfully complete the click_bell task when the bell is shifted to a new position within a bounded range.",
+      "semantic_concern": "task_execution.object_position_variation: The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds.",
       "scene_need": {
         "kind": "adapt",
-        "description": "Shift the bell's position horizontally by a small, bounded distance while keeping its size, shape, material, and the overall scene layout unchanged. Preserve unchanged: 任务目标与接触几何语义; size; shape; material; the overall scene layout.",
+        "description": "Introduce a bounded variation in the bell's position. Preserve unchanged: task identity; policy checkpoint.",
         "reuse_first": true
       },
       "checker_need": null,
       "rule_tool_need": {
         "kind": "measure",
-        "description": "Determine whether the policy successfully activates the bell in the new position. Hypothesis: The ACT policy can successfully complete the click_bell task when the bell is shifted to a new position within a bounded range.",
+        "description": "Numeric or symbolic Rule Tool observable needed. Hypothesis: The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds.",
         "reuse_first": true
       },
       "vqa_tool_need": null,
       "tool_need": {
         "kind": "measure",
-        "description": "Determine whether the policy successfully activates the bell in the new position. Hypothesis: The ACT policy can successfully complete the click_bell task when the bell is shifted to a new position within a bounded range.",
+        "description": "Numeric or symbolic Rule Tool observable needed. Hypothesis: The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds.",
         "reuse_first": true
       },
       "evaluation_intent": {
         "schema_version": 1,
-        "intent_id": "intent.c7b8b7a89baaba20",
-        "source_query": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。",
-        "original_concern": "robustness of the policy to positional variation of the bell",
-        "hypothesis": "The ACT policy can successfully complete the click_bell task when the bell is shifted to a new position within a bounded range.",
-        "requested_change": "Shift the bell's position horizontally by a small, bounded distance while keeping its size, shape, material, and the overall scene layout unchanged.",
+        "intent_id": "intent.fbdf63ddcef3951b",
+        "source_query": "Where does this ACT policy first expose a weakness under manipulated-object property changes, and what evidence supports that conclusion?",
+        "original_concern": "task_execution.object_position_variation",
+        "hypothesis": "The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds.",
+        "requested_change": "Introduce a bounded variation in the bell's position.",
         "preserved_conditions": [
-          "任务目标与接触几何语义",
-          "size",
-          "shape",
-          "material",
-          "the overall scene layout"
+          "task identity",
+          "policy checkpoint"
         ],
-        "required_observation": "Determine whether the policy successfully activates the bell in the new position."
+        "required_observation": "Numeric or symbolic Rule Tool observable needed."
       },
       "intent_alignment": {
         "schema_version": 1,
@@ -200,12 +197,51 @@
         "unmatched_intent_fields": []
       }
     },
-    "rationale": "Directly execute the catalog-free first concern selected for the original Query; no second Planner may replace it before the control evidence is observed.",
-    "answered_query": false
+    "rationale": "Testing object position variation directly probes the robustness of the ACT policy under manipulated-object property changes, addressing a key uncertainty in the original Query.",
+    "answered_query": false,
+    "planning_lineage": {
+      "schema_version": 1,
+      "decision_kind": "evidence_conditioned_refinement",
+      "evidence_conditioned": true,
+      "completed_round_ids": [
+        "round_1"
+      ],
+      "completed_round_count": 1,
+      "input_digest": "ec67ceece3e66171cc151cd19cab45bb8c2e73af05f6995d2f3570c78db34d1a"
+    }
+  },
+  "planning_lineage": {
+    "schema_version": 1,
+    "decision_kind": "evidence_conditioned_refinement",
+    "evidence_conditioned": true,
+    "completed_round_ids": [
+      "round_1"
+    ],
+    "completed_round_count": 1,
+    "input_digest": "ec67ceece3e66171cc151cd19cab45bb8c2e73af05f6995d2f3570c78db34d1a"
+  },
+  "query_contract": {
+    "schema_version": 3,
+    "claim_type": "diagnostic",
+    "candidate_universe": [
+      "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23"
+    ],
+    "required_coverage": {
+      "candidate_ids": [
+        "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23"
+      ],
+      "minimum_evaluated": 1,
+      "minimum_per_group": null
+    },
+    "round_budget": 2,
+    "comparison_groups": null,
+    "candidate_universe_closed": false,
+    "existential_witness_outcome": null,
+    "control_requirement": "required"
   },
   "execution_binding": {
     "schema_version": 2,
-    "candidate_id": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
+    "candidate_id": "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23",
     "materialization_path": "plan/open_world_materialization/round_02",
     "taskgen_route": "generic_provider_scene_checker_codegen",
     "toolgen_route": "deferred_until_executed_telemetry_schema",

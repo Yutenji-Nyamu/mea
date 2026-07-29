@@ -7,11 +7,11 @@
     "schema_version": 1,
     "task_name": "click_bell",
     "metric": "query_derived_metric",
-    "question": "Does the ACT policy successfully activate the bell when its position is shifted within a bounded range?",
+    "question": "Where does the ACT policy first expose a weakness under manipulated-object property changes, and what evidence supports that conclusion?",
     "route": "force_codegen",
     "reference_tool": null,
     "required_signals": [
-      "semantic_trace.left_tcp_position",
+      "semantic_trace.right_tcp_position",
       "semantic_trace.bell_contact_position",
       "semantic_trace.physics_step"
     ],
@@ -20,7 +20,7 @@
       "metric_spec": {
         "schema_version": 1,
         "operation": "minimum_distance",
-        "left_signal": "left_tcp_position",
+        "left_signal": "right_tcp_position",
         "right_signal": "bell_contact_position",
         "dimensions": [
           "x",
@@ -43,48 +43,48 @@
   "task_code_context_consumed": true,
   "episodes": [
     {
-      "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+      "episode_dir": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
       "policy_name": "ACT",
-      "seed": 100405,
+      "seed": 100000,
       "generated_result": {
         "tool": "query_derived_metric",
         "version": 1,
         "generated": true,
-        "tool_sha256": "26bffe98e03f11e1c382b8ecee7f7e2d35740a311bbfa8d81d4d109fe119db97",
-        "value": 0.4100531050769832,
+        "tool_sha256": "756aebac84595121665f4e8fed7855286f057ae9e56cb3e9b3019ae4b176e518",
+        "value": 0.021466496280102353,
         "unit": "m",
         "passed": null,
         "evidence_steps": [
-          4238
+          5514
         ],
         "details": {
           "operation": "minimum_distance",
-          "left_signal": "left_tcp_position",
+          "left_signal": "right_tcp_position",
           "right_signal": "bell_contact_position",
           "dimensions": [
             "x",
             "y"
           ],
-          "min_index": 4238,
+          "min_index": 5514,
           "reason": "measured"
         }
       },
       "oracle_projection": {
-        "value": 0.4100531050769832,
+        "value": 0.021466496280102353,
         "unit": "m",
         "passed": null,
         "evidence_steps": [
-          4238
+          5514
         ],
         "details": {
           "operation": "minimum_distance",
-          "left_signal": "left_tcp_position",
+          "left_signal": "right_tcp_position",
           "right_signal": "bell_contact_position",
           "dimensions": [
             "x",
             "y"
           ],
-          "min_index": 4238,
+          "min_index": 5514,
           "reason": "measured"
         }
       },
@@ -94,15 +94,15 @@
     }
   ],
   "registration": {
-    "registration_id": "runlocal_6e7c5dc558a8dad45199",
+    "registration_id": "runlocal_d36e2786c1eeba5f5c20",
     "scope": "run_local",
     "status": "validated",
     "tool_id": "query_derived_metric",
     "version": 1,
     "target_metric": "query_derived_metric",
-    "contract_sha256": "5ffbb7236374d7d20c22453872004309ec8d1b1cd6958f53d59e838cc800ffd9",
-    "telemetry_schema_sha256": "17d24c437d9610558794bb84238a4a7564da4a367e6148c6fc21da5fa8aab730",
-    "code_sha256": "26bffe98e03f11e1c382b8ecee7f7e2d35740a311bbfa8d81d4d109fe119db97",
+    "contract_sha256": "7fa3a86be17d3bdae5d7f47c5c4aa9bb6559bbae3a1cb6df5dabe1dbb63af701",
+    "telemetry_schema_sha256": "fea228a6d4b93bd4a9b51551ba9c083f5f82b8342f79fe9f39c1b5ededc788cb",
+    "code_sha256": "756aebac84595121665f4e8fed7855286f057ae9e56cb3e9b3019ae4b176e518",
     "promotion": {
       "current_scope": "run_local",
       "candidate": {

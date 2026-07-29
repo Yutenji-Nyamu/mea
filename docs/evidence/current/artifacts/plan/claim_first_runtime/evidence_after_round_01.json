@@ -5,42 +5,34 @@
   "control_passed": true,
   "query_contract": {
     "schema_version": 3,
-    "claim_type": "existential",
-    "candidate_universe": [
-      "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
-    ],
+    "claim_type": "diagnostic",
+    "candidate_universe": [],
     "required_coverage": {
-      "candidate_ids": [
-        "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
-      ],
-      "minimum_evaluated": 1,
+      "candidate_ids": [],
+      "minimum_evaluated": 0,
       "minimum_per_group": null
     },
-    "round_budget": 1,
+    "round_budget": 2,
     "comparison_groups": null,
     "candidate_universe_closed": false,
-    "existential_witness_outcome": "pass",
+    "existential_witness_outcome": null,
     "control_requirement": "required"
   },
   "assessment": {
     "schema_version": 1,
     "contract": {
       "schema_version": 3,
-      "claim_type": "existential",
-      "candidate_universe": [
-        "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
-      ],
+      "claim_type": "diagnostic",
+      "candidate_universe": [],
       "required_coverage": {
-        "candidate_ids": [
-          "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
-        ],
-        "minimum_evaluated": 1,
+        "candidate_ids": [],
+        "minimum_evaluated": 0,
         "minimum_per_group": null
       },
-      "round_budget": 1,
+      "round_budget": 2,
       "comparison_groups": null,
       "candidate_universe_closed": false,
-      "existential_witness_outcome": "pass",
+      "existential_witness_outcome": null,
       "control_requirement": "required"
     },
     "should_stop": false,
@@ -48,31 +40,25 @@
     "claim_verdict": "inconclusive",
     "evidence_sufficient": false,
     "completed_rounds": 0,
-    "round_budget": 1,
-    "budget_remaining": 1,
+    "round_budget": 2,
+    "budget_remaining": 2,
     "candidate_universe_closed": false,
     "candidate_discovery_required": true,
     "observed_candidate_ids": [],
     "decisive_candidate_ids": [],
     "conflict_candidate_ids": [],
     "unknown_candidate_ids": [],
-    "untested_required_candidate_ids": [
-      "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
-    ],
-    "untested_candidate_ids": [
-      "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
-    ],
-    "recommended_candidate_ids": [
-      "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
-    ],
+    "untested_required_candidate_ids": [],
+    "untested_candidate_ids": [],
+    "recommended_candidate_ids": [],
     "rationale": "The query contract still has unresolved required evidence.",
     "statistics": {
-      "existential_witness_outcome": "pass",
-      "witness_candidate_ids": []
+      "diagnosed_failure_candidate_ids": []
     },
     "limitations": [
       "This is a finite-domain stopping prototype, not a statistical generalization guarantee.",
-      "The candidate universe is open; exhaustive, no-counterexample, and worst-case conclusions are not licensed."
+      "The candidate universe is open; exhaustive, no-counterexample, and worst-case conclusions are not licensed.",
+      "Diagnosis strings are trusted upstream evidence labels; this contract does not independently infer or validate causality."
     ]
   },
   "records": [
@@ -85,7 +71,7 @@
         "schema_version": 1,
         "round_id": "round_1",
         "tested_sub_aspect": "task_execution.official_baseline",
-        "tested_hypothesis": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。",
+        "tested_hypothesis": "Where does this ACT policy first expose a weakness under manipulated-object property changes, and what evidence supports that conclusion?",
         "tested_perturbation": "unchanged official-scene control",
         "outcome": "success",
         "evidence_summary": "EvidencePacket strength=sufficient; policy_success_rate=1.0; Rule metric=official_check_success; outcome_metric=official_check_success; outcome_authority=official_check_success; outcome_semantics=official_only; VQA status=passed; planned_tool_measurements=[{\"metric\": \"official_check_success\", \"null_reason\": null, \"passed\": true, \"provider_called\": false, \"route\": \"reuse\", \"unit\": null, \"value\": true}].",
@@ -177,23 +163,23 @@
       "evidence_refs": [
         {
           "kind": "child_manifest",
-          "path": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/manifest.json"
+          "path": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_1/manifest.json"
         },
         {
           "kind": "evidence_aggregate",
-          "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/evidence_aggregate.json"
+          "path": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_1/evidence_aggregate.json"
         },
         {
           "kind": "round_aggregate",
-          "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/aggregate_result.json"
+          "path": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_1/aggregate_result.json"
         },
         {
           "kind": "tool_execution",
-          "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/planned_tool/tool_execution.json"
+          "path": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_1/planned_tool/tool_execution.json"
         },
         {
           "kind": "execution_vqa_result",
-          "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa/execution_vqa.json"
+          "path": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_1/execution_vqa/execution_vqa.json"
         }
       ]
     }
@@ -203,7 +189,7 @@
       "schema_version": 1,
       "round_id": "round_1",
       "tested_sub_aspect": "task_execution.official_baseline",
-      "tested_hypothesis": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。",
+      "tested_hypothesis": "Where does this ACT policy first expose a weakness under manipulated-object property changes, and what evidence supports that conclusion?",
       "tested_perturbation": "unchanged official-scene control",
       "outcome": "success",
       "evidence_summary": "EvidencePacket strength=sufficient; policy_success_rate=1.0; Rule metric=official_check_success; outcome_metric=official_check_success; outcome_authority=official_check_success; outcome_semantics=official_only; VQA status=passed; planned_tool_measurements=[{\"metric\": \"official_check_success\", \"null_reason\": null, \"passed\": true, \"provider_called\": false, \"route\": \"reuse\", \"unit\": null, \"value\": true}].",
