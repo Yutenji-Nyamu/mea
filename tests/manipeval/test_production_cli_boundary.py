@@ -59,6 +59,37 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             },
         )
 
+    def test_free_concern_acceptance_allows_one_bounded_schema_repair(
+        self,
+    ) -> None:
+        from mea.agent_acceptance import (
+            _valid_free_concern_provider_trace,
+        )
+
+        self.assertTrue(
+            _valid_free_concern_provider_trace(
+                {"called": True, "attempt_count": 1, "errors": []}
+            )
+        )
+        self.assertTrue(
+            _valid_free_concern_provider_trace(
+                {
+                    "called": True,
+                    "attempt_count": 2,
+                    "errors": ["FreeConcern schema mismatch"],
+                }
+            )
+        )
+        self.assertFalse(
+            _valid_free_concern_provider_trace(
+                {
+                    "called": True,
+                    "attempt_count": 3,
+                    "errors": ["first", "second"],
+                }
+            )
+        )
+
     def test_agent_import_does_not_load_paper_or_task_specific_planners(self) -> None:
         modules = [
             "mea.strategy_plan",

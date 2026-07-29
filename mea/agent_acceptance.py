@@ -15,6 +15,24 @@ def _episode_tool_results(episode: Mapping[str, Any]) -> list[dict[str, Any]]:
     return [result for result in raw_results if isinstance(result, dict)]
 
 
+def _valid_free_concern_provider_trace(
+    provider_trace: Mapping[str, Any],
+) -> bool:
+    """Accept a direct response or exactly one schema-guided repair."""
+
+    attempt_count = provider_trace.get("attempt_count")
+    errors = provider_trace.get("errors")
+    return bool(
+        provider_trace.get("called") is True
+        and isinstance(attempt_count, int)
+        and not isinstance(attempt_count, bool)
+        and 1 <= attempt_count <= 2
+        and isinstance(errors, list)
+        and len(errors) == attempt_count - 1
+        and all(isinstance(item, str) and item.strip() for item in errors)
+    )
+
+
 def build_compact_flagship_acceptance(
     round_runs: list[dict[str, Any]],
     *,
@@ -162,9 +180,7 @@ def build_compact_flagship_acceptance(
         isinstance(free_concern_bundle, Mapping)
         and free_concern_bundle.get("source")
         == "provider_catalog_free_concern"
-        and free_provider.get("called") is True
-        and free_provider.get("attempt_count") == 1
-        and free_provider.get("errors") == []
+        and _valid_free_concern_provider_trace(free_provider)
         and isinstance(open_task_resolution, Mapping)
         and open_task_resolution.get("decision") == "retrieve_and_adapt"
     )
@@ -336,6 +352,11 @@ def build_compact_flagship_acceptance(
         "execution_entrypoint": "scripts/manipeval_agent.py",
         "history_replay_disabled": history_disabled,
         "online_free_concern": online_free_concern,
+        "free_concern_attempt_count": free_provider.get("attempt_count"),
+        "free_concern_bounded_repair_used": bool(
+            online_free_concern
+            and free_provider.get("attempt_count") == 2
+        ),
         "online_query_candidate_binding": online_query_candidate_binding,
         "candidate_binding_mode": (
             "exact_catalog_retrieval"

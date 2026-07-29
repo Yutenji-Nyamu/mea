@@ -3727,7 +3727,10 @@ def main() -> None:
             free_concern_agent = FreeConcernAgent(
                 provider,
                 model=models["planner"],
-                max_attempts=1,
+                # One strict response plus one schema-guided repair.  This is
+                # bounded provider regeneration, never cached replay or an
+                # alternate prewritten concern.
+                max_attempts=2,
             )
             free_concern_bundle = free_concern_agent.propose(
                 args.request,
