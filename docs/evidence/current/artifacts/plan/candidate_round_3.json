@@ -1,0 +1,55 @@
+{
+  "schema_version": 2,
+  "candidate_id": "dynamic.click.bell.robustness.object.instance.bell.size.scaling.act.will.be.less.likely.to.complete.the.click.when.the.bell.is.uniformly.reduced.in.size.by.20.even.though.the.bell.contact.position.scene.instruction.and.policy.checkpoint.remain.unchanged.ea4a84dd44b7",
+  "source_query": "Find one bounded change in the manipulated object properties that exposes an ACT weakness; test it and explain the evidence.",
+  "base_task": "click_bell",
+  "semantic_concern": "robustness.object_instance.bell_size_scaling: ACT will be less likely to complete the click when the bell is uniformly reduced in size by 20%, even though the bell contact position, scene, instruction, and policy checkpoint remain unchanged.",
+  "scene_need": {
+    "kind": "adapt",
+    "description": "Create a bounded object-instance variant by uniformly scaling the bell's visual and collision geometry to 80% of its reference dimensions while preserving its contact-point world position. Preserve unchanged: bell contact-point world position; bell center position; bell material and color; scene layout and camera viewpoint; task identity; task instruction; policy checkpoint; official success semantics.",
+    "reuse_first": true
+  },
+  "checker_need": null,
+  "rule_tool_need": {
+    "kind": "measure",
+    "description": "Measure official success and the active TCP's minimum XY and Z error relative to the bell contact point to distinguish failure to approach the smaller object from successful contact. Hypothesis: ACT will be less likely to complete the click when the bell is uniformly reduced in size by 20%, even though the bell contact position, scene, instruction, and policy checkpoint remain unchanged.",
+    "reuse_first": true
+  },
+  "vqa_tool_need": null,
+  "tool_need": {
+    "kind": "measure",
+    "description": "Measure official success and the active TCP's minimum XY and Z error relative to the bell contact point to distinguish failure to approach the smaller object from successful contact. Hypothesis: ACT will be less likely to complete the click when the bell is uniformly reduced in size by 20%, even though the bell contact position, scene, instruction, and policy checkpoint remain unchanged.",
+    "reuse_first": true
+  },
+  "evaluation_intent": {
+    "schema_version": 1,
+    "intent_id": "intent.c9c01a95bb6423e3",
+    "source_query": "Find one bounded change in the manipulated object properties that exposes an ACT weakness; test it and explain the evidence.",
+    "original_concern": "robustness.object_instance.bell_size_scaling",
+    "hypothesis": "ACT will be less likely to complete the click when the bell is uniformly reduced in size by 20%, even though the bell contact position, scene, instruction, and policy checkpoint remain unchanged.",
+    "requested_change": "Create a bounded object-instance variant by uniformly scaling the bell's visual and collision geometry to 80% of its reference dimensions while preserving its contact-point world position.",
+    "preserved_conditions": [
+      "bell contact-point world position",
+      "bell center position",
+      "bell material and color",
+      "scene layout and camera viewpoint",
+      "task identity",
+      "task instruction",
+      "policy checkpoint",
+      "official success semantics"
+    ],
+    "required_observation": "Measure official success and the active TCP's minimum XY and Z error relative to the bell contact point to distinguish failure to approach the smaller object from successful contact."
+  },
+  "intent_alignment": {
+    "schema_version": 1,
+    "relationship": "direct",
+    "rationale": "Candidate preserves the requested change, hypothesis, and observation semantics.",
+    "matched_intent_fields": [
+      "requested_change",
+      "preserved_conditions",
+      "hypothesis",
+      "required_observation"
+    ],
+    "unmatched_intent_fields": []
+  }
+}

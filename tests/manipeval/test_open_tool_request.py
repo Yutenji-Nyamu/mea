@@ -355,6 +355,33 @@ class OpenToolRequestTest(unittest.TestCase):
         self.assertEqual(provider.calls, 2)
         self.assertIn("lower_snake_case", bundle["provider"]["errors"][0])
 
+    def test_bound_task_and_question_are_filled_for_metric_only_selection(self):
+        root = Path(__file__).resolve().parents[2]
+        provider = _Provider(
+            {
+                "schema_version": 1,
+                "metric": "bell_active_tcp_min_xy_error",
+            }
+        )
+        agent = OpenToolRequestAgent(root, provider, model="fixture-model")
+
+        bundle = agent.propose(
+            source_query="Where does bell recoloring fail?",
+            semantic_concern="bounded bell recoloring",
+            tool_need="Measure click-point accuracy with the active TCP.",
+            task_name="click_bell",
+        )
+
+        self.assertEqual(bundle["tool_request"]["task_name"], "click_bell")
+        self.assertEqual(
+            bundle["tool_request"]["question"],
+            "Measure click-point accuracy with the active TCP.",
+        )
+        self.assertEqual(
+            bundle["provider"]["bound_fields_filled"],
+            ["task_name", "question"],
+        )
+
     def test_generated_checker_context_forbids_official_success_alias(self):
         root = Path(__file__).resolve().parents[2]
         forbidden = {
@@ -391,6 +418,56 @@ class OpenToolRequestTest(unittest.TestCase):
         }
         self.assertNotIn("official_check_success", registry_names)
         self.assertNotIn("time_to_success", registry_names)
+
+    def test_query_induced_tool_does_not_duplicate_already_measured_metrics(self):
+        root = Path(__file__).resolve().parents[2]
+        duplicate = {
+            "schema_version": 1,
+            "task_name": "click_bell",
+            "metric": "official_check_success",
+            "question": "Did the task succeed?",
+        }
+        additional = {
+            "schema_version": 2,
+            "task_name": "click_bell",
+            "metric": "recolored_bell_right_tcp_min_xy_error",
+            "question": "How accurately did the right TCP reach the bell?",
+            "metric_spec": {
+                "schema_version": 1,
+                "operation": "minimum_distance",
+                "left_signal": "right_tcp_position",
+                "right_signal": "bell_contact_position",
+                "dimensions": ["x", "y"],
+                "unit": "m",
+                "null_semantics": "null_if_no_finite_sample",
+            },
+        }
+        provider = _RetryProvider([duplicate, additional])
+        agent = OpenToolRequestAgent(root, provider, model="fixture-model")
+
+        bundle = agent.propose(
+            source_query="Where does color generalization fail?",
+            semantic_concern="bounded bell recoloring",
+            tool_need="Compare success and click-point accuracy.",
+            task_name="click_bell",
+            forbidden_metric_ids={
+                "official_check_success",
+                "time_to_success",
+            },
+        )
+
+        self.assertEqual(bundle["tool_request"]["metric"], additional["metric"])
+        self.assertEqual(provider.calls, 2)
+        self.assertEqual(
+            bundle["context"]["forbidden_metric_ids"],
+            ["official_check_success", "time_to_success"],
+        )
+        registry_names = {
+            item["name"]
+            for item in bundle["context"]["tool_registry"]["trusted_tools"]
+        }
+        self.assertNotIn("official_check_success", registry_names)
+        self.assertIn("already measured", bundle["provider"]["errors"][0])
 
     def test_event_count_and_time_between_event_shapes_are_executable(self):
         selector = {
@@ -509,6 +586,42 @@ class OpenToolRequestTest(unittest.TestCase):
             "fixed-side minimum_distance",
             bundle["provider"]["errors"][0],
         )
+
+    def test_click_point_accuracy_rejects_target_to_target_distance(self):
+        request = {
+            "schema_version": 2,
+            "task_name": "click_bell",
+            "metric": "bell_internal_offset",
+            "question": "How accurate was the click point?",
+            "metric_spec": {
+                "schema_version": 1,
+                "operation": "minimum_distance",
+                "left_signal": "bell_position",
+                "right_signal": "bell_contact_position",
+                "dimensions": ["x", "y", "z"],
+                "unit": "m",
+                "null_semantics": "null_if_no_finite_sample",
+            },
+        }
+        with self.assertRaisesRegex(
+            OpenToolRequestError,
+            "one advertised robot TCP/gripper signal",
+        ):
+            validate_open_tool_request(
+                request,
+                task_name="click_bell",
+                available_signal_names={
+                    "bell_position",
+                    "bell_contact_position",
+                    "left_tcp_position",
+                    "right_tcp_position",
+                },
+                available_signal_sides={
+                    "left_tcp_position": "left",
+                    "right_tcp_position": "right",
+                },
+                measurement_need="Compare success and click-point accuracy.",
+            )
 
 
 if __name__ == "__main__":

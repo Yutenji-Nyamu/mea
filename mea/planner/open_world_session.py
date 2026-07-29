@@ -626,10 +626,15 @@ class OpenWorldPlanSession:
             evidence = self._candidate_evidence_from_history(
                 observation_history
             )
+            completed_candidate_rounds = max(
+                len(observation_history)
+                - int(self._control_required(contract)),
+                0,
+            )
             assessment = self.assess_query_sufficiency(
                 current,
                 evidence,
-                completed_rounds=len(evidence),
+                completed_rounds=completed_candidate_rounds,
             )
 
         updated = deepcopy(current)
@@ -771,10 +776,19 @@ class OpenWorldPlanSession:
         assessment = None
         if isinstance(normalized.get("query_contract"), Mapping):
             candidate_evidence = self._candidate_evidence_from_history(history)
+            completed_candidate_rounds = max(
+                len(history)
+                - int(
+                    self._control_required(
+                        normalized["query_contract"]
+                    )
+                ),
+                0,
+            )
             assessment = self.assess_query_sufficiency(
                 normalized,
                 candidate_evidence,
-                completed_rounds=len(candidate_evidence),
+                completed_rounds=completed_candidate_rounds,
             )
         control_required = self._control_required(
             normalized.get("query_contract")

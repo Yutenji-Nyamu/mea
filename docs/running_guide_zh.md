@@ -59,9 +59,10 @@ policy evidence。
 
 若 online resolver 已输出 `unsupported`，之后基于冻结 concern 的 0-provider
 replay 只能证明确定性 resolver/control handoff，不能倒推成一次在线成功。当前
-ClickBell flagship 的通过标准更严格：无 aspect CLI hint、无 history replay、一个
-进程完成 official→generated scene/checker→Tool/VQA/Aggregate→Answer，并在同一
-bundle 中记录 `flagship_acceptance.accepted=true`。
+下一次干净 ClickBell flagship 的通过标准更严格：无 aspect/template CLI hint、无 history
+rollout replay、一个进程完成两至三轮 control/candidate→TaskGen→Tool/VQA→Aggregate
+→Answer；每个动态 candidate 必须有 `direct+complete` ImplementationTrace，最终
+post-run acceptance projection 为 `accepted=true`。
 
 不传 `--bound-task-name` 的 auto-route 只能在已声明的 checkpoint portfolio 中选择，
 不是让一个单任务 policy 执行任意发现的 task。当前可发现 50 个 RoboTwin official
@@ -116,7 +117,7 @@ Answer 不得把实验语义写成 official benchmark 结论。
 ## 4. 查看证据
 
 最近一次公开索引见 `docs/evidence/current/manifest.json`。原始 bundle 根目录由
-manifest 的 `source_roots` 记录。阅读顺序：
+manifest 的 `source_server_path` 记录。阅读顺序：
 
 ```text
 query
@@ -133,34 +134,11 @@ Git 只复制 current manifest 收录的短 rollout、render、生成代码、�
 结论；完整 telemetry/VQA bundle 留在服务器。需要发布新结果时，用新运行替换
 `docs/evidence/current/`，并在 `docs/evidence/history.jsonl` 追加一行旧结果摘要。
 
-已完成 rollout 的 Tool/VQA 语义修复只能使用 `experiments/paper/` 下的追加式 replay：
-
-```bash
-/root/autodl-tmp/conda/envs/RoboTwin/bin/python \
-  experiments/paper/manipeval_replay_completed_tool.py \
-  --repo-root /root/autodl-tmp/mea \
-  --evaluation-id <source-evaluation-id> \
-  --round-id <source-round-id> \
-  --repair-id <new-repair-id> \
-  --tool-request <frozen-tool-request.json> \
-  --execution-vqa <append-only-vqa-replay-manifest.json>
-
-# VQA replay 还需要当前进程中的 provider credential；不得写入命令文件或仓库。
-/root/autodl-tmp/conda/envs/RoboTwin/bin/python \
-  experiments/paper/manipeval_execution_vqa_replay.py \
-  --repo-root /root/autodl-tmp/mea \
-  --evaluation-id <source-evaluation-id> \
-  --round-id <source-round-id> \
-  --output-dir <new-append-only-output-dir> \
-  --base-url <provider-base-url>
-```
-
-两条命令都必须记录 `act_rollouts_started=0`，不得覆盖源 manifest/summary/answer。
-replay 可以验证修正后的 Tool/VQA/Aggregate/Planner 行为，但不能把原在线
-`budget_exhausted`/inconclusive 倒改成成功旗舰。先独立产生 VQA replay，再由 Tool
-replay 的 `--execution-vqa` 显式消费并记录其 path/hash，才构成可审计的 composed
-replay；不得手工拼接两个独立 summary。composed replay 若得到
-`evidence_conflict`/inconclusive，就是正确的冲突保真结果，不应改成 sufficient。
+已完成 rollout 的 Tool/VQA 语义审计只使用 `experiments/paper/` 下的 append-only
+replay 入口；以各脚本 `--help` 为参数真值。replay 必须记录
+`act_rollouts_started=0`，不得覆盖源 manifest/summary/answer，也不能把源
+inconclusive 倒改成在线成功。单纯修正 acceptance projection 同样必须写入独立
+post-run artifact，并明确它没有增加 policy sample。
 
 ## 5. 论文协议
 
@@ -218,7 +196,14 @@ install -m 600 \
 该文件只记录服务器路径，不含账号或 key。本批全量回归正是通过此 fallback 消除了
 LIBERO import prompt。
 
-当前公开旗舰见[当前证据](evidence/current/README.md)；batch27 的
+当前公开旗舰见[当前证据](evidence/current/README.md)：v19 使用 seed `100000` 完成
+official/color/size 三轮 ACT（`1/1、1/1、0/1`），runtime 在 color 成功后才选择
+80% size；XY Tool 于第二轮生成并在第三轮 exact run-local reuse。最终 same-seed
+preservation audit 发现 round2 缺少 shape/size authority，round3 contact-point z 漂移
+`-0.0051580801 m`，因此覆盖原 runtime stop：`semantic_evidence_insufficient /
+inconclusive / accepted=false`。这是单 task/seed、总 `N=3` 的在线机械链证据和
+confounded negative，不是属性弱点或干净旗舰正验收。
+batch27 的
 catalog-external、第五个 RoboTwin adapter 与 LIBERO 结果见
 [`batch27_unified_adapter_libero`](../experiments/paper/results/batch27_unified_adapter_libero/)；
 效率、ranking 与 proxy 基线仍由

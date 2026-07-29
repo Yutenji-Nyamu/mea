@@ -1,354 +1,76 @@
 {
   "schema_version": 1,
-  "evidence_id": "batch29_adjust_bottle_open_mainline_v2_repair_v7",
-  "created_at": "2026-07-28",
-  "rollout_source_commit": "807bfddd99925ea535da791e062431b9985ca913",
-  "rollout_source_worktree_note": "The live run used method changes synchronized above the recorded base commit before the final implementation commit.",
-  "source_roots": {
-    "evaluation": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_20260728_adjust_bottle_open_live_v2",
-    "generated_task": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260728_adjust_bottle_open_live_v2_round_2",
-    "composed_repair": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_20260728_adjust_bottle_open_live_v2/repairs/terminal_tool_plus_task_vqa_repair_v7",
-    "task_owned_vqa": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_20260728_adjust_bottle_open_live_v2/repairs/vqa_task_owned_replay_v1",
-    "derived": "docs/evidence/current"
-  },
-  "artifact_count": 56,
-  "total_bytes": 1342784,
-  "artifacts": [
+  "evidence_id": "eval_20260728_batch29_open_flagship_v19",
+  "kind": "compact_audited_current_evidence",
+  "source_server_path": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19",
+  "source_runtime_base_commit": "1455852adbfdb2931d142739c13c4c6beb3be4c1",
+  "runtime_source_note": "The live run used the in-progress open-mainline method code. Final source adds authoritative preservation checks and an infeasible-invariant gate; the append-only audit below does not alter rollout evidence.",
+  "request": "Find one bounded change in the manipulated object properties that exposes an ACT weakness; test it and explain the evidence.",
+  "task": "click_bell",
+  "policy": "ACT",
+  "checkpoint": "act-click_bell/demo_clean-50",
+  "seeds": [
+    100000
+  ],
+  "act_rollouts": 3,
+  "rounds": [
     {
-      "path": "README.md",
-      "bytes": 5083,
-      "sha256": "1f4ac5c56e95ec2ee1b74c1af3f3a79452871cd94177eceb4210ba331d29090b",
-      "media_type": "text/markdown"
+      "round": 1,
+      "kind": "official_control",
+      "official_success": true
     },
     {
-      "path": "artifacts/original/round_1_aggregate.json",
-      "bytes": 79740,
-      "sha256": "7976d0487c88591c1651c3bb24115b24f474e4b617017ba6426c879be0002dae",
-      "media_type": "application/json"
+      "round": 2,
+      "kind": "provider_generated_color_scene",
+      "official_success": true,
+      "rule_tool_value_m": 0.0077674430795013905,
+      "implementation_trace": "direct_partial",
+      "preservation_status": "partially_unverified"
     },
     {
-      "path": "artifacts/original/round_1_tool_execution.json",
-      "bytes": 3375,
-      "sha256": "7613cb888b88f99e6cce6c9e1228dd0b158676fd993422d05f14137d10222aaf",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/original/round_2_aggregate.json",
-      "bytes": 48813,
-      "sha256": "a2a4303ecef7faa05370cf9cd48dc4e7996376ad3e8a0f62d1d2f3353d214d18",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/original/round_2_null_tool.py",
-      "bytes": 2130,
-      "sha256": "2e1e1ab0bf474fe3ae56d2f6afbf0a84a74f44845776c142ec46a931f7a819ce",
-      "media_type": "text/x-python"
-    },
-    {
-      "path": "artifacts/original/round_2_null_tool_execution.json",
-      "bytes": 5285,
-      "sha256": "983bef21c1c962b6a4a6bbea6b1469d50df01df1c729a10746100c355670bffc",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/original/round_2_tool_prompt.md",
-      "bytes": 9961,
-      "sha256": "fbc497dc76dbea0d09e75f0a383216ac69c840e5ab7facf0fdb17af75e121bb2",
-      "media_type": "text/markdown"
-    },
-    {
-      "path": "artifacts/original/round_2_tool_request.json",
-      "bytes": 680,
-      "sha256": "4da73348855365101e57f608f5daa172a54dba95c3860f415637f57d51f6c60d",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/original/round_2_tool_response.txt",
-      "bytes": 562,
-      "sha256": "3d856e07c414fe7e7f2f4fd679e8751497532ae48ca9fec7e96fe1669bb9d90d",
-      "media_type": "text/plain"
-    },
-    {
-      "path": "artifacts/original/round_2_vqa_wrong_query.json",
-      "bytes": 1814,
-      "sha256": "eaabd9a6b56f8e2ffbba3ed2e4200d97689eff3cb3f2cf14481cbbeedc420cea",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/original/round_2_vqa_wrong_result.json",
-      "bytes": 7705,
-      "sha256": "a592c9ba7564103abdc5acfaa81d5e4567b0f6c90186e895b8ea6e270a61a26d",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/planner/after_round_1_bound_candidate.json",
-      "bytes": 8205,
-      "sha256": "99df920a52309cffd509efb103f53b958304927b15535249347104d8c14e04a7",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/planner/after_round_1_prompt.md",
-      "bytes": 5578,
-      "sha256": "9683588ff8694d0e2a158572c5aa3c8c4c03f0375e7fbf3813cd04f7fef4b360",
-      "media_type": "text/markdown"
-    },
-    {
-      "path": "artifacts/planner/after_round_1_response.txt",
-      "bytes": 1670,
-      "sha256": "7a1b7f4dfb22dcf665413b4cb969ecd15bb624536d1d4defb1312d2cb5ad064e",
-      "media_type": "text/plain"
-    },
-    {
-      "path": "artifacts/planner/answer_original.json",
-      "bytes": 5766,
-      "sha256": "715e6c0f61b5a0e008aa75f188dd0dca660469606e3a19dd66d7ac0b06112d1d",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/planner/decision_after_round_1.json",
-      "bytes": 12469,
-      "sha256": "15dd8fb463ff8832f6316db9c9c1e7b192045393df6de1cf825ffd09e801265d",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/planner/decision_after_round_2_original.json",
-      "bytes": 2420,
-      "sha256": "bd9dda14abe4d4ea7a0993575ee10514c25d94325b679738a16c483aac60df8a",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/planner/evaluation_plan.json",
-      "bytes": 26193,
-      "sha256": "030254c6e092bb207e25cd93ad6e2e2ba795ff76aa23728db447abbc5c383023",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/planner/experiment_candidate.json",
-      "bytes": 1543,
-      "sha256": "ead103433422f527a2afbd44f939144c6849d5e0f328a666e37e7cd106d5364f",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/planner/free_concern.json",
-      "bytes": 2921,
-      "sha256": "85e9f2d9fb655e0f425eba42c46d3093acb198395cb5707509ae71d48cc6e4e9",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/planner/free_concern_prompt.md",
-      "bytes": 1741,
-      "sha256": "a82cb37594602375c0d3519c1d377f0a713d7d65990e2fc82b8b602d00b4c49d",
-      "media_type": "text/markdown"
-    },
-    {
-      "path": "artifacts/planner/free_concern_response.txt",
-      "bytes": 905,
-      "sha256": "669fb3940c723c070683de61df646bee64ec56e70b2e5b743824f90be82d78fd",
-      "media_type": "text/plain"
-    },
-    {
-      "path": "artifacts/planner/global_query_route.json",
-      "bytes": 1386,
-      "sha256": "682b15a784f799acbf557140bc1cb112f6488109d4b3ace2cd868d86b98c0e6c",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/planner/runtime_task_binding.json",
-      "bytes": 1324,
-      "sha256": "02de2b6bcb1dcd207da3f35c32de7aaa1bb8ba36335266c8f2fc5058cffbfa99",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/query/request.json",
-      "bytes": 147,
-      "sha256": "c0d4b953de00c8dff8b4038bb4bad5873723ce06e2c84982a79cdfee71d16c06",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/repair/aggregate.json",
-      "bytes": 75507,
-      "sha256": "6f8dfa165a8cbffeebe5dafaaaa070f758f667057dfc501a5e4cacf76d4bbd1f",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/repair/evidence_record.json",
-      "bytes": 6264,
-      "sha256": "467156c18040f5276e9402ceb8a68fcac81ba230abcbda0023d11bd83b69c36d",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/repair/exact_reuse_route.json",
-      "bytes": 614,
-      "sha256": "c5f989b3bcbf31fad51286fde4ae8c208942117ca4e597929e62048fd6a1eea1",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/repair/planner_replay.json",
-      "bytes": 23092,
-      "sha256": "44bf393f8142a94dd311e942d51d18d5d07534be1624050d6d15866705a17e0a",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/repair/provenance.json",
-      "bytes": 3562,
-      "sha256": "eab5557e88d4d1b51fbf71e04d98e27be42dc52965ebcd76ab8364df27179cf4",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/repair/result.json",
-      "bytes": 18556,
-      "sha256": "6aecf2e098f184b72ec938a01d7103af8f29f5693452673f21a0cab8905b24d4",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/repair/terminal_metric_spec.json",
-      "bytes": 219,
-      "sha256": "c0ae21a4fcc59def0119e22d55ab1a76b40c1250f2a71b86a67b0281eb99ac33",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/repair/terminal_tool.py",
-      "bytes": 837,
-      "sha256": "b0469820ca120ccfa4a76b630295a14823ad26e3d1a95d5a301b9f27be830f9a",
-      "media_type": "text/x-python"
-    },
-    {
-      "path": "artifacts/repair/terminal_tool_exact_reuse.json",
-      "bytes": 4687,
-      "sha256": "627f3675d1a7a9b0b2fbec1a5f4ff3b7512e6d663df490c3bc6d5d4796578da4",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/repair/terminal_tool_execution.json",
-      "bytes": 4760,
-      "sha256": "99b29d736a259103fdd0d231453874adb1e8694478d3ec38f9f9033b63d51f1f",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/repair/terminal_tool_request.json",
-      "bytes": 427,
-      "sha256": "d6b15cdbd023757ef343440b0e6e20360e147d8a172caa6c2800c4c1be2bf307",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/repair/terminal_tool_request_source.json",
-      "bytes": 556,
-      "sha256": "160530e681ee3307d78309abf9636d8bc34caadb77baf05c5a293e6815315d9b",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/repair/terminal_tool_route.json",
-      "bytes": 589,
-      "sha256": "56330b2eaae76b4b65a21df33ef1a43f8c9c1cacb8652ad6a937f0a8cd30cb8a",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/repair/vqa_prompt.md",
-      "bytes": 3111,
-      "sha256": "76d37b0b02b681d86b6f727819b8449b5506055605d1cce0dfa19e9eb3a0f1b3",
-      "media_type": "text/markdown"
-    },
-    {
-      "path": "artifacts/repair/vqa_query.json",
-      "bytes": 1170,
-      "sha256": "bb2d48f6dcc594508c001c902e77bb791a141110ed3ff263cacef6bdce68b1e6",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/repair/vqa_replay_manifest.json",
-      "bytes": 8912,
-      "sha256": "c37898148b346ca41e405183927bc91bd98fae92967e5cf2c342e1adcc1f99f5",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/repair/vqa_response.txt",
-      "bytes": 689,
-      "sha256": "a1e49736be0eec9ce2f5015e5438b883844d197eeff4fd62195502d1e0753588",
-      "media_type": "text/plain"
-    },
-    {
-      "path": "artifacts/repair/vqa_result.json",
-      "bytes": 6811,
-      "sha256": "4a56e32f24b9206a85ab155348ada8fd37ab35d902f728ea6593652f7e45746a",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/rollout/round_1_official_seed_100201.mp4",
-      "bytes": 170667,
-      "sha256": "7f15b71facc20a4ad89ef30ccf586cf5e0b551a108f62411d0a23e1fa017f286",
-      "media_type": "video/mp4"
-    },
-    {
-      "path": "artifacts/rollout/round_2_generated_seed_100201.mp4",
-      "bytes": 412860,
-      "sha256": "90e2ff685d1b104753792e7f74eade29a2ba2cd1e70a3510f2a135bcb54881b9",
-      "media_type": "video/mp4"
-    },
-    {
-      "path": "artifacts/rollout/round_2_montage.png",
-      "bytes": 239668,
-      "sha256": "e2946a821de6fee1235123ca55e3df1c349eeca755580594d7be2305bf1f95c5",
-      "media_type": "image/png"
-    },
-    {
-      "path": "artifacts/task/checker_fixtures.json",
-      "bytes": 359,
-      "sha256": "0aa3acf99a3d8a6fd119da2ec14bd7d24b91a500b16bdbdfb3598e870b181f0c",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/task/code_prompt.md",
-      "bytes": 18013,
-      "sha256": "f6fbe69c4ae4b6fca2acfda98ab0a59a2af0da63e73c01319824b57d2ca87fe8",
-      "media_type": "text/markdown"
-    },
-    {
-      "path": "artifacts/task/expert_preflight.json",
-      "bytes": 4203,
-      "sha256": "9bf6974e61b2e81ac045be434ce1caa6154d6212c07aab2addc1165405c38ed3",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/task/official_vs_generated.png",
-      "bytes": 89840,
-      "sha256": "b6fd007ab883b77a9fc882bcfb55230f2756a926282f032d614343ec1074b0fa",
-      "media_type": "image/png"
-    },
-    {
-      "path": "artifacts/task/provider_response.txt",
-      "bytes": 1952,
-      "sha256": "99356f71b17c2d83de7fb409100bdf86fd5ddea23caea9e34ba281dca3897e83",
-      "media_type": "text/plain"
-    },
-    {
-      "path": "artifacts/task/task.py",
-      "bytes": 2416,
-      "sha256": "e7e2e05c87e193bbd9598c89f653c4bd40c14ba130c279cd39c8dd863d15904d",
-      "media_type": "text/x-python"
-    },
-    {
-      "path": "artifacts/task/vision.json",
-      "bytes": 1019,
-      "sha256": "bc641678e73723bfbcebb4e622020e84e6451d192ffaa618e998c09551435e6f",
-      "media_type": "application/json"
-    },
-    {
-      "path": "artifacts/task/vision_prompt.md",
-      "bytes": 1821,
-      "sha256": "11fded741c8adc5faea412c5a241c4cf95667083183eb165f2872e3144cbd31f",
-      "media_type": "text/markdown"
-    },
-    {
-      "path": "artifacts/task/vision_response.txt",
-      "bytes": 489,
-      "sha256": "4e4bb59676340d46bdb933262453ece856e10d0cce89f1e8fcb54e1aeeee9710",
-      "media_type": "text/plain"
-    },
-    {
-      "path": "run_summary.json",
-      "bytes": 1698,
-      "sha256": "75100041173b4ea8dde21d52650a4681b293ca22fd7cd105ec92aae9f4c7ce3a",
-      "media_type": "application/json"
+      "round": 3,
+      "kind": "provider_generated_80_percent_size_scene",
+      "official_success": false,
+      "rule_tool_value_m": 0.045257747173309326,
+      "implementation_trace": "direct_partial_repair_required",
+      "preservation_status": "failed",
+      "contact_point_z_delta_m": -0.005158080101013152
     }
-  ]
+  ],
+  "source_planner_stop": "evidence_sufficient",
+  "corrected_planner_stop": "semantic_evidence_insufficient",
+  "claim_verdict": "inconclusive",
+  "tool_lifecycle": {
+    "round_2": "provider_codegen_validated_live",
+    "round_3": "exact_run_local_reuse_live"
+  },
+  "taskgen_validation": {
+    "round_2": "static_render_vlm_expert_passed",
+    "round_3": "static_render_vlm_expert_passed",
+    "repair_triggered": false
+  },
+  "acceptance": {
+    "source_runtime_projection": false,
+    "source_runtime_projection_reason": "pre-generalization projection required exactly two rounds",
+    "superseded_intermediate_projection": true,
+    "superseded_intermediate_reason": "It reused VLM as authority for exact coordinates and contacts.",
+    "append_only_final_semantic_audit": false,
+    "artifact": "artifacts/plan/semantic_preservation_audit.json"
+  },
+  "limitations": [
+    "N=3 policy episodes but only one seed.",
+    "The open candidate universe was not exhausted.",
+    "The color candidate lacks authoritative shape and size preservation evidence.",
+    "The size candidate moved the success-relevant contact point by -0.0051580801 m in z.",
+    "The observed size-scene failure is confounded and does not directly answer the pure-property-change Query.",
+    "The flagship reused official success semantics; it did not require a generated checker."
+  ],
+  "contents": {
+    "query_and_plan": "artifacts/plan/",
+    "generated_tasks": "artifacts/taskgen/",
+    "generated_and_reused_tool": "artifacts/tool/",
+    "rollouts": "artifacts/rollout/",
+    "aggregates": "artifacts/aggregate/",
+    "answer": "artifacts/answer/"
+  }
 }

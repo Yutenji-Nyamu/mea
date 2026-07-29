@@ -1,0 +1,118 @@
+{
+  "valid": true,
+  "attempt_index": 0,
+  "static": {
+    "valid": true,
+    "function_name": "generated_tool",
+    "source_sha256": "14ceab2dd9939cc58a271bf99fcd1c86297ff25b19364ff2f577a4600e6a8a57",
+    "ast_node_count": 256
+  },
+  "provider": {
+    "id": "chatcmpl-202607281510436675427278268d9d68YVt4fhW",
+    "model": "gpt-5.6-luna",
+    "finish_reason": "stop",
+    "usage": {
+      "prompt_tokens": 1516,
+      "completion_tokens": 670,
+      "total_tokens": 2186,
+      "billing_usage": {
+        "source": "oai_responses",
+        "semantic": "openai",
+        "openai_usage": {
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "total_tokens": 2186,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "text_tokens": 0,
+            "audio_tokens": 0,
+            "image_tokens": 0
+          },
+          "completion_tokens_details": {
+            "text_tokens": 0,
+            "audio_tokens": 0,
+            "image_tokens": 0,
+            "reasoning_tokens": 0
+          },
+          "input_tokens": 1516,
+          "output_tokens": 670,
+          "input_tokens_details": {
+            "cached_tokens": 0,
+            "text_tokens": 0,
+            "audio_tokens": 0,
+            "image_tokens": 0
+          },
+          "claude_cache_creation_5_m_tokens": 0,
+          "claude_cache_creation_1_h_tokens": 0
+        }
+      },
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "text_tokens": 0,
+        "audio_tokens": 0,
+        "image_tokens": 0
+      },
+      "completion_tokens_details": {
+        "text_tokens": 0,
+        "audio_tokens": 0,
+        "image_tokens": 0,
+        "reasoning_tokens": 0
+      },
+      "input_tokens": 1516,
+      "output_tokens": 670,
+      "input_tokens_details": null,
+      "claude_cache_creation_5_m_tokens": 0,
+      "claude_cache_creation_1_h_tokens": 0
+    },
+    "retry_count": 0
+  },
+  "episodes": [
+    {
+      "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260728_batch29_open_flagship_v19_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+      "policy_name": "ACT",
+      "seed": 100000,
+      "generated_result": {
+        "tool": "generated_bell_active_tcp_min_xy_error",
+        "version": 1,
+        "generated": true,
+        "tool_sha256": "14ceab2dd9939cc58a271bf99fcd1c86297ff25b19364ff2f577a4600e6a8a57",
+        "value": 0.0077674430795013905,
+        "unit": "m",
+        "passed": null,
+        "evidence_steps": [
+          4392
+        ],
+        "details": {
+          "active_arm": "right",
+          "min_error_physics_step": 4392,
+          "simulation_time_seconds": 17.568
+        }
+      },
+      "oracle_projection": {
+        "value": 0.0077674430795013905,
+        "unit": "m",
+        "passed": null,
+        "evidence_steps": [
+          4392
+        ],
+        "details": {
+          "active_arm": "right",
+          "min_error_physics_step": 4392,
+          "simulation_time_seconds": 17.568
+        }
+      },
+      "trusted_projection": null,
+      "deterministic": true,
+      "oracle_agreement": true,
+      "artifacts_unchanged": true,
+      "artifact_sha256": {
+        "episode.json": "171a1ffd3e6bf97aa6fdeceb71ab107d3400e9e274e7a4301072a2c27a6b7712",
+        "schema.json": "b07117f9e3438bebfcfd8482f4b29deb78c1327691047cc53360ed2c3bf335c3",
+        "states.csv": "50f74e4b91813a77b6b1cc3af5dfa4a87e9698e230b929977c6d695770797fc3",
+        "semantic_trace.npz": "1f9a5f26f2f4ad3e2e21a5909a15b0e9a26a4759201f825a68b7d3919b6ef6ba",
+        "events.jsonl": "8c018efe090ec8948be143b8f4d1e5ff77bb40ca792f9207464789a3a98ae095"
+      }
+    }
+  ],
+  "property_scenarios": []
+}

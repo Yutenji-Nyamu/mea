@@ -1,0 +1,667 @@
+{
+  "schema_version": 1,
+  "control_template_id": "task_execution.official_baseline",
+  "control_required": true,
+  "control_passed": true,
+  "query_contract": {
+    "schema_version": 3,
+    "claim_type": "diagnostic",
+    "candidate_universe": [
+      "dynamic.click.bell.robustness.to.a.bounded.change.in.the.bell.s.color.while.its.task.relevant.geometry.and.location.remain.fixed.act.will.be.less.likely.to.click.the.bell.successfully.when.the.bell.color.is.changed.to.a.bounded.alternate.color.despite.identical.bell.position.shape.size.material.scene.layout.camera.viewpoint.and.click.bell.instruction.69a658418526",
+      "dynamic.click.bell.robustness.object.instance.bell.size.scaling.act.will.be.less.likely.to.complete.the.click.when.the.bell.is.uniformly.reduced.in.size.by.20.even.though.the.bell.contact.position.scene.instruction.and.policy.checkpoint.remain.unchanged.ea4a84dd44b7"
+    ],
+    "required_coverage": {
+      "candidate_ids": [
+        "dynamic.click.bell.robustness.to.a.bounded.change.in.the.bell.s.color.while.its.task.relevant.geometry.and.location.remain.fixed.act.will.be.less.likely.to.click.the.bell.successfully.when.the.bell.color.is.changed.to.a.bounded.alternate.color.despite.identical.bell.position.shape.size.material.scene.layout.camera.viewpoint.and.click.bell.instruction.69a658418526",
+        "dynamic.click.bell.robustness.object.instance.bell.size.scaling.act.will.be.less.likely.to.complete.the.click.when.the.bell.is.uniformly.reduced.in.size.by.20.even.though.the.bell.contact.position.scene.instruction.and.policy.checkpoint.remain.unchanged.ea4a84dd44b7"
+      ],
+      "minimum_evaluated": 1,
+      "minimum_per_group": null
+    },
+    "round_budget": 2,
+    "comparison_groups": null,
+    "candidate_universe_closed": false,
+    "existential_witness_outcome": null,
+    "control_requirement": "required"
+  },
+  "assessment": {
+    "schema_version": 1,
+    "contract": {
+      "schema_version": 3,
+      "claim_type": "diagnostic",
+      "candidate_universe": [
+        "dynamic.click.bell.robustness.to.a.bounded.change.in.the.bell.s.color.while.its.task.relevant.geometry.and.location.remain.fixed.act.will.be.less.likely.to.click.the.bell.successfully.when.the.bell.color.is.changed.to.a.bounded.alternate.color.despite.identical.bell.position.shape.size.material.scene.layout.camera.viewpoint.and.click.bell.instruction.69a658418526",
+        "dynamic.click.bell.robustness.object.instance.bell.size.scaling.act.will.be.less.likely.to.complete.the.click.when.the.bell.is.uniformly.reduced.in.size.by.20.even.though.the.bell.contact.position.scene.instruction.and.policy.checkpoint.remain.unchanged.ea4a84dd44b7"
+      ],
+      "required_coverage": {
+        "candidate_ids": [
+          "dynamic.click.bell.robustness.to.a.bounded.change.in.the.bell.s.color.while.its.task.relevant.geometry.and.location.remain.fixed.act.will.be.less.likely.to.click.the.bell.successfully.when.the.bell.color.is.changed.to.a.bounded.alternate.color.despite.identical.bell.position.shape.size.material.scene.layout.camera.viewpoint.and.click.bell.instruction.69a658418526",
+          "dynamic.click.bell.robustness.object.instance.bell.size.scaling.act.will.be.less.likely.to.complete.the.click.when.the.bell.is.uniformly.reduced.in.size.by.20.even.though.the.bell.contact.position.scene.instruction.and.policy.checkpoint.remain.unchanged.ea4a84dd44b7"
+        ],
+        "minimum_evaluated": 1,
+        "minimum_per_group": null
+      },
+      "round_budget": 2,
+      "comparison_groups": null,
+      "candidate_universe_closed": false,
+      "existential_witness_outcome": null,
+      "control_requirement": "required"
+    },
+    "should_stop": true,
+    "stop_reason": "evidence_sufficient",
+    "claim_verdict": "diagnosed",
+    "evidence_sufficient": true,
+    "completed_rounds": 2,
+    "round_budget": 2,
+    "budget_remaining": 0,
+    "candidate_universe_closed": false,
+    "candidate_discovery_required": false,
+    "observed_candidate_ids": [
+      "dynamic.click.bell.robustness.to.a.bounded.change.in.the.bell.s.color.while.its.task.relevant.geometry.and.location.remain.fixed.act.will.be.less.likely.to.click.the.bell.successfully.when.the.bell.color.is.changed.to.a.bounded.alternate.color.despite.identical.bell.position.shape.size.material.scene.layout.camera.viewpoint.and.click.bell.instruction.69a658418526",
+      "dynamic.click.bell.robustness.object.instance.bell.size.scaling.act.will.be.less.likely.to.complete.the.click.when.the.bell.is.uniformly.reduced.in.size.by.20.even.though.the.bell.contact.position.scene.instruction.and.policy.checkpoint.remain.unchanged.ea4a84dd44b7"
+    ],
+    "decisive_candidate_ids": [
+      "dynamic.click.bell.robustness.to.a.bounded.change.in.the.bell.s.color.while.its.task.relevant.geometry.and.location.remain.fixed.act.will.be.less.likely.to.click.the.bell.successfully.when.the.bell.color.is.changed.to.a.bounded.alternate.color.despite.identical.bell.position.shape.size.material.scene.layout.camera.viewpoint.and.click.bell.instruction.69a658418526",
+      "dynamic.click.bell.robustness.object.instance.bell.size.scaling.act.will.be.less.likely.to.complete.the.click.when.the.bell.is.uniformly.reduced.in.size.by.20.even.though.the.bell.contact.position.scene.instruction.and.policy.checkpoint.remain.unchanged.ea4a84dd44b7"
+    ],
+    "conflict_candidate_ids": [],
+    "unknown_candidate_ids": [],
+    "untested_required_candidate_ids": [],
+    "untested_candidate_ids": [],
+    "recommended_candidate_ids": [],
+    "rationale": "A measured failure has an evidence-backed diagnosis and the minimum diagnostic coverage is met.",
+    "statistics": {
+      "diagnosed_failure_candidate_ids": [
+        "dynamic.click.bell.robustness.object.instance.bell.size.scaling.act.will.be.less.likely.to.complete.the.click.when.the.bell.is.uniformly.reduced.in.size.by.20.even.though.the.bell.contact.position.scene.instruction.and.policy.checkpoint.remain.unchanged.ea4a84dd44b7"
+      ]
+    },
+    "limitations": [
+      "This is a finite-domain stopping prototype, not a statistical generalization guarantee.",
+      "The candidate universe is open; exhaustive, no-counterexample, and worst-case conclusions are not licensed.",
+      "Diagnosis strings are trusted upstream evidence labels; this contract does not independently infer or validate causality."
+    ]
+  },
+  "records": [
+    {
+      "schema_version": 1,
+      "round_id": "round_1",
+      "template_id": "task_execution.official_baseline",
+      "candidate_id": "task_execution.official_baseline",
+      "open_query_evidence": {
+        "schema_version": 1,
+        "round_id": "round_1",
+        "tested_sub_aspect": "task_execution.official_baseline",
+        "tested_hypothesis": "Find one bounded change in the manipulated object properties that exposes an ACT weakness; test it and explain the evidence.",
+        "tested_perturbation": "unchanged official-scene control",
+        "outcome": "success",
+        "evidence_summary": "EvidencePacket strength=sufficient; policy_success_rate=1.0; Rule metric=official_check_success; outcome_metric=official_check_success; outcome_authority=official_check_success; outcome_semantics=official_only; VQA status=passed; planned_tool_measurements=[{\"metric\": \"official_check_success\", \"null_reason\": null, \"passed\": true, \"provider_called\": false, \"route\": \"reuse\", \"unit\": null, \"value\": true}].",
+        "limitations": [
+          "One bounded runtime round is not a statistical generalization estimate."
+        ]
+      },
+      "candidate_evidence": {
+        "candidate_id": "task_execution.official_baseline",
+        "outcome": "pass",
+        "score": 1.0,
+        "diagnosis": null
+      },
+      "evaluation_outcome": {
+        "metric": "official_check_success",
+        "authority": "official_check_success",
+        "binding": null,
+        "value": 1.0,
+        "official_equivalent": true,
+        "execution_scope": "official_equivalent",
+        "outcome_semantics": {
+          "schema_version": 1,
+          "status": "official_only",
+          "evidence_conflict": false,
+          "official_equivalent": true,
+          "outcome_authority": "official_check_success",
+          "episodes": [],
+          "reason_codes": [
+            "official_outcome_has_no_generated_checker"
+          ]
+        }
+      },
+      "outcome_semantics": {
+        "schema_version": 1,
+        "status": "official_only",
+        "evidence_conflict": false,
+        "official_equivalent": true,
+        "outcome_authority": "official_check_success",
+        "episodes": [],
+        "reason_codes": [
+          "official_outcome_has_no_generated_checker"
+        ]
+      },
+      "planned_tool_evidence": [
+        {
+          "metric": "official_check_success",
+          "value": true,
+          "unit": null,
+          "passed": true,
+          "route": "reuse",
+          "provider_called": false,
+          "null_reason": null
+        }
+      ],
+      "evidence_packet": {
+        "schema_version": 1,
+        "round_id": "round_1",
+        "template_id": "task_execution.official_baseline",
+        "pipeline": {
+          "passed": true,
+          "failure_stage": null
+        },
+        "policy": {
+          "success_rate": 1.0,
+          "reported": true
+        },
+        "rule": {
+          "metric": "official_check_success",
+          "expected_policy_episodes": 1,
+          "aggregate_status": "passed",
+          "input_issue_count": 0,
+          "valid": 1,
+          "missing": 0,
+          "invalid": 0,
+          "semantic_missing": 0,
+          "semantic_missing_reasons": [],
+          "observed_policy_episodes": 1,
+          "complete": true,
+          "reasons": []
+        },
+        "vqa": {
+          "required": false,
+          "status": "passed",
+          "evidence_conflict": false
+        },
+        "evidence_strength": "sufficient",
+        "reason_codes": []
+      },
+      "evidence_refs": [
+        {
+          "kind": "child_manifest",
+          "path": "mea/generated_tasks/run_20260728_batch29_open_flagship_v19_round_1/manifest.json"
+        },
+        {
+          "kind": "evidence_aggregate",
+          "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_1/evidence_aggregate.json"
+        },
+        {
+          "kind": "round_aggregate",
+          "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_1/aggregate_result.json"
+        },
+        {
+          "kind": "tool_execution",
+          "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_1/planned_tool/tool_execution.json"
+        },
+        {
+          "kind": "execution_vqa_result",
+          "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_1/execution_vqa/execution_vqa.json"
+        }
+      ]
+    },
+    {
+      "schema_version": 1,
+      "round_id": "round_2",
+      "template_id": "",
+      "candidate_id": "dynamic.click.bell.robustness.to.a.bounded.change.in.the.bell.s.color.while.its.task.relevant.geometry.and.location.remain.fixed.act.will.be.less.likely.to.click.the.bell.successfully.when.the.bell.color.is.changed.to.a.bounded.alternate.color.despite.identical.bell.position.shape.size.material.scene.layout.camera.viewpoint.and.click.bell.instruction.69a658418526",
+      "open_query_evidence": {
+        "schema_version": 1,
+        "round_id": "round_2",
+        "tested_sub_aspect": "Robustness to a bounded change in the bell's color while its task-relevant geometry and location remain fixed",
+        "tested_hypothesis": "Find one bounded change in the manipulated object properties that exposes an ACT weakness; test it and explain the evidence.\nScene need: Change only the bell color from the checkpoint's reference color to one bounded alternate color; preserve the bell center position, shape, size, material, scene layout, camera viewpoint, task instruction, policy checkpoint, and official success semantics. Preserve unchanged: the bell center position; shape; size; material; scene layout; camera viewpoint; task instruction; policy checkpoint; official success semantics.\nChecker need: reuse the official implementation",
+        "tested_perturbation": "dynamic.click.bell.robustness.to.a.bounded.change.in.the.bell.s.color.while.its.task.relevant.geometry.and.location.remain.fixed.act.will.be.less.likely.to.click.the.bell.successfully.when.the.bell.color.is.changed.to.a.bounded.alternate.color.despite.identical.bell.position.shape.size.material.scene.layout.camera.viewpoint.and.click.bell.instruction.69a658418526",
+        "outcome": "success",
+        "evidence_summary": "EvidencePacket strength=sufficient; policy_success_rate=1.0; Rule metric=bell_active_tcp_min_xy_error; outcome_metric=official_check_success; outcome_authority=official_check_success_reused; outcome_semantics=official_only; VQA status=passed; planned_tool_measurements=[{\"metric\": \"generated_bell_active_tcp_min_xy_error\", \"null_reason\": null, \"passed\": null, \"provider_called\": true, \"route\": \"force_codegen\", \"unit\": \"m\", \"value\": 0.0077674430795013905}].",
+        "limitations": [
+          "One bounded runtime round is not a statistical generalization estimate."
+        ]
+      },
+      "candidate_evidence": {
+        "candidate_id": "dynamic.click.bell.robustness.to.a.bounded.change.in.the.bell.s.color.while.its.task.relevant.geometry.and.location.remain.fixed.act.will.be.less.likely.to.click.the.bell.successfully.when.the.bell.color.is.changed.to.a.bounded.alternate.color.despite.identical.bell.position.shape.size.material.scene.layout.camera.viewpoint.and.click.bell.instruction.69a658418526",
+        "outcome": "pass",
+        "score": 1.0,
+        "diagnosis": null
+      },
+      "evaluation_outcome": {
+        "metric": "official_check_success",
+        "authority": "official_check_success_reused",
+        "binding": null,
+        "value": 1.0,
+        "official_equivalent": true,
+        "execution_scope": "official_equivalent",
+        "outcome_semantics": {
+          "schema_version": 1,
+          "status": "official_only",
+          "evidence_conflict": false,
+          "official_equivalent": true,
+          "outcome_authority": "official_check_success_reused",
+          "episodes": [],
+          "reason_codes": [
+            "official_outcome_has_no_generated_checker"
+          ]
+        }
+      },
+      "outcome_semantics": {
+        "schema_version": 1,
+        "status": "official_only",
+        "evidence_conflict": false,
+        "official_equivalent": true,
+        "outcome_authority": "official_check_success_reused",
+        "episodes": [],
+        "reason_codes": [
+          "official_outcome_has_no_generated_checker"
+        ]
+      },
+      "planned_tool_evidence": [
+        {
+          "metric": "generated_bell_active_tcp_min_xy_error",
+          "value": 0.0077674430795013905,
+          "unit": "m",
+          "passed": null,
+          "route": "force_codegen",
+          "provider_called": true,
+          "null_reason": null
+        }
+      ],
+      "evidence_packet": {
+        "schema_version": 1,
+        "round_id": "round_2",
+        "template_id": "dynamic.click.bell.robustness.to.a.bounded.change.in.the.bell.s.color.while.its.task.relevant.geometry.and.location.remain.fixed.act.will.be.less.likely.to.click.the.bell.successfully.when.the.bell.color.is.changed.to.a.bounded.alternate.color.despite.identical.bell.position.shape.size.material.scene.layout.camera.viewpoint.and.click.bell.instruction.69a658418526",
+        "pipeline": {
+          "passed": true,
+          "failure_stage": null
+        },
+        "policy": {
+          "success_rate": 1.0,
+          "reported": true
+        },
+        "rule": {
+          "metric": "bell_active_tcp_min_xy_error",
+          "expected_policy_episodes": 1,
+          "aggregate_status": "passed",
+          "input_issue_count": 0,
+          "valid": 1,
+          "missing": 0,
+          "invalid": 0,
+          "semantic_missing": 0,
+          "semantic_missing_reasons": [],
+          "observed_policy_episodes": 1,
+          "complete": true,
+          "reasons": []
+        },
+        "vqa": {
+          "required": false,
+          "status": "passed",
+          "evidence_conflict": false
+        },
+        "evidence_strength": "sufficient",
+        "reason_codes": []
+      },
+      "evidence_refs": [
+        {
+          "kind": "child_manifest",
+          "path": "mea/generated_tasks/run_20260728_batch29_open_flagship_v19_round_2/manifest.json"
+        },
+        {
+          "kind": "evidence_aggregate",
+          "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_2/evidence_aggregate.json"
+        },
+        {
+          "kind": "round_aggregate",
+          "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_2/aggregate_result.json"
+        },
+        {
+          "kind": "tool_execution",
+          "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_2/planned_tool/tool_execution.json"
+        },
+        {
+          "kind": "execution_vqa_result",
+          "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_2/execution_vqa/execution_vqa.json"
+        }
+      ]
+    },
+    {
+      "schema_version": 1,
+      "round_id": "round_3",
+      "template_id": "",
+      "candidate_id": "dynamic.click.bell.robustness.object.instance.bell.size.scaling.act.will.be.less.likely.to.complete.the.click.when.the.bell.is.uniformly.reduced.in.size.by.20.even.though.the.bell.contact.position.scene.instruction.and.policy.checkpoint.remain.unchanged.ea4a84dd44b7",
+      "open_query_evidence": {
+        "schema_version": 1,
+        "round_id": "round_3",
+        "tested_sub_aspect": "robustness.object_instance.bell_size_scaling",
+        "tested_hypothesis": "Find one bounded change in the manipulated object properties that exposes an ACT weakness; test it and explain the evidence.\nScene need: Create a bounded object-instance variant by uniformly scaling the bell's visual and collision geometry to 80% of its reference dimensions while preserving its contact-point world position. Preserve unchanged: bell contact-point world position; bell center position; bell material and color; scene layout and camera viewpoint; task identity; task instruction; policy checkpoint; official success semantics.\nChecker need: reuse the official implementation",
+        "tested_perturbation": "dynamic.click.bell.robustness.object.instance.bell.size.scaling.act.will.be.less.likely.to.complete.the.click.when.the.bell.is.uniformly.reduced.in.size.by.20.even.though.the.bell.contact.position.scene.instruction.and.policy.checkpoint.remain.unchanged.ea4a84dd44b7",
+        "outcome": "failure",
+        "evidence_summary": "EvidencePacket strength=sufficient; policy_success_rate=0.0; Rule metric=bell_active_tcp_min_xy_error; outcome_metric=official_check_success; outcome_authority=official_check_success_reused; outcome_semantics=official_only; VQA status=passed; planned_tool_measurements=[{\"metric\": \"generated_bell_active_tcp_min_xy_error\", \"null_reason\": null, \"passed\": null, \"provider_called\": false, \"route\": \"run_local_reuse\", \"unit\": \"m\", \"value\": 0.045257747173309326}].",
+        "limitations": [
+          "One bounded runtime round is not a statistical generalization estimate."
+        ]
+      },
+      "candidate_evidence": {
+        "candidate_id": "dynamic.click.bell.robustness.object.instance.bell.size.scaling.act.will.be.less.likely.to.complete.the.click.when.the.bell.is.uniformly.reduced.in.size.by.20.even.though.the.bell.contact.position.scene.instruction.and.policy.checkpoint.remain.unchanged.ea4a84dd44b7",
+        "outcome": "fail",
+        "score": 0.0,
+        "diagnosis": "Observed policy success_rate=0 for dynamic.click.bell.robustness.object.instance.bell.size.scaling.act.will.be.less.likely.to.complete.the.click.when.the.bell.is.uniformly.reduced.in.size.by.20.even.though.the.bell.contact.position.scene.instruction.and.policy.checkpoint.remain.unchanged.ea4a84dd44b7 with complete Rule metric bell_active_tcp_min_xy_error; this localizes an observed weakness but does not establish a causal mechanism."
+      },
+      "evaluation_outcome": {
+        "metric": "official_check_success",
+        "authority": "official_check_success_reused",
+        "binding": null,
+        "value": 0.0,
+        "official_equivalent": true,
+        "execution_scope": "official_equivalent",
+        "outcome_semantics": {
+          "schema_version": 1,
+          "status": "official_only",
+          "evidence_conflict": false,
+          "official_equivalent": true,
+          "outcome_authority": "official_check_success_reused",
+          "episodes": [],
+          "reason_codes": [
+            "official_outcome_has_no_generated_checker"
+          ]
+        }
+      },
+      "outcome_semantics": {
+        "schema_version": 1,
+        "status": "official_only",
+        "evidence_conflict": false,
+        "official_equivalent": true,
+        "outcome_authority": "official_check_success_reused",
+        "episodes": [],
+        "reason_codes": [
+          "official_outcome_has_no_generated_checker"
+        ]
+      },
+      "planned_tool_evidence": [
+        {
+          "metric": "generated_bell_active_tcp_min_xy_error",
+          "value": 0.045257747173309326,
+          "unit": "m",
+          "passed": null,
+          "route": "run_local_reuse",
+          "provider_called": false,
+          "null_reason": null
+        }
+      ],
+      "evidence_packet": {
+        "schema_version": 1,
+        "round_id": "round_3",
+        "template_id": "dynamic.click.bell.robustness.object.instance.bell.size.scaling.act.will.be.less.likely.to.complete.the.click.when.the.bell.is.uniformly.reduced.in.size.by.20.even.though.the.bell.contact.position.scene.instruction.and.policy.checkpoint.remain.unchanged.ea4a84dd44b7",
+        "pipeline": {
+          "passed": true,
+          "failure_stage": null
+        },
+        "policy": {
+          "success_rate": 0.0,
+          "reported": true
+        },
+        "rule": {
+          "metric": "bell_active_tcp_min_xy_error",
+          "expected_policy_episodes": 1,
+          "aggregate_status": "passed",
+          "input_issue_count": 0,
+          "valid": 1,
+          "missing": 0,
+          "invalid": 0,
+          "semantic_missing": 0,
+          "semantic_missing_reasons": [],
+          "observed_policy_episodes": 1,
+          "complete": true,
+          "reasons": []
+        },
+        "vqa": {
+          "required": false,
+          "status": "passed",
+          "evidence_conflict": false
+        },
+        "evidence_strength": "sufficient",
+        "reason_codes": []
+      },
+      "evidence_refs": [
+        {
+          "kind": "child_manifest",
+          "path": "mea/generated_tasks/run_20260728_batch29_open_flagship_v19_round_3/manifest.json"
+        },
+        {
+          "kind": "evidence_aggregate",
+          "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_3/evidence_aggregate.json"
+        },
+        {
+          "kind": "round_aggregate",
+          "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_3/aggregate_result.json"
+        },
+        {
+          "kind": "tool_execution",
+          "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_3/planned_tool/tool_execution.json"
+        },
+        {
+          "kind": "execution_vqa_result",
+          "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_3/execution_vqa/execution_vqa.json"
+        }
+      ]
+    }
+  ],
+  "open_query_evidence_history": [
+    {
+      "schema_version": 1,
+      "round_id": "round_1",
+      "tested_sub_aspect": "task_execution.official_baseline",
+      "tested_hypothesis": "Find one bounded change in the manipulated object properties that exposes an ACT weakness; test it and explain the evidence.",
+      "tested_perturbation": "unchanged official-scene control",
+      "outcome": "success",
+      "evidence_summary": "EvidencePacket strength=sufficient; policy_success_rate=1.0; Rule metric=official_check_success; outcome_metric=official_check_success; outcome_authority=official_check_success; outcome_semantics=official_only; VQA status=passed; planned_tool_measurements=[{\"metric\": \"official_check_success\", \"null_reason\": null, \"passed\": true, \"provider_called\": false, \"route\": \"reuse\", \"unit\": null, \"value\": true}].",
+      "limitations": [
+        "One bounded runtime round is not a statistical generalization estimate."
+      ]
+    },
+    {
+      "schema_version": 1,
+      "round_id": "round_2",
+      "tested_sub_aspect": "Robustness to a bounded change in the bell's color while its task-relevant geometry and location remain fixed",
+      "tested_hypothesis": "Find one bounded change in the manipulated object properties that exposes an ACT weakness; test it and explain the evidence.\nScene need: Change only the bell color from the checkpoint's reference color to one bounded alternate color; preserve the bell center position, shape, size, material, scene layout, camera viewpoint, task instruction, policy checkpoint, and official success semantics. Preserve unchanged: the bell center position; shape; size; material; scene layout; camera viewpoint; task instruction; policy checkpoint; official success semantics.\nChecker need: reuse the official implementation",
+      "tested_perturbation": "dynamic.click.bell.robustness.to.a.bounded.change.in.the.bell.s.color.while.its.task.relevant.geometry.and.location.remain.fixed.act.will.be.less.likely.to.click.the.bell.successfully.when.the.bell.color.is.changed.to.a.bounded.alternate.color.despite.identical.bell.position.shape.size.material.scene.layout.camera.viewpoint.and.click.bell.instruction.69a658418526",
+      "outcome": "success",
+      "evidence_summary": "EvidencePacket strength=sufficient; policy_success_rate=1.0; Rule metric=bell_active_tcp_min_xy_error; outcome_metric=official_check_success; outcome_authority=official_check_success_reused; outcome_semantics=official_only; VQA status=passed; planned_tool_measurements=[{\"metric\": \"generated_bell_active_tcp_min_xy_error\", \"null_reason\": null, \"passed\": null, \"provider_called\": true, \"route\": \"force_codegen\", \"unit\": \"m\", \"value\": 0.0077674430795013905}].",
+      "limitations": [
+        "One bounded runtime round is not a statistical generalization estimate."
+      ]
+    },
+    {
+      "schema_version": 1,
+      "round_id": "round_3",
+      "tested_sub_aspect": "robustness.object_instance.bell_size_scaling",
+      "tested_hypothesis": "Find one bounded change in the manipulated object properties that exposes an ACT weakness; test it and explain the evidence.\nScene need: Create a bounded object-instance variant by uniformly scaling the bell's visual and collision geometry to 80% of its reference dimensions while preserving its contact-point world position. Preserve unchanged: bell contact-point world position; bell center position; bell material and color; scene layout and camera viewpoint; task identity; task instruction; policy checkpoint; official success semantics.\nChecker need: reuse the official implementation",
+      "tested_perturbation": "dynamic.click.bell.robustness.object.instance.bell.size.scaling.act.will.be.less.likely.to.complete.the.click.when.the.bell.is.uniformly.reduced.in.size.by.20.even.though.the.bell.contact.position.scene.instruction.and.policy.checkpoint.remain.unchanged.ea4a84dd44b7",
+      "outcome": "failure",
+      "evidence_summary": "EvidencePacket strength=sufficient; policy_success_rate=0.0; Rule metric=bell_active_tcp_min_xy_error; outcome_metric=official_check_success; outcome_authority=official_check_success_reused; outcome_semantics=official_only; VQA status=passed; planned_tool_measurements=[{\"metric\": \"generated_bell_active_tcp_min_xy_error\", \"null_reason\": null, \"passed\": null, \"provider_called\": false, \"route\": \"run_local_reuse\", \"unit\": \"m\", \"value\": 0.045257747173309326}].",
+      "limitations": [
+        "One bounded runtime round is not a statistical generalization estimate."
+      ]
+    }
+  ],
+  "query_answer": {
+    "schema_version": 1,
+    "original_query": "Find one bounded change in the manipulated object properties that exposes an ACT weakness; test it and explain the evidence.",
+    "answered": true,
+    "answer_scope": "official_equivalent",
+    "official_benchmark_answered": true,
+    "stop_reason": "evidence_sufficient",
+    "claim_type": "diagnostic",
+    "claim_verdict": "diagnosed",
+    "answer": "For the finite registered candidate domain, the Query verdict is diagnosed.",
+    "tested_candidate_ids": [
+      "dynamic.click.bell.robustness.to.a.bounded.change.in.the.bell.s.color.while.its.task.relevant.geometry.and.location.remain.fixed.act.will.be.less.likely.to.click.the.bell.successfully.when.the.bell.color.is.changed.to.a.bounded.alternate.color.despite.identical.bell.position.shape.size.material.scene.layout.camera.viewpoint.and.click.bell.instruction.69a658418526",
+      "dynamic.click.bell.robustness.object.instance.bell.size.scaling.act.will.be.less.likely.to.complete.the.click.when.the.bell.is.uniformly.reduced.in.size.by.20.even.though.the.bell.contact.position.scene.instruction.and.policy.checkpoint.remain.unchanged.ea4a84dd44b7"
+    ],
+    "untested_candidate_ids": [],
+    "limitations": [
+      "This is a finite-domain stopping prototype, not a statistical generalization guarantee.",
+      "The candidate universe is open; exhaustive, no-counterexample, and worst-case conclusions are not licensed.",
+      "Diagnosis strings are trusted upstream evidence labels; this contract does not independently infer or validate causality.",
+      "This answer is limited to the bound task, checkpoint, variants, and recorded seeds.",
+      "A finite-domain N-small result is not a broad generalization guarantee."
+    ],
+    "evidence_refs": [
+      {
+        "kind": "child_manifest",
+        "path": "mea/generated_tasks/run_20260728_batch29_open_flagship_v19_round_1/manifest.json"
+      },
+      {
+        "kind": "evidence_aggregate",
+        "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_1/evidence_aggregate.json"
+      },
+      {
+        "kind": "round_aggregate",
+        "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_1/aggregate_result.json"
+      },
+      {
+        "kind": "tool_execution",
+        "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_1/planned_tool/tool_execution.json"
+      },
+      {
+        "kind": "execution_vqa_result",
+        "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_1/execution_vqa/execution_vqa.json"
+      },
+      {
+        "kind": "child_manifest",
+        "path": "mea/generated_tasks/run_20260728_batch29_open_flagship_v19_round_2/manifest.json"
+      },
+      {
+        "kind": "evidence_aggregate",
+        "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_2/evidence_aggregate.json"
+      },
+      {
+        "kind": "round_aggregate",
+        "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_2/aggregate_result.json"
+      },
+      {
+        "kind": "tool_execution",
+        "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_2/planned_tool/tool_execution.json"
+      },
+      {
+        "kind": "execution_vqa_result",
+        "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_2/execution_vqa/execution_vqa.json"
+      },
+      {
+        "kind": "child_manifest",
+        "path": "mea/generated_tasks/run_20260728_batch29_open_flagship_v19_round_3/manifest.json"
+      },
+      {
+        "kind": "evidence_aggregate",
+        "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_3/evidence_aggregate.json"
+      },
+      {
+        "kind": "round_aggregate",
+        "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_3/aggregate_result.json"
+      },
+      {
+        "kind": "tool_execution",
+        "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_3/planned_tool/tool_execution.json"
+      },
+      {
+        "kind": "execution_vqa_result",
+        "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_3/execution_vqa/execution_vqa.json"
+      }
+    ],
+    "evaluation_outcomes": [
+      {
+        "metric": "official_check_success",
+        "authority": "official_check_success",
+        "binding": null,
+        "value": 1.0,
+        "official_equivalent": true,
+        "execution_scope": "official_equivalent",
+        "outcome_semantics": {
+          "schema_version": 1,
+          "status": "official_only",
+          "evidence_conflict": false,
+          "official_equivalent": true,
+          "outcome_authority": "official_check_success",
+          "episodes": [],
+          "reason_codes": [
+            "official_outcome_has_no_generated_checker"
+          ]
+        }
+      },
+      {
+        "metric": "official_check_success",
+        "authority": "official_check_success_reused",
+        "binding": null,
+        "value": 1.0,
+        "official_equivalent": true,
+        "execution_scope": "official_equivalent",
+        "outcome_semantics": {
+          "schema_version": 1,
+          "status": "official_only",
+          "evidence_conflict": false,
+          "official_equivalent": true,
+          "outcome_authority": "official_check_success_reused",
+          "episodes": [],
+          "reason_codes": [
+            "official_outcome_has_no_generated_checker"
+          ]
+        }
+      },
+      {
+        "metric": "official_check_success",
+        "authority": "official_check_success_reused",
+        "binding": null,
+        "value": 0.0,
+        "official_equivalent": true,
+        "execution_scope": "official_equivalent",
+        "outcome_semantics": {
+          "schema_version": 1,
+          "status": "official_only",
+          "evidence_conflict": false,
+          "official_equivalent": true,
+          "outcome_authority": "official_check_success_reused",
+          "episodes": [],
+          "reason_codes": [
+            "official_outcome_has_no_generated_checker"
+          ]
+        }
+      }
+    ],
+    "outcome_semantics": [
+      {
+        "schema_version": 1,
+        "status": "official_only",
+        "evidence_conflict": false,
+        "official_equivalent": true,
+        "outcome_authority": "official_check_success",
+        "episodes": [],
+        "reason_codes": [
+          "official_outcome_has_no_generated_checker"
+        ]
+      },
+      {
+        "schema_version": 1,
+        "status": "official_only",
+        "evidence_conflict": false,
+        "official_equivalent": true,
+        "outcome_authority": "official_check_success_reused",
+        "episodes": [],
+        "reason_codes": [
+          "official_outcome_has_no_generated_checker"
+        ]
+      },
+      {
+        "schema_version": 1,
+        "status": "official_only",
+        "evidence_conflict": false,
+        "official_equivalent": true,
+        "outcome_authority": "official_check_success_reused",
+        "episodes": [],
+        "reason_codes": [
+          "official_outcome_has_no_generated_checker"
+        ]
+      }
+    ],
+    "evidence_conflict": false
+  }
+}

@@ -109,6 +109,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--evaluation-id", required=True)
     parser.add_argument("--round-id", default="round_1")
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument(
+        "--tool-execution",
+        type=Path,
+        help=(
+            "Optional Tool execution from an append-only completed-round repair. "
+            "Defaults to execution/<round>/planned_tool/tool_execution.json."
+        ),
+    )
     parser.add_argument("--base-url")
     parser.add_argument("--vision-model", default="gpt-5.6-luna")
     parser.add_argument("--question-id")
@@ -141,9 +149,13 @@ def main() -> None:
     child_record = _read_object(execution_dir / "child_run.json")
     child_dir = repo_root / "mea/generated_tasks" / child_record["run_id"]
     child_manifest = _read_object(child_dir / "manifest.json")
-    tool_evaluation = _read_object(
-        execution_dir / "planned_tool/tool_execution.json"
-    )
+    tool_execution_path = args.tool_execution
+    if tool_execution_path is None:
+        tool_execution_path = execution_dir / "planned_tool/tool_execution.json"
+    elif not tool_execution_path.is_absolute():
+        tool_execution_path = repo_root / tool_execution_path
+    tool_execution_path = tool_execution_path.expanduser().resolve()
+    tool_evaluation = _read_object(tool_execution_path)
 
     question_spec = None
     if args.question_id is not None:
@@ -190,6 +202,9 @@ def main() -> None:
         "source_round_id": args.round_id,
         "source_child_run_id": child_record["run_id"],
         "act_rollouts_started": 0,
+        "source_tool_execution": str(
+            tool_execution_path.relative_to(repo_root)
+        ).replace("\\", "/"),
         "query": replay_query,
         "question_spec": question_spec,
         "model_requested": args.vision_model,

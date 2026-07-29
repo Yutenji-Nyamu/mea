@@ -358,6 +358,39 @@ class OpenWorldPlanSessionTests(unittest.TestCase):
             "evidence_sufficient",
         )
 
+    def test_completed_candidate_round_consumes_budget_when_evidence_is_missing(self):
+        candidate = _candidate()
+        current = deepcopy(self.plan)
+        current["rounds"].append(
+            {
+                "round_id": "round_2",
+                "candidate_id": candidate["candidate_id"],
+                "experiment_candidate": candidate,
+            }
+        )
+        current["query_contract"] = {
+            **self.contract,
+            "candidate_universe": [candidate["candidate_id"]],
+            "required_coverage": {
+                **self.contract["required_coverage"],
+                "candidate_ids": [candidate["candidate_id"]],
+                "minimum_evaluated": 1,
+            },
+        }
+
+        snapshot = self.session.snapshot(
+            "Where does bottle stability first fail?",
+            current,
+            [
+                {"round_id": "round_1"},
+                {"round_id": "round_2"},
+            ],
+        )
+
+        self.assertEqual(snapshot["query_assessment"]["completed_rounds"], 1)
+        self.assertEqual(snapshot["query_assessment"]["observed_candidate_ids"], [])
+        self.assertEqual(snapshot["query_assessment"]["budget_remaining"], 1)
+
     def test_open_universal_cannot_claim_answer_before_domain_closes(self):
         universal = build_query_sufficiency_contract(
             "Do all generated variants pass?",

@@ -1,0 +1,44 @@
+{
+  "schema_version": 2,
+  "selection": {
+    "schema_version": 3,
+    "decision": "route",
+    "task_name": "click_bell",
+    "task_profile": "adaptive_properties",
+    "evaluation_goal": "answer_open_query_with_evidence: Find one bounded change in the manipulated object properties that exposes an ACT weakness; test it and explain the evidence.",
+    "requested_aspect_ids": [],
+    "first_aspect_id": null,
+    "unsupported_capabilities": [],
+    "binding_only": true
+  },
+  "resolved": {
+    "task_name": "click_bell",
+    "task_family": "press_contact",
+    "task_profile": "adaptive_properties",
+    "planner_kind": "model_click_bell_adaptive_v1",
+    "checkpoint": {
+      "policy_name": "ACT",
+      "checkpoint_setting": "demo_clean",
+      "expert_data_num": 50,
+      "checkpoint_id": "act-click_bell/demo_clean-50",
+      "ready": true
+    },
+    "aspects": []
+  },
+  "catalog_sha256": "84d6c7311621cd227c2cc519a6b74e1ac83c357708e4aa2bbdb952aeba87fc7f",
+  "provider_called": false,
+  "attempt_count": 0,
+  "validation_errors": [],
+  "provider_metadata": {},
+  "route_source": "runtime_task_checkpoint_binding",
+  "global_router_provider_calls": 0,
+  "task_resolution_scope": {
+    "mode": "query_first_bound_policy_task",
+    "artifact": "plan/open_task_resolution.json"
+  },
+  "history_retrieval": {
+    "schema_version": 1,
+    "status": "disabled",
+    "candidates": []
+  }
+}

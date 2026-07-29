@@ -26,6 +26,10 @@ from mea.planner.experiment_candidate import (
     ExperimentCandidateError,
     validate_experiment_candidate,
 )
+from mea.planner.semantic_coverage import (
+    SemanticCoverageError,
+    build_implementation_trace,
+)
 from mea.toolkit.schema import TaskSchemaError, load_task_schema
 
 from .provider_scene_checker import (
@@ -201,6 +205,168 @@ def _reject_pose_property_item_assignment(
                     )
 
 
+def _literal_number(node: ast.AST) -> float | None:
+    if (
+        isinstance(node, ast.Constant)
+        and isinstance(node.value, (int, float))
+        and not isinstance(node.value, bool)
+    ):
+        return float(node.value)
+    if (
+        isinstance(node, ast.UnaryOp)
+        and isinstance(node.op, (ast.UAdd, ast.USub))
+    ):
+        value = _literal_number(node.operand)
+        if value is not None:
+            return value if isinstance(node.op, ast.UAdd) else -value
+    return None
+
+
+def _requested_scale_multiplier(scene_need: Any) -> float | None:
+    if isinstance(scene_need, Mapping):
+        scene_need = scene_need.get("description")
+    if not isinstance(scene_need, str):
+        return None
+    text = scene_need.casefold()
+    if not re.search(
+        r"\b(?:scale|size|diameter|radius|width|height|"
+        r"larger|smaller|enlarge|shrink)\b",
+        text,
+    ):
+        return None
+    percent = r"([0-9]+(?:\.[0-9]+)?)\s*(?:%|percent)"
+    patterns = (
+        (
+            rf"\b(?:increase|enlarge|grow|scale\s+up)\b"
+            rf"[^.;\n]{{0,80}}\bby\s+{percent}",
+            lambda value: 1.0 + value / 100.0,
+        ),
+        (
+            rf"\b(?:increase|enlarge|grow|scale\s+up)\b"
+            rf"[^.;\n]{{0,80}}\bto\s+{percent}",
+            lambda value: value / 100.0,
+        ),
+        (
+            rf"\b(?:reduce|decrease|shrink|scale\s+down)\b"
+            rf"[^.;\n]{{0,80}}\bby\s+{percent}",
+            lambda value: 1.0 - value / 100.0,
+        ),
+        (
+            rf"\b(?:reduce|decrease|shrink|scale\s+down)\b"
+            rf"[^.;\n]{{0,80}}\bto\s+{percent}",
+            lambda value: value / 100.0,
+        ),
+        (
+            rf"{percent}\s+(?:larger|bigger)",
+            lambda value: 1.0 + value / 100.0,
+        ),
+        (
+            rf"{percent}\s+smaller",
+            lambda value: 1.0 - value / 100.0,
+        ),
+    )
+    for pattern, convert in patterns:
+        match = re.search(pattern, text)
+        if match:
+            expected = convert(float(match.group(1)))
+            return expected if expected > 0.0 else None
+    return None
+
+
+def _validate_preservation_feasibility(
+    candidate: Mapping[str, Any],
+) -> None:
+    """Reject one impossible scale contract before retrieval or generation."""
+
+    multiplier = _requested_scale_multiplier(candidate.get("scene_need"))
+    if multiplier is None or abs(multiplier - 1.0) <= 1e-9:
+        return
+    scene_need = candidate.get("scene_need")
+    scene_description = (
+        str(scene_need.get("description") or "")
+        if isinstance(scene_need, Mapping)
+        else str(scene_need or "")
+    )
+    if re.search(
+        r"\bcustom[\s-]+pivot(?:\s+capability)?\b",
+        scene_description,
+        re.IGNORECASE,
+    ):
+        return
+    intent = candidate.get("evaluation_intent")
+    conditions = (
+        intent.get("preserved_conditions")
+        if isinstance(intent, Mapping)
+        else None
+    )
+    if not isinstance(conditions, list):
+        return
+    normalized = [
+        str(condition).casefold()
+        for condition in conditions
+        if isinstance(condition, str)
+    ]
+    preserves_contact_world_position = any(
+        re.search(r"\bcontact[\s-]+point\b", condition)
+        for condition in normalized
+    )
+    preserves_center_or_origin_position = any(
+        re.search(
+            r"\b(?:center|centre|origin)(?:[\s-]+world)?"
+            r"[\s-]+(?:position|location|coordinate)s?\b",
+            condition,
+        )
+        or re.search(
+            r"\b(?:actor|object|target)(?:[\s-]+center)?"
+            r"(?:[\s-]+world)?[\s-]+position\b",
+            condition,
+        )
+        for condition in normalized
+    )
+    if (
+        preserves_contact_world_position
+        and preserves_center_or_origin_position
+    ):
+        raise GenericTaskGenError(
+            "preservation feasibility conflict: the current "
+            "origin-centered uniform scale backend cannot guarantee both "
+            "contact-point world position and actor/object center/origin "
+            "position; Planner must revise the candidate to preserve one "
+            "condition or declare a custom pivot capability"
+        )
+
+
+def _validate_literal_scale_alignment(
+    load_actors: ast.AST,
+    *,
+    scene_need: Any,
+) -> None:
+    """Reject only explicit, literal scale changes that contradict the need."""
+
+    expected = _requested_scale_multiplier(scene_need)
+    if expected is None:
+        return
+    observed: list[float] = []
+    for node in ast.walk(load_actors):
+        if not isinstance(node, ast.Call):
+            continue
+        parts = _attribute_parts(node.func)
+        if parts is None or parts[-1] != "create_actor":
+            continue
+        for keyword in node.keywords:
+            if keyword.arg == "scale_multiplier":
+                value = _literal_number(keyword.value)
+                if value is not None:
+                    observed.append(value)
+    if not observed or any(abs(value - expected) <= 1e-9 for value in observed):
+        return
+    raise GenericTaskGenError(
+        "literal create_actor scale_multiplier contradicts scene_need: "
+        f"expected {expected:g} from the requested direction/magnitude, "
+        f"observed {observed}"
+    )
+
+
 def _derived_ast_policy(
     source_path: Path, *, class_name: str
 ) -> dict[str, Any]:
@@ -279,6 +445,7 @@ def validate_generic_task_methods(
     official_source: str | Path,
     official_class: str,
     required_method_changes: Mapping[str, bool] | None = None,
+    scene_need: Any = None,
 ) -> dict[str, Any]:
     """Apply one data-derived AST and compile boundary to a method pair.
 
@@ -313,6 +480,9 @@ def validate_generic_task_methods(
         for name in ("load_actors", "check_success")
     }
     _reject_pose_property_item_assignment(parsed)
+    _validate_literal_scale_alignment(
+        parsed["load_actors"], scene_need=scene_need
+    )
     _official_source, official_node = _official_class(
         source_path,
         class_name=official_class,
@@ -324,7 +494,7 @@ def validate_generic_task_methods(
         and node.name in {"load_actors", "check_success"}
     }
     changed_from_official = {
-        name: ast.dump(parsed[name], include_attributes=False)
+        name: ast.dump(parsed[name].body[0], include_attributes=False)
         != ast.dump(official_methods[name], include_attributes=False)
         for name in ("load_actors", "check_success")
     }
@@ -375,6 +545,24 @@ def validate_generic_task_methods(
         "success_sha256": text_sha256(methods["check_success"]),
         "changed_from_official": changed_from_official,
         "required_method_changes": required_changes,
+    }
+
+
+def _official_task_methods(
+    source_path: Path,
+    *,
+    class_name: str,
+) -> dict[str, str]:
+    """Load the two official methods used for partial TaskGen reuse."""
+
+    return {
+        name: retrieve_class_methods(
+            source_path,
+            class_name=class_name,
+            method_names=(name,),
+            error_type=GenericTaskGenError,
+        )
+        for name in ("load_actors", "check_success")
     }
 
 
@@ -555,6 +743,7 @@ def load_generic_robotwin_task_adapter(
             methods,
             official_source=source_path,
             official_class=task_name,
+            scene_need=candidate.get("scene_need"),
             required_method_changes={
                 "load_actors": candidate.get("scene_need") is not None,
                 "check_success": candidate.get("checker_need") is not None,
@@ -923,18 +1112,23 @@ def _core_prompt(
         + "\n\nOUTPUT CONTRACT:\n"
         "Return one strict JSON object with exactly two string fields, "
         "load_actors and check_success. Each field must contain one complete "
-        "Python method with only self. A non-null scene_need requires a changed "
-        "load_actors method; a null scene_need requires the exact official "
-        "load_actors method from the retrieved source. A non-null checker_need "
-        "requires a changed check_success method; a null checker_need requires "
-        "the exact official check_success method. Do not return Markdown, a "
-        "template id, or an explanation."
+        "Python method with only self when its corresponding need is non-null. "
+        "A non-null scene_need requires a changed load_actors method. A "
+        "non-null checker_need requires a changed check_success method. Both "
+        "JSON fields remain required for transport, but when a need is null "
+        "return an empty string for that field: the runtime ignores that text "
+        "and injects the exact official method before AST, fixture, render, "
+        "and expert validation. Do not return Markdown, a template id, or an "
+        "explanation. When the retrieved API supports scale_multiplier, it "
+        "is the final-size/original-size ratio: increasing size by 50% uses "
+        "1.5, while reducing size by 50% (or to 50%) uses 0.5."
     )
 
 
 def _normalize_validation(
     value: Mapping[str, Any],
     *,
+    candidate: Mapping[str, Any],
     methods: Mapping[str, str],
     preflight: Mapping[str, Any],
 ) -> dict[str, Any]:
@@ -965,16 +1159,63 @@ def _normalize_validation(
         raise GenericTaskGenError("render preflight did not pass")
     if preflight.get("expert_passed") is not True:
         raise GenericTaskGenError("expert preflight did not pass")
-    if preflight.get("scene_change_passed") is not True:
+    scene_requested = candidate.get("scene_need") is not None
+    expected_scene_state = "changed" if scene_requested else "preserved"
+    scene_report = preflight.get("scene_change")
+    if isinstance(scene_report, Mapping):
+        scene_alignment_passed = bool(
+            scene_report.get("passed") is True
+            and scene_report.get("expected_state") == expected_scene_state
+        )
+        scene_alignment_authority = str(
+            scene_report.get("authority") or "simulator_scene_comparison"
+        )
+    elif scene_requested:
+        scene_alignment_passed = (
+            preflight.get("scene_change_passed") is True
+        )
+        scene_alignment_authority = "legacy_scene_change_gate"
+    else:
+        method_provenance = report.get("method_provenance")
+        scene_alignment_passed = bool(
+            isinstance(method_provenance, Mapping)
+            and method_provenance.get("load_actors")
+            == "official_reused"
+        )
+        scene_alignment_authority = "exact_official_load_actors_reuse"
+    if not scene_alignment_passed:
         raise GenericTaskGenError(
-            "preflight did not verify a scene change from the official control"
+            "preflight did not verify the expected scene state "
+            f"{expected_scene_state!r} relative to the official control"
         )
     report["scene_sha256"] = text_sha256(methods["load_actors"])
     report["success_sha256"] = text_sha256(methods["check_success"])
     report["checker_fixture_count"] = len(fixtures)
     report["preflight"] = deepcopy(dict(preflight))
+    report["scene_alignment"] = {
+        "passed": True,
+        "expected_state": expected_scene_state,
+        "authority": scene_alignment_authority,
+    }
     report["model_written_python"] = True
     report["restricted_success_spec_compiler_used"] = False
+    try:
+        implementation_trace = build_implementation_trace(
+            candidate,
+            taskgen_validation=report,
+        )
+    except SemanticCoverageError as exc:
+        raise GenericTaskGenError(
+            f"invalid semantic implementation trace: {exc}"
+        ) from exc
+    if implementation_trace is not None:
+        report["implementation_trace"] = implementation_trace
+        if implementation_trace["repair_required"]:
+            raise GenericTaskGenError(
+                "generated TaskGen artifact does not implement the direct "
+                "EvaluationIntent; regenerate once or explicitly classify "
+                "the candidate as diagnostic_proxy/unsupported"
+            )
     return report
 
 
@@ -1014,6 +1255,15 @@ class GenericRoboTwinTaskGenBackend:
             raise GenericTaskGenError(
                 f"invalid ExperimentCandidate: {exc}"
             ) from exc
+        _validate_preservation_feasibility(normalized_candidate)
+        if (
+            normalized_candidate["scene_need"] is None
+            and normalized_candidate["checker_need"] is None
+        ):
+            raise GenericTaskGenError(
+                "generic TaskGen requires a scene or checker need; "
+                "Tool-only candidates must bypass TaskGen"
+            )
         normalized_adapter = _normalize_adapter(adapter)
         semantic_key = generic_task_semantic_key(
             normalized_candidate, adapter, repo_root=self.repo_root
@@ -1043,6 +1293,14 @@ class GenericRoboTwinTaskGenBackend:
             else None
         )
         if match is not None:
+            try:
+                implementation_trace = build_implementation_trace(
+                    normalized_candidate
+                )
+            except SemanticCoverageError as exc:
+                raise GenericTaskGenError(
+                    f"invalid semantic implementation trace: {exc}"
+                ) from exc
             return {
                 "schema_version": 1,
                 "status": "reused",
@@ -1052,6 +1310,7 @@ class GenericRoboTwinTaskGenBackend:
                 "semantic_key_sha256": semantic_hash,
                 "provider_required": False,
                 "provider_call_count": 0,
+                "implementation_trace": implementation_trace,
                 "exact_match": _validate_exact_match(
                     match,
                     semantic_key=semantic_key,
@@ -1061,6 +1320,15 @@ class GenericRoboTwinTaskGenBackend:
 
         rag_context = _read_generation_context(
             self.repo_root, adapter=normalized_adapter
+        )
+        official_source_path = _resolve_repo_file(
+            self.repo_root,
+            normalized_adapter["official_source"],
+            label="adapter official source",
+        )
+        official_methods = _official_task_methods(
+            official_source_path,
+            class_name=normalized_adapter["official_class"],
         )
         prompt, prompt_context = compose_prompt(
             core_contract=_core_prompt(
@@ -1082,10 +1350,35 @@ class GenericRoboTwinTaskGenBackend:
         def validate(methods: Mapping[str, Any]) -> dict[str, Any]:
             nonlocal validation_counter
             validation_counter += 1
-            typed_methods = {
+            provider_methods = {
                 name: str(methods[name])
                 for name in ("load_actors", "check_success")
             }
+            method_needs = {
+                "load_actors": "scene_need",
+                "check_success": "checker_need",
+            }
+            typed_methods = {
+                name: (
+                    provider_methods[name]
+                    if normalized_candidate[need] is not None
+                    else official_methods[name]
+                )
+                for name, need in method_needs.items()
+            }
+            method_provenance = {
+                name: (
+                    "provider_generated"
+                    if normalized_candidate[need] is not None
+                    else "official_reused"
+                )
+                for name, need in method_needs.items()
+            }
+            official_reused_methods = [
+                name
+                for name in ("load_actors", "check_success")
+                if method_provenance[name] == "official_reused"
+            ]
             try:
                 raw_validation = adapter.hooks.validate_methods(
                     typed_methods, normalized_candidate
@@ -1112,7 +1405,14 @@ class GenericRoboTwinTaskGenBackend:
                     attempt_dir, module_source, normalized_candidate
                 )
                 validation = _normalize_validation(
-                    raw_validation,
+                    {
+                        **deepcopy(dict(raw_validation)),
+                        "method_provenance": method_provenance,
+                        "official_reused_methods": (
+                            official_reused_methods
+                        ),
+                    },
+                    candidate=normalized_candidate,
                     methods=typed_methods,
                     preflight=preflight,
                 )
@@ -1180,6 +1480,9 @@ class GenericRoboTwinTaskGenBackend:
             "run_dir": str(run_dir),
             "candidate_manifest": manifest,
             "validation": deepcopy(dict(generated["validation"])),
+            "implementation_trace": deepcopy(
+                generated["validation"].get("implementation_trace")
+            ),
         }
         (run_dir / "generic_taskgen_resolution.json").write_text(
             json.dumps(

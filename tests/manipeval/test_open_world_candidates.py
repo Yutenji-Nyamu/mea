@@ -68,6 +68,40 @@ class ExperimentCandidateTests(unittest.TestCase):
         self.assertIsNone(candidate["checker_need"])
         self.assertEqual(candidate["tool_need"]["kind"], "measure")
 
+    def test_rule_and_vqa_tool_needs_remain_independent(self):
+        candidate = build_experiment_candidate(
+            source_query="Does motion look unstable and exceed the jerk limit?",
+            base_task="adjust_bottle",
+            semantic_concern="motion.post_release_instability",
+            rule_tool_need={
+                "kind": "measure",
+                "description": "Measure post-release angular jerk.",
+                "reuse_first": True,
+            },
+            vqa_tool_need={
+                "kind": "vqa",
+                "description": "Check whether the bottle visibly wobbles.",
+                "reuse_first": True,
+            },
+        )
+
+        self.assertIsNone(candidate["scene_need"])
+        self.assertIsNone(candidate["checker_need"])
+        self.assertEqual(candidate["rule_tool_need"]["kind"], "measure")
+        self.assertEqual(candidate["vqa_tool_need"]["kind"], "vqa")
+
+    def test_legacy_tool_need_maps_to_rule_only(self):
+        candidate = build_experiment_candidate(
+            source_query="Measure wobble.",
+            base_task="adjust_bottle",
+            semantic_concern="motion.wobble",
+            tool_need="Measure post-release angular velocity.",
+        )
+
+        self.assertIsNotNone(candidate["rule_tool_need"])
+        self.assertIsNone(candidate["vqa_tool_need"])
+        self.assertEqual(candidate["tool_need"], candidate["rule_tool_need"])
+
     def test_candidate_requires_at_least_one_typed_need(self):
         with self.assertRaisesRegex(
             ExperimentCandidateError, "at least one"
@@ -97,7 +131,7 @@ class ExperimentCandidateTests(unittest.TestCase):
         self.assertEqual(candidate["checker_need"]["kind"], "generate")
         self.assertEqual(candidate["tool_need"]["kind"], "measure")
 
-    def test_candidate_identity_tracks_experiment_not_measurement_wording(self):
+    def test_candidate_identity_tracks_all_typed_execution_needs(self):
         base = {
             "source_query": "Where does the policy fail?",
             "base_task": "adjust_bottle",
@@ -114,7 +148,7 @@ class ExperimentCandidateTests(unittest.TestCase):
         )
         first = build_experiment_candidate(**base)
 
-        self.assertEqual(
+        self.assertNotEqual(
             first["candidate_id"],
             same_experiment_new_tool["candidate_id"],
         )
@@ -152,6 +186,19 @@ class OpenWorldQueryContractTests(unittest.TestCase):
                 "这个策略对物体外观属性的泛化能力如何？"
             ),
             "required",
+        )
+        self.assertEqual(
+            infer_control_requirement(
+                "Does the policy jitter before contact?",
+                semantic_context={
+                    "requested_variation": (
+                        "Keep the official scene and appearance unchanged; "
+                        "inspect only the pre-contact trajectory."
+                    ),
+                    "measurement_need": "Measure pre-contact jerk.",
+                },
+            ),
+            "not_required",
         )
         self.assertEqual(
             infer_control_requirement("Diagnose this policy."),
@@ -235,7 +282,7 @@ class OpenWorldQueryContractTests(unittest.TestCase):
         self.assertTrue(closed_result["evidence_sufficient"])
         self.assertEqual(closed_result["claim_verdict"], "supported")
 
-    def test_open_universal_failure_is_conservatively_inconclusive(self):
+    def test_open_universal_failure_is_a_valid_counterexample(self):
         contract = build_query_sufficiency_contract(
             "Do all possible conditions pass?",
             candidate_universe=["dynamic.reflective"],
@@ -246,8 +293,9 @@ class OpenWorldQueryContractTests(unittest.TestCase):
         result = assess_query_sufficiency(
             contract, [evidence("dynamic.reflective", "fail")]
         )
-        self.assertFalse(result["evidence_sufficient"])
-        self.assertEqual(result["claim_verdict"], "inconclusive")
+        self.assertTrue(result["evidence_sufficient"])
+        self.assertEqual(result["claim_verdict"], "refuted")
+        self.assertEqual(result["stop_reason"], "evidence_sufficient")
 
     def test_worst_case_requires_domain_closure(self):
         contract = build_query_sufficiency_contract(

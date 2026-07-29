@@ -8,7 +8,7 @@ from mea.toolgen import (
     bell_active_tcp_min_xy_error_tool_request,
     route_tool_request,
 )
-from mea.toolgen.targets import evaluate_target_oracle
+from mea.toolgen.targets import evaluate_target_oracle, target_definition
 from mea.toolgen.prototype import validate_generated_tool
 from mea.toolgen.prototype import _prompt
 
@@ -61,6 +61,13 @@ class ClickBellToolGenMetricTests(unittest.TestCase):
             route_tool_request(incompatible)["route_decision"]["status"],
             "unsupported",
         )
+
+    def test_one_live_episode_is_enough_for_oracle_backed_codegen_validation(self):
+        requirements = target_definition(
+            BELL_ACTIVE_TCP_MIN_XY_ERROR_METRIC
+        )["validation_requirements"]
+        self.assertEqual(requirements["min_episodes"], 1)
+        self.assertFalse(requirements["distinct_reference_values"])
 
     def test_safe_numpy_sqrt_is_available_to_generated_metric(self):
         source = '''def generated_tool(trajectory):

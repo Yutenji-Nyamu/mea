@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "round_id": "round_3",
+  "execution_id": "dynamic.click.bell.robustness.object.instance.bell.size.scaling.act.will.be.less.likely.to.complete.the.click.when.the.bell.is.uniformly.reduced.in.size.by.20.even.though.the.bell.contact.position.scene.instruction.and.policy.checkpoint.remain.unchanged.ea4a84dd44b7",
+  "pipeline": {
+    "passed": true,
+    "failure_stage": null
+  },
+  "policy": {
+    "success_rate": 0.0,
+    "reported": true
+  },
+  "rule": {
+    "metric": "bell_active_tcp_min_xy_error",
+    "expected_policy_episodes": 1,
+    "aggregate_status": "passed",
+    "input_issue_count": 0,
+    "valid": 1,
+    "missing": 0,
+    "invalid": 0,
+    "semantic_missing": 0,
+    "semantic_missing_reasons": [],
+    "observed_policy_episodes": 1,
+    "complete": true,
+    "reasons": []
+  },
+  "tool": {
+    "requested": true,
+    "status": "passed",
+    "metric": "bell_active_tcp_min_xy_error",
+    "route": "run_local_reuse",
+    "provider_called": false
+  },
+  "vqa": {
+    "required": false,
+    "status": "passed",
+    "evidence_conflict": false
+  },
+  "outcome_semantics": {
+    "status": "official_only",
+    "evidence_conflict": false
+  },
+  "coverage": {
+    "expected_policy_episodes": 1,
+    "observed_policy_episodes": 1,
+    "rule_complete": true,
+    "tool_required": true,
+    "tool_complete": true,
+    "vqa_required": false,
+    "vqa_observed": true,
+    "intent_required": true,
+    "intent_complete": true,
+    "complete": true
+  },
+  "evidence_conflict": false,
+  "evidence_strength": "sufficient",
+  "reason_codes": []
+}

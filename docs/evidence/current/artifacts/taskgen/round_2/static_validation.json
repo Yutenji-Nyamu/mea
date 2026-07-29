@@ -1,0 +1,241 @@
+{
+  "changed_from_official": {
+    "check_success": false,
+    "load_actors": true
+  },
+  "checker_fixture_count": 2,
+  "checker_fixtures": [
+    {
+      "authority": "fresh_simulator_state_before_action",
+      "expected": false,
+      "fixture_id": "simulator_initial_negative",
+      "observed": false,
+      "passed": true
+    },
+    {
+      "authority": "official_expert_terminal_state",
+      "expected": true,
+      "fixture_id": "official_expert_terminal_positive",
+      "observed": true,
+      "passed": true
+    }
+  ],
+  "implementation_trace": {
+    "candidate_id": "dynamic.click.bell.robustness.to.a.bounded.change.in.the.bell.s.color.while.its.task.relevant.geometry.and.location.remain.fixed.act.will.be.less.likely.to.click.the.bell.successfully.when.the.bell.color.is.changed.to.a.bounded.alternate.color.despite.identical.bell.position.shape.size.material.scene.layout.camera.viewpoint.and.click.bell.instruction.69a658418526",
+    "coverage_status": "partial",
+    "covered_intent_fields": [
+      "requested_change",
+      "preserved_conditions",
+      "hypothesis"
+    ],
+    "intent_id": "intent.d07bfe6732c454e5",
+    "pending_intent_fields": [
+      "required_observation"
+    ],
+    "rationale": "Candidate preserves the requested change, hypothesis, and observation semantics.",
+    "relationship": "direct",
+    "repair_required": false,
+    "schema_version": 1,
+    "stage": "taskgen",
+    "uncovered_intent_fields": [],
+    "validation_evidence": {
+      "checker_fixtures_passed": true,
+      "preserved_conditions_verified": true,
+      "scene_change_passed": true,
+      "tool_evaluation_passed": null,
+      "visual_diagnosis_passed": true
+    }
+  },
+  "method_provenance": {
+    "check_success": "official_reused",
+    "load_actors": "provider_generated"
+  },
+  "model_written_python": true,
+  "official_reused_methods": [
+    "check_success"
+  ],
+  "policy": "generic_official_api_ast_v1:487174d254df64f6",
+  "preflight": {
+    "checker_fixtures": [
+      {
+        "authority": "fresh_simulator_state_before_action",
+        "expected": false,
+        "fixture_id": "simulator_initial_negative",
+        "observed": false,
+        "passed": true
+      },
+      {
+        "authority": "official_expert_terminal_state",
+        "expected": true,
+        "fixture_id": "official_expert_terminal_positive",
+        "observed": true,
+        "passed": true
+      }
+    ],
+    "expert_image": "mea/generated_task_attempts/run_20260728_batch29_open_flagship_v19_round_2/attempt_01/expert_head.png",
+    "expert_passed": true,
+    "expert_scene": "mea/generated_task_attempts/run_20260728_batch29_open_flagship_v19_round_2/attempt_01/expert_preflight.json",
+    "official_setup_image": "mea/generated_task_attempts/run_20260728_batch29_open_flagship_v19_round_2/attempt_01/official_setup_head.png",
+    "official_setup_scene": "mea/generated_task_attempts/run_20260728_batch29_open_flagship_v19_round_2/attempt_01/official_setup_preflight.json",
+    "preservation_authority": "per_condition_authority",
+    "preservation_checks": [
+      {
+        "authority": "same_seed_visual_diagnosis",
+        "condition": "the bell center position",
+        "kind": "visual",
+        "verified": true
+      },
+      {
+        "authority": "same_seed_visual_diagnosis",
+        "condition": "shape",
+        "kind": "visual",
+        "verified": true
+      },
+      {
+        "authority": "same_seed_visual_diagnosis",
+        "condition": "size",
+        "kind": "visual",
+        "verified": true
+      },
+      {
+        "authority": "same_seed_visual_diagnosis",
+        "condition": "material",
+        "kind": "visual",
+        "verified": true
+      },
+      {
+        "authority": "same_seed_visual_diagnosis",
+        "condition": "scene layout",
+        "kind": "visual",
+        "verified": true
+      },
+      {
+        "authority": "same_seed_visual_diagnosis",
+        "condition": "camera viewpoint",
+        "kind": "visual",
+        "verified": true
+      },
+      {
+        "authority": "frozen_task_policy_seed_and_action_binding",
+        "condition": "task instruction",
+        "kind": "frozen_runtime_binding",
+        "verified": true
+      },
+      {
+        "authority": "frozen_task_policy_seed_and_action_binding",
+        "condition": "policy checkpoint",
+        "kind": "frozen_runtime_binding",
+        "verified": true
+      },
+      {
+        "authority": "exact_official_check_success_reuse",
+        "condition": "official success semantics",
+        "kind": "checker_semantics",
+        "verified": true
+      }
+    ],
+    "preservation_status": "verified",
+    "preserved_conditions": [
+      "the bell center position",
+      "shape",
+      "size",
+      "material",
+      "scene layout",
+      "camera viewpoint",
+      "task instruction",
+      "policy checkpoint",
+      "official success semantics"
+    ],
+    "preserved_conditions_verified": true,
+    "render_passed": true,
+    "scene_change": {
+      "authority": "same_seed_official_vs_generated_simulator_state_and_render",
+      "changed_components": [
+        "tracked_actors",
+        "task_attributes"
+      ],
+      "expected_state": "changed",
+      "generated_render_sha256": "48c00d0c8eecea850c897cb3ce5fd8b262c05b319c65a2180bf31b18b1030a1e",
+      "official_render_sha256": "0fe101e82ac32633018e0b0622eb3f62bd7a8bc878521172e41b97a094d3f55e",
+      "passed": true,
+      "render_changed": true,
+      "scene_need": {
+        "description": "Change only the bell color from the checkpoint's reference color to one bounded alternate color; preserve the bell center position, shape, size, material, scene layout, camera viewpoint, task instruction, policy checkpoint, and official success semantics. Preserve unchanged: the bell center position; shape; size; material; scene layout; camera viewpoint; task instruction; policy checkpoint; official success semantics.",
+        "kind": "adapt",
+        "reuse_first": true
+      },
+      "schema_version": 1,
+      "semantic_scope": "observable_scene_difference; exact natural-language entailment remains a limitation"
+    },
+    "scene_change_passed": true,
+    "schema_version": 1,
+    "setup_image": "mea/generated_task_attempts/run_20260728_batch29_open_flagship_v19_round_2/attempt_01/setup_head.png",
+    "setup_scene": "mea/generated_task_attempts/run_20260728_batch29_open_flagship_v19_round_2/attempt_01/setup_preflight.json",
+    "vision_validation": {
+      "comparison_image": "official_vs_generated.png",
+      "confidence": 0.95,
+      "diagnosis": "The generated scene is visible and physically plausible, with the bell's color changed while its visible position, shape, and size appear preserved.",
+      "key_task_actors_visible": true,
+      "model_requested": "gpt-5.6-luna",
+      "passed": true,
+      "provider_metadata": {
+        "finish_reason": "stop",
+        "id": "chatcmpl-E6dipo58Lar02BlPtJfryMjd5XGyM",
+        "model": "gpt-5.6-luna-2026-07-09",
+        "retry_count": 0,
+        "usage": {
+          "completion_tokens": 206,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": 0,
+            "audio_tokens": 0,
+            "reasoning_tokens": 89,
+            "rejected_prediction_tokens": 0
+          },
+          "latency_checkpoint": {
+            "engine_tbt_ms": 7,
+            "engine_ttft_ms": 350,
+            "engine_ttlt_ms": 1761,
+            "pre_inference_ms": 94,
+            "service_tbt_ms": 7,
+            "service_ttft_ms": 956,
+            "service_ttlt_ms": 2360,
+            "total_duration_ms": 2274,
+            "user_visible_ttft_ms": 861
+          },
+          "prompt_tokens": 685,
+          "prompt_tokens_details": {
+            "audio_tokens": 0,
+            "cached_tokens": 0
+          },
+          "total_tokens": 891
+        }
+      },
+      "render_usable": true,
+      "repair_instructions": [],
+      "requested_change_assessment": "consistent",
+      "scene_change_authority_available": true,
+      "schema_version": 1,
+      "unexpected_changes": [],
+      "visual_physical_plausibility": "plausible"
+    },
+    "visual_comparison_image": "mea/generated_task_attempts/run_20260728_batch29_open_flagship_v19_round_2/attempt_01/visual/official_vs_generated.png",
+    "visual_prompt": "mea/generated_task_attempts/run_20260728_batch29_open_flagship_v19_round_2/attempt_01/visual/vision_prompt.md",
+    "visual_response": "mea/generated_task_attempts/run_20260728_batch29_open_flagship_v19_round_2/attempt_01/visual/vision_response.txt",
+    "visual_result": "mea/generated_task_attempts/run_20260728_batch29_open_flagship_v19_round_2/attempt_01/visual/vision.json"
+  },
+  "required_method_changes": {
+    "check_success": false,
+    "load_actors": true
+  },
+  "restricted_success_spec_compiler_used": false,
+  "scene_alignment": {
+    "authority": "same_seed_official_vs_generated_simulator_state_and_render",
+    "expected_state": "changed",
+    "passed": true
+  },
+  "scene_ast_nodes": 166,
+  "scene_sha256": "bda87f770b5e1df5e419724277fe1bece4684a6489316b96cba16008d845d9e6",
+  "success_ast_nodes": 116,
+  "success_sha256": "c1ea96184a27b49bf7fcf89fb95182ef52fb67f19e30dc2d8b74bd7ebee3cac7",
+  "valid": true
+}

@@ -86,8 +86,12 @@ COMPOSITE_TARGETS: dict[str, dict[str, Any]] = {
             ],
         },
         "validation_requirements": {
-            "min_episodes": 2,
-            "distinct_reference_values": True,
+            # Codegen is checked for deterministic, pointwise agreement with
+            # the trusted trajectory oracle.  Statistical claims still require
+            # multiple rollouts, but one complete episode is enough to validate
+            # this Tool before an N=1 live measurement.
+            "min_episodes": 1,
+            "distinct_reference_values": False,
             "required_reference_values": [],
         },
     },

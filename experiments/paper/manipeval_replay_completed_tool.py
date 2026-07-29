@@ -82,7 +82,37 @@ def _source_context(
     manifest = _read_json(manifest_path)
     plan = _read_json(plan_path)
     contract = _read_json(contract_path)
-    summary = _read_json(summary_path)
+    summary_available = summary_path.is_file()
+    child_run_path = evaluation_dir / "execution" / round_id / "child_run.json"
+    if summary_available:
+        summary = _read_json(summary_path)
+        child_run_id = summary.get("taskgen_run_id")
+    else:
+        expected_failure_stage = f"{round_id}_execution"
+        if (
+            manifest.get("status") != "failed"
+            or manifest.get("failure_stage") != expected_failure_stage
+        ):
+            raise CompletedToolReplayError(
+                "missing round summary is replayable only when the parent failed "
+                "during that exact completed round"
+            )
+        child_run = _read_json(child_run_path)
+        if (
+            child_run.get("returncode") != 0
+            or child_run.get("status") != "completed"
+        ):
+            raise CompletedToolReplayError(
+                "missing-summary replay requires a completed child_run.json"
+            )
+        child_run_id = child_run.get("run_id")
+        summary = {
+            "round_id": round_id,
+            "taskgen_run_id": child_run_id,
+            "taskgen_returncode": 0,
+            "observations": {},
+            "source": "synthesized_from_completed_child_run",
+        }
     round_plans = plan.get("rounds")
     if not isinstance(round_plans, list):
         raise CompletedToolReplayError("evaluation plan has no rounds list")
@@ -95,9 +125,10 @@ def _source_context(
         raise CompletedToolReplayError(
             f"expected one source round {round_id!r}, found {len(matches)}"
         )
-    child_run_id = summary.get("taskgen_run_id")
     if not isinstance(child_run_id, str) or not child_run_id.strip():
-        raise CompletedToolReplayError("round summary has no taskgen_run_id")
+        raise CompletedToolReplayError(
+            "round summary or child_run.json has no taskgen_run_id"
+        )
     child_dir = repo_root / "mea/generated_tasks" / child_run_id
     child_manifest_path = child_dir / "manifest.json"
     child_manifest = _read_json(child_manifest_path)
@@ -119,7 +150,9 @@ def _source_context(
         "contract": contract,
         "contract_path": contract_path,
         "summary": summary,
-        "summary_path": summary_path,
+        "summary_path": summary_path if summary_available else None,
+        "summary_available": summary_available,
+        "child_run_path": child_run_path if not summary_available else None,
         "round_plan": matches[0],
         "child_dir": child_dir,
         "child_manifest": child_manifest,
@@ -229,10 +262,13 @@ def replay_completed_round_tool(
         context["manifest_path"],
         context["plan_path"],
         context["contract_path"],
-        context["summary_path"],
         context["child_manifest_path"],
         *context["telemetry_paths"],
     ]
+    if context["summary_path"] is not None:
+        source_paths.append(context["summary_path"])
+    if context["child_run_path"] is not None:
+        source_paths.append(context["child_run_path"])
     if original_request_path is not None:
         source_paths.append(original_request_path)
     if replacement_vqa_path is not None:
@@ -246,6 +282,11 @@ def replay_completed_round_tool(
         "mode": "completed_act_tool_aggregate_planner_replay",
         "act_rollouts_started": 0,
         "source_artifacts_immutable": True,
+        "source_round_summary": (
+            "recorded"
+            if context["summary_available"]
+            else "synthesized_from_completed_child_run"
+        ),
         "source_artifacts": [
             {"path": _relative(path, root), "sha256": _sha256(path)}
             for path in source_paths
@@ -271,7 +312,15 @@ def replay_completed_round_tool(
                 "sha256": _sha256(replacement_vqa_path),
             }
             if replacement_vqa_path is not None
-            else {"source": "original_round_summary", "path": None, "sha256": None}
+            else {
+                "source": (
+                    "original_round_summary"
+                    if context["summary_available"]
+                    else "not_available"
+                ),
+                "path": None,
+                "sha256": None,
+            }
         ),
         "status": "running",
     }

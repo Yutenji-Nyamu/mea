@@ -78,6 +78,10 @@ from mea.planner.experiment_candidate import (
     ExperimentCandidateError,
     validate_experiment_candidate,
 )
+from mea.planner.semantic_coverage import (
+    SemanticCoverageError,
+    build_implementation_trace,
+)
 from mea.taskgen.resolver import TaskResolutionError, resolve_task_proposal
 from mea.taskgen.prototype import (
     TaskGenError,
@@ -123,6 +127,357 @@ def reviewed_task_lookup_with_fallback(
                 "message": str(exc),
             },
         )
+
+
+_FROZEN_PRESERVATION_TERMS = (
+    "task identity",
+    "base task",
+    "official task",
+    "policy checkpoint",
+    "checkpoint",
+    "policy weights",
+    "random seed",
+    "seed",
+    "action schema",
+    "action interface",
+    "robot configuration",
+    "robot identity",
+    "gripper configuration",
+    "gripper identity",
+    "task instruction",
+    "language instruction",
+    "robot state",
+    "timing",
+)
+_VISUAL_PRESERVATION_TERMS = (
+    "appearance",
+    "color",
+    "material",
+    "texture",
+    "lighting",
+    "background",
+    "surroundings",
+    "environment",
+    "camera",
+    "visible",
+    "layout",
+    "interaction target",
+    "target identity",
+)
+_SIMULATOR_STATE_PRESERVATION_TERMS = (
+    "spatial",
+    "contact point",
+    "contact-point",
+    "contact location",
+    "center",
+    "centre",
+    "world position",
+    "world-position",
+    "pose",
+    "position",
+    "placement",
+    "location",
+    "orientation",
+)
+_GEOMETRY_PRESERVATION_TERMS = (
+    "geometry",
+    "shape",
+    "size",
+    "scale",
+    "dimension",
+)
+_CHECKER_PRESERVATION_TERMS = (
+    "success semantics",
+    "success criterion",
+    "success criteria",
+    "checker",
+    "check_success",
+    "task goal",
+    "task objective",
+    "task semantics",
+    "goal semantics",
+    "outcome semantics",
+)
+
+
+def _same_seed_tracked_actor_state(
+    official_setup: Mapping[str, Any] | None,
+    generated_setup: Mapping[str, Any] | None,
+    condition: str,
+) -> tuple[bool | None, str]:
+    """Compare exact spatial facts using simulator state, never RGB."""
+
+    if not isinstance(official_setup, Mapping) or not isinstance(
+        generated_setup, Mapping
+    ):
+        return None, "no_same_seed_simulator_state_authority"
+    official_seed = official_setup.get("seed")
+    generated_seed = generated_setup.get("seed")
+    if (
+        official_seed is None
+        or generated_seed is None
+        or official_seed != generated_seed
+    ):
+        return None, "no_same_seed_simulator_state_authority"
+
+    def actors_by_id(
+        setup: Mapping[str, Any],
+    ) -> dict[str, Mapping[str, Any]] | None:
+        actors = setup.get("tracked_actors")
+        if not isinstance(actors, list):
+            return None
+        result: dict[str, Mapping[str, Any]] = {}
+        for actor in actors:
+            if not isinstance(actor, Mapping):
+                return None
+            actor_id = actor.get("id")
+            if not isinstance(actor_id, str) or not actor_id:
+                return None
+            result[actor_id] = actor
+        return result
+
+    official_actors = actors_by_id(official_setup)
+    generated_actors = actors_by_id(generated_setup)
+    if (
+        official_actors is None
+        or generated_actors is None
+        or not official_actors
+        or official_actors.keys() != generated_actors.keys()
+    ):
+        return None, "no_comparable_tracked_actor_state"
+
+    lowered = condition.casefold()
+    requires_contact = "contact" in lowered
+    non_contact_spatial = re.sub(
+        r"\bcontact(?:[\s-]+point)?(?:[\s-]+world)?"
+        r"[\s-]+(?:position|location|coordinate)s?\b"
+        r"|\bcontact[\s-]+point\b",
+        "",
+        lowered,
+    )
+    requires_actor_position = (
+        any(
+            term in (
+                non_contact_spatial
+                if requires_contact
+                else lowered
+            )
+            for term in (
+                "position",
+                "location",
+                "coordinate",
+                "placement",
+                "spatial",
+            )
+        )
+    ) or any(
+        term in non_contact_spatial
+        for term in ("center", "centre", "origin", "pose")
+    )
+    requires_orientation = (
+        "orientation" in lowered or "pose" in lowered
+    )
+    component_results: list[bool | None] = []
+    components: list[str] = []
+
+    if requires_contact:
+        comparable = [
+            (
+                official_actors[actor_id].get("contact_points"),
+                generated_actors[actor_id].get("contact_points"),
+            )
+            for actor_id in official_actors
+        ]
+        if not any(
+            isinstance(official, Mapping) and bool(official)
+            for official, _generated in comparable
+        ):
+            component_results.append(None)
+            components.append("contact_points")
+        else:
+            component_results.append(
+                all(
+                    official == generated
+                    for official, generated in comparable
+                )
+            )
+            components.append("contact_points")
+
+    fields: list[str] = []
+    if requires_actor_position:
+        fields.append("position")
+    if requires_orientation:
+        fields.append("quaternion")
+    for field in fields:
+        components.append(field)
+        if any(
+            field not in actor
+            for actor in (
+                *official_actors.values(),
+                *generated_actors.values(),
+            )
+        ):
+            component_results.append(None)
+            continue
+        component_results.append(
+            all(
+                official_actors[actor_id][field]
+                == generated_actors[actor_id][field]
+                for actor_id in official_actors
+            )
+        )
+
+    if not component_results:
+        return None, "no_comparable_tracked_actor_state"
+    verified: bool | None
+    if any(result is False for result in component_results):
+        verified = False
+    elif any(result is None for result in component_results):
+        verified = None
+    else:
+        verified = True
+    return (
+        verified,
+        "same_seed_simulator_state:tracked_actors."
+        + "+".join(components),
+    )
+
+
+def build_preservation_report(
+    conditions: list[str],
+    *,
+    scene_generated: bool,
+    checker_generated: bool,
+    visual_self_check_enabled: bool,
+    visual: Mapping[str, Any],
+    official_setup: Mapping[str, Any] | None = None,
+    generated_setup: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Record only the preservation facts supported by their actual authority."""
+
+    checks: list[dict[str, Any]] = []
+    exact_task_reuse = not scene_generated and not checker_generated
+    for raw_condition in conditions:
+        condition = str(raw_condition).strip()
+        lowered = condition.casefold()
+        if exact_task_reuse:
+            kind = "exact_task_method_reuse"
+            verified: bool | None = True
+            authority = "exact_official_scene_and_checker_method_reuse"
+        else:
+            has_checker_term = any(
+                term in lowered for term in _CHECKER_PRESERVATION_TERMS
+            )
+            has_visual_term = any(
+                term in lowered for term in _VISUAL_PRESERVATION_TERMS
+            )
+            has_simulator_state_term = any(
+                term in lowered
+                for term in _SIMULATOR_STATE_PRESERVATION_TERMS
+            )
+            has_geometry_term = any(
+                term in lowered for term in _GEOMETRY_PRESERVATION_TERMS
+            )
+            has_frozen_term = any(
+                term in lowered for term in _FROZEN_PRESERVATION_TERMS
+            )
+            component_results: list[bool | None] = []
+            authorities: list[str] = []
+            kinds: list[str] = []
+            if has_checker_term:
+                kinds.append("checker_semantics")
+                component_results.append(
+                    True if not checker_generated else None
+                )
+                authorities.append(
+                    "exact_official_check_success_reuse"
+                    if not checker_generated
+                    else "no_equivalence_authority_for_generated_checker"
+                )
+            if has_simulator_state_term:
+                kinds.append("simulator_state")
+                simulator_verified, simulator_authority = (
+                    _same_seed_tracked_actor_state(
+                        official_setup,
+                        generated_setup,
+                        condition,
+                    )
+                )
+                component_results.append(simulator_verified)
+                authorities.append(simulator_authority)
+            if has_geometry_term:
+                kinds.append("geometry")
+                if not scene_generated:
+                    component_results.append(True)
+                    authorities.append("exact_official_load_actors_reuse")
+                else:
+                    component_results.append(None)
+                    authorities.append(
+                        "no_simulator_or_ast_geometry_authority"
+                    )
+            if has_visual_term:
+                kinds.append("visual")
+                if not scene_generated:
+                    component_results.append(True)
+                    authorities.append("exact_official_load_actors_reuse")
+                elif not visual_self_check_enabled:
+                    component_results.append(None)
+                    authorities.append("visual_self_check_disabled")
+                else:
+                    unexpected = visual.get("unexpected_changes")
+                    component_results.append(
+                        bool(
+                            visual.get("passed") is True
+                            and isinstance(unexpected, list)
+                            and not unexpected
+                        )
+                    )
+                    authorities.append("same_seed_visual_diagnosis")
+            if has_frozen_term:
+                kinds.append("frozen_runtime_binding")
+                component_results.append(True)
+                authorities.append(
+                    "frozen_task_policy_seed_and_action_binding"
+                )
+            if component_results:
+                kind = "+".join(kinds)
+                if any(item is False for item in component_results):
+                    verified = False
+                elif all(item is True for item in component_results):
+                    verified = True
+                else:
+                    verified = None
+                authority = "+".join(authorities)
+            else:
+                kind = "unverified"
+                verified = None
+                authority = "no_available_preservation_authority"
+        checks.append(
+            {
+                "condition": condition,
+                "kind": kind,
+                "verified": verified,
+                "authority": authority,
+            }
+        )
+    if not checks:
+        verified_all: bool | None = True
+        status = "not_required"
+    elif any(item["verified"] is False for item in checks):
+        verified_all = False
+        status = "failed"
+    elif all(item["verified"] is True for item in checks):
+        verified_all = True
+        status = "verified"
+    else:
+        verified_all = None
+        status = "partially_unverified"
+    return {
+        "schema_version": 1,
+        "status": status,
+        "verified": verified_all,
+        "checks": checks,
+    }
 
 
 _REGISTRATION_KEYS = {
@@ -1032,18 +1387,26 @@ def create_generic_provider_taskgen_run(
     telemetry_profile: str = "balanced_v1",
     ablation_switches: Mapping[str, bool] | None = None,
 ) -> dict[str, Any]:
-    """Materialize one catalog-independent scene/checker candidate.
+    """Materialize one catalog-independent scene and/or checker candidate.
 
-    The generated checker is gated against two real simulator states before
-    any learned-policy rollout: the untouched initial state must be negative,
-    and the official expert terminal state must be positive.  These are
-    experimental semantics, not a claim of official-checker equivalence.
+    The active checker is gated against two real simulator states before any
+    learned-policy rollout: the untouched initial state must be negative, and
+    the official expert terminal state must be positive.  A null checker need
+    reuses the official method and retains official outcome authority; only a
+    requested generated checker has experimental semantics.
     """
 
     try:
         candidate = validate_experiment_candidate(experiment_candidate)
     except ExperimentCandidateError as exc:
         raise GenericTaskGenError(str(exc)) from exc
+    generated_scene = candidate["scene_need"] is not None
+    generated_checker = candidate["checker_need"] is not None
+    outcome_label = (
+        "generated_check_success"
+        if generated_checker
+        else "official_check_success"
+    )
     request = str(user_request).strip()
     if not request:
         raise GenericTaskGenError("user_request must be non-empty")
@@ -1272,6 +1635,21 @@ def create_generic_provider_taskgen_run(
                 "passed": None,
                 "model_requested": vision_model,
             }
+        evaluation_intent = candidate.get("evaluation_intent")
+        preserved_conditions = (
+            list(evaluation_intent.get("preserved_conditions") or [])
+            if isinstance(evaluation_intent, Mapping)
+            else []
+        )
+        preservation_report = build_preservation_report(
+            preserved_conditions,
+            scene_generated=generated_scene,
+            checker_generated=generated_checker,
+            visual_self_check_enabled=visual_self_check_enabled,
+            visual=visual,
+            official_setup=official_setup,
+            generated_setup=setup,
+        )
         result = {
             "schema_version": 1,
             "render_passed": bool(
@@ -1283,6 +1661,11 @@ def create_generic_provider_taskgen_run(
             "scene_change_passed": scene_change["passed"],
             "scene_change": scene_change,
             "vision_validation": visual,
+            "preserved_conditions_verified": preservation_report["verified"],
+            "preserved_conditions": preserved_conditions,
+            "preservation_status": preservation_report["status"],
+            "preservation_checks": preservation_report["checks"],
+            "preservation_authority": "per_condition_authority",
             "checker_fixtures": fixtures,
             "official_setup_scene": str(
                 (
@@ -1324,6 +1707,16 @@ def create_generic_provider_taskgen_run(
                 "generated scene is not observably different from the "
                 "same-seed official control"
             )
+        if preservation_report["verified"] is False:
+            failed_conditions = [
+                item["condition"]
+                for item in preservation_report["checks"]
+                if item["verified"] is False
+            ]
+            raise GenericTaskGenError(
+                "generated task violated a checked preservation condition: "
+                + ", ".join(failed_conditions)
+            )
         accepted_preflight.clear()
         accepted_preflight.update(result)
         return result
@@ -1333,12 +1726,17 @@ def create_generic_provider_taskgen_run(
         candidate["base_task"],
         checker_fixtures=checker_fixtures,
         preflight_candidate=preflight_candidate,
-        resolve_metric=lambda _candidate: "generated_check_success",
+        resolve_metric=lambda _candidate: outcome_label,
         resolve_checker_contract=lambda _candidate: {
-            "outcome_label": "generated_check_success",
+            "outcome_label": outcome_label,
             "act_runtime_eligible": True,
-            "preserved": False,
-            "semantic_scope": "query_derived_experimental_predicate",
+            "preserved": not generated_checker,
+            "official_equivalent": not generated_checker,
+            "semantic_scope": (
+                "query_derived_experimental_predicate"
+                if generated_checker
+                else "official_check_success_reused"
+            ),
         },
         prompt_constraints=(
             "Keep the official class identity and policy action interface. "
@@ -1352,6 +1750,12 @@ def create_generic_provider_taskgen_run(
             "assignment or +=/-= because those writes do not update the Pose; "
             "construct a new sapien.Pose from a copied position array and the "
             "original quaternion before passing it to create_actor. "
+            "The upstream create_actor scale argument is normally replaced "
+            "by asset model_data. scale_multiplier is the final/original "
+            "size ratio: increase by 50% uses 1.5; reduce by 50%, or reduce "
+            "to 50%, uses 0.5. Use scale_override only for "
+            "a known absolute asset scale. Both opt-ins update the built mesh "
+            "scale and Actor point metadata. "
             "If load_actors adds an actor that later measurement may need, "
             "also assign self.mea_telemetry_tracked_actors to a list of dicts "
             "with exactly id, task_attribute, scene_name, functional_points, "
@@ -1501,6 +1905,33 @@ def create_generic_provider_taskgen_run(
             ),
         }
     )
+    try:
+        implementation_trace = build_implementation_trace(
+            candidate,
+            taskgen_validation={
+                "checker_fixtures": run_local_preflight[
+                    "checker_fixtures"
+                ],
+                "preflight": run_local_preflight,
+            },
+        )
+    except SemanticCoverageError as exc:
+        raise GenericTaskGenError(
+            f"invalid semantic implementation trace: {exc}"
+        ) from exc
+    if (
+        implementation_trace is not None
+        and implementation_trace["repair_required"]
+    ):
+        raise GenericTaskGenError(
+            "current TaskGen artifact does not implement the direct "
+            "EvaluationIntent after simulator preflight"
+        )
+    if implementation_trace is not None:
+        write_json(
+            run_dir / "validation/implementation_trace.json",
+            implementation_trace,
+        )
     if reused_manifest is not None:
         reused_manifest["scene_validation"] = {
             **expert_scene,
@@ -1531,7 +1962,19 @@ def create_generic_provider_taskgen_run(
                 if visual_self_check_enabled
                 else None
             ),
+            "preservation_status": run_local_preflight.get(
+                "preservation_status"
+            ),
+            "preserved_conditions_verified": run_local_preflight.get(
+                "preserved_conditions_verified"
+            ),
         }
+        reused_manifest["implementation_trace"] = implementation_trace
+        reused_manifest["implementation_trace_path"] = (
+            "validation/implementation_trace.json"
+            if implementation_trace is not None
+            else None
+        )
         reused_manifest["vision_validation"] = (
             {
                 **deepcopy(run_local_preflight["vision_validation"]),
@@ -1682,6 +2125,12 @@ def create_generic_provider_taskgen_run(
         ]["prompt_components"],
         "experiment_candidate": candidate,
         "experiment_candidate_path": "generation/experiment_candidate.json",
+        "implementation_trace": implementation_trace,
+        "implementation_trace_path": (
+            "validation/implementation_trace.json"
+            if implementation_trace is not None
+            else None
+        ),
         "checker_contract": candidate_manifest["checker_contract"],
         "candidate_module_sha256": candidate_manifest["module_sha256"],
         "candidate_manifest": "candidate_manifest.json",
@@ -1703,16 +2152,34 @@ def create_generic_provider_taskgen_run(
                 if visual_self_check_enabled
                 else None
             ),
+            "preservation_status": accepted_preflight.get(
+                "preservation_status"
+            ),
+            "preserved_conditions_verified": accepted_preflight.get(
+                "preserved_conditions_verified"
+            ),
         },
         "task_artifact_summary": {
-            "scene_origin": "provider_generated_code",
-            "success_origin": "provider_generated_python",
-            "success_semantics_preserved": False,
-            "success_official_equivalent": False,
-            "success_compiler_eligible": False,
+            "scene_origin": (
+                "provider_generated_code"
+                if generated_scene
+                else "official_method_reuse"
+            ),
+            "success_origin": (
+                "provider_generated_python"
+                if generated_checker
+                else "official_method_reuse"
+            ),
+            "success_semantics_preserved": not generated_checker,
+            "success_official_equivalent": not generated_checker,
+            "success_compiler_eligible": not generated_checker,
             "success_act_eligible": True,
-            "success_execution_scope": "provider_generated_checker",
-            "success_outcome_label": "generated_check_success",
+            "success_execution_scope": (
+                "provider_generated_checker"
+                if generated_checker
+                else "official_equivalent"
+            ),
+            "success_outcome_label": outcome_label,
         },
     }
     write_json(run_dir / "manifest.json", manifest)
@@ -3422,13 +3889,30 @@ def evaluate_run_telemetry(
         manifest.get("generation_kind")
         == "generic_provider_scene_checker_codegen"
     ):
-        outcome_metric = "generated_check_success"
-        outcome_binding = {
-            "metric": outcome_metric,
-            "authority": "llm_generated_python_ast_validated",
-            "module_sha256": manifest["candidate_module_sha256"],
-            "task_module": manifest["task_module"],
-        }
+        artifact_summary = manifest.get("task_artifact_summary")
+        artifact_summary = (
+            artifact_summary if isinstance(artifact_summary, Mapping) else {}
+        )
+        outcome_metric = str(
+            artifact_summary.get("success_outcome_label")
+            or "generated_check_success"
+        )
+        generated_checker = outcome_metric == "generated_check_success"
+        outcome_authority = (
+            "llm_generated_python_ast_validated"
+            if generated_checker
+            else "official_check_success_reused"
+        )
+        outcome_binding = (
+            {
+                "metric": outcome_metric,
+                "authority": outcome_authority,
+                "module_sha256": manifest["candidate_module_sha256"],
+                "task_module": manifest["task_module"],
+            }
+            if generated_checker
+            else None
+        )
         summary = evaluate_telemetry_root(
             telemetry_root,
             user_request=manifest["user_request"],
@@ -3442,10 +3926,14 @@ def evaluate_run_telemetry(
             ),
             "episode_count": summary["episode_count"],
             "outcome_metric": outcome_metric,
-            "outcome_authority": "llm_generated_python_ast_validated",
+            "outcome_authority": outcome_authority,
             "outcome_binding": outcome_binding,
             "tool_retrieval": {
-                "route": "bound_llm_generated_checker",
+                "route": (
+                    "bound_llm_generated_checker"
+                    if generated_checker
+                    else "official_checker_reuse"
+                ),
                 "generated_new_tool": False,
             },
             "episodes": [
@@ -4145,6 +4633,7 @@ def main() -> None:
             or preflight.get("render_passed") is not True
             or preflight.get("expert_passed") is not True
             or preflight.get("scene_change_passed") is not True
+            or preflight.get("preserved_conditions_verified") is False
             or not fixtures
             or any(item.get("passed") is not True for item in fixtures)
             or (

@@ -16,6 +16,12 @@
   generate→validate；缺少 template id 不能成为终止理由，Tool-only candidate 不得被
   强制生成 scene/checker。
 - official success 与 generated experimental checker 分开命名和汇报。
+- `ImplementationTrace` 必须逐项记录 scene/checker/tool need 的实现来源、preservation
+  authority 与验证结果；只有 `direct+complete` 的 candidate 才能成为充分性判断中的
+  已执行证据。
+- `EvaluationIntent` 同时抽取原始 Query 和 provider FreeConcern 中的显式
+  preservation 条件；provider 漏写不能删除用户约束。复合空间条件必须按 contact、
+  position、orientation 分量全部验证并合取。
 - TaskGen/ToolGen 各允许一次局部 regenerate/repair；policy failure 不自动重跑。
 - 生产运行只写一份 `manifest.json`；实验 hash 放在 `experiments/paper/`。
 - 五个被运行时读取的 `mea/*/README.Agent.md`（feedback、retrieval、planner、taskgen、
@@ -34,15 +40,23 @@
 6. 只有 Query 确实需要新场景，且 model-written scene/checker、fixture/render、
    rollout、Tool/VQA/Answer 均在同一链中通过，才能把任务标成“深入”。
 
-当前基线是五个 official adapters：BBH/ClickBell 较深入；AdjustBottle 有一次
-provider scene/checker→visual/expert→ACT 的在线生成式链，以及独立的 0-ACT Tool/VQA
-修复 replay，但源在线 bundle 仍为 inconclusive；GrabRoller/PlacePhoneStand
-official-only。新增 task 不应复制 task-specific planner，也不应仅因 checkpoint 存在
-或事后 replay 通过就宣称干净在线方法闭环。
+当前基线是五个 official adapters：BBH/ClickBell 较深入；v19 ClickBell 从无
+aspect/template 的 Query 在线完成 official→color→80% size 三轮，两个动态 candidate
+在同包完成 Tool codegen/live execution/exact reuse，但最终 audit 分别为
+`direct+partial` 与 `direct+partial/repair_required`：round2 geometry authority 未知，
+round3 contact-point z 漂移。因此 v19 是在线机械链证据和 confounded negative，不是
+evidence-sufficient 正旗舰。AdjustBottle 有一次生成式运行，
+GrabRoller/PlacePhoneStand official-only。新增 task 不应复制 task-specific planner，
+也不应仅因 checkpoint 存在或事后 replay 通过就宣称干净在线方法闭环。
 
 ## 扩展 TaskGen
 
-- retrieve-first；未命中时由 provider 生成 scene 与 `check_success()`。
+- retrieve-first；未命中时由 provider 只生成 candidate 声明所需的 scene 和/或
+  `check_success()`；`checker_need=null` 时可显式复用 official checker。
+- exact spatial/contact preservation 必须使用 same-seed simulator state；无 simulator/
+  AST authority 的 geometry 必须返回 `unknown`。当前 generic backend 会在 lookup 和
+  provider 之前拒绝同时要求 uniform scale、center/origin 不变与 contact-point world
+  position 不变、且没有 custom pivot capability 的不可实现 proposal。
 - exact reuse 只跳过 provider/codegen；当前 seed 的 setup、render、expert 与 checker
   fixtures 必须重新运行，revalidation 通过后才能增加 reuse count。
 - 静态边界只限制 import、写路径和危险 API，不要求 AST 与 reference 完全相同。
@@ -88,5 +102,7 @@ official-only。新增 task 不应复制 task-specific planner，也不应仅因
 - 动态 VQA 是否出现与当前 task 无关的对象或现象？
 - 测试是否验证当前接口，而不是保活已删除的旧链路？
 - 证据是否明确区分 smoke、proxy 和 paper-scale result？
+- imports、pytest、provider、simulator 与 policy validation 是否只在 canonical
+  AutoDL 执行，而不是 Windows 工作站？
 
 任何两批内不会调用的兼容层应删除；需要恢复时使用 Git 历史，而不是长期 feature flag。

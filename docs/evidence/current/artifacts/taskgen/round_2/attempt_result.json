@@ -1,0 +1,39 @@
+{
+  "attempt_index": 1,
+  "status": "accepted",
+  "started_at": "2026-07-28T23:07:20.289314+08:00",
+  "finished_at": "2026-07-28T23:09:30.969004+08:00",
+  "requested_action": null,
+  "failure": null,
+  "recovery_action": "none",
+  "runtime": {
+    "provider_calls": 1,
+    "simulator_probes": 0,
+    "expert_probes": 0,
+    "act_rollouts_started": 0
+  },
+  "result": {
+    "status": "accepted",
+    "provider_metadata": {
+      "id": "chatcmpl-040b405e-5ecc-457a-8182-0f838c1df483",
+      "model": "gpt-5.6-luna",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 5700,
+        "completion_tokens": 638,
+        "total_tokens": 6338,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 320
+        }
+      },
+      "retry_count": 0
+    },
+    "runtime": {
+      "provider_calls": 1
+    }
+  }
+}

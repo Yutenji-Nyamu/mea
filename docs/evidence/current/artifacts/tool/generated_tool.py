@@ -1,0 +1,44 @@
+def generated_tool(trajectory):
+    bell_position = trajectory.trace["bell_position"]
+    bell_contact_position = trajectory.trace["bell_contact_position"]
+    left_tcp_position = trajectory.trace["left_tcp_position"]
+    right_tcp_position = trajectory.trace["right_tcp_position"]
+    physics_step = trajectory.trace["physics_step"]
+    simulation_time_seconds = trajectory.trace["simulation_time_seconds"]
+
+    active_arm = "left" if float(bell_position[0, 0]) < 0.0 else "right"
+    tcp_position = left_tcp_position if active_arm == "left" else right_tcp_position
+
+    d = np.sqrt(
+        np.sum(
+            (tcp_position[:, :2] - bell_contact_position[:, :2]) ** 2,
+            axis=1,
+        )
+    )
+    finite_d = np.where(np.isfinite(d), d, np.inf)
+    index = int(np.argmin(finite_d))
+
+    if not np.isfinite(finite_d[index]):
+        return {
+            "value": None,
+            "unit": "m",
+            "passed": None,
+            "evidence_steps": [],
+            "details": {
+                "active_arm": active_arm,
+                "min_error_physics_step": None,
+                "simulation_time_seconds": None,
+            },
+        }
+
+    return {
+        "value": float(d[index]),
+        "unit": "m",
+        "passed": None,
+        "evidence_steps": [int(physics_step[index])],
+        "details": {
+            "active_arm": active_arm,
+            "min_error_physics_step": int(physics_step[index]),
+            "simulation_time_seconds": float(simulation_time_seconds[index]),
+        },
+    }

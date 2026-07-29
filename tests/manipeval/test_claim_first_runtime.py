@@ -6,11 +6,14 @@ from mea.planner.claim_first_runtime import (
     ClaimFirstRuntimeError,
     build_claim_first_evidence_record,
     build_control_anchor_proposal,
+    build_dynamic_experiment_candidate,
+    build_initial_semantic_proposal_bundle,
     control_template_id,
     resolve_concern_candidate_domain,
     resolve_semantic_proposal,
 )
 from mea.planner.query_contract import build_query_sufficiency_contract
+from mea.planner.semantic_coverage import build_evaluation_intent
 
 
 def target():
@@ -195,6 +198,53 @@ def semantic_bundle(sub_aspect="object_position.left_fixed"):
 
 
 class ClaimFirstRuntimeTests(unittest.TestCase):
+    def test_each_dynamic_candidate_keeps_its_own_preservation_contract(
+        self,
+    ):
+        first_intent = build_evaluation_intent(
+            source_query="Where does this policy first expose a weakness?",
+            original_concern="bell size generalization",
+            hypothesis="A larger bell may expose the first weakness.",
+            requested_change="Increase the bell diameter by 50%.",
+            preserved_conditions=["position", "orientation"],
+            required_observation="Measure click success and contact error.",
+        )
+        first_bundle = semantic_bundle("object_size.scale")
+        first_bundle["proposal"]["hypothesis"] = first_intent["hypothesis"]
+        first = build_dynamic_experiment_candidate(
+            user_query=first_intent["source_query"],
+            task_name="click_bell",
+            proposal=first_bundle["proposal"],
+            evaluation_intent=first_intent,
+        )
+
+        second_bundle = semantic_bundle("object_position.edge")
+        second_bundle["proposal"]["requested_perturbation"]["preserve"] = [
+            "bell size",
+            "policy checkpoint",
+        ]
+        second = build_dynamic_experiment_candidate(
+            user_query=first_intent["source_query"],
+            task_name="click_bell",
+            proposal=second_bundle["proposal"],
+        )
+
+        self.assertEqual(
+            first["evaluation_intent"]["preserved_conditions"],
+            ["position", "orientation"],
+        )
+        self.assertEqual(
+            second["evaluation_intent"]["preserved_conditions"],
+            ["bell size", "policy checkpoint"],
+        )
+        self.assertNotEqual(
+            first["evaluation_intent"]["intent_id"],
+            second["evaluation_intent"]["intent_id"],
+        )
+        self.assertEqual(
+            second["intent_alignment"]["relationship"], "direct"
+        )
+
     def test_generic_official_tasks_have_claim_first_control_anchors(self):
         for task_name in (
             "adjust_bottle",
@@ -309,6 +359,136 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         self.assertNotIn(
             "performance.completion_time_stability.official",
             controller.query_contract["candidate_universe"],
+        )
+        self.assertFalse(
+            controller.query_contract["candidate_universe_closed"]
+        )
+
+    def test_free_concern_directly_freezes_first_typed_candidate(self):
+        query = "Find one bounded object change that exposes a weakness."
+        concern = {
+            "schema_version": 1,
+            "source_query": query,
+            "sub_aspect": "Bell localization under reduced target size",
+            "hypothesis": "A half-size bell increases click-position error.",
+            "task_intent": "Locate and click the intended bell.",
+            "requested_variation": (
+                "Reduce the bell to 50% size while keeping its position, "
+                "appearance identity, camera, and scene layout unchanged."
+            ),
+            "measurement_need": (
+                "Measure success and click-position error to the bell center."
+            ),
+        }
+        intent = build_evaluation_intent(
+            source_query=query,
+            original_concern=concern["sub_aspect"],
+            hypothesis=concern["hypothesis"],
+            requested_change=concern["requested_variation"],
+            preserved_conditions=[
+                "position",
+                "appearance identity",
+                "camera",
+                "scene layout",
+            ],
+            required_observation=concern["measurement_need"],
+        )
+        bundle = build_initial_semantic_proposal_bundle(
+            user_query=query,
+            concern=concern,
+            experiment_needs={
+                "scene_need": {
+                    "required": True,
+                    "description": concern["requested_variation"],
+                },
+                "checker_need": {
+                    "required": False,
+                    "description": None,
+                },
+                "rule_tool_need": {
+                    "required": True,
+                    "description": concern["measurement_need"],
+                    "reuse_first": True,
+                },
+                "vqa_tool_need": {
+                    "required": False,
+                    "description": None,
+                    "reuse_first": True,
+                },
+            },
+            evaluation_intent=intent,
+        )
+        candidate = build_dynamic_experiment_candidate(
+            user_query=query,
+            task_name="click_bell",
+            proposal=bundle["proposal"],
+            evaluation_intent=intent,
+        )
+
+        self.assertEqual(
+            bundle["source"],
+            "provider_free_concern_direct_materialization",
+        )
+        self.assertIn("50%", candidate["scene_need"]["description"])
+        self.assertIsNone(candidate["checker_need"])
+        self.assertIsNotNone(candidate["rule_tool_need"])
+        self.assertEqual(
+            candidate["intent_alignment"]["relationship"],
+            "direct",
+        )
+        controller = ClaimFirstRuntimeController(query, target())
+        registered = controller.register_frozen_candidate(candidate)
+        self.assertIn(
+            registered["candidate_id"],
+            controller.query_contract["candidate_universe"],
+        )
+        self.assertFalse(
+            controller.query_contract["candidate_universe_closed"]
+        )
+        control = round_plan(
+            1,
+            "performance.completion_time_stability.official",
+        )
+        observation = controller.observe(
+            [control],
+            [summary(control, 1.0)],
+        )
+        bound = controller.bind_frozen_candidate(
+            bundle,
+            registered,
+            observation,
+            executed_candidate_ids=[control["template_id"]],
+        )
+        self.assertEqual(
+            bound["resolution"]["resolution"],
+            "frozen_free_concern_candidate",
+        )
+        self.assertEqual(
+            bound["plan_step"]["candidate_id"],
+            registered["candidate_id"],
+        )
+
+    def test_query_derived_candidate_is_not_rejected_by_catalog_inventory(self):
+        candidate_id = "dynamic.click.bell.precontact.motion.abc123"
+        contract = build_query_sufficiency_contract(
+            "Does the policy jitter before contact?",
+            candidate_universe=[candidate_id],
+            round_budget=1,
+            claim_type="diagnostic",
+            candidate_universe_closed=True,
+            control_requirement="not_required",
+        )
+
+        controller = ClaimFirstRuntimeController(
+            "Does the policy jitter before contact?",
+            target(),
+            query_contract=contract,
+            require_control_anchor=False,
+        )
+
+        self.assertEqual(
+            controller.query_contract["candidate_universe"],
+            [candidate_id],
         )
 
     def test_online_concern_uniquely_binds_distractor_candidate(self):
@@ -1439,6 +1619,8 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         candidate = bound["plan_step"]["experiment_candidate"]
         self.assertIsNone(candidate["scene_need"])
         self.assertIsNone(candidate["checker_need"])
+        self.assertIsNotNone(candidate["rule_tool_need"])
+        self.assertIsNone(candidate["vqa_tool_need"])
         self.assertEqual(candidate["tool_need"]["kind"], "measure")
 
     def test_query_contract_can_skip_control_for_universal_trajectory_claim(self):

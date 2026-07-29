@@ -5,12 +5,17 @@ from pathlib import Path
 from unittest.mock import patch
 
 from mea.toolgen import contact_tool_request
-from scripts.manipeval_agent import build_taskgen_command, execute_round
+from scripts.manipeval_agent import (
+    build_taskgen_command,
+    execute_round,
+    reuse_bound_child_checker_tool,
+)
 from scripts.manipeval_taskgen import collect_position_samples, newest_eval_dir
 
 
 ROUND_2 = {
     "round_id": "round_2",
+    "template_id": "object_position.left_fixed",
     "task_instruction": "position variation",
     "route": "reuse",
     "execution": {
@@ -21,6 +26,116 @@ ROUND_2 = {
 
 
 class MultiRoundRuntimeTests(unittest.TestCase):
+    def test_scene_only_child_routes_official_checker_through_standard_toolgen(self):
+        child_manifest = {
+            "generation_kind": "generic_provider_scene_checker_codegen",
+            "task_name": "click_bell",
+            "task_module": "mea.generated_tasks.run_recolor.task",
+            "trusted_tool_evaluation": {
+                "artifact": (
+                    "mea/generated_tasks/run_recolor/evaluation/"
+                    "telemetry/tool_results.json"
+                ),
+                "episode_count": 1,
+                "outcome_metric": "official_check_success",
+                "outcome_authority": "official_check_success_reused",
+                "outcome_binding": None,
+                "tool_retrieval": {
+                    "route": "official_checker_reuse",
+                    "generated_new_tool": False,
+                },
+                "episodes": [
+                    {
+                        "episode_dir": "act/episode_000_seed_100000",
+                        "policy_name": "ACT",
+                        "seed": 100000,
+                        "success": True,
+                        "tool_results": [
+                            {
+                                "tool": "official_check_success",
+                                "value": True,
+                                "passed": True,
+                                "unit": None,
+                                "evidence_steps": [5238],
+                                "details": {
+                                    "latched_eval_success": True,
+                                },
+                            },
+                            {
+                                "tool": "time_to_success",
+                                "value": 20.952,
+                                "unit": "s",
+                                "evidence_steps": [5238],
+                                "details": {"physics_step": 5238},
+                            },
+                        ],
+                    }
+                ],
+            },
+        }
+        tool_request = {
+            "schema_version": 1,
+            "task_name": "click_bell",
+            "metric": "official_check_success",
+            "question": "Did the recolored-bell rollout succeed?",
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            repo_root = Path(temporary)
+            output_dir = repo_root / "planned_tool"
+            evaluation = reuse_bound_child_checker_tool(
+                repo_root,
+                child_manifest,
+                output_dir,
+                tool_request,
+            )
+
+            self.assertIsNone(evaluation)
+            self.assertFalse(output_dir.exists())
+
+    def test_generated_checker_still_requires_cryptographic_binding(self):
+        child_manifest = {
+            "generation_kind": "generic_provider_scene_checker_codegen",
+            "task_name": "click_bell",
+            "task_module": "mea.generated_tasks.run_checker.task",
+            "candidate_module_sha256": "a" * 64,
+            "trusted_tool_evaluation": {
+                "artifact": "mea/generated_tasks/run_checker/evaluation/tool.json",
+                "episode_count": 1,
+                "outcome_metric": "generated_check_success",
+                "outcome_authority": "llm_generated_python_ast_validated",
+                "outcome_binding": None,
+                "tool_retrieval": {
+                    "route": "bound_llm_generated_checker",
+                    "generated_new_tool": False,
+                },
+                "episodes": [
+                    {
+                        "role": "policy_under_evaluation",
+                        "result": {
+                            "tool": "generated_check_success",
+                            "value": True,
+                            "passed": True,
+                            "details": {},
+                        },
+                    }
+                ],
+            },
+        }
+        tool_request = {
+            "schema_version": 1,
+            "task_name": "click_bell",
+            "metric": "generated_check_success",
+            "question": "Did the generated checker pass?",
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaisesRegex(RuntimeError, "binding is incomplete"):
+                reuse_bound_child_checker_tool(
+                    Path(temporary),
+                    child_manifest,
+                    Path(temporary) / "planned_tool",
+                    tool_request,
+                )
+
     def test_newest_eval_dir_never_reuses_stale_result(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

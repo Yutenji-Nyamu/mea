@@ -169,10 +169,16 @@ class CrossTaskEntrypointTests(unittest.TestCase):
         self.assertTrue(conflict["evidence_conflict"])
 
     def test_official_outcome_defaults_missing_summary_to_equivalent(self):
-        for label, episodes in (
-            ("no_episode_details", []),
+        for label, authority, episodes in (
+            ("no_episode_details", "official_check_success", []),
+            (
+                "scene_only_official_reuse",
+                "official_check_success_reused",
+                [],
+            ),
             (
                 "official_result",
+                "official_check_success",
                 [
                     {
                         "seed": 100405,
@@ -188,7 +194,7 @@ class CrossTaskEntrypointTests(unittest.TestCase):
             with self.subTest(label=label):
                 semantics = normalize_outcome_semantics(
                     {
-                        "outcome_authority": "official_check_success",
+                        "outcome_authority": authority,
                         "episodes": episodes,
                     },
                     {},
@@ -531,6 +537,119 @@ class CrossTaskEntrypointTests(unittest.TestCase):
             "online_runtime_discovery",
         )
         self.assertTrue(acceptance["singleton_query_candidate"])
+
+    def test_compact_flagship_accepts_direct_typed_official_candidate(self):
+        candidate_id = "dynamic.click_bell.target_scale"
+        refined_candidate_id = "dynamic.click_bell.target_scale.smaller"
+        acceptance = build_compact_flagship_acceptance(
+            [
+                {
+                    "round_summary": {
+                        "route": "official",
+                        "observations": {
+                            "execution_backend": "ACT",
+                            "actual_seeds": [100000],
+                            "outcome_semantics": {
+                                "status": "official_only"
+                            },
+                        },
+                    },
+                },
+                {
+                    "round_summary": {
+                        "route": "generic_provider_scene_checker_codegen",
+                        "semantic_need_execution": {
+                            "candidate_id": candidate_id,
+                        },
+                        "observations": {
+                            "execution_backend": "ACT",
+                            "actual_seeds": [100000],
+                            "outcome_semantics": {
+                                "status": "official_only"
+                            },
+                            "implementation_trace": {
+                                "candidate_id": candidate_id,
+                                "relationship": "direct",
+                                "coverage_status": "complete",
+                            },
+                        },
+                    },
+                },
+                {
+                    "round_summary": {
+                        "route": "generic_provider_scene_checker_codegen",
+                        "semantic_need_execution": {
+                            "candidate_id": refined_candidate_id,
+                        },
+                        "observations": {
+                            "execution_backend": "ACT",
+                            "actual_seeds": [100000],
+                            "outcome_semantics": {
+                                "status": "official_only"
+                            },
+                            "implementation_trace": {
+                                "candidate_id": refined_candidate_id,
+                                "relationship": "direct",
+                                "coverage_status": "complete",
+                            },
+                        },
+                    },
+                },
+            ],
+            global_route_result={
+                "global_router_provider_calls": 0,
+                "provider_called": False,
+                "route_source": "runtime_task_checkpoint_binding",
+            },
+            claim_first_runtime_state={
+                "assessment": {
+                    "stop_reason": "evidence_sufficient",
+                    "evidence_sufficient": True,
+                    "observed_candidate_ids": [
+                        candidate_id,
+                        refined_candidate_id,
+                    ],
+                    "decisive_candidate_ids": [refined_candidate_id],
+                },
+                "query_contract": {
+                    "candidate_universe": [
+                        candidate_id,
+                        refined_candidate_id,
+                    ],
+                },
+            },
+            claim_first_query_answer={
+                "answered": True,
+                "stop_reason": "evidence_sufficient",
+                "answer_scope": "official_equivalent",
+            },
+            free_concern_bundle={
+                "source": "provider_catalog_free_concern",
+                "provider": {
+                    "called": True,
+                    "attempt_count": 1,
+                    "errors": [],
+                },
+            },
+            open_task_resolution={"decision": "retrieve_and_adapt"},
+            concern_candidate_resolution={
+                "decision": "catalog_external",
+                "resolution": "open_world_candidate_discovery_required",
+                "candidate_aspect_ids": None,
+                "selected_template_ids": [],
+                "concern_created_before_catalog": True,
+                "catalog_was_model_visible": False,
+            },
+            history_disabled=True,
+        )
+
+        self.assertTrue(acceptance["accepted"])
+        self.assertTrue(acceptance["typed_execution_complete"])
+        self.assertTrue(acceptance["candidate_execution_accepted"])
+        self.assertFalse(acceptance["same_bundle_bound_checker_reuse"])
+        self.assertFalse(acceptance["singleton_query_candidate"])
+        self.assertTrue(acceptance["query_candidates_bound"])
+        self.assertEqual(acceptance["act_rollouts"], 3)
 
     def test_claim_first_runtime_requires_only_checkpoint_bound_control(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -1162,6 +1281,45 @@ class CrossTaskEntrypointTests(unittest.TestCase):
             )
             self.assertEqual(result["status"], "skipped")
             self.assertEqual(query["phenomenon_ids"], ["bell_visibly_pressed"])
+
+    def test_open_vqa_need_materializes_run_local_question(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            child = root / "mea/generated_tasks/run_click"
+            execution = root / "mea/evaluation_runs/e/execution/round_1"
+            child.mkdir(parents=True)
+            round_plan = official_round()
+            round_plan["semantic_need_execution"] = {
+                "vqa_tool": {
+                    "requested": True,
+                    "description": "the distractor remains untouched",
+                }
+            }
+            result = run_round_execution_vqa(
+                repo_root=root,
+                child_manifest={"task_name": "click_bell"},
+                child_dir=child,
+                tool_evaluation=None,
+                execution_dir=execution,
+                provider=object(),
+                model="vision",
+                round_plan=round_plan,
+            )
+            query = json.loads(
+                (execution / "execution_vqa_query.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+
+            self.assertEqual(result["status"], "skipped")
+            self.assertEqual(len(query["phenomenon_ids"]), 1)
+            self.assertTrue(
+                query["phenomenon_ids"][0].startswith("run_local.query_")
+            )
+            self.assertIn(
+                "the distractor remains untouched",
+                query["questions"][0]["question"],
+            )
 
     def test_official_summary_uses_its_declared_gates(self):
         round_plan = official_round()

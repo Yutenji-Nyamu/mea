@@ -37,6 +37,14 @@ _CONCERN_KEYS = {
     "requested_variation",
     "measurement_need",
 }
+_EXPERIMENT_NEED_FIELDS = (
+    "scene_need",
+    "checker_need",
+    "rule_tool_need",
+    "vqa_tool_need",
+)
+_NEED_KEYS = {"required", "description"}
+_TOOL_NEED_KEYS = _NEED_KEYS | {"reuse_first"}
 _INVENTORY_KEYS = {
     "schema_version",
     "task_name",
@@ -84,6 +92,107 @@ def _text_list(value: Any, field: str) -> list[str]:
     return result
 
 
+def _experiment_need(
+    value: Any,
+    *,
+    field: str,
+    tool: bool,
+) -> dict[str, Any]:
+    keys = _TOOL_NEED_KEYS if tool else _NEED_KEYS
+    if not isinstance(value, Mapping) or set(value) != keys:
+        raise OpenTaskResolutionError(
+            f"FreeConcern.{field} fields must be exactly {sorted(keys)}"
+        )
+    required = value.get("required")
+    if not isinstance(required, bool):
+        raise OpenTaskResolutionError(
+            f"FreeConcern.{field}.required must be bool"
+        )
+    description = value.get("description")
+    if description is not None:
+        description = _text(
+            description,
+            f"FreeConcern.{field}.description",
+        )
+    if required != (description is not None):
+        raise OpenTaskResolutionError(
+            f"FreeConcern.{field}.description must be present exactly when "
+            "required=true"
+        )
+    result = {
+        "required": required,
+        "description": description,
+    }
+    if tool:
+        if value.get("reuse_first") is not True:
+            raise OpenTaskResolutionError(
+                f"FreeConcern.{field}.reuse_first must be true"
+            )
+        result["reuse_first"] = True
+    return result
+
+
+def validate_free_concern_experiment_needs(
+    value: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Validate the independent work requested by the first Plan decision."""
+
+    if not isinstance(value, Mapping) or set(value) != set(
+        _EXPERIMENT_NEED_FIELDS
+    ):
+        raise OpenTaskResolutionError(
+            "FreeConcern experiment needs must contain exactly "
+            f"{sorted(_EXPERIMENT_NEED_FIELDS)}"
+        )
+    result = {
+        field: _experiment_need(
+            value.get(field),
+            field=field,
+            tool=field in {"rule_tool_need", "vqa_tool_need"},
+        )
+        for field in _EXPERIMENT_NEED_FIELDS
+    }
+    if not any(need["required"] for need in result.values()):
+        raise OpenTaskResolutionError(
+            "FreeConcern must request at least one scene, checker, Rule Tool, "
+            "or VQA Tool need"
+        )
+    return result
+
+
+def _split_free_concern_response(
+    value: Mapping[str, Any],
+    *,
+    expected_query: str,
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """Accept legacy concern-only fixtures and the production typed response."""
+
+    supplied = set(value) if isinstance(value, Mapping) else set()
+    if supplied == _CONCERN_KEYS:
+        return (
+            validate_free_concern(value, expected_query=expected_query),
+            None,
+        )
+    expected = _CONCERN_KEYS | set(_EXPERIMENT_NEED_FIELDS)
+    if supplied != expected:
+        raise OpenTaskResolutionError(
+            "FreeConcern response fields must match the concern-only or typed "
+            f"shape; received {sorted(supplied)}"
+        )
+    concern = {
+        field: value[field]
+        for field in _CONCERN_KEYS
+    }
+    needs = {
+        field: value[field]
+        for field in _EXPERIMENT_NEED_FIELDS
+    }
+    return (
+        validate_free_concern(concern, expected_query=expected_query),
+        validate_free_concern_experiment_needs(needs),
+    )
+
+
 def _extract_json_response(response: Any) -> dict[str, Any]:
     source = str(response).strip()
     start = source.find("{")
@@ -117,6 +226,24 @@ def build_free_concern_prompt(user_query: str, policy_card: Mapping[str, Any]) -
         "task_intent": "invariant base manipulation action and goal in English",
         "requested_variation": "one bounded diagnostic change",
         "measurement_need": "the observation needed to decide the hypothesis",
+        "scene_need": {
+            "required": True,
+            "description": "the scene change needed to realize requested_variation",
+        },
+        "checker_need": {
+            "required": False,
+            "description": None,
+        },
+        "rule_tool_need": {
+            "required": True,
+            "description": "the numeric or symbolic evidence needed",
+            "reuse_first": True,
+        },
+        "vqa_tool_need": {
+            "required": False,
+            "description": None,
+            "reuse_first": True,
+        },
     }
     visible_scope = {
         "policy_name": scope["policy_name"],
@@ -135,6 +262,19 @@ asks to evaluate a different manipulation task.  Put distractors and all other
 diagnostic changes only in requested_variation.  Do not select from task names, task
 templates, aspect identifiers, or a capability catalog: those are deliberately
 not available until a later retrieval stage.
+When requested_variation changes a scene, explicitly state in that field which
+task conditions must remain unchanged; do not leave preservation implicit and
+do not use catch-all phrases such as "all other conditions unchanged".
+Use concrete, verifiable invariant names such as center position, color or
+material, scene layout, camera viewpoint, task instruction, policy checkpoint,
+or official success semantics.
+
+Independently declare the work needed to execute this first experiment.
+Request a scene only when requested_variation changes the simulator scene;
+request a checker only when the Query needs success semantics beyond the
+official task; request a Rule Tool for numeric or symbolic evidence; request a
+VQA Tool only for a visual judgment.  A Tool-only Query must not invent a scene
+or checker.  Every Tool need must retrieve before generating.
 
 ORIGINAL QUERY:
 {query}
@@ -195,6 +335,7 @@ class FreeConcernAgent:
         self.last_responses = []
         self.last_errors = []
         concern: dict[str, Any] | None = None
+        experiment_needs: dict[str, Any] | None = None
         for _attempt in range(self.max_attempts):
             attempt_prompt = prompt
             if self.last_errors:
@@ -212,7 +353,7 @@ class FreeConcernAgent:
                     temperature=0.0,
                 )
                 self.last_responses.append(response)
-                concern = validate_free_concern(
+                concern, experiment_needs = _split_free_concern_response(
                     _extract_json_response(response),
                     expected_query=user_query,
                 )
@@ -228,6 +369,7 @@ class FreeConcernAgent:
             "schema_version": 1,
             "source": "provider_catalog_free_concern",
             "concern": concern,
+            "experiment_needs": experiment_needs,
             "provider": {
                 "model_requested": self.model,
                 "called": True,
@@ -630,5 +772,6 @@ __all__ = [
     "rank_official_tasks",
     "resolve_open_task",
     "validate_free_concern",
+    "validate_free_concern_experiment_needs",
     "validate_task_inventory",
 ]

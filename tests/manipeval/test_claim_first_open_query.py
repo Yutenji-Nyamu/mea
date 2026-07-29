@@ -4,11 +4,13 @@ import unittest
 from mea.planner.claim_first import (
     ClaimFirstOpenQueryAgent,
     ClaimFirstPlanError,
+    open_query_input_digest,
     project_open_query_capabilities,
     validate_open_query_capabilities,
     validate_open_query_evidence,
     validate_open_query_plan_proposal,
 )
+from mea.planner.semantic_coverage import build_evaluation_intent
 
 
 def _capabilities():
@@ -147,7 +149,166 @@ class _InvalidProvider:
         return "{}"
 
 
+class _IntentRepairProvider:
+    def __init__(self, *, allow_repair=True):
+        self.prompts = []
+        self.allow_repair = allow_repair
+        self.last_metadata = {"id": "fixture", "model": "fixture"}
+
+    def text(self, prompt, **_kwargs):
+        self.prompts.append(prompt)
+        if (
+            "PREVIOUS VALIDATION ERROR" not in prompt
+            or not self.allow_repair
+        ):
+            value = {
+                "schema_version": 2,
+                "action": "continue",
+                "sub_aspect": "robustness.visual_distractor",
+                "hypothesis": (
+                    "A lookalike distractor may cause target-selection "
+                    "failure."
+                ),
+                "requested_perturbation": {
+                    "description": "Add a visually similar distractor.",
+                    "controlled_changes": ["distractor presence"],
+                    "preserve": ["policy checkpoint"],
+                },
+                "scene_need": {
+                    "required": True,
+                    "description": "Add a lookalike distractor.",
+                },
+                "checker_need": {
+                    "required": False,
+                    "description": None,
+                },
+                "rule_tool_need": {
+                    "required": True,
+                    "description": "Measure target-selection accuracy.",
+                    "reuse_first": True,
+                },
+                "vqa_tool_need": {
+                    "required": False,
+                    "description": None,
+                    "reuse_first": True,
+                },
+                "rationale": "Probe a nearby robustness concern.",
+            }
+        else:
+            value = {
+                "schema_version": 2,
+                "action": "continue",
+                "sub_aspect": "motion.precontact_jitter",
+                "hypothesis": (
+                    "The policy exhibits visible jitter before contacting "
+                    "the target."
+                ),
+                "requested_perturbation": {
+                    "description": (
+                        "Reuse the unchanged official scene and inspect only "
+                        "the pre-contact trajectory."
+                    ),
+                    "controlled_changes": ["trajectory observation only"],
+                    "preserve": ["official scene"],
+                },
+                "scene_need": {
+                    "required": False,
+                    "description": None,
+                },
+                "checker_need": {
+                    "required": False,
+                    "description": None,
+                },
+                "rule_tool_need": {
+                    "required": True,
+                    "description": (
+                        "Measure pre-contact velocity oscillation and abrupt "
+                        "acceleration."
+                    ),
+                    "reuse_first": True,
+                },
+                "vqa_tool_need": {
+                    "required": False,
+                    "description": None,
+                    "reuse_first": True,
+                },
+                "rationale": "Directly measure the frozen motion concern.",
+            }
+        return json.dumps(value)
+
+
+def _motion_intent():
+    return build_evaluation_intent(
+        source_query=(
+            "In the unchanged official scene, does this ACT policy exhibit "
+            "visible jitter before contacting the target?"
+        ),
+        original_concern="pre-contact motion smoothness",
+        hypothesis=(
+            "The policy exhibits visible jitter before contacting the target."
+        ),
+        requested_change=(
+            "Reuse the unchanged official scene and inspect only the trajectory."
+        ),
+        preserved_conditions=["official scene"],
+        required_observation=(
+            "pre-contact velocity oscillation and abrupt acceleration"
+        ),
+    )
+
+
 class ClaimFirstOpenQueryTest(unittest.TestCase):
+    def test_typed_needs_are_independent_and_keep_legacy_views(self):
+        proposal = validate_open_query_plan_proposal(
+            {
+                "schema_version": 2,
+                "action": "continue",
+                "sub_aspect": "motion.post_release_wobble",
+                "hypothesis": "The bottle visibly wobbles after release.",
+                "requested_perturbation": {
+                    "description": "Reuse the official rollout.",
+                    "controlled_changes": ["observation only"],
+                    "preserve": ["scene", "checker"],
+                },
+                "scene_need": {"required": False, "description": None},
+                "checker_need": {"required": False, "description": None},
+                "rule_tool_need": {
+                    "required": True,
+                    "description": "Measure angular velocity.",
+                    "reuse_first": True,
+                },
+                "vqa_tool_need": {
+                    "required": True,
+                    "description": "Check visible wobble.",
+                    "reuse_first": True,
+                },
+                "rationale": "Numeric and visual evidence are complementary.",
+            },
+            has_evidence=False,
+        )
+
+        self.assertFalse(proposal["scene_need"]["required"])
+        self.assertFalse(proposal["checker_need"]["required"])
+        self.assertTrue(proposal["rule_tool_need"]["required"])
+        self.assertTrue(proposal["vqa_tool_need"]["required"])
+        self.assertFalse(proposal["task_need"]["required"])
+        self.assertTrue(proposal["tool_need"]["required"])
+
+    def test_legacy_task_need_does_not_force_checker_generation(self):
+        proposal = validate_open_query_plan_proposal(
+            _proposal(
+                "object_position.edge_offset",
+                hypothesis="Position changes may expose a failure.",
+                perturbation="Move the target within the workspace.",
+                task_required=True,
+                tool_required=False,
+            ),
+            has_evidence=False,
+        )
+
+        self.assertTrue(proposal["scene_need"]["required"])
+        self.assertFalse(proposal["checker_need"]["required"])
+
     def test_prompt_distinguishes_visible_axes_from_hidden_itinerary(self):
         prompt = ClaimFirstOpenQueryAgent._prompt(
             "Where is the first generalization weakness?",
@@ -303,6 +464,79 @@ class ClaimFirstOpenQueryTest(unittest.TestCase):
             provider.prompts[0],
         )
         self.assertNotIn("fallback_step", provider.prompts[0])
+
+    def test_frozen_intent_repairs_silent_diagnostic_proxy(self):
+        provider = _IntentRepairProvider()
+        query = _motion_intent()["source_query"]
+        intent = _motion_intent()
+        result = ClaimFirstOpenQueryAgent(
+            provider, model="fixture"
+        ).propose(
+            query,
+            capabilities=_capabilities(),
+            evidence_history=[],
+            evaluation_intent=intent,
+        )
+
+        self.assertEqual(len(provider.prompts), 2)
+        self.assertIn("FROZEN EVALUATION INTENT", provider.prompts[0])
+        self.assertIn(intent["intent_id"], provider.prompts[0])
+        self.assertIn(
+            "silently pivots to a diagnostic proxy",
+            provider.prompts[1],
+        )
+        self.assertEqual(
+            result["proposal"]["sub_aspect"],
+            "motion.precontact_jitter",
+        )
+        self.assertEqual(
+            result["input_digest"],
+            open_query_input_digest(
+                query,
+                _capabilities(),
+                [],
+                intent,
+            ),
+        )
+        self.assertEqual(result["provider"]["attempt_count"], 2)
+
+    def test_legacy_digest_excludes_optional_intent(self):
+        query = _motion_intent()["source_query"]
+        legacy = open_query_input_digest(query, _capabilities(), [])
+        explicit_none = open_query_input_digest(
+            query,
+            _capabilities(),
+            [],
+            None,
+        )
+        with_intent = open_query_input_digest(
+            query,
+            _capabilities(),
+            [],
+            _motion_intent(),
+        )
+
+        self.assertEqual(legacy, explicit_none)
+        self.assertNotEqual(legacy, with_intent)
+
+    def test_frozen_intent_never_returns_an_unrepaired_proxy(self):
+        provider = _IntentRepairProvider(allow_repair=False)
+        intent = _motion_intent()
+
+        with self.assertRaisesRegex(
+            ClaimFirstPlanError,
+            "failed two open-Query proposal attempts",
+        ):
+            ClaimFirstOpenQueryAgent(
+                provider, model="fixture"
+            ).propose(
+                intent["source_query"],
+                capabilities=_capabilities(),
+                evidence_history=[],
+                evaluation_intent=intent,
+            )
+
+        self.assertEqual(len(provider.prompts), 2)
 
     def test_invalid_provider_does_not_restore_a_scripted_fallback(self):
         provider = _InvalidProvider()

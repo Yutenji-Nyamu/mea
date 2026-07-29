@@ -58,6 +58,76 @@ _EVIDENCE_STRENGTHS = {
     "conflicting",
     "pipeline_invalid",
 }
+_EVIDENCE_AGGREGATE_KEYS = {
+    "schema_version",
+    "round_id",
+    "execution_id",
+    "pipeline",
+    "policy",
+    "rule",
+    "tool",
+    "vqa",
+    "outcome_semantics",
+    "coverage",
+    "evidence_conflict",
+    "evidence_strength",
+    "reason_codes",
+}
+_TOOL_EVIDENCE_KEYS = {
+    "requested",
+    "status",
+    "metric",
+    "route",
+    "provider_called",
+}
+_OUTCOME_SEMANTICS_KEYS = {"status", "evidence_conflict"}
+_COVERAGE_KEYS = {
+    "expected_policy_episodes",
+    "observed_policy_episodes",
+    "rule_complete",
+    "tool_required",
+    "tool_complete",
+    "vqa_required",
+    "vqa_observed",
+    "intent_required",
+    "intent_complete",
+    "complete",
+}
+
+
+def _external_uncertainty_from_reason_codes(reason_codes: list[str]) -> bool:
+    """Return whether v1 reason codes carry newer Tool/intent uncertainty.
+
+    EvidencePacket v1 has no typed Tool or original-intent coverage fields.
+    EvidenceAggregate therefore preserves those two fail-closed conditions in
+    the compatibility packet's reason codes.
+    """
+
+    return "original_intent_incomplete" in reason_codes or any(
+        reason.startswith("planned_tool_") for reason in reason_codes
+    )
+
+
+def _expected_evidence_strength(
+    *,
+    pipeline_passed: bool,
+    evidence_conflict: bool,
+    rule_complete: bool,
+    vqa_required: bool,
+    vqa_status: str,
+    additional_uncertainty: bool = False,
+) -> str:
+    if not pipeline_passed:
+        return "pipeline_invalid"
+    if evidence_conflict:
+        return "conflicting"
+    if (
+        (vqa_required and vqa_status != "passed")
+        or not rule_complete
+        or additional_uncertainty
+    ):
+        return "uncertain"
+    return "sufficient"
 
 
 def _base_template_id(round_plan: dict[str, Any]) -> str:
@@ -211,7 +281,17 @@ def _execution_vqa_required(round_plan: Mapping[str, Any]) -> bool:
     """
 
     requested = round_plan.get("observations")
-    if isinstance(requested, list) and "execution_vqa" in requested:
+    if isinstance(requested, list) and any(
+        item in requested for item in ("execution_vqa", "dynamic_vqa")
+    ):
+        return True
+    semantic_needs = round_plan.get("semantic_need_execution")
+    vqa_need = (
+        semantic_needs.get("vqa_tool")
+        if isinstance(semantic_needs, Mapping)
+        else None
+    )
+    if isinstance(vqa_need, Mapping) and vqa_need.get("requested") is True:
         return True
     phenomenon_ids = round_plan.get("vqa_phenomenon_ids")
     if isinstance(phenomenon_ids, list) and bool(phenomenon_ids):
@@ -223,6 +303,463 @@ def _execution_vqa_required(round_plan: Mapping[str, Any]) -> bool:
             if isinstance(values, list) and bool(values):
                 return True
     return False
+
+
+def validate_evidence_aggregate(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate the unified Rule/Tool/VQA evidence consumed by planning.
+
+    ``EvidencePacket`` remains the compatibility projection used by older
+    planners.  New round summaries persist this richer aggregate so every
+    planner observes the same conflict and episode-coverage decision rather
+    than independently re-reading Rule, Tool, and VQA fields.
+    """
+
+    if not isinstance(value, Mapping) or set(value) != _EVIDENCE_AGGREGATE_KEYS:
+        raise EvidencePacketError(
+            "EvidenceAggregate fields must be exactly "
+            f"{sorted(_EVIDENCE_AGGREGATE_KEYS)}"
+        )
+    aggregate = deepcopy(dict(value))
+    if aggregate.get("schema_version") != 1:
+        raise EvidencePacketError("EvidenceAggregate.schema_version must be 1")
+    for field in ("round_id", "execution_id"):
+        if not isinstance(aggregate.get(field), str) or not aggregate[field]:
+            raise EvidencePacketError(
+                f"EvidenceAggregate.{field} must be non-empty"
+            )
+
+    pipeline = aggregate.get("pipeline")
+    if not isinstance(pipeline, Mapping) or set(pipeline) != _PIPELINE_KEYS:
+        raise EvidencePacketError("EvidenceAggregate.pipeline fields changed")
+    if not isinstance(pipeline.get("passed"), bool):
+        raise EvidencePacketError(
+            "EvidenceAggregate.pipeline.passed must be boolean"
+        )
+    failure_stage = pipeline.get("failure_stage")
+    if failure_stage is not None and (
+        not isinstance(failure_stage, str) or not failure_stage
+    ):
+        raise EvidencePacketError(
+            "EvidenceAggregate.pipeline.failure_stage must be null or non-empty"
+        )
+
+    policy = aggregate.get("policy")
+    if not isinstance(policy, Mapping) or set(policy) != _POLICY_KEYS:
+        raise EvidencePacketError("EvidenceAggregate.policy fields changed")
+    if not isinstance(policy.get("reported"), bool):
+        raise EvidencePacketError(
+            "EvidenceAggregate.policy.reported must be boolean"
+        )
+    success_rate = policy.get("success_rate")
+    if success_rate is not None and (
+        isinstance(success_rate, bool)
+        or not isinstance(success_rate, (int, float))
+        or not math.isfinite(float(success_rate))
+        or not 0.0 <= float(success_rate) <= 1.0
+    ):
+        raise EvidencePacketError(
+            "EvidenceAggregate.policy.success_rate must be null or in [0, 1]"
+        )
+    if policy["reported"] != (success_rate is not None):
+        raise EvidencePacketError(
+            "EvidenceAggregate.policy.reported disagrees with success_rate"
+        )
+
+    # Reuse the mature EvidencePacket validator for the unchanged Rule shape.
+    rule = aggregate.get("rule")
+    vqa = aggregate.get("vqa")
+    if not isinstance(vqa, Mapping) or set(vqa) != _VQA_KEYS:
+        raise EvidencePacketError("EvidenceAggregate.vqa fields changed")
+    if not isinstance(vqa.get("required"), bool):
+        raise EvidencePacketError(
+            "EvidenceAggregate.vqa.required must be boolean"
+        )
+    if vqa.get("status") not in _VQA_STATUSES or not isinstance(
+        vqa.get("evidence_conflict"), bool
+    ):
+        raise EvidencePacketError("EvidenceAggregate.vqa fields are invalid")
+    validate_evidence_packet(
+        {
+            "schema_version": 1,
+            "round_id": aggregate["round_id"],
+            "template_id": aggregate["execution_id"],
+            "pipeline": deepcopy(dict(pipeline)),
+            "policy": deepcopy(dict(policy)),
+            "rule": deepcopy(dict(rule)) if isinstance(rule, Mapping) else rule,
+            "vqa": deepcopy(dict(vqa)),
+            "evidence_strength": (
+                "pipeline_invalid"
+                if not pipeline["passed"]
+                else "conflicting"
+                if vqa["evidence_conflict"]
+                else "uncertain"
+                if (vqa["required"] and vqa["status"] != "passed")
+                or not bool((rule or {}).get("complete"))
+                else "sufficient"
+            ),
+            "reason_codes": [],
+        }
+    )
+
+    tool = aggregate.get("tool")
+    if not isinstance(tool, Mapping) or set(tool) != _TOOL_EVIDENCE_KEYS:
+        raise EvidencePacketError("EvidenceAggregate.tool fields changed")
+    if not isinstance(tool.get("requested"), bool):
+        raise EvidencePacketError(
+            "EvidenceAggregate.tool.requested must be boolean"
+        )
+    for field in ("status", "metric", "route"):
+        item = tool.get(field)
+        if item is not None and (not isinstance(item, str) or not item):
+            raise EvidencePacketError(
+                f"EvidenceAggregate.tool.{field} must be null or non-empty"
+            )
+    provider_called = tool.get("provider_called")
+    if provider_called is not None and not isinstance(provider_called, bool):
+        raise EvidencePacketError(
+            "EvidenceAggregate.tool.provider_called must be boolean or null"
+        )
+
+    semantics = aggregate.get("outcome_semantics")
+    if (
+        not isinstance(semantics, Mapping)
+        or set(semantics) != _OUTCOME_SEMANTICS_KEYS
+    ):
+        raise EvidencePacketError(
+            "EvidenceAggregate.outcome_semantics fields changed"
+        )
+    if semantics.get("status") is not None and (
+        not isinstance(semantics["status"], str) or not semantics["status"]
+    ):
+        raise EvidencePacketError(
+            "EvidenceAggregate.outcome_semantics.status must be null or non-empty"
+        )
+    if not isinstance(semantics.get("evidence_conflict"), bool):
+        raise EvidencePacketError(
+            "EvidenceAggregate.outcome_semantics.evidence_conflict must be boolean"
+        )
+
+    coverage = aggregate.get("coverage")
+    if not isinstance(coverage, Mapping) or set(coverage) != _COVERAGE_KEYS:
+        raise EvidencePacketError("EvidenceAggregate.coverage fields changed")
+    for field in ("expected_policy_episodes", "observed_policy_episodes"):
+        item = coverage.get(field)
+        if isinstance(item, bool) or not isinstance(item, int) or item < 0:
+            raise EvidencePacketError(
+                f"EvidenceAggregate.coverage.{field} must be non-negative"
+            )
+    for field in (
+        "rule_complete",
+        "tool_required",
+        "tool_complete",
+        "vqa_required",
+        "vqa_observed",
+        "intent_required",
+        "intent_complete",
+        "complete",
+    ):
+        if not isinstance(coverage.get(field), bool):
+            raise EvidencePacketError(
+                f"EvidenceAggregate.coverage.{field} must be boolean"
+            )
+    if (
+        not coverage["intent_required"]
+        and coverage["intent_complete"]
+    ):
+        raise EvidencePacketError(
+            "EvidenceAggregate intent cannot be complete when it is not required"
+        )
+    expected_coverage = {
+        "expected_policy_episodes": rule["expected_policy_episodes"],
+        "observed_policy_episodes": rule["observed_policy_episodes"],
+        "rule_complete": rule["complete"],
+        "tool_required": tool["requested"],
+        "tool_complete": (
+            not tool["requested"] or tool["status"] == "passed"
+        ),
+        "vqa_required": vqa["required"],
+        "vqa_observed": vqa["status"] == "passed",
+        "intent_required": coverage["intent_required"],
+        "intent_complete": coverage["intent_complete"],
+        "complete": bool(
+            rule["complete"]
+            and (
+                not coverage["tool_required"]
+                or coverage["tool_complete"]
+            )
+            and (not vqa["required"] or vqa["status"] == "passed")
+            and (
+                not coverage["intent_required"]
+                or coverage["intent_complete"]
+            )
+        ),
+    }
+    if dict(coverage) != expected_coverage:
+        raise EvidencePacketError(
+            "EvidenceAggregate.coverage disagrees with Rule/VQA evidence"
+        )
+
+    conflict = aggregate.get("evidence_conflict")
+    if not isinstance(conflict, bool):
+        raise EvidencePacketError(
+            "EvidenceAggregate.evidence_conflict must be boolean"
+        )
+    expected_conflict = bool(
+        vqa["evidence_conflict"] or semantics["evidence_conflict"]
+    )
+    if conflict != expected_conflict:
+        raise EvidencePacketError(
+            "EvidenceAggregate conflict disagrees with VQA/outcome semantics"
+        )
+    expected_strength = _expected_evidence_strength(
+        pipeline_passed=pipeline["passed"],
+        evidence_conflict=conflict,
+        rule_complete=rule["complete"],
+        vqa_required=vqa["required"],
+        vqa_status=vqa["status"],
+        additional_uncertainty=not coverage["complete"],
+    )
+    if aggregate.get("evidence_strength") != expected_strength:
+        raise EvidencePacketError(
+            "EvidenceAggregate.evidence_strength disagrees with its evidence"
+        )
+    reasons = aggregate.get("reason_codes")
+    if (
+        not isinstance(reasons, list)
+        or any(not isinstance(item, str) or not item for item in reasons)
+        or len(reasons) != len(set(reasons))
+    ):
+        raise EvidencePacketError(
+            "EvidenceAggregate.reason_codes must be a unique string list"
+        )
+    return aggregate
+
+
+def build_evidence_aggregate(
+    round_plan: Mapping[str, Any],
+    round_summary: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Fuse Rule, planned Tool, VQA, conflicts, and coverage for Planner."""
+
+    if not isinstance(round_plan, Mapping) or not isinstance(
+        round_summary, Mapping
+    ):
+        raise EvidencePacketError(
+            "EvidenceAggregate requires round plan and summary objects"
+        )
+    round_id = str(round_plan.get("round_id") or "")
+    if round_summary.get("round_id") != round_id:
+        raise EvidencePacketError(
+            "EvidenceAggregate round plan and summary ids disagree"
+        )
+    execution_id = str(
+        round_plan.get("candidate_id")
+        or round_plan.get("template_id")
+        or ""
+    )
+    if not execution_id:
+        raise EvidencePacketError(
+            "EvidenceAggregate requires candidate_id or template_id"
+        )
+    observations = round_summary.get("observations") or {}
+    if not isinstance(observations, Mapping):
+        raise EvidencePacketError(
+            "EvidenceAggregate summary observations must be an object"
+        )
+    quality = _aggregate_quality(dict(round_plan), dict(round_summary))
+    raw_vqa = observations.get("execution_vqa")
+    vqa = raw_vqa if isinstance(raw_vqa, Mapping) else {}
+    if vqa and not isinstance(vqa.get("evidence_conflict"), bool):
+        raise EvidencePacketError(
+            "EvidenceAggregate execution VQA conflict must be boolean"
+        )
+    vqa_required = _execution_vqa_required(round_plan)
+    vqa_status = vqa.get("status", "missing")
+    if vqa_status not in _VQA_STATUSES:
+        raise EvidencePacketError(
+            "EvidenceAggregate execution VQA status is invalid"
+        )
+    vqa_view = {
+        "required": vqa_required,
+        "status": vqa_status,
+        "evidence_conflict": bool(vqa.get("evidence_conflict", False)),
+    }
+
+    planned_tool = observations.get("planned_tool")
+    planned_tool = planned_tool if isinstance(planned_tool, Mapping) else {}
+    route_decision = planned_tool.get("route_decision")
+    route_decision = (
+        route_decision if isinstance(route_decision, Mapping) else {}
+    )
+    semantic_needs = round_plan.get("semantic_need_execution")
+    rule_need = (
+        semantic_needs.get("rule_tool")
+        if isinstance(semantic_needs, Mapping)
+        else None
+    )
+    tool_requested = (
+        rule_need.get("requested") is True
+        if isinstance(rule_need, Mapping)
+        else bool(
+            "planned_tool" in (round_plan.get("observations") or [])
+            or round_plan.get("open_tool_request_deferred")
+            or round_plan.get("tool_request")
+        )
+    )
+    tool_metric = (
+        (
+            route_decision.get("metric")
+            or planned_tool.get("reference_tool")
+            or (round_plan.get("tool_request") or {}).get("metric")
+        )
+        if tool_requested
+        else None
+    )
+    tool_view = {
+        "requested": tool_requested,
+        "status": (
+            (
+                str(planned_tool["status"])
+                if isinstance(planned_tool.get("status"), str)
+                and planned_tool["status"]
+                else "missing"
+            )
+            if tool_requested
+            else None
+        ),
+        "metric": str(tool_metric) if tool_metric else None,
+        "route": (
+            (
+                str(
+                    planned_tool.get("route")
+                    or route_decision.get("resolved_route")
+                )
+                if (
+                    planned_tool.get("route")
+                    or route_decision.get("resolved_route")
+                )
+                else None
+            )
+            if tool_requested
+            else None
+        ),
+        "provider_called": (
+            route_decision.get("provider_called")
+            if tool_requested
+            and isinstance(route_decision.get("provider_called"), bool)
+            else None
+        ),
+    }
+
+    raw_semantics = observations.get("outcome_semantics")
+    raw_semantics = (
+        raw_semantics if isinstance(raw_semantics, Mapping) else {}
+    )
+    semantics_view = {
+        "status": (
+            str(raw_semantics["status"])
+            if isinstance(raw_semantics.get("status"), str)
+            and raw_semantics["status"]
+            else None
+        ),
+        "evidence_conflict": bool(
+            raw_semantics.get("evidence_conflict")
+            or raw_semantics.get("status") == "conflict"
+        ),
+    }
+    pipeline_passed = round_summary.get("pipeline_passed")
+    if not isinstance(pipeline_passed, bool):
+        raise EvidencePacketError(
+            "EvidenceAggregate summary pipeline_passed must be boolean"
+        )
+    failure_stage = round_summary.get("failure_stage")
+    if isinstance(failure_stage, str):
+        failure_stage = failure_stage.strip() or None
+    success_rate = _policy_success_rate(round_summary)
+    implementation_trace = observations.get("implementation_trace")
+    intent_required = isinstance(implementation_trace, Mapping)
+    intent_complete = bool(
+        intent_required
+        and implementation_trace.get("coverage_status") == "complete"
+    )
+    coverage = {
+        "expected_policy_episodes": quality["expected_policy_episodes"],
+        "observed_policy_episodes": quality["observed_policy_episodes"],
+        "rule_complete": quality["complete"],
+        "tool_required": tool_requested,
+        "tool_complete": (
+            not tool_requested or tool_view["status"] == "passed"
+        ),
+        "vqa_required": vqa_required,
+        "vqa_observed": vqa_status == "passed",
+        "intent_required": intent_required,
+        "intent_complete": intent_complete,
+        "complete": bool(
+            quality["complete"]
+            and (not tool_requested or tool_view["status"] == "passed")
+            and (not vqa_required or vqa_status == "passed")
+            and (not intent_required or intent_complete)
+        ),
+    }
+    conflict = bool(
+        vqa_view["evidence_conflict"]
+        or semantics_view["evidence_conflict"]
+    )
+    if not pipeline_passed:
+        strength = "pipeline_invalid"
+        reasons = ["latest_pipeline_failed"]
+    elif conflict:
+        strength = "conflicting"
+        reasons = [
+            *(
+                ["execution_vqa_conflicts_with_numeric_evidence"]
+                if vqa_view["evidence_conflict"]
+                else []
+            ),
+            *(
+                ["outcome_semantics_conflict"]
+                if semantics_view["evidence_conflict"]
+                else []
+            ),
+        ]
+    elif vqa_required and vqa_status != "passed":
+        strength = "uncertain"
+        reasons = [f"execution_vqa_{vqa_status}"]
+    elif tool_requested and tool_view["status"] != "passed":
+        strength = "uncertain"
+        reasons = [f"planned_tool_{tool_view['status'] or 'missing'}"]
+    elif intent_required and not intent_complete:
+        strength = "uncertain"
+        reasons = ["original_intent_incomplete"]
+    elif not quality["complete"]:
+        strength = "uncertain"
+        reasons = list(quality["reasons"])
+    else:
+        strength = "sufficient"
+        reasons = []
+    return validate_evidence_aggregate(
+        {
+            "schema_version": 1,
+            "round_id": round_id,
+            "execution_id": execution_id,
+            "pipeline": {
+                "passed": pipeline_passed,
+                "failure_stage": failure_stage,
+            },
+            "policy": {
+                "success_rate": success_rate,
+                "reported": success_rate is not None,
+            },
+            "rule": quality,
+            "tool": tool_view,
+            "vqa": vqa_view,
+            "outcome_semantics": semantics_view,
+            "coverage": coverage,
+            "evidence_conflict": conflict,
+            "evidence_strength": strength,
+            "reason_codes": list(dict.fromkeys(reasons)),
+        }
+    )
 
 
 def validate_evidence_packet(value: Mapping[str, Any]) -> dict[str, Any]:
@@ -337,15 +874,15 @@ def validate_evidence_packet(value: Mapping[str, Any]) -> dict[str, Any]:
         raise EvidencePacketError(
             "EvidencePacket.reason_codes must be a unique string list"
         )
-    expected_strength = (
-        "pipeline_invalid"
-        if not pipeline["passed"]
-        else "conflicting"
-        if vqa["evidence_conflict"]
-        else "uncertain"
-        if (vqa["required"] and vqa["status"] != "passed")
-        or not rule["complete"]
-        else "sufficient"
+    expected_strength = _expected_evidence_strength(
+        pipeline_passed=pipeline["passed"],
+        evidence_conflict=vqa["evidence_conflict"],
+        rule_complete=rule["complete"],
+        vqa_required=vqa["required"],
+        vqa_status=vqa["status"],
+        additional_uncertainty=_external_uncertainty_from_reason_codes(
+            reasons
+        ),
     )
     if strength != expected_strength:
         raise EvidencePacketError(
@@ -378,10 +915,50 @@ def build_evidence_packet(
     round_id = latest_plan.get("round_id")
     if latest.get("round_id") != round_id:
         raise EvidencePacketError("observation.round_id does not match plan")
-    quality = _aggregate_quality(dict(latest_plan), dict(latest))
     observations = latest.get("observations") or {}
     if not isinstance(observations, Mapping):
         raise EvidencePacketError("observation.observations must be an object")
+    raw_evidence_aggregate = observations.get("evidence_aggregate")
+    if raw_evidence_aggregate is not None:
+        if not isinstance(raw_evidence_aggregate, Mapping):
+            raise EvidencePacketError(
+                "observation.evidence_aggregate must be an object"
+            )
+        unified = validate_evidence_aggregate(raw_evidence_aggregate)
+        execution_id = str(
+            latest_plan.get("candidate_id")
+            or latest_plan.get("template_id")
+            or ""
+        )
+        if unified["round_id"] != str(round_id or ""):
+            raise EvidencePacketError(
+                "EvidenceAggregate.round_id does not match the latest plan"
+            )
+        if unified["execution_id"] != execution_id:
+            raise EvidencePacketError(
+                "EvidenceAggregate.execution_id does not match the latest plan"
+            )
+        # Preserve EvidencePacket v1 for every existing caller.  Its historical
+        # ``vqa.evidence_conflict`` slot carries the unified conflict bit so
+        # legacy planners cannot miss a generated/official semantic conflict.
+        return validate_evidence_packet(
+            {
+                "schema_version": 1,
+                "round_id": unified["round_id"],
+                "template_id": unified["execution_id"],
+                "pipeline": deepcopy(unified["pipeline"]),
+                "policy": deepcopy(unified["policy"]),
+                "rule": deepcopy(unified["rule"]),
+                "vqa": {
+                    **deepcopy(unified["vqa"]),
+                    "evidence_conflict": unified["evidence_conflict"],
+                },
+                "evidence_strength": unified["evidence_strength"],
+                "reason_codes": deepcopy(unified["reason_codes"]),
+            }
+        )
+
+    quality = _aggregate_quality(dict(latest_plan), dict(latest))
     raw_vqa = observations.get("execution_vqa")
     if raw_vqa is None:
         vqa: Mapping[str, Any] = {}
@@ -426,7 +1003,11 @@ def build_evidence_packet(
     packet = {
         "schema_version": 1,
         "round_id": str(round_id or ""),
-        "template_id": str(latest_plan.get("template_id") or ""),
+        "template_id": str(
+            latest_plan.get("candidate_id")
+            or latest_plan.get("template_id")
+            or ""
+        ),
         "pipeline": {
             "passed": pipeline_passed,
             "failure_stage": failure_stage,
@@ -689,6 +1270,8 @@ __all__ = [
     "SEMANTIC_ABSENCE_REASONS",
     "assess_conditional_transition",
     "assess_evidence",
+    "build_evidence_aggregate",
     "build_evidence_packet",
+    "validate_evidence_aggregate",
     "validate_evidence_packet",
 ]

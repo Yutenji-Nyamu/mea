@@ -5,7 +5,9 @@ from mea.planner.evidence_policy import (
     EvidencePacketError,
     assess_conditional_transition,
     assess_evidence,
+    build_evidence_aggregate,
     build_evidence_packet,
+    validate_evidence_aggregate,
     validate_evidence_packet,
 )
 
@@ -77,6 +79,8 @@ def observation(
                 issues=issues,
             ),
             "planned_tool": {
+                "status": "passed",
+                "route": "reuse",
                 "route_decision": {"metric": metric},
                 "episodes": list(planned_episodes or []),
             },
@@ -95,6 +99,116 @@ def current_plan(rounds, requested=None, max_rounds=3):
 
 
 class AdaptiveEvidencePolicyTests(unittest.TestCase):
+    def test_unified_evidence_aggregate_projects_semantic_conflict_to_planner(self):
+        planned = round_plan()
+        observed = observation(planned)
+        observed["observations"]["outcome_semantics"] = {
+            "status": "conflict",
+            "evidence_conflict": True,
+        }
+        unified = build_evidence_aggregate(planned, observed)
+        self.assertEqual(unified["evidence_strength"], "conflicting")
+        self.assertTrue(unified["evidence_conflict"])
+        self.assertTrue(unified["coverage"]["complete"])
+        self.assertEqual(
+            unified["reason_codes"], ["outcome_semantics_conflict"]
+        )
+
+        observed["observations"]["evidence_aggregate"] = unified
+        packet = build_evidence_packet(current_plan([planned]), [observed])
+        self.assertEqual(packet["evidence_strength"], "conflicting")
+        self.assertTrue(packet["vqa"]["evidence_conflict"])
+        self.assertEqual(
+            packet["reason_codes"], ["outcome_semantics_conflict"]
+        )
+
+        tampered = deepcopy(unified)
+        tampered["coverage"]["observed_policy_episodes"] = 0
+        with self.assertRaisesRegex(EvidencePacketError, "coverage disagrees"):
+            validate_evidence_aggregate(tampered)
+
+    def test_unified_aggregate_blocks_incomplete_original_intent(self):
+        planned = round_plan()
+        observed = observation(planned)
+        observed["observations"]["implementation_trace"] = {
+            "coverage_status": "partial"
+        }
+
+        unified = build_evidence_aggregate(planned, observed)
+
+        self.assertTrue(unified["coverage"]["intent_required"])
+        self.assertFalse(unified["coverage"]["intent_complete"])
+        self.assertFalse(unified["coverage"]["complete"])
+        self.assertEqual(unified["evidence_strength"], "uncertain")
+        self.assertEqual(
+            unified["reason_codes"], ["original_intent_incomplete"]
+        )
+        observed["observations"]["evidence_aggregate"] = unified
+        packet = build_evidence_packet(current_plan([planned]), [observed])
+        self.assertEqual(packet["evidence_strength"], "uncertain")
+        self.assertEqual(
+            packet["reason_codes"], ["original_intent_incomplete"]
+        )
+
+    def test_unified_aggregate_blocks_requested_tool_failure(self):
+        planned = round_plan()
+        observed = observation(planned)
+        observed["observations"]["planned_tool"] = {
+            "status": "failed",
+            "route": "generate",
+        }
+
+        unified = build_evidence_aggregate(planned, observed)
+
+        self.assertTrue(unified["coverage"]["tool_required"])
+        self.assertFalse(unified["coverage"]["tool_complete"])
+        self.assertEqual(unified["evidence_strength"], "uncertain")
+        self.assertEqual(
+            unified["reason_codes"], ["planned_tool_failed"]
+        )
+        observed["observations"]["evidence_aggregate"] = unified
+        packet = build_evidence_packet(current_plan([planned]), [observed])
+        self.assertEqual(packet["evidence_strength"], "uncertain")
+        self.assertEqual(packet["reason_codes"], ["planned_tool_failed"])
+
+    def test_vqa_only_round_does_not_claim_query_induced_rule_tool(self):
+        planned = round_plan()
+        planned["semantic_need_execution"] = {
+            "rule_tool": {"requested": False},
+            "vqa_tool": {"requested": True},
+        }
+        planned["observations"] = ["dynamic_vqa", "aggregate"]
+        observed = observation(planned)
+        observed["observations"]["planned_tool"] = {
+            "status": "failed",
+            "route": "official_checker_baseline",
+        }
+        observed["observations"]["execution_vqa"]["status"] = "passed"
+
+        unified = build_evidence_aggregate(planned, observed)
+
+        self.assertFalse(unified["tool"]["requested"])
+        self.assertIsNone(unified["tool"]["status"])
+        self.assertTrue(unified["vqa"]["required"])
+        self.assertEqual(unified["vqa"]["status"], "passed")
+        self.assertNotIn("planned_tool_failed", unified["reason_codes"])
+
+    def test_legacy_packet_cannot_upgrade_external_uncertainty(self):
+        planned = round_plan()
+        packet = build_evidence_packet(
+            current_plan([planned]), [observation(planned)]
+        )
+        for reason in (
+            "original_intent_incomplete",
+            "planned_tool_missing",
+        ):
+            changed = deepcopy(packet)
+            changed["reason_codes"] = [reason]
+            with self.subTest(reason=reason), self.assertRaisesRegex(
+                EvidencePacketError, "evidence_strength disagrees"
+            ):
+                validate_evidence_packet(changed)
+
     def test_typed_evidence_packet_distinguishes_four_strengths(self):
         planned = round_plan()
         plan = current_plan([planned])

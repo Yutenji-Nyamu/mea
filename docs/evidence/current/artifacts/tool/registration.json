@@ -1,0 +1,125 @@
+{
+  "schema_version": 3,
+  "registration_id": "runlocal_f1e3ad99c5b5dc79a58d",
+  "scope": "run_local",
+  "status": "validated",
+  "tool_id": "generated_bell_active_tcp_min_xy_error",
+  "version": 1,
+  "target_metric": "bell_active_tcp_min_xy_error",
+  "code_sha256": "14ceab2dd9939cc58a271bf99fcd1c86297ff25b19364ff2f577a4600e6a8a57",
+  "source_sha256": "14ceab2dd9939cc58a271bf99fcd1c86297ff25b19364ff2f577a4600e6a8a57",
+  "contract_sha256": "efaad9a8ce7e8fbffd52f785f45c0c6c60b5bcb97d682352ea887eb7ee15ceff",
+  "tool_contract": {
+    "tool_spec": {
+      "schema_version": 1,
+      "task_name": "click_bell",
+      "metric": "bell_active_tcp_min_xy_error",
+      "route": "force_codegen",
+      "reference_tool": null,
+      "required_signals": [
+        "semantic_trace.bell_position",
+        "semantic_trace.bell_contact_position",
+        "semantic_trace.left_tcp_position",
+        "semantic_trace.right_tcp_position",
+        "semantic_trace.physics_step",
+        "semantic_trace.simulation_time_seconds"
+      ],
+      "output_contract": {
+        "value_type": "number",
+        "unit": "m",
+        "passed_rule": "always_null",
+        "evidence_rule": "minimum_error_physics_step",
+        "details_keys": [
+          "active_arm",
+          "min_error_physics_step",
+          "simulation_time_seconds"
+        ]
+      },
+      "validation_requirements": {
+        "min_episodes": 1,
+        "distinct_reference_values": false,
+        "required_reference_values": []
+      }
+    },
+    "required_signals": [
+      "semantic_trace.bell_position",
+      "semantic_trace.bell_contact_position",
+      "semantic_trace.left_tcp_position",
+      "semantic_trace.right_tcp_position",
+      "semantic_trace.physics_step",
+      "semantic_trace.simulation_time_seconds"
+    ]
+  },
+  "required_signals": [
+    "semantic_trace.bell_position",
+    "semantic_trace.bell_contact_position",
+    "semantic_trace.left_tcp_position",
+    "semantic_trace.right_tcp_position",
+    "semantic_trace.physics_step",
+    "semantic_trace.simulation_time_seconds"
+  ],
+  "generation": {
+    "model": "gpt-5.6-luna",
+    "prompt_sha256": "443ffeab294db892dc33e46393d6ed46649c856696c096fc8f7b977a87ca0543",
+    "prompt_artifact": "/root/autodl-tmp/mea/mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_2/planned_tool/generated/attempts/attempt_0/prompt.md",
+    "generator_source_sha256": "f47ad0ca1f1da33846c9be426e830f83bd16b7e1ad3ab9d2636648c3ddfdfe72",
+    "generator_contract_sha256": "825a4348ba62678c03a5c81db38e85c35533cad8882f35dba9b38e7b7caa7da5",
+    "source_examples": [
+      {
+        "name": "time_to_success",
+        "source_sha256": "acf92a3b6e825b9ad6c677b7d2a7c380f00bf1ca27142ff42c6afb037ea4a1a5",
+        "episodes": [
+          {
+            "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260728_batch29_open_flagship_v19_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+            "agreement": true
+          }
+        ]
+      }
+    ]
+  },
+  "telemetry_schema_compatibility": {
+    "matching_policy": "exact_schema_snapshot_set",
+    "required_signals": [
+      "semantic_trace.bell_position",
+      "semantic_trace.bell_contact_position",
+      "semantic_trace.left_tcp_position",
+      "semantic_trace.right_tcp_position",
+      "semantic_trace.physics_step",
+      "semantic_trace.simulation_time_seconds"
+    ],
+    "schemas": [
+      {
+        "schema_sha256": "afe2cd19bae346c178df014d8d04e3dc3df4466ee5a1348c4f25a6bbf76bcc5c",
+        "schema_version": 1,
+        "task_name": "click_bell"
+      }
+    ],
+    "compatibility_sha256": "5e6fedd690f90833635aafd33bad1e0a4745c182ec1253cc00768f77fc4e93d3"
+  },
+  "validation": {
+    "episodes": [
+      {
+        "episode_dir": "mea/generated_tasks/run_20260728_batch29_open_flagship_v19_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+        "policy_name": "ACT",
+        "seed": 100000,
+        "role": "policy_under_evaluation",
+        "oracle_value": 0.0077674430795013905
+      }
+    ],
+    "validated_episode_count": 1,
+    "validated_property_scenario_count": 0,
+    "oracle_kind": "private_semantic_trace_oracle",
+    "determinism_required": true,
+    "oracle_agreement_required": true
+  },
+  "promotion": {
+    "current_scope": "run_local",
+    "candidate": {
+      "status": "not_requested"
+    },
+    "trusted": {
+      "status": "not_requested"
+    }
+  },
+  "created_at": "2026-07-28T23:10:57.791952+08:00"
+}

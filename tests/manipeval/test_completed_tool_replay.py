@@ -7,6 +7,7 @@ from unittest.mock import patch
 from experiments.paper.manipeval_replay_completed_tool import (
     CompletedToolReplayError,
     _evolved_query_contract,
+    _source_context,
     replay_completed_round_tool,
 )
 
@@ -241,6 +242,43 @@ class CompletedToolReplayTests(unittest.TestCase):
                     repair_id="repair_1",
                     tool_request_path=request_bundle,
                 )
+
+    def test_failed_parent_can_recover_completed_child_without_round_summary(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            evaluation, _request_bundle = self.make_source(root)
+            summary_path = evaluation / "summary/round_1.json"
+            summary_path.unlink()
+            write_json(
+                evaluation / "manifest.json",
+                {
+                    "status": "failed",
+                    "failure_stage": "round_1_execution",
+                    "user_request": "Does the motion remain smooth?",
+                    "evaluation_target": {"task_name": "adjust_bottle"},
+                },
+            )
+            write_json(
+                evaluation / "execution/round_1/child_run.json",
+                {
+                    "run_id": "child_1",
+                    "returncode": 0,
+                    "status": "completed",
+                },
+            )
+
+            context = _source_context(root, "eval_source", "round_1")
+
+            self.assertFalse(context["summary_available"])
+            self.assertIsNone(context["summary_path"])
+            self.assertEqual(
+                context["summary"]["source"],
+                "synthesized_from_completed_child_run",
+            )
+            self.assertEqual(
+                context["summary"]["taskgen_run_id"],
+                "child_1",
+            )
 
     def test_replay_can_compose_append_only_vqa_result(self):
         with tempfile.TemporaryDirectory() as temporary:

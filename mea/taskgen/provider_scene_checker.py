@@ -526,6 +526,16 @@ def write_candidate_artifacts(
     _write_json(root / "proposal.json", dict(proposal))
     validation = dict(generated["validation"])
     fixtures = [dict(item) for item in validation["checker_fixtures"]]
+    method_provenance = dict(
+        validation.get("method_provenance")
+        or {
+            "load_actors": "provider_generated",
+            "check_success": "provider_generated",
+        }
+    )
+    official_reused_methods = list(
+        validation.get("official_reused_methods") or []
+    )
     _write_json(root / "checker_fixtures.json", fixtures)
     summary = dict(generated["attempt_summary"])
     if compatibility_attempt_directory:
@@ -551,6 +561,8 @@ def write_candidate_artifacts(
             "source_kind": "provider_response_python",
             "provider_called": True,
             "generated_by_model": True,
+            "method_provenance": method_provenance,
+            "official_reused_methods": official_reused_methods,
             "model_requested": model,
             "provider_metadata": dict(generated["provider_metadata"]),
             "provider_call_count": summary["runtime"]["provider_calls"],
@@ -564,12 +576,18 @@ def write_candidate_artifacts(
             "readme_agent_ref": prompt_context["readme_agent_ref"],
         },
         "checker_contract": {
+            **dict(checker_contract),
             "metric": metric,
-            "authority": "llm_generated_python_ast_validated",
-            "official_success": False,
+            "authority": (
+                "official_task_method_reused"
+                if "check_success" in official_reused_methods
+                else "llm_generated_python_ast_validated"
+            ),
+            "official_success": (
+                "check_success" in official_reused_methods
+            ),
             "fixture_count": len(fixtures),
             "fixture_pass_count": sum(1 for item in fixtures if item["passed"]),
-            **dict(checker_contract),
         },
         "live_boundary": {
             "act_rollouts_completed": 0,

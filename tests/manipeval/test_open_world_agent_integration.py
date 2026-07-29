@@ -91,6 +91,72 @@ class OpenWorldAgentIntegrationTest(unittest.TestCase):
             self.assertTrue(round_plan["open_tool_request_deferred"])
             self.assertEqual(provider.calls, 0)
 
+    def test_scene_only_round_keeps_official_success_authority(self):
+        candidate = build_experiment_candidate(
+            source_query="Which spatial change exposes a weakness?",
+            base_task="click_bell",
+            semantic_concern="bell spatial offset precision",
+            scene_need="Shift the bell by a bounded horizontal offset.",
+            checker_need=None,
+            rule_tool_need="Measure terminal target contact error.",
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            round_plan, _bundle = materialize_open_world_round(
+                REPO_ROOT,
+                Path(temporary),
+                round_number=2,
+                candidate=candidate,
+                control_execution={
+                    "backend": "act",
+                    "seeds": [100000],
+                    "num_episodes": 1,
+                    "gates": [],
+                },
+            )
+
+        self.assertEqual(
+            round_plan["tool_request"]["metric"],
+            "official_check_success",
+        )
+        self.assertIsNone(
+            round_plan["experiment_candidate"]["checker_need"]
+        )
+
+    def test_vqa_only_round_keeps_rule_tool_unrequested(self):
+        candidate = build_experiment_candidate(
+            source_query="Does the bottle visibly wobble after release?",
+            base_task="adjust_bottle",
+            semantic_concern="motion.post_release_visible_wobble",
+            vqa_tool_need={
+                "kind": "vqa",
+                "description": "Check whether the bottle visibly wobbles.",
+                "reuse_first": True,
+            },
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            round_plan, bundle = materialize_open_world_round(
+                REPO_ROOT,
+                Path(temporary),
+                round_number=1,
+                candidate=candidate,
+                control_execution={
+                    "backend": "act",
+                    "seeds": [100000],
+                    "num_episodes": 1,
+                    "gates": [],
+                },
+            )
+
+        self.assertFalse(
+            round_plan["semantic_need_execution"]["rule_tool"]["requested"]
+        )
+        self.assertTrue(
+            round_plan["semantic_need_execution"]["vqa_tool"]["requested"]
+        )
+        self.assertNotIn("planned_tool", round_plan["observations"])
+        self.assertNotIn("open_vqa_request_deferred", round_plan)
+        self.assertEqual(bundle["source"], "vqa_only_no_rule_tool_requested")
+
     def test_open_tool_request_uses_executed_episode_schema(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -107,6 +173,30 @@ class OpenWorldAgentIntegrationTest(unittest.TestCase):
             )
             (episode / "schema.json").write_text(
                 json.dumps(runtime_schema),
+                encoding="utf-8",
+            )
+            (child / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "trusted_tool_evaluation": {
+                            "outcome_metric": "official_check_success",
+                            "episodes": [
+                                {
+                                    "tool_results": [
+                                        {
+                                            "tool": "official_check_success",
+                                            "value": True,
+                                        },
+                                        {
+                                            "tool": "time_to_success",
+                                            "value": 1.0,
+                                        },
+                                    ]
+                                }
+                            ],
+                        }
+                    }
+                ),
                 encoding="utf-8",
             )
             round_plan, _bundle = materialize_open_world_round(
@@ -138,6 +228,10 @@ class OpenWorldAgentIntegrationTest(unittest.TestCase):
             self.assertEqual(
                 result["context"]["telemetry_schema_source"],
                 "executed_episode_schema",
+            )
+            self.assertEqual(
+                result["context"]["forbidden_metric_ids"],
+                ["official_check_success", "time_to_success"],
             )
             self.assertEqual(provider.calls, 1)
 

@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "round_id": "round_1",
+  "execution_id": "task_execution.official_baseline",
+  "pipeline": {
+    "passed": true,
+    "failure_stage": null
+  },
+  "policy": {
+    "success_rate": 1.0,
+    "reported": true
+  },
+  "rule": {
+    "metric": "official_check_success",
+    "expected_policy_episodes": 1,
+    "aggregate_status": "passed",
+    "input_issue_count": 0,
+    "valid": 1,
+    "missing": 0,
+    "invalid": 0,
+    "semantic_missing": 0,
+    "semantic_missing_reasons": [],
+    "observed_policy_episodes": 1,
+    "complete": true,
+    "reasons": []
+  },
+  "tool": {
+    "requested": true,
+    "status": "passed",
+    "metric": "official_check_success",
+    "route": "reuse",
+    "provider_called": false
+  },
+  "vqa": {
+    "required": false,
+    "status": "passed",
+    "evidence_conflict": false
+  },
+  "outcome_semantics": {
+    "status": "official_only",
+    "evidence_conflict": false
+  },
+  "coverage": {
+    "expected_policy_episodes": 1,
+    "observed_policy_episodes": 1,
+    "rule_complete": true,
+    "tool_required": true,
+    "tool_complete": true,
+    "vqa_required": false,
+    "vqa_observed": true,
+    "intent_required": false,
+    "intent_complete": false,
+    "complete": true
+  },
+  "evidence_conflict": false,
+  "evidence_strength": "sufficient",
+  "reason_codes": []
+}

@@ -10,6 +10,7 @@ runtime candidate 能否执行。legacy task-specific planner 仅由论文消融
 ```text
 原始 Query
   → FreeConcern（先抽取任务意图与待测变化，不向模型展示 task inventory）
+  → EvaluationIntent（合并原 Query 与 FreeConcern 中的显式 preservation 条件）
   → official task discovery + retrieve/generate decision
   → policy binding（checkpoint 与 task identity）
   → policy/checkpoint compatibility gate
@@ -23,7 +24,7 @@ runtime candidate 能否执行。legacy task-specific planner 仅由论文消融
   → OpenWorldPlanSession.from_target（只规范化已冻结的 task/checkpoint binding）
   → runtime ExperimentCandidate
     （scene/checker/tool 是相互独立的 typed need；不要求 template id）
-  → 若需要 scene/checker：TaskGen 精确检索；miss 时生成 scene + check_success
+  → 若需要 scene/checker：TaskGen 精确检索；miss 时只生成声明所需的 scene/checker 子集
   → 若生成 Task：VLM + simulator state/checker fixture + render + expert gate
     （只允许一次 TaskGen 局部 visual repair）
   → policy rollout（当前生产主链为 ACT；DP3 只用于 ranking pilot）
@@ -43,7 +44,7 @@ runtime candidate 能否执行。legacy task-specific planner 仅由论文消融
 | 兼容性检索 | `mea/capability_adapter.py` | 旧任务/模板的 retrieval index 与消融兼容层；生产 open-world round 只把它当检索提示，不把成员关系当执行许可 |
 | 开放任务解析 | `mea/planner/open_task_resolver.py`、`global_query.py` | Query-first 抽取 concern；从 official inventory 检索候选；在 policy scope 边界内决定复用、生成或 unsupported |
 | Claim 规划 | `mea/planner/claim_first_initial.py`、`claim_first.py`、`query_contract.py`、`open_world_session.py` | 直接创建首轮计划；从已绑定 task、Query 和已有 evidence 产生/追加 runtime candidate；按 claim truth condition 判断继续或停止 |
-| TaskGen | `mea/taskgen/generic_backend.py`、`artifact_index.py`、`scripts/manipeval_taskgen.py` | 仅在 typed need 要求 scene/checker 时运行；exact reuse-first，miss 时生成 scene 与实验 checker；每次 reuse 仍重跑当前 seed 的渲染、fixture 与 expert 验证 |
+| TaskGen | `mea/taskgen/generic_backend.py`、`artifact_index.py`、`scripts/manipeval_taskgen.py` | 仅在 typed need 要求 scene/checker 时运行；exact reuse-first，miss 时生成声明所需的 scene 和/或实验 checker；每次 reuse 仍重跑当前 seed 的渲染、fixture 与 expert 验证 |
 | Policy | `policy/ACT/eval_mea.sh` 及 paper experiment adapter | ACT 主链在明确 task、checkpoint、seed 下产生 rollout、video 与 telemetry；ranking pilot 让 ACT/DP3 共享同一 expert scene gate |
 | ToolGen/VQA | `mea/toolgen/`、`mea/execution_vqa/` | retrieve-first；按已声明 telemetry 字段生成并验证缺失 metric；VQA 优先使用 task-owned 问题，再退回通用 tracked-object 问题 |
 | Aggregate/Answer | `mea/toolkit/aggregate.py`、`mea/feedback/` | 汇总样本，决定证据是否充分，回答 Query |
@@ -57,6 +58,10 @@ open-policy scope。若原始 Query 提出 catalog 外 concern，Planner 会保�
 生成新场景或 checker。generic backend 可以在已绑定 base task 上 exact reuse 或生成并
 验证。只有本轮要求的生成、当前 seed preflight、rollout 和 Tool/VQA 全部完成后，该
 concern 才能成为评价证据。
+`EvaluationIntent` 必须保留原 Query 中的显式 keep/preserve/remain-unchanged 条件；
+provider 的 FreeConcern 若漏写这些条件，不能把它们从执行合同中删除。单条条件同时
+包含 contact、position、orientation 时，simulator-state gate 必须逐分量合取，而不是
+命中第一个关键词就通过。
 neutral official control 只是 QueryContract 在 claim 需要对照时调用的 unchanged-scene
 materialization，不是每个 Query 的默认首轮。generic TaskGen 若要从同一采样 Pose 派生
 另一个 actor 的位置，必须复制位置数组并新建
@@ -80,7 +85,7 @@ plan/
   round_02_proposal.json
 task/
   round_*/task.py 或 overlay.yml
-  round_*/check_success.py
+  round_*/check_success.py（仅 checker need 要求时）
   round_*/render.png
 rollout/
   round_*/video.mp4
@@ -111,55 +116,42 @@ Git 只发布一个最近运行的紧凑证据包 `docs/evidence/current/`：保
   不是 50 个 checkpoint-ready task，也不是 50-task 论文复现。
 - ACT official 入口现有 5 个 `TaskAdapter`：`beat_block_hammer`、`click_bell`、
   `adjust_bottle`、`grab_roller`、`place_phone_stand`。BBH/ClickBell 有较成熟的
-  Planner→TaskGen→Tool/VQA→Answer 闭环；AdjustBottle 新增了一次在线生成式方法链，
-  但仍需 0-ACT 追加修复才能得到正确的 terminal Tool 与 task-owned VQA。
-  GrabRoller/PlacePhoneStand 仍是 official adapter。准确表述是
-  “五任务接入、两任务较深入、一个任务有生成式验收”，不是五任务论文复现，也不是
-  三个无瑕的在线旗舰。
+  Planner→TaskGen→Tool/VQA→Answer 闭环；AdjustBottle 有一次在线生成式链，
+  GrabRoller/PlacePhoneStand 仍为 official adapter。任务数量表示已验证执行边界，
+  不限制开放 Query 能提出的 concern。
 - `place_phone_stand` 的 expert N=1 成功而 ACT N=1 失败；该运行只证明第五个
   adapter、checkpoint、render/telemetry、Rule/VQA/Answer 接口连通，不支持稳定策略
   弱点或成功率结论。
-- catalog-external concern 已不再因缺少 template id 直接终止：运行时会形成稳定
-  `ExperimentCandidate`，catalog 仅提供相近工件检索提示，随后进入通用
-  scene/checker/Tool materialization。batch28 v4 已从 broad Query 在线产生一个
-  position-translation candidate，经过 provider scene+checker 与第二次 ACT；两轮后因
-  coverage 不足返回 inconclusive。这是单任务/单 seed 的接线验收，不是开放域泛化正结论。
-- `eval_20260728_adjust_bottle_open_live_v2` 从未提供 aspect/template：FreeConcern
-  提出未见瓶体几何，official control evidence 随后促使 Planner 在线提出
-  `task_execution.success_margin_components`。第二轮由 provider 编写 scene/checker，
-  通过静态、2/2 checker fixture、VLM（0.88）和 expert gate 后执行 ACT。原始在线
-  Tool 选择了 episode 中不存在终止事件的时间度量而返回 null，VQA 又错误继承了
-  BBH 问题；因此源 bundle 以 `budget_exhausted`/inconclusive 停止，必须原样保留。
-- 源 bundle 下的追加式
-  `repairs/terminal_signal_component_repair_v3` 在 0 ACT 下用新的通用
-  `terminal_signal_component` 读取
-  `bottle_functional_position.z=0.771909236907959 m`：首次为
-  `typed_metric_spec_compile`、第二个相同 Query 为 `run_local_reuse`，两次均
-  `provider_called=false`；Aggregate 通过，Planner replay 得到
-  `evidence_sufficient`/`diagnosed`。但 v3 Planner replay 仍消费源 bundle 的错误 BBH
-  VQA，不能单独作为“修复后 Tool+VQA”的组合结论。独立
-  `repairs/vqa_task_owned_replay_v1` 只询问
-  `bottle_visibly_repositioned`，VLM 观察为 true（0.98），同时因 generated/official
-  核心 predicate 为 false 保留 `evidence_conflict=true`。canonical composed replay
-  `repairs/terminal_tool_plus_task_vqa_repair_v7` 在一次追加式 0-ACT 审计中同时消费
-  terminal Tool 和 task-owned VQA：exact reuse 与 Aggregate 通过，EvidencePacket 为
-  `conflicting`，Planner `should_stop=true`、`stop_reason=evidence_conflict`、
-  `verdict=inconclusive`、`evidence_sufficient=false`。v3/v1 是分阶段诊断，v6 才是组合
-  真值；三者都不能回写为源在线 bundle 的正例，也不能把 generated checker 等同于
-  official success。
+- 当前 v19 flagship 从未提供 aspect 或 template：runtime 先选择 bell color，看到该轮
+  成功后再选择 80% size，而不是预先执行固定菜单。三轮均使用 seed `100000`，
+  official/color/size 的 ACT 结果分别为 `1/1`、`1/1`、`0/1`，并真实执行 VLM visual
+  diagnosis 与 expert preflight。这证明在线机械编排和 evidence-conditioned 转向实际
+  运行过，但不自动证明生成场景满足其语义合同。
+- 最终 preservation audit 推翻了 v19 的正验收：round2 的 bell center 通过检查，但
+  shape/size 没有 simulator 或 AST authority，不能从“未发现变化”推断为 preserved，
+  因此 trace 为 `direct+partial`；round3 center 不变，但 contact-point z 从
+  `0.7667903972` 变为 `0.7616323171`，差值 `-0.0051580801 m`，明确违反
+  preservation contract，trace 为 `direct+partial/repair_required`。
+- v19 第二轮按 Query need 生成新的 XY Tool，live 值为 `0.0077674431 m`；第三轮对相同
+  semantic key 做 evaluation-local exact reuse，live 值为 `0.0452577472 m`。这些值是
+  实际执行场景中的有效轨迹测量，但因为属性变化与 preservation failure 混杂，不能回答
+  “只改变 color/size”的因果 Query。最终 audit 为 `accepted=false`，原 Query 必须保持
+  inconclusive。
+- 修正后的 preservation gate 对 exact spatial/contact 约束比较 same-seed simulator
+  state；对没有 simulator/AST authority 的 geometry 返回 `unknown`，而不是乐观通过；
+  `false` 会触发唯一一次局部 repair。generic backend 还会在 lookup/provider 之前拒绝
+  同时要求 uniform scale、center/origin 不变与 contact-point world position 不变、且
+  没有 custom pivot capability 的不可实现 proposal；该 gate 已通过服务器定向反例测试，
+  但仍需一个可实现 candidate 的新在线运行才能取得正旗舰。
 - generic TaskGen 会自动发现任意 source/schema-backed RoboTwin base task；新增 concern
   不再要求修改 BBH/ClickBell 方言。它目前只接受能由相同 seed simulator state 或 render
   观察到的 scene 变化；纯隐式物理变化仍需新的 simulator measurement hook。
 - generated actor 会扩展本次 rollout 的 telemetry schema；ToolGen 在 ACT 后读取该实际
   schema。显式 final/terminal 位置分量由 `terminal_signal_component` 消费，语义
   alignment gate 会拒绝用 event-time/distance Tool 逃避该 measurement need。
-  evaluation-local Tool 可在同一 evaluation 的后续 Query 中 exact reuse；
+  evaluation-local Tool 可在同一 evaluation 的后续 candidate/Query 中 exact reuse；
   跨独立 evaluation 的复用必须来自显式 reviewed registry，并在当前 episode 上再次做
   确定性与 oracle 校验。
-- ClickBell 现有两个互补旗舰：batch26 的 singleton distractor Query 在有限合同下以
-  `evidence_sufficient` 停止；batch28 v4 从 broad Query 在线发现 position translation，
-  完成两次 ACT 后以 `budget_exhausted`/inconclusive 停止。二者均无 aspect CLI hint 或
-  缓存 replay，但都只覆盖 seed `100405`，不能合并成广泛泛化证据。
 - LIBERO/SmolVLA 由 `mea/libero/` 的 benchmark adapter/chain 负责，不进入 RoboTwin
   resolver。batch27 在 `libero_object/task0` 完成两回合结构闭环：official control
   成功，evidence 触发一个 state-compatible custom BDDL；custom rollout 失败，但合法
@@ -167,5 +159,6 @@ Git 只发布一个最近运行的紧凑证据包 `docs/evidence/current/`：保
   2 rollouts、132.698 s，`method_chain_valid=true`、`query_sufficient=false`。
   这只是 basic-adaptation method-chain smoke，不是鲁棒性、效率或跨模拟器一致性证据。
 - generated checker 是实验评价语义，必须与 RoboTwin official success 分开报告。
-- N=1–5 的 smoke 只能证明机制或受限有限域结论，不能声称论文规模的泛化、效率或
-  多策略 ranking。
+- v19 只有一个 task、一个 seed、每个 candidate 一个 rollout（总 `N=3`）；它证明方法
+  的在线机械链能够执行，并暴露了语义 preservation 验收缺陷。它不是有效属性弱点证据，
+  更不证明广泛属性泛化、采样效率或多策略 ranking。

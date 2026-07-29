@@ -44,6 +44,7 @@ def tool_generation_context(
     generated_checker_semantics: bool = False,
     runtime_schema: Mapping[str, Any] | None = None,
     reusable_tool_requests: list[Mapping[str, Any]] | None = None,
+    forbidden_metric_ids: set[str] | None = None,
 ) -> dict[str, Any]:
     """Return the task telemetry and executable Tool surface, without routing."""
 
@@ -58,16 +59,27 @@ def tool_generation_context(
         else load_task_schema(root, task)
     )
     tool_registry = catalog_snapshot()
-    forbidden_metric_ids: list[str] = []
+    forbidden = {
+        _text(metric, "forbidden_metric_id")
+        for metric in (forbidden_metric_ids or set())
+    }
     if generated_checker_semantics:
-        forbidden_metric_ids = [
-            "official_check_success",
-            "time_to_success",
-        ]
+        forbidden.update(
+            {
+                "official_check_success",
+                "time_to_success",
+            }
+        )
+    if forbidden:
         tool_registry["trusted_tools"] = [
             item
             for item in tool_registry["trusted_tools"]
-            if item["name"] not in forbidden_metric_ids
+            if item["name"] not in forbidden
+        ]
+        tool_registry["composite_targets"] = [
+            item
+            for item in tool_registry["composite_targets"]
+            if item["metric"] not in forbidden
         ]
         unhashed = dict(tool_registry)
         unhashed.pop("snapshot_sha256", None)
@@ -83,6 +95,7 @@ def tool_generation_context(
         deepcopy(dict(item))
         for item in (reusable_tool_requests or [])
         if isinstance(item, Mapping)
+        and item.get("metric") not in forbidden
     ]
     return {
         "schema_version": 1,
@@ -173,7 +186,7 @@ def tool_generation_context(
             if runtime_schema is not None
             else "official_task_schema"
         ),
-        "forbidden_metric_ids": forbidden_metric_ids,
+        "forbidden_metric_ids": sorted(forbidden),
         "tool_registry": tool_registry,
         "validated_generated_tools": reusable,
     }
@@ -206,8 +219,8 @@ def validate_open_tool_request(
         and request["metric"] in forbidden_metric_ids
     ):
         raise OpenToolRequestError(
-            "metric is incompatible with the generated-checker outcome "
-            f"semantics: {request['metric']}"
+            "metric is already measured by the base Toolkit or incompatible "
+            f"with this outcome contract: {request['metric']}"
         )
     if decision["status"] != "resolved":
         raise OpenToolRequestError(
@@ -280,10 +293,34 @@ def validate_open_tool_request(
                 if isinstance(side, str) and side.strip()
             }
             available_sides = set(sided_signals.values())
+            robot_target_distance_requested = any(
+                phrase in need
+                for phrase in (
+                    "click-point accuracy",
+                    "click point accuracy",
+                    "tcp accuracy",
+                    "tcp distance",
+                    "end-effector accuracy",
+                    "end effector accuracy",
+                    "gripper accuracy",
+                    "gripper distance",
+                )
+            )
+            requested_sided = requested_signals.intersection(sided_signals)
+            if robot_target_distance_requested and (
+                not requested_sided
+                or requested_sided == requested_signals
+            ):
+                raise OpenToolRequestError(
+                    "a robot-target accuracy need requires minimum_distance "
+                    "between one advertised robot TCP/gripper signal and one "
+                    "target signal; target-target or robot-robot distance is "
+                    "not aligned"
+                )
             if (
                 active_side_requested
                 and len(available_sides) > 1
-                and requested_signals.intersection(sided_signals)
+                and requested_sided
             ):
                 raise OpenToolRequestError(
                     "a fixed-side minimum_distance MetricSpec cannot satisfy "
@@ -472,7 +509,14 @@ class OpenToolRequestAgent:
             "when no compatible registration exists. A fixed left/right signal "
             "does not satisfy an active-arm or active-gripper need when both "
             "sides are advertised. Do not invent an unavailable signal, task "
-            "name, template, or aspect. When MEASUREMENT NEED explicitly asks "
+            "name, template, or aspect. Never select a metric listed in "
+            "forbidden_metric_ids: those values are already present in the "
+            "base Toolkit evidence or are semantically incompatible, so this "
+            "Tool must add the missing Query-specific measurement. A click-point, "
+            "TCP, end-effector, or gripper accuracy need must compare one "
+            "advertised robot signal with one target signal; target-target "
+            "distance is not robot accuracy. When "
+            "MEASUREMENT NEED explicitly asks "
             "for a final/terminal x, y, z, height, or absolute component of an "
             "advertised semantic field, use terminal_signal_component with "
             "that exact signal and component; an event metric is not aligned. "
@@ -496,6 +540,7 @@ class OpenToolRequestAgent:
         generated_checker_semantics: bool = False,
         runtime_schema: Mapping[str, Any] | None = None,
         reusable_tool_requests: list[Mapping[str, Any]] | None = None,
+        forbidden_metric_ids: set[str] | None = None,
     ) -> dict[str, Any]:
         context = tool_generation_context(
             self.repo_root,
@@ -503,6 +548,7 @@ class OpenToolRequestAgent:
             generated_checker_semantics=generated_checker_semantics,
             runtime_schema=runtime_schema,
             reusable_tool_requests=reusable_tool_requests,
+            forbidden_metric_ids=forbidden_metric_ids,
         )
         prompt = self._prompt(
             source_query=_text(source_query, "source_query"),
@@ -513,6 +559,7 @@ class OpenToolRequestAgent:
         self.last_prompt = prompt
         self.last_responses = []
         self.last_errors = []
+        filled_bound_fields: list[str] = []
         request: dict[str, Any] | None = None
         for _attempt in range(2):
             attempt_prompt = prompt
@@ -531,8 +578,21 @@ class OpenToolRequestAgent:
                     temperature=0.0,
                 )
                 self.last_responses.append(response)
+                raw_request = extract_json_response(response)
+                if not isinstance(raw_request, dict):
+                    raise OpenToolRequestError(
+                        "provider Tool request must be a JSON object"
+                    )
+                for field, value in (
+                    ("task_name", str(context["task_name"])),
+                    ("question", _text(tool_need, "tool_need")),
+                ):
+                    if field not in raw_request:
+                        raw_request[field] = value
+                        if field not in filled_bound_fields:
+                            filled_bound_fields.append(field)
                 request = validate_open_tool_request(
-                    extract_json_response(response),
+                    raw_request,
                     task_name=str(context["task_name"]),
                     available_signal_names={
                         str(item["name"])
@@ -571,6 +631,7 @@ class OpenToolRequestAgent:
                 "called": True,
                 "attempt_count": len(self.last_responses),
                 "errors": list(self.last_errors),
+                "bound_fields_filled": filled_bound_fields,
                 "last_metadata": deepcopy(
                     dict(getattr(self.provider, "last_metadata", {}) or {})
                 ),

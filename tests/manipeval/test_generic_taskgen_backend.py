@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from typing import Any, Mapping
 
 from mea.planner.experiment_candidate import build_experiment_candidate
+from mea.planner.semantic_coverage import build_evaluation_intent
 from mea.taskgen.generic_backend import (
     GenericRoboTwinTaskAdapter,
     GenericRoboTwinTaskGenBackend,
@@ -21,6 +22,7 @@ from mea.taskgen.generic_backend import (
 )
 from mea.taskgen.provider_scene_checker import validate_method_ast
 from scripts.manipeval_taskgen import (
+    build_preservation_report,
     record_generic_taskgen_generation_failure,
 )
 
@@ -276,6 +278,403 @@ def _adapter() -> GenericRoboTwinTaskAdapter:
 
 
 class GenericTaskGenBackendTests(unittest.TestCase):
+    def test_infeasible_uniform_scale_preservation_fails_before_lookup(
+        self,
+    ) -> None:
+        query = "Does uniform target scaling expose a policy weakness?"
+        requested_change = (
+            "Uniformly reduce the target size by 20% while preserving "
+            "the contact-point world position and object center position."
+        )
+        intent = build_evaluation_intent(
+            source_query=query,
+            original_concern="uniform target scale robustness",
+            hypothesis="Uniform target scaling may reduce task success.",
+            requested_change=requested_change,
+            preserved_conditions=(
+                "contact-point world position",
+                "object center position",
+            ),
+            required_observation="Observe task success after uniform scaling.",
+        )
+        candidate = build_experiment_candidate(
+            source_query=query,
+            base_task="cold_unseen_task",
+            semantic_concern=(
+                "Uniform target scaling may reduce task success."
+            ),
+            scene_need=requested_change,
+            rule_tool_need="Observe task success after uniform scaling.",
+            evaluation_intent=intent,
+        )
+        provider = _Provider([])
+        lookup_calls = 0
+
+        def find_exact(_query: Mapping[str, Any]) -> Mapping[str, Any]:
+            nonlocal lookup_calls
+            lookup_calls += 1
+            raise AssertionError("infeasible candidate must not be looked up")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaisesRegex(
+                GenericTaskGenError,
+                r"origin-centered uniform scale backend cannot guarantee "
+                r"both.*Planner must revise",
+            ):
+                GenericRoboTwinTaskGenBackend(
+                    Path(temp_dir),
+                    provider,
+                    model="fixture-model",
+                    find_exact=find_exact,
+                ).materialize(
+                    candidate,
+                    _adapter(),
+                    run_id="run_infeasible_uniform_scale",
+                )
+
+        self.assertEqual(lookup_calls, 0)
+        self.assertEqual(provider.calls, 0)
+
+    def test_tool_only_candidate_bypasses_generic_taskgen(self) -> None:
+        candidate = build_experiment_candidate(
+            source_query="Measure pre-contact jerk.",
+            base_task="cold_unseen_task",
+            semantic_concern="motion.precontact_jerk",
+            rule_tool_need="Measure peak jerk before first contact.",
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaisesRegex(
+                GenericTaskGenError, "must bypass TaskGen"
+            ):
+                GenericRoboTwinTaskGenBackend(
+                    Path(temp_dir),
+                    _Provider([]),
+                    model="fixture-model",
+                ).materialize(
+                    candidate,
+                    _adapter(),
+                    run_id="run_tool_only_must_bypass",
+                )
+
+    def test_preservation_report_separates_available_authorities(self) -> None:
+        report = build_preservation_report(
+            [
+                "task identity and policy checkpoint",
+                "target color",
+                "official success semantics",
+                "target mass",
+            ],
+            scene_generated=True,
+            checker_generated=True,
+            visual_self_check_enabled=True,
+            visual={"passed": True, "unexpected_changes": []},
+        )
+
+        checks = {
+            item["condition"]: item for item in report["checks"]
+        }
+        self.assertTrue(
+            checks["task identity and policy checkpoint"]["verified"]
+        )
+        self.assertEqual(
+            checks["task identity and policy checkpoint"]["kind"],
+            "frozen_runtime_binding",
+        )
+        self.assertTrue(checks["target color"]["verified"])
+        self.assertEqual(checks["target color"]["kind"], "visual")
+        self.assertIsNone(
+            checks["official success semantics"]["verified"]
+        )
+        self.assertIsNone(checks["target mass"]["verified"])
+        self.assertIsNone(report["verified"])
+        self.assertEqual(report["status"], "partially_unverified")
+
+    def test_preservation_report_marks_checked_visual_drift_failed(self) -> None:
+        report = build_preservation_report(
+            ["target color and policy checkpoint"],
+            scene_generated=True,
+            checker_generated=False,
+            visual_self_check_enabled=True,
+            visual={
+                "passed": False,
+                "unexpected_changes": ["target color changed"],
+            },
+        )
+
+        self.assertFalse(report["verified"])
+        self.assertEqual(report["status"], "failed")
+        self.assertEqual(
+            report["checks"][0]["kind"],
+            "visual+frozen_runtime_binding",
+        )
+
+    def test_exact_center_uses_same_seed_simulator_state(self) -> None:
+        report = build_preservation_report(
+            ["exact target center position"],
+            scene_generated=True,
+            checker_generated=False,
+            visual_self_check_enabled=True,
+            visual={"passed": True, "unexpected_changes": []},
+            official_setup={
+                "seed": 7,
+                "tracked_actors": [
+                    {
+                        "id": "target",
+                        "position": [0.1, -0.2, 0.3],
+                        "quaternion": [1.0, 0.0, 0.0, 0.0],
+                        "contact_points": {},
+                    }
+                ],
+            },
+            generated_setup={
+                "seed": 7,
+                "tracked_actors": [
+                    {
+                        "id": "target",
+                        "position": [0.1, -0.2, 0.3],
+                        "quaternion": [0.0, 1.0, 0.0, 0.0],
+                        "contact_points": {},
+                    }
+                ],
+            },
+        )
+
+        self.assertTrue(report["verified"])
+        self.assertEqual(report["status"], "verified")
+        self.assertEqual(
+            report["checks"][0]["authority"],
+            "same_seed_simulator_state:tracked_actors.position",
+        )
+
+    def test_contact_point_mismatch_fails_simulator_state_check(self) -> None:
+        report = build_preservation_report(
+            ["target contact point world position"],
+            scene_generated=True,
+            checker_generated=False,
+            visual_self_check_enabled=True,
+            visual={"passed": True, "unexpected_changes": []},
+            official_setup={
+                "seed": 11,
+                "tracked_actors": [
+                    {
+                        "id": "target",
+                        "position": [0.0, 0.0, 0.0],
+                        "quaternion": [1.0, 0.0, 0.0, 0.0],
+                        "contact_points": {
+                            "0": {
+                                "position": [0.0, 0.0, 0.1],
+                                "raw": [0.0, 0.0, 0.1],
+                            }
+                        },
+                    }
+                ],
+            },
+            generated_setup={
+                "seed": 11,
+                "tracked_actors": [
+                    {
+                        "id": "target",
+                        "position": [0.0, 0.0, 0.0],
+                        "quaternion": [1.0, 0.0, 0.0, 0.0],
+                        "contact_points": {
+                            "0": {
+                                "position": [0.0, 0.0, 0.12],
+                                "raw": [0.0, 0.0, 0.12],
+                            }
+                        },
+                    }
+                ],
+            },
+        )
+
+        self.assertFalse(report["verified"])
+        self.assertEqual(report["status"], "failed")
+        self.assertEqual(
+            report["checks"][0]["authority"],
+            "same_seed_simulator_state:tracked_actors.contact_points",
+        )
+
+    def test_compound_contact_and_center_condition_checks_both(self) -> None:
+        report = build_preservation_report(
+            ["contact point and object center position"],
+            scene_generated=True,
+            checker_generated=False,
+            visual_self_check_enabled=True,
+            visual={"passed": True, "unexpected_changes": []},
+            official_setup={
+                "seed": 13,
+                "tracked_actors": [
+                    {
+                        "id": "target",
+                        "position": [0.0, 0.0, 0.0],
+                        "quaternion": [1.0, 0.0, 0.0, 0.0],
+                        "contact_points": {
+                            "0": {"position": [0.0, 0.0, 0.1]}
+                        },
+                    }
+                ],
+            },
+            generated_setup={
+                "seed": 13,
+                "tracked_actors": [
+                    {
+                        "id": "target",
+                        "position": [0.01, 0.0, 0.0],
+                        "quaternion": [1.0, 0.0, 0.0, 0.0],
+                        "contact_points": {
+                            "0": {"position": [0.0, 0.0, 0.1]}
+                        },
+                    }
+                ],
+            },
+        )
+
+        self.assertFalse(report["verified"])
+        self.assertEqual(report["status"], "failed")
+        self.assertEqual(
+            report["checks"][0]["authority"],
+            "same_seed_simulator_state:"
+            "tracked_actors.contact_points+position",
+        )
+
+    def test_compound_position_and_orientation_checks_both(self) -> None:
+        report = build_preservation_report(
+            ["target position and orientation"],
+            scene_generated=True,
+            checker_generated=False,
+            visual_self_check_enabled=True,
+            visual={"passed": True, "unexpected_changes": []},
+            official_setup={
+                "seed": 17,
+                "tracked_actors": [
+                    {
+                        "id": "target",
+                        "position": [0.0, 0.0, 0.0],
+                        "quaternion": [1.0, 0.0, 0.0, 0.0],
+                        "contact_points": {},
+                    }
+                ],
+            },
+            generated_setup={
+                "seed": 17,
+                "tracked_actors": [
+                    {
+                        "id": "target",
+                        "position": [0.01, 0.0, 0.0],
+                        "quaternion": [1.0, 0.0, 0.0, 0.0],
+                        "contact_points": {},
+                    }
+                ],
+            },
+        )
+
+        self.assertFalse(report["verified"])
+        self.assertEqual(report["status"], "failed")
+        self.assertEqual(
+            report["checks"][0]["authority"],
+            "same_seed_simulator_state:"
+            "tracked_actors.position+quaternion",
+        )
+
+    def test_contact_target_position_and_orientation_checks_all(self) -> None:
+        report = build_preservation_report(
+            ["contact point, target position, and orientation"],
+            scene_generated=True,
+            checker_generated=False,
+            visual_self_check_enabled=True,
+            visual={"passed": True, "unexpected_changes": []},
+            official_setup={
+                "seed": 19,
+                "tracked_actors": [
+                    {
+                        "id": "target",
+                        "position": [0.0, 0.0, 0.0],
+                        "quaternion": [1.0, 0.0, 0.0, 0.0],
+                        "contact_points": {
+                            "0": {"position": [0.0, 0.0, 0.1]}
+                        },
+                    }
+                ],
+            },
+            generated_setup={
+                "seed": 19,
+                "tracked_actors": [
+                    {
+                        "id": "target",
+                        "position": [0.01, 0.0, 0.0],
+                        "quaternion": [1.0, 0.0, 0.0, 0.0],
+                        "contact_points": {
+                            "0": {"position": [0.0, 0.0, 0.1]}
+                        },
+                    }
+                ],
+            },
+        )
+
+        self.assertFalse(report["verified"])
+        self.assertEqual(report["status"], "failed")
+        self.assertEqual(
+            report["checks"][0]["authority"],
+            "same_seed_simulator_state:"
+            "tracked_actors.contact_points+position+quaternion",
+        )
+
+    def test_geometry_without_simulator_or_ast_authority_is_partial(
+        self,
+    ) -> None:
+        report = build_preservation_report(
+            ["target geometry and shape"],
+            scene_generated=True,
+            checker_generated=False,
+            visual_self_check_enabled=True,
+            visual={"passed": True, "unexpected_changes": []},
+            official_setup={"seed": 3, "tracked_actors": []},
+            generated_setup={"seed": 3, "tracked_actors": []},
+        )
+
+        self.assertIsNone(report["verified"])
+        self.assertEqual(report["status"], "partially_unverified")
+        self.assertEqual(report["checks"][0]["kind"], "geometry")
+        self.assertEqual(
+            report["checks"][0]["authority"],
+            "no_simulator_or_ast_geometry_authority",
+        )
+
+    def test_legacy_visual_color_preservation_still_passes(self) -> None:
+        report = build_preservation_report(
+            ["target color"],
+            scene_generated=True,
+            checker_generated=False,
+            visual_self_check_enabled=True,
+            visual={"passed": True, "unexpected_changes": []},
+        )
+
+        self.assertTrue(report["verified"])
+        self.assertEqual(report["status"], "verified")
+        self.assertEqual(report["checks"][0]["kind"], "visual")
+        self.assertEqual(
+            report["checks"][0]["authority"],
+            "same_seed_visual_diagnosis",
+        )
+
+    def test_exact_official_task_methods_verify_preservation(self) -> None:
+        report = build_preservation_report(
+            ["target mass", "goal semantics"],
+            scene_generated=False,
+            checker_generated=False,
+            visual_self_check_enabled=False,
+            visual={},
+        )
+
+        self.assertTrue(report["verified"])
+        self.assertEqual(report["status"], "verified")
+        self.assertTrue(
+            all(
+                item["kind"] == "exact_task_method_reuse"
+                for item in report["checks"]
+            )
+        )
+
     def test_generation_failure_still_writes_child_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -401,11 +800,12 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                         "load_actors": (
                             "def load_actors(self):\n"
                             "    self.target = create_actor("
-                            'modelname="900_novel_target")\n'
+                            'modelname="901_novel_target")\n'
                         ),
                         "check_success": (
                             "def check_success(self):\n"
-                            "    return self.target.is_ready()\n"
+                            "    return self.target.is_ready() and "
+                            "self.target is not None\n"
                         ),
                     }
                 ]
@@ -544,11 +944,12 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                 "load_actors": (
                     "def load_actors(self):\n"
                     "    self.target = create_actor("
-                    'modelname="900_novel_target")\n'
+                    'modelname="901_novel_target")\n'
                 ),
                 "check_success": (
                     "def check_success(self):\n"
-                    "    return self.target.is_ready()\n"
+                    "    return self.target.is_ready() and "
+                    "self.target is not None\n"
                 ),
             }
             report = validate_generic_task_methods(
@@ -640,6 +1041,78 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                 official_source=repo_root / "envs/click_bell.py",
                 official_class="click_bell",
             )
+
+    def test_literal_scale_multiplier_matches_requested_direction(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_name = "runtime_novel_task"
+            _write_discoverable_task_repo(root, task_name)
+            methods = {
+                "load_actors": (
+                    "def load_actors(self):\n"
+                    "    self.target = create_actor(\n"
+                    '        modelname="900_novel_target",\n'
+                    "        scale_multiplier=0.5,\n"
+                    "    )\n"
+                ),
+                "check_success": (
+                    "def check_success(self):\n"
+                    "    return self.target.is_ready() and "
+                    "self.target is not None\n"
+                ),
+            }
+            with self.assertRaisesRegex(
+                GenericTaskGenError,
+                r"expected 1\.5.*observed \[0\.5\]",
+            ):
+                validate_generic_task_methods(
+                    methods,
+                    official_source=root / f"envs/{task_name}.py",
+                    official_class=task_name,
+                    scene_need="Increase the target diameter by 50%.",
+                )
+            report = validate_generic_task_methods(
+                methods,
+                official_source=root / f"envs/{task_name}.py",
+                official_class=task_name,
+                scene_need={
+                    "description": "Reduce the target size to 50%."
+                },
+            )
+            self.assertTrue(report["valid"])
+
+    def test_scale_gate_defers_nonliteral_or_irrelevant_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_name = "runtime_novel_task"
+            _write_discoverable_task_repo(root, task_name)
+            checker = (
+                "def check_success(self):\n"
+                "    return self.target.is_ready() and "
+                "self.target is not None\n"
+            )
+            for scene_need, scale_expression in (
+                ("Move the target laterally.", "0.5"),
+                ("Increase the target size by 50%.", "self.scale_factor"),
+            ):
+                with self.subTest(scene_need=scene_need):
+                    report = validate_generic_task_methods(
+                        {
+                            "load_actors": (
+                                "def load_actors(self):\n"
+                                "    self.target = create_actor(\n"
+                                '        modelname="900_novel_target",\n'
+                                "        scale_multiplier="
+                                f"{scale_expression},\n"
+                                "    )\n"
+                            ),
+                            "check_success": checker,
+                        },
+                        official_source=root / f"envs/{task_name}.py",
+                        official_class=task_name,
+                        scene_need=scene_need,
+                    )
+                    self.assertTrue(report["valid"])
 
     def test_semantic_reuse_ignores_query_wording_and_candidate_id(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -824,6 +1297,195 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             self.assertIn("assets/cold_target.asset", prompt)
             self.assertNotIn("template_id", prompt)
             self.assertNotIn("aspect_id", prompt)
+            self.assertIn("increasing size by 50% uses 1.5", prompt)
+            self.assertIn("reducing size by 50% (or to 50%) uses 0.5", prompt)
+
+    def test_partial_generation_reuses_unrequested_official_method(
+        self,
+    ) -> None:
+        cases = (
+            (
+                "scene_only",
+                "Tag the official target as shifted.",
+                None,
+                {
+                    "load_actors": (
+                        "def load_actors(self):\n"
+                        "    self.target = create_actor("
+                        'modelname="901_novel_target")\n'
+                    ),
+                    "check_success": "IGNORED_PROVIDER_CHECKER",
+                },
+                "check_success",
+            ),
+            (
+                "checker_only",
+                None,
+                "Require the official target to be ready.",
+                {
+                    "load_actors": "IGNORED_PROVIDER_SCENE",
+                    "check_success": (
+                        "def check_success(self):\n"
+                        "    return self.target.is_ready() and "
+                        "self.target is not None\n"
+                    ),
+                },
+                "load_actors",
+            ),
+        )
+        for label, scene_need, checker_need, response, reused in cases:
+            with self.subTest(case=label):
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    root = Path(temp_dir)
+                    task_name = "runtime_novel_task"
+                    _write_discoverable_task_repo(root, task_name)
+                    observed: dict[str, Any] = {}
+
+                    def fixtures(
+                        methods: Mapping[str, str],
+                        _candidate_value: Mapping[str, Any],
+                    ) -> list[Mapping[str, Any]]:
+                        observed["fixture_methods"] = dict(methods)
+                        return [{"fixture": "semantic_hook", "passed": True}]
+
+                    def preflight(
+                        _path: Path,
+                        module_source: str,
+                        _candidate_value: Mapping[str, Any],
+                    ) -> Mapping[str, Any]:
+                        observed["module_source"] = module_source
+                        return {
+                            "render_passed": True,
+                            "expert_passed": True,
+                            # Legacy hooks report literal change here. A
+                            # checker-only candidate instead proves
+                            # preservation by exact official method reuse.
+                            "scene_change_passed": (
+                                scene_need is not None
+                            ),
+                        }
+
+                    adapter = load_generic_robotwin_task_adapter(
+                        root,
+                        task_name,
+                        checker_fixtures=fixtures,
+                        preflight_candidate=preflight,
+                        resolve_metric=lambda _candidate_value: (
+                            "runtime_novel_completion"
+                        ),
+                        resolve_checker_contract=lambda _candidate_value: {
+                            "metric": "hook_override",
+                            "authority": "hook_override",
+                            "official_success": "hook_override",
+                        },
+                    )
+                    candidate = build_experiment_candidate(
+                        source_query="Evaluate one independently typed need.",
+                        base_task=task_name,
+                        semantic_concern=label,
+                        scene_need=scene_need,
+                        checker_need=checker_need,
+                    )
+                    provider = _Provider([response])
+                    result = GenericRoboTwinTaskGenBackend(
+                        root,
+                        provider,
+                        model="fixture-model",
+                    ).materialize(
+                        candidate,
+                        adapter,
+                        run_id=f"run_partial_{label}",
+                    )
+
+                    generated = (
+                        "check_success"
+                        if reused == "load_actors"
+                        else "load_actors"
+                    )
+                    provenance = result["validation"]["method_provenance"]
+                    self.assertEqual(provenance[reused], "official_reused")
+                    self.assertEqual(
+                        provenance[generated], "provider_generated"
+                    )
+                    self.assertEqual(
+                        result["validation"]["official_reused_methods"],
+                        [reused],
+                    )
+                    manifest_provenance = result["candidate_manifest"][
+                        "codegen_provenance"
+                    ]
+                    self.assertEqual(
+                        manifest_provenance["method_provenance"],
+                        provenance,
+                    )
+                    self.assertEqual(
+                        manifest_provenance["official_reused_methods"],
+                        [reused],
+                    )
+                    self.assertEqual(
+                        result["candidate_manifest"]["checker_contract"][
+                            "official_success"
+                        ],
+                        reused == "check_success",
+                    )
+                    self.assertEqual(
+                        result["candidate_manifest"]["checker_contract"][
+                            "authority"
+                        ],
+                        (
+                            "official_task_method_reused"
+                            if reused == "check_success"
+                            else "llm_generated_python_ast_validated"
+                        ),
+                    )
+                    self.assertEqual(
+                        result["candidate_manifest"]["checker_contract"][
+                            "metric"
+                        ],
+                        "runtime_novel_completion",
+                    )
+                    module_source = str(observed["module_source"])
+                    self.assertNotIn("IGNORED_PROVIDER_", module_source)
+                    fixture_methods = observed["fixture_methods"]
+                    self.assertNotIn(
+                        "IGNORED_PROVIDER_", json.dumps(fixture_methods)
+                    )
+                    self.assertEqual(
+                        result["validation"]["scene_alignment"][
+                            "expected_state"
+                        ],
+                        "changed" if scene_need is not None else "preserved",
+                    )
+                    self.assertIn(
+                        "runtime ignores that text",
+                        provider.prompts[0],
+                    )
+
+    def test_direct_method_validation_does_not_ignore_unrequested_text(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_name = "runtime_novel_task"
+            _write_discoverable_task_repo(root, task_name)
+            with self.assertRaises(GenericTaskGenError):
+                validate_generic_task_methods(
+                    {
+                        "load_actors": (
+                            "def load_actors(self):\n"
+                            "    self.target = create_actor("
+                            'modelname="900_novel_target")\n'
+                            '    self.scene_variant = "shifted"\n'
+                        ),
+                        "check_success": "IGNORED_PROVIDER_CHECKER",
+                    },
+                    official_source=root / f"envs/{task_name}.py",
+                    official_class=task_name,
+                    required_method_changes={
+                        "load_actors": True,
+                        "check_success": False,
+                    },
+                )
 
     def test_candidate_must_bind_the_adapter_base_task(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

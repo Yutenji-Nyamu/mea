@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "status": "resolved",
+  "matching_policy": "strict_exact_metric_id",
+  "requested_route": "auto",
+  "resolved_route": "force_codegen",
+  "task_name": "click_bell",
+  "metric": "bell_active_tcp_min_xy_error",
+  "exact_match": true,
+  "matched_registry": "composite_target_registry",
+  "reference_tool": null,
+  "provider_required": true,
+  "reason": "exact metric identifier matched a registered composite target",
+  "catalog_snapshot_sha256": "f68d3894ea38589f958c78ac1b226f633955d0480d35b4987e6e145341c897be",
+  "run_local_lookup": {
+    "status": "miss",
+    "registry_dir": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/tool_registry"
+  },
+  "provider_called": true
+}

@@ -506,7 +506,31 @@ def create_actor(
         convex=False,
         is_static=False,
         model_id=0,
+        scale_override=None,
+        scale_multiplier=None,
 ) -> Actor:
+    if scale_override is not None and scale_multiplier is not None:
+        raise ValueError(
+            "scale_override and scale_multiplier are mutually exclusive"
+        )
+    if scale_multiplier is not None and (
+        isinstance(scale_multiplier, (bool, np.bool_))
+        or not np.isscalar(scale_multiplier)
+        or not np.isfinite(scale_multiplier)
+        or float(scale_multiplier) <= 0.0
+    ):
+        raise ValueError("scale_multiplier must be a positive finite scalar")
+    if scale_override is not None:
+        override = np.asarray(scale_override, dtype=float)
+        if (
+            override.shape != (3,)
+            or not np.all(np.isfinite(override))
+            or np.any(override <= 0.0)
+        ):
+            raise ValueError(
+                "scale_override must contain three positive finite values"
+            )
+        scale_override = override.tolist()
     scene, pose = preprocess(scene, pose)
     modeldir = Path("assets/objects") / modelname
 
@@ -537,6 +561,16 @@ def create_actor(
         scale = model_data["scale"]
     except:
         model_data = None
+    if scale_multiplier is not None:
+        scale = [value * scale_multiplier for value in scale]
+        if model_data is not None:
+            model_data = dict(model_data)
+            model_data["scale"] = list(scale)
+    if scale_override is not None:
+        scale = scale_override
+        if model_data is not None:
+            model_data = dict(model_data)
+            model_data["scale"] = list(scale_override)
 
     builder = scene.create_actor_builder()
     if is_static:

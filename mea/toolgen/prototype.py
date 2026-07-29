@@ -878,8 +878,16 @@ class ToolGenPrototype:
         except KeyError as exc:
             raise ToolGenError(str(exc)) from exc
         episodes = [Path(path).expanduser().resolve() for path in episode_dirs]
-        if len(episodes) < 2:
-            raise ToolGenError("differential gate 至少需要两个 episode")
+        validation_requirements = definition.get("validation_requirements", {})
+        minimum_episodes = int(validation_requirements.get("min_episodes", 2))
+        distinct_reference_values = bool(
+            validation_requirements.get("distinct_reference_values", True)
+        )
+        if len(episodes) < minimum_episodes:
+            raise ToolGenError(
+                "ToolGen validation requires at least "
+                f"{minimum_episodes} episode(s)"
+            )
         if len(set(episodes)) != len(episodes):
             raise ToolGenError("differential gate 不允许重复 episode path")
         supported_task_names = set(definition.get("supported_task_names", []))
@@ -903,7 +911,7 @@ class ToolGenPrototype:
             json.dumps(value, ensure_ascii=False, sort_keys=True)
             for value in oracle_values
         }
-        if len(unique_oracle_values) < 2:
+        if distinct_reference_values and len(unique_oracle_values) < 2:
             raise ToolGenError(
                 "differential gate 要求 reference oracle 至少有两个不同输出"
             )

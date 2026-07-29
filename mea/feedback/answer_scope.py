@@ -17,12 +17,21 @@ _SCOPE_KEYS = {
     "seeds",
     "tested_candidate_ids",
     "untested_candidate_ids",
+    "original_intent_ids",
+    "covered_original_intent_fields",
+    "uncovered_original_intent_fields",
     "unsupported_capabilities",
     "evidence_conflict",
     "termination",
     "claim_verdict",
     "required_limitations",
 }
+_INTENT_SCOPE_KEYS = {
+    "original_intent_ids",
+    "covered_original_intent_fields",
+    "uncovered_original_intent_fields",
+}
+_LEGACY_SCOPE_KEYS = _SCOPE_KEYS - _INTENT_SCOPE_KEYS
 _LIMITATION_KEYS = {"code", "text"}
 _TERMINATIONS = {
     "evidence_sufficient",
@@ -230,6 +239,107 @@ def _untested_candidates(evidence: Mapping[str, Any]) -> list[str]:
     return []
 
 
+def _intent_coverage(
+    evidence: Mapping[str, Any],
+) -> tuple[list[str], list[str], list[str]]:
+    """Collect the latest implementation trace for each intent/candidate."""
+
+    traces: list[Mapping[str, Any]] = []
+
+    def append_from(container: Mapping[str, Any]) -> None:
+        direct = container.get("implementation_trace")
+        if isinstance(direct, Mapping):
+            traces.append(direct)
+        multiple = container.get("implementation_traces")
+        if isinstance(multiple, list):
+            traces.extend(
+                item for item in multiple if isinstance(item, Mapping)
+            )
+
+    append_from(evidence)
+    observations = evidence.get("observations")
+    if isinstance(observations, Mapping):
+        append_from(observations)
+    for round_evidence in evidence.get("rounds", []):
+        if isinstance(round_evidence, Mapping):
+            append_from(round_evidence)
+
+    stage_order = {"candidate": 0, "taskgen": 1, "execution": 2}
+    latest: dict[tuple[str, str], Mapping[str, Any]] = {}
+    for trace in traces:
+        intent_id = trace.get("intent_id")
+        candidate_id = trace.get("candidate_id")
+        stage = trace.get("stage")
+        if (
+            not isinstance(intent_id, str)
+            or not intent_id
+            or not isinstance(candidate_id, str)
+            or not candidate_id
+            or stage not in stage_order
+        ):
+            continue
+        key = (intent_id, candidate_id)
+        previous = latest.get(key)
+        if previous is None or stage_order[str(stage)] >= stage_order.get(
+            str(previous.get("stage")), -1
+        ):
+            latest[key] = trace
+
+    grouped: dict[str, list[Mapping[str, Any]]] = {}
+    for (intent_id, _candidate_id), trace in latest.items():
+        grouped.setdefault(intent_id, []).append(trace)
+    intent_ids = list(grouped)
+    covered: list[str] = []
+    uncovered: list[str] = []
+    for intent_id, intent_traces in grouped.items():
+        complete = next(
+            (
+                trace
+                for trace in intent_traces
+                if trace.get("relationship") == "direct"
+                and trace.get("coverage_status") == "complete"
+            ),
+            None,
+        )
+        if complete is not None:
+            covered_fields = list(
+                complete.get("covered_intent_fields") or []
+            )
+            uncovered_fields: list[str] = []
+        else:
+            covered_fields = _dedupe(
+                [
+                    field
+                    for trace in intent_traces
+                    for field in trace.get("covered_intent_fields") or []
+                    if isinstance(field, str) and field
+                ]
+            )
+            uncovered_fields = _dedupe(
+                [
+                    field
+                    for trace in intent_traces
+                    for field in [
+                        *(trace.get("uncovered_intent_fields") or []),
+                        *(trace.get("pending_intent_fields") or []),
+                    ]
+                    if isinstance(field, str) and field
+                ]
+            )
+            covered_fields = [
+                field
+                for field in covered_fields
+                if field not in set(uncovered_fields)
+            ]
+        covered.extend(
+            f"{intent_id}:{field}" for field in covered_fields
+        )
+        uncovered.extend(
+            f"{intent_id}:{field}" for field in uncovered_fields
+        )
+    return intent_ids, covered, uncovered
+
+
 def _termination(evidence: Mapping[str, Any]) -> tuple[str, str | None]:
     observations = evidence.get("observations")
     if isinstance(observations, Mapping) and observations.get(
@@ -289,6 +399,7 @@ def _canonical_limitations(
     sample_count: int | None,
     seeds: list[int],
     untested: list[str],
+    uncovered_intent: list[str],
     unsupported: list[str],
     conflict: bool,
     termination: str,
@@ -313,6 +424,17 @@ def _canonical_limitations(
             {
                 "code": "untested_candidates",
                 "text": f"Untested candidates remain: {untested}.",
+            }
+        )
+    if uncovered_intent:
+        limitations.append(
+            {
+                "code": "original_intent_uncovered",
+                "text": (
+                    "Tested Query-derived candidate contract requirements "
+                    "remain uncovered: "
+                    f"{uncovered_intent}."
+                ),
             }
         )
     if unsupported:
@@ -372,6 +494,7 @@ def build_answer_scope(evidence: Mapping[str, Any]) -> dict[str, Any]:
     sample_count = _sample_count(evidence, seeds)
     tested = _tested_candidates(evidence)
     untested = _untested_candidates(evidence)
+    intent_ids, covered_intent, uncovered_intent = _intent_coverage(evidence)
     unsupported = _unsupported_capabilities(evidence)
     conflict = _execution_conflict(evidence)
     termination, claim_verdict = _termination(evidence)
@@ -379,6 +502,7 @@ def build_answer_scope(evidence: Mapping[str, Any]) -> dict[str, Any]:
         sample_count=sample_count,
         seeds=seeds,
         untested=untested,
+        uncovered_intent=uncovered_intent,
         unsupported=unsupported,
         conflict=conflict,
         termination=termination,
@@ -390,6 +514,9 @@ def build_answer_scope(evidence: Mapping[str, Any]) -> dict[str, Any]:
             "seeds": seeds,
             "tested_candidate_ids": tested,
             "untested_candidate_ids": untested,
+            "original_intent_ids": intent_ids,
+            "covered_original_intent_fields": covered_intent,
+            "uncovered_original_intent_fields": uncovered_intent,
             "unsupported_capabilities": unsupported,
             "evidence_conflict": conflict,
             "termination": termination,
@@ -400,11 +527,17 @@ def build_answer_scope(evidence: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def validate_answer_scope(value: Mapping[str, Any]) -> dict[str, Any]:
-    if not isinstance(value, Mapping) or set(value) != _SCOPE_KEYS:
+    if (
+        not isinstance(value, Mapping)
+        or frozenset(value)
+        not in {frozenset(_SCOPE_KEYS), frozenset(_LEGACY_SCOPE_KEYS)}
+    ):
         raise AnswerScopeError(
-            f"AnswerScope fields must be exactly {sorted(_SCOPE_KEYS)}"
+            "AnswerScope fields must match the current or legacy schema"
         )
     scope = deepcopy(dict(value))
+    for field in _INTENT_SCOPE_KEYS:
+        scope.setdefault(field, [])
     if scope.get("schema_version") != 1:
         raise AnswerScopeError("AnswerScope schema_version must be 1")
     count = scope.get("sample_count")
@@ -422,6 +555,9 @@ def validate_answer_scope(value: Mapping[str, Any]) -> dict[str, Any]:
     for field in (
         "tested_candidate_ids",
         "untested_candidate_ids",
+        "original_intent_ids",
+        "covered_original_intent_fields",
+        "uncovered_original_intent_fields",
         "unsupported_capabilities",
     ):
         values = scope.get(field)
@@ -433,6 +569,27 @@ def validate_answer_scope(value: Mapping[str, Any]) -> dict[str, Any]:
             raise AnswerScopeError(f"{field} must be a unique string list")
     if set(scope["tested_candidate_ids"]) & set(scope["untested_candidate_ids"]):
         raise AnswerScopeError("tested and untested candidates must be disjoint")
+    if set(scope["covered_original_intent_fields"]) & set(
+        scope["uncovered_original_intent_fields"]
+    ):
+        raise AnswerScopeError(
+            "covered and uncovered original intent fields must be disjoint"
+        )
+    known_intent_prefixes = {
+        f"{intent_id}:"
+        for intent_id in scope["original_intent_ids"]
+    }
+    if any(
+        not any(value.startswith(prefix) for prefix in known_intent_prefixes)
+        for field in (
+            "covered_original_intent_fields",
+            "uncovered_original_intent_fields",
+        )
+        for value in scope[field]
+    ):
+        raise AnswerScopeError(
+            "original intent field ids must reference original_intent_ids"
+        )
     if not isinstance(scope.get("evidence_conflict"), bool):
         raise AnswerScopeError("evidence_conflict must be boolean")
     if scope.get("termination") not in _TERMINATIONS:
@@ -464,6 +621,7 @@ def validate_answer_scope(value: Mapping[str, Any]) -> dict[str, Any]:
         sample_count=count,
         seeds=seeds,
         untested=scope["untested_candidate_ids"],
+        uncovered_intent=scope["uncovered_original_intent_fields"],
         unsupported=scope["unsupported_capabilities"],
         conflict=scope["evidence_conflict"],
         termination=scope["termination"],

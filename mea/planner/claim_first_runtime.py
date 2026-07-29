@@ -36,7 +36,19 @@ from .claim_first import (
     validate_open_query_plan_proposal,
 )
 from .evidence_policy import build_evidence_packet, validate_evidence_packet
-from .experiment_candidate import build_experiment_candidate
+from .experiment_candidate import (
+    build_experiment_candidate,
+    validate_experiment_candidate,
+)
+from .open_task_resolver import (
+    validate_free_concern,
+    validate_free_concern_experiment_needs,
+)
+from .semantic_coverage import (
+    SemanticCoverageError,
+    build_evaluation_intent,
+    validate_evaluation_intent,
+)
 from .query_contract import (
     assess_query_sufficiency,
     build_query_sufficiency_contract,
@@ -85,6 +97,185 @@ _ASPECT_GENERIC_TOKENS = {
     "performance",
     "robustness",
 }
+
+
+def build_initial_semantic_proposal_bundle(
+    *,
+    user_query: str,
+    concern: Mapping[str, Any],
+    experiment_needs: Mapping[str, Any],
+    evaluation_intent: Mapping[str, Any],
+    provider_record: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Directly materialize the provider-authored first Plan decision.
+
+    ``FreeConcernAgent`` already chose the first sub-aspect, hypothesis,
+    perturbation, observation, and independent Task/Tool needs before catalog
+    retrieval. Asking a second model call to choose them again can silently
+    replace that experiment. This adapter only converts the first decision to
+    the canonical typed proposal schema; later rounds remain evidence-driven
+    ``ClaimFirstOpenQueryAgent`` decisions.
+    """
+
+    query = _nonempty_text(user_query, "user_query")
+    trusted_concern = validate_free_concern(
+        concern,
+        expected_query=query,
+    )
+    trusted_needs = validate_free_concern_experiment_needs(
+        experiment_needs
+    )
+    intent = validate_evaluation_intent(evaluation_intent)
+    if intent["source_query"] != query:
+        raise ClaimFirstRuntimeError(
+            "EvaluationIntent source_query differs from the original Query"
+        )
+    slug = re.sub(
+        r"[^a-z0-9]+",
+        ".",
+        trusted_concern["sub_aspect"].casefold(),
+    ).strip(".")
+    if not slug:
+        slug = intent["intent_id"].removeprefix("intent.")
+    proposal = validate_open_query_plan_proposal(
+        {
+            "schema_version": 2,
+            "action": "continue",
+            "sub_aspect": f"free_concern.{slug[:96]}",
+            "hypothesis": intent["hypothesis"],
+            "requested_perturbation": {
+                "description": intent["requested_change"],
+                "controlled_changes": [intent["requested_change"]],
+                "preserve": list(intent["preserved_conditions"]),
+            },
+            **deepcopy(trusted_needs),
+            "rationale": (
+                "Directly execute the catalog-free first concern selected for "
+                "the original Query; no second Planner may replace it before "
+                "the control evidence is observed."
+            ),
+        },
+        has_evidence=False,
+    )
+    return {
+        "schema_version": 1,
+        "source": "provider_free_concern_direct_materialization",
+        "input_intent_id": intent["intent_id"],
+        "proposal": proposal,
+        "provider": deepcopy(dict(provider_record or {})),
+    }
+
+
+def build_dynamic_experiment_candidate(
+    *,
+    user_query: str,
+    task_name: str,
+    proposal: Mapping[str, Any],
+    evaluation_intent: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Bind one semantic proposal without rewriting its first-candidate intent.
+
+    The provider owns the four independent generation/tool requirements.  For
+    the first Query-derived candidate, the already-authored FreeConcern owns
+    the exact change, hypothesis, preserved conditions, and observation text.
+    Later evidence-driven pivots receive a fresh per-candidate intent derived
+    directly from their proposal, so every round carries the same traceable
+    experiment contract.
+    """
+
+    trusted = validate_open_query_plan_proposal(proposal, has_evidence=True)
+    if trusted["action"] != "continue":
+        raise ClaimFirstRuntimeError(
+            "only a continue proposal can become an ExperimentCandidate"
+        )
+    perturbation = trusted["requested_perturbation"]
+    scene_need = trusted["scene_need"]
+    checker_need = trusted["checker_need"]
+    rule_tool_need = trusted["rule_tool_need"]
+    vqa_tool_need = trusted["vqa_tool_need"]
+    observation_parts = [
+        str(need.get("description") or "").strip()
+        for need in (checker_need, rule_tool_need, vqa_tool_need)
+        if need["required"]
+    ]
+    proposal_intent = build_evaluation_intent(
+        source_query=user_query,
+        original_concern=trusted["sub_aspect"],
+        hypothesis=trusted["hypothesis"],
+        requested_change=perturbation["description"],
+        preserved_conditions=perturbation["preserve"],
+        required_observation=(
+            " ".join(part for part in observation_parts if part)
+            or "Observe the policy outcome needed to decide: "
+            + trusted["hypothesis"]
+        ),
+    )
+    intent = (
+        validate_evaluation_intent(evaluation_intent)
+        if evaluation_intent is not None
+        else proposal_intent
+    )
+    preserved = (
+        "; ".join(intent["preserved_conditions"])
+        if intent["preserved_conditions"]
+        else ""
+    )
+    exact_change = intent["requested_change"]
+    exact_hypothesis = intent["hypothesis"]
+    exact_observation = intent["required_observation"]
+    semantic_concern = (
+        f"{intent['original_concern']}: {exact_hypothesis}"
+    )
+    scene_description = exact_change
+    if preserved:
+        scene_description += f" Preserve unchanged: {preserved}."
+    observation_description = (
+        f"{exact_observation} Hypothesis: {exact_hypothesis}"
+        if exact_observation
+        else exact_hypothesis
+    )
+    return build_experiment_candidate(
+        source_query=_nonempty_text(user_query, "user_query"),
+        base_task=_nonempty_text(task_name, "task_name"),
+        semantic_concern=semantic_concern,
+        scene_need=(
+            {
+                "kind": "adapt",
+                "description": scene_description,
+                "reuse_first": True,
+            }
+            if scene_need["required"]
+            else None
+        ),
+        checker_need=(
+            {
+                "kind": "generate",
+                "description": observation_description,
+                "reuse_first": True,
+            }
+            if checker_need["required"]
+            else None
+        ),
+        rule_tool_need=(
+            {
+                "kind": "measure",
+                "description": observation_description,
+                "reuse_first": True,
+            }
+            if rule_tool_need["required"]
+            else None
+        ),
+        vqa_tool_need=(
+            {
+                "kind": "vqa",
+                "description": observation_description,
+                "reuse_first": True,
+            }
+            if vqa_tool_need["required"]
+            else None
+        ),
+        evaluation_intent=intent,
+    )
 
 _CONCERN_GENERIC_TOKENS = _ASPECT_GENERIC_TOKENS | {
     "ability",
@@ -506,6 +697,7 @@ def resolve_concern_candidate_domain(
             "concern_created_before_catalog": True,
             "catalog_was_model_visible": False,
             "concern": deepcopy(dict(concern)),
+            # Read-only compatibility projection for legacy callers.
             "task_need": {
                 "required": True,
                 "description": semantic_fields["requested_variation"],
@@ -604,6 +796,7 @@ def resolve_concern_candidate_domain(
                 # TaskAdapter.  Nothing here names or authorizes an executable
                 # template, operation, route, or success checker.
                 "concern": deepcopy(dict(concern)),
+                # Read-only compatibility projection for legacy callers.
                 "task_need": {
                     "required": True,
                     "description": semantic_fields["requested_variation"],
@@ -803,6 +996,20 @@ def _round_artifact_refs(
     )
     observations = round_summary.get("observations")
     observations = observations if isinstance(observations, Mapping) else {}
+    evidence_aggregate_path = str(
+        explicit_artifacts.get("evidence_aggregate") or ""
+    ).strip()
+    if not evidence_aggregate_path and execution_dir:
+        evidence_aggregate_path = f"{execution_dir}/evidence_aggregate.json"
+    if evidence_aggregate_path and isinstance(
+        observations.get("evidence_aggregate"), Mapping
+    ):
+        refs.append(
+            {
+                "kind": "evidence_aggregate",
+                "path": evidence_aggregate_path,
+            }
+        )
     aggregate_path = str(
         explicit_artifacts.get("round_aggregate") or ""
     ).strip()
@@ -1338,9 +1545,9 @@ class ClaimFirstRuntimeController:
                 candidate_universe=candidates,
                 round_budget=round_budget,
                 claim_type=claim_type,
-                candidate_universe_closed=(
-                    False if not candidates or failure_witness else None
-                ),
+                # Bound-task templates are retrieval seeds, never proof that an
+                # open Query's semantic candidate universe is exhaustive.
+                candidate_universe_closed=False,
                 existential_witness_outcome=(
                     "fail" if failure_witness else None
                 ),
@@ -1353,19 +1560,200 @@ class ClaimFirstRuntimeController:
         else:
             assert supplied_contract is not None
             contract = supplied_contract
-            if (
-                contract["candidate_universe_closed"]
-                and set(contract["candidate_universe"]) - set(candidates)
-            ):
-                raise ClaimFirstRuntimeError(
-                    "query contract leaves the non-control bound candidate domain"
-                )
+            # The task catalog is a retrieval index, not an authorization
+            # boundary. A Query-derived candidate may therefore be absent from
+            # the registered template inventory; its executable Task/Tool needs
+            # are validated later by the materialization and evidence gates.
             if int(contract["round_budget"]) > round_budget:
                 raise ClaimFirstRuntimeError(
                     "query contract spends rounds reserved for the control anchor"
                 )
         self.query_contract = contract
         self.dynamic_candidates: dict[str, dict[str, Any]] = {}
+
+    def _register_dynamic_candidate(
+        self,
+        candidate: Mapping[str, Any],
+        *,
+        require_direct: bool,
+    ) -> dict[str, Any]:
+        trusted = validate_experiment_candidate(candidate)
+        expected_task = _nonempty_text(
+            self.target.get("task_name"),
+            "target.task_name",
+        )
+        if trusted["base_task"] != expected_task:
+            raise ClaimFirstRuntimeError(
+                "frozen candidate base_task differs from the bound policy task"
+            )
+        if (
+            require_direct
+            and trusted.get("intent_alignment", {}).get("relationship")
+            != "direct"
+        ):
+            raise ClaimFirstRuntimeError(
+                "frozen candidate must directly implement its EvaluationIntent"
+            )
+        candidate_id = trusted["candidate_id"]
+        existing = self.dynamic_candidates.get(candidate_id)
+        if existing is not None and existing != trusted:
+            raise ClaimFirstRuntimeError(
+                f"dynamic candidate id collision: {candidate_id}"
+            )
+        self.dynamic_candidates[candidate_id] = trusted
+        self.query_contract = extend_query_candidate_universe(
+            self.query_contract,
+            [candidate_id],
+            candidate_universe_closed=False,
+        )
+        return deepcopy(trusted)
+
+    def register_frozen_candidate(
+        self,
+        candidate: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Register a pre-control FreeConcern candidate without catalog lookup."""
+
+        return self._register_dynamic_candidate(
+            candidate,
+            require_direct=True,
+        )
+
+    def _bind_dynamic_candidate(
+        self,
+        *,
+        proposal_bundle: Mapping[str, Any],
+        proposal: Mapping[str, Any],
+        candidate: Mapping[str, Any],
+        executed_candidate_ids: Sequence[str],
+        resolution: str,
+        catalog_resolution_error: str | None,
+        require_direct: bool = False,
+    ) -> dict[str, Any]:
+        trusted = self._register_dynamic_candidate(
+            candidate,
+            require_direct=require_direct,
+        )
+        candidate_id = trusted["candidate_id"]
+        if candidate_id in {str(item) for item in executed_candidate_ids}:
+            raise ClaimFirstRuntimeError(
+                f"dynamic candidate was already executed: {candidate_id}"
+            )
+        dynamic_resolution = {
+            "schema_version": 1,
+            "semantic_sub_aspect": proposal["sub_aspect"],
+            "resolved_aspect_id": None,
+            "resolved_template_id": None,
+            "resolved_candidate_id": candidate_id,
+            "resolution": resolution,
+            "hidden": False,
+            "matched_tokens": [],
+            "catalog_was_model_visible": False,
+            "catalog_resolution_error": catalog_resolution_error,
+        }
+        return {
+            "schema_version": 2,
+            "semantic_proposal_bundle": deepcopy(dict(proposal_bundle)),
+            "semantic_needs": {
+                "scene_need": {
+                    "required": trusted["scene_need"] is not None,
+                    "description": (
+                        trusted["scene_need"]["description"]
+                        if trusted["scene_need"] is not None
+                        else None
+                    ),
+                },
+                "checker_need": {
+                    "required": trusted["checker_need"] is not None,
+                    "description": (
+                        trusted["checker_need"]["description"]
+                        if trusted["checker_need"] is not None
+                        else None
+                    ),
+                },
+                "rule_tool_need": {
+                    "required": trusted["rule_tool_need"] is not None,
+                    "description": (
+                        trusted["rule_tool_need"]["description"]
+                        if trusted["rule_tool_need"] is not None
+                        else None
+                    ),
+                    "reuse_first": True,
+                },
+                "vqa_tool_need": {
+                    "required": trusted["vqa_tool_need"] is not None,
+                    "description": (
+                        trusted["vqa_tool_need"]["description"]
+                        if trusted["vqa_tool_need"] is not None
+                        else None
+                    ),
+                    "reuse_first": True,
+                },
+                "task_need": deepcopy(proposal["task_need"]),
+                "tool_need": deepcopy(proposal["tool_need"]),
+            },
+            "resolution": dynamic_resolution,
+            "query_contract": deepcopy(self.query_contract),
+            "plan_step": {
+                "schema_version": 2,
+                "action": "propose",
+                "aspect_id": proposal["sub_aspect"],
+                "candidate_id": candidate_id,
+                "execution_mode": "reuse_or_generate",
+                "experiment_candidate": trusted,
+                "rationale": proposal["rationale"],
+                "answered_query": False,
+            },
+        }
+
+    def bind_frozen_candidate(
+        self,
+        proposal_bundle: Mapping[str, Any],
+        candidate: Mapping[str, Any],
+        observation: Mapping[str, Any],
+        *,
+        executed_candidate_ids: Sequence[str],
+    ) -> dict[str, Any]:
+        """Authorize the already frozen first candidate after its control gate."""
+
+        assessment = observation.get("assessment")
+        if not isinstance(assessment, Mapping):
+            raise ClaimFirstRuntimeError(
+                "claim-first observation has no assessment"
+            )
+        if assessment.get("should_stop"):
+            raise ClaimFirstRuntimeError(
+                "cannot bind a frozen candidate after the query contract stopped"
+            )
+        if (
+            self.require_control_anchor
+            and observation.get("control_passed") is not True
+        ):
+            raise ClaimFirstRuntimeError(
+                "cannot execute a frozen property candidate before control passes"
+            )
+        raw_proposal = proposal_bundle.get("proposal")
+        if not isinstance(raw_proposal, Mapping):
+            raise ClaimFirstRuntimeError(
+                "frozen proposal bundle has no proposal object"
+            )
+        proposal = validate_open_query_plan_proposal(
+            raw_proposal,
+            has_evidence=bool(observation.get("records")),
+        )
+        if proposal["action"] != "continue":
+            raise ClaimFirstRuntimeError(
+                "a frozen first candidate must be an action=continue proposal"
+            )
+        return self._bind_dynamic_candidate(
+            proposal_bundle=proposal_bundle,
+            proposal=proposal,
+            candidate=candidate,
+            executed_candidate_ids=executed_candidate_ids,
+            resolution="frozen_free_concern_candidate",
+            catalog_resolution_error=None,
+            require_direct=True,
+        )
 
     def observe(
         self,
@@ -1417,10 +1805,21 @@ class ClaimFirstRuntimeController:
         candidate_records = (
             records[1:] if self.require_control_anchor else records
         )
+        outside_candidate_ids = [
+            record["candidate_id"]
+            for record in candidate_records
+            if record["candidate_id"]
+            not in self.query_contract["candidate_universe"]
+        ]
+        if outside_candidate_ids:
+            raise ClaimFirstRuntimeError(
+                "completed candidate evidence is outside the active "
+                "QueryContract universe: "
+                f"{list(dict.fromkeys(outside_candidate_ids))}"
+            )
         candidate_evidence = [
             deepcopy(record["candidate_evidence"])
             for record in candidate_records
-            if record["candidate_id"] in self.query_contract["candidate_universe"]
         ]
         assessment = assess_query_sufficiency(
             self.query_contract,
@@ -1579,6 +1978,7 @@ class ClaimFirstRuntimeController:
         observation: Mapping[str, Any],
         *,
         executed_template_ids: Sequence[str],
+        evaluation_intent: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Validate and resolve a provider/cached semantic next-step bundle."""
 
@@ -1620,127 +2020,22 @@ class ClaimFirstRuntimeController:
                 control_template=self.control_template,
             )
         except ClaimFirstRuntimeError as catalog_error:
-            perturbation = proposal["requested_perturbation"]
-            task_need = proposal["task_need"]
-            tool_need = proposal["tool_need"]
-            candidate = build_experiment_candidate(
-                source_query=self.user_query,
-                base_task=_nonempty_text(
+            candidate = build_dynamic_experiment_candidate(
+                user_query=self.user_query,
+                task_name=_nonempty_text(
                     self.target.get("task_name"), "target.task_name"
                 ),
-                semantic_concern=(
-                    f"{proposal['sub_aspect']}: {proposal['hypothesis']}"
-                ),
-                scene_need=(
-                    {
-                        "kind": "adapt",
-                        "description": (
-                            task_need.get("description")
-                            or perturbation["description"]
-                        ),
-                        "reuse_first": True,
-                    }
-                    if task_need["required"]
-                    else None
-                ),
-                checker_need=(
-                    {
-                        "kind": "generate",
-                        "description": (
-                            "Generate an experimental check_success predicate "
-                            f"that decides: {proposal['hypothesis']}"
-                        ),
-                        "reuse_first": True,
-                    }
-                    if task_need["required"]
-                    else None
-                ),
-                tool_need=(
-                    {
-                        "kind": "measure",
-                        "description": (
-                            tool_need.get("description")
-                            or "Measure evidence needed to decide the "
-                            "hypothesis: "
-                            + proposal["hypothesis"]
-                        ),
-                        "reuse_first": True,
-                    }
-                    if tool_need["required"]
-                    else None
-                ),
+                proposal=proposal,
+                evaluation_intent=evaluation_intent,
             )
-            candidate_id = candidate["candidate_id"]
-            if candidate_id in {str(item) for item in executed_template_ids}:
-                raise ClaimFirstRuntimeError(
-                    f"dynamic candidate was already executed: {candidate_id}"
-                ) from catalog_error
-            existing = self.dynamic_candidates.get(candidate_id)
-            if existing is not None and existing != candidate:
-                raise ClaimFirstRuntimeError(
-                    f"dynamic candidate id collision: {candidate_id}"
-                ) from catalog_error
-            self.dynamic_candidates[candidate_id] = candidate
-            self.query_contract = extend_query_candidate_universe(
-                self.query_contract,
-                [candidate_id],
-                candidate_universe_closed=False,
+            return self._bind_dynamic_candidate(
+                proposal_bundle=proposal_bundle,
+                proposal=proposal,
+                candidate=candidate,
+                executed_candidate_ids=executed_template_ids,
+                resolution="dynamic_experiment_candidate",
+                catalog_resolution_error=str(catalog_error),
             )
-            dynamic_resolution = {
-                "schema_version": 1,
-                "semantic_sub_aspect": proposal["sub_aspect"],
-                "resolved_aspect_id": None,
-                "resolved_template_id": None,
-                "resolved_candidate_id": candidate_id,
-                "resolution": "dynamic_experiment_candidate",
-                "hidden": False,
-                "matched_tokens": [],
-                "catalog_was_model_visible": False,
-                "catalog_resolution_error": str(catalog_error),
-            }
-            return {
-                "schema_version": 2,
-                "semantic_proposal_bundle": deepcopy(dict(proposal_bundle)),
-                "semantic_needs": {
-                    "task_need": {
-                        "required": candidate["scene_need"] is not None,
-                        "description": (
-                            candidate["scene_need"]["description"]
-                            if candidate["scene_need"] is not None
-                            else None
-                        ),
-                    },
-                    "checker_need": {
-                        "required": candidate["checker_need"] is not None,
-                        "description": (
-                            candidate["checker_need"]["description"]
-                            if candidate["checker_need"] is not None
-                            else None
-                        ),
-                    },
-                    "tool_need": {
-                        "required": candidate["tool_need"] is not None,
-                        "description": (
-                            candidate["tool_need"]["description"]
-                            if candidate["tool_need"] is not None
-                            else None
-                        ),
-                        "reuse_first": True,
-                    },
-                },
-                "resolution": dynamic_resolution,
-                "query_contract": deepcopy(self.query_contract),
-                "plan_step": {
-                    "schema_version": 2,
-                    "action": "propose",
-                    "aspect_id": proposal["sub_aspect"],
-                    "candidate_id": candidate_id,
-                    "execution_mode": "reuse_or_generate",
-                    "experiment_candidate": candidate,
-                    "rationale": proposal["rationale"],
-                    "answered_query": False,
-                },
-            }
         current_aspect = (
             self.template_to_aspect.get(str(executed_template_ids[-1]))
             if executed_template_ids
@@ -1750,6 +2045,10 @@ class ClaimFirstRuntimeController:
             "schema_version": 1,
             "semantic_proposal_bundle": deepcopy(dict(proposal_bundle)),
             "semantic_needs": {
+                "scene_need": deepcopy(proposal["scene_need"]),
+                "checker_need": deepcopy(proposal["checker_need"]),
+                "rule_tool_need": deepcopy(proposal["rule_tool_need"]),
+                "vqa_tool_need": deepcopy(proposal["vqa_tool_need"]),
                 "task_need": deepcopy(proposal["task_need"]),
                 "tool_need": deepcopy(proposal["tool_need"]),
             },
@@ -1774,6 +2073,8 @@ __all__ = [
     "ClaimFirstRuntimeError",
     "build_claim_first_evidence_record",
     "build_control_anchor_proposal",
+    "build_dynamic_experiment_candidate",
+    "build_initial_semantic_proposal_bundle",
     "control_template_id",
     "render_query_answer",
     "resolve_concern_candidate_domain",

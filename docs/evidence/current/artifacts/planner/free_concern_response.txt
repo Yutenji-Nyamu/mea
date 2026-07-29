@@ -1,9 +1,0 @@
-{
-  "schema_version": 1,
-  "source_query": "这个 ACT 策略执行调整瓶子任务时，对未见对象属性的泛化能力如何，最先在哪里暴露弱点？",
-  "sub_aspect": "Generalization to an unseen bottle geometry while the task layout and target remain unchanged",
-  "hypothesis": "The ACT policy will show its first significant weakness on bottles with an unseen shape or aspect ratio, with lower adjustment success and larger final pose error than on familiar bottle geometries.",
-  "task_intent": "Adjust the bottle to the task-specified target configuration.",
-  "requested_variation": "Use a bottle with a novel shape or aspect ratio, while keeping its color, initial placement, and target configuration fixed.",
-  "measurement_need": "Compare success rate, final pose error, and contact or grasp failures between the novel-geometry bottle and a matched familiar-geometry bottle."
-}

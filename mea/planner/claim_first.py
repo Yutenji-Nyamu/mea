@@ -27,6 +27,11 @@ import re
 from copy import deepcopy
 from typing import Any, Mapping, Sequence
 
+from mea.planner.semantic_coverage import (
+    SemanticCoverageError,
+    build_candidate_intent_alignment,
+    validate_evaluation_intent,
+)
 from mea.providers.json_response import extract_json_response
 
 
@@ -62,16 +67,27 @@ _EVIDENCE_KEYS = {
     "evidence_summary",
     "limitations",
 }
-_PROPOSAL_KEYS = {
+_PROPOSAL_BASE_KEYS = {
     "schema_version",
     "action",
     "sub_aspect",
     "hypothesis",
     "requested_perturbation",
-    "task_need",
-    "tool_need",
     "rationale",
 }
+_LEGACY_PROPOSAL_KEYS = _PROPOSAL_BASE_KEYS | {
+    "task_need",
+    "tool_need",
+}
+_TYPED_PROPOSAL_KEYS = _PROPOSAL_BASE_KEYS | {
+    "scene_need",
+    "checker_need",
+    "rule_tool_need",
+    "vqa_tool_need",
+}
+_CANONICAL_PROPOSAL_KEYS = (
+    _LEGACY_PROPOSAL_KEYS | _TYPED_PROPOSAL_KEYS
+)
 _PERTURBATION_KEYS = {"description", "controlled_changes", "preserve"}
 _NEED_KEYS = {"required", "description"}
 _TOOL_NEED_KEYS = _NEED_KEYS | {"reuse_first"}
@@ -362,6 +378,38 @@ def _validate_need(
     return result
 
 
+def _empty_need(*, tool: bool) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "required": False,
+        "description": None,
+    }
+    if tool:
+        result["reuse_first"] = True
+    return result
+
+
+def _compatibility_need(
+    needs: Sequence[Mapping[str, Any]],
+    *,
+    tool: bool,
+) -> dict[str, Any]:
+    requested = [need for need in needs if need["required"]]
+    if not requested:
+        return _empty_need(tool=tool)
+    descriptions = [
+        str(need["description"])
+        for need in requested
+        if need.get("description") is not None
+    ]
+    result: dict[str, Any] = {
+        "required": True,
+        "description": " | ".join(descriptions),
+    }
+    if tool:
+        result["reuse_first"] = True
+    return result
+
+
 def validate_open_query_plan_proposal(
     value: Mapping[str, Any],
     *,
@@ -369,25 +417,66 @@ def validate_open_query_plan_proposal(
 ) -> dict[str, Any]:
     """Validate one semantic next-step decision without catalog enumeration."""
 
-    if not isinstance(value, Mapping) or set(value) != _PROPOSAL_KEYS:
+    if not isinstance(value, Mapping) or frozenset(value) not in {
+        frozenset(_LEGACY_PROPOSAL_KEYS),
+        frozenset(_TYPED_PROPOSAL_KEYS),
+        frozenset(_CANONICAL_PROPOSAL_KEYS),
+    }:
         raise ClaimFirstPlanError(
-            f"OpenQueryPlanProposal fields must be exactly "
-            f"{sorted(_PROPOSAL_KEYS)}"
+            "OpenQueryPlanProposal fields must match either the legacy "
+            f"{sorted(_LEGACY_PROPOSAL_KEYS)} or typed "
+            f"{sorted(_TYPED_PROPOSAL_KEYS)} shape"
         )
     result = deepcopy(dict(value))
-    if result.get("schema_version") != 1:
-        raise ClaimFirstPlanError("OpenQueryPlanProposal.schema_version must be 1")
+    if result.get("schema_version") not in {1, 2}:
+        raise ClaimFirstPlanError(
+            "OpenQueryPlanProposal.schema_version must be 1 or 2"
+        )
     action = result.get("action")
     if action not in {"continue", "stop"}:
         raise ClaimFirstPlanError("OpenQueryPlanProposal.action must be continue or stop")
     result["hypothesis"] = _text(result.get("hypothesis"), "hypothesis")
     result["rationale"] = _text(result.get("rationale"), "rationale")
-    result["task_need"] = _validate_need(
-        result.get("task_need"), field="task_need", tool=False
+    if "scene_need" in result:
+        result["scene_need"] = _validate_need(
+            result.get("scene_need"), field="scene_need", tool=False
+        )
+        result["checker_need"] = _validate_need(
+            result.get("checker_need"), field="checker_need", tool=False
+        )
+        result["rule_tool_need"] = _validate_need(
+            result.get("rule_tool_need"),
+            field="rule_tool_need",
+            tool=True,
+        )
+        result["vqa_tool_need"] = _validate_need(
+            result.get("vqa_tool_need"),
+            field="vqa_tool_need",
+            tool=True,
+        )
+    else:
+        # A legacy task_need did not say whether code generation concerned the
+        # scene or success semantics.  Preserve it as one scene request only;
+        # never silently expand one bit into both scene and checker work.
+        legacy_task = _validate_need(
+            result.get("task_need"), field="task_need", tool=False
+        )
+        legacy_tool = _validate_need(
+            result.get("tool_need"), field="tool_need", tool=True
+        )
+        result["scene_need"] = deepcopy(legacy_task)
+        result["checker_need"] = _empty_need(tool=False)
+        result["rule_tool_need"] = deepcopy(legacy_tool)
+        result["vqa_tool_need"] = _empty_need(tool=True)
+    result["task_need"] = _compatibility_need(
+        [result["scene_need"], result["checker_need"]],
+        tool=False,
     )
-    result["tool_need"] = _validate_need(
-        result.get("tool_need"), field="tool_need", tool=True
+    result["tool_need"] = _compatibility_need(
+        [result["rule_tool_need"], result["vqa_tool_need"]],
+        tool=True,
     )
+    result["schema_version"] = 2
 
     if action == "stop":
         if not has_evidence:
@@ -396,7 +485,15 @@ def validate_open_query_plan_proposal(
             raise ClaimFirstPlanError("stop must set sub_aspect to null")
         if result.get("requested_perturbation") is not None:
             raise ClaimFirstPlanError("stop must set requested_perturbation to null")
-        if result["task_need"]["required"] or result["tool_need"]["required"]:
+        if any(
+            result[field]["required"]
+            for field in (
+                "scene_need",
+                "checker_need",
+                "rule_tool_need",
+                "vqa_tool_need",
+            )
+        ):
             raise ClaimFirstPlanError("stop cannot request TaskGen or ToolGen work")
         return result
 
@@ -432,6 +529,7 @@ def open_query_input_digest(
     user_query: str,
     capabilities: Mapping[str, Any],
     evidence_history: Sequence[Mapping[str, Any]],
+    evaluation_intent: Mapping[str, Any] | None = None,
 ) -> str:
     """Hash the exact semantic inputs used for one provider decision."""
 
@@ -440,6 +538,10 @@ def open_query_input_digest(
         "capabilities": validate_open_query_capabilities(capabilities),
         "evidence_history": validate_open_query_evidence(evidence_history),
     }
+    if evaluation_intent is not None:
+        payload["evaluation_intent"] = validate_evaluation_intent(
+            evaluation_intent
+        )
     canonical = json.dumps(
         payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     )
@@ -461,9 +563,10 @@ class ClaimFirstOpenQueryAgent:
         user_query: str,
         capabilities: Mapping[str, Any],
         evidence_history: Sequence[Mapping[str, Any]],
+        evaluation_intent: Mapping[str, Any] | None = None,
     ) -> str:
         example = {
-            "schema_version": 1,
+            "schema_version": 2,
             "action": "continue",
             "sub_aspect": "semantic.sub_aspect_discovered_now",
             "hypothesis": "A falsifiable statement this one round will test.",
@@ -472,17 +575,36 @@ class ClaimFirstOpenQueryAgent:
                 "controlled_changes": ["the single factor intentionally changed"],
                 "preserve": ["task identity", "policy checkpoint"],
             },
-            "task_need": {
+            "scene_need": {
                 "required": True,
-                "description": "Scene or success-check work TaskGen must provide.",
+                "description": "Scene construction or adaptation needed.",
             },
-            "tool_need": {
+            "checker_need": {
+                "required": False,
+                "description": None,
+            },
+            "rule_tool_need": {
                 "required": True,
-                "description": "Observable or metric ToolGen must retrieve or generate.",
+                "description": "Numeric or symbolic Rule Tool observable needed.",
+                "reuse_first": True,
+            },
+            "vqa_tool_need": {
+                "required": False,
+                "description": None,
                 "reuse_first": True,
             },
             "rationale": "Why this is the most informative next test for the Query.",
         }
+        intent_section = ""
+        if evaluation_intent is not None:
+            intent_section = f"""
+FROZEN EVALUATION INTENT (must be implemented directly):
+{json.dumps(validate_evaluation_intent(evaluation_intent), ensure_ascii=False, indent=2)}
+
+Every action=continue proposal must directly implement this frozen intent.
+Do not silently replace it with a nearby diagnostic proxy.  Preserve its
+requested change, preserved conditions, hypothesis, and required observation.
+"""
         return f"""You are the claim-first Plan Agent in ManipEvalAgent.
 Discover a small set of evaluation sub-aspects online.  There is no predeclared
 candidate/template-ID itinerary, success-then-switch script, or fallback route.
@@ -493,20 +615,24 @@ policy/simulator capabilities and completed evidence below.
 
 For action=continue, invent a precise semantic sub_aspect identifier and one
 falsifiable hypothesis.  Request a bounded perturbation supported by the
-capability cards.  State whether TaskGen must create/alter the task and whether
-ToolGen must retrieve or generate an observable.  A new tool need may be named
-even when it is not in an existing metric list.  Avoid repeating a tested
-perturbation unless ambiguous evidence requires a more observable version.
+capability cards.  Independently state whether the scene, success checker,
+Rule Tool, and VQA Tool must be retrieved, created, or altered.  Do not request
+a scene or checker merely because a Tool is needed, and do not couple scene
+and checker needs.  A new Tool need may be named even when it is not in an
+existing metric/question list.  Avoid repeating a tested perturbation unless
+ambiguous evidence requires a more observable version.
 
 Use success to probe the most consequential remaining uncertainty; use failure
 to discriminate a causal failure hypothesis; use ambiguous evidence to improve
 observability or isolate the confound.  Stop only when the completed evidence
 already answers the original Query.  For action=stop set sub_aspect and
-requested_perturbation to null, both needs to required=false/description=null,
-and express the evidence-supported conclusion in hypothesis.
+requested_perturbation to null, all four needs to
+required=false/description=null, and express the evidence-supported conclusion
+in hypothesis.
 
 ORIGINAL QUERY:
 {user_query}
+{intent_section}
 
 POLICY AND SIMULATOR CAPABILITIES:
 {json.dumps(capabilities, ensure_ascii=False, indent=2)}
@@ -524,11 +650,22 @@ Return strict JSON with exactly these fields:
         *,
         capabilities: Mapping[str, Any],
         evidence_history: Sequence[Mapping[str, Any]],
+        evaluation_intent: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         query = _text(user_query, "user_query")
         trusted_capabilities = validate_open_query_capabilities(capabilities)
         trusted_evidence = validate_open_query_evidence(evidence_history)
-        prompt = self._prompt(query, trusted_capabilities, trusted_evidence)
+        trusted_intent = (
+            validate_evaluation_intent(evaluation_intent)
+            if evaluation_intent is not None
+            else None
+        )
+        prompt = self._prompt(
+            query,
+            trusted_capabilities,
+            trusted_evidence,
+            trusted_intent,
+        )
         self.last_prompt = prompt
         self.last_responses = []
         self.last_errors = []
@@ -555,8 +692,71 @@ Return strict JSON with exactly these fields:
                     extract_json_response(response),
                     has_evidence=bool(trusted_evidence),
                 )
+                if trusted_intent is not None and proposal["action"] == "continue":
+                    scene_need = proposal["scene_need"]
+                    checker_need = proposal["checker_need"]
+                    rule_tool_need = proposal["rule_tool_need"]
+                    vqa_tool_need = proposal["vqa_tool_need"]
+                    observation_contract = (
+                        trusted_intent["required_observation"]
+                        + "\n"
+                        + trusted_intent["hypothesis"]
+                    )
+                    alignment = build_candidate_intent_alignment(
+                        trusted_intent,
+                        semantic_concern=(
+                            trusted_intent["original_concern"]
+                            + "\n"
+                            + trusted_intent["hypothesis"]
+                        ),
+                        scene_need=(
+                            {
+                                "description": (
+                                    trusted_intent["requested_change"]
+                                    + "\nPreserve: "
+                                    + "; ".join(
+                                        trusted_intent[
+                                            "preserved_conditions"
+                                        ]
+                                    )
+                                )
+                            }
+                            if scene_need["required"]
+                            else None
+                        ),
+                        checker_need=(
+                            {"description": observation_contract}
+                            if checker_need["required"]
+                            else None
+                        ),
+                        rule_tool_need=(
+                            {"description": observation_contract}
+                            if rule_tool_need["required"]
+                            else None
+                        ),
+                        vqa_tool_need=(
+                            {"description": observation_contract}
+                            if vqa_tool_need["required"]
+                            else None
+                        ),
+                    )
+                    if alignment["relationship"] != "direct":
+                        raise ClaimFirstPlanError(
+                            "proposal silently pivots to a diagnostic proxy; "
+                            "it must directly implement the frozen "
+                            "EvaluationIntent. Unmatched intent fields: "
+                            + ", ".join(
+                                alignment["unmatched_intent_fields"]
+                            )
+                        )
                 break
+            except SemanticCoverageError as exc:
+                proposal = None
+                self.last_errors.append(
+                    f"{type(exc).__name__}: {exc}"
+                )
             except Exception as exc:
+                proposal = None
                 self.last_errors.append(f"{type(exc).__name__}: {exc}")
         if proposal is None:
             raise ClaimFirstPlanError(
@@ -567,7 +767,10 @@ Return strict JSON with exactly these fields:
             "schema_version": 1,
             "source": "provider_claim_first_open_query",
             "input_digest": open_query_input_digest(
-                query, trusted_capabilities, trusted_evidence
+                query,
+                trusted_capabilities,
+                trusted_evidence,
+                trusted_intent,
             ),
             "proposal": proposal,
             "provider": {

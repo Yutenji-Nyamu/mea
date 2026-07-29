@@ -126,6 +126,11 @@ def infer_claim_type(user_query: str) -> str:
     query = _text(user_query, "user_query").casefold()
     patterns = (
         (
+            "worst_case",
+            r"\b(?:worst[- ]?case|worst[- ]performing|lowest[- ]performing)\b"
+            r"|最差|最弱表现",
+        ),
+        (
             "failure_enumeration",
             r"\b(?:enumerate|list|catalog(?:ue)?)\b.{0,48}"
             r"\b(?:failures?|failing|failure\s+modes?)\b"
@@ -170,7 +175,12 @@ def infer_control_requirement(
     a Query and an explicit QueryContract remains authoritative.
     """
 
-    parts = [_text(user_query, "user_query")]
+    query_text = _text(user_query, "user_query")
+    if _CONTROL_REQUIRED_QUERY.search(query_text):
+        return "required"
+    if _CONTROL_FREE_QUERY.search(query_text):
+        return "not_required"
+    parts = [query_text]
     if semantic_context is not None:
         if not isinstance(semantic_context, Mapping):
             raise QuerySufficiencyError("semantic_context must be an object")
@@ -668,16 +678,16 @@ def assess_query_sufficiency(
     rationale = "The query contract still has unresolved required evidence."
 
     if claim_type == "universal":
-        if not universe_closed:
-            rationale = (
-                "The universal candidate universe remains open, so the "
-                "exhaustive Query verdict must remain inconclusive."
-            )
-        elif failed:
+        if failed:
             sufficient = True
             verdict = "refuted"
             rationale = (
                 "A definitive failing candidate falsifies the universal claim."
+            )
+        elif not universe_closed:
+            rationale = (
+                "The universal candidate universe remains open, so the "
+                "exhaustive Query verdict must remain inconclusive."
             )
         elif len(passed) == len(required):
             sufficient = True

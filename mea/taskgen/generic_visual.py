@@ -186,6 +186,17 @@ def build_generic_visual_prompt(candidate: Mapping[str, Any]) -> str:
     concern = _text(candidate.get("semantic_concern"), "semantic_concern")
     scene_need = _need_description(candidate, "scene_need")
     checker_need = _need_description(candidate, "checker_need")
+    evaluation_intent = candidate.get("evaluation_intent")
+    preserved_conditions = (
+        evaluation_intent.get("preserved_conditions") or []
+        if isinstance(evaluation_intent, Mapping)
+        else []
+    )
+    preserved_context = (
+        "\n".join(f"- {item}" for item in preserved_conditions)
+        if preserved_conditions
+        else "- None declared."
+    )
     example = {
         "schema_version": 1,
         "render_usable": True,
@@ -210,9 +221,13 @@ REQUESTED SCENE NEED:
 CHECKER NEED (context only; RGB cannot validate success logic):
 {checker_need}
 
+DECLARED CONDITIONS TO PRESERVE:
+{preserved_context}
+
 Judge only visible facts: render usability, whether key task actors are visible,
 whether the requested visible change is consistent or contradicted, obvious
-physical implausibility, and visible unintended changes. Use
+physical implausibility, and visible unintended changes. Report every
+visible preservation violation of a declared condition in unexpected_changes. Use
 not_visually_decidable for mass, friction, identity, exact coordinates,
 contacts, predicates, or other facts that RGB cannot establish. Do not infer
 checker correctness or task success from the initial frame.

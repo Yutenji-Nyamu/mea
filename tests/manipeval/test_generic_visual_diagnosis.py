@@ -7,6 +7,7 @@ from PIL import Image
 
 from mea.taskgen.generic_visual import (
     GenericVisualDiagnosisError,
+    build_generic_visual_prompt,
     diagnose_generic_scene_render,
     validate_generic_visual_response,
 )
@@ -40,6 +41,32 @@ class _Provider:
 
 
 class GenericVisualDiagnosisTests(unittest.TestCase):
+    def test_prompt_names_preserved_conditions_without_claiming_nonvisual_facts(
+        self,
+    ):
+        prompt = build_generic_visual_prompt(
+            {
+                "semantic_concern": "appearance robustness",
+                "scene_need": {
+                    "kind": "adapt",
+                    "description": "Change the target color.",
+                    "reuse_first": True,
+                },
+                "checker_need": None,
+                "evaluation_intent": {
+                    "preserved_conditions": [
+                        "background appearance",
+                        "target mass",
+                    ]
+                },
+            }
+        )
+
+        self.assertIn("- background appearance", prompt)
+        self.assertIn("- target mass", prompt)
+        self.assertIn("visible preservation violation", prompt)
+        self.assertIn("mass, friction, identity", prompt)
+
     def test_valid_response_passes(self):
         result = validate_generic_visual_response(
             _response(), scene_change_passed=True

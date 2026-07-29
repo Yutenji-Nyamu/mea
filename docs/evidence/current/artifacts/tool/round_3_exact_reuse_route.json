@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "status": "resolved",
+  "matching_policy": "strict_exact_metric_id",
+  "requested_route": "auto",
+  "resolved_route": "run_local_reuse",
+  "task_name": "click_bell",
+  "metric": "bell_active_tcp_min_xy_error",
+  "exact_match": true,
+  "matched_registry": "evaluation_local_tool_registry",
+  "reference_tool": "generated_bell_active_tcp_min_xy_error",
+  "provider_required": false,
+  "reason": "exact ToolSpec, code, and telemetry schema hashes matched a validated evaluation-local Tool",
+  "catalog_snapshot_sha256": "b52330a6f945bb2f0701e3655ac7a15a12056b9a49cae9a74e9afb588777242c",
+  "run_local_registration": {
+    "registration_id": "runlocal_f1e3ad99c5b5dc79a58d",
+    "scope": "run_local",
+    "status": "validated",
+    "tool_id": "generated_bell_active_tcp_min_xy_error",
+    "version": 1,
+    "target_metric": "bell_active_tcp_min_xy_error",
+    "contract_sha256": "efaad9a8ce7e8fbffd52f785f45c0c6c60b5bcb97d682352ea887eb7ee15ceff",
+    "telemetry_schema_sha256": "5e6fedd690f90833635aafd33bad1e0a4745c182ec1253cc00768f77fc4e93d3",
+    "code_sha256": "14ceab2dd9939cc58a271bf99fcd1c86297ff25b19364ff2f577a4600e6a8a57",
+    "promotion": {
+      "current_scope": "run_local",
+      "candidate": {
+        "status": "not_requested"
+      },
+      "trusted": {
+        "status": "not_requested"
+      }
+    }
+  },
+  "provider_called": false
+}

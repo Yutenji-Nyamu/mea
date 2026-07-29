@@ -157,6 +157,46 @@ class FreeConcernTests(unittest.TestCase):
         self.assertEqual(len(provider.prompts), 2)
         self.assertTrue(all("open_laptop" not in prompt for prompt in provider.prompts))
 
+    def test_agent_preserves_provider_authored_independent_experiment_needs(self):
+        value = concern("locate the bell and click its top center")
+        typed = {
+            **value,
+            "scene_need": {
+                "required": True,
+                "description": "Reduce only the bell visual size to 50%.",
+            },
+            "checker_need": {
+                "required": False,
+                "description": None,
+            },
+            "rule_tool_need": {
+                "required": True,
+                "description": "Measure success and click-position error.",
+                "reuse_first": True,
+            },
+            "vqa_tool_need": {
+                "required": False,
+                "description": None,
+                "reuse_first": True,
+            },
+        }
+        provider = self.Provider([json.dumps(typed)])
+
+        result = resolver.FreeConcernAgent(
+            provider,
+            model="fixture",
+        ).propose(value["source_query"], policy_card=single_task_policy())
+
+        self.assertEqual(result["concern"], value)
+        self.assertEqual(
+            result["experiment_needs"]["scene_need"],
+            typed["scene_need"],
+        )
+        self.assertIsNone(
+            result["experiment_needs"]["checker_need"]["description"]
+        )
+        self.assertIn("A Tool-only Query must not invent", provider.prompts[0])
+
     def test_agent_can_be_frozen_to_one_attempt(self):
         provider = self.Provider(["{}"])
         with self.assertRaisesRegex(

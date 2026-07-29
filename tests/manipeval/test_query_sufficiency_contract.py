@@ -63,6 +63,10 @@ class QuerySufficiencyTruthTableTests(unittest.TestCase):
             "diagnostic",
         )
         self.assertEqual(
+            infer_claim_type("What is the worst-case condition?"),
+            "worst_case",
+        )
+        self.assertEqual(
             infer_claim_type("比较左侧与右侧位置的表现。"),
             "comparative",
         )
@@ -102,6 +106,25 @@ class QuerySufficiencyTruthTableTests(unittest.TestCase):
             one_failure["untested_required_candidate_ids"],
             ["right"],
         )
+
+    def test_open_universal_can_be_refuted_but_not_supported(self):
+        contract = self.contract(
+            "universal",
+            candidate_universe_closed=False,
+        )
+        refuted = assess_query_sufficiency(
+            contract,
+            [evidence("left", "fail")],
+        )
+        self.assertTrue(refuted["evidence_sufficient"])
+        self.assertEqual(refuted["claim_verdict"], "refuted")
+
+        all_observed_pass = assess_query_sufficiency(
+            contract,
+            [evidence("left", "pass"), evidence("right", "pass")],
+        )
+        self.assertFalse(all_observed_pass["evidence_sufficient"])
+        self.assertEqual(all_observed_pass["claim_verdict"], "inconclusive")
 
     def test_existential_success_is_a_witness_but_refutation_needs_all(self):
         contract = self.contract("existential")
