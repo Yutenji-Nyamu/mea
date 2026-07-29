@@ -101,6 +101,14 @@ _FORBIDDEN_CAPABILITY_KEYS = {
     "fallback_step",
     "navigation_options",
 }
+_PLANNING_LINEAGE_KEYS = {
+    "schema_version",
+    "decision_kind",
+    "evidence_conditioned",
+    "completed_round_ids",
+    "completed_round_count",
+    "input_digest",
+}
 
 
 def _text(value: Any, field: str) -> str:
@@ -548,6 +556,91 @@ def open_query_input_digest(
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def build_open_query_planning_lineage(
+    user_query: str,
+    capabilities: Mapping[str, Any],
+    evidence_history: Sequence[Mapping[str, Any]],
+    evaluation_intent: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Describe the exact completed evidence used to author one proposal.
+
+    This is deliberately separate from execution provenance.  Its purpose is
+    to distinguish a Query-only first proposal from a later Fig. 5 refinement
+    that was authored only after the preceding Aggregate/Evidence was read.
+    """
+
+    trusted_evidence = validate_open_query_evidence(evidence_history)
+    digest = open_query_input_digest(
+        user_query,
+        capabilities,
+        trusted_evidence,
+        evaluation_intent,
+    )
+    completed_round_ids = [
+        item["round_id"] for item in trusted_evidence
+    ]
+    evidence_conditioned = bool(completed_round_ids)
+    return {
+        "schema_version": 1,
+        "decision_kind": (
+            "evidence_conditioned_refinement"
+            if evidence_conditioned
+            else "query_initial_candidate"
+        ),
+        "evidence_conditioned": evidence_conditioned,
+        "completed_round_ids": completed_round_ids,
+        "completed_round_count": len(completed_round_ids),
+        "input_digest": digest,
+    }
+
+
+def validate_open_query_proposal_lineage(
+    proposal_bundle: Mapping[str, Any],
+    *,
+    user_query: str,
+    capabilities: Mapping[str, Any],
+    evidence_history: Sequence[Mapping[str, Any]],
+    evaluation_intent: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Fail closed when a proposal was not authored from current evidence.
+
+    A provider response generated before round ``n`` completed must not be
+    relabelled as the decision for round ``n + 1``.  The digest covers the
+    original Query, capability boundary, complete evidence history, and an
+    optional frozen EvaluationIntent.
+    """
+
+    if not isinstance(proposal_bundle, Mapping):
+        raise ClaimFirstPlanError("proposal_bundle must be an object")
+    expected = build_open_query_planning_lineage(
+        user_query,
+        capabilities,
+        evidence_history,
+        evaluation_intent,
+    )
+    actual_digest = proposal_bundle.get("input_digest")
+    if actual_digest != expected["input_digest"]:
+        raise ClaimFirstPlanError(
+            "proposal input_digest does not match the current completed "
+            "Aggregate/Evidence history"
+        )
+    raw_lineage = proposal_bundle.get("planning_lineage")
+    if (
+        not isinstance(raw_lineage, Mapping)
+        or set(raw_lineage) != _PLANNING_LINEAGE_KEYS
+    ):
+        raise ClaimFirstPlanError(
+            "provider proposal must carry complete planning_lineage"
+        )
+    lineage = deepcopy(dict(raw_lineage))
+    if lineage != expected:
+        raise ClaimFirstPlanError(
+            "proposal planning_lineage does not match the current completed "
+            "rounds"
+        )
+    return lineage
+
+
 class ClaimFirstOpenQueryAgent:
     """Ask a provider to discover the next sub-aspect from evidence."""
 
@@ -763,15 +856,17 @@ Return strict JSON with exactly these fields:
                 "provider failed two open-Query proposal attempts: "
                 + " | ".join(self.last_errors)
             )
+        planning_lineage = build_open_query_planning_lineage(
+            query,
+            trusted_capabilities,
+            trusted_evidence,
+            trusted_intent,
+        )
         return {
             "schema_version": 1,
             "source": "provider_claim_first_open_query",
-            "input_digest": open_query_input_digest(
-                query,
-                trusted_capabilities,
-                trusted_evidence,
-                trusted_intent,
-            ),
+            "input_digest": planning_lineage["input_digest"],
+            "planning_lineage": planning_lineage,
             "proposal": proposal,
             "provider": {
                 "model_requested": self.model,
@@ -788,9 +883,11 @@ Return strict JSON with exactly these fields:
 __all__ = [
     "ClaimFirstOpenQueryAgent",
     "ClaimFirstPlanError",
+    "build_open_query_planning_lineage",
     "open_query_input_digest",
     "project_open_query_capabilities",
     "validate_open_query_capabilities",
     "validate_open_query_evidence",
     "validate_open_query_plan_proposal",
+    "validate_open_query_proposal_lineage",
 ]

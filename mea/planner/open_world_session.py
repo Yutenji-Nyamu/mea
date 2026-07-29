@@ -64,6 +64,96 @@ def _positive_int(value: Any, field: str) -> int:
     return value
 
 
+def _decision_planning_lineage(
+    step: Mapping[str, Any],
+    observation_history: Iterable[Mapping[str, Any]],
+) -> dict[str, Any] | None:
+    """Validate round ordering for an auditable ClaimFirst decision."""
+
+    raw = step.get("planning_lineage")
+    if raw is None:
+        return None
+    if not isinstance(raw, Mapping):
+        raise OpenWorldSessionError(
+            "PlanStepProposal.planning_lineage must be an object"
+        )
+    lineage = deepcopy(dict(raw))
+    required = {
+        "schema_version",
+        "decision_kind",
+        "evidence_conditioned",
+        "completed_round_ids",
+        "completed_round_count",
+        "input_digest",
+    }
+    if set(lineage) != required or lineage.get("schema_version") != 1:
+        raise OpenWorldSessionError(
+            "PlanStepProposal.planning_lineage has an invalid schema"
+        )
+    raw_ids = lineage.get("completed_round_ids")
+    if not isinstance(raw_ids, list) or any(
+        not isinstance(item, str) or not item.strip() for item in raw_ids
+    ):
+        raise OpenWorldSessionError(
+            "planning_lineage.completed_round_ids must contain round ids"
+        )
+    observations = list(observation_history)
+    observed_ids = [
+        _text(item.get("round_id"), "observation_history[].round_id")
+        for item in observations
+        if isinstance(item, Mapping)
+    ]
+    if len(observed_ids) != len(observations):
+        raise OpenWorldSessionError(
+            "observation history items must be objects"
+        )
+    if lineage.get("completed_round_count") != len(raw_ids):
+        raise OpenWorldSessionError(
+            "planning_lineage completed-round count is inconsistent"
+        )
+    decision_kind = lineage.get("decision_kind")
+    if decision_kind == "evidence_conditioned_refinement":
+        if lineage.get("evidence_conditioned") is not True:
+            raise OpenWorldSessionError(
+                "evidence-conditioned refinement must set "
+                "evidence_conditioned=true"
+            )
+        if raw_ids != observed_ids or not raw_ids:
+            raise OpenWorldSessionError(
+                "evidence-conditioned refinement must name every completed "
+                "round in order"
+            )
+        digest = lineage.get("input_digest")
+        if (
+            not isinstance(digest, str)
+            or len(digest) != 64
+            or any(character not in "0123456789abcdef" for character in digest)
+        ):
+            raise OpenWorldSessionError(
+                "evidence-conditioned refinement needs a sha256 input digest"
+            )
+    elif decision_kind == "query_initial_candidate":
+        if (
+            lineage.get("evidence_conditioned") is not False
+            or raw_ids
+            or observed_ids
+        ):
+            raise OpenWorldSessionError(
+                "query-initial planning is valid only before any round "
+                "evidence exists"
+            )
+    elif decision_kind == "pre_evidence_query_candidate":
+        if lineage.get("evidence_conditioned") is not False or raw_ids:
+            raise OpenWorldSessionError(
+                "pre-evidence planning lineage cannot cite completed evidence"
+            )
+    else:
+        raise OpenWorldSessionError(
+            "planning_lineage.decision_kind is not recognized"
+        )
+    return lineage
+
+
 def _catalog_templates(task: Mapping[str, Any]) -> set[str]:
     return {
         str(template_id)
@@ -604,6 +694,10 @@ class OpenWorldPlanSession:
             raise OpenWorldSessionError(
                 "PlanStepProposal.action must be propose, refine, or stop"
             )
+        planning_lineage = _decision_planning_lineage(
+            step,
+            observation_history,
+        )
         if query_contract is not None:
             current["query_contract"] = self._validate_query_contract(
                 query_contract
@@ -723,6 +817,7 @@ class OpenWorldPlanSession:
             ),
             "answered_query": bool(step.get("answered_query", False)),
             "plan_step_source": str(source),
+            "planning_lineage": deepcopy(planning_lineage),
             "plan_step_proposal": step,
             "round_budget_before_decision": (
                 self.target["max_rounds"] - len(current["rounds"])

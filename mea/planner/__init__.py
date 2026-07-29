@@ -92,11 +92,13 @@ from .semantic_coverage import (
 from .claim_first import (
     ClaimFirstOpenQueryAgent,
     ClaimFirstPlanError,
+    build_open_query_planning_lineage,
     open_query_input_digest,
     project_open_query_capabilities,
     validate_open_query_capabilities,
     validate_open_query_evidence,
     validate_open_query_plan_proposal,
+    validate_open_query_proposal_lineage,
 )
 from .claim_first_runtime import (
     ClaimFirstRuntimeController,
@@ -259,11 +261,13 @@ __all__ = [
     "validate_intent_alignment",
     "ClaimFirstOpenQueryAgent",
     "ClaimFirstPlanError",
+    "build_open_query_planning_lineage",
     "open_query_input_digest",
     "project_open_query_capabilities",
     "validate_open_query_capabilities",
     "validate_open_query_evidence",
     "validate_open_query_plan_proposal",
+    "validate_open_query_proposal_lineage",
     "ClaimFirstRuntimeController",
     "ClaimFirstRuntimeError",
     "build_claim_first_evidence_record",

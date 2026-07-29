@@ -181,6 +181,14 @@ class OpenWorldPlanSessionTests(unittest.TestCase):
             "experiment_candidate": candidate,
             "rationale": "The control passed; inspect post-release wobble.",
             "answered_query": False,
+            "planning_lineage": {
+                "schema_version": 1,
+                "decision_kind": "evidence_conditioned_refinement",
+                "evidence_conditioned": True,
+                "completed_round_ids": ["round_1"],
+                "completed_round_count": 1,
+                "input_digest": "a" * 64,
+            },
         }
         generated_round = {
             "round_id": "round_2",
@@ -215,7 +223,47 @@ class OpenWorldPlanSessionTests(unittest.TestCase):
         self.assertEqual(
             decision["decision_reason"], "provider_authored_open_world_step"
         )
+        self.assertEqual(
+            decision["planning_lineage"]["completed_round_ids"],
+            ["round_1"],
+        )
         self.assertEqual(options["session_kind"], "open_world_claim_first")
+
+    def test_refinement_lineage_cannot_omit_latest_completed_round(self):
+        candidate = _candidate()
+        step = {
+            "schema_version": 2,
+            "action": "propose",
+            "candidate_id": candidate["candidate_id"],
+            "execution_mode": "reuse_or_generate",
+            "experiment_candidate": candidate,
+            "rationale": "Inspect post-release wobble.",
+            "answered_query": False,
+            "planning_lineage": {
+                "schema_version": 1,
+                "decision_kind": "evidence_conditioned_refinement",
+                "evidence_conditioned": True,
+                "completed_round_ids": [],
+                "completed_round_count": 0,
+                "input_digest": "a" * 64,
+            },
+        }
+
+        with self.assertRaisesRegex(
+            OpenWorldSessionError,
+            "must name every completed round",
+        ):
+            self.session.apply_plan_step(
+                self.plan,
+                [{"round_id": "round_1"}],
+                step,
+                materialized_round={
+                    "round_id": "round_2",
+                    "candidate_id": candidate["candidate_id"],
+                    "experiment_candidate": candidate,
+                },
+                source="provider_claim_first_open_query",
+            )
 
     def test_contract_can_start_with_tool_only_round_without_control(self):
         contract = build_query_sufficiency_contract(

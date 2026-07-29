@@ -32,8 +32,10 @@ from mea.capability_adapter import resolve_task_adapter
 
 from .claim_first import (
     ClaimFirstPlanError,
+    validate_open_query_capabilities,
     validate_open_query_evidence,
     validate_open_query_plan_proposal,
+    validate_open_query_proposal_lineage,
 )
 from .evidence_policy import build_evidence_packet, validate_evidence_packet
 from .experiment_candidate import (
@@ -111,14 +113,14 @@ def build_initial_semantic_proposal_bundle(
     evaluation_intent: Mapping[str, Any],
     provider_record: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Directly materialize the provider-authored first Plan decision.
+    """Materialize a Query-only candidate before any runtime evidence exists.
 
     ``FreeConcernAgent`` already chose the first sub-aspect, hypothesis,
     perturbation, observation, and independent Task/Tool needs before catalog
-    retrieval. Asking a second model call to choose them again can silently
-    replace that experiment. This adapter only converts the first decision to
-    the canonical typed proposal schema; later rounds remain evidence-driven
-    ``ClaimFirstOpenQueryAgent`` decisions.
+    retrieval.  This adapter preserves that Query-authored seed for a no-control
+    first round or a legacy protocol.  It is explicitly marked
+    ``pre_evidence_query_candidate`` and must never be reported as a Fig. 5
+    evidence-conditioned refinement.
     """
 
     query = _nonempty_text(user_query, "user_query")
@@ -165,6 +167,14 @@ def build_initial_semantic_proposal_bundle(
         "schema_version": 1,
         "source": "provider_free_concern_direct_materialization",
         "input_intent_id": intent["intent_id"],
+        "planning_lineage": {
+            "schema_version": 1,
+            "decision_kind": "pre_evidence_query_candidate",
+            "evidence_conditioned": False,
+            "completed_round_ids": [],
+            "completed_round_count": 0,
+            "input_digest": None,
+        },
         "proposal": proposal,
         "provider": deepcopy(dict(provider_record or {})),
     }
@@ -1492,6 +1502,65 @@ def render_query_answer(
     }
 
 
+def _current_planning_evidence(
+    observation: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Return evidence whose round lineage agrees with runtime records."""
+
+    if not isinstance(observation, Mapping):
+        raise ClaimFirstRuntimeError("claim-first observation must be an object")
+    raw_history = observation.get("open_query_evidence_history")
+    if not isinstance(raw_history, list):
+        raise ClaimFirstRuntimeError(
+            "claim-first observation has no open_query_evidence_history"
+        )
+    try:
+        history = validate_open_query_evidence(raw_history)
+    except ClaimFirstPlanError as exc:
+        raise ClaimFirstRuntimeError(str(exc)) from exc
+    records = observation.get("records")
+    if not isinstance(records, list):
+        raise ClaimFirstRuntimeError("claim-first observation has no records")
+    record_round_ids: list[str] = []
+    for index, record in enumerate(records):
+        if not isinstance(record, Mapping):
+            raise ClaimFirstRuntimeError(
+                f"claim-first observation record {index} must be an object"
+            )
+        record_round_ids.append(
+            _nonempty_text(
+                record.get("round_id"),
+                f"observation.records[{index}].round_id",
+            )
+        )
+    evidence_round_ids = [item["round_id"] for item in history]
+    if evidence_round_ids != record_round_ids:
+        raise ClaimFirstRuntimeError(
+            "open_query_evidence_history does not align with completed "
+            "runtime records"
+        )
+    return history
+
+
+def _attach_planning_lineage(
+    bound_step: Mapping[str, Any],
+    lineage: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Persist semantic-decision lineage at both bundle and plan-step levels."""
+
+    result = deepcopy(dict(bound_step))
+    trusted_lineage = deepcopy(dict(lineage))
+    result["planning_lineage"] = trusted_lineage
+    plan_step = result.get("plan_step")
+    if not isinstance(plan_step, Mapping):
+        raise ClaimFirstRuntimeError("bound semantic step has no plan_step")
+    result["plan_step"] = {
+        **deepcopy(dict(plan_step)),
+        "planning_lineage": deepcopy(trusted_lineage),
+    }
+    return result
+
+
 class ClaimFirstRuntimeController:
     """Own control gating, query sufficiency, retrieval, and generation hand-off."""
 
@@ -1688,7 +1757,7 @@ class ClaimFirstRuntimeController:
         self,
         candidate: Mapping[str, Any],
     ) -> dict[str, Any]:
-        """Register a pre-control FreeConcern candidate without catalog lookup."""
+        """Register a legacy pre-evidence candidate without catalog lookup."""
 
         return self._register_dynamic_candidate(
             candidate,
@@ -1790,7 +1859,13 @@ class ClaimFirstRuntimeController:
         *,
         executed_candidate_ids: Sequence[str],
     ) -> dict[str, Any]:
-        """Authorize the already frozen first candidate after its control gate."""
+        """Authorize a legacy Query-only candidate without claiming refinement.
+
+        The candidate may still be gated by a control for backward
+        compatibility, but its semantic choice predates that evidence.  The
+        returned lineage therefore remains ``pre_evidence`` and must not be
+        counted as Fig. 5 evidence-conditioned sub-aspect selection.
+        """
 
         assessment = observation.get("assessment")
         if not isinstance(assessment, Mapping):
@@ -1821,7 +1896,29 @@ class ClaimFirstRuntimeController:
             raise ClaimFirstRuntimeError(
                 "a frozen first candidate must be an action=continue proposal"
             )
-        return self._bind_dynamic_candidate(
+        raw_lineage = proposal_bundle.get("planning_lineage")
+        if not isinstance(raw_lineage, Mapping):
+            raw_lineage = {
+                "schema_version": 1,
+                "decision_kind": "pre_evidence_query_candidate",
+                "evidence_conditioned": False,
+                "completed_round_ids": [],
+                "completed_round_count": 0,
+                "input_digest": None,
+            }
+        lineage = deepcopy(dict(raw_lineage))
+        if (
+            lineage.get("decision_kind")
+            != "pre_evidence_query_candidate"
+            or lineage.get("evidence_conditioned") is not False
+            or lineage.get("completed_round_ids") != []
+            or lineage.get("completed_round_count") != 0
+        ):
+            raise ClaimFirstRuntimeError(
+                "bind_frozen_candidate accepts only an explicitly pre-evidence "
+                "Query candidate"
+            )
+        bound = self._bind_dynamic_candidate(
             proposal_bundle=proposal_bundle,
             proposal=proposal,
             candidate=candidate,
@@ -1830,6 +1927,7 @@ class ClaimFirstRuntimeController:
             catalog_resolution_error=None,
             require_direct=True,
         )
+        return _attach_planning_lineage(bound, lineage)
 
     def observe(
         self,
@@ -2047,6 +2145,127 @@ class ClaimFirstRuntimeController:
             ),
             "query_answer": answer,
         }
+
+    def bind_evidence_conditioned_semantic_step(
+        self,
+        proposal_bundle: Mapping[str, Any],
+        observation: Mapping[str, Any],
+        *,
+        capabilities: Mapping[str, Any],
+        executed_candidate_ids: Sequence[str],
+        evaluation_intent: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Bind a proposal only if it consumed the current evidence history.
+
+        This is the auditable boundary for cached/provider proposals.  A bundle
+        authored before the latest completed round fails its input digest or
+        completed-round lineage check instead of being released as the next
+        sub-aspect.
+        """
+
+        try:
+            trusted_capabilities = validate_open_query_capabilities(
+                capabilities
+            )
+            history = _current_planning_evidence(observation)
+            trusted_intent = (
+                validate_evaluation_intent(evaluation_intent)
+                if evaluation_intent is not None
+                else None
+            )
+            lineage = validate_open_query_proposal_lineage(
+                proposal_bundle,
+                user_query=self.user_query,
+                capabilities=trusted_capabilities,
+                evidence_history=history,
+                evaluation_intent=trusted_intent,
+            )
+        except (ClaimFirstPlanError, SemanticCoverageError) as exc:
+            raise ClaimFirstRuntimeError(str(exc)) from exc
+        bound = self.bind_semantic_step(
+            proposal_bundle,
+            observation,
+            executed_template_ids=executed_candidate_ids,
+            evaluation_intent=trusted_intent,
+        )
+        return _attach_planning_lineage(bound, lineage)
+
+    def propose_and_bind_semantic_step(
+        self,
+        planner: Any,
+        observation: Mapping[str, Any],
+        *,
+        capabilities: Mapping[str, Any],
+        executed_candidate_ids: Sequence[str],
+        evaluation_intent: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Read completed evidence, then author and bind exactly one next step.
+
+        Keeping the provider call inside this method makes the temporal order
+        explicit: round evidence is validated first; only then may the Plan
+        Agent choose the next semantic concern.  The resulting digest and
+        round ids are revalidated before candidate materialization.
+        """
+
+        assessment = observation.get("assessment")
+        if not isinstance(assessment, Mapping):
+            raise ClaimFirstRuntimeError(
+                "claim-first observation has no assessment"
+            )
+        if assessment.get("should_stop"):
+            raise ClaimFirstRuntimeError(
+                "cannot propose a semantic step after the query contract stopped"
+            )
+        if (
+            self.require_control_anchor
+            and observation.get("control_passed") is not True
+        ):
+            raise ClaimFirstRuntimeError(
+                "cannot propose a property experiment before the control passes"
+            )
+        history = _current_planning_evidence(observation)
+        try:
+            trusted_capabilities = validate_open_query_capabilities(
+                capabilities
+            )
+            trusted_intent = (
+                validate_evaluation_intent(evaluation_intent)
+                if evaluation_intent is not None
+                else None
+            )
+        except (ClaimFirstPlanError, SemanticCoverageError) as exc:
+            raise ClaimFirstRuntimeError(str(exc)) from exc
+        propose = getattr(planner, "propose", None)
+        if not callable(propose):
+            raise ClaimFirstRuntimeError(
+                "claim-first planner must expose a callable propose()"
+            )
+        try:
+            proposal_bundle = propose(
+                self.user_query,
+                capabilities=trusted_capabilities,
+                evidence_history=history,
+                evaluation_intent=trusted_intent,
+            )
+        except Exception as exc:
+            if isinstance(exc, ClaimFirstRuntimeError):
+                raise
+            raise ClaimFirstRuntimeError(
+                "evidence-conditioned Plan Agent failed after completed "
+                f"rounds {[item['round_id'] for item in history]}: "
+                f"{type(exc).__name__}: {exc}"
+            ) from exc
+        if not isinstance(proposal_bundle, Mapping):
+            raise ClaimFirstRuntimeError(
+                "claim-first planner returned no proposal bundle"
+            )
+        return self.bind_evidence_conditioned_semantic_step(
+            proposal_bundle,
+            observation,
+            capabilities=trusted_capabilities,
+            executed_candidate_ids=executed_candidate_ids,
+            evaluation_intent=trusted_intent,
+        )
 
     def bind_semantic_step(
         self,

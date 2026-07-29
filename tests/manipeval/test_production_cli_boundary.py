@@ -25,6 +25,40 @@ def run_import_probe(source: str) -> dict[str, bool]:
 
 
 class ProductionCliBoundaryTests(unittest.TestCase):
+    def test_agent_reexports_extracted_cli_and_acceptance_contracts(self) -> None:
+        probe = (
+            "import importlib.util,json,pathlib;"
+            "from mea import agent_acceptance,agent_cli;"
+            "path=pathlib.Path('scripts/manipeval_agent.py');"
+            "spec=importlib.util.spec_from_file_location('agent_reexports',path);"
+            "module=importlib.util.module_from_spec(spec);"
+            "spec.loader.exec_module(module);"
+            "print(json.dumps({"
+            "'parse_args':module.parse_args is agent_cli.parse_args,"
+            "'allowed_aspects':"
+            "module.resolve_claim_first_allowed_aspects "
+            "is agent_cli.resolve_claim_first_allowed_aspects,"
+            "'planner_default':module.resolve_default_open_query_planner "
+            "is agent_cli.resolve_default_open_query_planner,"
+            "'candidate_budget':module.resolve_claim_first_candidate_budget "
+            "is agent_cli.resolve_claim_first_candidate_budget,"
+            "'flagship_acceptance':module.build_compact_flagship_acceptance "
+            "is agent_acceptance.build_compact_flagship_acceptance,"
+            "'episode_results':module._episode_tool_results "
+            "is agent_acceptance._episode_tool_results}))"
+        )
+        self.assertEqual(
+            run_import_probe(probe),
+            {
+                "parse_args": True,
+                "allowed_aspects": True,
+                "planner_default": True,
+                "candidate_budget": True,
+                "flagship_acceptance": True,
+                "episode_results": True,
+            },
+        )
+
     def test_agent_import_does_not_load_paper_or_task_specific_planners(self) -> None:
         modules = [
             "mea.strategy_plan",
@@ -107,6 +141,56 @@ class ProductionCliBoundaryTests(unittest.TestCase):
                 "production": "claim_first_v1",
                 "paper": "catalog_step_v1",
             },
+        )
+
+    def test_control_path_plans_next_subaspect_after_evidence(self) -> None:
+        source = (REPO_ROOT / "scripts/manipeval_agent.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "claim_first_controller.propose_and_bind_semantic_step(",
+            source,
+        )
+        self.assertNotIn("pending_first_semantic_bundle", source)
+        self.assertNotIn("use_pending_first", source)
+
+    def test_precontrol_concern_does_not_shrink_planner_domain(self) -> None:
+        probe = (
+            "import importlib.util,json,pathlib;"
+            "path=pathlib.Path('scripts/manipeval_agent.py');"
+            "spec=importlib.util.spec_from_file_location('agent_domain',path);"
+            "module=importlib.util.module_from_spec(spec);"
+            "spec.loader.exec_module(module);"
+            "print(json.dumps({"
+            "'open':module.resolve_claim_first_allowed_aspects(None),"
+            "'explicit':module.resolve_claim_first_allowed_aspects("
+            "['object_position','object_position','object_instance'])}))"
+        )
+        self.assertEqual(
+            run_import_probe(probe),
+            {
+                "open": None,
+                "explicit": ["object_position", "object_instance"],
+            },
+        )
+
+    def test_open_world_execution_projects_existing_child_into_method_runtime(
+        self,
+    ) -> None:
+        source = (REPO_ROOT / "scripts/manipeval_agent.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "project_executed_round_through_method_runtime(",
+            source,
+        )
+        self.assertIn(
+            '"taskgen_reinvoked": method_runtime_projection[',
+            source,
+        )
+        self.assertIn(
+            '"policy_rollout_reinvoked": method_runtime_projection[',
+            source,
         )
 
     def test_no_control_query_keeps_its_only_candidate_round(self) -> None:

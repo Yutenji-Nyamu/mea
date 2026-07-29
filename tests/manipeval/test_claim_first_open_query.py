@@ -4,11 +4,13 @@ import unittest
 from mea.planner.claim_first import (
     ClaimFirstOpenQueryAgent,
     ClaimFirstPlanError,
+    build_open_query_planning_lineage,
     open_query_input_digest,
     project_open_query_capabilities,
     validate_open_query_capabilities,
     validate_open_query_evidence,
     validate_open_query_plan_proposal,
+    validate_open_query_proposal_lineage,
 )
 from mea.planner.semantic_coverage import build_evaluation_intent
 
@@ -440,6 +442,17 @@ class ClaimFirstOpenQueryTest(unittest.TestCase):
                 evidence_history=[_evidence(outcome)],
             )
             selected[outcome] = bundle["proposal"]["sub_aspect"]
+            self.assertEqual(
+                bundle["planning_lineage"]["decision_kind"],
+                "evidence_conditioned_refinement",
+            )
+            self.assertTrue(
+                bundle["planning_lineage"]["evidence_conditioned"]
+            )
+            self.assertEqual(
+                bundle["planning_lineage"]["completed_round_ids"],
+                ["round_1"],
+            )
             self.assertIn(query, provider.prompts[0])
             self.assertIn(f'"outcome": "{outcome}"', provider.prompts[0])
             self.assertNotIn('"aspect_id"', provider.prompts[0])
@@ -464,6 +477,39 @@ class ClaimFirstOpenQueryTest(unittest.TestCase):
             provider.prompts[0],
         )
         self.assertNotIn("fallback_step", provider.prompts[0])
+        self.assertEqual(
+            result["planning_lineage"],
+            build_open_query_planning_lineage(
+                "Where is this policy's first object-generalization weakness?",
+                _capabilities(),
+                [],
+            ),
+        )
+        self.assertEqual(
+            result["planning_lineage"]["decision_kind"],
+            "query_initial_candidate",
+        )
+
+    def test_stale_bundle_cannot_be_relabelled_as_post_evidence_refinement(self):
+        query = "Where is this policy's first object-generalization weakness?"
+        bundle = ClaimFirstOpenQueryAgent(
+            _BranchingProvider(), model="fixture"
+        ).propose(
+            query,
+            capabilities=_capabilities(),
+            evidence_history=[],
+        )
+
+        with self.assertRaisesRegex(
+            ClaimFirstPlanError,
+            "does not match the current completed",
+        ):
+            validate_open_query_proposal_lineage(
+                bundle,
+                user_query=query,
+                capabilities=_capabilities(),
+                evidence_history=[_evidence("success")],
+            )
 
     def test_frozen_intent_repairs_silent_diagnostic_proxy(self):
         provider = _IntentRepairProvider()

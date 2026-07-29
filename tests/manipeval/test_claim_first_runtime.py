@@ -1,6 +1,7 @@
 import unittest
 
 from mea.capability_adapter import resolve_task_adapter
+from mea.planner.claim_first import build_open_query_planning_lineage
 from mea.planner.claim_first_runtime import (
     ClaimFirstRuntimeController,
     ClaimFirstRuntimeError,
@@ -195,6 +196,72 @@ def semantic_bundle(sub_aspect="object_position.left_fixed"):
             "rationale": "A left sentinel is the first diagnostic candidate.",
         },
     }
+
+
+def open_query_capabilities():
+    return {
+        "schema_version": 1,
+        "policy_card": {
+            "policy_name": "ACT",
+            "task_name": "click_bell",
+            "action_dimension": 14,
+        },
+        "simulator_card": {
+            "simulator_name": "RoboTwin",
+            "task_name": "click_bell",
+            "tracked_actors": ["bell", "robot"],
+        },
+        "generation_card": {
+            "taskgen_operations": [
+                {
+                    "operation": "retrieve_or_generate_scene_checker",
+                    "controlled_axis": None,
+                    "generation_mode": "generic_provider_scene_checker_codegen",
+                    "allowed_change_roots": [
+                        "load_actors",
+                        "check_success",
+                    ],
+                }
+            ],
+            "toolgen": {
+                "retrieve_first": True,
+                "can_generate_rule_metric": True,
+                "can_generate_vqa_question": True,
+            },
+        },
+    }
+
+
+class EvidenceConditionedPlanner:
+    def __init__(self):
+        self.histories = []
+
+    def propose(
+        self,
+        user_query,
+        *,
+        capabilities,
+        evidence_history,
+        evaluation_intent=None,
+    ):
+        self.histories.append(list(evidence_history))
+        latest = evidence_history[-1]["outcome"] if evidence_history else None
+        sub_aspect = (
+            "object_instance.base0"
+            if len(evidence_history) >= 2 and latest == "success"
+            else "object_position.left_fixed"
+        )
+        bundle = semantic_bundle(sub_aspect)
+        bundle["source"] = "provider_claim_first_open_query"
+        lineage = build_open_query_planning_lineage(
+            user_query,
+            capabilities,
+            evidence_history,
+            evaluation_intent,
+        )
+        bundle["input_digest"] = lineage["input_digest"]
+        bundle["planning_lineage"] = lineage
+        return bundle
 
 
 class ClaimFirstRuntimeTests(unittest.TestCase):
@@ -466,6 +533,17 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         self.assertEqual(
             bound["plan_step"]["candidate_id"],
             registered["candidate_id"],
+        )
+        self.assertEqual(
+            bound["planning_lineage"]["decision_kind"],
+            "pre_evidence_query_candidate",
+        )
+        self.assertFalse(
+            bound["planning_lineage"]["evidence_conditioned"]
+        )
+        self.assertEqual(
+            bound["planning_lineage"]["completed_round_ids"],
+            [],
         )
 
     def test_query_derived_candidate_is_not_rejected_by_catalog_inventory(self):
@@ -959,6 +1037,109 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         self.assertTrue(
             bound["semantic_needs"]["tool_need"]["required"]
         )
+
+    def test_control_evidence_is_read_before_round_two_concern_is_authored(self):
+        query = "Where does this policy first expose a weakness?"
+        controller = ClaimFirstRuntimeController(query, target())
+        control = round_plan(
+            1, "performance.completion_time_stability.official"
+        )
+        state = controller.observe([control], [summary(control, 1.0)])
+        planner = EvidenceConditionedPlanner()
+
+        bound = controller.propose_and_bind_semantic_step(
+            planner,
+            state,
+            capabilities=open_query_capabilities(),
+            executed_candidate_ids=[control["template_id"]],
+        )
+
+        self.assertEqual(len(planner.histories), 1)
+        self.assertEqual(
+            [item["round_id"] for item in planner.histories[0]],
+            ["round_1"],
+        )
+        self.assertEqual(
+            bound["plan_step"]["template_id"],
+            "object_position.left_fixed",
+        )
+        self.assertEqual(
+            bound["planning_lineage"]["decision_kind"],
+            "evidence_conditioned_refinement",
+        )
+        self.assertEqual(
+            bound["planning_lineage"]["completed_round_ids"],
+            ["round_1"],
+        )
+        self.assertEqual(
+            bound["plan_step"]["planning_lineage"],
+            bound["planning_lineage"],
+        )
+
+    def test_round_three_concern_is_derived_from_round_two_aggregate(self):
+        query = "Where does this policy first expose a weakness?"
+        controller = ClaimFirstRuntimeController(query, target())
+        control = round_plan(
+            1, "performance.completion_time_stability.official"
+        )
+        first_candidate = round_plan(2, "object_position.left_fixed")
+        state = controller.observe(
+            [control, first_candidate],
+            [summary(control, 1.0), summary(first_candidate, 1.0)],
+        )
+        self.assertFalse(state["assessment"]["should_stop"])
+        planner = EvidenceConditionedPlanner()
+
+        bound = controller.propose_and_bind_semantic_step(
+            planner,
+            state,
+            capabilities=open_query_capabilities(),
+            executed_candidate_ids=[
+                control["template_id"],
+                first_candidate["template_id"],
+            ],
+        )
+
+        self.assertEqual(
+            [item["round_id"] for item in planner.histories[0]],
+            ["round_1", "round_2"],
+        )
+        self.assertEqual(
+            planner.histories[0][-1]["outcome"],
+            "success",
+        )
+        self.assertEqual(
+            bound["plan_step"]["template_id"],
+            "object_instance.base0",
+        )
+        self.assertEqual(
+            bound["planning_lineage"]["completed_round_ids"],
+            ["round_1", "round_2"],
+        )
+
+    def test_precomputed_bundle_cannot_pass_current_evidence_lineage_gate(self):
+        query = "Where does this policy first expose a weakness?"
+        controller = ClaimFirstRuntimeController(query, target())
+        control = round_plan(
+            1, "performance.completion_time_stability.official"
+        )
+        state = controller.observe([control], [summary(control, 1.0)])
+        stale_bundle = EvidenceConditionedPlanner().propose(
+            query,
+            capabilities=open_query_capabilities(),
+            evidence_history=[],
+        )
+
+        with self.assertRaisesRegex(
+            ClaimFirstRuntimeError,
+            "does not match the current completed",
+        ):
+            controller.bind_evidence_conditioned_semantic_step(
+                stale_bundle,
+                state,
+                capabilities=open_query_capabilities(),
+                executed_candidate_ids=[control["template_id"]],
+            )
 
     def test_auxiliary_vqa_conflict_does_not_override_official_control_success(self):
         controller = ClaimFirstRuntimeController(
