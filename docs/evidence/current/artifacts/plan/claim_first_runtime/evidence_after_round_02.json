@@ -1,0 +1,476 @@
+{
+  "schema_version": 1,
+  "control_template_id": "task_execution.official_baseline",
+  "control_required": true,
+  "control_passed": true,
+  "query_contract": {
+    "schema_version": 3,
+    "claim_type": "existential",
+    "candidate_universe": [
+      "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+    ],
+    "required_coverage": {
+      "candidate_ids": [
+        "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+      ],
+      "minimum_evaluated": 1,
+      "minimum_per_group": null
+    },
+    "round_budget": 1,
+    "comparison_groups": null,
+    "candidate_universe_closed": false,
+    "existential_witness_outcome": "pass",
+    "control_requirement": "required"
+  },
+  "assessment": {
+    "schema_version": 1,
+    "contract": {
+      "schema_version": 3,
+      "claim_type": "existential",
+      "candidate_universe": [
+        "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+      ],
+      "required_coverage": {
+        "candidate_ids": [
+          "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+        ],
+        "minimum_evaluated": 1,
+        "minimum_per_group": null
+      },
+      "round_budget": 1,
+      "comparison_groups": null,
+      "candidate_universe_closed": false,
+      "existential_witness_outcome": "pass",
+      "control_requirement": "required"
+    },
+    "should_stop": true,
+    "stop_reason": "evidence_sufficient",
+    "claim_verdict": "supported",
+    "evidence_sufficient": true,
+    "completed_rounds": 1,
+    "round_budget": 1,
+    "budget_remaining": 0,
+    "candidate_universe_closed": false,
+    "candidate_discovery_required": false,
+    "observed_candidate_ids": [
+      "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+    ],
+    "decisive_candidate_ids": [
+      "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+    ],
+    "conflict_candidate_ids": [],
+    "unknown_candidate_ids": [],
+    "untested_required_candidate_ids": [],
+    "untested_candidate_ids": [],
+    "recommended_candidate_ids": [],
+    "rationale": "A definitive pass candidate witnesses the existential claim.",
+    "statistics": {
+      "existential_witness_outcome": "pass",
+      "witness_candidate_ids": [
+        "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+      ]
+    },
+    "limitations": [
+      "This is a finite-domain stopping prototype, not a statistical generalization guarantee.",
+      "The candidate universe is open; exhaustive, no-counterexample, and worst-case conclusions are not licensed."
+    ]
+  },
+  "records": [
+    {
+      "schema_version": 1,
+      "round_id": "round_1",
+      "template_id": "task_execution.official_baseline",
+      "candidate_id": "task_execution.official_baseline",
+      "open_query_evidence": {
+        "schema_version": 1,
+        "round_id": "round_1",
+        "tested_sub_aspect": "task_execution.official_baseline",
+        "tested_hypothesis": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。",
+        "tested_perturbation": "unchanged official-scene control",
+        "outcome": "success",
+        "evidence_summary": "EvidencePacket strength=sufficient; policy_success_rate=1.0; Rule metric=official_check_success; outcome_metric=official_check_success; outcome_authority=official_check_success; outcome_semantics=official_only; VQA status=passed; planned_tool_measurements=[{\"metric\": \"official_check_success\", \"null_reason\": null, \"passed\": true, \"provider_called\": false, \"route\": \"reuse\", \"unit\": null, \"value\": true}].",
+        "limitations": [
+          "One bounded runtime round is not a statistical generalization estimate."
+        ]
+      },
+      "candidate_evidence": {
+        "candidate_id": "task_execution.official_baseline",
+        "outcome": "pass",
+        "score": 1.0,
+        "diagnosis": null
+      },
+      "evaluation_outcome": {
+        "metric": "official_check_success",
+        "authority": "official_check_success",
+        "binding": null,
+        "value": 1.0,
+        "official_equivalent": true,
+        "execution_scope": "official_equivalent",
+        "outcome_semantics": {
+          "schema_version": 1,
+          "status": "official_only",
+          "evidence_conflict": false,
+          "official_equivalent": true,
+          "outcome_authority": "official_check_success",
+          "episodes": [],
+          "reason_codes": [
+            "official_outcome_has_no_generated_checker"
+          ]
+        }
+      },
+      "outcome_semantics": {
+        "schema_version": 1,
+        "status": "official_only",
+        "evidence_conflict": false,
+        "official_equivalent": true,
+        "outcome_authority": "official_check_success",
+        "episodes": [],
+        "reason_codes": [
+          "official_outcome_has_no_generated_checker"
+        ]
+      },
+      "planned_tool_evidence": [
+        {
+          "metric": "official_check_success",
+          "value": true,
+          "unit": null,
+          "passed": true,
+          "route": "reuse",
+          "provider_called": false,
+          "null_reason": null
+        }
+      ],
+      "evidence_packet": {
+        "schema_version": 1,
+        "round_id": "round_1",
+        "template_id": "task_execution.official_baseline",
+        "pipeline": {
+          "passed": true,
+          "failure_stage": null
+        },
+        "policy": {
+          "success_rate": 1.0,
+          "reported": true
+        },
+        "rule": {
+          "metric": "official_check_success",
+          "expected_policy_episodes": 1,
+          "aggregate_status": "passed",
+          "input_issue_count": 0,
+          "valid": 1,
+          "missing": 0,
+          "invalid": 0,
+          "semantic_missing": 0,
+          "semantic_missing_reasons": [],
+          "observed_policy_episodes": 1,
+          "complete": true,
+          "reasons": []
+        },
+        "vqa": {
+          "required": false,
+          "status": "passed",
+          "evidence_conflict": false
+        },
+        "evidence_strength": "sufficient",
+        "reason_codes": []
+      },
+      "evidence_refs": [
+        {
+          "kind": "child_manifest",
+          "path": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/manifest.json"
+        },
+        {
+          "kind": "evidence_aggregate",
+          "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/evidence_aggregate.json"
+        },
+        {
+          "kind": "round_aggregate",
+          "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/aggregate_result.json"
+        },
+        {
+          "kind": "tool_execution",
+          "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/planned_tool/tool_execution.json"
+        },
+        {
+          "kind": "execution_vqa_result",
+          "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa/execution_vqa.json"
+        }
+      ]
+    },
+    {
+      "schema_version": 1,
+      "round_id": "round_2",
+      "template_id": "",
+      "candidate_id": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
+      "open_query_evidence": {
+        "schema_version": 1,
+        "round_id": "round_2",
+        "tested_sub_aspect": "robustness of the policy to positional variation of the bell",
+        "tested_hypothesis": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。\nScene need: Shift the bell's position horizontally by a small, bounded distance while keeping its size, shape, material, and the overall scene layout unchanged. Preserve unchanged: 任务目标与接触几何语义; size; shape; material; the overall scene layout.\nChecker need: reuse the official implementation",
+        "tested_perturbation": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
+        "outcome": "success",
+        "evidence_summary": "EvidencePacket strength=sufficient; policy_success_rate=1.0; Rule metric=query_derived_metric; outcome_metric=official_check_success; outcome_authority=official_check_success_reused; outcome_semantics=official_only; VQA status=passed; planned_tool_measurements=[{\"metric\": \"query_derived_metric\", \"null_reason\": \"measured\", \"passed\": null, \"provider_called\": false, \"route\": \"typed_metric_spec_compile\", \"unit\": \"m\", \"value\": 0.4100531050769832}].",
+        "limitations": [
+          "One bounded runtime round is not a statistical generalization estimate."
+        ]
+      },
+      "candidate_evidence": {
+        "candidate_id": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
+        "outcome": "pass",
+        "score": 1.0,
+        "diagnosis": null
+      },
+      "evaluation_outcome": {
+        "metric": "official_check_success",
+        "authority": "official_check_success_reused",
+        "binding": null,
+        "value": 1.0,
+        "official_equivalent": true,
+        "execution_scope": "official_equivalent",
+        "outcome_semantics": {
+          "schema_version": 1,
+          "status": "official_only",
+          "evidence_conflict": false,
+          "official_equivalent": true,
+          "outcome_authority": "official_check_success_reused",
+          "episodes": [],
+          "reason_codes": [
+            "official_outcome_has_no_generated_checker"
+          ]
+        }
+      },
+      "outcome_semantics": {
+        "schema_version": 1,
+        "status": "official_only",
+        "evidence_conflict": false,
+        "official_equivalent": true,
+        "outcome_authority": "official_check_success_reused",
+        "episodes": [],
+        "reason_codes": [
+          "official_outcome_has_no_generated_checker"
+        ]
+      },
+      "planned_tool_evidence": [
+        {
+          "metric": "query_derived_metric",
+          "value": 0.4100531050769832,
+          "unit": "m",
+          "passed": null,
+          "route": "typed_metric_spec_compile",
+          "provider_called": false,
+          "null_reason": "measured"
+        }
+      ],
+      "evidence_packet": {
+        "schema_version": 1,
+        "round_id": "round_2",
+        "template_id": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
+        "pipeline": {
+          "passed": true,
+          "failure_stage": null
+        },
+        "policy": {
+          "success_rate": 1.0,
+          "reported": true
+        },
+        "rule": {
+          "metric": "query_derived_metric",
+          "expected_policy_episodes": 1,
+          "aggregate_status": "passed",
+          "input_issue_count": 0,
+          "valid": 1,
+          "missing": 0,
+          "invalid": 0,
+          "semantic_missing": 0,
+          "semantic_missing_reasons": [],
+          "observed_policy_episodes": 1,
+          "complete": true,
+          "reasons": []
+        },
+        "vqa": {
+          "required": false,
+          "status": "passed",
+          "evidence_conflict": false
+        },
+        "evidence_strength": "sufficient",
+        "reason_codes": []
+      },
+      "evidence_refs": [
+        {
+          "kind": "child_manifest",
+          "path": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/manifest.json"
+        },
+        {
+          "kind": "evidence_aggregate",
+          "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/evidence_aggregate.json"
+        },
+        {
+          "kind": "round_aggregate",
+          "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/aggregate_result.json"
+        },
+        {
+          "kind": "tool_execution",
+          "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json"
+        },
+        {
+          "kind": "execution_vqa_result",
+          "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa/execution_vqa.json"
+        }
+      ]
+    }
+  ],
+  "open_query_evidence_history": [
+    {
+      "schema_version": 1,
+      "round_id": "round_1",
+      "tested_sub_aspect": "task_execution.official_baseline",
+      "tested_hypothesis": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。",
+      "tested_perturbation": "unchanged official-scene control",
+      "outcome": "success",
+      "evidence_summary": "EvidencePacket strength=sufficient; policy_success_rate=1.0; Rule metric=official_check_success; outcome_metric=official_check_success; outcome_authority=official_check_success; outcome_semantics=official_only; VQA status=passed; planned_tool_measurements=[{\"metric\": \"official_check_success\", \"null_reason\": null, \"passed\": true, \"provider_called\": false, \"route\": \"reuse\", \"unit\": null, \"value\": true}].",
+      "limitations": [
+        "One bounded runtime round is not a statistical generalization estimate."
+      ]
+    },
+    {
+      "schema_version": 1,
+      "round_id": "round_2",
+      "tested_sub_aspect": "robustness of the policy to positional variation of the bell",
+      "tested_hypothesis": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。\nScene need: Shift the bell's position horizontally by a small, bounded distance while keeping its size, shape, material, and the overall scene layout unchanged. Preserve unchanged: 任务目标与接触几何语义; size; shape; material; the overall scene layout.\nChecker need: reuse the official implementation",
+      "tested_perturbation": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
+      "outcome": "success",
+      "evidence_summary": "EvidencePacket strength=sufficient; policy_success_rate=1.0; Rule metric=query_derived_metric; outcome_metric=official_check_success; outcome_authority=official_check_success_reused; outcome_semantics=official_only; VQA status=passed; planned_tool_measurements=[{\"metric\": \"query_derived_metric\", \"null_reason\": \"measured\", \"passed\": null, \"provider_called\": false, \"route\": \"typed_metric_spec_compile\", \"unit\": \"m\", \"value\": 0.4100531050769832}].",
+      "limitations": [
+        "One bounded runtime round is not a statistical generalization estimate."
+      ]
+    }
+  ],
+  "query_answer": {
+    "schema_version": 1,
+    "original_query": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。",
+    "answered": true,
+    "answer_scope": "official_equivalent",
+    "official_benchmark_answered": true,
+    "stop_reason": "evidence_sufficient",
+    "claim_type": "existential",
+    "claim_verdict": "supported",
+    "answer": "For the finite registered candidate domain, the Query verdict is supported.",
+    "tested_candidate_ids": [
+      "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+    ],
+    "untested_candidate_ids": [],
+    "limitations": [
+      "This is a finite-domain stopping prototype, not a statistical generalization guarantee.",
+      "The candidate universe is open; exhaustive, no-counterexample, and worst-case conclusions are not licensed.",
+      "This answer is limited to the bound task, checkpoint, variants, and recorded seeds.",
+      "A finite-domain N-small result is not a broad generalization guarantee."
+    ],
+    "evidence_refs": [
+      {
+        "kind": "child_manifest",
+        "path": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/manifest.json"
+      },
+      {
+        "kind": "evidence_aggregate",
+        "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/evidence_aggregate.json"
+      },
+      {
+        "kind": "round_aggregate",
+        "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/aggregate_result.json"
+      },
+      {
+        "kind": "tool_execution",
+        "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/planned_tool/tool_execution.json"
+      },
+      {
+        "kind": "execution_vqa_result",
+        "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa/execution_vqa.json"
+      },
+      {
+        "kind": "child_manifest",
+        "path": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/manifest.json"
+      },
+      {
+        "kind": "evidence_aggregate",
+        "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/evidence_aggregate.json"
+      },
+      {
+        "kind": "round_aggregate",
+        "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/aggregate_result.json"
+      },
+      {
+        "kind": "tool_execution",
+        "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json"
+      },
+      {
+        "kind": "execution_vqa_result",
+        "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa/execution_vqa.json"
+      }
+    ],
+    "evaluation_outcomes": [
+      {
+        "metric": "official_check_success",
+        "authority": "official_check_success",
+        "binding": null,
+        "value": 1.0,
+        "official_equivalent": true,
+        "execution_scope": "official_equivalent",
+        "outcome_semantics": {
+          "schema_version": 1,
+          "status": "official_only",
+          "evidence_conflict": false,
+          "official_equivalent": true,
+          "outcome_authority": "official_check_success",
+          "episodes": [],
+          "reason_codes": [
+            "official_outcome_has_no_generated_checker"
+          ]
+        }
+      },
+      {
+        "metric": "official_check_success",
+        "authority": "official_check_success_reused",
+        "binding": null,
+        "value": 1.0,
+        "official_equivalent": true,
+        "execution_scope": "official_equivalent",
+        "outcome_semantics": {
+          "schema_version": 1,
+          "status": "official_only",
+          "evidence_conflict": false,
+          "official_equivalent": true,
+          "outcome_authority": "official_check_success_reused",
+          "episodes": [],
+          "reason_codes": [
+            "official_outcome_has_no_generated_checker"
+          ]
+        }
+      }
+    ],
+    "outcome_semantics": [
+      {
+        "schema_version": 1,
+        "status": "official_only",
+        "evidence_conflict": false,
+        "official_equivalent": true,
+        "outcome_authority": "official_check_success",
+        "episodes": [],
+        "reason_codes": [
+          "official_outcome_has_no_generated_checker"
+        ]
+      },
+      {
+        "schema_version": 1,
+        "status": "official_only",
+        "evidence_conflict": false,
+        "official_equivalent": true,
+        "outcome_authority": "official_check_success_reused",
+        "episodes": [],
+        "reason_codes": [
+          "official_outcome_has_no_generated_checker"
+        ]
+      }
+    ],
+    "evidence_conflict": false
+  }
+}

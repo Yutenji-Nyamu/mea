@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "requested_route": "auto",
+  "route": "run_local_reuse",
+  "reference_tool": null,
+  "tool_spec": {
+    "schema_version": 1,
+    "task_name": "click_bell",
+    "metric": "query_derived_metric",
+    "question": "Does the ACT policy successfully activate the bell when its position is shifted within a bounded range?",
+    "route": "force_codegen",
+    "reference_tool": null,
+    "required_signals": [
+      "semantic_trace.left_tcp_position",
+      "semantic_trace.bell_contact_position",
+      "semantic_trace.physics_step"
+    ],
+    "output_contract": {
+      "source": "typed_metric_spec_v1",
+      "metric_spec": {
+        "schema_version": 1,
+        "operation": "minimum_distance",
+        "left_signal": "left_tcp_position",
+        "right_signal": "bell_contact_position",
+        "dimensions": [
+          "x",
+          "y"
+        ],
+        "unit": "m",
+        "null_semantics": "null_if_no_finite_sample"
+      },
+      "value_type": "number_or_null",
+      "unit": "m",
+      "passed": null,
+      "evidence": "argmin_physics_step"
+    },
+    "validation_requirements": {
+      "min_episodes": 1,
+      "distinct_reference_values": false,
+      "required_reference_values": []
+    }
+  },
+  "tool_request": {
+    "schema_version": 2,
+    "task_name": "click_bell",
+    "metric": "query_derived_metric",
+    "question": "Does the ACT policy successfully activate the bell when its position is shifted within a bounded range?",
+    "metric_spec": {
+      "schema_version": 1,
+      "operation": "minimum_distance",
+      "left_signal": "left_tcp_position",
+      "right_signal": "bell_contact_position",
+      "dimensions": [
+        "x",
+        "y"
+      ],
+      "unit": "m",
+      "null_semantics": "null_if_no_finite_sample"
+    }
+  },
+  "route_decision": {
+    "schema_version": 1,
+    "status": "resolved",
+    "matching_policy": "strict_exact_metric_id",
+    "requested_route": "auto",
+    "resolved_route": "run_local_reuse",
+    "task_name": "click_bell",
+    "metric": "query_derived_metric",
+    "exact_match": true,
+    "matched_registry": "evaluation_local_tool_registry",
+    "reference_tool": null,
+    "provider_required": false,
+    "reason": "exact typed MetricSpec, task, and telemetry schema matched a validated evaluation-local Tool",
+    "catalog_snapshot_sha256": "f68d3894ea38589f958c78ac1b226f633955d0480d35b4987e6e145341c897be",
+    "provider_called": false
+  },
+  "source": {
+    "scope": "run_local_registry",
+    "tool": "query_derived_metric",
+    "reference_tool": null,
+    "artifact": null,
+    "registration_id": "runlocal_6e7c5dc558a8dad45199"
+  },
+  "episodes": [
+    {
+      "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+      "policy_name": "ACT",
+      "seed": 100405,
+      "role": "policy_under_evaluation",
+      "result": {
+        "tool": "query_derived_metric",
+        "value": 0.4100531050769832,
+        "unit": "m",
+        "passed": null,
+        "evidence_steps": [
+          4238
+        ],
+        "details": {
+          "operation": "minimum_distance",
+          "left_signal": "left_tcp_position",
+          "right_signal": "bell_contact_position",
+          "dimensions": [
+            "x",
+            "y"
+          ],
+          "min_index": 4238,
+          "reason": "measured"
+        },
+        "tool_sha256": "26bffe98e03f11e1c382b8ecee7f7e2d35740a311bbfa8d81d4d109fe119db97"
+      }
+    }
+  ],
+  "validation": {
+    "provider_called": false,
+    "typed_metric_spec": true,
+    "task_code_context_consumed": true,
+    "episode_count": 1,
+    "differential_gates_passed": true
+  },
+  "artifacts": {
+    "tool_request": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/repairs/batch31_v13_cross_query_reuse/second_query_exact_reuse/planned_tool/tool_request.json",
+    "catalog_snapshot": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/repairs/batch31_v13_cross_query_reuse/second_query_exact_reuse/planned_tool/catalog_snapshot.json",
+    "route_decision": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/repairs/batch31_v13_cross_query_reuse/second_query_exact_reuse/planned_tool/route_decision.json",
+    "metric_spec_execution": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/repairs/batch31_v13_cross_query_reuse/second_query_exact_reuse/planned_tool/typed_metric_spec/execution.json",
+    "resolved_tool_spec": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/repairs/batch31_v13_cross_query_reuse/second_query_exact_reuse/planned_tool/resolved_tool_spec.json",
+    "tool_execution": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/repairs/batch31_v13_cross_query_reuse/second_query_exact_reuse/planned_tool/tool_execution.json"
+  }
+}

@@ -7,7 +7,6 @@ from mea.toolgen import (
     execute_tool_request,
     load_registry,
     pickup_to_contact_tool_request,
-    request_candidate_promotion,
 )
 from tests.manipeval.test_tool_orchestration import (
     FakeProvider,
@@ -185,66 +184,6 @@ class RunLocalRegistryTests(unittest.TestCase):
         self.assertEqual(provider.calls, 1)
         self.assertEqual(result["route"], "force_codegen")
         self.assertEqual(len(load_registry(registry_dir)["entries"]), 2)
-
-    def _promotion_evidence(self):
-        return {
-            "positive_examples": ["property_positive", "expert_rollout"],
-            "negative_examples": ["no_pickup", "contact_before_pickup"],
-            "determinism_passed": True,
-            "oracle_agreement_passed": True,
-            "real_rollouts": ["act/episode_000_seed_100000"],
-        }
-
-    def test_explicit_candidate_promotion_requires_bounded_evidence(self):
-        self._generate_first()
-        registry_dir = self.evaluation_dir / "tool_registry"
-        registration_id = load_registry(registry_dir)["entries"][0][
-            "registration_id"
-        ]
-
-        rejected = request_candidate_promotion(
-            registry_dir,
-            registration_id,
-            {"positive_examples": [], "negative_examples": []},
-        )
-        self.assertEqual(rejected["status"], "rejected")
-        self.assertIn(
-            "at_least_one_real_rollout_required", rejected["reasons"]
-        )
-        unchanged = load_registry(registry_dir)["entries"][0]["promotion"]
-        self.assertEqual(unchanged["candidate"]["status"], "not_requested")
-
-        eligible = request_candidate_promotion(
-            registry_dir,
-            registration_id,
-            self._promotion_evidence(),
-        )
-        self.assertEqual(eligible["status"], "eligible")
-        promoted = load_registry(registry_dir)["entries"][0]["promotion"]
-        self.assertEqual(promoted["candidate"]["status"], "eligible")
-        self.assertEqual(
-            promoted["trusted"]["status"],
-            "requires_code_review_and_tests",
-        )
-        self.assertEqual(promoted["current_scope"], "run_local")
-
-    def test_candidate_promotion_rejects_modified_code(self):
-        self._generate_first()
-        registry_dir = self.evaluation_dir / "tool_registry"
-        entry = load_registry(registry_dir)["entries"][0]
-        source_path = registry_dir / entry["source_artifact"]
-        source_path.write_text(
-            source_path.read_text(encoding="utf-8") + "\n# tampered\n",
-            encoding="utf-8",
-        )
-        decision = request_candidate_promotion(
-            registry_dir,
-            entry["registration_id"],
-            self._promotion_evidence(),
-        )
-        self.assertEqual(decision["status"], "rejected")
-        self.assertIn("registered_code_integrity_failed", decision["reasons"])
-
 
 if __name__ == "__main__":
     unittest.main()

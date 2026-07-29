@@ -1,3 +1,3 @@
 {
-  "user_request": "Find one bounded change in the manipulated object properties that exposes an ACT weakness; test it and explain the evidence."
+  "user_request": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。"
 }

@@ -148,6 +148,11 @@ _FROZEN_PRESERVATION_TERMS = (
     "language instruction",
     "robot state",
     "timing",
+    "策略检查点",
+    "随机种子",
+    "动作接口",
+    "机器人配置",
+    "任务指令",
 )
 _VISUAL_PRESERVATION_TERMS = (
     "appearance",
@@ -163,6 +168,16 @@ _VISUAL_PRESERVATION_TERMS = (
     "layout",
     "interaction target",
     "target identity",
+    "外观",
+    "颜色",
+    "材质",
+    "纹理",
+    "光照",
+    "背景",
+    "环境",
+    "相机",
+    "布局",
+    "目标身份",
 )
 _SIMULATOR_STATE_PRESERVATION_TERMS = (
     "spatial",
@@ -178,6 +193,17 @@ _SIMULATOR_STATE_PRESERVATION_TERMS = (
     "placement",
     "location",
     "orientation",
+    "height",
+    "z coordinate",
+    "空间",
+    "接触点",
+    "接触位置",
+    "中心",
+    "世界位置",
+    "位姿",
+    "位置",
+    "姿态",
+    "高度",
 )
 _GEOMETRY_PRESERVATION_TERMS = (
     "geometry",
@@ -185,6 +211,11 @@ _GEOMETRY_PRESERVATION_TERMS = (
     "size",
     "scale",
     "dimension",
+    "几何",
+    "形状",
+    "大小",
+    "尺寸",
+    "比例",
 )
 _CHECKER_PRESERVATION_TERMS = (
     "success semantics",
@@ -197,6 +228,12 @@ _CHECKER_PRESERVATION_TERMS = (
     "task semantics",
     "goal semantics",
     "outcome semantics",
+    "成功语义",
+    "成功判据",
+    "成功标准",
+    "任务目标",
+    "任务语义",
+    "目标语义",
 )
 
 
@@ -233,6 +270,8 @@ def _same_seed_tracked_actor_state(
             actor_id = actor.get("id")
             if not isinstance(actor_id, str) or not actor_id:
                 return None
+            if actor_id in result:
+                return None
             result[actor_id] = actor
         return result
 
@@ -242,7 +281,7 @@ def _same_seed_tracked_actor_state(
         official_actors is None
         or generated_actors is None
         or not official_actors
-        or official_actors.keys() != generated_actors.keys()
+        or not set(official_actors).issubset(generated_actors)
     ):
         return None, "no_comparable_tracked_actor_state"
 
@@ -254,6 +293,19 @@ def _same_seed_tracked_actor_state(
         r"|\bcontact[\s-]+point\b",
         "",
         lowered,
+    )
+    requires_vertical_axis = any(
+        marker in lowered
+        for marker in (
+            "vertical axis",
+            "vertical coordinate",
+            "z-axis",
+            "z axis",
+            "z-coordinate",
+            "垂直轴",
+            "竖直轴",
+            "z轴",
+        )
     )
     requires_actor_position = (
         any(
@@ -277,6 +329,17 @@ def _same_seed_tracked_actor_state(
     requires_orientation = (
         "orientation" in lowered or "pose" in lowered
     )
+    requires_height = (
+        "height" in lowered
+        or "z coordinate" in lowered
+        or "高度" in lowered
+        or requires_vertical_axis
+    )
+    if requires_vertical_axis:
+        # "Position along the vertical axis" constrains only z.  Treating it
+        # as full xyz preservation would reject the horizontal perturbation
+        # that the same Proposal explicitly requests.
+        requires_actor_position = False
     component_results: list[bool | None] = []
     components: list[str] = []
 
@@ -314,7 +377,10 @@ def _same_seed_tracked_actor_state(
             field not in actor
             for actor in (
                 *official_actors.values(),
-                *generated_actors.values(),
+                *(
+                    generated_actors[actor_id]
+                    for actor_id in official_actors
+                ),
             )
         ):
             component_results.append(None)
@@ -326,6 +392,30 @@ def _same_seed_tracked_actor_state(
                 for actor_id in official_actors
             )
         )
+    if requires_height and not requires_actor_position:
+        components.append("position_z")
+        positions = [
+            (
+                official_actors[actor_id].get("position"),
+                generated_actors[actor_id].get("position"),
+            )
+            for actor_id in official_actors
+        ]
+        if any(
+            not isinstance(official, list)
+            or not isinstance(generated, list)
+            or len(official) < 3
+            or len(generated) < 3
+            for official, generated in positions
+        ):
+            component_results.append(None)
+        else:
+            component_results.append(
+                all(
+                    official[2] == generated[2]
+                    for official, generated in positions
+                )
+            )
 
     if not component_results:
         return None, "no_comparable_tracked_actor_state"
@@ -340,6 +430,68 @@ def _same_seed_tracked_actor_state(
         verified,
         "same_seed_simulator_state:tracked_actors."
         + "+".join(components),
+    )
+
+
+def _same_seed_tracked_actor_geometry(
+    official_setup: Mapping[str, Any] | None,
+    generated_setup: Mapping[str, Any] | None,
+) -> tuple[bool | None, str]:
+    """Compare collision dimensions/scales from simulator probes, never RGB."""
+
+    if not isinstance(official_setup, Mapping) or not isinstance(
+        generated_setup, Mapping
+    ):
+        return None, "no_same_seed_simulator_geometry_authority"
+    if (
+        official_setup.get("seed") is None
+        or official_setup.get("seed") != generated_setup.get("seed")
+    ):
+        return None, "no_same_seed_simulator_geometry_authority"
+
+    def geometry_by_id(
+        setup: Mapping[str, Any],
+    ) -> dict[str, Any] | None:
+        actors = setup.get("tracked_actors")
+        if not isinstance(actors, list):
+            return None
+        result: dict[str, Any] = {}
+        for actor in actors:
+            if not isinstance(actor, Mapping):
+                return None
+            actor_id = actor.get("id")
+            geometry = actor.get("collision_geometry")
+            if (
+                not isinstance(actor_id, str)
+                or not actor_id
+                or not isinstance(geometry, list)
+            ):
+                return None
+            if actor_id in result:
+                return None
+            result[actor_id] = geometry
+        return result
+
+    official_geometry = geometry_by_id(official_setup)
+    generated_geometry = geometry_by_id(generated_setup)
+    if (
+        not official_geometry
+        or not generated_geometry
+        or not set(official_geometry).issubset(generated_geometry)
+        or any(not value for value in official_geometry.values())
+        or any(
+            not generated_geometry[actor_id]
+            for actor_id in official_geometry
+        )
+    ):
+        return None, "no_comparable_simulator_collision_geometry"
+    return (
+        all(
+            official_geometry[actor_id]
+            == generated_geometry[actor_id]
+            for actor_id in official_geometry
+        ),
+        "same_seed_simulator_state:tracked_actors.collision_geometry",
     )
 
 
@@ -411,10 +563,14 @@ def build_preservation_report(
                     component_results.append(True)
                     authorities.append("exact_official_load_actors_reuse")
                 else:
-                    component_results.append(None)
-                    authorities.append(
-                        "no_simulator_or_ast_geometry_authority"
+                    geometry_verified, geometry_authority = (
+                        _same_seed_tracked_actor_geometry(
+                            official_setup,
+                            generated_setup,
+                        )
                     )
+                    component_results.append(geometry_verified)
+                    authorities.append(geometry_authority)
             if has_visual_term:
                 kinds.append("visual")
                 if not scene_generated:
@@ -828,20 +984,6 @@ def create_provider_scene_checker_taskgen_run(
     )
     write_json(run_dir / "manifest.json", manifest)
     return manifest
-
-
-def create_bbh_distractor_taskgen_run(
-    repo_root: Path,
-    **kwargs: Any,
-) -> dict[str, Any]:
-    """Compatibility entry for callers that explicitly require the BBH dialect."""
-
-    proposal = kwargs.get("task_proposal")
-    if not isinstance(proposal, Mapping) or proposal.get("task_name") != "beat_block_hammer":
-        raise BBHDistractorTaskGenError(
-            "BBH provider scene+checker requires a beat_block_hammer TaskProposal"
-        )
-    return create_provider_scene_checker_taskgen_run(repo_root, **kwargs)
 
 
 def materialize_reviewed_task_run(
@@ -1370,7 +1512,19 @@ def run_probe(
     scene["returncode"] = returncode
     write_json(scene_json, scene)
     if raise_on_failure and returncode != 0:
-        raise RuntimeError(f"setup/expert probe 失败，returncode={returncode}")
+        error = scene.get("error")
+        detail = ""
+        if isinstance(error, Mapping):
+            error_type = str(error.get("type") or "probe_error")
+            error_message = str(error.get("message") or "").strip()
+            detail = (
+                f": {error_type}: {error_message}"
+                if error_message
+                else f": {error_type}"
+            )
+        raise RuntimeError(
+            f"setup/expert probe failed, returncode={returncode}{detail}"
+        )
     return scene
 
 
@@ -1760,7 +1914,17 @@ def create_generic_provider_taskgen_run(
             "also assign self.mea_telemetry_tracked_actors to a list of dicts "
             "with exactly id, task_attribute, scene_name, functional_points, "
             "contact_points, and contact_focus; task_attribute must name the "
-            "public self attribute holding that actor. Do not redeclare an "
+            "public self attribute holding that actor, and contact_focus must "
+            "be a boolean. Actors already listed in the TASK "
+            "TELEMETRY/EXECUTION SCHEMA remain tracked automatically when "
+            "their pose or instance is replaced: do not assign "
+            "mea_telemetry_tracked_actors merely to repeat them. Include only "
+            "entirely new actors in that list. Every new actor must "
+            "have a unique simulator/contact identity distinct from every "
+            "base actor: pass a unique runtime_name to create_actor when the "
+            "asset modelname is reused, and declare that exact runtime "
+            "get_name() value as scene_name. The asset "
+            "modelname is not a unique runtime identity. Do not redeclare an "
             "actor already present in the TASK TELEMETRY/EXECUTION SCHEMA; "
             "that schema remains valid when the generated scene replaces the "
             "same public actor attribute and scene name. "
@@ -3318,14 +3482,6 @@ def validate_click_bell_scene_contract(
             lighting["authority"],
         ],
     }
-
-
-def validate_click_bell_scene_position(
-    scene: dict[str, Any], spec: dict[str, Any]
-) -> dict[str, Any]:
-    """Backward-compatible view of the fixed-position contract."""
-
-    return validate_click_bell_scene_contract(scene, spec)["position"]
 
 
 def run_visual_self_reflection(

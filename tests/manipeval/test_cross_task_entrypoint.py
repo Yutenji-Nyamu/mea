@@ -1648,6 +1648,47 @@ class CrossTaskEntrypointTests(unittest.TestCase):
             flag_index = command.index("--execution-receipt")
             self.assertEqual(command[flag_index + 1], str(receipt))
 
+    def test_probe_failure_surfaces_simulator_validation_diagnosis(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            run_dir = root / "mea/generated_tasks/run_failed_probe"
+            (run_dir / "validation").mkdir(parents=True)
+            manifest = {
+                "task_name": "click_bell",
+                "task_module": "generated.click_bell",
+            }
+
+            def fail_with_diagnosis(command, **_kwargs):
+                output = Path(command[command.index("--output") + 1])
+                output.write_text(
+                    json.dumps(
+                        {
+                            "error": {
+                                "type": "RecorderError",
+                                "message": "runtime actor identity mismatch",
+                            }
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                return 1
+
+            with patch(
+                "scripts.manipeval_taskgen.run_command",
+                side_effect=fail_with_diagnosis,
+            ):
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "RecorderError: runtime actor identity mismatch",
+                ):
+                    run_probe(
+                        root,
+                        run_dir,
+                        manifest,
+                        seed=7,
+                        expert=False,
+                    )
+
     def test_act_wrapper_receives_telemetry_profile_as_twelfth_argument(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

@@ -214,8 +214,10 @@ class ClickBellDistractorTaskGenTests(unittest.TestCase):
             }
         ]
         task = SimpleNamespace(
-            bell=object(),
-            distractor=object(),
+            bell=SimpleNamespace(get_name=lambda: "050_bell"),
+            distractor=SimpleNamespace(
+                get_name=lambda: "distractor_bell"
+            ),
             mea_telemetry_tracked_actors=extension,
         )
         schema = extend_task_schema_with_generated_actors(base, task)

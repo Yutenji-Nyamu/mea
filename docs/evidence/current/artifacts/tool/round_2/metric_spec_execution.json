@@ -1,0 +1,121 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "route": "typed_metric_spec_compile",
+  "provider_called": false,
+  "tool_spec": {
+    "schema_version": 1,
+    "task_name": "click_bell",
+    "metric": "query_derived_metric",
+    "question": "Does the ACT policy successfully activate the bell when its position is shifted within a bounded range?",
+    "route": "force_codegen",
+    "reference_tool": null,
+    "required_signals": [
+      "semantic_trace.left_tcp_position",
+      "semantic_trace.bell_contact_position",
+      "semantic_trace.physics_step"
+    ],
+    "output_contract": {
+      "source": "typed_metric_spec_v1",
+      "metric_spec": {
+        "schema_version": 1,
+        "operation": "minimum_distance",
+        "left_signal": "left_tcp_position",
+        "right_signal": "bell_contact_position",
+        "dimensions": [
+          "x",
+          "y"
+        ],
+        "unit": "m",
+        "null_semantics": "null_if_no_finite_sample"
+      },
+      "value_type": "number_or_null",
+      "unit": "m",
+      "passed": null,
+      "evidence": "argmin_physics_step"
+    },
+    "validation_requirements": {
+      "min_episodes": 1,
+      "distinct_reference_values": false,
+      "required_reference_values": []
+    }
+  },
+  "task_code_context_consumed": true,
+  "episodes": [
+    {
+      "episode_dir": "/root/autodl-tmp/mea/mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+      "policy_name": "ACT",
+      "seed": 100405,
+      "generated_result": {
+        "tool": "query_derived_metric",
+        "version": 1,
+        "generated": true,
+        "tool_sha256": "26bffe98e03f11e1c382b8ecee7f7e2d35740a311bbfa8d81d4d109fe119db97",
+        "value": 0.4100531050769832,
+        "unit": "m",
+        "passed": null,
+        "evidence_steps": [
+          4238
+        ],
+        "details": {
+          "operation": "minimum_distance",
+          "left_signal": "left_tcp_position",
+          "right_signal": "bell_contact_position",
+          "dimensions": [
+            "x",
+            "y"
+          ],
+          "min_index": 4238,
+          "reason": "measured"
+        }
+      },
+      "oracle_projection": {
+        "value": 0.4100531050769832,
+        "unit": "m",
+        "passed": null,
+        "evidence_steps": [
+          4238
+        ],
+        "details": {
+          "operation": "minimum_distance",
+          "left_signal": "left_tcp_position",
+          "right_signal": "bell_contact_position",
+          "dimensions": [
+            "x",
+            "y"
+          ],
+          "min_index": 4238,
+          "reason": "measured"
+        }
+      },
+      "deterministic": true,
+      "oracle_agreement": true,
+      "artifacts_unchanged": true
+    }
+  ],
+  "registration": {
+    "registration_id": "runlocal_6e7c5dc558a8dad45199",
+    "scope": "run_local",
+    "status": "validated",
+    "tool_id": "query_derived_metric",
+    "version": 1,
+    "target_metric": "query_derived_metric",
+    "contract_sha256": "5ffbb7236374d7d20c22453872004309ec8d1b1cd6958f53d59e838cc800ffd9",
+    "telemetry_schema_sha256": "17d24c437d9610558794bb84238a4a7564da4a367e6148c6fc21da5fa8aab730",
+    "code_sha256": "26bffe98e03f11e1c382b8ecee7f7e2d35740a311bbfa8d81d4d109fe119db97",
+    "promotion": {
+      "current_scope": "run_local",
+      "candidate": {
+        "status": "not_requested"
+      },
+      "trusted": {
+        "status": "not_requested"
+      }
+    }
+  },
+  "limitations": [
+    "four bounded typed operators only",
+    "development compiler path, not arbitrary Python generation",
+    "compiled output is checked twice against the trusted interpreter on each live episode; live values need not differ"
+  ]
+}

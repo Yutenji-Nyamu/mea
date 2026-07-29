@@ -268,6 +268,11 @@ do not use catch-all phrases such as "all other conditions unchanged".
 Use concrete, verifiable invariant names such as center position, color or
 material, scene layout, camera viewpoint, task instruction, policy checkpoint,
 or official success semantics.
+The requested change and preserved conditions must be jointly realizable:
+never request a size/shape/pose/contact change while also declaring that same
+quantity invariant. Prefer a bounded experiment whose invariants can be checked
+from simulator state, checker fixtures, or exact method reuse; RGB is only
+authority for visibly decidable appearance and plausibility.
 
 Independently declare the work needed to execute this first experiment.
 Request a scene only when requested_variation changes the simulator scene;

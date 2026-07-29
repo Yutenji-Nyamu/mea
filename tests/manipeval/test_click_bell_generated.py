@@ -22,7 +22,6 @@ from mea.taskgen.probe import light_component_colors, task_attribute_summary
 from scripts.manipeval_agent import build_taskgen_command
 from scripts.manipeval_taskgen import (
     validate_click_bell_scene_contract,
-    validate_click_bell_scene_position,
 )
 
 
@@ -1055,7 +1054,9 @@ class ClickBellGeneratedTests(unittest.TestCase):
             },
         }
         scene = {"tracked_actors": [{"id": "bell", "position": [-0.2, -0.08, 0.741]}]}
-        self.assertTrue(validate_click_bell_scene_position(scene, spec)["passed"])
+        self.assertTrue(
+            validate_click_bell_scene_contract(scene, spec)["position"]["passed"]
+        )
         vision = validate_click_bell_vision_observation(
             {
                 "aligned": True,

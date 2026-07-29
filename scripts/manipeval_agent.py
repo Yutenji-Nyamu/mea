@@ -51,6 +51,7 @@ from mea.planner import (
     discover_robotwin_task_inventory,
     evaluation_intent_from_free_concern,
     make_evaluation_id,
+    policy_task_binding_from_target,
     project_open_query_capabilities,
     render_query_answer,
     resolve_concern_candidate_domain,
@@ -352,6 +353,22 @@ def canonical_sha256(value: Any) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
+def bound_target_task_name(target: Mapping[str, Any]) -> str:
+    """Read a legacy target or the production PolicyTaskBinding identity."""
+
+    task_name = target.get("task_name")
+    if not isinstance(task_name, str) or not task_name.strip():
+        binding = target.get("policy_task_binding")
+        task_name = (
+            binding.get("task_name")
+            if isinstance(binding, Mapping)
+            else None
+        )
+    if not isinstance(task_name, str) or not task_name.strip():
+        raise RuntimeError("evaluation target has no bound task identity")
+    return task_name.strip()
+
+
 def apply_bounded_round_proposal(
     *,
     proposal_agent: BoundedProposalAgent,
@@ -366,7 +383,7 @@ def apply_bounded_round_proposal(
     """Author and persist one bounded Task/Tool Proposal for a materialized round."""
 
     round_plan = deepcopy(round_plan)
-    bound_task_name = str(target.get("task_name") or "")
+    bound_task_name = bound_target_task_name(target)
     supplied_task_name = round_plan.get("task_name")
     if supplied_task_name not in {None, bound_task_name}:
         raise RuntimeError("round proposal cannot change the bound task")
@@ -3111,14 +3128,8 @@ def execute_round(
     reviewed_tool_registry: Path | None = None,
     reviewed_vqa_registry: Path | None = None,
     registration_identity: dict[str, Any] | None = None,
-    round_attempt_index: int = 1,
 ) -> tuple[dict[str, Any], Path, dict[str, Any], dict[str, Any], int,]:
-    if round_attempt_index < 1:
-        raise ValueError("round_attempt_index must be positive")
     round_id = round_plan["round_id"]
-    run_id_suffix = (
-        "" if round_attempt_index == 1 else f"_attempt_{round_attempt_index:02d}"
-    )
     command, run_id = build_taskgen_command(
         repo_root,
         evaluation_id,
@@ -3131,11 +3142,9 @@ def execute_round(
         telemetry_profile=telemetry_profile,
         reviewed_task_registry=reviewed_task_registry,
         registration_identity=registration_identity,
-        run_id_suffix=run_id_suffix,
+        run_id_suffix="",
     )
     execution_dir = evaluation_dir / "execution" / round_id
-    if round_attempt_index > 1:
-        execution_dir = execution_dir / f"round_attempt_{round_attempt_index:02d}"
     write_json(
         execution_dir / "taskgen_command.json",
         {"command": command, "child_run_id": run_id},
@@ -3334,7 +3343,7 @@ def execute_round(
         execution_vqa,
         returncode,
     )
-    round_summary["round_attempt_index"] = round_attempt_index
+    round_summary["round_attempt_index"] = 1
     round_summary["execution_artifact_dir"] = str(
         execution_dir.relative_to(repo_root)
     ).replace("\\", "/")
@@ -3344,47 +3353,6 @@ def execute_round(
     )
     write_json(evaluation_dir / "summary" / f"{round_id}.json", round_summary)
     return child_manifest, child_dir, round_summary, tool_evaluation, returncode
-
-
-def execute_round_once(
-    repo_root: Path,
-    evaluation_dir: Path,
-    evaluation_id: str,
-    round_plan: dict[str, Any],
-    *,
-    text_model: str,
-    vision_model: str,
-    base_url: str | None,
-    gpu: int,
-    max_reflections: int,
-    provider: Any,
-    toolgen_model: str,
-    telemetry_profile: str = "balanced_v1",
-    reviewed_task_registry: Path | None = None,
-    reviewed_tool_registry: Path | None = None,
-    reviewed_vqa_registry: Path | None = None,
-    registration_identity: dict[str, Any] | None = None,
-) -> tuple[dict[str, Any], Path, dict[str, Any], dict[str, Any], int]:
-    """Execute one paper-aligned round with no central restart controller."""
-
-    return execute_round(
-        repo_root,
-        evaluation_dir,
-        evaluation_id,
-        round_plan,
-        text_model=text_model,
-        vision_model=vision_model,
-        base_url=base_url,
-        gpu=gpu,
-        max_reflections=max_reflections,
-        provider=provider,
-        toolgen_model=toolgen_model,
-        telemetry_profile=telemetry_profile,
-        reviewed_task_registry=reviewed_task_registry,
-        reviewed_tool_registry=reviewed_tool_registry,
-        reviewed_vqa_registry=reviewed_vqa_registry,
-        registration_identity=registration_identity,
-    )
 
 
 def _round_evidence(
@@ -3883,9 +3851,9 @@ def parse_args() -> argparse.Namespace:
         "--task-name",
         default="beat_block_hammer",
         help=(
-            "Canonical RoboTwin task identity. beat_block_hammer uses the "
-            "bounded Plan/TaskGen flow; other schema-backed tasks use the "
-            "unchanged official expert-probe route."
+            "Canonical RoboTwin base-task identity used for checkpoint and "
+            "simulator binding. Schema-backed tasks can use the generic "
+            "retrieve/generate TaskGen path when the Query requires it."
         ),
     )
     parser.add_argument(
@@ -4837,6 +4805,7 @@ def main() -> None:
             global_catalog,
             args.task_name,
             max_rounds=claim_first_round_budget,
+            task_module=args.task_module,
         )
     if claim_first_mode:
         if claim_first_initial_target is None:
@@ -5055,6 +5024,7 @@ def main() -> None:
                     query_contract=query_sufficiency_contract,
                     candidate_aspect_ids=resolved_candidate_aspect_ids,
                     require_control_anchor=claim_first_control_required,
+                    retrieval_aspects=bound_plan_session.retrieval_aspects,
                 )
                 if frozen_first_open_candidate is not None:
                     frozen_first_open_candidate = (
@@ -5246,7 +5216,13 @@ def main() -> None:
         ),
         history_retrieval_status=history_retrieval.get("status"),
         task_name=args.task_name,
-        task_module=args.task_module,
+        task_module=(
+            policy_task_binding_from_target(claim_first_initial_target)[
+                "task_module"
+            ]
+            if claim_first_initial_target is not None
+            else args.task_module
+        ),
         task_profile=routed_task_profile or args.task_profile,
         generated_rounds=(args.generated_rounds if bounded_click_bell else None),
         telemetry_profile=args.telemetry_profile,
@@ -5298,7 +5274,9 @@ def main() -> None:
         ),
         max_agent_rounds=args.max_agent_rounds,
         bound_task_name=(
-            evaluation_target["task_name"] if evaluation_target is not None else None
+            bound_target_task_name(evaluation_target)
+            if evaluation_target is not None
+            else None
         ),
         bound_requested_aspect_ids=(
             list(args.bound_requested_aspect_ids)
@@ -5433,7 +5411,7 @@ def main() -> None:
                 round_summary,
                 tool_evaluation,
                 returncode,
-            ) = execute_round_once(
+            ) = execute_round(
                 repo_root,
                 evaluation_dir,
                 evaluation_id,

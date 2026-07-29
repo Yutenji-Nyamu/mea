@@ -1,0 +1,18 @@
+{
+  "schema_version": 2,
+  "task_name": "click_bell",
+  "metric": "query_derived_metric",
+  "question": "Does the ACT policy successfully activate the bell when its position is shifted within a bounded range?",
+  "metric_spec": {
+    "schema_version": 1,
+    "operation": "minimum_distance",
+    "left_signal": "left_tcp_position",
+    "right_signal": "bell_contact_position",
+    "dimensions": [
+      "x",
+      "y"
+    ],
+    "unit": "m",
+    "null_semantics": "null_if_no_finite_sample"
+  }
+}

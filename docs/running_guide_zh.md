@@ -20,10 +20,10 @@ nvidia-smi
 确认要评估的 RoboTwin task、policy checkpoint、seed、最大轮数和 ACT 预算。不要在本地
 Windows 下载 checkpoint 或启动 simulator。
 
-batch28 v2 类错误按两层预检归因：base Python 的 import/setup 失败是解释器错误；在
-正确解释器下，若生成代码用 `pose.p[i] += ...` 或复用同一 Pose 后场景仍与 control
-相同，则是 TaskGen Pose no-op，必须复制位置并新建 `sapien.Pose`。两者都不要归因给
-policy、provider 或 VLM；修正后仍须通过 state/checker、render、VLM 与 expert gate。
+预检按层归因：base Python 的 import/setup 失败是解释器错误；在正确解释器下，若生成
+代码用 `pose.p[i] += ...` 或复用同一 Pose 后场景仍与 control 相同，则是 TaskGen
+Pose no-op，必须复制位置并新建 `sapien.Pose`。两者都不要归因给 policy、provider 或
+VLM；修正后仍须通过 state/checker、render、VLM 与 expert gate。
 
 ## 2. Plan-only
 
@@ -57,17 +57,17 @@ no-control plan 的初始 `rounds` 可以为空，状态应为
 假的 control 壳。plan-only 不能预测后续一定 exact reuse 或 generation，更不得写成
 policy evidence。
 
-若 online resolver 已输出 `unsupported`，之后基于冻结 concern 的 0-provider
-replay 只能证明确定性 resolver/control handoff，不能倒推成一次在线成功。当前
-下一次干净 ClickBell flagship 的通过标准更严格：无 aspect/template CLI hint、无 history
-rollout replay、一个进程完成两至三轮 control/candidate→TaskGen→Tool/VQA→Aggregate
-→Answer；每个动态 candidate 必须有 `direct+complete` ImplementationTrace，最终
-post-run acceptance projection 为 `accepted=true`。
+若 online resolver 已输出 `unsupported`，之后基于冻结 concern 的 0-provider replay
+只能证明确定性 resolver/control handoff，不能倒推成一次在线成功。通用在线语义验收
+要求：无 aspect/template CLI hint、无 history rollout replay、一个进程完成有界的
+control/candidate→TaskGen→Tool/VQA→Aggregate→Answer；每个动态 candidate 必须有
+`direct+complete` ImplementationTrace，且 post-run acceptance projection 必须与最终
+回答一致。`accepted=true` 是正验收条件，不是尚未运行时的预设结果。
 
 不传 `--bound-task-name` 的 auto-route 只能在已声明的 checkpoint portfolio 中选择，
-不是让一个单任务 policy 执行任意发现的 task。当前可发现 50 个 RoboTwin official
-task，但 discovery 不等于 checkpoint-ready。语义相近却与单任务 checkpoint 不兼容时
-必须 fail closed；不得靠 task 名覆盖绕过 scope gate。
+不是让一个单任务 policy 执行任意发现的 task。official discovery 不等于
+checkpoint-ready。语义相近却与单任务 checkpoint 不兼容时必须 fail closed；不得靠
+task 名覆盖绕过 scope gate。
 
 ## 3. Live evaluation
 
@@ -116,7 +116,8 @@ Answer 不得把实验语义写成 official benchmark 结论。
 
 ## 4. 查看证据
 
-最近一次公开索引见 `docs/evidence/current/manifest.json`。原始 bundle 根目录由
+最近一次公开索引见
+`docs/evidence/current/evidence_bundle_manifest.json`。原始 bundle 根目录由
 manifest 的 `source_server_path` 记录。阅读顺序：
 
 ```text
@@ -161,12 +162,6 @@ LIBERO 的固定环境、official control 与 MEA 迁移协议见
 rollout 在构造 custom env 前恢复捕获的 RNG state，避免把初始化顺序差异误判为 BDDL
 效应。
 
-batch27 `libero_object/task0` 已执行 official-positive/custom-negative 两回合：
-2 rollouts、132.698 s，`method_chain_valid=true`、Tool exact reuse，
-`query_sufficient=false`。该运行只能称 method-chain smoke；custom failure、单 seed
-和四个未测 goal object 决定了它不是 robustness、效率或跨环境一致性证据。batch26
-control-failed 结果保留为 parity 修复前的 fail-closed 历史负例。
-
 ## 6. 测试原则
 
 - 纯 schema、Planner、fixture 和 registry 单测可在服务器快速执行。
@@ -193,19 +188,9 @@ install -m 600 \
   /root/.libero/config.yaml
 ```
 
-该文件只记录服务器路径，不含账号或 key。本批全量回归正是通过此 fallback 消除了
-LIBERO import prompt。
+该文件只记录服务器路径，不含账号或 key；它用于避免非交互测试被 LIBERO 配置询问
+阻塞。
 
-当前公开旗舰见[当前证据](evidence/current/README.md)：v19 使用 seed `100000` 完成
-official/color/size 三轮 ACT（`1/1、1/1、0/1`），runtime 在 color 成功后才选择
-80% size；XY Tool 于第二轮生成并在第三轮 exact run-local reuse。最终 same-seed
-preservation audit 发现 round2 缺少 shape/size authority，round3 contact-point z 漂移
-`-0.0051580801 m`，因此覆盖原 runtime stop：`semantic_evidence_insufficient /
-inconclusive / accepted=false`。这是单 task/seed、总 `N=3` 的在线机械链证据和
-confounded negative，不是属性弱点或干净旗舰正验收。
-batch27 的
-catalog-external、第五个 RoboTwin adapter 与 LIBERO 结果见
-[`batch27_unified_adapter_libero`](../experiments/paper/results/batch27_unified_adapter_libero/)；
-效率、ranking 与 proxy 基线仍由
-[`batch26_claim_closure/summary.json`](../experiments/paper/results/batch26_claim_closure/summary.json)
-索引。
+最新运行的命令边界、样本数、验收状态和限制统一从
+[当前证据](evidence/current/README.md)读取；论文主张的累计覆盖和下一项优先缺口见
+[论文 claim 与 gap](paper_claim_gap_zh.md)。运行指南不固化某个旗舰版本的动态数值。

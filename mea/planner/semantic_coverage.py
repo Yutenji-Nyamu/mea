@@ -79,8 +79,9 @@ _NO_SCENE_CHANGE = re.compile(
 )
 _EXPLICIT_SCENE_CHANGE = re.compile(
     r"\b(?:add|enlarge|increase|move|recolor|reduce|remove|replace|resize|"
-    r"rotate|scale|shrink|swap)\w*\b"
-    r"|(?:增加|增大|放大|移动|换色|重着色|减小|缩小|移除|替换|旋转|缩放)",
+    r"rotate|scale|shift|shrink|swap|translate|offset|reposition)\w*\b"
+    r"|(?:增加|增大|放大|移动|偏移|重新定位|换色|重着色|减小|缩小|"
+    r"移除|替换|旋转|缩放)",
     re.IGNORECASE,
 )
 _STOPWORDS = {

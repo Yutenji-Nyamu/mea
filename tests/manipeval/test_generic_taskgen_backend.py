@@ -278,6 +278,21 @@ def _adapter() -> GenericRoboTwinTaskAdapter:
 
 
 class GenericTaskGenBackendTests(unittest.TestCase):
+    def test_safe_ast_allows_conventional_discard_loop_target(self) -> None:
+        tree = validate_method_ast(
+            "def load_actors(self):\n"
+            "    for _ in []:\n"
+            "        pass\n",
+            "load_actors",
+            safe_direct_calls=set(),
+            safe_module_calls=set(),
+            safe_method_calls=set(),
+            allowed_private_attributes=set(),
+            error_type=GenericTaskGenError,
+        )
+
+        self.assertIsInstance(tree, ast.Module)
+
     def test_infeasible_uniform_scale_preservation_fails_before_lookup(
         self,
     ) -> None:
@@ -434,7 +449,13 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                         "position": [0.1, -0.2, 0.3],
                         "quaternion": [0.0, 1.0, 0.0, 0.0],
                         "contact_points": {},
-                    }
+                    },
+                    {
+                        "id": "new_distractor",
+                        "position": [0.2, -0.2, 0.3],
+                        "quaternion": [1.0, 0.0, 0.0, 0.0],
+                        "contact_points": {},
+                    },
                 ],
             },
         )
@@ -637,7 +658,198 @@ class GenericTaskGenBackendTests(unittest.TestCase):
         self.assertEqual(report["checks"][0]["kind"], "geometry")
         self.assertEqual(
             report["checks"][0]["authority"],
-            "no_simulator_or_ast_geometry_authority",
+            "no_comparable_simulator_collision_geometry",
+        )
+
+    def test_same_seed_collision_geometry_verifies_shape_preservation(
+        self,
+    ) -> None:
+        geometry = [
+            {
+                "geometry_type": "BoxGeometry",
+                "half_lengths": [0.03, 0.03, 0.02],
+                "local_pose": {
+                    "position": [0.0, 0.0, 0.0],
+                    "quaternion": [1.0, 0.0, 0.0, 0.0],
+                },
+            }
+        ]
+        common_actor = {
+            "id": "target",
+            "position": [0.1, -0.2, 0.3],
+            "quaternion": [1.0, 0.0, 0.0, 0.0],
+            "contact_points": {},
+            "collision_geometry": geometry,
+        }
+        report = build_preservation_report(
+            ["target shape and size"],
+            scene_generated=True,
+            checker_generated=False,
+            visual_self_check_enabled=True,
+            visual={"passed": True, "unexpected_changes": []},
+            official_setup={"seed": 23, "tracked_actors": [common_actor]},
+            generated_setup={
+                "seed": 23,
+                "tracked_actors": [
+                    dict(common_actor),
+                    {
+                        "id": "new_distractor",
+                        "collision_geometry": [
+                            {
+                                "geometry_type": "BoxGeometry",
+                                "half_lengths": [0.02, 0.02, 0.02],
+                            }
+                        ],
+                    },
+                ],
+            },
+        )
+
+        self.assertTrue(report["verified"])
+        self.assertEqual(report["status"], "verified")
+        self.assertEqual(
+            report["checks"][0]["authority"],
+            "same_seed_simulator_state:"
+            "tracked_actors.collision_geometry",
+        )
+
+    def test_changed_collision_geometry_fails_shape_preservation(
+        self,
+    ) -> None:
+        official_actor = {
+            "id": "target",
+            "collision_geometry": [
+                {
+                    "geometry_type": "BoxGeometry",
+                    "half_lengths": [0.03, 0.03, 0.02],
+                }
+            ],
+        }
+        generated_actor = {
+            "id": "target",
+            "collision_geometry": [
+                {
+                    "geometry_type": "BoxGeometry",
+                    "half_lengths": [0.04, 0.03, 0.02],
+                }
+            ],
+        }
+        report = build_preservation_report(
+            ["target geometry"],
+            scene_generated=True,
+            checker_generated=False,
+            visual_self_check_enabled=True,
+            visual={"passed": True, "unexpected_changes": []},
+            official_setup={
+                "seed": 29,
+                "tracked_actors": [official_actor],
+            },
+            generated_setup={
+                "seed": 29,
+                "tracked_actors": [generated_actor],
+            },
+        )
+
+        self.assertFalse(report["verified"])
+        self.assertEqual(report["status"], "failed")
+
+    def test_chinese_goal_and_contact_geometry_preservation_is_typed(
+        self,
+    ) -> None:
+        actor = {
+            "id": "bell",
+            "collision_geometry": [
+                {
+                    "geometry_type": "create_actor_asset",
+                    "modelname": "050_bell",
+                    "model_id": 0,
+                    "convex": True,
+                    "is_static": True,
+                    "scale": [0.05, 0.05, 0.05],
+                }
+            ],
+        }
+        report = build_preservation_report(
+            ["任务目标与接触几何语义"],
+            scene_generated=True,
+            checker_generated=False,
+            visual_self_check_enabled=True,
+            visual={"passed": True, "unexpected_changes": []},
+            official_setup={"seed": 31, "tracked_actors": [actor]},
+            generated_setup={"seed": 31, "tracked_actors": [dict(actor)]},
+        )
+
+        self.assertTrue(report["verified"])
+        self.assertEqual(report["status"], "verified")
+        self.assertEqual(
+            report["checks"][0]["kind"],
+            "checker_semantics+geometry",
+        )
+
+    def test_height_preservation_ignores_requested_xy_offset(self) -> None:
+        common = {
+            "id": "bell",
+            "quaternion": [1.0, 0.0, 0.0, 0.0],
+            "contact_points": {},
+            "collision_geometry": [],
+        }
+        report = build_preservation_report(
+            ["height"],
+            scene_generated=True,
+            checker_generated=False,
+            visual_self_check_enabled=True,
+            visual={"passed": True, "unexpected_changes": []},
+            official_setup={
+                "seed": 37,
+                "tracked_actors": [
+                    {**common, "position": [0.0, 0.0, 0.76]}
+                ],
+            },
+            generated_setup={
+                "seed": 37,
+                "tracked_actors": [
+                    {**common, "position": [0.1, 0.0, 0.76]}
+                ],
+            },
+        )
+
+        self.assertTrue(report["verified"])
+        self.assertIn(
+            "position_z",
+            report["checks"][0]["authority"],
+        )
+
+    def test_vertical_axis_position_preservation_compares_only_z(self) -> None:
+        common = {
+            "id": "bell",
+            "quaternion": [1.0, 0.0, 0.0, 0.0],
+            "contact_points": {},
+            "collision_geometry": [],
+        }
+        report = build_preservation_report(
+            ["center position along the vertical axis"],
+            scene_generated=True,
+            checker_generated=False,
+            visual_self_check_enabled=True,
+            visual={"passed": True, "unexpected_changes": []},
+            official_setup={
+                "seed": 41,
+                "tracked_actors": [
+                    {**common, "position": [0.0, 0.0, 0.76]}
+                ],
+            },
+            generated_setup={
+                "seed": 41,
+                "tracked_actors": [
+                    {**common, "position": [0.05, 0.0, 0.76]}
+                ],
+            },
+        )
+
+        self.assertTrue(report["verified"])
+        self.assertEqual(
+            report["checks"][0]["authority"],
+            "same_seed_simulator_state:tracked_actors.position_z",
         )
 
     def test_legacy_visual_color_preservation_still_passes(self) -> None:
@@ -977,6 +1189,60 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                 ),
                 module,
             )
+            scene_only = build_generic_task_subclass_module(
+                methods,
+                official_module=f"envs.{task_name}",
+                official_class=task_name,
+                emit_overrides={
+                    "load_actors": True,
+                    "check_success": False,
+                },
+            )
+            scene_class = next(
+                node
+                for node in ast.parse(scene_only).body
+                if isinstance(node, ast.ClassDef)
+            )
+            self.assertEqual(
+                {
+                    node.name
+                    for node in scene_class.body
+                    if isinstance(node, ast.FunctionDef)
+                },
+                {"load_actors", "mea_official_check_success"},
+            )
+            checker_only = build_generic_task_subclass_module(
+                methods,
+                official_module=f"envs.{task_name}",
+                official_class=task_name,
+                emit_overrides={
+                    "load_actors": False,
+                    "check_success": True,
+                },
+            )
+            checker_class = next(
+                node
+                for node in ast.parse(checker_only).body
+                if isinstance(node, ast.ClassDef)
+            )
+            self.assertEqual(
+                {
+                    node.name
+                    for node in checker_class.body
+                    if isinstance(node, ast.FunctionDef)
+                },
+                {"check_success", "mea_official_check_success"},
+            )
+            with self.assertRaisesRegex(
+                GenericTaskGenError,
+                "emit_overrides",
+            ):
+                build_generic_task_subclass_module(
+                    methods,
+                    official_module=f"envs.{task_name}",
+                    official_class=task_name,
+                    emit_overrides={"load_actors": True},
+                )
             with self.assertRaisesRegex(
                 GenericTaskGenError, "forbidden AST node Import"
             ):
@@ -1299,6 +1565,15 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             self.assertNotIn("aspect_id", prompt)
             self.assertIn("increasing size by 50% uses 1.5", prompt)
             self.assertIn("reducing size by 50% (or to 50%) uses 0.5", prompt)
+            self.assertIn(
+                "tracked automatically even when their pose or instance is "
+                "replaced",
+                prompt,
+            )
+            self.assertIn(
+                "Assign it only when adding an entirely new actor",
+                prompt,
+            )
 
     def test_partial_generation_reuses_unrequested_official_method(
         self,
@@ -1446,6 +1721,18 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                     )
                     module_source = str(observed["module_source"])
                     self.assertNotIn("IGNORED_PROVIDER_", module_source)
+                    generated_class = next(
+                        node
+                        for node in ast.parse(module_source).body
+                        if isinstance(node, ast.ClassDef)
+                    )
+                    direct_methods = {
+                        node.name
+                        for node in generated_class.body
+                        if isinstance(node, ast.FunctionDef)
+                    }
+                    self.assertIn(generated, direct_methods)
+                    self.assertNotIn(reused, direct_methods)
                     fixture_methods = observed["fixture_methods"]
                     self.assertNotIn(
                         "IGNORED_PROVIDER_", json.dumps(fixture_methods)

@@ -130,6 +130,8 @@ class FreeConcernTests(unittest.TestCase):
         self.assertIn("not available until a later retrieval stage", prompt)
         self.assertIn("invariant base action", prompt)
         self.assertIn("Put distractors", prompt)
+        self.assertIn("jointly realizable", prompt)
+        self.assertIn("RGB is only", prompt)
         self.assertNotIn("open_laptop", prompt)
         self.assertNotIn("object.appearance", prompt)
 

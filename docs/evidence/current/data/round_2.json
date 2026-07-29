@@ -1,0 +1,115 @@
+{
+  "round_id": "round_2",
+  "aspect_id": "robustness of the policy to positional variation of the bell",
+  "template_id": null,
+  "taskgen_route": "generic_provider_scene_checker_codegen",
+  "taskgen_kind": "generic_provider_scene_checker_codegen",
+  "execution_backend": "ACT",
+  "seeds": [
+    100405
+  ],
+  "pipeline_passed": true,
+  "policy_success": 1.0,
+  "tool_metric": "query_derived_metric",
+  "tool_route": "typed_metric_spec_compile",
+  "tool_rows": [
+    {
+      "role": "policy_under_evaluation",
+      "policy_name": "ACT",
+      "seed": 100405,
+      "value": 0.4100531050769832,
+      "unit": "m",
+      "passed": null
+    }
+  ],
+  "vqa": {
+    "status": "passed",
+    "questions": [
+      {
+        "id": "bell_visibly_pressed",
+        "question": "Does the robot visibly press or actuate the target bell?"
+      }
+    ],
+    "phenomena": [
+      {
+        "id": "bell_visibly_pressed",
+        "observed": true,
+        "description": "The robot visibly presses the target bell.",
+        "confidence": 1.0,
+        "frame_ids": [
+          "success_before",
+          "success_after"
+        ]
+      }
+    ],
+    "numeric_consistency": "consistent",
+    "evidence_conflict": false
+  },
+  "aggregate_status": "passed",
+  "next_decision": {
+    "schema_version": 3,
+    "action": "stop",
+    "transition": "stop",
+    "next_aspect_id": null,
+    "next_template_id": null,
+    "observation_summary": "A definitive pass candidate witnesses the existential claim.",
+    "decision_reason": "claim_first_query_sufficiency_contract",
+    "answered_query": true,
+    "plan_step_source": "deterministic_query_sufficiency_contract",
+    "round_budget_before_decision": 0,
+    "evidence_assessment": {
+      "schema_version": 1,
+      "contract": {
+        "schema_version": 3,
+        "claim_type": "existential",
+        "candidate_universe": [
+          "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+        ],
+        "required_coverage": {
+          "candidate_ids": [
+            "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+          ],
+          "minimum_evaluated": 1,
+          "minimum_per_group": null
+        },
+        "round_budget": 1,
+        "comparison_groups": null,
+        "candidate_universe_closed": false,
+        "existential_witness_outcome": "pass",
+        "control_requirement": "required"
+      },
+      "should_stop": true,
+      "stop_reason": "evidence_sufficient",
+      "claim_verdict": "supported",
+      "evidence_sufficient": true,
+      "completed_rounds": 1,
+      "round_budget": 1,
+      "budget_remaining": 0,
+      "candidate_universe_closed": false,
+      "candidate_discovery_required": false,
+      "observed_candidate_ids": [
+        "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+      ],
+      "decisive_candidate_ids": [
+        "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+      ],
+      "conflict_candidate_ids": [],
+      "unknown_candidate_ids": [],
+      "untested_required_candidate_ids": [],
+      "untested_candidate_ids": [],
+      "recommended_candidate_ids": [],
+      "rationale": "A definitive pass candidate witnesses the existential claim.",
+      "statistics": {
+        "existential_witness_outcome": "pass",
+        "witness_candidate_ids": [
+          "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+        ]
+      },
+      "limitations": [
+        "This is a finite-domain stopping prototype, not a statistical generalization guarantee.",
+        "The candidate universe is open; exhaustive, no-counterexample, and worst-case conclusions are not licensed."
+      ]
+    },
+    "next_round": null
+  }
+}

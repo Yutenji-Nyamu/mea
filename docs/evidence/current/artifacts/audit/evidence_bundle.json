@@ -1,0 +1,4028 @@
+{
+  "schema_version": 2,
+  "evaluation_id": "eval_20260729_batch31_open_flagship_live_v13",
+  "user_request": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。",
+  "plan": {
+    "max_rounds": 2,
+    "executed_rounds": 2,
+    "planning_state": "stopped_after_round_2_evidence_sufficient",
+    "round_decisions": [
+      {
+        "schema_version": 2,
+        "action": "continue",
+        "transition": "switch_concern",
+        "candidate_id": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
+        "observation_summary": "Directly execute the catalog-free first concern selected for the original Query; no second Planner may replace it before the control evidence is observed.",
+        "decision_reason": "provider_authored_open_world_step",
+        "answered_query": false,
+        "plan_step_source": "provider_free_concern_direct_materialization",
+        "plan_step_proposal": {
+          "schema_version": 2,
+          "action": "propose",
+          "aspect_id": "free_concern.robustness.of.the.policy.to.positional.variation.of.the.bell",
+          "candidate_id": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
+          "execution_mode": "reuse_or_generate",
+          "experiment_candidate": {
+            "schema_version": 2,
+            "candidate_id": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
+            "source_query": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。",
+            "base_task": "click_bell",
+            "semantic_concern": "robustness of the policy to positional variation of the bell: The ACT policy can successfully complete the click_bell task when the bell is shifted to a new position within a bounded range.",
+            "scene_need": {
+              "kind": "adapt",
+              "description": "Shift the bell's position horizontally by a small, bounded distance while keeping its size, shape, material, and the overall scene layout unchanged. Preserve unchanged: 任务目标与接触几何语义; size; shape; material; the overall scene layout.",
+              "reuse_first": true
+            },
+            "checker_need": null,
+            "rule_tool_need": {
+              "kind": "measure",
+              "description": "Determine whether the policy successfully activates the bell in the new position. Hypothesis: The ACT policy can successfully complete the click_bell task when the bell is shifted to a new position within a bounded range.",
+              "reuse_first": true
+            },
+            "vqa_tool_need": null,
+            "tool_need": {
+              "kind": "measure",
+              "description": "Determine whether the policy successfully activates the bell in the new position. Hypothesis: The ACT policy can successfully complete the click_bell task when the bell is shifted to a new position within a bounded range.",
+              "reuse_first": true
+            },
+            "evaluation_intent": {
+              "schema_version": 1,
+              "intent_id": "intent.c7b8b7a89baaba20",
+              "source_query": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。",
+              "original_concern": "robustness of the policy to positional variation of the bell",
+              "hypothesis": "The ACT policy can successfully complete the click_bell task when the bell is shifted to a new position within a bounded range.",
+              "requested_change": "Shift the bell's position horizontally by a small, bounded distance while keeping its size, shape, material, and the overall scene layout unchanged.",
+              "preserved_conditions": [
+                "任务目标与接触几何语义",
+                "size",
+                "shape",
+                "material",
+                "the overall scene layout"
+              ],
+              "required_observation": "Determine whether the policy successfully activates the bell in the new position."
+            },
+            "intent_alignment": {
+              "schema_version": 1,
+              "relationship": "direct",
+              "rationale": "Candidate preserves the requested change, hypothesis, and observation semantics.",
+              "matched_intent_fields": [
+                "requested_change",
+                "preserved_conditions",
+                "hypothesis",
+                "required_observation"
+              ],
+              "unmatched_intent_fields": []
+            }
+          },
+          "rationale": "Directly execute the catalog-free first concern selected for the original Query; no second Planner may replace it before the control evidence is observed.",
+          "answered_query": false
+        },
+        "round_budget_before_decision": 1,
+        "query_assessment": {
+          "schema_version": 1,
+          "contract": {
+            "schema_version": 3,
+            "claim_type": "existential",
+            "candidate_universe": [
+              "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+            ],
+            "required_coverage": {
+              "candidate_ids": [
+                "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+              ],
+              "minimum_evaluated": 1,
+              "minimum_per_group": null
+            },
+            "round_budget": 1,
+            "comparison_groups": null,
+            "candidate_universe_closed": false,
+            "existential_witness_outcome": "pass",
+            "control_requirement": "required"
+          },
+          "should_stop": false,
+          "stop_reason": "continue",
+          "claim_verdict": "inconclusive",
+          "evidence_sufficient": false,
+          "completed_rounds": 0,
+          "round_budget": 1,
+          "budget_remaining": 1,
+          "candidate_universe_closed": false,
+          "candidate_discovery_required": true,
+          "observed_candidate_ids": [],
+          "decisive_candidate_ids": [],
+          "conflict_candidate_ids": [],
+          "unknown_candidate_ids": [],
+          "untested_required_candidate_ids": [
+            "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+          ],
+          "untested_candidate_ids": [
+            "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+          ],
+          "recommended_candidate_ids": [
+            "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+          ],
+          "rationale": "The query contract still has unresolved required evidence.",
+          "statistics": {
+            "existential_witness_outcome": "pass",
+            "witness_candidate_ids": []
+          },
+          "limitations": [
+            "This is a finite-domain stopping prototype, not a statistical generalization guarantee.",
+            "The candidate universe is open; exhaustive, no-counterexample, and worst-case conclusions are not licensed."
+          ]
+        },
+        "next_round": {
+          "round_id": "round_2",
+          "template_id": null,
+          "candidate_id": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
+          "experiment_candidate": {
+            "schema_version": 2,
+            "candidate_id": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
+            "source_query": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。",
+            "base_task": "click_bell",
+            "semantic_concern": "robustness of the policy to positional variation of the bell: The ACT policy can successfully complete the click_bell task when the bell is shifted to a new position within a bounded range.",
+            "scene_need": {
+              "kind": "adapt",
+              "description": "Shift the bell's position horizontally by a small, bounded distance while keeping its size, shape, material, and the overall scene layout unchanged. Preserve unchanged: 任务目标与接触几何语义; size; shape; material; the overall scene layout.",
+              "reuse_first": true
+            },
+            "checker_need": null,
+            "rule_tool_need": {
+              "kind": "measure",
+              "description": "Determine whether the policy successfully activates the bell in the new position. Hypothesis: The ACT policy can successfully complete the click_bell task when the bell is shifted to a new position within a bounded range.",
+              "reuse_first": true
+            },
+            "vqa_tool_need": null,
+            "tool_need": {
+              "kind": "measure",
+              "description": "Determine whether the policy successfully activates the bell in the new position. Hypothesis: The ACT policy can successfully complete the click_bell task when the bell is shifted to a new position within a bounded range.",
+              "reuse_first": true
+            },
+            "evaluation_intent": {
+              "schema_version": 1,
+              "intent_id": "intent.c7b8b7a89baaba20",
+              "source_query": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。",
+              "original_concern": "robustness of the policy to positional variation of the bell",
+              "hypothesis": "The ACT policy can successfully complete the click_bell task when the bell is shifted to a new position within a bounded range.",
+              "requested_change": "Shift the bell's position horizontally by a small, bounded distance while keeping its size, shape, material, and the overall scene layout unchanged.",
+              "preserved_conditions": [
+                "任务目标与接触几何语义",
+                "size",
+                "shape",
+                "material",
+                "the overall scene layout"
+              ],
+              "required_observation": "Determine whether the policy successfully activates the bell in the new position."
+            },
+            "intent_alignment": {
+              "schema_version": 1,
+              "relationship": "direct",
+              "rationale": "Candidate preserves the requested change, hypothesis, and observation semantics.",
+              "matched_intent_fields": [
+                "requested_change",
+                "preserved_conditions",
+                "hypothesis",
+                "required_observation"
+              ],
+              "unmatched_intent_fields": []
+            }
+          },
+          "sub_aspect": "robustness of the policy to positional variation of the bell",
+          "rationale": "Materialize only the Query-derived Task or Tool needs; no catalog template authorizes this round.",
+          "task_instruction": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。\nScene need: Shift the bell's position horizontally by a small, bounded distance while keeping its size, shape, material, and the overall scene layout unchanged. Preserve unchanged: 任务目标与接触几何语义; size; shape; material; the overall scene layout.\nChecker need: reuse the official implementation",
+          "task_name": "click_bell",
+          "task_module": null,
+          "telemetry_profile": "balanced_v1",
+          "route": "generic_provider_scene_checker_codegen",
+          "variant_hint": {},
+          "execution": {
+            "backend": "act",
+            "seeds": [
+              100405
+            ],
+            "num_episodes": 1,
+            "gates": [
+              "ast",
+              "render",
+              "visual_diagnosis",
+              "expert",
+              "act",
+              "toolkit",
+              "planned_tool",
+              "aggregate"
+            ]
+          },
+          "observations": [
+            "scene_alignment",
+            "expert_solvable",
+            "trusted_tools",
+            "planned_tool",
+            "aggregate"
+          ],
+          "tool_request": {
+            "schema_version": 1,
+            "task_name": "click_bell",
+            "metric": "official_check_success",
+            "question": "Fallback only: did the task success predicate pass?"
+          },
+          "open_tool_request_deferred": true,
+          "vqa_phenomenon_ids": [],
+          "semantic_need_execution": {
+            "schema_version": 2,
+            "candidate_id": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
+            "task": {
+              "requested": true,
+              "description": "Shift the bell's position horizontally by a small, bounded distance while keeping its size, shape, material, and the overall scene layout unchanged. Preserve unchanged: 任务目标与接触几何语义; size; shape; material; the overall scene layout.",
+              "route": "generic_provider_scene_checker_codegen",
+              "status": "selected"
+            },
+            "checker": {
+              "requested": false,
+              "description": null,
+              "route": "official_checker_reuse",
+              "status": "not_requested"
+            },
+            "rule_tool": {
+              "requested": true,
+              "description": "Determine whether the policy successfully activates the bell in the new position. Hypothesis: The ACT policy can successfully complete the click_bell task when the bell is shifted to a new position within a bounded range.",
+              "route": "after_executed_telemetry_schema",
+              "status": "pending"
+            },
+            "vqa_tool": {
+              "requested": false,
+              "description": null,
+              "route": "not_requested",
+              "status": "not_requested"
+            }
+          }
+        }
+      },
+      {
+        "schema_version": 3,
+        "action": "stop",
+        "transition": "stop",
+        "next_aspect_id": null,
+        "next_template_id": null,
+        "observation_summary": "A definitive pass candidate witnesses the existential claim.",
+        "decision_reason": "claim_first_query_sufficiency_contract",
+        "answered_query": true,
+        "plan_step_source": "deterministic_query_sufficiency_contract",
+        "round_budget_before_decision": 0,
+        "evidence_assessment": {
+          "schema_version": 1,
+          "contract": {
+            "schema_version": 3,
+            "claim_type": "existential",
+            "candidate_universe": [
+              "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+            ],
+            "required_coverage": {
+              "candidate_ids": [
+                "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+              ],
+              "minimum_evaluated": 1,
+              "minimum_per_group": null
+            },
+            "round_budget": 1,
+            "comparison_groups": null,
+            "candidate_universe_closed": false,
+            "existential_witness_outcome": "pass",
+            "control_requirement": "required"
+          },
+          "should_stop": true,
+          "stop_reason": "evidence_sufficient",
+          "claim_verdict": "supported",
+          "evidence_sufficient": true,
+          "completed_rounds": 1,
+          "round_budget": 1,
+          "budget_remaining": 0,
+          "candidate_universe_closed": false,
+          "candidate_discovery_required": false,
+          "observed_candidate_ids": [
+            "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+          ],
+          "decisive_candidate_ids": [
+            "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+          ],
+          "conflict_candidate_ids": [],
+          "unknown_candidate_ids": [],
+          "untested_required_candidate_ids": [],
+          "untested_candidate_ids": [],
+          "recommended_candidate_ids": [],
+          "rationale": "A definitive pass candidate witnesses the existential claim.",
+          "statistics": {
+            "existential_witness_outcome": "pass",
+            "witness_candidate_ids": [
+              "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+            ]
+          },
+          "limitations": [
+            "This is a finite-domain stopping prototype, not a statistical generalization guarantee.",
+            "The candidate universe is open; exhaustive, no-counterexample, and worst-case conclusions are not licensed."
+          ]
+        },
+        "next_round": null
+      }
+    ],
+    "requested_template_ids": [
+      "task_execution.official_baseline"
+    ],
+    "completed_template_ids": [
+      "task_execution.official_baseline",
+      null
+    ],
+    "remaining_template_ids": [],
+    "round_budget_remaining": 0,
+    "aspect_coverage": {
+      "schema_version": 1,
+      "initial_requested_aspect_ids": [
+        "task_execution.official_baseline",
+        "robustness of the policy to positional variation of the bell"
+      ],
+      "required_aspect_ids": [
+        "task_execution.official_baseline",
+        "robustness of the policy to positional variation of the bell"
+      ],
+      "covered_aspect_ids": [
+        "task_execution.official_baseline",
+        "robustness of the policy to positional variation of the bell"
+      ],
+      "discovered_aspect_ids": [],
+      "uncovered_required_aspect_ids": [],
+      "coverage_status": "complete"
+    }
+  },
+  "rounds": [
+    {
+      "round_id": "round_1",
+      "candidate_id": "task_execution.official_baseline",
+      "child_run_id": "run_20260729_batch31_open_flagship_live_v13_round_1",
+      "variant_id": "task_execution.official_baseline",
+      "template_id": "task_execution.official_baseline",
+      "capability_id": null,
+      "capability_contract": null,
+      "sub_aspect": "task_execution.official_baseline",
+      "task_instruction": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。",
+      "route": "official",
+      "seeds": [
+        100405
+      ],
+      "actual_seeds": [
+        100405
+      ],
+      "requested_seeds": [
+        100405
+      ],
+      "num_episodes": 1,
+      "requested_num_episodes": 1,
+      "task_retrieval": {
+        "catalog_size": null,
+        "selected_tasks": [],
+        "reasoning": null
+      },
+      "knowledge_retrieval": {
+        "selected_ids": [],
+        "context_character_count": null,
+        "committed_index_current": null
+      },
+      "generation": {
+        "variant_spec": {
+          "schema_version": 1,
+          "task_name": "click_bell",
+          "intent": "evaluate_official_task_unchanged",
+          "generation_mode": "official",
+          "changes": {},
+          "preserve": [
+            "official_task_source",
+            "official_task_identity"
+          ]
+        },
+        "complete_method_generated": null,
+        "generated_color": null
+      },
+      "visual_observation": {
+        "render_success": true,
+        "aligned": null,
+        "target_actor": null,
+        "bell_visible": null,
+        "observed_color": null,
+        "unexpected_changes": null,
+        "confidence": null,
+        "position_authority": null
+      },
+      "visual_self_reflection": {
+        "passed": null,
+        "max_repairs": null,
+        "repairs_used": null,
+        "final_attempt": null,
+        "attempt_count": 0
+      },
+      "observations": {
+        "execution_backend": "ACT",
+        "requested_seeds": [
+          100405
+        ],
+        "actual_seeds": [
+          100405
+        ],
+        "scene_alignment": true,
+        "observed_color": null,
+        "bell_visible": null,
+        "position_authority": null,
+        "expert_solvable": null,
+        "act_pipeline_status": true,
+        "policy_success": 1.0,
+        "policy_outcome": {
+          "metric": "official_check_success",
+          "authority": "official_check_success",
+          "binding": null,
+          "value": 1.0,
+          "official_equivalent": true,
+          "execution_scope": "official_equivalent",
+          "outcome_semantics": {
+            "schema_version": 1,
+            "status": "official_only",
+            "evidence_conflict": false,
+            "official_equivalent": true,
+            "outcome_authority": "official_check_success",
+            "episodes": [],
+            "reason_codes": [
+              "official_outcome_has_no_generated_checker"
+            ]
+          }
+        },
+        "outcome_semantics": {
+          "schema_version": 1,
+          "status": "official_only",
+          "evidence_conflict": false,
+          "official_equivalent": true,
+          "outcome_authority": "official_check_success",
+          "episodes": [],
+          "reason_codes": [
+            "official_outcome_has_no_generated_checker"
+          ]
+        },
+        "semantic_need_execution": null,
+        "position_samples": [],
+        "position_metrics": {},
+        "controlled_axis": null,
+        "variant_samples": [],
+        "variant_metrics": {},
+        "observed_bell_ids": [],
+        "bell_instance_id": null,
+        "scene_clutter": {
+          "expected": false,
+          "counts": [],
+          "all_matched": null,
+          "authority": null
+        },
+        "implementation_trace": null,
+        "required_gate_status": {
+          "required": [],
+          "by_gate": {},
+          "passed": true
+        },
+        "evidence_aggregate": {
+          "schema_version": 1,
+          "round_id": "round_1",
+          "execution_id": "task_execution.official_baseline",
+          "pipeline": {
+            "passed": true,
+            "failure_stage": null
+          },
+          "policy": {
+            "success_rate": 1.0,
+            "reported": true
+          },
+          "rule": {
+            "metric": "official_check_success",
+            "expected_policy_episodes": 1,
+            "aggregate_status": "passed",
+            "input_issue_count": 0,
+            "valid": 1,
+            "missing": 0,
+            "invalid": 0,
+            "semantic_missing": 0,
+            "semantic_missing_reasons": [],
+            "observed_policy_episodes": 1,
+            "complete": true,
+            "reasons": []
+          },
+          "tool": {
+            "requested": true,
+            "status": "passed",
+            "metric": "official_check_success",
+            "route": "reuse",
+            "provider_called": false
+          },
+          "vqa": {
+            "required": false,
+            "status": "passed",
+            "evidence_conflict": false
+          },
+          "outcome_semantics": {
+            "status": "official_only",
+            "evidence_conflict": false
+          },
+          "coverage": {
+            "expected_policy_episodes": 1,
+            "observed_policy_episodes": 1,
+            "rule_complete": true,
+            "tool_required": true,
+            "tool_complete": true,
+            "vqa_required": false,
+            "vqa_observed": true,
+            "intent_required": false,
+            "intent_complete": false,
+            "complete": true
+          },
+          "evidence_conflict": false,
+          "evidence_strength": "sufficient",
+          "reason_codes": []
+        },
+        "pipeline_passed": true
+      },
+      "tool_evaluation": {
+        "schema_version": 1,
+        "status": "passed",
+        "route": "reuse",
+        "reference_tool": "official_check_success",
+        "tool_spec": {
+          "schema_version": 1,
+          "task_name": "click_bell",
+          "metric": "official_check_success",
+          "question": "Did the rollout satisfy the official RoboTwin success check?",
+          "route": "reuse",
+          "reference_tool": "official_check_success",
+          "required_signals": [],
+          "output_contract": {
+            "source": "trusted_tool_catalog"
+          },
+          "validation_requirements": {
+            "min_episodes": 1,
+            "distinct_reference_values": false,
+            "required_reference_values": []
+          }
+        },
+        "source": {
+          "scope": "trusted_catalog",
+          "tool": "official_check_success",
+          "reference_tool": "official_check_success",
+          "tool_sha256": "a81c64679f614717fa869b312e8e927bff9fbfae65c02f57bddcf14964285822",
+          "artifact": null
+        },
+        "episodes": [
+          {
+            "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/evaluation/telemetry/act/episode_000_seed_100405",
+            "policy_name": "ACT",
+            "seed": 100405,
+            "role": "policy_under_evaluation",
+            "result": {
+              "tool": "official_check_success",
+              "value": true,
+              "unit": null,
+              "passed": true,
+              "evidence_steps": [
+                4424
+              ],
+              "details": {
+                "latched_eval_success": true,
+                "success_transition_recorded": true
+              },
+              "tool_sha256": "a81c64679f614717fa869b312e8e927bff9fbfae65c02f57bddcf14964285822"
+            }
+          }
+        ],
+        "validation": {
+          "provider_called": false,
+          "catalog_tool_found": true,
+          "episode_count": 1,
+          "required_reference_values_observed": true
+        },
+        "artifacts": {
+          "tool_spec": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/planned_tool/tool_spec.json",
+          "resolved_tool_spec": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/planned_tool/resolved_tool_spec.json",
+          "tool_execution": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/planned_tool/tool_execution.json",
+          "tool_request": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/planned_tool/tool_request.json",
+          "catalog_snapshot": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/planned_tool/catalog_snapshot.json",
+          "route_decision": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/planned_tool/route_decision.json"
+        },
+        "requested_route": "auto",
+        "tool_request": {
+          "schema_version": 1,
+          "task_name": "click_bell",
+          "metric": "official_check_success",
+          "question": "Did the rollout satisfy the official RoboTwin success check?"
+        },
+        "route_decision": {
+          "schema_version": 1,
+          "status": "resolved",
+          "matching_policy": "strict_exact_metric_id",
+          "requested_route": "auto",
+          "resolved_route": "reuse",
+          "task_name": "click_bell",
+          "metric": "official_check_success",
+          "exact_match": true,
+          "matched_registry": "trusted_tool_catalog",
+          "reference_tool": "official_check_success",
+          "provider_required": false,
+          "reason": "exact metric identifier matched a Trusted Tool",
+          "catalog_snapshot_sha256": "f68d3894ea38589f958c78ac1b226f633955d0480d35b4987e6e145341c897be",
+          "provider_called": false
+        }
+      },
+      "aggregate": {
+        "schema_version": 1,
+        "status": "passed",
+        "source_count": 1,
+        "unique_episode_count": 1,
+        "input_issues": [],
+        "metrics": [
+          {
+            "metric": "official_check_success",
+            "value_kind": "boolean",
+            "unit": null,
+            "cohorts": [
+              {
+                "role": "policy_under_evaluation",
+                "policy_names": [
+                  "ACT"
+                ],
+                "summary": {
+                  "episode_result_count": 1,
+                  "quality": {
+                    "valid": 1,
+                    "missing": 0,
+                    "invalid": 0
+                  },
+                  "statistics": {
+                    "true_count": {
+                      "value": 1
+                    },
+                    "true_rate": {
+                      "value": 1.0,
+                      "numerator": 1,
+                      "denominator": 1
+                    },
+                    "false_count": {
+                      "value": 0
+                    },
+                    "false_rate": {
+                      "value": 0.0,
+                      "numerator": 0,
+                      "denominator": 1
+                    },
+                    "success_count": {
+                      "value": 1
+                    },
+                    "success_rate": {
+                      "value": 1.0,
+                      "numerator": 1,
+                      "denominator": 1
+                    }
+                  }
+                },
+                "passed_summary": {
+                  "episode_result_count": 1,
+                  "quality": {
+                    "valid": 1,
+                    "missing": 0,
+                    "invalid": 0
+                  },
+                  "statistics": {
+                    "true_count": {
+                      "value": 1
+                    },
+                    "true_rate": {
+                      "value": 1.0,
+                      "numerator": 1,
+                      "denominator": 1
+                    },
+                    "false_count": {
+                      "value": 0
+                    },
+                    "false_rate": {
+                      "value": 0.0,
+                      "numerator": 0,
+                      "denominator": 1
+                    }
+                  }
+                },
+                "groups": {
+                  "seed": [
+                    {
+                      "value": 100405,
+                      "summary": {
+                        "episode_result_count": 1,
+                        "quality": {
+                          "valid": 1,
+                          "missing": 0,
+                          "invalid": 0
+                        },
+                        "statistics": {
+                          "true_count": {
+                            "value": 1
+                          },
+                          "true_rate": {
+                            "value": 1.0,
+                            "numerator": 1,
+                            "denominator": 1
+                          },
+                          "false_count": {
+                            "value": 0
+                          },
+                          "false_rate": {
+                            "value": 0.0,
+                            "numerator": 0,
+                            "denominator": 1
+                          },
+                          "success_count": {
+                            "value": 1
+                          },
+                          "success_rate": {
+                            "value": 1.0,
+                            "numerator": 1,
+                            "denominator": 1
+                          }
+                        }
+                      },
+                      "passed_summary": {
+                        "episode_result_count": 1,
+                        "quality": {
+                          "valid": 1,
+                          "missing": 0,
+                          "invalid": 0
+                        },
+                        "statistics": {
+                          "true_count": {
+                            "value": 1
+                          },
+                          "true_rate": {
+                            "value": 1.0,
+                            "numerator": 1,
+                            "denominator": 1
+                          },
+                          "false_count": {
+                            "value": 0
+                          },
+                          "false_rate": {
+                            "value": 0.0,
+                            "numerator": 0,
+                            "denominator": 1
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "round_id": [
+                    {
+                      "value": "round_1",
+                      "summary": {
+                        "episode_result_count": 1,
+                        "quality": {
+                          "valid": 1,
+                          "missing": 0,
+                          "invalid": 0
+                        },
+                        "statistics": {
+                          "true_count": {
+                            "value": 1
+                          },
+                          "true_rate": {
+                            "value": 1.0,
+                            "numerator": 1,
+                            "denominator": 1
+                          },
+                          "false_count": {
+                            "value": 0
+                          },
+                          "false_rate": {
+                            "value": 0.0,
+                            "numerator": 0,
+                            "denominator": 1
+                          },
+                          "success_count": {
+                            "value": 1
+                          },
+                          "success_rate": {
+                            "value": 1.0,
+                            "numerator": 1,
+                            "denominator": 1
+                          }
+                        }
+                      },
+                      "passed_summary": {
+                        "episode_result_count": 1,
+                        "quality": {
+                          "valid": 1,
+                          "missing": 0,
+                          "invalid": 0
+                        },
+                        "statistics": {
+                          "true_count": {
+                            "value": 1
+                          },
+                          "true_rate": {
+                            "value": 1.0,
+                            "numerator": 1,
+                            "denominator": 1
+                          },
+                          "false_count": {
+                            "value": 0
+                          },
+                          "false_rate": {
+                            "value": 0.0,
+                            "numerator": 0,
+                            "denominator": 1
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "variant": [
+                    {
+                      "value": "task_execution.official_baseline",
+                      "summary": {
+                        "episode_result_count": 1,
+                        "quality": {
+                          "valid": 1,
+                          "missing": 0,
+                          "invalid": 0
+                        },
+                        "statistics": {
+                          "true_count": {
+                            "value": 1
+                          },
+                          "true_rate": {
+                            "value": 1.0,
+                            "numerator": 1,
+                            "denominator": 1
+                          },
+                          "false_count": {
+                            "value": 0
+                          },
+                          "false_rate": {
+                            "value": 0.0,
+                            "numerator": 0,
+                            "denominator": 1
+                          },
+                          "success_count": {
+                            "value": 1
+                          },
+                          "success_rate": {
+                            "value": 1.0,
+                            "numerator": 1,
+                            "denominator": 1
+                          }
+                        }
+                      },
+                      "passed_summary": {
+                        "episode_result_count": 1,
+                        "quality": {
+                          "valid": 1,
+                          "missing": 0,
+                          "invalid": 0
+                        },
+                        "statistics": {
+                          "true_count": {
+                            "value": 1
+                          },
+                          "true_rate": {
+                            "value": 1.0,
+                            "numerator": 1,
+                            "denominator": 1
+                          },
+                          "false_count": {
+                            "value": 0
+                          },
+                          "false_rate": {
+                            "value": 0.0,
+                            "numerator": 0,
+                            "denominator": 1
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "policy_name": [
+                    {
+                      "value": "ACT",
+                      "summary": {
+                        "episode_result_count": 1,
+                        "quality": {
+                          "valid": 1,
+                          "missing": 0,
+                          "invalid": 0
+                        },
+                        "statistics": {
+                          "true_count": {
+                            "value": 1
+                          },
+                          "true_rate": {
+                            "value": 1.0,
+                            "numerator": 1,
+                            "denominator": 1
+                          },
+                          "false_count": {
+                            "value": 0
+                          },
+                          "false_rate": {
+                            "value": 0.0,
+                            "numerator": 0,
+                            "denominator": 1
+                          },
+                          "success_count": {
+                            "value": 1
+                          },
+                          "success_rate": {
+                            "value": 1.0,
+                            "numerator": 1,
+                            "denominator": 1
+                          }
+                        }
+                      },
+                      "passed_summary": {
+                        "episode_result_count": 1,
+                        "quality": {
+                          "valid": 1,
+                          "missing": 0,
+                          "invalid": 0
+                        },
+                        "statistics": {
+                          "true_count": {
+                            "value": 1
+                          },
+                          "true_rate": {
+                            "value": 1.0,
+                            "numerator": 1,
+                            "denominator": 1
+                          },
+                          "false_count": {
+                            "value": 0
+                          },
+                          "false_rate": {
+                            "value": 0.0,
+                            "numerator": 0,
+                            "denominator": 1
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "metric": "time_to_success",
+            "value_kind": "numeric",
+            "unit": "s",
+            "cohorts": [
+              {
+                "role": "policy_under_evaluation",
+                "policy_names": [
+                  "ACT"
+                ],
+                "summary": {
+                  "episode_result_count": 1,
+                  "quality": {
+                    "valid": 1,
+                    "missing": 0,
+                    "invalid": 0
+                  },
+                  "statistics": {
+                    "mean": {
+                      "value": 17.696
+                    },
+                    "median": {
+                      "value": 17.696
+                    },
+                    "min": {
+                      "value": 17.696
+                    },
+                    "max": {
+                      "value": 17.696
+                    },
+                    "population_stddev": {
+                      "value": 0.0
+                    }
+                  }
+                },
+                "passed_summary": null,
+                "groups": {
+                  "seed": [
+                    {
+                      "value": 100405,
+                      "summary": {
+                        "episode_result_count": 1,
+                        "quality": {
+                          "valid": 1,
+                          "missing": 0,
+                          "invalid": 0
+                        },
+                        "statistics": {
+                          "mean": {
+                            "value": 17.696
+                          },
+                          "median": {
+                            "value": 17.696
+                          },
+                          "min": {
+                            "value": 17.696
+                          },
+                          "max": {
+                            "value": 17.696
+                          },
+                          "population_stddev": {
+                            "value": 0.0
+                          }
+                        }
+                      },
+                      "passed_summary": null
+                    }
+                  ],
+                  "round_id": [
+                    {
+                      "value": "round_1",
+                      "summary": {
+                        "episode_result_count": 1,
+                        "quality": {
+                          "valid": 1,
+                          "missing": 0,
+                          "invalid": 0
+                        },
+                        "statistics": {
+                          "mean": {
+                            "value": 17.696
+                          },
+                          "median": {
+                            "value": 17.696
+                          },
+                          "min": {
+                            "value": 17.696
+                          },
+                          "max": {
+                            "value": 17.696
+                          },
+                          "population_stddev": {
+                            "value": 0.0
+                          }
+                        }
+                      },
+                      "passed_summary": null
+                    }
+                  ],
+                  "variant": [
+                    {
+                      "value": "task_execution.official_baseline",
+                      "summary": {
+                        "episode_result_count": 1,
+                        "quality": {
+                          "valid": 1,
+                          "missing": 0,
+                          "invalid": 0
+                        },
+                        "statistics": {
+                          "mean": {
+                            "value": 17.696
+                          },
+                          "median": {
+                            "value": 17.696
+                          },
+                          "min": {
+                            "value": 17.696
+                          },
+                          "max": {
+                            "value": 17.696
+                          },
+                          "population_stddev": {
+                            "value": 0.0
+                          }
+                        }
+                      },
+                      "passed_summary": null
+                    }
+                  ],
+                  "policy_name": [
+                    {
+                      "value": "ACT",
+                      "summary": {
+                        "episode_result_count": 1,
+                        "quality": {
+                          "valid": 1,
+                          "missing": 0,
+                          "invalid": 0
+                        },
+                        "statistics": {
+                          "mean": {
+                            "value": 17.696
+                          },
+                          "median": {
+                            "value": 17.696
+                          },
+                          "min": {
+                            "value": 17.696
+                          },
+                          "max": {
+                            "value": 17.696
+                          },
+                          "population_stddev": {
+                            "value": 0.0
+                          }
+                        }
+                      },
+                      "passed_summary": null
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "execution_vqa": {
+        "status": "passed",
+        "model_requested": "gpt-4o-2024-11-20",
+        "representative_episode": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/evaluation/telemetry/act/episode_000_seed_100405",
+        "evidence_conflict": false,
+        "observation": {
+          "phenomena": [
+            {
+              "id": "bell_visibly_pressed",
+              "observed": true,
+              "description": "The robot visibly presses the target bell.",
+              "confidence": 1.0,
+              "frame_ids": [
+                "success_before",
+                "success_after"
+              ]
+            }
+          ],
+          "confidence": 1.0,
+          "frame_ids": [
+            "success_before",
+            "success_after"
+          ],
+          "numeric_consistency": "consistent",
+          "conflicts": [],
+          "evidence_conflict": false
+        },
+        "selected_frames": [
+          {
+            "frame_id": "initial",
+            "frame_index": 0,
+            "source": "video_boundary"
+          },
+          {
+            "frame_id": "success_before",
+            "frame_index": 61,
+            "source": "official_success_event"
+          },
+          {
+            "frame_id": "success_after",
+            "frame_index": 62,
+            "source": "official_success_event"
+          },
+          {
+            "frame_id": "final",
+            "frame_index": 63,
+            "source": "video_boundary"
+          }
+        ],
+        "artifacts": {
+          "result": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa/execution_vqa.json",
+          "prompt": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa/execution_vqa_prompt.md",
+          "response": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa/execution_vqa_response.txt",
+          "montage": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa/execution_montage.png",
+          "selection": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa/keyframe_selection.json",
+          "query": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa/execution_vqa_query.json"
+        },
+        "reason": null,
+        "query": {
+          "schema_version": 1,
+          "profile": "dynamic_v1",
+          "task_name": "click_bell",
+          "template_id": "task_execution.official_baseline",
+          "sub_aspect": "task_execution.official_baseline",
+          "tool_metric": "official_check_success",
+          "phenomenon_ids": [
+            "bell_visibly_pressed"
+          ],
+          "questions": [
+            {
+              "id": "bell_visibly_pressed",
+              "question_type": "visible_state_change",
+              "target_role": "task_target",
+              "question": "Does the robot visibly press or actuate the target bell?",
+              "visual_scope": "rollout_change",
+              "numeric_authority": "official_core_predicate_is_authoritative_when_available_else_official_check_success"
+            }
+          ],
+          "selection_reasons": [
+            "capability_adapter:click_bell:task_execution.official_baseline",
+            "task_metric:click_bell:official_check_success"
+          ],
+          "answer_contract": {
+            "required_response_keys": [
+              "phenomena",
+              "confidence",
+              "frame_ids",
+              "numeric_consistency",
+              "conflicts"
+            ],
+            "phenomenon_item_keys": [
+              "id",
+              "observed",
+              "description",
+              "confidence",
+              "frame_ids"
+            ],
+            "observed_type": "boolean_or_null",
+            "numeric_consistency_values": [
+              "consistent",
+              "conflict",
+              "uncertain"
+            ]
+          }
+        }
+      },
+      "implementation_trace": null,
+      "trusted_tool_evaluation": {
+        "artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/evaluation/telemetry/tool_results.json",
+        "episode_count": 1,
+        "episodes": [
+          {
+            "episode_dir": "act/episode_000_seed_100405",
+            "policy_name": "ACT",
+            "seed": 100405,
+            "success": true,
+            "results": [
+              {
+                "tool": "official_check_success",
+                "value": true,
+                "unit": null,
+                "passed": true,
+                "evidence_steps": [
+                  4424
+                ],
+                "details": {
+                  "latched_eval_success": true,
+                  "success_transition_recorded": true
+                }
+              },
+              {
+                "tool": "time_to_success",
+                "value": 17.696,
+                "unit": "s",
+                "passed": null,
+                "evidence_steps": [
+                  4424
+                ],
+                "details": {
+                  "physics_step": 4424
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "artifacts": {
+        "generated_task": "envs/click_bell.py",
+        "scene_image": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/evidence/initial_head.png",
+        "vision_result": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/validation/vision.json",
+        "position_samples": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/validation/position_samples.json",
+        "reflection_summary": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/reflection/summary.json",
+        "act_videos": [
+          "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/evaluation/episode0.mp4"
+        ],
+        "rollout_videos": [
+          "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/evaluation/telemetry/act/episode_000_seed_100405/video.mp4"
+        ],
+        "act_result": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/evaluation/_result.txt",
+        "trusted_tools": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/evaluation/telemetry/tool_results.json",
+        "planned_tool": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/planned_tool/tool_execution.json",
+        "aggregate": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/aggregate_result.json",
+        "evidence_aggregate": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/evidence_aggregate.json",
+        "execution_vqa": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa/execution_vqa.json",
+        "execution_vqa_query": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa_query.json",
+        "execution_vqa_montage": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa/execution_montage.png",
+        "execution_vqa_selection": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa/keyframe_selection.json",
+        "child_manifest": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/manifest.json"
+      }
+    },
+    {
+      "round_id": "round_2",
+      "candidate_id": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
+      "child_run_id": "run_20260729_batch31_open_flagship_live_v13_round_2",
+      "variant_id": null,
+      "template_id": null,
+      "capability_id": null,
+      "capability_contract": null,
+      "sub_aspect": "robustness of the policy to positional variation of the bell",
+      "task_instruction": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。\nScene need: Shift the bell's position horizontally by a small, bounded distance while keeping its size, shape, material, and the overall scene layout unchanged. Preserve unchanged: 任务目标与接触几何语义; size; shape; material; the overall scene layout.\nChecker need: reuse the official implementation",
+      "route": "generic_provider_scene_checker_codegen",
+      "seeds": [
+        100405
+      ],
+      "actual_seeds": [
+        100405
+      ],
+      "requested_seeds": [
+        100405
+      ],
+      "num_episodes": 1,
+      "requested_num_episodes": 1,
+      "task_retrieval": {
+        "catalog_size": null,
+        "selected_tasks": [],
+        "reasoning": null
+      },
+      "knowledge_retrieval": {
+        "selected_ids": [],
+        "context_character_count": null,
+        "committed_index_current": null
+      },
+      "generation": {
+        "variant_spec": null,
+        "complete_method_generated": null,
+        "generated_color": null
+      },
+      "visual_observation": {
+        "render_success": true,
+        "aligned": null,
+        "target_actor": null,
+        "bell_visible": null,
+        "observed_color": null,
+        "unexpected_changes": [],
+        "confidence": 0.8,
+        "position_authority": null
+      },
+      "visual_self_reflection": {
+        "passed": null,
+        "max_repairs": null,
+        "repairs_used": null,
+        "final_attempt": null,
+        "attempt_count": 0
+      },
+      "observations": {
+        "execution_backend": "ACT",
+        "requested_seeds": [
+          100405
+        ],
+        "actual_seeds": [
+          100405
+        ],
+        "scene_alignment": true,
+        "observed_color": null,
+        "bell_visible": null,
+        "position_authority": null,
+        "expert_solvable": true,
+        "act_pipeline_status": true,
+        "policy_success": 1.0,
+        "policy_outcome": {
+          "metric": "official_check_success",
+          "authority": "official_check_success_reused",
+          "binding": null,
+          "value": 1.0,
+          "official_equivalent": true,
+          "execution_scope": "official_equivalent",
+          "outcome_semantics": {
+            "schema_version": 1,
+            "status": "official_only",
+            "evidence_conflict": false,
+            "official_equivalent": true,
+            "outcome_authority": "official_check_success_reused",
+            "episodes": [],
+            "reason_codes": [
+              "official_outcome_has_no_generated_checker"
+            ]
+          }
+        },
+        "outcome_semantics": {
+          "schema_version": 1,
+          "status": "official_only",
+          "evidence_conflict": false,
+          "official_equivalent": true,
+          "outcome_authority": "official_check_success_reused",
+          "episodes": [],
+          "reason_codes": [
+            "official_outcome_has_no_generated_checker"
+          ]
+        },
+        "semantic_need_execution": {
+          "schema_version": 2,
+          "candidate_id": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
+          "task": {
+            "requested": true,
+            "description": "Shift the bell's position horizontally by a small, bounded distance while keeping its size, shape, material, and the overall scene layout unchanged. Preserve unchanged: 任务目标与接触几何语义; size; shape; material; the overall scene layout.",
+            "route": "generic_provider_scene_checker_codegen",
+            "status": "selected"
+          },
+          "checker": {
+            "requested": false,
+            "description": null,
+            "route": "official_checker_reuse",
+            "status": "not_requested"
+          },
+          "rule_tool": {
+            "requested": true,
+            "description": "Determine whether the policy successfully activates the bell in the new position. Hypothesis: The ACT policy can successfully complete the click_bell task when the bell is shifted to a new position within a bounded range.",
+            "route": "typed_metric_spec_compile",
+            "status": "passed",
+            "request_artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/open_tool_request/tool_request_bundle.json"
+          },
+          "vqa_tool": {
+            "requested": false,
+            "description": null,
+            "route": "not_requested",
+            "status": "not_requested"
+          }
+        },
+        "position_samples": [],
+        "position_metrics": {},
+        "controlled_axis": null,
+        "variant_samples": [],
+        "variant_metrics": {},
+        "observed_bell_ids": [],
+        "bell_instance_id": null,
+        "scene_clutter": {
+          "expected": false,
+          "counts": [],
+          "all_matched": null,
+          "authority": null
+        },
+        "implementation_trace": {
+          "schema_version": 1,
+          "intent_id": "intent.c7b8b7a89baaba20",
+          "candidate_id": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
+          "stage": "execution",
+          "relationship": "direct",
+          "rationale": "Candidate preserves the requested change, hypothesis, and observation semantics.",
+          "covered_intent_fields": [
+            "requested_change",
+            "preserved_conditions",
+            "hypothesis",
+            "required_observation"
+          ],
+          "uncovered_intent_fields": [],
+          "pending_intent_fields": [],
+          "coverage_status": "complete",
+          "repair_required": false,
+          "validation_evidence": {
+            "scene_change_passed": true,
+            "checker_fixtures_passed": true,
+            "visual_diagnosis_passed": true,
+            "preserved_conditions_verified": true,
+            "tool_evaluation_passed": true
+          }
+        },
+        "required_gate_status": {
+          "required": [],
+          "by_gate": {},
+          "passed": true
+        },
+        "evidence_aggregate": {
+          "schema_version": 1,
+          "round_id": "round_2",
+          "execution_id": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
+          "pipeline": {
+            "passed": true,
+            "failure_stage": null
+          },
+          "policy": {
+            "success_rate": 1.0,
+            "reported": true
+          },
+          "rule": {
+            "metric": "query_derived_metric",
+            "expected_policy_episodes": 1,
+            "aggregate_status": "passed",
+            "input_issue_count": 0,
+            "valid": 1,
+            "missing": 0,
+            "invalid": 0,
+            "semantic_missing": 0,
+            "semantic_missing_reasons": [],
+            "observed_policy_episodes": 1,
+            "complete": true,
+            "reasons": []
+          },
+          "tool": {
+            "requested": true,
+            "status": "passed",
+            "metric": "query_derived_metric",
+            "route": "typed_metric_spec_compile",
+            "provider_called": false
+          },
+          "vqa": {
+            "required": false,
+            "status": "passed",
+            "evidence_conflict": false
+          },
+          "outcome_semantics": {
+            "status": "official_only",
+            "evidence_conflict": false
+          },
+          "coverage": {
+            "expected_policy_episodes": 1,
+            "observed_policy_episodes": 1,
+            "rule_complete": true,
+            "tool_required": true,
+            "tool_complete": true,
+            "vqa_required": false,
+            "vqa_observed": true,
+            "intent_required": true,
+            "intent_complete": true,
+            "complete": true
+          },
+          "evidence_conflict": false,
+          "evidence_strength": "sufficient",
+          "reason_codes": []
+        },
+        "pipeline_passed": true
+      },
+      "tool_evaluation": {
+        "schema_version": 1,
+        "status": "passed",
+        "requested_route": "auto",
+        "route": "typed_metric_spec_compile",
+        "reference_tool": null,
+        "tool_spec": {
+          "schema_version": 1,
+          "task_name": "click_bell",
+          "metric": "query_derived_metric",
+          "question": "Does the ACT policy successfully activate the bell when its position is shifted within a bounded range?",
+          "route": "force_codegen",
+          "reference_tool": null,
+          "required_signals": [
+            "semantic_trace.left_tcp_position",
+            "semantic_trace.bell_contact_position",
+            "semantic_trace.physics_step"
+          ],
+          "output_contract": {
+            "source": "typed_metric_spec_v1",
+            "metric_spec": {
+              "schema_version": 1,
+              "operation": "minimum_distance",
+              "left_signal": "left_tcp_position",
+              "right_signal": "bell_contact_position",
+              "dimensions": [
+                "x",
+                "y"
+              ],
+              "unit": "m",
+              "null_semantics": "null_if_no_finite_sample"
+            },
+            "value_type": "number_or_null",
+            "unit": "m",
+            "passed": null,
+            "evidence": "argmin_physics_step"
+          },
+          "validation_requirements": {
+            "min_episodes": 1,
+            "distinct_reference_values": false,
+            "required_reference_values": []
+          }
+        },
+        "tool_request": {
+          "schema_version": 2,
+          "task_name": "click_bell",
+          "metric": "query_derived_metric",
+          "question": "Does the ACT policy successfully activate the bell when its position is shifted within a bounded range?",
+          "metric_spec": {
+            "schema_version": 1,
+            "operation": "minimum_distance",
+            "left_signal": "left_tcp_position",
+            "right_signal": "bell_contact_position",
+            "dimensions": [
+              "x",
+              "y"
+            ],
+            "unit": "m",
+            "null_semantics": "null_if_no_finite_sample"
+          }
+        },
+        "route_decision": {
+          "schema_version": 1,
+          "status": "resolved",
+          "matching_policy": "strict_exact_metric_id",
+          "requested_route": "auto",
+          "resolved_route": "typed_metric_spec_compile",
+          "task_name": "click_bell",
+          "metric": "query_derived_metric",
+          "exact_match": true,
+          "matched_registry": "typed_metric_spec_v1",
+          "reference_tool": null,
+          "provider_required": false,
+          "reason": "validated typed MetricSpec can be compiled and differentially gated",
+          "catalog_snapshot_sha256": "f68d3894ea38589f958c78ac1b226f633955d0480d35b4987e6e145341c897be",
+          "provider_called": false
+        },
+        "source": {
+          "scope": "run_local_generated",
+          "tool": "query_derived_metric",
+          "reference_tool": null,
+          "artifact": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/typed_metric_spec/generated_tool.py",
+          "registration_id": "runlocal_6e7c5dc558a8dad45199"
+        },
+        "episodes": [
+          {
+            "episode_dir": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+            "policy_name": "ACT",
+            "seed": 100405,
+            "role": "policy_under_evaluation",
+            "result": {
+              "tool": "query_derived_metric",
+              "value": 0.4100531050769832,
+              "unit": "m",
+              "passed": null,
+              "evidence_steps": [
+                4238
+              ],
+              "details": {
+                "operation": "minimum_distance",
+                "left_signal": "left_tcp_position",
+                "right_signal": "bell_contact_position",
+                "dimensions": [
+                  "x",
+                  "y"
+                ],
+                "min_index": 4238,
+                "reason": "measured"
+              },
+              "tool_sha256": "26bffe98e03f11e1c382b8ecee7f7e2d35740a311bbfa8d81d4d109fe119db97"
+            }
+          }
+        ],
+        "validation": {
+          "provider_called": false,
+          "typed_metric_spec": true,
+          "task_code_context_consumed": true,
+          "episode_count": 1,
+          "differential_gates_passed": true
+        },
+        "artifacts": {
+          "tool_request": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_request.json",
+          "catalog_snapshot": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/catalog_snapshot.json",
+          "route_decision": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/route_decision.json",
+          "metric_spec_execution": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/typed_metric_spec/execution.json",
+          "resolved_tool_spec": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/resolved_tool_spec.json",
+          "tool_execution": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json"
+        }
+      },
+      "aggregate": {
+        "schema_version": 1,
+        "status": "passed",
+        "source_count": 2,
+        "unique_episode_count": 2,
+        "input_issues": [],
+        "metrics": [
+          {
+            "metric": "official_check_success",
+            "value_kind": "boolean",
+            "unit": null,
+            "cohorts": [
+              {
+                "role": "policy_under_evaluation",
+                "policy_names": [
+                  "ACT"
+                ],
+                "summary": {
+                  "episode_result_count": 1,
+                  "quality": {
+                    "valid": 1,
+                    "missing": 0,
+                    "invalid": 0
+                  },
+                  "statistics": {
+                    "true_count": {
+                      "value": 1
+                    },
+                    "true_rate": {
+                      "value": 1.0,
+                      "numerator": 1,
+                      "denominator": 1
+                    },
+                    "false_count": {
+                      "value": 0
+                    },
+                    "false_rate": {
+                      "value": 0.0,
+                      "numerator": 0,
+                      "denominator": 1
+                    },
+                    "success_count": {
+                      "value": 1
+                    },
+                    "success_rate": {
+                      "value": 1.0,
+                      "numerator": 1,
+                      "denominator": 1
+                    }
+                  }
+                },
+                "passed_summary": {
+                  "episode_result_count": 1,
+                  "quality": {
+                    "valid": 1,
+                    "missing": 0,
+                    "invalid": 0
+                  },
+                  "statistics": {
+                    "true_count": {
+                      "value": 1
+                    },
+                    "true_rate": {
+                      "value": 1.0,
+                      "numerator": 1,
+                      "denominator": 1
+                    },
+                    "false_count": {
+                      "value": 0
+                    },
+                    "false_rate": {
+                      "value": 0.0,
+                      "numerator": 0,
+                      "denominator": 1
+                    }
+                  }
+                },
+                "groups": {
+                  "seed": [
+                    {
+                      "value": 100405,
+                      "summary": {
+                        "episode_result_count": 1,
+                        "quality": {
+                          "valid": 1,
+                          "missing": 0,
+                          "invalid": 0
+                        },
+                        "statistics": {
+                          "true_count": {
+                            "value": 1
+                          },
+                          "true_rate": {
+                            "value": 1.0,
+                            "numerator": 1,
+                            "denominator": 1
+                          },
+                          "false_count": {
+                            "value": 0
+                          },
+                          "false_rate": {
+                            "value": 0.0,
+                            "numerator": 0,
+                            "denominator": 1
+                          },
+                          "success_count": {
+                            "value": 1
+                          },
+                          "success_rate": {
+                            "value": 1.0,
+                            "numerator": 1,
+                            "denominator": 1
+                          }
+                        }
+                      },
+                      "passed_summary": {
+                        "episode_result_count": 1,
+                        "quality": {
+                          "valid": 1,
+                          "missing": 0,
+                          "invalid": 0
+                        },
+                        "statistics": {
+                          "true_count": {
+                            "value": 1
+                          },
+                          "true_rate": {
+                            "value": 1.0,
+                            "numerator": 1,
+                            "denominator": 1
+                          },
+                          "false_count": {
+                            "value": 0
+                          },
+                          "false_rate": {
+                            "value": 0.0,
+                            "numerator": 0,
+                            "denominator": 1
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "round_id": [
+                    {
+                      "value": "round_2",
+                      "summary": {
+                        "episode_result_count": 1,
+                        "quality": {
+                          "valid": 1,
+                          "missing": 0,
+                          "invalid": 0
+                        },
+                        "statistics": {
+                          "true_count": {
+                            "value": 1
+                          },
+                          "true_rate": {
+                            "value": 1.0,
+                            "numerator": 1,
+                            "denominator": 1
+                          },
+                          "false_count": {
+                            "value": 0
+                          },
+                          "false_rate": {
+                            "value": 0.0,
+                            "numerator": 0,
+                            "denominator": 1
+                          },
+                          "success_count": {
+                            "value": 1
+                          },
+                          "success_rate": {
+                            "value": 1.0,
+                            "numerator": 1,
+                            "denominator": 1
+                          }
+                        }
+                      },
+                      "passed_summary": {
+                        "episode_result_count": 1,
+                        "quality": {
+                          "valid": 1,
+                          "missing": 0,
+                          "invalid": 0
+                        },
+                        "statistics": {
+                          "true_count": {
+                            "value": 1
+                          },
+                          "true_rate": {
+                            "value": 1.0,
+                            "numerator": 1,
+                            "denominator": 1
+                          },
+                          "false_count": {
+                            "value": 0
+                          },
+                          "false_rate": {
+                            "value": 0.0,
+                            "numerator": 0,
+                            "denominator": 1
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "variant": [
+                    {
+                      "value": "robustness of the policy to positional variation of the bell",
+                      "summary": {
+                        "episode_result_count": 1,
+                        "quality": {
+                          "valid": 1,
+                          "missing": 0,
+                          "invalid": 0
+                        },
+                        "statistics": {
+                          "true_count": {
+                            "value": 1
+                          },
+                          "true_rate": {
+                            "value": 1.0,
+                            "numerator": 1,
+                            "denominator": 1
+                          },
+                          "false_count": {
+                            "value": 0
+                          },
+                          "false_rate": {
+                            "value": 0.0,
+                            "numerator": 0,
+                            "denominator": 1
+                          },
+                          "success_count": {
+                            "value": 1
+                          },
+                          "success_rate": {
+                            "value": 1.0,
+                            "numerator": 1,
+                            "denominator": 1
+                          }
+                        }
+                      },
+                      "passed_summary": {
+                        "episode_result_count": 1,
+                        "quality": {
+                          "valid": 1,
+                          "missing": 0,
+                          "invalid": 0
+                        },
+                        "statistics": {
+                          "true_count": {
+                            "value": 1
+                          },
+                          "true_rate": {
+                            "value": 1.0,
+                            "numerator": 1,
+                            "denominator": 1
+                          },
+                          "false_count": {
+                            "value": 0
+                          },
+                          "false_rate": {
+                            "value": 0.0,
+                            "numerator": 0,
+                            "denominator": 1
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "policy_name": [
+                    {
+                      "value": "ACT",
+                      "summary": {
+                        "episode_result_count": 1,
+                        "quality": {
+                          "valid": 1,
+                          "missing": 0,
+                          "invalid": 0
+                        },
+                        "statistics": {
+                          "true_count": {
+                            "value": 1
+                          },
+                          "true_rate": {
+                            "value": 1.0,
+                            "numerator": 1,
+                            "denominator": 1
+                          },
+                          "false_count": {
+                            "value": 0
+                          },
+                          "false_rate": {
+                            "value": 0.0,
+                            "numerator": 0,
+                            "denominator": 1
+                          },
+                          "success_count": {
+                            "value": 1
+                          },
+                          "success_rate": {
+                            "value": 1.0,
+                            "numerator": 1,
+                            "denominator": 1
+                          }
+                        }
+                      },
+                      "passed_summary": {
+                        "episode_result_count": 1,
+                        "quality": {
+                          "valid": 1,
+                          "missing": 0,
+                          "invalid": 0
+                        },
+                        "statistics": {
+                          "true_count": {
+                            "value": 1
+                          },
+                          "true_rate": {
+                            "value": 1.0,
+                            "numerator": 1,
+                            "denominator": 1
+                          },
+                          "false_count": {
+                            "value": 0
+                          },
+                          "false_rate": {
+                            "value": 0.0,
+                            "numerator": 0,
+                            "denominator": 1
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "metric": "query_derived_metric",
+            "value_kind": "numeric",
+            "unit": "m",
+            "cohorts": [
+              {
+                "role": "policy_under_evaluation",
+                "policy_names": [
+                  "ACT"
+                ],
+                "summary": {
+                  "episode_result_count": 1,
+                  "quality": {
+                    "valid": 1,
+                    "missing": 0,
+                    "invalid": 0
+                  },
+                  "statistics": {
+                    "mean": {
+                      "value": 0.4100531050769832
+                    },
+                    "median": {
+                      "value": 0.4100531050769832
+                    },
+                    "min": {
+                      "value": 0.4100531050769832
+                    },
+                    "max": {
+                      "value": 0.4100531050769832
+                    },
+                    "population_stddev": {
+                      "value": 0.0
+                    }
+                  }
+                },
+                "passed_summary": null,
+                "groups": {
+                  "seed": [
+                    {
+                      "value": 100405,
+                      "summary": {
+                        "episode_result_count": 1,
+                        "quality": {
+                          "valid": 1,
+                          "missing": 0,
+                          "invalid": 0
+                        },
+                        "statistics": {
+                          "mean": {
+                            "value": 0.4100531050769832
+                          },
+                          "median": {
+                            "value": 0.4100531050769832
+                          },
+                          "min": {
+                            "value": 0.4100531050769832
+                          },
+                          "max": {
+                            "value": 0.4100531050769832
+                          },
+                          "population_stddev": {
+                            "value": 0.0
+                          }
+                        }
+                      },
+                      "passed_summary": null
+                    }
+                  ],
+                  "round_id": [
+                    {
+                      "value": "round_2",
+                      "summary": {
+                        "episode_result_count": 1,
+                        "quality": {
+                          "valid": 1,
+                          "missing": 0,
+                          "invalid": 0
+                        },
+                        "statistics": {
+                          "mean": {
+                            "value": 0.4100531050769832
+                          },
+                          "median": {
+                            "value": 0.4100531050769832
+                          },
+                          "min": {
+                            "value": 0.4100531050769832
+                          },
+                          "max": {
+                            "value": 0.4100531050769832
+                          },
+                          "population_stddev": {
+                            "value": 0.0
+                          }
+                        }
+                      },
+                      "passed_summary": null
+                    }
+                  ],
+                  "variant": [
+                    {
+                      "value": "robustness of the policy to positional variation of the bell",
+                      "summary": {
+                        "episode_result_count": 1,
+                        "quality": {
+                          "valid": 1,
+                          "missing": 0,
+                          "invalid": 0
+                        },
+                        "statistics": {
+                          "mean": {
+                            "value": 0.4100531050769832
+                          },
+                          "median": {
+                            "value": 0.4100531050769832
+                          },
+                          "min": {
+                            "value": 0.4100531050769832
+                          },
+                          "max": {
+                            "value": 0.4100531050769832
+                          },
+                          "population_stddev": {
+                            "value": 0.0
+                          }
+                        }
+                      },
+                      "passed_summary": null
+                    }
+                  ],
+                  "policy_name": [
+                    {
+                      "value": "ACT",
+                      "summary": {
+                        "episode_result_count": 1,
+                        "quality": {
+                          "valid": 1,
+                          "missing": 0,
+                          "invalid": 0
+                        },
+                        "statistics": {
+                          "mean": {
+                            "value": 0.4100531050769832
+                          },
+                          "median": {
+                            "value": 0.4100531050769832
+                          },
+                          "min": {
+                            "value": 0.4100531050769832
+                          },
+                          "max": {
+                            "value": 0.4100531050769832
+                          },
+                          "population_stddev": {
+                            "value": 0.0
+                          }
+                        }
+                      },
+                      "passed_summary": null
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "metric": "time_to_success",
+            "value_kind": "numeric",
+            "unit": "s",
+            "cohorts": [
+              {
+                "role": "policy_under_evaluation",
+                "policy_names": [
+                  "ACT"
+                ],
+                "summary": {
+                  "episode_result_count": 1,
+                  "quality": {
+                    "valid": 1,
+                    "missing": 0,
+                    "invalid": 0
+                  },
+                  "statistics": {
+                    "mean": {
+                      "value": 18.7
+                    },
+                    "median": {
+                      "value": 18.7
+                    },
+                    "min": {
+                      "value": 18.7
+                    },
+                    "max": {
+                      "value": 18.7
+                    },
+                    "population_stddev": {
+                      "value": 0.0
+                    }
+                  }
+                },
+                "passed_summary": null,
+                "groups": {
+                  "seed": [
+                    {
+                      "value": 100405,
+                      "summary": {
+                        "episode_result_count": 1,
+                        "quality": {
+                          "valid": 1,
+                          "missing": 0,
+                          "invalid": 0
+                        },
+                        "statistics": {
+                          "mean": {
+                            "value": 18.7
+                          },
+                          "median": {
+                            "value": 18.7
+                          },
+                          "min": {
+                            "value": 18.7
+                          },
+                          "max": {
+                            "value": 18.7
+                          },
+                          "population_stddev": {
+                            "value": 0.0
+                          }
+                        }
+                      },
+                      "passed_summary": null
+                    }
+                  ],
+                  "round_id": [
+                    {
+                      "value": "round_2",
+                      "summary": {
+                        "episode_result_count": 1,
+                        "quality": {
+                          "valid": 1,
+                          "missing": 0,
+                          "invalid": 0
+                        },
+                        "statistics": {
+                          "mean": {
+                            "value": 18.7
+                          },
+                          "median": {
+                            "value": 18.7
+                          },
+                          "min": {
+                            "value": 18.7
+                          },
+                          "max": {
+                            "value": 18.7
+                          },
+                          "population_stddev": {
+                            "value": 0.0
+                          }
+                        }
+                      },
+                      "passed_summary": null
+                    }
+                  ],
+                  "variant": [
+                    {
+                      "value": "robustness of the policy to positional variation of the bell",
+                      "summary": {
+                        "episode_result_count": 1,
+                        "quality": {
+                          "valid": 1,
+                          "missing": 0,
+                          "invalid": 0
+                        },
+                        "statistics": {
+                          "mean": {
+                            "value": 18.7
+                          },
+                          "median": {
+                            "value": 18.7
+                          },
+                          "min": {
+                            "value": 18.7
+                          },
+                          "max": {
+                            "value": 18.7
+                          },
+                          "population_stddev": {
+                            "value": 0.0
+                          }
+                        }
+                      },
+                      "passed_summary": null
+                    }
+                  ],
+                  "policy_name": [
+                    {
+                      "value": "ACT",
+                      "summary": {
+                        "episode_result_count": 1,
+                        "quality": {
+                          "valid": 1,
+                          "missing": 0,
+                          "invalid": 0
+                        },
+                        "statistics": {
+                          "mean": {
+                            "value": 18.7
+                          },
+                          "median": {
+                            "value": 18.7
+                          },
+                          "min": {
+                            "value": 18.7
+                          },
+                          "max": {
+                            "value": 18.7
+                          },
+                          "population_stddev": {
+                            "value": 0.0
+                          }
+                        }
+                      },
+                      "passed_summary": null
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "execution_vqa": {
+        "status": "passed",
+        "model_requested": "gpt-4o-2024-11-20",
+        "representative_episode": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405",
+        "evidence_conflict": false,
+        "observation": {
+          "phenomena": [
+            {
+              "id": "bell_visibly_pressed",
+              "observed": true,
+              "description": "The robot visibly presses the target bell.",
+              "confidence": 1.0,
+              "frame_ids": [
+                "success_before",
+                "success_after"
+              ]
+            }
+          ],
+          "confidence": 1.0,
+          "frame_ids": [
+            "success_before",
+            "success_after"
+          ],
+          "numeric_consistency": "consistent",
+          "conflicts": [],
+          "evidence_conflict": false
+        },
+        "selected_frames": [
+          {
+            "frame_id": "initial",
+            "frame_index": 0,
+            "source": "video_boundary"
+          },
+          {
+            "frame_id": "success_before",
+            "frame_index": 67,
+            "source": "official_success_event"
+          },
+          {
+            "frame_id": "success_after",
+            "frame_index": 68,
+            "source": "official_success_event"
+          },
+          {
+            "frame_id": "final",
+            "frame_index": 69,
+            "source": "video_boundary"
+          }
+        ],
+        "artifacts": {
+          "result": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa/execution_vqa.json",
+          "prompt": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa/execution_vqa_prompt.md",
+          "response": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa/execution_vqa_response.txt",
+          "montage": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa/execution_montage.png",
+          "selection": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa/keyframe_selection.json",
+          "query": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa/execution_vqa_query.json"
+        },
+        "reason": null,
+        "query": {
+          "schema_version": 1,
+          "profile": "dynamic_v1",
+          "task_name": "click_bell",
+          "template_id": null,
+          "sub_aspect": "robustness of the policy to positional variation of the bell",
+          "tool_metric": "query_derived_metric",
+          "phenomenon_ids": [
+            "bell_visibly_pressed"
+          ],
+          "questions": [
+            {
+              "id": "bell_visibly_pressed",
+              "question_type": "visible_state_change",
+              "target_role": "task_target",
+              "question": "Does the robot visibly press or actuate the target bell?",
+              "visual_scope": "rollout_change",
+              "numeric_authority": "official_core_predicate_is_authoritative_when_available_else_official_check_success"
+            }
+          ],
+          "selection_reasons": [
+            "task_owned_fallback:click_bell"
+          ],
+          "answer_contract": {
+            "required_response_keys": [
+              "phenomena",
+              "confidence",
+              "frame_ids",
+              "numeric_consistency",
+              "conflicts"
+            ],
+            "phenomenon_item_keys": [
+              "id",
+              "observed",
+              "description",
+              "confidence",
+              "frame_ids"
+            ],
+            "observed_type": "boolean_or_null",
+            "numeric_consistency_values": [
+              "consistent",
+              "conflict",
+              "uncertain"
+            ]
+          }
+        }
+      },
+      "implementation_trace": {
+        "schema_version": 1,
+        "intent_id": "intent.c7b8b7a89baaba20",
+        "candidate_id": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
+        "stage": "execution",
+        "relationship": "direct",
+        "rationale": "Candidate preserves the requested change, hypothesis, and observation semantics.",
+        "covered_intent_fields": [
+          "requested_change",
+          "preserved_conditions",
+          "hypothesis",
+          "required_observation"
+        ],
+        "uncovered_intent_fields": [],
+        "pending_intent_fields": [],
+        "coverage_status": "complete",
+        "repair_required": false,
+        "validation_evidence": {
+          "scene_change_passed": true,
+          "checker_fixtures_passed": true,
+          "visual_diagnosis_passed": true,
+          "preserved_conditions_verified": true,
+          "tool_evaluation_passed": true
+        }
+      },
+      "trusted_tool_evaluation": {
+        "artifact": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+        "episode_count": 1,
+        "episodes": [
+          {
+            "episode_dir": "act/episode_000_seed_100405",
+            "policy_name": "ACT",
+            "seed": 100405,
+            "success": true,
+            "results": [
+              {
+                "tool": "official_check_success",
+                "value": true,
+                "unit": null,
+                "passed": true,
+                "evidence_steps": [
+                  4675
+                ],
+                "details": {
+                  "latched_eval_success": true,
+                  "success_transition_recorded": true
+                }
+              },
+              {
+                "tool": "time_to_success",
+                "value": 18.7,
+                "unit": "s",
+                "passed": null,
+                "evidence_steps": [
+                  4675
+                ],
+                "details": {
+                  "physics_step": 4675
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "artifacts": {
+        "generated_task": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/task.py",
+        "scene_image": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evidence/initial_head.png",
+        "vision_result": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/validation/vision.json",
+        "position_samples": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/validation/position_samples.json",
+        "reflection_summary": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/reflection/summary.json",
+        "act_videos": [
+          "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/episode0.mp4"
+        ],
+        "rollout_videos": [
+          "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405/video.mp4"
+        ],
+        "act_result": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/_result.txt",
+        "trusted_tools": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+        "planned_tool": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
+        "aggregate": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/aggregate_result.json",
+        "evidence_aggregate": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/evidence_aggregate.json",
+        "execution_vqa": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa/execution_vqa.json",
+        "execution_vqa_query": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa_query.json",
+        "execution_vqa_montage": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa/execution_montage.png",
+        "execution_vqa_selection": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa/keyframe_selection.json",
+        "child_manifest": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/manifest.json"
+      }
+    }
+  ],
+  "observations": {
+    "execution_backends": [
+      "ACT"
+    ],
+    "scene_alignment": true,
+    "observed_color_by_round": [
+      null,
+      null
+    ],
+    "expert_solvable": true,
+    "act_pipeline_status": true,
+    "policy_success": 1.0,
+    "policy_success_by_round": [
+      1.0,
+      1.0
+    ],
+    "position_varied": null,
+    "position_metrics": {},
+    "position_metrics_by_round": {},
+    "pipeline_passed": true,
+    "aggregate": {
+      "schema_version": 1,
+      "status": "passed",
+      "source_count": 3,
+      "unique_episode_count": 3,
+      "input_issues": [],
+      "metrics": [
+        {
+          "metric": "official_check_success",
+          "value_kind": "boolean",
+          "unit": null,
+          "cohorts": [
+            {
+              "role": "policy_under_evaluation",
+              "policy_names": [
+                "ACT"
+              ],
+              "summary": {
+                "episode_result_count": 2,
+                "quality": {
+                  "valid": 2,
+                  "missing": 0,
+                  "invalid": 0
+                },
+                "statistics": {
+                  "true_count": {
+                    "value": 2
+                  },
+                  "true_rate": {
+                    "value": 1.0,
+                    "numerator": 2,
+                    "denominator": 2
+                  },
+                  "false_count": {
+                    "value": 0
+                  },
+                  "false_rate": {
+                    "value": 0.0,
+                    "numerator": 0,
+                    "denominator": 2
+                  },
+                  "success_count": {
+                    "value": 2
+                  },
+                  "success_rate": {
+                    "value": 1.0,
+                    "numerator": 2,
+                    "denominator": 2
+                  }
+                }
+              },
+              "passed_summary": {
+                "episode_result_count": 2,
+                "quality": {
+                  "valid": 2,
+                  "missing": 0,
+                  "invalid": 0
+                },
+                "statistics": {
+                  "true_count": {
+                    "value": 2
+                  },
+                  "true_rate": {
+                    "value": 1.0,
+                    "numerator": 2,
+                    "denominator": 2
+                  },
+                  "false_count": {
+                    "value": 0
+                  },
+                  "false_rate": {
+                    "value": 0.0,
+                    "numerator": 0,
+                    "denominator": 2
+                  }
+                }
+              },
+              "groups": {
+                "seed": [
+                  {
+                    "value": 100405,
+                    "summary": {
+                      "episode_result_count": 2,
+                      "quality": {
+                        "valid": 2,
+                        "missing": 0,
+                        "invalid": 0
+                      },
+                      "statistics": {
+                        "true_count": {
+                          "value": 2
+                        },
+                        "true_rate": {
+                          "value": 1.0,
+                          "numerator": 2,
+                          "denominator": 2
+                        },
+                        "false_count": {
+                          "value": 0
+                        },
+                        "false_rate": {
+                          "value": 0.0,
+                          "numerator": 0,
+                          "denominator": 2
+                        },
+                        "success_count": {
+                          "value": 2
+                        },
+                        "success_rate": {
+                          "value": 1.0,
+                          "numerator": 2,
+                          "denominator": 2
+                        }
+                      }
+                    },
+                    "passed_summary": {
+                      "episode_result_count": 2,
+                      "quality": {
+                        "valid": 2,
+                        "missing": 0,
+                        "invalid": 0
+                      },
+                      "statistics": {
+                        "true_count": {
+                          "value": 2
+                        },
+                        "true_rate": {
+                          "value": 1.0,
+                          "numerator": 2,
+                          "denominator": 2
+                        },
+                        "false_count": {
+                          "value": 0
+                        },
+                        "false_rate": {
+                          "value": 0.0,
+                          "numerator": 0,
+                          "denominator": 2
+                        }
+                      }
+                    }
+                  }
+                ],
+                "round_id": [
+                  {
+                    "value": "round_1",
+                    "summary": {
+                      "episode_result_count": 1,
+                      "quality": {
+                        "valid": 1,
+                        "missing": 0,
+                        "invalid": 0
+                      },
+                      "statistics": {
+                        "true_count": {
+                          "value": 1
+                        },
+                        "true_rate": {
+                          "value": 1.0,
+                          "numerator": 1,
+                          "denominator": 1
+                        },
+                        "false_count": {
+                          "value": 0
+                        },
+                        "false_rate": {
+                          "value": 0.0,
+                          "numerator": 0,
+                          "denominator": 1
+                        },
+                        "success_count": {
+                          "value": 1
+                        },
+                        "success_rate": {
+                          "value": 1.0,
+                          "numerator": 1,
+                          "denominator": 1
+                        }
+                      }
+                    },
+                    "passed_summary": {
+                      "episode_result_count": 1,
+                      "quality": {
+                        "valid": 1,
+                        "missing": 0,
+                        "invalid": 0
+                      },
+                      "statistics": {
+                        "true_count": {
+                          "value": 1
+                        },
+                        "true_rate": {
+                          "value": 1.0,
+                          "numerator": 1,
+                          "denominator": 1
+                        },
+                        "false_count": {
+                          "value": 0
+                        },
+                        "false_rate": {
+                          "value": 0.0,
+                          "numerator": 0,
+                          "denominator": 1
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "value": "round_2",
+                    "summary": {
+                      "episode_result_count": 1,
+                      "quality": {
+                        "valid": 1,
+                        "missing": 0,
+                        "invalid": 0
+                      },
+                      "statistics": {
+                        "true_count": {
+                          "value": 1
+                        },
+                        "true_rate": {
+                          "value": 1.0,
+                          "numerator": 1,
+                          "denominator": 1
+                        },
+                        "false_count": {
+                          "value": 0
+                        },
+                        "false_rate": {
+                          "value": 0.0,
+                          "numerator": 0,
+                          "denominator": 1
+                        },
+                        "success_count": {
+                          "value": 1
+                        },
+                        "success_rate": {
+                          "value": 1.0,
+                          "numerator": 1,
+                          "denominator": 1
+                        }
+                      }
+                    },
+                    "passed_summary": {
+                      "episode_result_count": 1,
+                      "quality": {
+                        "valid": 1,
+                        "missing": 0,
+                        "invalid": 0
+                      },
+                      "statistics": {
+                        "true_count": {
+                          "value": 1
+                        },
+                        "true_rate": {
+                          "value": 1.0,
+                          "numerator": 1,
+                          "denominator": 1
+                        },
+                        "false_count": {
+                          "value": 0
+                        },
+                        "false_rate": {
+                          "value": 0.0,
+                          "numerator": 0,
+                          "denominator": 1
+                        }
+                      }
+                    }
+                  }
+                ],
+                "variant": [
+                  {
+                    "value": "robustness of the policy to positional variation of the bell",
+                    "summary": {
+                      "episode_result_count": 1,
+                      "quality": {
+                        "valid": 1,
+                        "missing": 0,
+                        "invalid": 0
+                      },
+                      "statistics": {
+                        "true_count": {
+                          "value": 1
+                        },
+                        "true_rate": {
+                          "value": 1.0,
+                          "numerator": 1,
+                          "denominator": 1
+                        },
+                        "false_count": {
+                          "value": 0
+                        },
+                        "false_rate": {
+                          "value": 0.0,
+                          "numerator": 0,
+                          "denominator": 1
+                        },
+                        "success_count": {
+                          "value": 1
+                        },
+                        "success_rate": {
+                          "value": 1.0,
+                          "numerator": 1,
+                          "denominator": 1
+                        }
+                      }
+                    },
+                    "passed_summary": {
+                      "episode_result_count": 1,
+                      "quality": {
+                        "valid": 1,
+                        "missing": 0,
+                        "invalid": 0
+                      },
+                      "statistics": {
+                        "true_count": {
+                          "value": 1
+                        },
+                        "true_rate": {
+                          "value": 1.0,
+                          "numerator": 1,
+                          "denominator": 1
+                        },
+                        "false_count": {
+                          "value": 0
+                        },
+                        "false_rate": {
+                          "value": 0.0,
+                          "numerator": 0,
+                          "denominator": 1
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "value": "task_execution.official_baseline",
+                    "summary": {
+                      "episode_result_count": 1,
+                      "quality": {
+                        "valid": 1,
+                        "missing": 0,
+                        "invalid": 0
+                      },
+                      "statistics": {
+                        "true_count": {
+                          "value": 1
+                        },
+                        "true_rate": {
+                          "value": 1.0,
+                          "numerator": 1,
+                          "denominator": 1
+                        },
+                        "false_count": {
+                          "value": 0
+                        },
+                        "false_rate": {
+                          "value": 0.0,
+                          "numerator": 0,
+                          "denominator": 1
+                        },
+                        "success_count": {
+                          "value": 1
+                        },
+                        "success_rate": {
+                          "value": 1.0,
+                          "numerator": 1,
+                          "denominator": 1
+                        }
+                      }
+                    },
+                    "passed_summary": {
+                      "episode_result_count": 1,
+                      "quality": {
+                        "valid": 1,
+                        "missing": 0,
+                        "invalid": 0
+                      },
+                      "statistics": {
+                        "true_count": {
+                          "value": 1
+                        },
+                        "true_rate": {
+                          "value": 1.0,
+                          "numerator": 1,
+                          "denominator": 1
+                        },
+                        "false_count": {
+                          "value": 0
+                        },
+                        "false_rate": {
+                          "value": 0.0,
+                          "numerator": 0,
+                          "denominator": 1
+                        }
+                      }
+                    }
+                  }
+                ],
+                "policy_name": [
+                  {
+                    "value": "ACT",
+                    "summary": {
+                      "episode_result_count": 2,
+                      "quality": {
+                        "valid": 2,
+                        "missing": 0,
+                        "invalid": 0
+                      },
+                      "statistics": {
+                        "true_count": {
+                          "value": 2
+                        },
+                        "true_rate": {
+                          "value": 1.0,
+                          "numerator": 2,
+                          "denominator": 2
+                        },
+                        "false_count": {
+                          "value": 0
+                        },
+                        "false_rate": {
+                          "value": 0.0,
+                          "numerator": 0,
+                          "denominator": 2
+                        },
+                        "success_count": {
+                          "value": 2
+                        },
+                        "success_rate": {
+                          "value": 1.0,
+                          "numerator": 2,
+                          "denominator": 2
+                        }
+                      }
+                    },
+                    "passed_summary": {
+                      "episode_result_count": 2,
+                      "quality": {
+                        "valid": 2,
+                        "missing": 0,
+                        "invalid": 0
+                      },
+                      "statistics": {
+                        "true_count": {
+                          "value": 2
+                        },
+                        "true_rate": {
+                          "value": 1.0,
+                          "numerator": 2,
+                          "denominator": 2
+                        },
+                        "false_count": {
+                          "value": 0
+                        },
+                        "false_rate": {
+                          "value": 0.0,
+                          "numerator": 0,
+                          "denominator": 2
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "metric": "query_derived_metric",
+          "value_kind": "numeric",
+          "unit": "m",
+          "cohorts": [
+            {
+              "role": "policy_under_evaluation",
+              "policy_names": [
+                "ACT"
+              ],
+              "summary": {
+                "episode_result_count": 1,
+                "quality": {
+                  "valid": 1,
+                  "missing": 0,
+                  "invalid": 0
+                },
+                "statistics": {
+                  "mean": {
+                    "value": 0.4100531050769832
+                  },
+                  "median": {
+                    "value": 0.4100531050769832
+                  },
+                  "min": {
+                    "value": 0.4100531050769832
+                  },
+                  "max": {
+                    "value": 0.4100531050769832
+                  },
+                  "population_stddev": {
+                    "value": 0.0
+                  }
+                }
+              },
+              "passed_summary": null,
+              "groups": {
+                "seed": [
+                  {
+                    "value": 100405,
+                    "summary": {
+                      "episode_result_count": 1,
+                      "quality": {
+                        "valid": 1,
+                        "missing": 0,
+                        "invalid": 0
+                      },
+                      "statistics": {
+                        "mean": {
+                          "value": 0.4100531050769832
+                        },
+                        "median": {
+                          "value": 0.4100531050769832
+                        },
+                        "min": {
+                          "value": 0.4100531050769832
+                        },
+                        "max": {
+                          "value": 0.4100531050769832
+                        },
+                        "population_stddev": {
+                          "value": 0.0
+                        }
+                      }
+                    },
+                    "passed_summary": null
+                  }
+                ],
+                "round_id": [
+                  {
+                    "value": "round_2",
+                    "summary": {
+                      "episode_result_count": 1,
+                      "quality": {
+                        "valid": 1,
+                        "missing": 0,
+                        "invalid": 0
+                      },
+                      "statistics": {
+                        "mean": {
+                          "value": 0.4100531050769832
+                        },
+                        "median": {
+                          "value": 0.4100531050769832
+                        },
+                        "min": {
+                          "value": 0.4100531050769832
+                        },
+                        "max": {
+                          "value": 0.4100531050769832
+                        },
+                        "population_stddev": {
+                          "value": 0.0
+                        }
+                      }
+                    },
+                    "passed_summary": null
+                  }
+                ],
+                "variant": [
+                  {
+                    "value": "robustness of the policy to positional variation of the bell",
+                    "summary": {
+                      "episode_result_count": 1,
+                      "quality": {
+                        "valid": 1,
+                        "missing": 0,
+                        "invalid": 0
+                      },
+                      "statistics": {
+                        "mean": {
+                          "value": 0.4100531050769832
+                        },
+                        "median": {
+                          "value": 0.4100531050769832
+                        },
+                        "min": {
+                          "value": 0.4100531050769832
+                        },
+                        "max": {
+                          "value": 0.4100531050769832
+                        },
+                        "population_stddev": {
+                          "value": 0.0
+                        }
+                      }
+                    },
+                    "passed_summary": null
+                  }
+                ],
+                "policy_name": [
+                  {
+                    "value": "ACT",
+                    "summary": {
+                      "episode_result_count": 1,
+                      "quality": {
+                        "valid": 1,
+                        "missing": 0,
+                        "invalid": 0
+                      },
+                      "statistics": {
+                        "mean": {
+                          "value": 0.4100531050769832
+                        },
+                        "median": {
+                          "value": 0.4100531050769832
+                        },
+                        "min": {
+                          "value": 0.4100531050769832
+                        },
+                        "max": {
+                          "value": 0.4100531050769832
+                        },
+                        "population_stddev": {
+                          "value": 0.0
+                        }
+                      }
+                    },
+                    "passed_summary": null
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "metric": "time_to_success",
+          "value_kind": "numeric",
+          "unit": "s",
+          "cohorts": [
+            {
+              "role": "policy_under_evaluation",
+              "policy_names": [
+                "ACT"
+              ],
+              "summary": {
+                "episode_result_count": 2,
+                "quality": {
+                  "valid": 2,
+                  "missing": 0,
+                  "invalid": 0
+                },
+                "statistics": {
+                  "mean": {
+                    "value": 18.198
+                  },
+                  "median": {
+                    "value": 18.198
+                  },
+                  "min": {
+                    "value": 17.696
+                  },
+                  "max": {
+                    "value": 18.7
+                  },
+                  "population_stddev": {
+                    "value": 0.5019999999999989
+                  }
+                }
+              },
+              "passed_summary": null,
+              "groups": {
+                "seed": [
+                  {
+                    "value": 100405,
+                    "summary": {
+                      "episode_result_count": 2,
+                      "quality": {
+                        "valid": 2,
+                        "missing": 0,
+                        "invalid": 0
+                      },
+                      "statistics": {
+                        "mean": {
+                          "value": 18.198
+                        },
+                        "median": {
+                          "value": 18.198
+                        },
+                        "min": {
+                          "value": 17.696
+                        },
+                        "max": {
+                          "value": 18.7
+                        },
+                        "population_stddev": {
+                          "value": 0.5019999999999989
+                        }
+                      }
+                    },
+                    "passed_summary": null
+                  }
+                ],
+                "round_id": [
+                  {
+                    "value": "round_1",
+                    "summary": {
+                      "episode_result_count": 1,
+                      "quality": {
+                        "valid": 1,
+                        "missing": 0,
+                        "invalid": 0
+                      },
+                      "statistics": {
+                        "mean": {
+                          "value": 17.696
+                        },
+                        "median": {
+                          "value": 17.696
+                        },
+                        "min": {
+                          "value": 17.696
+                        },
+                        "max": {
+                          "value": 17.696
+                        },
+                        "population_stddev": {
+                          "value": 0.0
+                        }
+                      }
+                    },
+                    "passed_summary": null
+                  },
+                  {
+                    "value": "round_2",
+                    "summary": {
+                      "episode_result_count": 1,
+                      "quality": {
+                        "valid": 1,
+                        "missing": 0,
+                        "invalid": 0
+                      },
+                      "statistics": {
+                        "mean": {
+                          "value": 18.7
+                        },
+                        "median": {
+                          "value": 18.7
+                        },
+                        "min": {
+                          "value": 18.7
+                        },
+                        "max": {
+                          "value": 18.7
+                        },
+                        "population_stddev": {
+                          "value": 0.0
+                        }
+                      }
+                    },
+                    "passed_summary": null
+                  }
+                ],
+                "variant": [
+                  {
+                    "value": "robustness of the policy to positional variation of the bell",
+                    "summary": {
+                      "episode_result_count": 1,
+                      "quality": {
+                        "valid": 1,
+                        "missing": 0,
+                        "invalid": 0
+                      },
+                      "statistics": {
+                        "mean": {
+                          "value": 18.7
+                        },
+                        "median": {
+                          "value": 18.7
+                        },
+                        "min": {
+                          "value": 18.7
+                        },
+                        "max": {
+                          "value": 18.7
+                        },
+                        "population_stddev": {
+                          "value": 0.0
+                        }
+                      }
+                    },
+                    "passed_summary": null
+                  },
+                  {
+                    "value": "task_execution.official_baseline",
+                    "summary": {
+                      "episode_result_count": 1,
+                      "quality": {
+                        "valid": 1,
+                        "missing": 0,
+                        "invalid": 0
+                      },
+                      "statistics": {
+                        "mean": {
+                          "value": 17.696
+                        },
+                        "median": {
+                          "value": 17.696
+                        },
+                        "min": {
+                          "value": 17.696
+                        },
+                        "max": {
+                          "value": 17.696
+                        },
+                        "population_stddev": {
+                          "value": 0.0
+                        }
+                      }
+                    },
+                    "passed_summary": null
+                  }
+                ],
+                "policy_name": [
+                  {
+                    "value": "ACT",
+                    "summary": {
+                      "episode_result_count": 2,
+                      "quality": {
+                        "valid": 2,
+                        "missing": 0,
+                        "invalid": 0
+                      },
+                      "statistics": {
+                        "mean": {
+                          "value": 18.198
+                        },
+                        "median": {
+                          "value": 18.198
+                        },
+                        "min": {
+                          "value": 17.696
+                        },
+                        "max": {
+                          "value": 18.7
+                        },
+                        "population_stddev": {
+                          "value": 0.5019999999999989
+                        }
+                      }
+                    },
+                    "passed_summary": null
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "execution_vqa_conflict": false
+  },
+  "total_episodes": 2,
+  "requested_total_episodes": 2,
+  "history_retrieval": {
+    "schema_version": 1,
+    "status": "disabled",
+    "match_count": 0,
+    "matches": []
+  },
+  "global_query_route": {
+    "selection": {
+      "schema_version": 3,
+      "decision": "route",
+      "task_name": "click_bell",
+      "task_profile": "adaptive_properties",
+      "evaluation_goal": "answer_open_query_with_evidence: 这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。",
+      "requested_aspect_ids": [],
+      "first_aspect_id": null,
+      "unsupported_capabilities": [],
+      "binding_only": true
+    },
+    "resolved": {
+      "task_name": "click_bell",
+      "task_family": "press_contact",
+      "task_profile": "adaptive_properties",
+      "planner_kind": "model_click_bell_adaptive_v1",
+      "checkpoint": {
+        "policy_name": "ACT",
+        "checkpoint_setting": "demo_clean",
+        "expert_data_num": 50,
+        "checkpoint_id": "act-click_bell/demo_clean-50",
+        "ready": true
+      },
+      "aspects": []
+    },
+    "catalog_sha256": "84d6c7311621cd227c2cc519a6b74e1ac83c357708e4aa2bbdb952aeba87fc7f",
+    "provider_called": false,
+    "attempt_count": 0
+  },
+  "limitations": {
+    "bounded_three_round_prototype": true,
+    "few_episodes_are_not_a_generalization_benchmark": true,
+    "policy_result_is_not_pipeline_status": true,
+    "global_route_unsupported_capabilities": []
+  },
+  "artifacts": {
+    "evaluation_plan": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/plan/evaluation_plan.json",
+    "plan_decisions": [
+      "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/plan/decision_after_round_1.json",
+      "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/plan/decision_after_round_2.json"
+    ],
+    "evidence_assessments": [
+      "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/plan/evidence_after_round_1.json",
+      "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/plan/evidence_after_round_2.json"
+    ],
+    "history_retrieval": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/plan/history_retrieval.json",
+    "global_query_route": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/plan/global_query_route.json",
+    "summary": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/summary/summary.json",
+    "aggregate": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/summary/aggregate_result.json",
+    "round_artifacts": [
+      {
+        "generated_task": "envs/click_bell.py",
+        "scene_image": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/evidence/initial_head.png",
+        "vision_result": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/validation/vision.json",
+        "position_samples": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/validation/position_samples.json",
+        "reflection_summary": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/reflection/summary.json",
+        "act_videos": [
+          "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/evaluation/episode0.mp4"
+        ],
+        "rollout_videos": [
+          "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/evaluation/telemetry/act/episode_000_seed_100405/video.mp4"
+        ],
+        "act_result": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/evaluation/_result.txt",
+        "trusted_tools": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/evaluation/telemetry/tool_results.json",
+        "planned_tool": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/planned_tool/tool_execution.json",
+        "aggregate": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/aggregate_result.json",
+        "evidence_aggregate": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/evidence_aggregate.json",
+        "execution_vqa": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa/execution_vqa.json",
+        "execution_vqa_query": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa_query.json",
+        "execution_vqa_montage": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa/execution_montage.png",
+        "execution_vqa_selection": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa/keyframe_selection.json",
+        "child_manifest": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/manifest.json"
+      },
+      {
+        "generated_task": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/task.py",
+        "scene_image": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evidence/initial_head.png",
+        "vision_result": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/validation/vision.json",
+        "position_samples": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/validation/position_samples.json",
+        "reflection_summary": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/reflection/summary.json",
+        "act_videos": [
+          "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/episode0.mp4"
+        ],
+        "rollout_videos": [
+          "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/act/episode_000_seed_100405/video.mp4"
+        ],
+        "act_result": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/_result.txt",
+        "trusted_tools": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/evaluation/telemetry/tool_results.json",
+        "planned_tool": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json",
+        "aggregate": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/aggregate_result.json",
+        "evidence_aggregate": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/evidence_aggregate.json",
+        "execution_vqa": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa/execution_vqa.json",
+        "execution_vqa_query": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa_query.json",
+        "execution_vqa_montage": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa/execution_montage.png",
+        "execution_vqa_selection": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa/keyframe_selection.json",
+        "child_manifest": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/manifest.json"
+      }
+    ]
+  },
+  "claim_first_runtime": {
+    "schema_version": 1,
+    "query_contract": {
+      "schema_version": 3,
+      "claim_type": "existential",
+      "candidate_universe": [
+        "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+      ],
+      "required_coverage": {
+        "candidate_ids": [
+          "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+        ],
+        "minimum_evaluated": 1,
+        "minimum_per_group": null
+      },
+      "round_budget": 1,
+      "comparison_groups": null,
+      "candidate_universe_closed": false,
+      "existential_witness_outcome": "pass",
+      "control_requirement": "required"
+    },
+    "assessment": {
+      "schema_version": 1,
+      "contract": {
+        "schema_version": 3,
+        "claim_type": "existential",
+        "candidate_universe": [
+          "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+        ],
+        "required_coverage": {
+          "candidate_ids": [
+            "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+          ],
+          "minimum_evaluated": 1,
+          "minimum_per_group": null
+        },
+        "round_budget": 1,
+        "comparison_groups": null,
+        "candidate_universe_closed": false,
+        "existential_witness_outcome": "pass",
+        "control_requirement": "required"
+      },
+      "should_stop": true,
+      "stop_reason": "evidence_sufficient",
+      "claim_verdict": "supported",
+      "evidence_sufficient": true,
+      "completed_rounds": 1,
+      "round_budget": 1,
+      "budget_remaining": 0,
+      "candidate_universe_closed": false,
+      "candidate_discovery_required": false,
+      "observed_candidate_ids": [
+        "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+      ],
+      "decisive_candidate_ids": [
+        "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+      ],
+      "conflict_candidate_ids": [],
+      "unknown_candidate_ids": [],
+      "untested_required_candidate_ids": [],
+      "untested_candidate_ids": [],
+      "recommended_candidate_ids": [],
+      "rationale": "A definitive pass candidate witnesses the existential claim.",
+      "statistics": {
+        "existential_witness_outcome": "pass",
+        "witness_candidate_ids": [
+          "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+        ]
+      },
+      "limitations": [
+        "This is a finite-domain stopping prototype, not a statistical generalization guarantee.",
+        "The candidate universe is open; exhaustive, no-counterexample, and worst-case conclusions are not licensed."
+      ]
+    },
+    "query_answer": {
+      "schema_version": 1,
+      "original_query": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。",
+      "answered": true,
+      "answer_scope": "official_equivalent",
+      "official_benchmark_answered": true,
+      "stop_reason": "evidence_sufficient",
+      "claim_type": "existential",
+      "claim_verdict": "supported",
+      "answer": "For the finite registered candidate domain, the Query verdict is supported.",
+      "tested_candidate_ids": [
+        "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+      ],
+      "untested_candidate_ids": [],
+      "limitations": [
+        "This is a finite-domain stopping prototype, not a statistical generalization guarantee.",
+        "The candidate universe is open; exhaustive, no-counterexample, and worst-case conclusions are not licensed.",
+        "This answer is limited to the bound task, checkpoint, variants, and recorded seeds.",
+        "A finite-domain N-small result is not a broad generalization guarantee."
+      ],
+      "evidence_refs": [
+        {
+          "kind": "child_manifest",
+          "path": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/manifest.json"
+        },
+        {
+          "kind": "evidence_aggregate",
+          "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/evidence_aggregate.json"
+        },
+        {
+          "kind": "round_aggregate",
+          "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/aggregate_result.json"
+        },
+        {
+          "kind": "tool_execution",
+          "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/planned_tool/tool_execution.json"
+        },
+        {
+          "kind": "execution_vqa_result",
+          "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa/execution_vqa.json"
+        },
+        {
+          "kind": "child_manifest",
+          "path": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/manifest.json"
+        },
+        {
+          "kind": "evidence_aggregate",
+          "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/evidence_aggregate.json"
+        },
+        {
+          "kind": "round_aggregate",
+          "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/aggregate_result.json"
+        },
+        {
+          "kind": "tool_execution",
+          "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json"
+        },
+        {
+          "kind": "execution_vqa_result",
+          "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa/execution_vqa.json"
+        }
+      ],
+      "evaluation_outcomes": [
+        {
+          "metric": "official_check_success",
+          "authority": "official_check_success",
+          "binding": null,
+          "value": 1.0,
+          "official_equivalent": true,
+          "execution_scope": "official_equivalent",
+          "outcome_semantics": {
+            "schema_version": 1,
+            "status": "official_only",
+            "evidence_conflict": false,
+            "official_equivalent": true,
+            "outcome_authority": "official_check_success",
+            "episodes": [],
+            "reason_codes": [
+              "official_outcome_has_no_generated_checker"
+            ]
+          }
+        },
+        {
+          "metric": "official_check_success",
+          "authority": "official_check_success_reused",
+          "binding": null,
+          "value": 1.0,
+          "official_equivalent": true,
+          "execution_scope": "official_equivalent",
+          "outcome_semantics": {
+            "schema_version": 1,
+            "status": "official_only",
+            "evidence_conflict": false,
+            "official_equivalent": true,
+            "outcome_authority": "official_check_success_reused",
+            "episodes": [],
+            "reason_codes": [
+              "official_outcome_has_no_generated_checker"
+            ]
+          }
+        }
+      ],
+      "outcome_semantics": [
+        {
+          "schema_version": 1,
+          "status": "official_only",
+          "evidence_conflict": false,
+          "official_equivalent": true,
+          "outcome_authority": "official_check_success",
+          "episodes": [],
+          "reason_codes": [
+            "official_outcome_has_no_generated_checker"
+          ]
+        },
+        {
+          "schema_version": 1,
+          "status": "official_only",
+          "evidence_conflict": false,
+          "official_equivalent": true,
+          "outcome_authority": "official_check_success_reused",
+          "episodes": [],
+          "reason_codes": [
+            "official_outcome_has_no_generated_checker"
+          ]
+        }
+      ],
+      "evidence_conflict": false
+    },
+    "records": [
+      {
+        "schema_version": 1,
+        "round_id": "round_1",
+        "template_id": "task_execution.official_baseline",
+        "candidate_id": "task_execution.official_baseline",
+        "open_query_evidence": {
+          "schema_version": 1,
+          "round_id": "round_1",
+          "tested_sub_aspect": "task_execution.official_baseline",
+          "tested_hypothesis": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。",
+          "tested_perturbation": "unchanged official-scene control",
+          "outcome": "success",
+          "evidence_summary": "EvidencePacket strength=sufficient; policy_success_rate=1.0; Rule metric=official_check_success; outcome_metric=official_check_success; outcome_authority=official_check_success; outcome_semantics=official_only; VQA status=passed; planned_tool_measurements=[{\"metric\": \"official_check_success\", \"null_reason\": null, \"passed\": true, \"provider_called\": false, \"route\": \"reuse\", \"unit\": null, \"value\": true}].",
+          "limitations": [
+            "One bounded runtime round is not a statistical generalization estimate."
+          ]
+        },
+        "candidate_evidence": {
+          "candidate_id": "task_execution.official_baseline",
+          "outcome": "pass",
+          "score": 1.0,
+          "diagnosis": null
+        },
+        "evaluation_outcome": {
+          "metric": "official_check_success",
+          "authority": "official_check_success",
+          "binding": null,
+          "value": 1.0,
+          "official_equivalent": true,
+          "execution_scope": "official_equivalent",
+          "outcome_semantics": {
+            "schema_version": 1,
+            "status": "official_only",
+            "evidence_conflict": false,
+            "official_equivalent": true,
+            "outcome_authority": "official_check_success",
+            "episodes": [],
+            "reason_codes": [
+              "official_outcome_has_no_generated_checker"
+            ]
+          }
+        },
+        "outcome_semantics": {
+          "schema_version": 1,
+          "status": "official_only",
+          "evidence_conflict": false,
+          "official_equivalent": true,
+          "outcome_authority": "official_check_success",
+          "episodes": [],
+          "reason_codes": [
+            "official_outcome_has_no_generated_checker"
+          ]
+        },
+        "planned_tool_evidence": [
+          {
+            "metric": "official_check_success",
+            "value": true,
+            "unit": null,
+            "passed": true,
+            "route": "reuse",
+            "provider_called": false,
+            "null_reason": null
+          }
+        ],
+        "evidence_packet": {
+          "schema_version": 1,
+          "round_id": "round_1",
+          "template_id": "task_execution.official_baseline",
+          "pipeline": {
+            "passed": true,
+            "failure_stage": null
+          },
+          "policy": {
+            "success_rate": 1.0,
+            "reported": true
+          },
+          "rule": {
+            "metric": "official_check_success",
+            "expected_policy_episodes": 1,
+            "aggregate_status": "passed",
+            "input_issue_count": 0,
+            "valid": 1,
+            "missing": 0,
+            "invalid": 0,
+            "semantic_missing": 0,
+            "semantic_missing_reasons": [],
+            "observed_policy_episodes": 1,
+            "complete": true,
+            "reasons": []
+          },
+          "vqa": {
+            "required": false,
+            "status": "passed",
+            "evidence_conflict": false
+          },
+          "evidence_strength": "sufficient",
+          "reason_codes": []
+        },
+        "evidence_refs": [
+          {
+            "kind": "child_manifest",
+            "path": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/manifest.json"
+          },
+          {
+            "kind": "evidence_aggregate",
+            "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/evidence_aggregate.json"
+          },
+          {
+            "kind": "round_aggregate",
+            "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/aggregate_result.json"
+          },
+          {
+            "kind": "tool_execution",
+            "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/planned_tool/tool_execution.json"
+          },
+          {
+            "kind": "execution_vqa_result",
+            "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa/execution_vqa.json"
+          }
+        ]
+      },
+      {
+        "schema_version": 1,
+        "round_id": "round_2",
+        "template_id": "",
+        "candidate_id": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
+        "open_query_evidence": {
+          "schema_version": 1,
+          "round_id": "round_2",
+          "tested_sub_aspect": "robustness of the policy to positional variation of the bell",
+          "tested_hypothesis": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。\nScene need: Shift the bell's position horizontally by a small, bounded distance while keeping its size, shape, material, and the overall scene layout unchanged. Preserve unchanged: 任务目标与接触几何语义; size; shape; material; the overall scene layout.\nChecker need: reuse the official implementation",
+          "tested_perturbation": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
+          "outcome": "success",
+          "evidence_summary": "EvidencePacket strength=sufficient; policy_success_rate=1.0; Rule metric=query_derived_metric; outcome_metric=official_check_success; outcome_authority=official_check_success_reused; outcome_semantics=official_only; VQA status=passed; planned_tool_measurements=[{\"metric\": \"query_derived_metric\", \"null_reason\": \"measured\", \"passed\": null, \"provider_called\": false, \"route\": \"typed_metric_spec_compile\", \"unit\": \"m\", \"value\": 0.4100531050769832}].",
+          "limitations": [
+            "One bounded runtime round is not a statistical generalization estimate."
+          ]
+        },
+        "candidate_evidence": {
+          "candidate_id": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
+          "outcome": "pass",
+          "score": 1.0,
+          "diagnosis": null
+        },
+        "evaluation_outcome": {
+          "metric": "official_check_success",
+          "authority": "official_check_success_reused",
+          "binding": null,
+          "value": 1.0,
+          "official_equivalent": true,
+          "execution_scope": "official_equivalent",
+          "outcome_semantics": {
+            "schema_version": 1,
+            "status": "official_only",
+            "evidence_conflict": false,
+            "official_equivalent": true,
+            "outcome_authority": "official_check_success_reused",
+            "episodes": [],
+            "reason_codes": [
+              "official_outcome_has_no_generated_checker"
+            ]
+          }
+        },
+        "outcome_semantics": {
+          "schema_version": 1,
+          "status": "official_only",
+          "evidence_conflict": false,
+          "official_equivalent": true,
+          "outcome_authority": "official_check_success_reused",
+          "episodes": [],
+          "reason_codes": [
+            "official_outcome_has_no_generated_checker"
+          ]
+        },
+        "planned_tool_evidence": [
+          {
+            "metric": "query_derived_metric",
+            "value": 0.4100531050769832,
+            "unit": "m",
+            "passed": null,
+            "route": "typed_metric_spec_compile",
+            "provider_called": false,
+            "null_reason": "measured"
+          }
+        ],
+        "evidence_packet": {
+          "schema_version": 1,
+          "round_id": "round_2",
+          "template_id": "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346",
+          "pipeline": {
+            "passed": true,
+            "failure_stage": null
+          },
+          "policy": {
+            "success_rate": 1.0,
+            "reported": true
+          },
+          "rule": {
+            "metric": "query_derived_metric",
+            "expected_policy_episodes": 1,
+            "aggregate_status": "passed",
+            "input_issue_count": 0,
+            "valid": 1,
+            "missing": 0,
+            "invalid": 0,
+            "semantic_missing": 0,
+            "semantic_missing_reasons": [],
+            "observed_policy_episodes": 1,
+            "complete": true,
+            "reasons": []
+          },
+          "vqa": {
+            "required": false,
+            "status": "passed",
+            "evidence_conflict": false
+          },
+          "evidence_strength": "sufficient",
+          "reason_codes": []
+        },
+        "evidence_refs": [
+          {
+            "kind": "child_manifest",
+            "path": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/manifest.json"
+          },
+          {
+            "kind": "evidence_aggregate",
+            "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/evidence_aggregate.json"
+          },
+          {
+            "kind": "round_aggregate",
+            "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/aggregate_result.json"
+          },
+          {
+            "kind": "tool_execution",
+            "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json"
+          },
+          {
+            "kind": "execution_vqa_result",
+            "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa/execution_vqa.json"
+          }
+        ]
+      }
+    ],
+    "artifacts": {
+      "query_answer": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/plan/claim_first_runtime/query_answer.json",
+      "latest_evidence": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/plan/claim_first_runtime/evidence_after_round_02.json"
+    }
+  },
+  "flagship_acceptance": {
+    "schema_version": 1,
+    "accepted": true,
+    "execution_entrypoint": "scripts/manipeval_agent.py",
+    "history_replay_disabled": true,
+    "online_free_concern": true,
+    "online_query_candidate_binding": true,
+    "candidate_binding_mode": "online_runtime_discovery",
+    "cli_candidate_hint_used": false,
+    "candidate_domain_resolution": "broad_or_ambiguous",
+    "candidate_aspect_ids": [
+      "object_position",
+      "object_instance",
+      "performance.completion_time_stability",
+      "robustness.distractor_avoidance",
+      "robustness.scene_clutter",
+      "scene_background_texture",
+      "scene_lighting"
+    ],
+    "bound_candidate_templates": [
+      "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+    ],
+    "singleton_query_candidate": true,
+    "query_candidates_bound": true,
+    "runtime_bound_route": true,
+    "global_router_provider_calls": 0,
+    "act_rollouts": 2,
+    "required_act_rollouts": 2,
+    "accepted_act_rollout_range": [
+      2,
+      3
+    ],
+    "round_routes": [
+      "official",
+      "generic_provider_scene_checker_codegen"
+    ],
+    "stop_reason": "evidence_sufficient",
+    "evidence_sufficient": true,
+    "outcome_semantics_statuses": [
+      "official_only"
+    ],
+    "answer_scope": "official_equivalent",
+    "same_bundle_bound_checker_reuse": false,
+    "typed_execution_complete": true,
+    "candidate_execution_accepted": true,
+    "bound_checker_metric": null,
+    "bound_checker_module_sha256": null,
+    "cross_query_registry_reuse_established": false
+  }
+}

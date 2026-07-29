@@ -30,6 +30,13 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument("--max-video-mb", type=float, default=2.0)
+    parser.add_argument(
+        "--include-repair-id",
+        help=(
+            "Optionally publish one completed append-only repair audit, such "
+            "as completed-round exact Tool reuse."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -64,6 +71,7 @@ def main() -> None:
         destination=destination,
         publish=publish,
         max_video_bytes=int(args.max_video_mb * 1_000_000),
+        include_repair_id=args.include_repair_id,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
 

@@ -1305,15 +1305,6 @@ def registered_capability_contracts(
     ]
 
 
-def registered_templates(task_name: str) -> list[str]:
-    """Return every template covered by one task adapter."""
-
-    return [
-        contract["template_id"]
-        for contract in registered_capability_contracts(task_name)
-    ]
-
-
 __all__ = [
     "CapabilityAdapterError",
     "build_contract_tool_request",
@@ -1321,7 +1312,6 @@ __all__ = [
     "registered_task_adapters",
     "registered_task_names",
     "registered_task_vqa_questions",
-    "registered_templates",
     "resolve_capability_contract",
     "resolve_task_adapter",
     "task_vqa_metric_phenomena",

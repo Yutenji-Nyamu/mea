@@ -137,7 +137,7 @@ def validate_method_ast(
         if isinstance(node, ast.Name) and (
             node.id in _FORBIDDEN_NAMES
             or "__" in node.id
-            or node.id.startswith("_")
+            or (node.id.startswith("_") and node.id != "_")
         ):
             raise error_type(f"{method_name} contains forbidden name {node.id!r}")
         if isinstance(node, ast.Attribute) and (

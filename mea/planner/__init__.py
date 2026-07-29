@@ -127,6 +127,12 @@ from .open_world_session import (
     build_open_world_evaluation_target,
     validate_open_world_evaluation_target,
 )
+from .policy_task_binding import (
+    PolicyTaskBindingError,
+    build_policy_task_binding,
+    policy_task_binding_from_target,
+    validate_policy_task_binding,
+)
 
 
 # These task-specific and catalog planners are compatibility/paper protocols.
@@ -279,4 +285,8 @@ __all__ = [
     "OpenWorldSessionError",
     "build_open_world_evaluation_target",
     "validate_open_world_evaluation_target",
+    "PolicyTaskBindingError",
+    "build_policy_task_binding",
+    "policy_task_binding_from_target",
+    "validate_policy_task_binding",
 ]

@@ -1,0 +1,47 @@
+{
+  "comparison_image": "official_vs_generated.png",
+  "confidence": 0.8,
+  "diagnosis": "The generated scene is visible and physically plausible.",
+  "key_task_actors_visible": true,
+  "model_requested": "gpt-4o-2024-11-20",
+  "passed": true,
+  "provider_metadata": {
+    "finish_reason": "stop",
+    "id": "chatcmpl-E6r21Lnop83PoCEb7jrYan97ESSG9",
+    "model": "gpt-4o-2024-11-20",
+    "retry_count": 0,
+    "usage": {
+      "completion_tokens": 94,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 12,
+        "engine_ttft_ms": 379,
+        "engine_ttlt_ms": 1492,
+        "pre_inference_ms": 239,
+        "service_tbt_ms": 12,
+        "service_ttft_ms": 1137,
+        "service_ttlt_ms": 2256,
+        "total_duration_ms": 2019,
+        "user_visible_ttft_ms": 898
+      },
+      "prompt_tokens": 745,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 839
+    }
+  },
+  "render_usable": true,
+  "repair_instructions": [],
+  "requested_change_assessment": "consistent",
+  "scene_change_authority_available": true,
+  "schema_version": 1,
+  "unexpected_changes": [],
+  "visual_physical_plausibility": "plausible"
+}

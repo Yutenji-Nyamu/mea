@@ -1,0 +1,758 @@
+{
+  "schema_version": 1,
+  "status": "completed",
+  "source_evaluation_id": "eval_20260729_batch31_open_flagship_live_v13",
+  "source_round_id": "round_2",
+  "repair_id": "batch31_v13_cross_query_reuse",
+  "act_rollouts_started": 0,
+  "first_query_route": "typed_metric_spec_compile",
+  "first_query_provider_called": false,
+  "first_query_measurements": [
+    0.4100531050769832
+  ],
+  "exact_reuse_route": "run_local_reuse",
+  "exact_reuse_provider_called": false,
+  "aggregate_status": "passed",
+  "aggregate": {
+    "schema_version": 1,
+    "status": "passed",
+    "source_count": 2,
+    "unique_episode_count": 2,
+    "input_issues": [],
+    "metrics": [
+      {
+        "metric": "official_check_success",
+        "value_kind": "boolean",
+        "unit": null,
+        "cohorts": [
+          {
+            "role": "policy_under_evaluation",
+            "policy_names": [
+              "ACT"
+            ],
+            "summary": {
+              "episode_result_count": 1,
+              "quality": {
+                "valid": 1,
+                "missing": 0,
+                "invalid": 0
+              },
+              "statistics": {
+                "true_count": {
+                  "value": 1
+                },
+                "true_rate": {
+                  "value": 1.0,
+                  "numerator": 1,
+                  "denominator": 1
+                },
+                "false_count": {
+                  "value": 0
+                },
+                "false_rate": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 1
+                },
+                "success_count": {
+                  "value": 1
+                },
+                "success_rate": {
+                  "value": 1.0,
+                  "numerator": 1,
+                  "denominator": 1
+                }
+              }
+            },
+            "passed_summary": {
+              "episode_result_count": 1,
+              "quality": {
+                "valid": 1,
+                "missing": 0,
+                "invalid": 0
+              },
+              "statistics": {
+                "true_count": {
+                  "value": 1
+                },
+                "true_rate": {
+                  "value": 1.0,
+                  "numerator": 1,
+                  "denominator": 1
+                },
+                "false_count": {
+                  "value": 0
+                },
+                "false_rate": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 1
+                }
+              }
+            },
+            "groups": {
+              "seed": [
+                {
+                  "value": 100405,
+                  "summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "true_count": {
+                        "value": 1
+                      },
+                      "true_rate": {
+                        "value": 1.0,
+                        "numerator": 1,
+                        "denominator": 1
+                      },
+                      "false_count": {
+                        "value": 0
+                      },
+                      "false_rate": {
+                        "value": 0.0,
+                        "numerator": 0,
+                        "denominator": 1
+                      },
+                      "success_count": {
+                        "value": 1
+                      },
+                      "success_rate": {
+                        "value": 1.0,
+                        "numerator": 1,
+                        "denominator": 1
+                      }
+                    }
+                  },
+                  "passed_summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "true_count": {
+                        "value": 1
+                      },
+                      "true_rate": {
+                        "value": 1.0,
+                        "numerator": 1,
+                        "denominator": 1
+                      },
+                      "false_count": {
+                        "value": 0
+                      },
+                      "false_rate": {
+                        "value": 0.0,
+                        "numerator": 0,
+                        "denominator": 1
+                      }
+                    }
+                  }
+                }
+              ],
+              "round_id": [
+                {
+                  "value": "round_2",
+                  "summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "true_count": {
+                        "value": 1
+                      },
+                      "true_rate": {
+                        "value": 1.0,
+                        "numerator": 1,
+                        "denominator": 1
+                      },
+                      "false_count": {
+                        "value": 0
+                      },
+                      "false_rate": {
+                        "value": 0.0,
+                        "numerator": 0,
+                        "denominator": 1
+                      },
+                      "success_count": {
+                        "value": 1
+                      },
+                      "success_rate": {
+                        "value": 1.0,
+                        "numerator": 1,
+                        "denominator": 1
+                      }
+                    }
+                  },
+                  "passed_summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "true_count": {
+                        "value": 1
+                      },
+                      "true_rate": {
+                        "value": 1.0,
+                        "numerator": 1,
+                        "denominator": 1
+                      },
+                      "false_count": {
+                        "value": 0
+                      },
+                      "false_rate": {
+                        "value": 0.0,
+                        "numerator": 0,
+                        "denominator": 1
+                      }
+                    }
+                  }
+                }
+              ],
+              "variant": [
+                {
+                  "value": "robustness of the policy to positional variation of the bell",
+                  "summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "true_count": {
+                        "value": 1
+                      },
+                      "true_rate": {
+                        "value": 1.0,
+                        "numerator": 1,
+                        "denominator": 1
+                      },
+                      "false_count": {
+                        "value": 0
+                      },
+                      "false_rate": {
+                        "value": 0.0,
+                        "numerator": 0,
+                        "denominator": 1
+                      },
+                      "success_count": {
+                        "value": 1
+                      },
+                      "success_rate": {
+                        "value": 1.0,
+                        "numerator": 1,
+                        "denominator": 1
+                      }
+                    }
+                  },
+                  "passed_summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "true_count": {
+                        "value": 1
+                      },
+                      "true_rate": {
+                        "value": 1.0,
+                        "numerator": 1,
+                        "denominator": 1
+                      },
+                      "false_count": {
+                        "value": 0
+                      },
+                      "false_rate": {
+                        "value": 0.0,
+                        "numerator": 0,
+                        "denominator": 1
+                      }
+                    }
+                  }
+                }
+              ],
+              "policy_name": [
+                {
+                  "value": "ACT",
+                  "summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "true_count": {
+                        "value": 1
+                      },
+                      "true_rate": {
+                        "value": 1.0,
+                        "numerator": 1,
+                        "denominator": 1
+                      },
+                      "false_count": {
+                        "value": 0
+                      },
+                      "false_rate": {
+                        "value": 0.0,
+                        "numerator": 0,
+                        "denominator": 1
+                      },
+                      "success_count": {
+                        "value": 1
+                      },
+                      "success_rate": {
+                        "value": 1.0,
+                        "numerator": 1,
+                        "denominator": 1
+                      }
+                    }
+                  },
+                  "passed_summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "true_count": {
+                        "value": 1
+                      },
+                      "true_rate": {
+                        "value": 1.0,
+                        "numerator": 1,
+                        "denominator": 1
+                      },
+                      "false_count": {
+                        "value": 0
+                      },
+                      "false_rate": {
+                        "value": 0.0,
+                        "numerator": 0,
+                        "denominator": 1
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "metric": "query_derived_metric",
+        "value_kind": "numeric",
+        "unit": "m",
+        "cohorts": [
+          {
+            "role": "policy_under_evaluation",
+            "policy_names": [
+              "ACT"
+            ],
+            "summary": {
+              "episode_result_count": 1,
+              "quality": {
+                "valid": 1,
+                "missing": 0,
+                "invalid": 0
+              },
+              "statistics": {
+                "mean": {
+                  "value": 0.4100531050769832
+                },
+                "median": {
+                  "value": 0.4100531050769832
+                },
+                "min": {
+                  "value": 0.4100531050769832
+                },
+                "max": {
+                  "value": 0.4100531050769832
+                },
+                "population_stddev": {
+                  "value": 0.0
+                }
+              }
+            },
+            "passed_summary": null,
+            "groups": {
+              "seed": [
+                {
+                  "value": 100405,
+                  "summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "mean": {
+                        "value": 0.4100531050769832
+                      },
+                      "median": {
+                        "value": 0.4100531050769832
+                      },
+                      "min": {
+                        "value": 0.4100531050769832
+                      },
+                      "max": {
+                        "value": 0.4100531050769832
+                      },
+                      "population_stddev": {
+                        "value": 0.0
+                      }
+                    }
+                  },
+                  "passed_summary": null
+                }
+              ],
+              "round_id": [
+                {
+                  "value": "round_2",
+                  "summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "mean": {
+                        "value": 0.4100531050769832
+                      },
+                      "median": {
+                        "value": 0.4100531050769832
+                      },
+                      "min": {
+                        "value": 0.4100531050769832
+                      },
+                      "max": {
+                        "value": 0.4100531050769832
+                      },
+                      "population_stddev": {
+                        "value": 0.0
+                      }
+                    }
+                  },
+                  "passed_summary": null
+                }
+              ],
+              "variant": [
+                {
+                  "value": "robustness of the policy to positional variation of the bell",
+                  "summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "mean": {
+                        "value": 0.4100531050769832
+                      },
+                      "median": {
+                        "value": 0.4100531050769832
+                      },
+                      "min": {
+                        "value": 0.4100531050769832
+                      },
+                      "max": {
+                        "value": 0.4100531050769832
+                      },
+                      "population_stddev": {
+                        "value": 0.0
+                      }
+                    }
+                  },
+                  "passed_summary": null
+                }
+              ],
+              "policy_name": [
+                {
+                  "value": "ACT",
+                  "summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "mean": {
+                        "value": 0.4100531050769832
+                      },
+                      "median": {
+                        "value": 0.4100531050769832
+                      },
+                      "min": {
+                        "value": 0.4100531050769832
+                      },
+                      "max": {
+                        "value": 0.4100531050769832
+                      },
+                      "population_stddev": {
+                        "value": 0.0
+                      }
+                    }
+                  },
+                  "passed_summary": null
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "metric": "time_to_success",
+        "value_kind": "numeric",
+        "unit": "s",
+        "cohorts": [
+          {
+            "role": "policy_under_evaluation",
+            "policy_names": [
+              "ACT"
+            ],
+            "summary": {
+              "episode_result_count": 1,
+              "quality": {
+                "valid": 1,
+                "missing": 0,
+                "invalid": 0
+              },
+              "statistics": {
+                "mean": {
+                  "value": 18.7
+                },
+                "median": {
+                  "value": 18.7
+                },
+                "min": {
+                  "value": 18.7
+                },
+                "max": {
+                  "value": 18.7
+                },
+                "population_stddev": {
+                  "value": 0.0
+                }
+              }
+            },
+            "passed_summary": null,
+            "groups": {
+              "seed": [
+                {
+                  "value": 100405,
+                  "summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "mean": {
+                        "value": 18.7
+                      },
+                      "median": {
+                        "value": 18.7
+                      },
+                      "min": {
+                        "value": 18.7
+                      },
+                      "max": {
+                        "value": 18.7
+                      },
+                      "population_stddev": {
+                        "value": 0.0
+                      }
+                    }
+                  },
+                  "passed_summary": null
+                }
+              ],
+              "round_id": [
+                {
+                  "value": "round_2",
+                  "summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "mean": {
+                        "value": 18.7
+                      },
+                      "median": {
+                        "value": 18.7
+                      },
+                      "min": {
+                        "value": 18.7
+                      },
+                      "max": {
+                        "value": 18.7
+                      },
+                      "population_stddev": {
+                        "value": 0.0
+                      }
+                    }
+                  },
+                  "passed_summary": null
+                }
+              ],
+              "variant": [
+                {
+                  "value": "robustness of the policy to positional variation of the bell",
+                  "summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "mean": {
+                        "value": 18.7
+                      },
+                      "median": {
+                        "value": 18.7
+                      },
+                      "min": {
+                        "value": 18.7
+                      },
+                      "max": {
+                        "value": 18.7
+                      },
+                      "population_stddev": {
+                        "value": 0.0
+                      }
+                    }
+                  },
+                  "passed_summary": null
+                }
+              ],
+              "policy_name": [
+                {
+                  "value": "ACT",
+                  "summary": {
+                    "episode_result_count": 1,
+                    "quality": {
+                      "valid": 1,
+                      "missing": 0,
+                      "invalid": 0
+                    },
+                    "statistics": {
+                      "mean": {
+                        "value": 18.7
+                      },
+                      "median": {
+                        "value": 18.7
+                      },
+                      "min": {
+                        "value": 18.7
+                      },
+                      "max": {
+                        "value": 18.7
+                      },
+                      "population_stddev": {
+                        "value": 0.0
+                      }
+                    }
+                  },
+                  "passed_summary": null
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "evidence_strength": "sufficient",
+  "query_contract_source": "round_decision.query_assessment.contract",
+  "execution_vqa_source": {
+    "source": "original_round_summary",
+    "path": null,
+    "sha256": null
+  },
+  "planner_assessment": {
+    "schema_version": 1,
+    "contract": {
+      "schema_version": 3,
+      "claim_type": "existential",
+      "candidate_universe": [
+        "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+      ],
+      "required_coverage": {
+        "candidate_ids": [
+          "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+        ],
+        "minimum_evaluated": 1,
+        "minimum_per_group": null
+      },
+      "round_budget": 1,
+      "comparison_groups": null,
+      "candidate_universe_closed": false,
+      "existential_witness_outcome": "pass",
+      "control_requirement": "required"
+    },
+    "should_stop": true,
+    "stop_reason": "evidence_sufficient",
+    "claim_verdict": "supported",
+    "evidence_sufficient": true,
+    "completed_rounds": 1,
+    "round_budget": 1,
+    "budget_remaining": 0,
+    "candidate_universe_closed": false,
+    "candidate_discovery_required": false,
+    "observed_candidate_ids": [
+      "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+    ],
+    "decisive_candidate_ids": [
+      "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+    ],
+    "conflict_candidate_ids": [],
+    "unknown_candidate_ids": [],
+    "untested_required_candidate_ids": [],
+    "untested_candidate_ids": [],
+    "recommended_candidate_ids": [],
+    "rationale": "A definitive pass candidate witnesses the existential claim.",
+    "statistics": {
+      "existential_witness_outcome": "pass",
+      "witness_candidate_ids": [
+        "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+      ]
+    },
+    "limitations": [
+      "This is a finite-domain stopping prototype, not a statistical generalization guarantee.",
+      "The candidate universe is open; exhaustive, no-counterexample, and worst-case conclusions are not licensed."
+    ]
+  },
+  "artifacts": {
+    "repair_provenance": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/repairs/batch31_v13_cross_query_reuse/repair_provenance.json",
+    "first_tool": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/repairs/batch31_v13_cross_query_reuse/first_query/planned_tool/tool_execution.json",
+    "exact_reuse_tool": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/repairs/batch31_v13_cross_query_reuse/second_query_exact_reuse/planned_tool/tool_execution.json",
+    "aggregate": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/repairs/batch31_v13_cross_query_reuse/aggregate_result.json",
+    "evidence_record": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/repairs/batch31_v13_cross_query_reuse/claim_first_evidence_record.json",
+    "planner_replay": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/repairs/batch31_v13_cross_query_reuse/claim_first_planner_replay.json"
+  }
+}

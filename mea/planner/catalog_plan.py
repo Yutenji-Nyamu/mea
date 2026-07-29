@@ -1,14 +1,9 @@
-"""Paper-aligned production facade for catalog-bound evaluation planning.
+"""Compatibility facade for catalog-bound paper protocols.
 
-Production callers should depend on :class:`CatalogPlanAgent` instead of
-selecting one of the historical task-specific planners themselves.  The
-facade keeps trusted template materialization runtime-owned while accepting
-either a direct ClaimFirst control proposal or the validated wrapper emitted
-by ``route_to_planner_proposal``.
-
-The historical click-bell position and fixed-suite modes remain callable only
-through explicit paper-ablation settings.  The production entry point is this
-module.
+The production open-query path builds its initial plan directly through
+``ClaimFirstInitialPlanBuilder`` and treats the catalog only as a retrieval
+index. ``CatalogPlanAgent`` remains for explicit legacy and paper-ablation
+protocols that still materialize reviewed templates or task-specific modes.
 """
 
 from __future__ import annotations
@@ -32,7 +27,7 @@ from .prototype import PlanAgentError, PlanAgentPrototype
 CATALOG_PLAN_TASKS = registered_task_names()
 
 class CatalogPlanError(PlanAgentError):
-    """Raised when a request leaves the production task/template catalog."""
+    """Raised when an explicit catalog protocol cannot resolve its task."""
 
 
 def _task_name(value: Any) -> str:
@@ -213,7 +208,7 @@ class PlanMaterializer:
 
 
 class CatalogPlanAgent:
-    """Single production planner interface for registered ACT catalog tasks."""
+    """Compatibility planner for registered catalog-backed protocols."""
 
     planner_kind = "catalog_claim_first_v1"
 

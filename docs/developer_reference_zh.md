@@ -40,14 +40,10 @@
 6. 只有 Query 确实需要新场景，且 model-written scene/checker、fixture/render、
    rollout、Tool/VQA/Answer 均在同一链中通过，才能把任务标成“深入”。
 
-当前基线是五个 official adapters：BBH/ClickBell 较深入；v19 ClickBell 从无
-aspect/template 的 Query 在线完成 official→color→80% size 三轮，两个动态 candidate
-在同包完成 Tool codegen/live execution/exact reuse，但最终 audit 分别为
-`direct+partial` 与 `direct+partial/repair_required`：round2 geometry authority 未知，
-round3 contact-point z 漂移。因此 v19 是在线机械链证据和 confounded negative，不是
-evidence-sufficient 正旗舰。AdjustBottle 有一次生成式运行，
-GrabRoller/PlacePhoneStand official-only。新增 task 不应复制 task-specific planner，
-也不应仅因 checkpoint 存在或事后 replay 通过就宣称干净在线方法闭环。
+当前支持范围、每个 adapter 的证据深度和最新旗舰验收会随运行更新，统一见
+[论文 claim 与 gap](paper_claim_gap_zh.md)和[当前证据](evidence/current/README.md)。
+新增 task 不应复制 task-specific planner，也不应仅因 checkpoint 存在或事后 replay
+通过就宣称干净在线方法闭环。
 
 ## 扩展 TaskGen
 

@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "source": "provider_free_concern_direct_materialization",
+  "input_intent_id": "intent.c7b8b7a89baaba20",
+  "proposal": {
+    "schema_version": 2,
+    "action": "continue",
+    "sub_aspect": "free_concern.robustness.of.the.policy.to.positional.variation.of.the.bell",
+    "hypothesis": "The ACT policy can successfully complete the click_bell task when the bell is shifted to a new position within a bounded range.",
+    "requested_perturbation": {
+      "description": "Shift the bell's position horizontally by a small, bounded distance while keeping its size, shape, material, and the overall scene layout unchanged.",
+      "controlled_changes": [
+        "Shift the bell's position horizontally by a small, bounded distance while keeping its size, shape, material, and the overall scene layout unchanged."
+      ],
+      "preserve": [
+        "任务目标与接触几何语义",
+        "size",
+        "shape",
+        "material",
+        "the overall scene layout"
+      ]
+    },
+    "scene_need": {
+      "required": true,
+      "description": "The bell's position must be shifted horizontally within a small, bounded range, while preserving its size, shape, material, and the overall scene layout."
+    },
+    "checker_need": {
+      "required": false,
+      "description": null
+    },
+    "rule_tool_need": {
+      "required": true,
+      "description": "The numeric evidence of whether the bell was successfully activated in the new position.",
+      "reuse_first": true
+    },
+    "vqa_tool_need": {
+      "required": false,
+      "description": null,
+      "reuse_first": true
+    },
+    "rationale": "Directly execute the catalog-free first concern selected for the original Query; no second Planner may replace it before the control evidence is observed.",
+    "task_need": {
+      "required": true,
+      "description": "The bell's position must be shifted horizontally within a small, bounded range, while preserving its size, shape, material, and the overall scene layout."
+    },
+    "tool_need": {
+      "required": true,
+      "description": "The numeric evidence of whether the bell was successfully activated in the new position.",
+      "reuse_first": true
+    }
+  },
+  "provider": {
+    "model_requested": "gpt-4o-2024-11-20",
+    "called": true,
+    "attempt_count": 1,
+    "errors": [],
+    "last_metadata": {
+      "id": "chatcmpl-E6qyI5cDkBC7gPDnNgBIICwY5GXJG",
+      "model": "gpt-4o-2024-11-20",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 776,
+        "completion_tokens": 346,
+        "total_tokens": 1122,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "audio_tokens": 0
+        },
+        "completion_tokens_details": {
+          "audio_tokens": 0,
+          "reasoning_tokens": 0,
+          "accepted_prediction_tokens": 0,
+          "rejected_prediction_tokens": 0
+        },
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "input_tokens_details": null
+      },
+      "retry_count": 0
+    }
+  }
+}

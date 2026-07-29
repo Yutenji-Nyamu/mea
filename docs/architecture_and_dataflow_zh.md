@@ -109,34 +109,11 @@ Git 只发布一个最近运行的紧凑证据包 `docs/evidence/current/`：保
 回答。完整 raw bundle 留在服务器，历史结果压成 `docs/evidence/history.jsonl`，避免
 重复提交大体积 telemetry、VQA montage 和开发日志。
 
-## 当前范围
+## 稳定能力边界
 
 - 生产评估以 ACT 为主，DP3 只用于 BBH 最小双 policy pilot。
-- RoboTwin official env 与 instruction 的交集当前可发现 50 个 task；这表示检索空间，
-  不是 50 个 checkpoint-ready task，也不是 50-task 论文复现。
-- ACT official 入口现有 5 个 `TaskAdapter`：`beat_block_hammer`、`click_bell`、
-  `adjust_bottle`、`grab_roller`、`place_phone_stand`。BBH/ClickBell 有较成熟的
-  Planner→TaskGen→Tool/VQA→Answer 闭环；AdjustBottle 有一次在线生成式链，
-  GrabRoller/PlacePhoneStand 仍为 official adapter。任务数量表示已验证执行边界，
-  不限制开放 Query 能提出的 concern。
-- `place_phone_stand` 的 expert N=1 成功而 ACT N=1 失败；该运行只证明第五个
-  adapter、checkpoint、render/telemetry、Rule/VQA/Answer 接口连通，不支持稳定策略
-  弱点或成功率结论。
-- 当前 v19 flagship 从未提供 aspect 或 template：runtime 先选择 bell color，看到该轮
-  成功后再选择 80% size，而不是预先执行固定菜单。三轮均使用 seed `100000`，
-  official/color/size 的 ACT 结果分别为 `1/1`、`1/1`、`0/1`，并真实执行 VLM visual
-  diagnosis 与 expert preflight。这证明在线机械编排和 evidence-conditioned 转向实际
-  运行过，但不自动证明生成场景满足其语义合同。
-- 最终 preservation audit 推翻了 v19 的正验收：round2 的 bell center 通过检查，但
-  shape/size 没有 simulator 或 AST authority，不能从“未发现变化”推断为 preserved，
-  因此 trace 为 `direct+partial`；round3 center 不变，但 contact-point z 从
-  `0.7667903972` 变为 `0.7616323171`，差值 `-0.0051580801 m`，明确违反
-  preservation contract，trace 为 `direct+partial/repair_required`。
-- v19 第二轮按 Query need 生成新的 XY Tool，live 值为 `0.0077674431 m`；第三轮对相同
-  semantic key 做 evaluation-local exact reuse，live 值为 `0.0452577472 m`。这些值是
-  实际执行场景中的有效轨迹测量，但因为属性变化与 preservation failure 混杂，不能回答
-  “只改变 color/size”的因果 Query。最终 audit 为 `accepted=false`，原 Query 必须保持
-  inconclusive。
+- official task discovery、checkpoint-ready binding 与生成式方法证据是三个不同层级；
+  可发现任务数量或 adapter 数量都不等于论文方法已经跨任务复现。
 - 修正后的 preservation gate 对 exact spatial/contact 约束比较 same-seed simulator
   state；对没有 simulator/AST authority 的 geometry 返回 `unknown`，而不是乐观通过；
   `false` 会触发唯一一次局部 repair。generic backend 还会在 lookup/provider 之前拒绝
@@ -153,12 +130,10 @@ Git 只发布一个最近运行的紧凑证据包 `docs/evidence/current/`：保
   跨独立 evaluation 的复用必须来自显式 reviewed registry，并在当前 episode 上再次做
   确定性与 oracle 校验。
 - LIBERO/SmolVLA 由 `mea/libero/` 的 benchmark adapter/chain 负责，不进入 RoboTwin
-  resolver。batch27 在 `libero_object/task0` 完成两回合结构闭环：official control
-  成功，evidence 触发一个 state-compatible custom BDDL；custom rollout 失败，但合法
-  进入 Tool/Aggregate/Planner，且相同 Tool need exact reuse 不增加 rollout。总计
-  2 rollouts、132.698 s，`method_chain_valid=true`、`query_sufficient=false`。
-  这只是 basic-adaptation method-chain smoke，不是鲁棒性、效率或跨模拟器一致性证据。
+  resolver；安装、网络故障和协议边界见
+  [LIBERO / SmolVLA 复现与 MEA 接入](libero_smolvla_reproduction_zh.md)。
 - generated checker 是实验评价语义，必须与 RoboTwin official success 分开报告。
-- v19 只有一个 task、一个 seed、每个 candidate 一个 rollout（总 `N=3`）；它证明方法
-  的在线机械链能够执行，并暴露了语义 preservation 验收缺陷。它不是有效属性弱点证据，
-  更不证明广泛属性泛化、采样效率或多策略 ranking。
+
+运行结论和样本边界会随当前旗舰替换，不在架构文档中固化。请以
+[论文 claim 与 gap](paper_claim_gap_zh.md)和[当前证据](evidence/current/README.md)
+为准。

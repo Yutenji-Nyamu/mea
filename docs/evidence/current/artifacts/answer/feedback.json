@@ -1,0 +1,103 @@
+{
+  "answer": "ACT 策略在有界范围内水平移动铃铛位置的场景变化中成功完成了 click_bell 任务。",
+  "evaluation_scope": "测试范围包括 2 个 episode，种子为 [100405]，验证了铃铛位置变化的鲁棒性。",
+  "findings": [
+    "策略在所有测试中成功完成任务，成功率为 100%。",
+    "铃铛位置变化后的最小接触距离为 0.410 米。",
+    "完成任务的平均时间为 18.198 秒。"
+  ],
+  "limitations": [
+    "测试仅包含 2 个 episode，无法提供统计泛化保证。",
+    "测试范围仅限于当前种子和场景变化，未覆盖更广泛的场景或种子。",
+    "停止原因基于有限证据充分性合同，而非全面验证。",
+    "Evidence contains N=2 policy episodes at seeds [100405].",
+    "The run stopped because the finite query-sufficiency contract was satisfied; this is not a statistical generalization guarantee."
+  ],
+  "recommended_next_step": "增加种子和场景变化范围的测试，以验证策略在更广泛条件下的鲁棒性。",
+  "consistency_validation": {
+    "passed": true,
+    "attempts_used": 1,
+    "rejected_responses": 0,
+    "errors": [],
+    "deterministic_correction": false
+  },
+  "evidence_policy": {
+    "aggregate_source": "deterministic_aggregate",
+    "aggregate_status": "passed",
+    "episode_math_by_feedback_agent": false,
+    "numeric_simulator_tools_authoritative": true,
+    "execution_vqa_is_visual_only": true,
+    "evidence_conflict": false
+  },
+  "provider_metadata": {
+    "id": "chatcmpl-E6r3BjzsZAQr8WfRFRLaBgEUe1xNy",
+    "model": "gpt-4o-2024-11-20",
+    "finish_reason": "stop",
+    "usage": {
+      "completion_tokens": 233,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 8,
+        "engine_ttft_ms": 1065,
+        "engine_ttlt_ms": 2872,
+        "pre_inference_ms": 299,
+        "service_tbt_ms": 8,
+        "service_ttft_ms": 1680,
+        "service_ttlt_ms": 3473,
+        "total_duration_ms": 3179,
+        "user_visible_ttft_ms": 1381
+      },
+      "prompt_tokens": 33531,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 33764
+    },
+    "retry_count": 0
+  },
+  "answer_scope": {
+    "schema_version": 1,
+    "sample_count": 2,
+    "seeds": [
+      100405
+    ],
+    "tested_candidate_ids": [
+      "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
+    ],
+    "untested_candidate_ids": [],
+    "original_intent_ids": [
+      "intent.c7b8b7a89baaba20"
+    ],
+    "covered_original_intent_fields": [
+      "intent.c7b8b7a89baaba20:requested_change",
+      "intent.c7b8b7a89baaba20:preserved_conditions",
+      "intent.c7b8b7a89baaba20:hypothesis",
+      "intent.c7b8b7a89baaba20:required_observation"
+    ],
+    "uncovered_original_intent_fields": [],
+    "unsupported_capabilities": [],
+    "evidence_conflict": false,
+    "termination": "evidence_sufficient",
+    "claim_verdict": "supported",
+    "required_limitations": [
+      {
+        "code": "sample_count_and_seeds",
+        "text": "Evidence contains N=2 policy episodes at seeds [100405]."
+      },
+      {
+        "code": "termination_evidence_sufficient",
+        "text": "The run stopped because the finite query-sufficiency contract was satisfied; this is not a statistical generalization guarantee."
+      }
+    ]
+  },
+  "limitation_codes": [
+    "sample_count_and_seeds",
+    "termination_evidence_sufficient"
+  ]
+}

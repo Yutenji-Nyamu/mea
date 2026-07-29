@@ -19,6 +19,10 @@ from typing import Any, Mapping
 from mea.toolgen import official_success_tool_request
 
 from .claim_first_runtime import control_template_id
+from .policy_task_binding import (
+    PolicyTaskBindingError,
+    policy_task_binding_from_target,
+)
 from .query_contract import validate_query_sufficiency_contract
 
 
@@ -47,6 +51,24 @@ def _mapping(value: Any, *, field: str) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         raise ClaimFirstInitialPlanError(f"{field} must be an object")
     return deepcopy(dict(value))
+
+
+def _target_binding(target: Mapping[str, Any]) -> dict[str, Any]:
+    """Read the production binding while preserving old fixture compatibility."""
+
+    if "policy_task_binding" in target:
+        try:
+            return policy_task_binding_from_target(target)
+        except (PolicyTaskBindingError, TypeError) as exc:
+            raise ClaimFirstInitialPlanError(str(exc)) from exc
+    return {
+        "task_name": _text(target.get("task_name"), field="target.task_name"),
+        "task_module": f"envs.{target.get('task_name')}",
+        "policy": _mapping(target.get("policy"), field="target.policy"),
+        "checkpoint": _mapping(
+            target.get("checkpoint"), field="target.checkpoint"
+        ),
+    }
 
 
 def _git_head(repo_root: Path) -> str | None:
@@ -114,14 +136,18 @@ def build_claim_first_control_round(
     """Build one unchanged official control without a task-specific planner."""
 
     bound_target = _mapping(target, field="target")
-    task_name = _text(bound_target.get("task_name"), field="target.task_name")
+    binding = _target_binding(bound_target)
+    task_name = binding["task_name"]
     query = _text(user_request, field="user_request")
     execution = _mapping(execution_binding, field="execution_binding")
-    module = (
-        _text(task_module, field="task_module")
-        if task_module is not None
-        else f"envs.{task_name}"
-    )
+    module = binding["task_module"]
+    if (
+        task_module is not None
+        and _text(task_module, field="task_module") != module
+    ):
+        raise ClaimFirstInitialPlanError(
+            "official control task_module differs from PolicyTaskBinding"
+        )
     return {
         "round_id": "round_1",
         "template_id": control_template_id(bound_target),
@@ -168,15 +194,22 @@ class ClaimFirstInitialPlanBuilder:
     ):
         self.repo_root = Path(repo_root).expanduser().resolve()
         self.target = _mapping(target, field="target")
-        self.task_name = _text(
-            self.target.get("task_name"), field="target.task_name"
-        )
-        self.policy = _mapping(self.target.get("policy"), field="target.policy")
+        binding = _target_binding(self.target)
+        self.task_name = binding["task_name"]
+        self.policy = _mapping(binding.get("policy"), field="binding.policy")
         self.checkpoint = _mapping(
-            self.target.get("checkpoint"), field="target.checkpoint"
+            binding.get("checkpoint"), field="binding.checkpoint"
         )
         self.max_rounds = _positive_int(max_rounds, field="max_rounds")
-        self.task_module = task_module
+        if (
+            task_module is not None
+            and _text(task_module, field="task_module")
+            != binding["task_module"]
+        ):
+            raise ClaimFirstInitialPlanError(
+                "task_module differs from the frozen PolicyTaskBinding"
+            )
+        self.task_module = binding["task_module"]
         self.telemetry_profile = _text(
             telemetry_profile, field="telemetry_profile"
         )

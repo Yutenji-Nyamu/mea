@@ -571,8 +571,9 @@ def build_generic_task_subclass_module(
     *,
     official_module: str,
     official_class: str,
+    emit_overrides: Mapping[str, bool] | None = None,
 ) -> str:
-    """Build a thin subclass while inheriting the official module namespace."""
+    """Build a thin subclass and override only the requested task methods."""
 
     if (
         not isinstance(official_module, str)
@@ -599,11 +600,27 @@ def build_generic_task_subclass_module(
         raise GenericTaskGenError(
             "subclass builder requires load_actors and check_success"
         )
-    scene = textwrap.indent(
-        textwrap.dedent(str(methods["load_actors"])).strip(), "    "
+    overrides = (
+        {"load_actors": True, "check_success": True}
+        if emit_overrides is None
+        else dict(emit_overrides)
     )
-    checker = textwrap.indent(
-        textwrap.dedent(str(methods["check_success"])).strip(), "    "
+    if (
+        set(overrides) != {"load_actors", "check_success"}
+        or any(not isinstance(value, bool) for value in overrides.values())
+    ):
+        raise GenericTaskGenError(
+            "emit_overrides must map load_actors/check_success to bool"
+        )
+    method_blocks = [
+        textwrap.indent(
+            textwrap.dedent(str(methods[name])).strip(), "    "
+        )
+        for name in ("load_actors", "check_success")
+        if overrides[name]
+    ]
+    generated_methods = (
+        "\n\n".join(method_blocks) + "\n\n" if method_blocks else ""
     )
     source = (
         '"""Provider-generated RoboTwin task candidate."""\n\n'
@@ -611,8 +628,7 @@ def build_generic_task_subclass_module(
         f"from {official_module} import *\n\n\n"
         f"class {official_class}("
         f"_official_task_module.{official_class}):\n"
-        f"{scene}\n\n"
-        f"{checker}\n\n"
+        f"{generated_methods}"
         "    def mea_official_check_success(self):\n"
         "        \"\"\"Evaluate the untouched official core predicate.\"\"\"\n"
         f"        return _official_task_module.{official_class}."
@@ -776,11 +792,19 @@ def load_generic_robotwin_task_adapter(
     )
     hooks = GenericTaskGenHooks(
         validate_methods=validate,
-        build_module=lambda methods, _candidate: (
+        build_module=lambda methods, candidate: (
             build_generic_task_subclass_module(
                 methods,
                 official_module=module_name,
                 official_class=task_name,
+                emit_overrides={
+                    "load_actors": (
+                        candidate.get("scene_need") is not None
+                    ),
+                    "check_success": (
+                        candidate.get("checker_need") is not None
+                    ),
+                },
             )
         ),
         preflight_candidate=preflight_candidate,
@@ -1118,7 +1142,14 @@ def _core_prompt(
         "JSON fields remain required for transport, but when a need is null "
         "return an empty string for that field: the runtime ignores that text "
         "and injects the exact official method before AST, fixture, render, "
-        "and expert validation. Do not return Markdown, a template id, or an "
+        "and expert validation. Actors already present in the TASK "
+        "TELEMETRY/EXECUTION SCHEMA are tracked automatically even when their "
+        "pose or instance is replaced. Do not assign "
+        "self.mea_telemetry_tracked_actors merely to repeat one of those base "
+        "actors. Assign it only when adding an entirely new actor, include "
+        "only new actors, and give every entry exactly id, task_attribute, "
+        "scene_name, functional_points, contact_points, and a boolean "
+        "contact_focus. Do not return Markdown, a template id, or an "
         "explanation. When the retrieved API supports scale_multiplier, it "
         "is the final-size/original-size ratio: increasing size by 50% uses "
         "1.5, while reducing size by 50% (or to 50%) uses 0.5."

@@ -15,6 +15,10 @@ from typing import Any, Mapping
 
 from mea.capability_adapter import registered_capability_contracts
 from mea.toolkit import load_task_schema
+from .policy_task_binding import (
+    PolicyTaskBindingError,
+    policy_task_binding_from_target,
+)
 
 
 class PlanningContextError(ValueError):
@@ -87,29 +91,92 @@ def _require_text(value: Any, *, field: str) -> str:
     return value.strip()
 
 
+def _retrieval_aspects(task_name: str) -> list[dict[str, Any]]:
+    """Group the artifact index without making it an execution boundary."""
+
+    grouped: dict[str, dict[str, Any]] = {}
+    for contract in registered_capability_contracts(task_name):
+        aspect = contract["aspect"]
+        aspect_id = str(aspect["aspect_id"])
+        entry = grouped.setdefault(
+            aspect_id,
+            {
+                "aspect_id": aspect_id,
+                "template_ids": [],
+            },
+        )
+        entry["template_ids"].append(str(contract["template_id"]))
+    return [grouped[key] for key in sorted(grouped)]
+
+
+def _target_context_sources(
+    target: Mapping[str, Any],
+) -> tuple[
+    str,
+    str,
+    str,
+    Mapping[str, Any],
+    Mapping[str, Any],
+    list[dict[str, Any]],
+]:
+    """Read legacy catalog targets or the production PolicyTaskBinding."""
+
+    if "policy_task_binding" in target:
+        try:
+            binding = policy_task_binding_from_target(target)
+        except (PolicyTaskBindingError, TypeError) as exc:
+            raise PlanningContextError(str(exc)) from exc
+        return (
+            binding["task_name"],
+            binding["task_schema"]["task_family"],
+            "retrieval_index_only",
+            binding["policy"],
+            binding["checkpoint"],
+            _retrieval_aspects(binding["task_name"]),
+        )
+    task_name = _require_text(
+        target.get("task_name"), field="EvaluationTarget.task_name"
+    )
+    task_family = _require_text(
+        target.get("task_family"), field="EvaluationTarget.task_family"
+    )
+    planner_kind = _require_text(
+        target.get("planner_kind"), field="EvaluationTarget.planner_kind"
+    )
+    policy = _require_mapping(
+        target.get("policy"), field="EvaluationTarget.policy"
+    )
+    checkpoint = _require_mapping(
+        target.get("checkpoint"), field="EvaluationTarget.checkpoint"
+    )
+    raw_aspects = target.get("aspects")
+    if not isinstance(raw_aspects, list) or not raw_aspects:
+        raise PlanningContextError(
+            "EvaluationTarget.aspects must be a non-empty list"
+        )
+    return (
+        task_name,
+        task_family,
+        planner_kind,
+        policy,
+        checkpoint,
+        deepcopy(raw_aspects),
+    )
+
+
 def _build_planning_context(
     repo_root: str | Path,
     target: Mapping[str, Any],
 ) -> dict[str, Any]:
     trusted_target = _require_mapping(target, field="EvaluationTarget")
-    task_name = _require_text(
-        trusted_target.get("task_name"), field="EvaluationTarget.task_name"
-    )
-    task_family = _require_text(
-        trusted_target.get("task_family"), field="EvaluationTarget.task_family"
-    )
-    planner_kind = _require_text(
-        trusted_target.get("planner_kind"), field="EvaluationTarget.planner_kind"
-    )
-    policy = _require_mapping(
-        trusted_target.get("policy"), field="EvaluationTarget.policy"
-    )
-    checkpoint = _require_mapping(
-        trusted_target.get("checkpoint"), field="EvaluationTarget.checkpoint"
-    )
-    raw_aspects = trusted_target.get("aspects")
-    if not isinstance(raw_aspects, list) or not raw_aspects:
-        raise PlanningContextError("EvaluationTarget.aspects must be a non-empty list")
+    (
+        task_name,
+        task_family,
+        planner_kind,
+        policy,
+        checkpoint,
+        raw_aspects,
+    ) = _target_context_sources(trusted_target)
 
     try:
         schema = load_task_schema(repo_root, task_name)

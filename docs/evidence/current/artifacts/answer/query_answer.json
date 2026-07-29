@@ -1,85 +1,63 @@
 {
   "schema_version": 1,
-  "original_query": "Find one bounded change in the manipulated object properties that exposes an ACT weakness; test it and explain the evidence.",
+  "original_query": "这个 ACT 策略是否存在一种有界且可实现的场景变化，仍能成功完成 click_bell？请自主选择具体 concern，保持任务目标与接触几何语义不变，只根据真实证据回答。",
   "answered": true,
   "answer_scope": "official_equivalent",
   "official_benchmark_answered": true,
   "stop_reason": "evidence_sufficient",
-  "claim_type": "diagnostic",
-  "claim_verdict": "diagnosed",
-  "answer": "For the finite registered candidate domain, the Query verdict is diagnosed.",
+  "claim_type": "existential",
+  "claim_verdict": "supported",
+  "answer": "For the finite registered candidate domain, the Query verdict is supported.",
   "tested_candidate_ids": [
-    "dynamic.click.bell.robustness.to.a.bounded.change.in.the.bell.s.color.while.its.task.relevant.geometry.and.location.remain.fixed.act.will.be.less.likely.to.click.the.bell.successfully.when.the.bell.color.is.changed.to.a.bounded.alternate.color.despite.identical.bell.position.shape.size.material.scene.layout.camera.viewpoint.and.click.bell.instruction.69a658418526",
-    "dynamic.click.bell.robustness.object.instance.bell.size.scaling.act.will.be.less.likely.to.complete.the.click.when.the.bell.is.uniformly.reduced.in.size.by.20.even.though.the.bell.contact.position.scene.instruction.and.policy.checkpoint.remain.unchanged.ea4a84dd44b7"
+    "dynamic.click.bell.robustness.of.the.policy.to.positional.variation.of.the.bell.the.act.policy.can.successfully.complete.the.click.bell.task.when.the.bell.is.shifted.to.a.new.position.within.a.bounded.range.1dfbf75df346"
   ],
   "untested_candidate_ids": [],
   "limitations": [
     "This is a finite-domain stopping prototype, not a statistical generalization guarantee.",
     "The candidate universe is open; exhaustive, no-counterexample, and worst-case conclusions are not licensed.",
-    "Diagnosis strings are trusted upstream evidence labels; this contract does not independently infer or validate causality.",
     "This answer is limited to the bound task, checkpoint, variants, and recorded seeds.",
     "A finite-domain N-small result is not a broad generalization guarantee."
   ],
   "evidence_refs": [
     {
       "kind": "child_manifest",
-      "path": "mea/generated_tasks/run_20260728_batch29_open_flagship_v19_round_1/manifest.json"
+      "path": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_1/manifest.json"
     },
     {
       "kind": "evidence_aggregate",
-      "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_1/evidence_aggregate.json"
+      "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/evidence_aggregate.json"
     },
     {
       "kind": "round_aggregate",
-      "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_1/aggregate_result.json"
+      "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/aggregate_result.json"
     },
     {
       "kind": "tool_execution",
-      "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_1/planned_tool/tool_execution.json"
+      "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/planned_tool/tool_execution.json"
     },
     {
       "kind": "execution_vqa_result",
-      "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_1/execution_vqa/execution_vqa.json"
+      "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_1/execution_vqa/execution_vqa.json"
     },
     {
       "kind": "child_manifest",
-      "path": "mea/generated_tasks/run_20260728_batch29_open_flagship_v19_round_2/manifest.json"
+      "path": "mea/generated_tasks/run_20260729_batch31_open_flagship_live_v13_round_2/manifest.json"
     },
     {
       "kind": "evidence_aggregate",
-      "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_2/evidence_aggregate.json"
+      "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/evidence_aggregate.json"
     },
     {
       "kind": "round_aggregate",
-      "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_2/aggregate_result.json"
+      "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/aggregate_result.json"
     },
     {
       "kind": "tool_execution",
-      "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_2/planned_tool/tool_execution.json"
+      "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/planned_tool/tool_execution.json"
     },
     {
       "kind": "execution_vqa_result",
-      "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_2/execution_vqa/execution_vqa.json"
-    },
-    {
-      "kind": "child_manifest",
-      "path": "mea/generated_tasks/run_20260728_batch29_open_flagship_v19_round_3/manifest.json"
-    },
-    {
-      "kind": "evidence_aggregate",
-      "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_3/evidence_aggregate.json"
-    },
-    {
-      "kind": "round_aggregate",
-      "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_3/aggregate_result.json"
-    },
-    {
-      "kind": "tool_execution",
-      "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_3/planned_tool/tool_execution.json"
-    },
-    {
-      "kind": "execution_vqa_result",
-      "path": "mea/evaluation_runs/eval_20260728_batch29_open_flagship_v19/execution/round_3/execution_vqa/execution_vqa.json"
+      "path": "mea/evaluation_runs/eval_20260729_batch31_open_flagship_live_v13/execution/round_2/execution_vqa/execution_vqa.json"
     }
   ],
   "evaluation_outcomes": [
@@ -120,25 +98,6 @@
           "official_outcome_has_no_generated_checker"
         ]
       }
-    },
-    {
-      "metric": "official_check_success",
-      "authority": "official_check_success_reused",
-      "binding": null,
-      "value": 0.0,
-      "official_equivalent": true,
-      "execution_scope": "official_equivalent",
-      "outcome_semantics": {
-        "schema_version": 1,
-        "status": "official_only",
-        "evidence_conflict": false,
-        "official_equivalent": true,
-        "outcome_authority": "official_check_success_reused",
-        "episodes": [],
-        "reason_codes": [
-          "official_outcome_has_no_generated_checker"
-        ]
-      }
     }
   ],
   "outcome_semantics": [
@@ -148,17 +107,6 @@
       "evidence_conflict": false,
       "official_equivalent": true,
       "outcome_authority": "official_check_success",
-      "episodes": [],
-      "reason_codes": [
-        "official_outcome_has_no_generated_checker"
-      ]
-    },
-    {
-      "schema_version": 1,
-      "status": "official_only",
-      "evidence_conflict": false,
-      "official_equivalent": true,
-      "outcome_authority": "official_check_success_reused",
       "episodes": [],
       "reason_codes": [
         "official_outcome_has_no_generated_checker"

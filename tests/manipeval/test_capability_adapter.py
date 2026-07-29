@@ -11,9 +11,9 @@ from mea.aspects import (
 from mea.capability_adapter import (
     CapabilityAdapterError,
     build_contract_tool_request,
+    registered_capability_contracts,
     registered_task_names,
     registered_task_vqa_questions,
-    registered_templates,
     resolve_capability_contract,
     resolve_task_adapter,
     resolve_task_retrieval_index,
@@ -91,7 +91,12 @@ class AspectOntologyTests(unittest.TestCase):
 class CapabilityAdapterTests(unittest.TestCase):
     def test_registry_covers_every_current_bbh_and_click_bell_template(self):
         self.assertEqual(
-            registered_templates("beat_block_hammer"),
+            [
+                contract["template_id"]
+                for contract in registered_capability_contracts(
+                    "beat_block_hammer"
+                )
+            ],
             [
                 "object_appearance.color_blue",
                 "object_position.official_random",
@@ -103,7 +108,10 @@ class CapabilityAdapterTests(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            registered_templates("click_bell"),
+            [
+                contract["template_id"]
+                for contract in registered_capability_contracts("click_bell")
+            ],
             [
                 "object_instance.base0",
                 "object_instance.base1",
@@ -119,7 +127,10 @@ class CapabilityAdapterTests(unittest.TestCase):
         )
         for task_name in ("adjust_bottle", "grab_roller", "place_phone_stand"):
             self.assertEqual(
-                registered_templates(task_name),
+                [
+                    contract["template_id"]
+                    for contract in registered_capability_contracts(task_name)
+                ],
                 ["task_execution.official_baseline"],
             )
 

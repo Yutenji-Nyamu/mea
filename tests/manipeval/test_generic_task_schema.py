@@ -258,9 +258,21 @@ class ProbeSchemaHelperTests(unittest.TestCase):
         )
         bell = SimpleNamespace(
             get_pose=lambda: pose,
+            get_collision_shapes=lambda: [
+                SimpleNamespace(
+                    geometry=SimpleNamespace(
+                        half_lengths=np.asarray([0.03, 0.03, 0.02])
+                    ),
+                    get_local_pose=lambda: SimpleNamespace(
+                        p=np.asarray([0.0, 0.0, 0.0]),
+                        q=np.asarray([1.0, 0.0, 0.0, 0.0]),
+                    ),
+                )
+            ],
             get_contact_point=lambda point_id: np.asarray(
                 [0.1, -0.1, 0.82, 1.0, 0.0, 0.0, 0.0]
             ),
+            get_name=lambda: "050_bell",
         )
         task = SimpleNamespace(bell=bell, check_success=lambda: False)
         schema = load_task_schema(REPO_ROOT, "click_bell")
@@ -270,6 +282,10 @@ class ProbeSchemaHelperTests(unittest.TestCase):
             tracked[0]["contact_points"]["0"]["position"],
             [0.1, -0.1, 0.82],
         )
+        self.assertEqual(
+            tracked[0]["collision_geometry"][0]["half_lengths"],
+            [0.03, 0.03, 0.02],
+        )
         result = task_schema_rule_check(
             task,
             schema,
@@ -277,6 +293,45 @@ class ProbeSchemaHelperTests(unittest.TestCase):
             tracked_actors=tracked,
         )
         self.assertTrue(result["passed"])
+
+    def test_actor_model_data_is_geometry_authority_when_shapes_are_hidden(
+        self,
+    ):
+        from mea.taskgen.probe import tracked_actor_summary
+
+        pose = SimpleNamespace(
+            p=np.asarray([0.1, -0.1, 0.76]),
+            q=np.asarray([1.0, 0.0, 0.0, 0.0]),
+        )
+        bell = SimpleNamespace(
+            config={
+                "_mea_asset_identity": {
+                    "modelname": "050_bell",
+                    "model_id": 1,
+                    "collision_asset": "assets/objects/050_bell/model0.glb",
+                    "convex": False,
+                    "is_static": False,
+                },
+                "scale": [0.04, 0.04, 0.04],
+                "extents": [1.0, 1.0, 1.0],
+            },
+            get_pose=lambda: pose,
+            get_contact_point=lambda _point_id: np.asarray(
+                [0.1, -0.1, 0.82, 1.0, 0.0, 0.0, 0.0]
+            ),
+        )
+        task = SimpleNamespace(bell=bell)
+        schema = load_task_schema(REPO_ROOT, "click_bell")
+
+        geometry = tracked_actor_summary(task, schema)[0][
+            "collision_geometry"
+        ]
+
+        self.assertEqual(geometry[0]["geometry_type"], "create_actor_asset")
+        self.assertEqual(geometry[0]["modelname"], "050_bell")
+        self.assertEqual(geometry[0]["model_id"], 1)
+        self.assertEqual(geometry[0]["scale"], [0.04, 0.04, 0.04])
+        self.assertFalse(geometry[0]["convex"])
 
 
 if __name__ == "__main__":

@@ -44,6 +44,10 @@ from .open_task_resolver import (
     validate_free_concern,
     validate_free_concern_experiment_needs,
 )
+from .policy_task_binding import (
+    PolicyTaskBindingError,
+    policy_task_binding_from_target,
+)
 from .semantic_coverage import (
     SemanticCoverageError,
     build_evaluation_intent,
@@ -368,10 +372,56 @@ def _failure_seeking_existential(user_query: str) -> bool:
     )
 
 
+def _target_task_name(target: Mapping[str, Any]) -> str:
+    if "policy_task_binding" in target:
+        try:
+            return policy_task_binding_from_target(target)["task_name"]
+        except (PolicyTaskBindingError, TypeError) as exc:
+            raise ClaimFirstRuntimeError(str(exc)) from exc
+    return _nonempty_text(target.get("task_name"), "target.task_name")
+
+
+def _target_policy(target: Mapping[str, Any]) -> dict[str, Any]:
+    if "policy_task_binding" in target:
+        try:
+            return deepcopy(
+                policy_task_binding_from_target(target)["policy"]
+            )
+        except (PolicyTaskBindingError, TypeError) as exc:
+            raise ClaimFirstRuntimeError(str(exc)) from exc
+    policy = target.get("policy")
+    if not isinstance(policy, Mapping):
+        raise ClaimFirstRuntimeError("target.policy must be an object")
+    return deepcopy(dict(policy))
+
+
+def _adapter_retrieval_aspects(task_name: str) -> list[dict[str, Any]]:
+    """Project registered artifacts without adding them to the binding."""
+
+    adapter = resolve_task_adapter(task_name)
+    grouped: dict[str, dict[str, Any]] = {}
+    for contract in adapter["capability_contracts"]:
+        aspect = contract["aspect"]
+        aspect_id = str(aspect["aspect_id"])
+        entry = grouped.setdefault(
+            aspect_id,
+            {
+                "aspect_id": aspect_id,
+                "description": (
+                    "Retrieval hint for "
+                    f"{aspect['semantic_scope']} / {aspect['target_role']}."
+                ),
+                "template_ids": [],
+            },
+        )
+        entry["template_ids"].append(str(contract["template_id"]))
+    return [deepcopy(grouped[key]) for key in sorted(grouped)]
+
+
 def control_template_id(target: Mapping[str, Any]) -> str:
     """Return the trusted official-scene control for a bound task."""
 
-    task_name = _nonempty_text(target.get("task_name"), "target.task_name")
+    task_name = _target_task_name(target)
     try:
         adapter = resolve_task_adapter(task_name)
     except ValueError as exc:
@@ -379,6 +429,8 @@ def control_template_id(target: Mapping[str, Any]) -> str:
             f"claim-first control anchor is not defined for {task_name!r}"
         ) from exc
     template_id = adapter["control_template_id"]
+    if "policy_task_binding" in target:
+        return template_id
     available = {
         str(item)
         for aspect in target.get("aspects", [])
@@ -432,7 +484,7 @@ def build_control_anchor_proposal(
     """
 
     query = _nonempty_text(user_query, "user_query")
-    task_name = _nonempty_text(target.get("task_name"), "target.task_name")
+    task_name = _target_task_name(target)
     template_id = control_template_id(target)
     adapter = resolve_task_adapter(task_name)
     planner_kind = adapter["planner_kind"]
@@ -456,7 +508,7 @@ def build_control_anchor_proposal(
         return {
             "schema_version": 5,
             "task_name": "beat_block_hammer",
-            "policy": deepcopy(dict(target["policy"])),
+            "policy": _target_policy(target),
             "evaluation_goal": (
                 "establish_clean_control_before_claim_first_attribution: "
                 + query
@@ -1451,9 +1503,32 @@ class ClaimFirstRuntimeController:
         query_contract: Mapping[str, Any] | None = None,
         candidate_aspect_ids: Sequence[str] | None = None,
         require_control_anchor: bool | None = None,
+        retrieval_aspects: Sequence[Mapping[str, Any]] | None = None,
     ):
         self.user_query = _nonempty_text(user_query, "user_query")
         self.target = deepcopy(dict(target))
+        self.task_name = _target_task_name(self.target)
+        if retrieval_aspects is None:
+            raw_retrieval_aspects = self.target.get("aspects")
+            if not isinstance(raw_retrieval_aspects, list):
+                raw_retrieval_aspects = _adapter_retrieval_aspects(
+                    self.task_name
+                )
+        else:
+            raw_retrieval_aspects = list(retrieval_aspects)
+        if (
+            not raw_retrieval_aspects
+            or any(
+                not isinstance(aspect, Mapping)
+                for aspect in raw_retrieval_aspects
+            )
+        ):
+            raise ClaimFirstRuntimeError(
+                "retrieval_aspects must contain artifact hints"
+            )
+        self.retrieval_aspects = [
+            deepcopy(dict(aspect)) for aspect in raw_retrieval_aspects
+        ]
         if require_control_anchor is not None and not isinstance(
             require_control_anchor, bool
         ):
@@ -1468,7 +1543,7 @@ class ClaimFirstRuntimeController:
             }
             known_aspects = {
                 str(aspect.get("aspect_id") or "")
-                for aspect in self.target.get("aspects", [])
+                for aspect in self.retrieval_aspects
                 if isinstance(aspect, Mapping)
             }
             unknown_aspects = allowed_aspects - known_aspects
@@ -1477,9 +1552,9 @@ class ClaimFirstRuntimeController:
                     "routed candidate aspects leave the bound task catalog: "
                     f"{sorted(unknown_aspects)}"
                 )
-            self.target["aspects"] = [
+            self.retrieval_aspects = [
                 deepcopy(dict(aspect))
-                for aspect in self.target.get("aspects", [])
+                for aspect in self.retrieval_aspects
                 if isinstance(aspect, Mapping)
                 and (
                     str(aspect.get("aspect_id") or "") in allowed_aspects
@@ -1487,7 +1562,8 @@ class ClaimFirstRuntimeController:
                     in {str(item) for item in aspect.get("template_ids", [])}
                 )
             ]
-        self.template_to_aspect = _template_aspect(self.target)
+        retrieval_target = {"aspects": self.retrieval_aspects}
+        self.template_to_aspect = _template_aspect(retrieval_target)
         candidates = [
             template_id
             for template_id in self.template_to_aspect
@@ -1579,7 +1655,7 @@ class ClaimFirstRuntimeController:
     ) -> dict[str, Any]:
         trusted = validate_experiment_candidate(candidate)
         expected_task = _nonempty_text(
-            self.target.get("task_name"),
+            self.task_name,
             "target.task_name",
         )
         if trusted["base_task"] != expected_task:
@@ -2015,16 +2091,14 @@ class ClaimFirstRuntimeController:
         try:
             resolution = resolve_semantic_proposal(
                 proposal,
-                target=self.target,
+                target={"aspects": self.retrieval_aspects},
                 executed_template_ids=executed_template_ids,
                 control_template=self.control_template,
             )
         except ClaimFirstRuntimeError as catalog_error:
             candidate = build_dynamic_experiment_candidate(
                 user_query=self.user_query,
-                task_name=_nonempty_text(
-                    self.target.get("task_name"), "target.task_name"
-                ),
+                task_name=self.task_name,
                 proposal=proposal,
                 evaluation_intent=evaluation_intent,
             )

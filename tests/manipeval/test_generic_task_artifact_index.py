@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 
 from mea.taskgen.artifact_index import (
+    GenericTaskArtifactError,
     GenericTaskArtifactIndex,
     materialize_reused_generic_task,
 )

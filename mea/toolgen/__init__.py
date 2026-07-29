@@ -35,7 +35,6 @@ from .registry import (
     find_run_local_registration,
     infer_registry_dir,
     load_registry,
-    request_candidate_promotion,
 )
 from .reviewed_registry import (
     ReviewedRegistryError,
@@ -99,7 +98,6 @@ __all__ = [
     "find_run_local_registration",
     "infer_registry_dir",
     "load_registry",
-    "request_candidate_promotion",
     "build_review_manifest_template",
     "find_reviewed_registration",
     "install_reviewed_registration",
