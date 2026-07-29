@@ -451,7 +451,7 @@ class ClaimFirstOpenQueryTest(unittest.TestCase):
             )
             self.assertEqual(
                 bundle["planning_lineage"]["completed_round_ids"],
-                ["round_1"],
+                ["round_01"],
             )
             self.assertIn(query, provider.prompts[0])
             self.assertIn(f'"outcome": "{outcome}"', provider.prompts[0])
