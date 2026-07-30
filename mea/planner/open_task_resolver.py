@@ -93,6 +93,10 @@ _EXPLICIT_SUCCESS_SEMANTICS = re.compile(
     r"|以.{1,80}为成功(?:条件)?",
     re.IGNORECASE,
 )
+_EXPLICIT_SCALAR_OBSERVATION = re.compile(
+    r"\b(?:scalar|numeric|distance|magnitude|continuous value)\b",
+    re.IGNORECASE,
+)
 EXPERIMENTAL_SUCCESS_CHECKER_GUIDANCE = (
     "If a Query calls an episode successful only when the official goal and "
     "any additional experimental condition both hold, request checker_need. A numeric "
@@ -281,6 +285,23 @@ def _validate_query_required_needs(
             "the original Query explicitly defines experimental success "
             "semantics, so checker_need.required must be true"
         )
+    if _EXPLICIT_SCALAR_OBSERVATION.search(user_query) is not None:
+        rule = needs.get("rule_tool_need") if isinstance(needs, Mapping) else None
+        checker_description = checker.get("description")
+        rule_description = (
+            rule.get("description") if isinstance(rule, Mapping) else None
+        )
+        if (
+            isinstance(checker_description, str)
+            and isinstance(rule_description, str)
+            and checker_description.strip().casefold()
+            == rule_description.strip().casefold()
+        ):
+            raise OpenTaskResolutionError(
+                "the Query separately requests a scalar observation, so "
+                "checker_need must state a boolean success predicate rather "
+                "than duplicate rule_tool_need"
+            )
 
 
 def query_requires_experimental_checker(user_query: str) -> bool:

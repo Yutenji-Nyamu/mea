@@ -196,7 +196,11 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn(
-            "claim_first_controller.propose_and_bind_semantic_step(",
+            "claim_first_controller.propose_semantic_step(",
+            source,
+        )
+        self.assertIn(
+            "claim_first_controller.bind_evidence_conditioned_semantic_step(",
             source,
         )
         self.assertNotIn("pending_first_semantic_bundle", source)

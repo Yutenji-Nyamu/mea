@@ -399,6 +399,60 @@ class QueryInterpretationTests(unittest.TestCase):
                 model="fixture",
             ).propose(query, policy_card=single_task_policy())
 
+    def test_scalar_observation_cannot_replace_boolean_checker(self):
+        query = (
+            "Define success as the official goal plus one new condition and "
+            "report one scalar trajectory observation."
+        )
+        value = {
+            **concern("test clearance during the trajectory"),
+            "source_query": query,
+        }
+        shared_description = "Measure the minimum gripper clearance."
+        copied = {
+            **value,
+            "scene_need": {
+                "required": True,
+                "description": "Add one inert distractor.",
+            },
+            "checker_need": {
+                "required": True,
+                "description": shared_description,
+            },
+            "rule_tool_need": {
+                "required": True,
+                "description": shared_description,
+                "reuse_first": True,
+            },
+            "vqa_tool_need": {
+                "required": False,
+                "description": None,
+                "reuse_first": True,
+            },
+        }
+        corrected = {
+            **copied,
+            "checker_need": {
+                "required": True,
+                "description": (
+                    "Pass only if the official goal succeeds and the "
+                    "distractor remains uncontacted."
+                ),
+            },
+        }
+        provider = self.Provider([json.dumps(copied), json.dumps(corrected)])
+
+        result = resolver.PlanAgentQueryInterpreter(
+            provider,
+            model="fixture",
+        ).propose(query, policy_card=single_task_policy())
+
+        self.assertEqual(result["provider"]["attempt_count"], 2)
+        self.assertIn(
+            "rather than duplicate rule_tool_need",
+            provider.prompts[1],
+        )
+
     def test_historical_free_concern_class_name_remains_readable(self):
         self.assertIs(
             resolver.FreeConcernAgent,
