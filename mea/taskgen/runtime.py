@@ -624,6 +624,21 @@ def run_command(command: list[str], *, cwd: Path, log_path: Path) -> int:
     return process.returncode
 
 
+def _generated_checker_error_payload(
+    scene: Mapping[str, Any],
+) -> dict[str, str] | None:
+    error = scene.get("error")
+    if not isinstance(error, Mapping):
+        return None
+    traceback = str(error.get("traceback") or "")
+    if "generated_checker_success = bool(task.check_success())" not in traceback:
+        return None
+    return {
+        "type": str(error.get("type") or "checker_error"),
+        "message": str(error.get("message") or "").strip(),
+    }
+
+
 def run_probe(
     repo_root: Path,
     run_dir: Path,
@@ -719,7 +734,10 @@ def run_probe(
                 "expert": scene.get("expert"),
             }
         )
-        if returncode != 2:
+        if (
+            returncode != 2
+            or _generated_checker_error_payload(scene) is not None
+        ):
             break
 
     if expert:
@@ -782,24 +800,50 @@ def _expert_terminal_authority_failure(
 
     outcome = expert.get("expert")
     if not isinstance(outcome, Mapping):
-        return None
+        outcome = {}
     plan_success = outcome.get("plan_success")
     official_success = outcome.get("official_core_predicate_satisfied")
     if not isinstance(official_success, bool):
         official_success = outcome.get("official_check_success")
-    if plan_success is False:
+    error = expert.get("error")
+    if isinstance(error, Mapping):
+        reason = "expert_execution_error"
+    elif plan_success is False:
         reason = "expert_plan_unsuccessful"
     elif official_success is False:
         reason = "official_success_false_after_expert_plan"
+    elif plan_success is not True or official_success is not True:
+        reason = "expert_outcome_incomplete"
     else:
         return None
-    return {
+    result: dict[str, Any] = {
         "reason": reason,
         "plan_success": plan_success,
         "generated_checker_success": outcome.get("check_success"),
         "official_core_predicate_satisfied": official_success,
         "expert_terminal_actor_z_m": _tracked_actor_heights(expert),
         "repair_scope": "scene_or_expert_plan_not_checker_only",
+    }
+    if isinstance(error, Mapping):
+        result["expert_error"] = {
+            "type": str(error.get("type") or "probe_error"),
+            "message": str(error.get("message") or "").strip(),
+        }
+    return result
+
+
+def _generated_checker_execution_failure(
+    expert: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    """Identify errors raised after the expert plan enters generated checker code."""
+
+    error = _generated_checker_error_payload(expert)
+    if error is None:
+        return None
+    return {
+        "reason": "generated_checker_execution_error",
+        "error": error,
+        "repair_scope": "checker_only_after_expert_action",
     }
 
 
@@ -891,6 +935,7 @@ def create_generic_provider_taskgen_run(
     )
     accepted_preflight: dict[str, Any] = {}
     visual_attempts: list[dict[str, Any]] = []
+    official_control: dict[str, Any] = {}
     visual_self_check_enabled = bool(
         True
         if ablation_switches is None
@@ -975,6 +1020,10 @@ def create_generic_provider_taskgen_run(
         _module_source: str,
         _candidate: Mapping[str, Any],
     ) -> dict[str, Any]:
+        preflight_runtime = {
+            "simulator_probes": 0,
+            "expert_probes": 0,
+        }
         for package_dir in (
             repo_root / "mea/generated_task_attempts",
             attempt_dir.parent,
@@ -1003,18 +1052,26 @@ def create_generic_provider_taskgen_run(
             "task_name": candidate["base_task"],
             "task_module": f"envs.{candidate['base_task']}",
         }
-        official_setup_image = attempt_dir / "official_setup_head.png"
-        official_setup = probe_runner(
-            repo_root,
-            attempt_dir,
-            official_manifest,
-            seed=seed,
-            expert=False,
-            scene_json=attempt_dir / "official_setup_preflight.json",
-            image=official_setup_image,
-            log_path=attempt_dir / "official_setup_preflight.log",
-            telemetry_profile=telemetry_profile,
-        )
+        official_control_dir = attempt_dir.parent / "official_control"
+        official_setup_image = official_control_dir / "setup_head.png"
+        if "setup" not in official_control:
+            official_control_dir.mkdir(exist_ok=True)
+            overlay_path = official_control_dir / "overlay.yml"
+            if not overlay_path.exists():
+                overlay_path.write_text("{}\n", encoding="utf-8")
+            official_control["setup"] = probe_runner(
+                repo_root,
+                official_control_dir,
+                official_manifest,
+                seed=seed,
+                expert=False,
+                scene_json=official_control_dir / "setup.json",
+                image=official_setup_image,
+                log_path=official_control_dir / "setup.log",
+                telemetry_profile=telemetry_profile,
+            )
+            preflight_runtime["simulator_probes"] += 1
+        official_setup = official_control["setup"]
         setup_image = attempt_dir / "setup_head.png"
         setup = probe_runner(
             repo_root,
@@ -1027,6 +1084,7 @@ def create_generic_provider_taskgen_run(
             log_path=attempt_dir / "setup_preflight.log",
             telemetry_profile=telemetry_profile,
         )
+        preflight_runtime["simulator_probes"] += 1
         expert = probe_runner(
             repo_root,
             attempt_dir,
@@ -1040,6 +1098,22 @@ def create_generic_provider_taskgen_run(
             telemetry_profile=telemetry_profile,
             raise_on_failure=False,
         )
+        preflight_runtime["expert_probes"] += max(
+            len(expert.get("expert_attempts") or []), 1
+        )
+        checker_execution_failure = _generated_checker_execution_failure(
+            expert
+        )
+        if checker_execution_failure is not None:
+            raise GenericTaskGenError(
+                "generated checker failed live execution: "
+                + json.dumps(
+                    checker_execution_failure,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                ),
+                runtime=preflight_runtime,
+            )
         expert_returncode = expert.get("returncode")
         if expert_returncode not in {None, 0, 2}:
             error = expert.get("error")
@@ -1051,6 +1125,52 @@ def create_generic_provider_taskgen_run(
             raise GenericTaskGenError(
                 "official expert probe execution failed before checker "
                 f"validation: returncode={expert_returncode}; {detail}"
+            )
+        terminal_authority_failure = _expert_terminal_authority_failure(expert)
+        if terminal_authority_failure is not None:
+            if "expert" not in official_control:
+                official_control["expert"] = probe_runner(
+                    repo_root,
+                    official_control_dir,
+                    official_manifest,
+                    seed=seed,
+                    expert=True,
+                    scene_json=official_control_dir / "expert.json",
+                    image=official_control_dir / "expert_head.png",
+                    log_path=official_control_dir / "expert.log",
+                    max_expert_attempts=3,
+                    telemetry_profile=telemetry_profile,
+                    raise_on_failure=False,
+                )
+                preflight_runtime["expert_probes"] += max(
+                    len(
+                        official_control["expert"].get("expert_attempts")
+                        or []
+                    ),
+                    1,
+                )
+            official_failure = _expert_terminal_authority_failure(
+                official_control["expert"]
+            )
+            if official_failure is not None:
+                raise GenericTaskGenError(
+                    "official same-seed expert baseline is unavailable: "
+                    + json.dumps(
+                        official_failure,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                    ),
+                    runtime=preflight_runtime,
+                )
+            raise GenericTaskGenError(
+                "generated scene/expert failed official terminal-state "
+                "authority: "
+                + json.dumps(
+                    terminal_authority_failure,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                ),
+                runtime=preflight_runtime,
             )
         fixtures = [
             {
@@ -1072,17 +1192,6 @@ def create_generic_provider_taskgen_run(
                 "authority": "official_expert_terminal_state",
             },
         ]
-        terminal_authority_failure = _expert_terminal_authority_failure(expert)
-        if terminal_authority_failure is not None:
-            raise GenericTaskGenError(
-                "generated scene/expert failed official terminal-state "
-                "authority: "
-                + json.dumps(
-                    terminal_authority_failure,
-                    ensure_ascii=False,
-                    sort_keys=True,
-                )
-            )
         scene_change = scene_change_report(
             official_setup,
             setup,
@@ -1161,6 +1270,8 @@ def create_generic_provider_taskgen_run(
             "expert_passed": bool(
                 (expert.get("expert") or {}).get("passed")
             ),
+            "simulator_probes": preflight_runtime["simulator_probes"],
+            "expert_probes": preflight_runtime["expert_probes"],
             "scene_change_passed": scene_change["passed"],
             "scene_change": scene_change,
             "vision_validation": visual,
@@ -1173,9 +1284,7 @@ def create_generic_provider_taskgen_run(
             "initial_actor_z_m": _tracked_actor_heights(setup),
             "expert_terminal_actor_z_m": _tracked_actor_heights(expert),
             "official_setup_scene": str(
-                (
-                    attempt_dir / "official_setup_preflight.json"
-                ).relative_to(repo_root)
+                (official_control_dir / "setup.json").relative_to(repo_root)
             ).replace("\\", "/"),
             "official_setup_image": str(
                 official_setup_image.relative_to(repo_root)

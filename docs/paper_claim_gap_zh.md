@@ -15,9 +15,14 @@ Query 经 official control 后由 Plan Agent 自选 scale concern，再依据 0.
 task/seed，最终因预算停止，不能证明广泛泛化或 evidence-sufficient stop。
 
 此后生产 `RoundExecutor` 已同时接入 ACT 与 SmolVLA，SmolVLA 也进入通用 TaskGen；
-但最新 scene+checker live 在 TaskGen 验证阶段终止、没有启动 policy rollout。因此这
-只是代码统一和负向诊断，不是新的方法正证据。旧运行结论只在
-[`docs/evidence/history.jsonl`](evidence/history.jsonl)保留一行摘要，不在本文展开。
+最新 `eval_20260730_native_smolvla_broad_live_v5` 从不含 aspect/template 的 Query
+生成了 distractor scene、实验 checker 与独立 trajectory Tool need，且 TaskGen 首次
+生成通过 static、render/VLM 和 expert gate。随后原生 rollout 初始化误解析到外部
+upstream RoboTwin，而非 TaskGen 验证所用的 MEA RoboTwin fork；policy server 虽收到
+连接，但 `request_count=0`，没有 observation、policy inference 或 episode。当前代码已
+强制生产入口 repo-first、校验 simulator source，并把 policy 连接延后到 simulator
+初始化之后，但尚未重跑。因此这仍是负向诊断，不是新的方法正证据。旧运行结论只在
+[`docs/evidence/history.jsonl`](evidence/history.jsonl)保留一行摘要。
 
 ## 方法 claim
 
@@ -25,7 +30,7 @@ task/seed，最终因预算停止，不能证明广泛泛化或 evidence-suffici
 | --- | --- | --- |
 | Fig. 2/5：开放 Query 驱动 Plan Agent 自主提出 sub-aspect | 生产入口不调用 catalog/task-specific planner；现有 live 已从 broad Query 自选并细化 scale concern | **小范围完成**；仍只有单 task/seed 与单 concern 方向 |
 | 上一轮 evidence 决定下一轮，并在充分时停止 | evidence-conditioned refinement 与有限合同的 sufficient stop 各有真实案例 | **尚未在同一 broad flagship 合一** |
-| Fig. 3：Proposal → retrieve/generate scene + `check_success()` → rollout | 通用 scene generation 有多轮正例，实验 checker 有独立正例；SmolVLA 路径已接线 | **组合正例缺失**；当前 SmolVLA scene+checker 在 rollout 前失败 |
+| Fig. 3：Proposal → retrieve/generate scene + `check_success()` → rollout | 通用 scene generation 有多轮正例；最新 SmolVLA scene+checker 已通过完整 TaskGen gate | **组合正例缺失**；原生 rollout 初始化失败，尚无该 artifact 的 policy episode |
 | 首帧视觉诊断与局部重新生成 | VLM、simulator/fixture、render、expert 与一次 repair 已接入 | **机制存在**；缺一次 repair 后通过的 clean live 正例 |
 | Fig. 4：ToolGen retrieve/generate/validate/register/reuse | Python Rule Tool 已在 live 取得非空值；exact reuse 另有 0-rollout 案例 | **部分完成**；“live 值 → 影响下一轮 → 第二 Query exact reuse”尚未同链证明 |
 | rollout → Rule/VQA → Aggregate → Plan Agent → Answer | RoboTwin 小范围已闭环；ACT/SmolVLA 共用 `RoundExecutor` | **RoboTwin 基本完成**；LIBERO 仍是独立外层 chain |

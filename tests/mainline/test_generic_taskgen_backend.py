@@ -26,6 +26,7 @@ from mea.taskgen.provider_scene_checker import (
     validate_method_ast,
 )
 from mea.taskgen.runtime import (
+    _generated_checker_execution_failure,
     build_preservation_report,
     record_generic_taskgen_generation_failure,
 )
@@ -80,8 +81,8 @@ class ProviderSceneCheckerRepairTests(unittest.TestCase):
             validations += 1
             if validations == 1:
                 raise GenericTaskGenError(
-                    "generated checker failed live negative/positive fixtures: "
-                    '{"failed_fixtures": []}'
+                    "generated checker failed live execution: "
+                    '{"reason": "generated_checker_execution_error"}'
                 )
             self.assertEqual(methods["load_actors"], first_scene)
             return {"valid": True}
@@ -109,6 +110,112 @@ class ProviderSceneCheckerRepairTests(unittest.TestCase):
         self.assertIn("PREVIOUS METHOD PAIR", provider.prompts[1])
         self.assertEqual(repair_scope["scope"], "checker_only")
         self.assertTrue(repair_scope["provider_scene_output_ignored"])
+
+    def test_expert_failure_regenerates_scene_without_relaxing_checker(self):
+        provider = _Provider(
+            [
+                {
+                    "load_actors": (
+                        "def load_actors(self):\n"
+                        '    self.obstacle = "blocking"\n'
+                    ),
+                    "check_success": (
+                        "def check_success(self):\n"
+                        "    return self.target_height > 0.8\n"
+                    ),
+                },
+                {
+                    "load_actors": (
+                        "def load_actors(self):\n"
+                        '    self.obstacle = "clear"\n'
+                    ),
+                    "check_success": (
+                        "def check_success(self):\n"
+                        "    return self.target_height > 0.8\n"
+                    ),
+                },
+            ]
+        )
+        validations = 0
+
+        def validate(methods: Mapping[str, Any]) -> dict[str, Any]:
+            nonlocal validations
+            validations += 1
+            if validations == 1:
+                raise GenericTaskGenError(
+                    "generated scene/expert failed official terminal-state "
+                    'authority: {"reason": "expert_execution_error"}'
+                )
+            return {"valid": True}
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = run_provider_codegen(
+                attempt_root=Path(temp_dir) / "attempts",
+                proposal={"candidate_id": "dynamic.synthetic"},
+                prompt="Generate a method pair.",
+                provider=provider,
+                model="fixture-model",
+                validate=validate,
+                error_type=GenericTaskGenError,
+                max_regenerations=1,
+            )
+
+        self.assertEqual(
+            result["methods"]["load_actors"],
+            provider.responses[1]["load_actors"],
+        )
+        self.assertIn(
+            "scene/expert-solvability failure", provider.prompts[1]
+        )
+        self.assertIn(
+            "Preserve every official task predicate", provider.prompts[1]
+        )
+        self.assertNotIn("Copy that method exactly", provider.prompts[1])
+
+        baseline_provider = _Provider([provider.responses[0]])
+
+        def reject_official_baseline(
+            _methods: Mapping[str, Any],
+        ) -> dict[str, Any]:
+            raise GenericTaskGenError(
+                "official same-seed expert baseline is unavailable",
+                runtime={"simulator_probes": 2, "expert_probes": 6},
+            )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaisesRegex(
+                GenericTaskGenError, "recovery failed after 1 attempt"
+            ) as caught:
+                run_provider_codegen(
+                    attempt_root=Path(temp_dir) / "attempts",
+                    proposal={"candidate_id": "dynamic.synthetic"},
+                    prompt="Generate a method pair.",
+                    provider=baseline_provider,
+                    model="fixture-model",
+                    validate=reject_official_baseline,
+                    error_type=GenericTaskGenError,
+                    max_regenerations=1,
+                )
+        self.assertEqual(baseline_provider.calls, 1)
+        summary = caught.exception.__cause__.summary
+        self.assertEqual(summary["runtime"]["simulator_probes"], 2)
+        self.assertEqual(summary["runtime"]["expert_probes"], 6)
+        checker_error = _generated_checker_execution_failure(
+            {
+                "error": {
+                    "type": "AttributeError",
+                    "message": "Robot has no get_links",
+                    "traceback": (
+                        "generated_checker_success = "
+                        "bool(task.check_success())"
+                    ),
+                }
+            }
+        )
+        self.assertEqual(
+            checker_error["repair_scope"],
+            "checker_only_after_expert_action",
+        )
 
 def _write_cold_task_repo(root: Path) -> None:
     source = root / "envs/cold_unseen_task.py"

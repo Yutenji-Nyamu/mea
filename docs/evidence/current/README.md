@@ -1,6 +1,6 @@
 # MEA method evidence: `eval_20260730_batch31_grab_roller_broad_live_v3`
 
-> 当前最新的可发布方法运行；后续 native-runtime 尝试在 policy rollout 前结束，不替换本证据。完整 raw telemetry 保留在服务器 evaluation 目录。
+> 当前最新的可发布方法运行；后续 native-runtime 尝试（含 SmolVLA v5）均未产生 policy observation/episode，不替换本证据。完整 raw telemetry 保留在服务器 evaluation 目录。
 
 ## 运行范围
 

@@ -1,4 +1,5 @@
 import json
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -30,7 +31,12 @@ from mea.robotwin.native_agent_round import (
 from mea.taskgen.generic_backend import GenericTaskGenError
 from mea.taskgen.provider_scene_checker import validate_provider_run_id
 from mea.robotwin.runtime import RoboTwinMethodBackend
-from mea.robotwin.smolvla_rollout import SmolVLARobotwinRolloutRunner
+from mea.robotwin.smolvla_rollout import (
+    SmolVLARolloutError,
+    SmolVLARobotwinRolloutRunner,
+    _require_generated_task_simulator_source,
+    run_smolvla_robotwin_episode,
+)
 
 
 def _write_official_task(root, task_name: str, description: str) -> None:
@@ -435,3 +441,50 @@ def test_smolvla_runner_enables_telemetry_only_for_schema_backed_candidate(
 
     assert rollout.call_args.kwargs["repo_root"] == tmp_path.resolve()
     assert rollout.call_args.kwargs["telemetry_profile"] == "balanced_v1"
+
+
+def test_generated_smolvla_task_requires_taskgen_simulator_source(tmp_path):
+    external_package = tmp_path / "external" / "envs" / "__init__.py"
+    with patch(
+        "mea.robotwin.smolvla_rollout.importlib.import_module",
+        return_value=SimpleNamespace(__file__=str(external_package)),
+    ):
+        with pytest.raises(
+            SmolVLARolloutError,
+            match="TaskGen was validated against",
+        ):
+            _require_generated_task_simulator_source(
+                task_module="mea.generated_tasks.run_open.task",
+                repo_root=tmp_path / "mea",
+            )
+
+
+def test_smolvla_initializes_simulator_before_policy_connection(tmp_path):
+    class FailingTask:
+        def setup_demo(self, **_kwargs):
+            raise RuntimeError("invalid generated simulator API")
+
+        def close_env(self, *, clear_cache):
+            assert clear_cache is True
+
+    module = SimpleNamespace(alpha_task=FailingTask)
+    with (
+        patch(
+            "mea.robotwin.smolvla_rollout._resolved_demo_clean_args",
+            return_value={},
+        ),
+        patch("mea.robotwin.smolvla_rollout._PolicyClient") as client,
+        patch(
+            "mea.robotwin.smolvla_rollout.importlib.import_module",
+            return_value=module,
+        ),
+        pytest.raises(RuntimeError, match="invalid generated simulator API"),
+    ):
+        run_smolvla_robotwin_episode(
+            task_name="alpha_task",
+            task_module="envs.alpha_task",
+            seed=1,
+            output_dir=tmp_path / "episode",
+        )
+
+    client.assert_not_called()

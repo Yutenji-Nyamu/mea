@@ -26,6 +26,14 @@
 - When a Proposal requests both scene and checker, generate `load_actors()` and
   `check_success()` together. The checker is experimental and must never be
   relabeled as official success.
+- A generated challenge must preserve at least one feasible official action
+  path to every required contact or functional point. A fixed center offset is
+  not proof of approach clearance, and `add_prohibit_area()` is not a robot
+  reachability check. Never relax an official success threshold to compensate
+  for an expert-solvability failure.
+- For robot-contact checks, `PhysxContact` uses `bodies[*].entity`; the
+  RoboTwin Robot wrapper has no `get_links()`, so use
+  `left_entity.get_links()` plus `right_entity.get_links()`.
 - For lift checkers, derive bounds from TaskSchema or initial actor state:
   near-zero world z does not mean an actor stayed unlifted on raised support.
 - A paper-claim run requires compile/semantic fixtures, render, expert

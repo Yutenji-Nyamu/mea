@@ -51,6 +51,15 @@ from .provider_scene_checker import (
 class GenericTaskGenError(RuntimeError):
     """Raised when a dynamic candidate cannot be reused or generated."""
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        runtime: Mapping[str, int] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.runtime = dict(runtime or {})
+
 
 ValidateMethods = Callable[
     [Mapping[str, str], Mapping[str, Any]], Mapping[str, Any]
@@ -1105,6 +1114,7 @@ def _read_generation_context(
             official_path,
             class_name=str(adapter["official_class"]),
             method_names=("load_actors", "check_success"),
+            optional_method_names=("play_once",),
             error_type=GenericTaskGenError,
         )
     except GenericTaskGenError:
@@ -1213,10 +1223,16 @@ def _core_prompt(
         "path length, or minimum clearance. Leave that scalar observation to "
         "ToolGen and never invent calculate_* or measure_* helper methods. "
         "For a simulator-verifiable robot-contact condition, inspect "
-        "self.scene.get_contacts() and the relevant articulation's get_links(); "
-        "do not invent a helper such as self.check_contact unless that exact "
-        "method appears in the retrieved official source. These APIs are "
-        "read-only and must not mutate simulator state. "
+        "self.scene.get_contacts(). A SAPIEN PhysxContact exposes bodies, not "
+        "actor0/actor1; each body.entity is the scene entity, while a "
+        "RoboTwin Actor wrapper exposes its scene entity as .actor. The "
+        "RoboTwin Robot wrapper has no get_links() method; when robot link "
+        "entities are needed, combine "
+        "self.robot.left_entity.get_links() and "
+        "self.robot.right_entity.get_links(); do not invent a helper such as "
+        "self.check_contact unless that exact method appears in the retrieved "
+        "official source. These APIs are read-only and must not mutate "
+        "simulator state. "
         "self.mea_telemetry_tracked_actors is the metadata exception. Assign "
         "it only when adding an entirely new actor, include "
         "only new actors, and give every entry exactly id, task_attribute, "

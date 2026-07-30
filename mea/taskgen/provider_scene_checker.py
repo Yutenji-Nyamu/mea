@@ -261,6 +261,7 @@ def retrieve_class_methods(
     *,
     class_name: str,
     method_names: tuple[str, ...],
+    optional_method_names: tuple[str, ...] = (),
     error_type: type[Exception],
 ) -> str:
     """Retrieve exact official methods as compact code context for TaskGen."""
@@ -290,7 +291,7 @@ def retrieve_class_methods(
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     }
     sections: list[str] = []
-    for name in method_names:
+    for name in (*method_names, *optional_method_names):
         node = by_name.get(name)
         segment = (
             ast.get_source_segment(source, node)
@@ -298,6 +299,8 @@ def retrieve_class_methods(
             else None
         )
         if not segment:
+            if name in optional_method_names:
+                continue
             raise error_type(f"RAG method {name!r} is missing: {path}")
         sections.append(textwrap.dedent(segment).strip())
     return "\n\n".join(sections) + "\n"
@@ -427,6 +430,14 @@ def run_provider_codegen(
             and diagnosis
             and previous_methods is not None
         )
+        scene_or_expert_repair = bool(
+            requested_action is not None
+            and diagnosis
+            and diagnosis.startswith(
+                "generated scene/expert failed official terminal-state "
+                "authority"
+            )
+        )
         if requested_action is not None and diagnosis:
             current_prompt += (
                 "\n\nLOCAL VALIDATION FAILED ON THE PREVIOUS RESPONSE:\n"
@@ -448,6 +459,15 @@ def run_provider_codegen(
                 )
             else:
                 current_prompt += "\nRegenerate both complete methods once."
+                if scene_or_expert_repair:
+                    current_prompt += (
+                        "\nTreat this as a scene/expert-solvability failure, "
+                        "not a checker-threshold failure. Preserve every "
+                        "official task predicate and threshold. Move, resize, "
+                        "or make static only the generated scene actors so "
+                        "the official action sequence can still reach its "
+                        "required contact or functional points."
+                    )
             current_prompt += " Do not return a patch or explanation."
         (attempt_dir / "provider_prompt.md").write_text(
             current_prompt, encoding="utf-8"
@@ -505,16 +525,37 @@ def run_provider_codegen(
             checker_validation_failure = diagnosis.startswith(
                 (
                     "generated checker failed live negative/positive fixtures",
+                    "generated checker failed live execution",
                     "generated checker contradicts TaskSchema success contract",
                 )
             )
+            official_baseline_failure = diagnosis.startswith(
+                "official same-seed expert baseline is unavailable"
+            )
+            failure_runtime = {"provider_calls": 1}
+            error_runtime = getattr(exc, "runtime", {})
+            if isinstance(error_runtime, Mapping):
+                for field in ("simulator_probes", "expert_probes"):
+                    value = error_runtime.get(field)
+                    if isinstance(value, int) and not isinstance(value, bool):
+                        failure_runtime[field] = value
             raise TaskGenerationStageError(
-                "success_spec" if checker_validation_failure else "scene_codegen",
-                "invalid_spec"
-                if checker_validation_failure
-                else "invalid_candidate",
+                (
+                    "expert_gate"
+                    if official_baseline_failure
+                    else "success_spec"
+                    if checker_validation_failure
+                    else "scene_codegen"
+                ),
+                (
+                    "official_baseline_unsolvable"
+                    if official_baseline_failure
+                    else "invalid_spec"
+                    if checker_validation_failure
+                    else "invalid_candidate"
+                ),
                 diagnosis,
-                runtime={"provider_calls": 1},
+                runtime=failure_runtime,
                 diagnosis={"provider_metadata": provider_metadata},
             ) from exc
         state.update(
@@ -526,10 +567,17 @@ def run_provider_codegen(
             }
         )
         _write_json(attempt_dir / "static_validation.json", validation)
+        runtime = {"provider_calls": 1}
+        preflight = validation.get("preflight")
+        if isinstance(preflight, Mapping):
+            for field in ("simulator_probes", "expert_probes"):
+                value = preflight.get(field)
+                if isinstance(value, int) and not isinstance(value, bool):
+                    runtime[field] = value
         return {
             "status": "accepted",
             "provider_metadata": state["provider_metadata"],
-            "runtime": {"provider_calls": 1},
+            "runtime": runtime,
         }
 
     try:

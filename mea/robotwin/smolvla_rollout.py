@@ -161,6 +161,35 @@ def _encode_observation(
     return images, state
 
 
+def _require_generated_task_simulator_source(
+    *,
+    task_module: str,
+    repo_root: str | Path | None,
+) -> None:
+    """Keep TaskGen validation and rollout on the same RoboTwin source."""
+
+    if not task_module.startswith("mea.generated_tasks."):
+        return
+    if repo_root is None:
+        raise SmolVLARolloutError(
+            "generated TaskGen rollout requires the MEA repository root"
+        )
+    envs = importlib.import_module("envs")
+    package_file = getattr(envs, "__file__", None)
+    if not isinstance(package_file, str):
+        raise SmolVLARolloutError(
+            "cannot identify the active RoboTwin envs package"
+        )
+    actual = Path(package_file).resolve().parent
+    expected = Path(repo_root).expanduser().resolve() / "envs"
+    if actual != expected:
+        raise SmolVLARolloutError(
+            "TaskGen was validated against the MEA RoboTwin fork but rollout "
+            f"resolved envs from {actual}; place {expected.parent} first on "
+            "PYTHONPATH"
+        )
+
+
 def run_smolvla_robotwin_episode(
     *,
     task_name: str,
@@ -186,6 +215,10 @@ def run_smolvla_robotwin_episode(
 
     destination = Path(output_dir).expanduser().resolve()
     destination.mkdir(parents=True, exist_ok=True)
+    _require_generated_task_simulator_source(
+        task_module=task_module,
+        repo_root=repo_root,
+    )
     module = importlib.import_module(task_module)
     task_class = getattr(module, task_name, None)
     if not isinstance(task_class, type):
@@ -210,56 +243,56 @@ def run_smolvla_robotwin_episode(
     telemetry_episode_dir: Path | None = None
     rollout_error: BaseException | None = None
     try:
+        task.setup_demo(
+            now_ep_num=0,
+            seed=int(seed),
+            is_test=True,
+            **_resolved_demo_clean_args(task_name),
+        )
+        if telemetry_profile is not None:
+            if repo_root is None:
+                raise SmolVLARolloutError(
+                    "semantic telemetry requires repo_root"
+                )
+            from mea.toolkit import EpisodeRecorder
+
+            telemetry_episode_dir = (
+                destination
+                / "telemetry"
+                / "act"
+                / f"episode_000_seed_{int(seed)}"
+            )
+            recorder = EpisodeRecorder(
+                repo_root,
+                telemetry_episode_dir,
+                task_name=task_name,
+                seed=int(seed),
+                episode_index=0,
+                policy_name="SmolVLA",
+                task_module=task_module,
+                task_config="demo_clean",
+                checkpoint_setting="shared_official",
+                telemetry_profile_id=telemetry_profile,
+                visual_capture_profile_id="event_keyframes_v1",
+            )
+            task._mea_recorder = recorder
+            try:
+                recorder.start(task)
+            except Exception:
+                task._mea_recorder = None
+                recorder = None
+                raise
+        observation = task.get_obs()
+        initial_images, initial_state = _encode_observation(observation)
+        iio.imwrite(
+            destination / "initial_head.png",
+            initial_images["head_camera"],
+        )
+        video_frames.append(initial_images["head_camera"])
+        observed_states.append(initial_state.tolist())
+
         with _PolicyClient(host, port, timeout_seconds) as client:
             client.request({"command": "reset"})
-            task.setup_demo(
-                now_ep_num=0,
-                seed=int(seed),
-                is_test=True,
-                **_resolved_demo_clean_args(task_name),
-            )
-            if telemetry_profile is not None:
-                if repo_root is None:
-                    raise SmolVLARolloutError(
-                        "semantic telemetry requires repo_root"
-                    )
-                from mea.toolkit import EpisodeRecorder
-
-                telemetry_episode_dir = (
-                    destination
-                    / "telemetry"
-                    / "act"
-                    / f"episode_000_seed_{int(seed)}"
-                )
-                recorder = EpisodeRecorder(
-                    repo_root,
-                    telemetry_episode_dir,
-                    task_name=task_name,
-                    seed=int(seed),
-                    episode_index=0,
-                    policy_name="SmolVLA",
-                    task_module=task_module,
-                    task_config="demo_clean",
-                    checkpoint_setting="shared_official",
-                    telemetry_profile_id=telemetry_profile,
-                    visual_capture_profile_id="event_keyframes_v1",
-                )
-                task._mea_recorder = recorder
-                try:
-                    recorder.start(task)
-                except Exception:
-                    task._mea_recorder = None
-                    recorder = None
-                    raise
-            observation = task.get_obs()
-            initial_images, initial_state = _encode_observation(observation)
-            iio.imwrite(
-                destination / "initial_head.png",
-                initial_images["head_camera"],
-            )
-            video_frames.append(initial_images["head_camera"])
-            observed_states.append(initial_state.tolist())
-
             while (
                 actions_executed < int(task.step_lim)
                 and not task.eval_success

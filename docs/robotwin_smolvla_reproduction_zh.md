@@ -194,6 +194,18 @@ CUDA_VISIBLE_DEVICES=0 \
 task 启动新的 `--max-clients 1 --seed ...` server；顺序 batch 必须冻结并记录
 任务顺序，因为 `policy.reset()` 不会重播 Torch/NumPy RNG。
 
+上面的 external-first 路径仅适用于 unchanged official standalone client。运行 MEA
+生成任务时，TaskGen 与 rollout 必须使用同一 RoboTwin fork：
+
+```bash
+MEA_REPO=/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime
+PYTHONPATH="$MEA_REPO:/root/autodl-tmp/RoboTwin" \
+  "$MEA_SIM_PYTHON" "$MEA_REPO/scripts/manipeval_agent.py" ...
+```
+
+生产入口会把 `MEA_REPO` 提升到 `sys.path[0]`；SmolVLA runner 在生成任务上再次校验
+`envs` 来源，并在 simulator setup/首帧成功后才连接 policy server。
+
 ## 7. 常见失败
 
 | 现象 | 原因 | 处理 |
@@ -204,7 +216,9 @@ task 启动新的 `--max-clients 1 --seed ...` server；顺序 batch 必须冻�
 | simulator 侧 `No module named sapien` | 错用 Python 3.12 policy 环境运行 official task | policy server 用 `mea-libero`；MethodRuntime/simulator 用 `mea-robotwin-smolvla` |
 | TCP connect 探针后 server 退出或不再接 Agent | `--max-clients 1` 的唯一 client 被探针占用 | 只读取 ready-file、核对其中 PID，并用 `ss` 查看 LISTEN；不要建立 socket 连接 |
 | client 退出后 server 等待 | `max-clients` 尚未满足 | 终止该 server，用新 port/ready-file 重启未完成项 |
+| `create_actor()` 报不支持 `runtime_name`/`scale_multiplier`，server `request_count=0` | TaskGen 用 MEA fork 验证，rollout 却因 external-first `PYTHONPATH` 导入 upstream RoboTwin | 令 MEA repo-first；保留 simulator-source gate；policy socket 只在 setup 成功后连接 |
 | simulator control 失败 | 真实 policy outcome | 记录失败并短路深入链，不把它当系统错误 |
+| TaskGen expert 报 `target_pose=None` | 生成场景不可解，或该 seed 的 official expert 本身不可用 | 运行同 seed official expert 对照；后者失败时终止 TaskGen，不能放宽 checker |
 
 系统错误不得计作 episode；每次运行都记录 task、scene seed、policy seed、client
 顺序、checkpoint revision、runner commit、输出目录和 GPU 峰值。
@@ -214,26 +228,30 @@ task 启动新的 `--max-clients 1 --seed ...` server；顺序 batch 必须冻�
 SmolVLA 适合作为共享多任务 policy backend：
 
 ```text
-Query → Plan Agent → runtime task binding → official candidate → SmolVLA rollout
-      → schema-backed Rule Tool / Aggregate → next sub-aspect / Answer
-      ↘ generated scene/checker or requested VQA → structured unsupported（当前）
+Query → Plan Agent → runtime task binding → Proposal
+      → 按需 TaskGen(scene/checker) → SmolVLA rollout
+      → Rule/VQA Tool → Aggregate → next sub-aspect / Answer
 ```
 
 所有可解析 RoboTwin task 均可先尝试 unchanged official control；只有
-TaskSchema/telemetry 可用时才进入 Rule Tool 与 Aggregate。generated scene/checker
-和请求型 VQA 当前在 SmolVLA backend 明确 unsupported。不要为每个任务增加手写
-allowlist、Planner 分支或测试文件。
+TaskSchema/telemetry 可用时才进入语义 Rule Tool 与 Aggregate。通用 scene/checker
+TaskGen、请求型 VQA 与 SmolVLA rollout 已接入同一 `RoundExecutor`；不要为每个任务
+增加手写 allowlist、Planner 分支或测试文件。
 
 生产 `manipeval_agent.py` 已支持 `--policy-backend smolvla`：它先建立共享 runtime
-task binding，再通过 `MethodRuntime/RoboTwinMethodBackend` 执行 SmolVLA official
-round。具有 `TaskSchema` 的任务会记录 semantic telemetry，并回到同一 Rule Tool、
+task binding，再通过 `MethodRuntime/RoboTwinMethodBackend` 执行 SmolVLA round。
+具有 `TaskSchema` 的任务会记录 semantic telemetry，并回到同一 Rule/VQA Tool、
 Aggregate、Plan Agent 与 Answer 编排；无 schema 的任务只保存 official success、
-视频和明确限制。
+视频和明确限制，不能伪造语义测量。
 
-SmolVLA 原生路径尚未接通 generic TaskGen 生成的 scene/checker，也不能执行 Proposal
-请求的新 VQA capability；这些请求必须写为 structured unsupported，不能静默退回
-ACT。4/5 pilot、两个新增失败和一次 click_bell post-run projection 都不能外推为 50-task
-性能或公平 policy ranking。
+截至 2026-07-30，组合式 clean live 尚无正例。最新
+`eval_20260730_native_smolvla_broad_live_v5` 的 broad Query 自主产生 distractor
+scene、实验 checker 与 trajectory Tool need；TaskGen 一次生成通过 static、render/VLM
+和 expert gate。rollout 随后因 external-first 路径导入 upstream `envs`，在 simulator
+setup 时报 `runtime_name` 不受支持；server 为 `request_count=0`，所以没有 policy
+inference 或 episode。该路径顺序、source gate 和连接时机已修复，但尚未追加 live。
+此前 seed 1000 official expert 不可用的失败以及 4/5 official pilot，同样不能外推为
+50-task 性能或公平 policy ranking。
 
 ## 9. 回滚
 

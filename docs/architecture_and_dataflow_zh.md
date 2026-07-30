@@ -65,9 +65,8 @@ simulator/runtime hooks。
 
 - RoboTwin 的 ACT 与 SmolVLA 已进入同一生产 `RoundExecutor`；SmolVLA 也可调用通用
   TaskGen，不再只是 `experiments/paper/` 的旁路 adapter。
-- 这表示代码路径已统一，不表示已经有 SmolVLA 生成式正证据。当前最新
-  scene+checker live 尝试在 TaskGen 验证阶段终止、没有启动 policy rollout，因此不能
-  替代现有公开正证据。
+- 代码路径统一不等于已有 SmolVLA 生成式正证据；最新运行状态只维护在
+  [论文 claim 与 gap](paper_claim_gap_zh.md)，不固化在架构文档中。
 - LIBERO 已有 SmolVLA benchmark/basic-adaptation chain，但尚未共享完整的 Plan Agent
   session、RoundExecutor、stop contract 与 Answer loop。
 - generated checker 是实验评价语义，必须与 simulator official success 分开记录和回答。

@@ -1827,6 +1827,21 @@ class CrossTaskEntrypointTests(unittest.TestCase):
         terminal_state["expert"]["official_core_predicate_satisfied"] = True
         self.assertIsNone(_expert_terminal_authority_failure(terminal_state))
 
+        execution_error = _expert_terminal_authority_failure(
+            {
+                "expert": {"attempts_used": 3},
+                "error": {
+                    "type": "AssertionError",
+                    "message": "target_pose cannot be None",
+                },
+            }
+        )
+        self.assertEqual(execution_error["reason"], "expert_execution_error")
+        self.assertEqual(
+            execution_error["repair_scope"],
+            "scene_or_expert_plan_not_checker_only",
+        )
+
     def test_act_wrapper_receives_telemetry_profile_as_twelfth_argument(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

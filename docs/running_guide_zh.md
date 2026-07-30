@@ -78,6 +78,11 @@ materialization；这不是缺少计划。plan-only 不能预测后续一定生�
 seed/N、最大轮数、evaluation id、rollout 预算和停止条件。生产链只使用 Plan Agent，不启用
 legacy task planner、whole-round restart 或 fault injection。
 
+RoboTwin 生成任务必须让 MEA worktree 位于外部 asset/source root 之前：
+`PYTHONPATH="$MEA_REPO:/root/autodl-tmp/RoboTwin"`。生产入口会再次提升 repo root，
+SmolVLA runner 也会核对 TaskGen 与 rollout 的 simulator source；不一致时必须在连接
+policy server 前终止。
+
 每轮按以下顺序验收：
 
 1. Query contract 与 Proposal；
