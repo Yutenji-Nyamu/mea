@@ -124,8 +124,14 @@ def _experiment_need(
 ) -> dict[str, Any]:
     keys = _TOOL_NEED_KEYS if tool else _NEED_KEYS
     if not isinstance(value, Mapping) or set(value) != keys:
+        received = (
+            sorted(str(item) for item in value)
+            if isinstance(value, Mapping)
+            else type(value).__name__
+        )
         raise OpenTaskResolutionError(
-            f"FreeConcern.{field} fields must be exactly {sorted(keys)}"
+            f"FreeConcern.{field} fields must be exactly {sorted(keys)}; "
+            f"received {received}"
         )
     required = value.get("required")
     if not isinstance(required, bool):
@@ -391,7 +397,10 @@ or checker.  An official-task-only Query must request Rule Tool reuse of the
 official check_success() result while leaving scene, checker, and VQA needs
 false.  Each Rule/VQA need must name one primary scalar or boolean observation;
 leave independent measurements for an evidence-conditioned later round.
-Every Tool need must retrieve before generating.
+scene_need and checker_need must each contain exactly required and description;
+never add reuse_first to either. Only rule_tool_need and vqa_tool_need contain
+reuse_first, which must always be true because every Tool retrieves before
+generating.
 {EXPERIMENTAL_SUCCESS_CHECKER_GUIDANCE}
 
 ORIGINAL QUERY:
