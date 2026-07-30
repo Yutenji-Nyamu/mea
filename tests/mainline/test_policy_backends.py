@@ -23,9 +23,11 @@ from mea.planner.runtime_task_binding import (
 )
 from mea.robotwin.native_agent_round import (
     _build_native_run_id,
+    _execute_robotwin_method_round,
     execute_act_method_round,
     execute_smolvla_method_round,
 )
+from mea.taskgen.generic_backend import GenericTaskGenError
 from mea.taskgen.provider_scene_checker import validate_provider_run_id
 from mea.robotwin.runtime import RoboTwinMethodBackend
 from mea.robotwin.smolvla_rollout import SmolVLARobotwinRolloutRunner
@@ -332,6 +334,64 @@ def test_smolvla_native_envelope_accepts_shared_taskgen_and_vqa(tmp_path):
     assert call["policy_backend"] == "smolvla"
     assert call["generated_task_materializer"] is materializer
     assert call["execution_vqa_connected"] is True
+
+
+def test_native_taskgen_failure_leaves_compact_child_manifest(tmp_path):
+    candidate = build_experiment_candidate(
+        source_query="Generate one shifted scene.",
+        base_task="alpha_task",
+        semantic_concern="shift robustness",
+        scene_need="Shift the target laterally.",
+    )
+    contract = {
+        "task_name": "alpha_task",
+        "policy": {"name": "SmolVLA", "backend": "smolvla"},
+        "task_schema": {"available": True},
+    }
+
+    def fail_taskgen(*_args, **_kwargs):
+        raise GenericTaskGenError("provider repair exhausted")
+
+    with patch(
+        "mea.robotwin.native_agent_round.policy_task_binding_from_target",
+        return_value=contract,
+    ), pytest.raises(GenericTaskGenError, match="repair exhausted"):
+        _execute_robotwin_method_round(
+            policy_backend="smolvla",
+            policy_name="SmolVLA",
+            rollout_runner=lambda **_: {},
+            repo_root=tmp_path,
+            evaluation_dir=tmp_path / "evaluation",
+            evaluation_id="eval_failure",
+            round_plan={
+                "round_id": "round_1",
+                "candidate_id": candidate["candidate_id"],
+                "proposal": candidate,
+                "task_instruction": candidate["source_query"],
+                "task_name": "alpha_task",
+                "route": "generated",
+                "execution": {"seeds": [1]},
+            },
+            runtime_target={},
+            telemetry_profile="balanced_v1",
+            provider=object(),
+            text_model="fixture-model",
+            vision_model="fixture-model",
+            generated_task_materializer=fail_taskgen,
+        )
+
+    run_id = _build_native_run_id(
+        "eval_failure",
+        "round_1",
+        "smolvla",
+    )
+    manifest = json.loads(
+        (
+            tmp_path / "mea" / "generated_tasks" / run_id / "manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert manifest["status"] == "failed"
+    assert manifest["failure"]["message"] == "provider repair exhausted"
 
 
 def test_smolvla_runner_enables_telemetry_only_for_schema_backed_candidate(

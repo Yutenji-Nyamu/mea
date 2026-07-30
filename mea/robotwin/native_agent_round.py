@@ -32,6 +32,8 @@ from mea.robotwin.smolvla_rollout import SmolVLARobotwinRolloutRunner
 from mea.taskgen.rollout_evidence import (
     evaluate_generic_task_rollout_telemetry,
 )
+from mea.taskgen.generic_backend import GenericTaskGenError
+from mea.taskgen.runtime import record_generic_taskgen_generation_failure
 
 
 class NativeAgentRoundError(RuntimeError):
@@ -321,17 +323,29 @@ def _execute_robotwin_method_round(
                 "generated TaskGen execution requires provider, text model, "
                 "and vision model"
             )
-        materialized = generated_task_materializer(
-            root,
-            user_request=query,
-            provider=provider,
-            model=text_model,
-            vision_model=vision_model,
-            experiment_candidate=proposal,
-            run_id=run_id,
-            seed=seed,
-            telemetry_profile=telemetry_profile,
-        )
+        try:
+            materialized = generated_task_materializer(
+                root,
+                user_request=query,
+                provider=provider,
+                model=text_model,
+                vision_model=vision_model,
+                experiment_candidate=proposal,
+                run_id=run_id,
+                seed=seed,
+                telemetry_profile=telemetry_profile,
+            )
+        except GenericTaskGenError as exc:
+            record_generic_taskgen_generation_failure(
+                root,
+                run_id=run_id,
+                user_request=query,
+                experiment_candidate=proposal,
+                model=text_model,
+                telemetry_profile=telemetry_profile,
+                error=exc,
+            )
+            raise
         if not isinstance(materialized, Mapping):
             raise NativeAgentRoundError(
                 "generated_task_materializer must return a TaskGen manifest"
