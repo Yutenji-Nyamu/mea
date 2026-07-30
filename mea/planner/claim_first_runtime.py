@@ -2187,7 +2187,10 @@ class PlanAgentSession:
             raise ClaimFirstRuntimeError(
                 "Plan Agent observation has no assessment"
             )
-        if assessment.get("should_stop"):
+        if (
+            assessment.get("should_stop")
+            and assessment.get("evidence_sufficient") is not True
+        ):
             raise ClaimFirstRuntimeError(
                 "cannot propose a semantic step after the query contract stopped"
             )
@@ -2268,17 +2271,6 @@ class PlanAgentSession:
         assessment = observation.get("assessment")
         if not isinstance(assessment, Mapping):
             raise ClaimFirstRuntimeError("Plan Agent observation has no assessment")
-        if assessment.get("should_stop"):
-            raise ClaimFirstRuntimeError(
-                "cannot bind a semantic step after the query contract stopped"
-            )
-        if (
-            self.require_control_anchor
-            and observation.get("control_passed") is not True
-        ):
-            raise ClaimFirstRuntimeError(
-                "cannot attribute a property before the control passes"
-            )
         raw_proposal = proposal_bundle.get("proposal")
         if not isinstance(raw_proposal, Mapping):
             raise ClaimFirstRuntimeError(
@@ -2291,9 +2283,85 @@ class PlanAgentSession:
             )
         except ClaimFirstPlanError as exc:
             raise ClaimFirstRuntimeError(str(exc)) from exc
-        if proposal["action"] != "continue":
+
+        if proposal["action"] == "stop":
+            query_answer = observation.get("query_answer")
+            if not (
+                assessment.get("should_stop") is True
+                and assessment.get("evidence_sufficient") is True
+                and assessment.get("stop_reason") == "evidence_sufficient"
+                and isinstance(query_answer, Mapping)
+                and query_answer.get("answered") is True
+            ):
+                raise ClaimFirstRuntimeError(
+                    "Plan Agent stop rejected by QueryContract: completed "
+                    "evidence does not yet support an answer to the original "
+                    "Query"
+                )
+            return {
+                "schema_version": 2,
+                "semantic_proposal_bundle": deepcopy(dict(proposal_bundle)),
+                "semantic_needs": {
+                    "scene_need": deepcopy(proposal["scene_need"]),
+                    "checker_need": deepcopy(proposal["checker_need"]),
+                    "rule_tool_need": deepcopy(proposal["rule_tool_need"]),
+                    "vqa_tool_need": deepcopy(proposal["vqa_tool_need"]),
+                    "task_need": deepcopy(proposal["task_need"]),
+                    "tool_need": deepcopy(proposal["tool_need"]),
+                },
+                "resolution": {
+                    "schema_version": 1,
+                    "semantic_sub_aspect": None,
+                    "resolved_aspect_id": None,
+                    "resolved_template_id": None,
+                    "resolved_candidate_id": None,
+                    "resolution": "query_contract_validated_stop",
+                    "hidden": False,
+                    "matched_tokens": [],
+                    "catalog_was_model_visible": False,
+                    "catalog_resolution_error": None,
+                    "retrieval_aspect_id": None,
+                    "retrieval_template_id": None,
+                    "retrieval_resolution": None,
+                },
+                "query_contract": deepcopy(self.query_contract),
+                "query_assessment": deepcopy(dict(assessment)),
+                "query_answer": deepcopy(dict(query_answer)),
+                "plan_step": {
+                    "schema_version": 2,
+                    "action": "stop",
+                    "aspect_id": None,
+                    "candidate_id": None,
+                    "execution_mode": "none",
+                    "proposal": None,
+                    "rationale": proposal["rationale"],
+                    "hypothesis": proposal["hypothesis"],
+                    "answered_query": True,
+                    "claim_verdict": assessment.get("claim_verdict"),
+                    "stop_reason": assessment.get("stop_reason"),
+                    "next_round": None,
+                },
+            }
+
+        budget_remaining = assessment.get("budget_remaining")
+        may_continue_after_sufficiency = bool(
+            assessment.get("should_stop") is True
+            and assessment.get("evidence_sufficient") is True
+            and assessment.get("stop_reason") == "evidence_sufficient"
+            and isinstance(budget_remaining, int)
+            and not isinstance(budget_remaining, bool)
+            and budget_remaining > 0
+        )
+        if assessment.get("should_stop") and not may_continue_after_sufficiency:
             raise ClaimFirstRuntimeError(
-                "the query contract, not the model, owns Plan Agent stopping"
+                "cannot bind a semantic step after the query contract stopped"
+            )
+        if (
+            self.require_control_anchor
+            and observation.get("control_passed") is not True
+        ):
+            raise ClaimFirstRuntimeError(
+                "cannot attribute a property before the control passes"
             )
         retrieval_hint: dict[str, Any] | None = None
         retrieval_error: str | None = None

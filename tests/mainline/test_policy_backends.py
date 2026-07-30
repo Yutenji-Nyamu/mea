@@ -22,8 +22,11 @@ from mea.planner.runtime_task_binding import (
     build_smolvla_policy_spec,
 )
 from mea.robotwin.native_agent_round import (
+    _build_native_run_id,
+    execute_act_method_round,
     execute_smolvla_method_round,
 )
+from mea.taskgen.provider_scene_checker import validate_provider_run_id
 from mea.robotwin.runtime import RoboTwinMethodBackend
 from mea.robotwin.smolvla_rollout import SmolVLARobotwinRolloutRunner
 
@@ -47,6 +50,19 @@ def _write_official_task(root, task_name: str, description: str) -> None:
     instruction.write_text(
         json.dumps({"full_description": description}),
         encoding="utf-8",
+    )
+
+
+def test_native_generated_task_run_id_is_stable_and_importable():
+    run_id = _build_native_run_id("eval_open_query", "round_1", "act")
+
+    assert run_id.startswith("run_native_act_")
+    assert validate_provider_run_id(run_id) == run_id
+    assert run_id == _build_native_run_id(
+        "eval_open_query", "round_1", "act"
+    )
+    assert run_id != _build_native_run_id(
+        "eval_open_query", "round_2", "act"
     )
 
 
@@ -214,7 +230,7 @@ def test_schema_less_smolvla_context_exposes_official_only_boundary(
     }
 
 
-def test_schema_less_smolvla_records_nonofficial_candidate_as_unsupported(
+def test_schema_less_smolvla_records_scene_generation_as_unsupported(
     tmp_path,
 ):
     _write_official_task(tmp_path, "alpha_task", "move the alpha object")
@@ -233,7 +249,7 @@ def test_schema_less_smolvla_records_nonofficial_candidate_as_unsupported(
         source_query=query,
         base_task="alpha_task",
         semantic_concern="trajectory",
-        rule_tool_need="Measure the target trajectory.",
+        scene_need="Move the target to a new tested pose.",
     )
 
     result = execute_smolvla_method_round(
@@ -254,14 +270,43 @@ def test_schema_less_smolvla_records_nonofficial_candidate_as_unsupported(
         runtime_target=target,
         telemetry_profile="balanced_v1",
         policy_server_port=18771,
+        generated_task_materializer=lambda *args, **kwargs: {},
     )
 
     assert result["unsupported"] is True
     assert result["child_manifest"]["status"] == "unsupported"
     assert (
         result["child_manifest"]["unsupported_capability"]["reason_code"]
-        == "task_schema_unavailable"
+        == "task_context_insufficient_for_taskgen"
     )
+
+
+def test_act_native_envelope_delegates_to_shared_method_round(tmp_path):
+    expected = {"unsupported": False}
+    with patch(
+        "mea.robotwin.native_agent_round._execute_robotwin_method_round",
+        return_value=expected,
+    ) as execute_shared:
+        result = execute_act_method_round(
+            repo_root=tmp_path,
+            evaluation_dir=tmp_path / "evaluation",
+            evaluation_id="eval",
+            round_plan={"round_id": "round_1"},
+            runtime_target={},
+            telemetry_profile="balanced_v1",
+            policy_server_port=18771,
+            gpu=2,
+        )
+
+    assert result is expected
+    call = execute_shared.call_args.kwargs
+    assert call["policy_backend"] == "act"
+    assert call["policy_name"] == "ACT"
+    assert call["telemetry_profile"] == "balanced_v1"
+    assert call["rollout_runner"].gpu == 2
+    assert call["rollout_runner"].repo_root == tmp_path.resolve()
+    assert call["generated_task_materializer"] is None
+    assert call["execution_vqa_connected"] is True
 
 
 def test_smolvla_runner_enables_telemetry_only_for_schema_backed_candidate(

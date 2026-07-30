@@ -38,6 +38,14 @@ from .reviewed_registry import (
     validate_vqa_query_review,
     validate_vqa_query_spec,
 )
+from .open_question import (
+    OpenVQAQuestionAgent,
+    OpenVQAQuestionError,
+    load_run_local_vqa_questions,
+    materialize_open_execution_vqa_query,
+    register_run_local_vqa_question,
+    vqa_need_semantic_key,
+)
 
 __all__ = [
     "ExecutionVQAError",
@@ -67,4 +75,10 @@ __all__ = [
     "match_reviewed_vqa_query_spec",
     "validate_vqa_query_review",
     "validate_vqa_query_spec",
+    "OpenVQAQuestionAgent",
+    "OpenVQAQuestionError",
+    "load_run_local_vqa_questions",
+    "materialize_open_execution_vqa_query",
+    "register_run_local_vqa_question",
+    "vqa_need_semantic_key",
 ]

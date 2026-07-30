@@ -357,6 +357,223 @@ class RoboTwinMethodBackend:
             },
         )
 
+    def bind_validated_taskgen_candidate(
+        self,
+        binding: BackendTaskBinding,
+        request: CandidateRequest,
+        taskgen_manifest: Mapping[str, Any],
+    ) -> MaterializedCandidate:
+        """Bind an accepted TaskGen artifact without invoking generation.
+
+        The production TaskGen runtime has already performed code fixtures,
+        render/VLM diagnosis, simulator-state preservation, and an expert
+        terminal probe.  This method verifies that acceptance boundary and
+        projects the existing artifact into MethodRuntime for policy rollout.
+        """
+
+        adapter = binding.native_task
+        if not isinstance(
+            adapter,
+            (GenericRoboTwinTaskAdapter, RoboTwinTaskIdentity),
+        ):
+            raise TypeError(
+                "RoboTwin binding native_task has the wrong runtime type"
+            )
+        try:
+            candidate = validate_experiment_candidate(
+                request.proposal_bundle
+            )
+        except ExperimentCandidateError as exc:
+            raise ValueError(f"invalid Proposal: {exc}") from exc
+        if (
+            candidate["candidate_id"] != request.candidate_id
+            or candidate["source_query"] != request.source_query
+            or candidate["base_task"] != adapter.task_name
+        ):
+            raise ValueError(
+                "validated TaskGen artifact differs from CandidateRequest"
+            )
+        manifest = _json_object(
+            taskgen_manifest,
+            "validated TaskGen manifest",
+        )
+        manifest_candidate = validate_experiment_candidate(
+            manifest.get("proposal")
+        )
+        if manifest_candidate != candidate:
+            raise ValueError(
+                "validated TaskGen manifest Proposal differs from request"
+            )
+        if (
+            manifest.get("status") != "generated"
+            or manifest.get("task_name") != adapter.task_name
+        ):
+            raise ValueError(
+                "validated TaskGen manifest has the wrong task or status"
+            )
+
+        acceptance = _json_object(
+            manifest.get("task_generation_acceptance"),
+            "TaskGen task_generation_acceptance",
+        )
+        if (
+            acceptance.get("status") != "accepted"
+            or acceptance.get("act_rollouts_started_before_acceptance") != 0
+        ):
+            raise ValueError(
+                "TaskGen artifact was not accepted before policy rollout"
+            )
+        scene_validation = _json_object(
+            manifest.get("scene_validation"),
+            "TaskGen scene_validation",
+        )
+        preflight = _json_object(
+            scene_validation.get("generic_preflight"),
+            "TaskGen generic_preflight",
+        )
+        fixtures = preflight.get("checker_fixtures")
+        if (
+            preflight.get("render_passed") is not True
+            or preflight.get("expert_passed") is not True
+            or not isinstance(fixtures, list)
+            or len(fixtures) < 2
+            or any(
+                not isinstance(item, Mapping)
+                or item.get("passed") is not True
+                for item in fixtures
+            )
+        ):
+            raise ValueError(
+                "TaskGen artifact lacks passed render/expert/checker gates"
+            )
+        if (
+            candidate["scene_need"] is not None
+            and preflight.get("scene_change_passed") is not True
+        ):
+            raise ValueError(
+                "scene-generating TaskGen artifact lacks scene-change evidence"
+            )
+        vision = _json_object(
+            manifest.get("vision_validation"),
+            "TaskGen vision_validation",
+        )
+        if (
+            acceptance.get("visual_self_check_required") is not True
+            or vision.get("status") != "passed"
+            or vision.get("passed") is not True
+        ):
+            raise ValueError(
+                "production TaskGen artifact lacks passed VLM diagnosis"
+            )
+
+        generated_checker = candidate["checker_need"] is not None
+        artifact_summary = _json_object(
+            manifest.get("task_artifact_summary"),
+            "TaskGen task_artifact_summary",
+        )
+        if generated_checker:
+            valid_success_semantics = (
+                artifact_summary.get("success_origin")
+                == "provider_generated_python"
+                and artifact_summary.get("success_official_equivalent")
+                is False
+            )
+        else:
+            valid_success_semantics = (
+                artifact_summary.get("success_origin")
+                == "official_method_reuse"
+                and artifact_summary.get("success_official_equivalent")
+                is True
+            )
+        if not valid_success_semantics:
+            raise ValueError(
+                "TaskGen checker semantics differ from the Proposal"
+            )
+
+        run_dir = request.output_dir.expanduser().resolve()
+        if manifest.get("run_id") != run_dir.name:
+            raise ValueError(
+                "TaskGen manifest run_id differs from its artifact directory"
+            )
+        task_module = _required_text(
+            manifest.get("task_module"),
+            "TaskGen manifest.task_module",
+        )
+        task_source = run_dir / "task.py"
+        candidate_manifest = run_dir / "candidate_manifest.json"
+        manifest_path = run_dir / "manifest.json"
+        overlay = run_dir / "overlay.yml"
+        for artifact in (
+            task_source,
+            candidate_manifest,
+            manifest_path,
+            overlay,
+        ):
+            if not artifact.is_file():
+                raise ValueError(
+                    f"accepted TaskGen artifact is missing: {artifact}"
+                )
+
+        resolution = {
+            "schema_version": 1,
+            "status": "generated",
+            "route": "validated_taskgen_artifact",
+            "run_dir": str(run_dir),
+            "candidate_manifest": manifest,
+            "provider_call_count": int(
+                (manifest.get("provider") or {}).get(
+                    "provider_call_count"
+                )
+                or 0
+            ),
+        }
+        native = _RoboTwinNativeCandidate(
+            adapter=adapter,
+            experiment_candidate=candidate,
+            taskgen_resolution=resolution,
+            rollout_manifest=manifest,
+        )
+        return MaterializedCandidate(
+            benchmark=self.benchmark,
+            candidate_id=request.candidate_id,
+            binding_id=binding.binding_id,
+            source_query=request.source_query,
+            task_contract={
+                **dict(binding.task_contract),
+                "candidate_id": request.candidate_id,
+                "semantic_concern": candidate["semantic_concern"],
+                "task_module": task_module,
+            },
+            native_task=native,
+            artifacts={
+                **binding.artifacts,
+                "run_dir": str(run_dir),
+                "overlay": str(overlay),
+                "task_module": task_module,
+                "task_source": str(task_source),
+                "candidate_manifest": str(candidate_manifest),
+                "manifest": str(manifest_path),
+            },
+            validation={
+                "route": resolution["route"],
+                "status": resolution["status"],
+                "provider_call_count": resolution[
+                    "provider_call_count"
+                ],
+                "taskgen": {
+                    "acceptance": acceptance,
+                    "scene_validation": scene_validation,
+                    "vision_validation": vision,
+                },
+            },
+            metadata={
+                "official_control": False,
+                "official_task_reused": False,
+                "generated_checker": generated_checker,
+                "taskgen_route": resolution["route"],
+            },
+        )
+
     def _taskgen_rollout_manifest(
         self,
         resolution: Mapping[str, Any],

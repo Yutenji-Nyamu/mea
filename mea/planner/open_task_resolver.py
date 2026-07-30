@@ -367,7 +367,8 @@ templates, aspect identifiers, or a capability catalog: those are deliberately
 not available until a later retrieval stage.
 When requested_variation changes a scene, explicitly state in that field which
 task conditions must remain unchanged; do not leave preservation implicit and
-do not use catch-all phrases such as "all other conditions unchanged".
+do not use catch-all phrases such as "all other conditions unchanged",
+"all other object poses", or "the rest of the scene".
 Use concrete, verifiable invariant names such as center position, color or
 material, scene layout, camera viewpoint, task instruction, policy checkpoint,
 or official success semantics.
@@ -376,6 +377,10 @@ never request a size/shape/pose/contact change while also declaring that same
 quantity invariant. Prefer a bounded experiment whose invariants can be checked
 from simulator state, checker fixtures, or exact method reuse; RGB is only
 authority for visibly decidable appearance and plausibility.
+At this pre-retrieval stage, workspace and camera bounds are not available.
+Do not invent an absolute perturbation magnitude.  Specify the diagnostic
+direction and let TaskGen choose the smallest measurable change after it
+retrieves the official source and validates the first render.
 
 Independently declare the work needed to execute this first experiment.
 Request a scene only when requested_variation changes the simulator scene;

@@ -7,6 +7,8 @@ from unittest.mock import patch
 from mea.toolkit import aggregate_tool_executions
 from mea.feedback.answer_scope import build_answer_scope
 from scripts.manipeval_agent import (
+    _episode_numeric_tool_results,
+    _same_telemetry_episode,
     build_evidence_bundle,
     compact_aggregate_result,
     run_round_execution_vqa,
@@ -14,6 +16,30 @@ from scripts.manipeval_agent import (
 
 
 class AgentEvidenceIntegrationTests(unittest.TestCase):
+    def test_vqa_normalizes_episode_identity_and_reads_typed_tool_result(self):
+        base = {"tool": "official_check_success", "value": True}
+        planned = {"tool": "terminal_object_height", "value": 0.12}
+        episode = {
+            "tool_results": [base],
+            "result": planned,
+        }
+
+        self.assertEqual(
+            _episode_numeric_tool_results(episode),
+            [base, planned],
+        )
+        self.assertTrue(
+            _same_telemetry_episode(
+                {
+                    "episode_dir": (
+                        "mea/generated_tasks/run/evaluation/telemetry/"
+                        "act/episode_000"
+                    )
+                },
+                {"episode_dir": "act/episode_000"},
+            )
+        )
+
     def test_taskgen_failure_does_not_count_requested_act_episode_as_evidence(self):
         with tempfile.TemporaryDirectory() as temporary:
             repo_root = Path(temporary)
@@ -192,6 +218,7 @@ class AgentEvidenceIntegrationTests(unittest.TestCase):
 
             def fake_vqa(**kwargs):
                 captured["tools"] = kwargs["numeric_tool_results"]
+                captured["reference_scene"] = kwargs["reference_scene"]
                 return {
                     "schema_version": 1,
                     "observation": {},
@@ -218,6 +245,7 @@ class AgentEvidenceIntegrationTests(unittest.TestCase):
                 item for item in captured["tools"] if item["tool"] == "duration"
             )
             self.assertEqual(duration["value"], 1.0)
+            self.assertIsNone(captured["reference_scene"])
 
     def test_completed_act_without_video_is_failed_not_skipped(self):
         with tempfile.TemporaryDirectory() as temporary:

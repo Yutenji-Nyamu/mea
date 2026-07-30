@@ -381,8 +381,6 @@ class PlanAgentInitialPlanBuilder:
 # Compatibility class name; new callers should use
 # ``PlanAgentInitialPlanBuilder``.
 ClaimFirstInitialPlanBuilder = PlanAgentInitialPlanBuilder
-build_claim_first_control_round = build_plan_agent_control_round
-build_claim_first_execution_binding = build_plan_agent_execution_binding
 
 
 __all__ = [
@@ -392,6 +390,4 @@ __all__ = [
     "build_plan_agent_execution_binding",
     "ClaimFirstInitialPlanBuilder",
     "ClaimFirstInitialPlanError",
-    "build_claim_first_control_round",
-    "build_claim_first_execution_binding",
 ]

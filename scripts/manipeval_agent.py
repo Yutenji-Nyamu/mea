@@ -9,6 +9,7 @@ import subprocess
 import sys
 from copy import deepcopy
 from datetime import datetime
+from functools import partial
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -17,8 +18,11 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from mea.execution_vqa import (
+    OpenVQAQuestionAgent,
     build_execution_vqa_query,
     is_run_local_phenomenon_id,
+    load_run_local_vqa_questions,
+    register_run_local_vqa_question,
     run_execution_vqa,
 )
 from mea.agent_cli import (
@@ -125,9 +129,19 @@ from mea.providers import (
     OpenAICompatibleProvider,
     resolve_model_profile,
 )
-from mea.robotwin import project_executed_round_through_method_runtime
+from mea.round_executor import (
+    RoundExecutionRequest,
+    RoundExecutionServices,
+    RoundExecutor,
+)
+from mea.robotwin.native_agent_round import (
+    execute_act_method_round,
+    execute_smolvla_method_round,
+)
+from mea.taskgen.runtime import create_generic_provider_taskgen_run
 from mea.toolgen import (
     OpenToolRequestAgent,
+    build_tool_artifact_context,
     compatible_reviewed_tool_requests,
     compatible_run_local_tool_requests,
     execute_tool_request,
@@ -1660,6 +1674,24 @@ def materialize_open_world_tool_request(
         runtime_schema=runtime_schema,
         reusable_tool_requests=reusable_tool_requests,
         forbidden_metric_ids=already_measured_metrics,
+        proposal=candidate,
+        task_artifact_summary=(
+            child_manifest.get("task_artifact_summary")
+            if isinstance(
+                child_manifest.get("task_artifact_summary"),
+                Mapping,
+            )
+            else None
+        ),
+        derived_observable_oracle_broker=(
+            child_manifest.get("derived_observable_oracle_broker")
+            if isinstance(
+                child_manifest.get("derived_observable_oracle_broker"),
+                Mapping,
+            )
+            else None
+        ),
+        allow_unsupported=True,
     )
     artifact_dir = execution_dir / "open_tool_request"
     write_json(artifact_dir / "runtime_schema.json", runtime_schema)
@@ -2059,18 +2091,51 @@ def _policy_episode_for_execution_vqa(
         return None
     episode = candidates[0]
     episode_dir = child_dir / "evaluation/telemetry" / episode["episode_dir"]
-    return episode_dir, episode, list(episode.get("tool_results", []))
+    return episode_dir, episode, _episode_numeric_tool_results(episode)
+
+
+def _episode_numeric_tool_results(
+    episode: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Read both base Toolkit rows and the planned typed Tool row."""
+
+    results = [
+        deepcopy(dict(item))
+        for item in episode.get("tool_results", [])
+        if isinstance(item, Mapping)
+    ]
+    planned = episode.get("result")
+    if isinstance(planned, Mapping):
+        normalized = deepcopy(dict(planned))
+        if normalized not in results:
+            results.append(normalized)
+    return results
+
+
+def _canonical_episode_identity(value: Any) -> str | None:
+    if not isinstance(value, (str, Path)) or not str(value).strip():
+        return None
+    normalized = str(value).replace("\\", "/").rstrip("/")
+    telemetry_marker = "evaluation/telemetry/"
+    if telemetry_marker in normalized:
+        normalized = normalized.split(telemetry_marker, 1)[1]
+    return normalized.lstrip("./")
 
 
 def _same_telemetry_episode(
-    candidate: dict[str, Any], representative: dict[str, Any]
+    candidate: Mapping[str, Any],
+    representative: Mapping[str, Any],
 ) -> bool:
     """Match generated and Trusted Tool rows to one physical rollout."""
 
-    candidate_dir = candidate.get("episode_dir")
-    representative_dir = representative.get("episode_dir")
-    if candidate_dir and representative_dir:
-        return str(candidate_dir) == str(representative_dir)
+    candidate_dir = _canonical_episode_identity(
+        candidate.get("episode_dir")
+    )
+    representative_dir = _canonical_episode_identity(
+        representative.get("episode_dir")
+    )
+    if candidate_dir is not None and representative_dir is not None:
+        return candidate_dir == representative_dir
     return (
         candidate.get("seed") == representative.get("seed")
         and str(candidate.get("policy_name", "")).casefold()
@@ -2113,62 +2178,127 @@ def run_round_execution_vqa(
         if isinstance(semantic_needs, Mapping)
         else None
     )
-    generated_vqa_specs = None
-    generated_vqa_ids = None
+    open_vqa_bundle: dict[str, Any] | None = None
     if (
         isinstance(vqa_need, Mapping)
         and vqa_need.get("requested") is True
         and isinstance(vqa_need.get("description"), str)
         and vqa_need["description"].strip()
     ):
-        description = " ".join(vqa_need["description"].split())
-        question = (
-            "Does the rollout visibly show whether "
-            + description.rstrip("?.。？！")
-            + "?"
-        )[:240]
-        if not question.endswith("?"):
-            question = question[:239].rstrip("?.。？！") + "?"
-        phenomenon_id = (
-            "run_local.query_"
-            + hashlib.sha256(description.encode("utf-8")).hexdigest()[:12]
+        candidate_value = (round_plan or {}).get("proposal") or (
+            round_plan or {}
+        ).get("experiment_candidate")
+        candidate = (
+            validate_experiment_candidate(candidate_value)
+            if isinstance(candidate_value, Mapping)
+            else None
         )
-        generated_vqa_specs = [
-            {
-                "id": phenomenon_id,
-                "question_type": "visible_state_change",
-                "target_role": "manipulated_object",
-                "question": question,
-                "visual_scope": "rollout_change",
-                "numeric_authority": "no_numeric_oracle",
-            }
-        ]
-        generated_vqa_ids = [phenomenon_id]
+        if candidate is None:
+            raise RuntimeError(
+                "Query-induced VQA generation requires a typed Proposal"
+            )
+        runtime_schema = _executed_runtime_task_schema(
+            child_dir,
+            task_name=str(candidate["base_task"]),
+        )
+        run_local_vqa_registry = (
+            execution_dir.parent.parent / "vqa_registry"
+        )
+        artifact_context = build_tool_artifact_context(
+            repo_root,
+            task_name=str(candidate["base_task"]),
+            proposal=candidate,
+            task_artifact_summary=(
+                child_manifest.get("task_artifact_summary")
+                if isinstance(
+                    child_manifest.get("task_artifact_summary"),
+                    Mapping,
+                )
+                else None
+            ),
+            runtime_schema=runtime_schema,
+            reusable_vqa_questions=load_run_local_vqa_questions(
+                run_local_vqa_registry
+            ),
+        )
+        vqa_agent = OpenVQAQuestionAgent(provider, model=model)
+        open_vqa_bundle = vqa_agent.propose(
+            artifact_context=artifact_context,
+            vqa_need=vqa_need,
+            template_id=(round_plan or {}).get("template_id"),
+            tool_contract=(round_plan or {}).get("tool_request"),
+            reviewed_registry_dir=reviewed_vqa_registry,
+        )
+        open_vqa_dir = execution_dir / "open_vqa_question"
+        write_json(open_vqa_dir / "question_bundle.json", open_vqa_bundle)
+        if (
+            open_vqa_bundle.get("status") in {"generated", "reused"}
+            and isinstance(
+                open_vqa_bundle.get("question_spec"),
+                Mapping,
+            )
+        ):
+            open_vqa_bundle["registration"] = (
+                register_run_local_vqa_question(
+                    run_local_vqa_registry,
+                    open_vqa_bundle,
+                    artifact_path=str(
+                        (
+                            open_vqa_dir / "question_bundle.json"
+                        ).relative_to(repo_root)
+                    ).replace("\\", "/"),
+                )
+            )
+            write_json(
+                open_vqa_dir / "question_bundle.json",
+                open_vqa_bundle,
+            )
+        if vqa_agent.last_prompt is not None:
+            (open_vqa_dir / "prompt.md").write_text(
+                vqa_agent.last_prompt,
+                encoding="utf-8",
+            )
+        for index, response in enumerate(
+            vqa_agent.last_responses,
+            start=1,
+        ):
+            (open_vqa_dir / f"response_{index}.txt").write_text(
+                response + "\n",
+                encoding="utf-8",
+            )
     proposal = ((round_plan or {}).get("tool_proposal") or {})
     proposal_vqa_explicit = bool(
         proposal.get("vqa_phenomenon_ids")
         or proposal.get("vqa_question_specs")
     )
-    query = build_execution_vqa_query(
-        task_name=(
-            str((round_plan or {}).get("task_name") or child_manifest.get("task_name"))
-            if (round_plan or {}).get("task_name") or child_manifest.get("task_name")
-            else None
-        ),
-        template_id=(round_plan or {}).get("template_id"),
-        sub_aspect=(round_plan or {}).get("sub_aspect"),
-        tool_contract=(round_plan or {}).get("tool_request"),
-        proposed_phenomenon_ids=(
-            proposal.get("vqa_phenomenon_ids")
-            if proposal_vqa_explicit
-            else generated_vqa_ids
-        ),
-        proposed_question_specs=(
-            proposal.get("vqa_question_specs")
-            if proposal_vqa_explicit
-            else generated_vqa_specs
-        ),
-        reviewed_registry_dir=reviewed_vqa_registry,
+    query = (
+        open_vqa_bundle["query"]
+        if open_vqa_bundle is not None
+        else build_execution_vqa_query(
+            task_name=(
+                str(
+                    (round_plan or {}).get("task_name")
+                    or child_manifest.get("task_name")
+                )
+                if (round_plan or {}).get("task_name")
+                or child_manifest.get("task_name")
+                else None
+            ),
+            template_id=(round_plan or {}).get("template_id"),
+            sub_aspect=(round_plan or {}).get("sub_aspect"),
+            tool_contract=(round_plan or {}).get("tool_request"),
+            proposed_phenomenon_ids=(
+                proposal.get("vqa_phenomenon_ids")
+                if proposal_vqa_explicit
+                else None
+            ),
+            proposed_question_specs=(
+                proposal.get("vqa_question_specs")
+                if proposal_vqa_explicit
+                else None
+            ),
+            reviewed_registry_dir=reviewed_vqa_registry,
+        )
     )
     write_json(execution_dir / "execution_vqa_query.json", query)
     route = (round_plan or {}).get("route")
@@ -2244,6 +2374,11 @@ def run_round_execution_vqa(
         scene_seed = (child_manifest.get("scene_validation") or {}).get("seed")
         representative_seed = representative.get("seed")
         reference_scene = child_dir / "evidence/initial_head.png"
+        if not reference_scene.is_file():
+            # Native official rounds have rollout video/telemetry but no
+            # TaskGen-owned initial-head image.  VQA can select its baseline
+            # from the rollout instead of failing on a nonexistent artifact.
+            reference_scene = None
         if (
             scene_seed is not None
             and representative_seed is not None
@@ -2632,7 +2767,6 @@ def summarize_round(
             )
             and fixtures
             and all(item.get("passed") is True for item in fixtures)
-            and positions.get("passed")
             and act.get("passed")
             and tool_evaluation
             and tool_evaluation.get("status") == "passed"
@@ -2798,6 +2932,42 @@ def summarize_round(
     return summary
 
 
+def _build_round_executor(*, native_act: bool) -> RoundExecutor:
+    native_policy_rounds = {
+        "smolvla": execute_smolvla_method_round,
+    }
+    if native_act:
+        native_policy_rounds["act"] = partial(
+            execute_act_method_round,
+            generated_task_materializer=(
+                create_generic_provider_taskgen_run
+            ),
+        )
+
+    return RoundExecutor(
+        RoundExecutionServices(
+            update_manifest=update_manifest,
+            build_taskgen_command=build_taskgen_command,
+            run_logged=run_logged,
+            materialize_open_world_tool_request=(
+                materialize_open_world_tool_request
+            ),
+            reuse_bound_child_checker_tool=reuse_bound_child_checker_tool,
+            execute_tool_request=execute_tool_request,
+            aggregate_round_results=aggregate_round_results,
+            run_round_execution_vqa=run_round_execution_vqa,
+            summarize_round=summarize_round,
+            native_policy_rounds=native_policy_rounds,
+        )
+    )
+
+
+def build_production_round_executor() -> RoundExecutor:
+    """Assemble the production lifecycle with native ACT and SmolVLA."""
+
+    return _build_round_executor(native_act=True)
+
+
 def execute_round(
     repo_root: Path,
     evaluation_dir: Path,
@@ -2819,417 +2989,36 @@ def execute_round(
     policy_backend: str = "act",
     runtime_target: Mapping[str, Any] | None = None,
     smolvla_port: int = 18771,
-) -> tuple[dict[str, Any], Path, dict[str, Any], dict[str, Any], int,]:
-    round_id = round_plan["round_id"]
-    if policy_backend == "smolvla":
-        if runtime_target is None:
-            raise RuntimeError(
-                "SmolVLA execution requires the bound runtime target"
-            )
-        from mea.robotwin.native_agent_round import (
-            execute_smolvla_method_round,
-        )
+) -> tuple[dict[str, Any], Path, dict[str, Any], dict[str, Any], int]:
+    """Compatibility import for callers migrating to :class:`RoundExecutor`."""
 
-        update_manifest(
-            evaluation_dir,
-            status=f"executing_{round_id}",
-            active_child_run_id=None,
-            policy_backend="smolvla",
-        )
-        native = execute_smolvla_method_round(
-            repo_root=repo_root,
-            evaluation_dir=evaluation_dir,
-            evaluation_id=evaluation_id,
-            round_plan=round_plan,
-            runtime_target=runtime_target,
-            telemetry_profile=telemetry_profile,
-            policy_server_port=smolvla_port,
-        )
-        child_manifest = native["child_manifest"]
-        child_dir = native["child_dir"]
-        execution_dir = evaluation_dir / "execution" / round_id
-        child_manifest_path = native["manifest_path"]
-        run_id = child_manifest["run_id"]
-        returncode = 0
-        semantic_ready = native["semantic_telemetry_ready"]
-    elif policy_backend != "act":
-        raise RuntimeError(f"unsupported policy backend: {policy_backend!r}")
-    else:
-        semantic_ready = True
-        native = None
-        command, run_id = build_taskgen_command(
-            repo_root,
-            evaluation_id,
-            round_plan,
-            text_model=text_model,
-            vision_model=vision_model,
-            base_url=base_url,
-            gpu=gpu,
-            max_reflections=max_reflections,
-            telemetry_profile=telemetry_profile,
-            reviewed_task_registry=reviewed_task_registry,
-            registration_identity=registration_identity,
-            run_id_suffix="",
-        )
-        execution_dir = evaluation_dir / "execution" / round_id
-        write_json(
-            execution_dir / "taskgen_command.json",
-            {"command": command, "child_run_id": run_id},
-        )
-        update_manifest(
-            evaluation_dir,
-            status=f"executing_{round_id}",
-            active_child_run_id=run_id,
-        )
-        returncode = run_logged(
-            command,
-            cwd=repo_root,
-            log_path=execution_dir / "taskgen.log",
-        )
-        child_dir = repo_root / "mea/generated_tasks" / run_id
-        child_manifest_path = child_dir / "manifest.json"
-    if not child_manifest_path.is_file():
-        raise RuntimeError(f"child TaskGen manifest 不存在: {child_manifest_path}")
-    child_manifest = json.loads(child_manifest_path.read_text(encoding="utf-8"))
-    if native is None and registration_identity is not None and child_manifest.get(
-        "registration_identity"
-    ) != registration_identity:
-        raise RuntimeError(
-            f"child registration identity mismatch: {run_id}"
-        )
-    write_json(
-        execution_dir / "child_run.json",
-        {
-            "run_id": run_id,
-            "returncode": returncode,
-            "manifest_path": str(child_manifest_path.relative_to(repo_root)),
-            "status": child_manifest.get("status"),
-            "policy_backend": policy_backend,
-        },
+    request = RoundExecutionRequest(
+        repo_root=repo_root,
+        evaluation_dir=evaluation_dir,
+        evaluation_id=evaluation_id,
+        round_plan=round_plan,
+        text_model=text_model,
+        vision_model=vision_model,
+        base_url=base_url,
+        gpu=gpu,
+        max_reflections=max_reflections,
+        provider=provider,
+        toolgen_model=toolgen_model,
+        telemetry_profile=telemetry_profile,
+        reviewed_task_registry=reviewed_task_registry,
+        reviewed_tool_registry=reviewed_tool_registry,
+        reviewed_vqa_registry=reviewed_vqa_registry,
+        registration_identity=registration_identity,
+        policy_backend=policy_backend,
+        runtime_target=runtime_target,
+        smolvla_port=smolvla_port,
     )
-    if (
-        child_manifest.get("status")
-        in {
-            "completed",
-            "completed_without_act",
-        }
-        and returncode == 0
-        and semantic_ready
-    ):
-        tool_kwargs: dict[str, Any] = {
-            "provider": provider,
-            "model": toolgen_model,
-        }
-        if reviewed_tool_registry is not None:
-            tool_kwargs["reviewed_registry_dir"] = reviewed_tool_registry
-        if round_plan.get("open_tool_request_deferred") is True:
-            tool_bundle = materialize_open_world_tool_request(
-                repo_root,
-                execution_dir,
-                round_plan=round_plan,
-                child_dir=child_dir,
-                provider=provider,
-                toolgen_model=toolgen_model,
-                reviewed_tool_registry=reviewed_tool_registry,
-            )
-            round_plan["tool_request"] = deepcopy(
-                tool_bundle["tool_request"]
-            )
-            round_plan["open_tool_request_deferred"] = False
-            semantic_execution = round_plan.get("semantic_need_execution")
-            if isinstance(semantic_execution, dict):
-                tool_execution = semantic_execution.get("rule_tool")
-                if isinstance(tool_execution, dict):
-                    tool_execution.update(
-                        {
-                            "route": route_tool_request(
-                                tool_bundle["tool_request"]
-                            )["route_decision"]["resolved_route"],
-                            "status": "selected",
-                            "request_artifact": str(
-                                (
-                                    execution_dir
-                                    / "open_tool_request/"
-                                    "tool_request_bundle.json"
-                                ).relative_to(repo_root)
-                            ).replace("\\", "/"),
-                        }
-                    )
-        proposed_request = (
-            tool_request_from_proposal(round_plan["tool_proposal"])
-            if round_plan.get("tool_proposal") is not None
-            else round_plan["tool_request"]
-        )
-        if round_plan.get("task_proposal") is not None:
-            tool_kwargs["task_proposal"] = round_plan["task_proposal"]
-        planned_tool_dir = execution_dir / "planned_tool"
-        tool_evaluation = reuse_bound_child_checker_tool(
-            repo_root,
-            child_manifest,
-            planned_tool_dir,
-            proposed_request,
-        )
-        if tool_evaluation is None:
-            tool_evaluation = execute_tool_request(
-                repo_root,
-                child_dir,
-                planned_tool_dir,
-                proposed_request,
-                **tool_kwargs,
-            )
-    else:
-        skip_reason = (
-            str(
-                (child_manifest.get("unsupported_capability") or {}).get(
-                    "reason"
-                )
-            )
-            if child_manifest.get("status") == "unsupported"
-            else (
-                "TaskSchema unavailable; Rule Tool and VQA evidence were "
-                "not executed."
-            )
-            if not semantic_ready
-            else f"child TaskGen exited with code {returncode}"
-            if returncode != 0
-            else "child TaskGen pipeline did not complete"
-        )
-        tool_evaluation = {
-            "schema_version": 1,
-            "status": "skipped",
-            "requested_route": "auto",
-            "route": None,
-            "reference_tool": None,
-            "tool_request": (
-                tool_request_from_proposal(round_plan["tool_proposal"])
-                if round_plan.get("tool_proposal") is not None
-                else round_plan["tool_request"]
-            ),
-            "route_decision": {
-                "status": "skipped",
-                "requested_route": "auto",
-                "resolved_route": None,
-                "reason": skip_reason,
-                "provider_required": None,
-                "provider_called": False,
-            },
-            "source": {},
-            "episodes": [],
-            "validation": {"reason": skip_reason},
-            "artifacts": {},
-        }
-        write_json(execution_dir / "planned_tool_skipped.json", tool_evaluation)
-    if (
-        native is not None
-        and semantic_ready
-        and tool_evaluation.get("status") == "passed"
-    ):
-        telemetry_root = child_dir / "evaluation/telemetry"
-        trusted_episodes = []
-        for episode in tool_evaluation.get("episodes", []):
-            normalized_episode = deepcopy(dict(episode))
-            episode_path = Path(str(episode["episode_dir"]))
-            if not episode_path.is_absolute():
-                episode_path = repo_root / episode_path
-            normalized_episode["episode_dir"] = (
-                episode_path.resolve()
-                .relative_to(telemetry_root.resolve())
-                .as_posix()
-            )
-            trusted_episodes.append(normalized_episode)
-        child_manifest["trusted_tool_evaluation"].update(
-            {
-                "status": "passed",
-                "episode_count": len(trusted_episodes),
-                "episodes": trusted_episodes,
-                "artifact": (
-                    tool_evaluation.get("artifacts") or {}
-                ).get("tool_execution"),
-            }
-        )
-        write_json(child_manifest_path, child_manifest)
-    semantic_execution = round_plan.get("semantic_need_execution")
-    if isinstance(semantic_execution, dict):
-        rule_execution = semantic_execution.get("rule_tool")
-        if (
-            isinstance(rule_execution, dict)
-            and rule_execution.get("requested") is True
-        ):
-            route_decision = tool_evaluation.get("route_decision")
-            route_decision = (
-                route_decision
-                if isinstance(route_decision, Mapping)
-                else {}
-            )
-            rule_execution.update(
-                {
-                    "status": str(
-                        tool_evaluation.get("status") or "missing"
-                    ),
-                    "route": (
-                        tool_evaluation.get("route")
-                        or route_decision.get("resolved_route")
-                    ),
-                }
-            )
-    aggregate_result = aggregate_round_results(
-        round_plan,
-        child_manifest,
-        tool_evaluation,
-        execution_dir / "aggregate_result.json",
+    executor = (
+        build_production_round_executor()
+        if policy_backend != "act" or runtime_target is not None
+        else _build_round_executor(native_act=False)
     )
-    if not _round_requests_execution_vqa(round_plan):
-        execution_vqa = {
-            "schema_version": 1,
-            "status": "skipped",
-            "reason": (
-                "The Proposal did not request a VQA Tool; visual evidence "
-                "was not required for this round."
-            ),
-            "evidence_conflict": False,
-        }
-        write_json(
-            execution_dir / "execution_vqa_skipped.json",
-            execution_vqa,
-        )
-    elif semantic_ready:
-        execution_vqa = run_round_execution_vqa(
-            repo_root=repo_root,
-            child_manifest=child_manifest,
-            child_dir=child_dir,
-            tool_evaluation=tool_evaluation,
-            execution_dir=execution_dir,
-            provider=provider,
-            model=vision_model,
-            round_plan=round_plan,
-            reviewed_vqa_registry=reviewed_vqa_registry,
-        )
-    else:
-        execution_vqa = {
-            "schema_version": 1,
-            "status": "skipped",
-            "reason": (
-                "TaskSchema unavailable or the requested capability is "
-                "unsupported; VQA was not executed."
-            ),
-            "evidence_conflict": False,
-        }
-        write_json(
-            execution_dir / "execution_vqa_skipped.json",
-            execution_vqa,
-        )
-    if isinstance(semantic_execution, dict):
-        vqa_execution = semantic_execution.get("vqa_tool")
-        if (
-            isinstance(vqa_execution, dict)
-            and vqa_execution.get("requested") is True
-        ):
-            vqa_execution.update(
-                {
-                    "status": str(
-                        execution_vqa.get("status") or "missing"
-                    ),
-                    "route": "run_local_query_vqa",
-                }
-            )
-    round_summary = summarize_round(
-        round_plan,
-        child_manifest,
-        child_dir,
-        tool_evaluation,
-        aggregate_result,
-        execution_vqa,
-        returncode,
-    )
-    round_summary["round_attempt_index"] = 1
-    round_summary["execution_artifact_dir"] = str(
-        execution_dir.relative_to(repo_root)
-    ).replace("\\", "/")
-    if native is None and isinstance(
-        round_plan.get("proposal")
-        or round_plan.get("experiment_candidate"),
-        Mapping,
-    ):
-        method_runtime_path = (
-            execution_dir / "method_runtime_projection.json"
-        )
-        method_runtime_projection = (
-            project_executed_round_through_method_runtime(
-                task_name=str(round_plan["task_name"]),
-                round_plan=round_plan,
-                child_manifest=child_manifest,
-                round_summary=round_summary,
-                artifacts={
-                    "child_manifest": str(
-                        child_manifest_path.relative_to(repo_root)
-                    ).replace("\\", "/"),
-                    "taskgen_command": str(
-                        (
-                            execution_dir / "taskgen_command.json"
-                        ).relative_to(repo_root)
-                    ).replace("\\", "/"),
-                    "aggregate": str(
-                        (
-                            execution_dir / "aggregate_result.json"
-                        ).relative_to(repo_root)
-                    ).replace("\\", "/"),
-                },
-            )
-        )
-        write_json(method_runtime_path, method_runtime_projection)
-        round_summary["observations"]["method_runtime"] = {
-            "status": "validated",
-            "runtime": method_runtime_projection["runtime"],
-            "backend": method_runtime_projection["backend"],
-            "execution_reused": method_runtime_projection[
-                "execution_reused"
-            ],
-            "taskgen_reinvoked": method_runtime_projection[
-                "taskgen_reinvoked"
-            ],
-            "policy_rollout_reinvoked": method_runtime_projection[
-                "policy_rollout_reinvoked"
-            ],
-            "candidate_id": method_runtime_projection["candidate"][
-                "candidate_id"
-            ],
-            "outcome": method_runtime_projection["evidence"]["outcome"],
-            "artifact": str(
-                method_runtime_path.relative_to(repo_root)
-            ).replace("\\", "/"),
-        }
-    elif native is not None:
-        round_summary["observations"].update(
-            {
-                "execution_backend": "SmolVLA",
-                "policy_backend": "smolvla",
-                "semantic_telemetry_ready": semantic_ready,
-                "method_runtime": {
-                    "status": (
-                        "unsupported"
-                        if native.get("unsupported") is True
-                        else "validated"
-                    ),
-                    "runtime": "MethodRuntime",
-                    "backend": "RoboTwinMethodBackend",
-                    "policy_backend": "smolvla",
-                    "candidate_id": native["candidate_id"],
-                    "outcome": native["evidence_outcome"],
-                    "artifact": str(
-                        native["method_runtime_path"].relative_to(repo_root)
-                    ).replace("\\", "/"),
-                },
-            }
-        )
-        round_summary["observations"]["evidence_aggregate"] = (
-            build_evidence_aggregate(round_plan, round_summary)
-        )
-    write_json(
-        execution_dir / "evidence_aggregate.json",
-        round_summary["observations"]["evidence_aggregate"],
-    )
-    write_json(evaluation_dir / "summary" / f"{round_id}.json", round_summary)
-    return child_manifest, child_dir, round_summary, tool_evaluation, returncode
+    return executor.execute(request).as_legacy_tuple()
 
 
 def main() -> None:
@@ -4659,39 +4448,41 @@ def main() -> None:
     round_runs: list[dict[str, Any]] = []
     claim_first_runtime_state: dict[str, Any] | None = None
     claim_first_query_answer: dict[str, Any] | None = None
+    round_executor = build_production_round_executor()
     active_failure_stage = "round_execution"
     try:
         executed_rounds = 0
         while executed_rounds < len(plan["rounds"]):
             active_failure_stage = f"round_{executed_rounds + 1}_execution"
             round_plan = plan["rounds"][executed_rounds]
-            (
-                child_manifest,
-                child_dir,
-                round_summary,
-                tool_evaluation,
-                returncode,
-            ) = execute_round(
-                repo_root,
-                evaluation_dir,
-                evaluation_id,
-                round_plan,
-                text_model=models["taskgen"],
-                vision_model=models["vision"],
-                base_url=args.base_url,
-                gpu=args.gpu,
-                max_reflections=args.max_reflections,
-                provider=provider,
-                toolgen_model=models["toolgen"],
-                telemetry_profile=args.telemetry_profile,
-                reviewed_task_registry=reviewed_task_registry,
-                reviewed_tool_registry=reviewed_tool_registry,
-                reviewed_vqa_registry=reviewed_vqa_registry,
-                registration_identity=registration_identity,
-                policy_backend=args.policy_backend,
-                runtime_target=claim_first_initial_target,
-                smolvla_port=args.smolvla_port,
+            round_result = round_executor.execute(
+                RoundExecutionRequest(
+                    repo_root=repo_root,
+                    evaluation_dir=evaluation_dir,
+                    evaluation_id=evaluation_id,
+                    round_plan=round_plan,
+                    text_model=models["taskgen"],
+                    vision_model=models["vision"],
+                    base_url=args.base_url,
+                    gpu=args.gpu,
+                    max_reflections=args.max_reflections,
+                    provider=provider,
+                    toolgen_model=models["toolgen"],
+                    telemetry_profile=args.telemetry_profile,
+                    reviewed_task_registry=reviewed_task_registry,
+                    reviewed_tool_registry=reviewed_tool_registry,
+                    reviewed_vqa_registry=reviewed_vqa_registry,
+                    registration_identity=registration_identity,
+                    policy_backend=args.policy_backend,
+                    runtime_target=claim_first_initial_target,
+                    smolvla_port=args.smolvla_port,
+                )
             )
+            child_manifest = round_result.child_manifest
+            child_dir = round_result.child_dir
+            round_summary = round_result.round_summary
+            tool_evaluation = round_result.tool_evaluation
+            returncode = round_result.returncode
             round_runs.append(
                 {
                     "round_plan": round_plan,
@@ -4751,7 +4542,10 @@ def main() -> None:
                     claim_first_runtime_state,
                 )
                 assessment = claim_first_runtime_state["assessment"]
-                if assessment["should_stop"]:
+                if (
+                    assessment["should_stop"]
+                    and assessment.get("evidence_sufficient") is not True
+                ):
                     claim_first_query_answer = claim_first_runtime_state[
                         "query_answer"
                     ]
@@ -4763,18 +4557,17 @@ def main() -> None:
                         "next_template_id": None,
                         "observation_summary": assessment["rationale"],
                         "decision_reason": (
-                            "plan_agent_evidence_sufficiency"
+                            "external_query_contract_stop"
                         ),
                         "answered_query": bool(
                             claim_first_query_answer["answered"]
                         ),
-                        "plan_step_source": (
-                            "deterministic_query_sufficiency_contract"
-                        ),
+                        "plan_step_source": "external_query_contract_stop",
                         "round_budget_before_decision": assessment[
                             "budget_remaining"
                         ],
                         "evidence_assessment": assessment,
+                        "semantic_stop_step": None,
                         "next_round": None,
                     }
                     plan.setdefault("round_decisions", []).append(decision)
@@ -4817,6 +4610,7 @@ def main() -> None:
                             "answer_path": (
                                 (PLAN_AGENT_SESSION / "query_answer.json").as_posix()
                             ),
+                            "plan_agent_stop_proposed": False,
                         },
                     )
                     break
@@ -4960,46 +4754,63 @@ def main() -> None:
                 write_json(step_dir / "semantic_proposal_bundle.json", semantic_bundle)
                 write_json(step_dir / "bound_semantic_step.json", bound_semantic_step)
                 plan_step = bound_semantic_step["plan_step"]
-                dynamic_candidate = (
-                    plan_step.get("proposal")
-                    or plan_step.get("experiment_candidate")
-                )
-                if not isinstance(dynamic_candidate, Mapping):
-                    raise RuntimeError(
-                        "Plan Agent must bind every continue decision to a "
-                        "typed Proposal before execution"
+                materialized_round = None
+                if plan_step["action"] == "stop":
+                    raw_query_answer = bound_semantic_step.get("query_answer")
+                    if not isinstance(raw_query_answer, Mapping):
+                        raise RuntimeError(
+                            "validated Plan Agent stop has no Query answer"
+                        )
+                    claim_first_query_answer = deepcopy(
+                        dict(raw_query_answer)
                     )
-                next_round_number = len(plan_before_decision["rounds"]) + 1
-                (
-                    materialized_round,
-                    open_tool_bundle,
-                ) = materialize_open_world_round(
-                    repo_root,
-                    evaluation_dir=evaluation_dir,
-                    round_number=next_round_number,
-                    candidate=dynamic_candidate,
-                    control_execution=plan_before_decision["rounds"][0][
-                        "execution"
-                    ],
-                )
-                bound_semantic_step["execution_binding"] = {
-                    "schema_version": 2,
-                    "candidate_id": dynamic_candidate["candidate_id"],
-                    "materialization_path": (
-                        f"{PROPOSAL_MATERIALIZATION.as_posix()}/"
-                        f"round_{next_round_number:02d}"
-                    ),
-                    "taskgen_route": materialized_round["route"],
-                    "toolgen_route": open_tool_bundle["source"],
-                    "catalog_template_used": False,
-                    "retrieval_template_hint": bound_semantic_step[
-                        "resolution"
-                    ].get("retrieval_template_id"),
-                }
-                write_json(
-                    step_dir / "bound_semantic_step.json",
-                    bound_semantic_step,
-                )
+                    write_json(
+                        claim_first_dir / "query_answer.json",
+                        claim_first_query_answer,
+                    )
+                else:
+                    dynamic_candidate = (
+                        plan_step.get("proposal")
+                        or plan_step.get("experiment_candidate")
+                    )
+                    if not isinstance(dynamic_candidate, Mapping):
+                        raise RuntimeError(
+                            "Plan Agent must bind every continue decision to a "
+                            "typed Proposal before execution"
+                        )
+                    next_round_number = (
+                        len(plan_before_decision["rounds"]) + 1
+                    )
+                    (
+                        materialized_round,
+                        open_tool_bundle,
+                    ) = materialize_open_world_round(
+                        repo_root,
+                        evaluation_dir=evaluation_dir,
+                        round_number=next_round_number,
+                        candidate=dynamic_candidate,
+                        control_execution=plan_before_decision["rounds"][0][
+                            "execution"
+                        ],
+                    )
+                    bound_semantic_step["execution_binding"] = {
+                        "schema_version": 2,
+                        "candidate_id": dynamic_candidate["candidate_id"],
+                        "materialization_path": (
+                            f"{PROPOSAL_MATERIALIZATION.as_posix()}/"
+                            f"round_{next_round_number:02d}"
+                        ),
+                        "taskgen_route": materialized_round["route"],
+                        "toolgen_route": open_tool_bundle["source"],
+                        "catalog_template_used": False,
+                        "retrieval_template_hint": bound_semantic_step[
+                            "resolution"
+                        ].get("retrieval_template_id"),
+                    }
+                    write_json(
+                        step_dir / "bound_semantic_step.json",
+                        bound_semantic_step,
+                    )
                 apply_kwargs: dict[str, Any] = {}
                 apply_kwargs["query_contract"] = bound_semantic_step.get(
                     "query_contract"
@@ -5030,6 +4841,9 @@ def main() -> None:
                         "schema_version": 1,
                         "owner": type(bound_plan_session).__name__,
                         "adapter_role": (
+                            "plan_agent_stop_validated_by_query_contract"
+                            if plan_step["action"] == "stop"
+                            else
                             "plan_agent_retrieve_or_generate_and_adjudicate"
                         ),
                         **runtime_directive,
@@ -5041,8 +4855,11 @@ def main() -> None:
                         "status": "transition_applied",
                         "after_round": executed_rounds,
                         "action": plan_step["action"],
+                        "answered_query": bool(
+                            plan_step.get("answered_query", False)
+                        ),
                         "semantic_sub_aspect": (
-                            semantic_bundle["proposal"]["sub_aspect"]
+                            semantic_bundle["proposal"].get("sub_aspect")
                         ),
                         "resolved_template_id": plan_step.get("template_id"),
                         "resolved_candidate_id": plan_step.get("candidate_id"),
@@ -5061,6 +4878,24 @@ def main() -> None:
                         ),
                     },
                 )
+                if plan_step["action"] == "stop":
+                    update_manifest(
+                        evaluation_dir,
+                        plan_agent_stop={
+                            "stop_reason": plan_step.get("stop_reason"),
+                            "evidence_sufficient": True,
+                            "answered_query": True,
+                            "answer_path": (
+                                (PLAN_AGENT_SESSION / "query_answer.json").as_posix()
+                            ),
+                            "plan_agent_stop_proposed": True,
+                            "artifact_path": (
+                                f"{PLAN_AGENT_STEPS.as_posix()}/"
+                                f"after_round_{executed_rounds:02d}/"
+                                "bound_semantic_step.json"
+                            ),
+                        },
+                    )
             elif dynamic_step_session:
                 active_failure_stage = (
                     f"adaptive_decision_after_round_{executed_rounds}"

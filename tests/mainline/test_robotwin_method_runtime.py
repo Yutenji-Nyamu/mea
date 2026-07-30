@@ -3,18 +3,20 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any, Mapping
+from unittest.mock import patch
 
 from mea.method_runtime import (
     BackendBindingRequest,
     CandidateRequest,
     EvidenceRequest,
+    MaterializedCandidate,
     MethodRuntime,
     RolloutRequest,
 )
 from mea.planner.experiment_candidate import build_experiment_candidate
 from mea.robotwin import (
+    ACTRobotwinRolloutRunner,
     RoboTwinMethodBackend,
-    project_executed_round_through_method_runtime,
 )
 from mea.taskgen.generic_backend import (
     GenericRoboTwinTaskAdapter,
@@ -22,6 +24,9 @@ from mea.taskgen.generic_backend import (
     GenericTaskGenHooks,
     build_generic_task_subclass_module,
     validate_generic_task_methods,
+)
+from mea.taskgen.rollout_evidence import (
+    evaluate_generic_task_rollout_telemetry,
 )
 
 
@@ -299,69 +304,291 @@ def test_robotwin_runtime_tool_only_candidate_reuses_official_task(
     assert rollout.episode["precontact_jerk_peak"] == 1.25
 
 
-def test_executed_child_projection_uses_shared_runtime_without_rerun() -> None:
-    query = "Does a shifted target expose a weakness?"
-    candidate = build_experiment_candidate(
+def test_runtime_binds_accepted_scene_with_official_checker(
+    tmp_path: Path,
+) -> None:
+    adapter = _adapter(tmp_path)
+    backend = RoboTwinMethodBackend(
+        repo_root=tmp_path,
+        task_adapter_factory=lambda _task_name: adapter,
+        rollout_runner=lambda **_kwargs: {},
+    )
+    binding = backend.bind_task(
+        BackendBindingRequest(
+            task_reference={
+                "task_name": "runtime_task",
+                "policy": {"name": "ACT", "backend": "act"},
+            }
+        )
+    )
+    query = "Does a new target appearance preserve task completion?"
+    proposal = build_experiment_candidate(
         source_query=query,
         base_task="runtime_task",
-        semantic_concern="target pose robustness",
-        scene_need="Shift the target to another valid pose.",
-        checker_need="Require completion at the generated pose.",
-        rule_tool_need="Measure generated-checker success.",
-        candidate_id="dynamic.runtime.pose",
+        semantic_concern="target appearance robustness",
+        scene_need="Change only the target appearance.",
+        rule_tool_need="Reuse official check_success().",
+        candidate_id="dynamic.runtime.appearance",
     )
-    result = project_executed_round_through_method_runtime(
-        task_name="runtime_task",
-        round_plan={
-            "round_id": "round_2",
-            "candidate_id": candidate["candidate_id"],
-            "proposal": candidate,
-            "task_name": "runtime_task",
-            "task_module": None,
-            "sub_aspect": "target pose robustness",
-            "task_instruction": query,
-            "route": "generic_provider_scene_checker_codegen",
+    run_dir = tmp_path / "run_validated_scene"
+    run_dir.mkdir()
+    for name in (
+        "task.py",
+        "candidate_manifest.json",
+        "manifest.json",
+        "overlay.yml",
+    ):
+        (run_dir / name).write_text("{}\n", encoding="utf-8")
+    manifest = {
+        "schema_version": 1,
+        "run_id": run_dir.name,
+        "status": "generated",
+        "task_name": "runtime_task",
+        "task_module": "mea.generated_tasks.run_validated_scene.task",
+        "generation_kind": "generic_provider_scene_checker_codegen",
+        "proposal": proposal,
+        "provider": {"provider_call_count": 1},
+        "task_generation_acceptance": {
+            "status": "accepted",
+            "act_rollouts_started_before_acceptance": 0,
+            "visual_self_check_required": True,
         },
-        child_manifest={
-            "run_id": "run_existing_child",
-            "status": "completed",
-            "task_module": "mea.generated_tasks.run_existing_child.task",
+        "scene_validation": {
+            "generic_preflight": {
+                "render_passed": True,
+                "expert_passed": True,
+                "scene_change_passed": True,
+                "checker_fixtures": [
+                    {"name": "negative", "passed": True},
+                    {"name": "positive", "passed": True},
+                ],
+            }
         },
-        round_summary={
-            "round_id": "round_2",
-            "pipeline_passed": True,
-            "observations": {
-                "actual_seeds": [100000],
-                "policy_success": 1.0,
-                "policy_outcome": {
-                    "metric": "generated_check_success",
-                    "value": True,
-                    "official_equivalent": False,
-                },
-                "planned_tool": {
-                    "status": "passed",
-                    "measurements": [{"value": 0.03}],
-                },
-                "aggregate": {"status": "passed_complete"},
-                "execution_vqa": {"status": "passed"},
+        "vision_validation": {"status": "passed", "passed": True},
+        "task_artifact_summary": {
+            "success_origin": "official_method_reuse",
+            "success_official_equivalent": True,
+        },
+    }
+
+    materialized = backend.bind_validated_taskgen_candidate(
+        binding,
+        CandidateRequest(
+            candidate_id=proposal["candidate_id"],
+            source_query=query,
+            proposal_bundle=proposal,
+            output_dir=run_dir,
+            seed=11,
+        ),
+        manifest,
+    )
+
+    assert materialized.metadata["generated_checker"] is False
+    assert materialized.task_contract["task_module"] == (
+        "mea.generated_tasks.run_validated_scene.task"
+    )
+    assert materialized.validation["route"] == (
+        "validated_taskgen_artifact"
+    )
+    assert materialized.validation["taskgen"]["vision_validation"][
+        "passed"
+    ] is True
+
+
+def test_native_act_runner_returns_one_aligned_method_observation(
+    tmp_path: Path,
+) -> None:
+    task_name = "runtime_task"
+    checkpoint = (
+        tmp_path
+        / "policy/ACT/act_ckpt"
+        / f"act-{task_name}"
+        / "demo_clean-50"
+    )
+    checkpoint.mkdir(parents=True)
+    (checkpoint / "policy_last.ckpt").write_bytes(b"weights")
+    (checkpoint / "dataset_stats.pkl").write_bytes(b"stats")
+    run_dir = tmp_path / "mea/generated_tasks/native_act"
+    run_dir.mkdir(parents=True)
+    overlay = run_dir / "overlay.yml"
+    overlay.write_text("{}\n", encoding="utf-8")
+
+    def fake_command(
+        command: list[str],
+        *,
+        cwd: Path,
+        log_path: Path,
+    ) -> int:
+        assert cwd == tmp_path
+        telemetry_root = Path(command[14])
+        episode = telemetry_root / "episode_000"
+        episode.mkdir(parents=True)
+        (episode / "episode.json").write_text(
+            json.dumps({"seed": 17, "task_name": task_name}) + "\n",
+            encoding="utf-8",
+        )
+        (episode / "schema.json").write_text("{}\n", encoding="utf-8")
+        (episode / "semantic_trace.npz").write_bytes(b"fixture-npz")
+        evaluation = (
+            tmp_path
+            / "eval_result"
+            / task_name
+            / "ACT/demo_clean/demo_clean/run_001"
+        )
+        evaluation.mkdir(parents=True)
+        (evaluation / "episode0.mp4").write_bytes(b"video")
+        (evaluation / "_result.txt").write_text("1.0\n", encoding="utf-8")
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_path.write_text("fixture\n", encoding="utf-8")
+        return 0
+
+    candidate = MaterializedCandidate(
+        benchmark="robotwin",
+        candidate_id="official_control",
+        binding_id=f"{task_name}/ACT",
+        source_query="Run the official control.",
+        task_contract={
+            "task_name": task_name,
+            "task_module": f"envs.{task_name}",
+            "policy": {
+                "name": "ACT",
+                "backend": "act",
+                "checkpoint_setting": "demo_clean",
+                "expert_data_num": 50,
             },
         },
-        artifacts={
-            "child_manifest": (
-                "mea/generated_tasks/run_existing_child/manifest.json"
-            ),
+        native_task=object(),
+        artifacts={"overlay": str(overlay)},
+    )
+    result = ACTRobotwinRolloutRunner(
+        repo_root=tmp_path,
+        command_runner=fake_command,
+    )(
+        candidate=candidate,
+        request=RolloutRequest(
+            round_id="round_1",
+            seed=17,
+            output_dir=run_dir / "evaluation",
+        ),
+        manifest={
+            "task_name": task_name,
+            "task_module": f"envs.{task_name}",
+            "overlay": str(overlay),
         },
     )
 
-    assert result["runtime"] == "MethodRuntime"
-    assert result["execution_reused"] is True
-    assert result["taskgen_reinvoked"] is False
-    assert result["policy_rollout_reinvoked"] is False
-    assert result["binding"]["binding_id"] == "runtime_task/ACT"
-    assert result["candidate"]["candidate_id"] == candidate["candidate_id"]
-    assert result["rollout"]["round_id"] == "round_2"
-    assert result["evidence"]["outcome"] == "success"
-    assert result["evidence"]["limitations"] == [
-        "N=1 executed seed(s).",
-        "The generated checker is not certified as official-equivalent.",
-    ]
+    assert result["success"] is True
+    assert result["episode"]["seed"] == 17
+    assert result["metadata"]["semantic_telemetry_ready"] is True
+    assert result["artifacts"]["events"] == ""
+    assert Path(result["artifacts"]["video"]).is_file()
+
+
+def test_generic_rollout_bridge_preserves_generated_checker_authority(
+    tmp_path: Path,
+) -> None:
+    run_dir = tmp_path / "mea/generated_tasks/native_generated"
+    manifest = {
+        "generation_kind": "generic_provider_scene_checker_codegen",
+        "user_request": "Test the generated success condition.",
+        "task_name": "runtime_task",
+        "task_module": "mea.generated_tasks.native_generated.task",
+        "candidate_module_sha256": "a" * 64,
+        "task_artifact_summary": {
+            "success_outcome_label": "generated_check_success",
+        },
+    }
+    toolkit_summary = {
+        "episode_count": 1,
+        "episodes": [
+            {
+                "episode_dir": "act/episode_000",
+                "metadata": {
+                    "policy_name": "ACT",
+                    "seed": 17,
+                    "success": True,
+                },
+                "tool_results": [
+                    {
+                        "tool": "generated_check_success",
+                        "value": True,
+                        "passed": True,
+                    }
+                ],
+            }
+        ],
+    }
+
+    with patch(
+        "mea.taskgen.rollout_evidence.evaluate_telemetry_root",
+        return_value=toolkit_summary,
+    ) as evaluate:
+        result = evaluate_generic_task_rollout_telemetry(
+            tmp_path,
+            run_dir,
+            manifest,
+        )
+
+    assert evaluate.call_args.kwargs["outcome_binding"] == {
+        "metric": "generated_check_success",
+        "authority": "llm_generated_python_ast_validated",
+        "module_sha256": "a" * 64,
+        "task_module": "mea.generated_tasks.native_generated.task",
+    }
+    assert result["tool_retrieval"]["route"] == (
+        "bound_llm_generated_checker"
+    )
+    assert result["episodes"][0]["role"] == "policy_under_evaluation"
+    assert result["outcome_authority"] == (
+        "llm_generated_python_ast_validated"
+    )
+
+
+def test_generic_rollout_bridge_reuses_official_checker_without_hash_binding(
+    tmp_path: Path,
+) -> None:
+    run_dir = tmp_path / "mea/generated_tasks/native_scene_only"
+    manifest = {
+        "generation_kind": "generic_provider_scene_checker_codegen",
+        "user_request": "Test a scene change with official success.",
+        "task_name": "runtime_task",
+        "task_module": "mea.generated_tasks.native_scene_only.task",
+        "candidate_module_sha256": "b" * 64,
+        "task_artifact_summary": {
+            "success_outcome_label": "official_check_success",
+        },
+    }
+    toolkit_summary = {
+        "episode_count": 1,
+        "episodes": [
+            {
+                "episode_dir": "act/episode_000",
+                "metadata": {
+                    "policy_name": "ACT",
+                    "seed": 19,
+                    "success": False,
+                },
+                "tool_results": [
+                    {
+                        "tool": "official_check_success",
+                        "value": False,
+                        "passed": False,
+                    }
+                ],
+            }
+        ],
+    }
+
+    with patch(
+        "mea.taskgen.rollout_evidence.evaluate_telemetry_root",
+        return_value=toolkit_summary,
+    ) as evaluate:
+        result = evaluate_generic_task_rollout_telemetry(
+            tmp_path,
+            run_dir,
+            manifest,
+        )
+
+    assert evaluate.call_args.kwargs["outcome_binding"] is None
+    assert result["tool_retrieval"]["route"] == "official_checker_reuse"
+    assert result["outcome_authority"] == "official_check_success_reused"

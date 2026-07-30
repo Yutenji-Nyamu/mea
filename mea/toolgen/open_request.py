@@ -20,6 +20,10 @@ from mea.providers.json_response import extract_json_response
 from mea.toolkit.schema import load_task_schema, validate_task_schema
 
 from .metric_spec import MetricSpecError, metric_spec_tool_spec
+from .artifact_context import (
+    build_tool_artifact_context,
+    validate_tool_artifact_context,
+)
 from .router import (
     ToolRouterError,
     catalog_snapshot,
@@ -30,6 +34,14 @@ from .router import (
 
 class OpenToolRequestError(ValueError):
     """Raised when a Query-induced Tool request is malformed."""
+
+
+class OpenToolRequestUnsupported(OpenToolRequestError):
+    """Raised when the requested evidence lacks an independent oracle."""
+
+    def __init__(self, artifact: Mapping[str, Any]) -> None:
+        self.artifact = deepcopy(dict(artifact))
+        super().__init__(str(self.artifact["reason"]))
 
 
 def _text(value: Any, field: str) -> str:
@@ -45,8 +57,12 @@ def tool_generation_context(
     generated_checker_semantics: bool = False,
     runtime_schema: Mapping[str, Any] | None = None,
     reusable_tool_requests: list[Mapping[str, Any]] | None = None,
+    reusable_vqa_questions: list[Mapping[str, Any]] | None = None,
     forbidden_metric_ids: set[str] | None = None,
     derived_observable_oracle_available: bool = False,
+    derived_observable_oracle_broker: Mapping[str, Any] | None = None,
+    proposal: Mapping[str, Any] | None = None,
+    task_artifact_summary: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return the task telemetry and executable Tool surface, without routing."""
 
@@ -60,8 +76,27 @@ def tool_generation_context(
         if isinstance(runtime_schema, Mapping)
         else load_task_schema(root, task)
     )
+    artifact_context = build_tool_artifact_context(
+        root,
+        task_name=task,
+        proposal=proposal,
+        task_artifact_summary=task_artifact_summary,
+        runtime_schema=schema,
+        reusable_rule_tools=reusable_tool_requests,
+        reusable_vqa_questions=reusable_vqa_questions,
+        derived_observable_oracle_broker=(
+            derived_observable_oracle_broker
+        ),
+        legacy_derived_observable_oracle_available=(
+            derived_observable_oracle_available
+        ),
+    )
+    derived_available = (
+        artifact_context["oracle_broker"]["derived_observable"]["status"]
+        == "available"
+    )
     tool_registry = catalog_snapshot()
-    if not derived_observable_oracle_available:
+    if not derived_available:
         typed_registry = tool_registry["typed_metric_spec"]
         typed_registry["schema_versions"] = [1]
         typed_registry["operations"] = [
@@ -111,7 +146,7 @@ def tool_generation_context(
         request = request if isinstance(request, Mapping) else reusable_item
         metric_spec = request.get("metric_spec")
         if (
-            not derived_observable_oracle_available
+            not derived_available
             and isinstance(metric_spec, Mapping)
             and metric_spec.get("operation") == "derived_observable"
         ):
@@ -119,6 +154,8 @@ def tool_generation_context(
         if request.get("metric") in forbidden:
             continue
         reusable.append(reusable_item)
+    artifact_context["reusable_artifacts"]["rule_tools"] = deepcopy(reusable)
+    artifact_context = validate_tool_artifact_context(artifact_context)
     return {
         "schema_version": 1,
         "task_name": task,
@@ -219,11 +256,10 @@ def tool_generation_context(
             else "official_task_schema"
         ),
         "forbidden_metric_ids": sorted(forbidden),
-        "derived_observable_oracle_available": bool(
-            derived_observable_oracle_available
-        ),
+        "derived_observable_oracle_available": derived_available,
         "tool_registry": tool_registry,
         "validated_generated_tools": reusable,
+        "artifact_context": artifact_context,
     }
 
 
@@ -580,6 +616,73 @@ def _validate_terminal_signal_alignment(
         )
 
 
+_UNSUPPORTED_RESPONSE_KEYS = {
+    "schema_version",
+    "status",
+    "reason_code",
+    "reason",
+}
+
+
+def _unsupported_tool_response(
+    raw_response: Mapping[str, Any],
+    *,
+    context: Mapping[str, Any],
+    requested_need: str,
+    provider: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    """Turn an unavailable derived oracle into an explicit method result."""
+
+    oracle = context["artifact_context"]["oracle_broker"][
+        "derived_observable"
+    ]
+    explicitly_unsupported = raw_response.get("status") == "unsupported"
+    metric_spec = raw_response.get("metric_spec")
+    requests_derived = (
+        isinstance(metric_spec, Mapping)
+        and metric_spec.get("operation") == "derived_observable"
+    )
+    if not explicitly_unsupported and not requests_derived:
+        return None
+    if oracle["status"] == "available":
+        if explicitly_unsupported:
+            raise OpenToolRequestError(
+                "provider reported a missing derived oracle although the "
+                "ToolArtifactContext supplies one"
+            )
+        return None
+    if explicitly_unsupported:
+        if set(raw_response) != _UNSUPPORTED_RESPONSE_KEYS:
+            raise OpenToolRequestError(
+                "unsupported Tool response fields must be exactly "
+                f"{sorted(_UNSUPPORTED_RESPONSE_KEYS)}"
+            )
+        if raw_response.get("schema_version") != 1:
+            raise OpenToolRequestError(
+                "unsupported Tool response schema_version must be 1"
+            )
+        if (
+            raw_response.get("reason_code")
+            != "independent_oracle_broker_unavailable"
+        ):
+            raise OpenToolRequestError(
+                "unsupported Tool response reason_code is invalid"
+            )
+        _text(raw_response.get("reason"), "unsupported reason")
+    return {
+        "schema_version": 1,
+        "status": "unsupported",
+        "artifact_kind": "rule_tool",
+        "source": "provider_query_induced_tool_request",
+        "reason_code": oracle["reason_code"],
+        "reason": oracle["reason"],
+        "requested_need": _text(requested_need, "requested_need"),
+        "tool_request": None,
+        "context": deepcopy(dict(context)),
+        "provider": deepcopy(dict(provider)),
+    }
+
+
 class OpenToolRequestAgent:
     """Generate one executable Tool request from a semantic evidence need."""
 
@@ -650,9 +753,17 @@ class OpenToolRequestAgent:
             "advertised required_signals. Caller-owned fixtures and an "
             "independent oracle are available for validation."
             if derived_available
-            else "A caller-owned oracle is unavailable in this run, so do not "
-            "return derived_observable or approximate the need with a "
-            "semantically different metric."
+            else (
+                "An independent oracle broker is unavailable in this run. "
+                "Do not return derived_observable and do not approximate the "
+                "need with a semantically different metric. If no exact "
+                "registered or typed operator expresses the need, return "
+                "exactly this unsupported shape: "
+                '{"schema_version":1,"status":"unsupported",'
+                '"reason_code":"independent_oracle_broker_unavailable",'
+                '"reason":"The requested derived observable has no independent '
+                'oracle broker."}.'
+            )
         )
         return (
             "You are ToolGen in ManipEvalAgent. Derive the smallest executable "
@@ -691,6 +802,10 @@ class OpenToolRequestAgent:
             "single terminal_signal_component. Treat an unqualified lift "
             "height difference between two objects as their terminal z "
             "difference; an event metric is not aligned. "
+            "The structured ToolArtifactContext contains the exact Proposal, "
+            "TaskArtifact authority summary, executed runtime schema, reusable "
+            "artifacts, and oracle availability. Honor its typed need; do not "
+            "invent a missing scene, checker, or authority. "
             "Return strict JSON only.\n\n"
             f"ORIGINAL QUERY:\n{source_query}\n\n"
             f"SEMANTIC CONCERN:\n{semantic_concern}\n\n"
@@ -712,8 +827,13 @@ class OpenToolRequestAgent:
         generated_checker_semantics: bool = False,
         runtime_schema: Mapping[str, Any] | None = None,
         reusable_tool_requests: list[Mapping[str, Any]] | None = None,
+        reusable_vqa_questions: list[Mapping[str, Any]] | None = None,
         forbidden_metric_ids: set[str] | None = None,
         derived_observable_oracle_available: bool = False,
+        derived_observable_oracle_broker: Mapping[str, Any] | None = None,
+        proposal: Mapping[str, Any] | None = None,
+        task_artifact_summary: Mapping[str, Any] | None = None,
+        allow_unsupported: bool = False,
     ) -> dict[str, Any]:
         context = tool_generation_context(
             self.repo_root,
@@ -721,10 +841,16 @@ class OpenToolRequestAgent:
             generated_checker_semantics=generated_checker_semantics,
             runtime_schema=runtime_schema,
             reusable_tool_requests=reusable_tool_requests,
+            reusable_vqa_questions=reusable_vqa_questions,
             forbidden_metric_ids=forbidden_metric_ids,
             derived_observable_oracle_available=(
                 derived_observable_oracle_available
             ),
+            derived_observable_oracle_broker=(
+                derived_observable_oracle_broker
+            ),
+            proposal=proposal,
+            task_artifact_summary=task_artifact_summary,
         )
         prompt = self._prompt(
             source_query=_text(source_query, "source_query"),
@@ -759,6 +885,30 @@ class OpenToolRequestAgent:
                     raise OpenToolRequestError(
                         "provider Tool request must be a JSON object"
                     )
+                unsupported = _unsupported_tool_response(
+                    raw_request,
+                    context=context,
+                    requested_need=tool_need,
+                    provider={
+                        "model_requested": self.model,
+                        "called": True,
+                        "attempt_count": len(self.last_responses),
+                        "errors": list(self.last_errors),
+                        "bound_fields_filled": list(filled_bound_fields),
+                        "last_metadata": deepcopy(
+                            dict(
+                                getattr(
+                                    self.provider, "last_metadata", {}
+                                )
+                                or {}
+                            )
+                        ),
+                    },
+                )
+                if unsupported is not None:
+                    if allow_unsupported:
+                        return unsupported
+                    raise OpenToolRequestUnsupported(unsupported)
                 for field, value in (
                     ("task_name", str(context["task_name"])),
                     ("question", _text(tool_need, "tool_need")),
@@ -793,6 +943,8 @@ class OpenToolRequestAgent:
                     ),
                 )
                 break
+            except OpenToolRequestUnsupported:
+                raise
             except Exception as exc:
                 self.last_errors.append(f"{type(exc).__name__}: {exc}")
         if request is None:
@@ -802,6 +954,8 @@ class OpenToolRequestAgent:
             )
         return {
             "schema_version": 1,
+            "status": "selected",
+            "artifact_kind": "rule_tool",
             "source": "provider_query_induced_tool_request",
             "tool_request": request,
             "context": context,
@@ -821,6 +975,7 @@ class OpenToolRequestAgent:
 __all__ = [
     "OpenToolRequestAgent",
     "OpenToolRequestError",
+    "OpenToolRequestUnsupported",
     "tool_generation_context",
     "validate_open_tool_request",
 ]

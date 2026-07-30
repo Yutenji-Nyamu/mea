@@ -66,6 +66,9 @@ class GenericVisualDiagnosisTests(unittest.TestCase):
         self.assertIn("- target mass", prompt)
         self.assertIn("visible preservation violation", prompt)
         self.assertIn("mass, friction, identity", prompt)
+        self.assertIn(
+            "exactly one of: consistent, contradicted", prompt
+        )
 
     def test_valid_response_passes(self):
         result = validate_generic_visual_response(

@@ -126,10 +126,10 @@ def validate_plan_agent_proposal_execution(
     if phrases and not _runtime_hooks_from_capabilities(capabilities):
         raise ProposalExecutionError(
             "requested perturbation requires a policy/controller runtime "
-            "intervention that the capability cards do not advertise: "
+            "intervention that the backend primitives do not advertise: "
             + ", ".join(phrases)
-            + ". Propose a scene/checker/tool change implementable by the "
-            "advertised roots, or report the unsupported capability."
+            + ". Propose an implementable scene/checker/tool change, or "
+            "report the unsupported capability."
         )
     return result
 

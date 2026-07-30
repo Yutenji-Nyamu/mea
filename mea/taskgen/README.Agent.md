@@ -4,6 +4,11 @@
 - Change only fields authorized by the validated Proposal.
 - Preserve actor identity, collision behavior, random-call order, and required
   telemetry names.
+- For a pose change, reuse the official pose construction and alter only the
+  Proposal-named component. If the Proposal gives only a direction, derive the
+  smallest measurable change from the retrieved spawn/workspace range, stay
+  away from its boundary, and keep every key actor fully in the unchanged
+  camera view.
 - Do not import or access files, network, environment variables, processes,
   dynamic execution, dunder attributes, or `super()`.
 - Use wrapper-provided `np`, `sapien`, `create_actor`, `create_box`, and

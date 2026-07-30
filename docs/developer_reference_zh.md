@@ -47,8 +47,8 @@
 - control-required Query 在 control evidence 完成前不得生成、缓存或冻结下一
   Proposal。后续 Proposal 必须由 Plan Agent session 使用完整
   completed-round evidence 生成，并携带 round lineage 与 input digest。
-- `mea/robotwin/executed_projection.py` 只用于迁移期校验已执行 child bundle；它不得
-  重跑 TaskGen/provider/ACT，也不能被描述成 native backend 已接管生产 mechanics。
+- `mea/round_executor.py` 是生产单轮执行边界；RoboTwin policy backend 不得再先运行
+  旧 child bundle 后做事后 projection。
 - feedback、retrieval、taskgen、toolgen 的 `README.Agent.md` 是生成上下文；planner
   的同名文件是设计/消融 reference。它们都不能按普通文档删除；Table 3 当前只消融
   TaskGen 的一份。

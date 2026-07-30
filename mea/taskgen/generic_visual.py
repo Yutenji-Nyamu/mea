@@ -231,6 +231,8 @@ visible preservation violation of a declared condition in unexpected_changes. Us
 not_visually_decidable for mass, friction, identity, exact coordinates,
 contacts, predicates, or other facts that RGB cannot establish. Do not infer
 checker correctness or task success from the initial frame.
+requested_change_assessment must be exactly one of: consistent, contradicted,
+not_visually_decidable. Never substitute synonyms such as inconsistent.
 
 Return strict JSON with exactly these fields:
 {json.dumps(example, ensure_ascii=False, indent=2)}

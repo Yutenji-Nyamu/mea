@@ -201,6 +201,17 @@ class ProductionCliBoundaryTests(unittest.TestCase):
         )
         self.assertNotIn("pending_first_semantic_bundle", source)
         self.assertNotIn("use_pending_first", source)
+        self.assertIn(
+            'assessment.get("evidence_sufficient") is not True',
+            source,
+        )
+        self.assertIn('if plan_step["action"] == "stop":', source)
+        self.assertIn("materialized_round = None", source)
+        self.assertNotIn(
+            "QueryContract accepted stopping but the Plan Agent did not "
+            "propose action=stop",
+            source,
+        )
 
     def test_precontrol_concern_does_not_shrink_planner_domain(self) -> None:
         probe = (
@@ -222,23 +233,26 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             },
         )
 
-    def test_open_world_execution_projects_existing_child_into_method_runtime(
+    def test_production_execution_uses_native_method_runtime(
         self,
     ) -> None:
-        source = (REPO_ROOT / "scripts/manipeval_agent.py").read_text(
+        agent_source = (REPO_ROOT / "scripts/manipeval_agent.py").read_text(
+            encoding="utf-8"
+        )
+        executor_source = (REPO_ROOT / "mea/round_executor.py").read_text(
             encoding="utf-8"
         )
         self.assertIn(
+            'native_policy_rounds["act"] = partial(',
+            agent_source,
+        )
+        self.assertIn(
+            "generated_task_materializer=(",
+            agent_source,
+        )
+        self.assertNotIn(
             "project_executed_round_through_method_runtime(",
-            source,
-        )
-        self.assertIn(
-            '"taskgen_reinvoked": method_runtime_projection[',
-            source,
-        )
-        self.assertIn(
-            '"policy_rollout_reinvoked": method_runtime_projection[',
-            source,
+            agent_source + executor_source,
         )
 
     def test_no_control_query_keeps_its_only_candidate_round(self) -> None:

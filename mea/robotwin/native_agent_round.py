@@ -1,8 +1,9 @@
-"""Native SmolVLA rollout adapter for the production Plan Agent.
+"""Native RoboTwin policy rounds for the production Plan Agent.
 
 The module owns only the benchmark-specific MethodRuntime boundary.  Planning,
 ToolGen, Aggregate, VQA, and answer construction remain in the existing Agent
-loop.
+loop.  Policy wrappers only construct their rollout runner; the shared
+``_execute_robotwin_method_round`` owns bind/materialize/rollout/evidence.
 """
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ import hashlib
 import json
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from mea.method_runtime import (
     BackendBindingRequest,
@@ -22,12 +23,35 @@ from mea.method_runtime import (
 )
 from mea.planner.experiment_candidate import validate_experiment_candidate
 from mea.planner.policy_task_binding import policy_task_binding_from_target
-from mea.robotwin.runtime import RoboTwinMethodBackend
+from mea.robotwin.act_rollout import ACTRobotwinRolloutRunner
+from mea.robotwin.runtime import (
+    RoboTwinMethodBackend,
+    RoboTwinRolloutRunner,
+)
 from mea.robotwin.smolvla_rollout import SmolVLARobotwinRolloutRunner
+from mea.taskgen.rollout_evidence import (
+    evaluate_generic_task_rollout_telemetry,
+)
 
 
 class NativeAgentRoundError(RuntimeError):
     """Raised when a native policy round exceeds its validated capabilities."""
+
+
+GeneratedTaskMaterializer = Callable[..., Mapping[str, Any]]
+
+
+def _build_native_run_id(
+    evaluation_id: str,
+    round_id: str,
+    policy_backend: str,
+) -> str:
+    """Return one stable, importable generated-task package identifier."""
+
+    digest = hashlib.sha256(
+        f"{evaluation_id}:{round_id}".encode("utf-8")
+    ).hexdigest()[:12]
+    return f"run_native_{policy_backend}_{digest}"
 
 
 def _write_json(path: Path, value: Any) -> None:
@@ -46,15 +70,18 @@ def _unsupported_round(
     round_plan: Mapping[str, Any],
     task_name: str,
     proposal: Mapping[str, Any] | None,
+    policy_backend: str,
+    policy_name: str,
     reason_code: str,
     reason: str,
 ) -> dict[str, Any]:
     """Persist an unsupported capability as evidence, not a process crash."""
 
-    digest = hashlib.sha256(
-        f"{evaluation_id}:{round_plan['round_id']}".encode("utf-8")
-    ).hexdigest()[:12]
-    run_id = f"native_smolvla_{digest}"
+    run_id = _build_native_run_id(
+        evaluation_id,
+        str(round_plan["round_id"]),
+        policy_backend,
+    )
     child_dir = root / "mea" / "generated_tasks" / run_id
     candidate_id = str(
         (proposal or {}).get("candidate_id")
@@ -77,7 +104,7 @@ def _unsupported_round(
         "task_name": task_name,
         "task_module": f"envs.{task_name}",
         "generation_kind": "unsupported",
-        "policy_backend": "smolvla",
+        "policy_backend": policy_backend,
         "unsupported_capability": {
             "reason_code": reason_code,
             "reason": reason,
@@ -92,7 +119,7 @@ def _unsupported_round(
         "act_evaluation": {
             "passed": False,
             "actual_seeds": [],
-            "policy_name": "SmolVLA",
+            "policy_name": policy_name,
         },
         "task_artifact_summary": {
             "success_official_equivalent": None,
@@ -129,33 +156,52 @@ def _unsupported_round(
     }
 
 
-def execute_smolvla_method_round(
+def _artifact_exists(value: Any) -> bool:
+    if not isinstance(value, str) or not value.strip():
+        return False
+    try:
+        return Path(value).expanduser().is_file()
+    except OSError:
+        return False
+
+
+def _execute_robotwin_method_round(
     *,
+    policy_backend: str,
+    policy_name: str,
+    rollout_runner: RoboTwinRolloutRunner,
     repo_root: str | Path,
     evaluation_dir: str | Path,
     evaluation_id: str,
     round_plan: Mapping[str, Any],
     runtime_target: Mapping[str, Any],
     telemetry_profile: str,
-    policy_server_port: int,
+    provider: Any = None,
+    text_model: str = "",
+    vision_model: str = "",
+    max_reflections: int = 1,
+    generated_task_materializer: GeneratedTaskMaterializer | None = None,
+    execution_vqa_connected: bool = True,
+    rollout_output_subdir: str | None = "evaluation",
 ) -> dict[str, Any]:
-    """Run one SmolVLA candidate through the shared MethodRuntime.
+    """Run one policy candidate through the shared RoboTwin MethodRuntime.
 
-    A schema-less task is limited to the unchanged official control.  A
-    schema-backed task records semantic telemetry automatically; the caller
-    may then pass that episode through the existing Tool/Aggregate stages.
+    Scene/checker generation is an injected materializer.  It must return a
+    fully accepted TaskGen manifest; this function binds that existing artifact
+    and never invokes generation through ``RoboTwinMethodBackend``.
     """
 
     root = Path(repo_root).expanduser().resolve()
     evaluation_root = Path(evaluation_dir).expanduser().resolve()
     contract = policy_task_binding_from_target(runtime_target)
-    if contract["policy"].get("backend") != "smolvla":
+    if contract["policy"].get("backend") != policy_backend:
         raise NativeAgentRoundError(
-            "native SmolVLA round requires a smolvla PolicyTaskBinding"
+            f"native {policy_name} round requires a {policy_backend} "
+            "PolicyTaskBinding"
         )
     if contract["task_name"] != round_plan.get("task_name"):
         raise NativeAgentRoundError(
-            "round task differs from the bound SmolVLA task"
+            f"round task differs from the bound {policy_name} task"
         )
     execution = round_plan.get("execution")
     seeds = execution.get("seeds") if isinstance(execution, Mapping) else None
@@ -166,7 +212,7 @@ def execute_smolvla_method_round(
         or not isinstance(seeds[0], int)
     ):
         raise NativeAgentRoundError(
-            "native SmolVLA production rounds currently require exactly one seed"
+            f"native {policy_name} production rounds require exactly one seed"
         )
     seed = int(seeds[0])
     proposal_value = round_plan.get("proposal") or round_plan.get(
@@ -180,9 +226,13 @@ def execute_smolvla_method_round(
     schema_available = bool(
         contract["task_schema"].get("available", True)
     )
-    if proposal is not None and (
+    generated_task_required = proposal is not None and (
         proposal["scene_need"] is not None
         or proposal["checker_need"] is not None
+    )
+    if (
+        generated_task_required
+        and generated_task_materializer is None
     ):
         return _unsupported_round(
             root=root,
@@ -191,13 +241,19 @@ def execute_smolvla_method_round(
             round_plan=round_plan,
             task_name=contract["task_name"],
             proposal=proposal,
-            reason_code="smolvla_taskgen_not_connected",
+            policy_backend=policy_backend,
+            policy_name=policy_name,
+            reason_code=f"{policy_backend}_taskgen_not_connected",
             reason=(
-                "The SmolVLA MethodRuntime does not yet connect the shared "
-                "generic TaskGen scene/checker backend."
+                f"The native {policy_name} MethodRuntime has no injected "
+                "generic TaskGen materializer for this scene/checker Proposal."
             ),
         )
-    if proposal is not None and proposal["vqa_tool_need"] is not None:
+    if (
+        proposal is not None
+        and proposal["vqa_tool_need"] is not None
+        and not execution_vqa_connected
+    ):
         return _unsupported_round(
             root=root,
             evaluation_root=evaluation_root,
@@ -205,10 +261,16 @@ def execute_smolvla_method_round(
             round_plan=round_plan,
             task_name=contract["task_name"],
             proposal=proposal,
-            reason_code="smolvla_vqa_not_connected",
-            reason="The SmolVLA MethodRuntime VQA bridge is not connected.",
+            policy_backend=policy_backend,
+            policy_name=policy_name,
+            reason_code=f"{policy_backend}_vqa_not_connected",
+            reason=f"The native {policy_name} VQA bridge is not connected.",
         )
-    if proposal is not None and not schema_available:
+    if (
+        proposal is not None
+        and generated_task_required
+        and not schema_available
+    ):
         return _unsupported_round(
             root=root,
             evaluation_root=evaluation_root,
@@ -216,31 +278,75 @@ def execute_smolvla_method_round(
             round_plan=round_plan,
             task_name=contract["task_name"],
             proposal=proposal,
-            reason_code="task_schema_unavailable",
+            policy_backend=policy_backend,
+            policy_name=policy_name,
+            reason_code="task_context_insufficient_for_taskgen",
             reason=(
-                "This task has no TaskSchema, so only the unchanged official "
-                "SmolVLA control is executable."
+                "This task has no reviewed TaskSchema. Executed telemetry can "
+                "support Tool-only evaluation, but scene/checker generation "
+                "requires a validated actor/preservation context."
             ),
         )
     if proposal is None and round_plan.get("route") != "official":
         raise NativeAgentRoundError(
-            "schema-less SmolVLA execution is restricted to an official round"
+            f"candidate-free {policy_name} execution requires an official round"
+        )
+    if (
+        isinstance(max_reflections, bool)
+        or not isinstance(max_reflections, int)
+        or max_reflections < 0
+    ):
+        raise NativeAgentRoundError(
+            "max_reflections must be a non-negative integer"
         )
 
-    digest = hashlib.sha256(
-        f"{evaluation_id}:{round_plan['round_id']}".encode("utf-8")
-    ).hexdigest()[:12]
-    run_id = f"native_smolvla_{digest}"
+    run_id = _build_native_run_id(
+        evaluation_id,
+        str(round_plan["round_id"]),
+        policy_backend,
+    )
     child_dir = root / "mea" / "generated_tasks" / run_id
-    rollout_dir = child_dir / "evaluation"
-    child_dir.mkdir(parents=True, exist_ok=True)
+    query = str(round_plan["task_instruction"])
+    taskgen_manifest: dict[str, Any] | None = None
+    if generated_task_required:
+        assert generated_task_materializer is not None
+        if (
+            provider is None
+            or not isinstance(text_model, str)
+            or not text_model.strip()
+            or not isinstance(vision_model, str)
+            or not vision_model.strip()
+        ):
+            raise NativeAgentRoundError(
+                "generated TaskGen execution requires provider, text model, "
+                "and vision model"
+            )
+        materialized = generated_task_materializer(
+            root,
+            user_request=query,
+            provider=provider,
+            model=text_model,
+            vision_model=vision_model,
+            experiment_candidate=proposal,
+            run_id=run_id,
+            seed=seed,
+            telemetry_profile=telemetry_profile,
+        )
+        if not isinstance(materialized, Mapping):
+            raise NativeAgentRoundError(
+                "generated_task_materializer must return a TaskGen manifest"
+            )
+        taskgen_manifest = deepcopy(dict(materialized))
+    else:
+        child_dir.mkdir(parents=True, exist_ok=True)
+    rollout_dir = (
+        child_dir / rollout_output_subdir
+        if rollout_output_subdir is not None
+        else child_dir
+    )
     backend = RoboTwinMethodBackend(
         repo_root=root,
-        rollout_runner=SmolVLARobotwinRolloutRunner(
-            port=policy_server_port,
-            repo_root=root,
-            telemetry_profile=telemetry_profile,
-        ),
+        rollout_runner=rollout_runner,
     )
     runtime = MethodRuntime(backend)
     binding = runtime.bind_task(
@@ -262,7 +368,6 @@ def execute_smolvla_method_round(
             },
         )
     )
-    query = str(round_plan["task_instruction"])
     candidate = (
         backend.official_candidate(
             binding,
@@ -274,15 +379,32 @@ def execute_smolvla_method_round(
             ),
         )
         if proposal is None
-        else runtime.materialize_candidate(
-            binding,
-            CandidateRequest(
-                candidate_id=proposal["candidate_id"],
-                source_query=proposal["source_query"],
-                proposal_bundle=proposal,
-                output_dir=child_dir,
-                seed=seed,
-            ),
+        else (
+            backend.bind_validated_taskgen_candidate(
+                binding,
+                CandidateRequest(
+                    candidate_id=proposal["candidate_id"],
+                    source_query=proposal["source_query"],
+                    proposal_bundle=proposal,
+                    output_dir=child_dir,
+                    seed=seed,
+                    context={
+                        "requested_max_reflections": max_reflections,
+                    },
+                ),
+                taskgen_manifest,
+            )
+            if generated_task_required
+            else runtime.materialize_candidate(
+                binding,
+                CandidateRequest(
+                    candidate_id=proposal["candidate_id"],
+                    source_query=proposal["source_query"],
+                    proposal_bundle=proposal,
+                    output_dir=child_dir,
+                    seed=seed,
+                ),
+            )
         )
     )
     rollout = runtime.rollout(
@@ -293,10 +415,29 @@ def execute_smolvla_method_round(
             output_dir=rollout_dir,
             provenance={
                 "evaluation_id": evaluation_id,
-                "policy_backend": "smolvla",
+                "policy_backend": policy_backend,
             },
         ),
     )
+    generated_checker = bool(
+        proposal is not None and proposal["checker_need"] is not None
+    )
+    execution_scope = (
+        "generated_check_success"
+        if generated_checker
+        else "official_check_success"
+    )
+    limitations = ("N=1",)
+    if generated_checker:
+        limitations += (
+            "The generated checker is experimental, not certified "
+            "as official-equivalent.",
+        )
+    elif not schema_available:
+        limitations += (
+            "No reviewed TaskSchema; the Task context is limited to official "
+            "source identity and executed telemetry.",
+        )
     evidence = runtime.evidence(
         rollout,
         EvidenceRequest(
@@ -308,19 +449,12 @@ def execute_smolvla_method_round(
                 else "unchanged official-scene control"
             ),
             summary=(
-                "SmolVLA completed one RoboTwin rollout; official "
-                f"check_success={rollout.success}."
+                f"{policy_name} completed one RoboTwin rollout; "
+                f"{execution_scope}={rollout.success}."
             ),
-            limitations=(
-                ("N=1",)
-                if schema_available
-                else (
-                    "N=1",
-                    "No TaskSchema; Rule Tool and Aggregate were not run.",
-                )
-            ),
+            limitations=limitations,
             metadata={
-                "policy_backend": "smolvla",
+                "policy_backend": policy_backend,
                 "semantic_telemetry_ready": bool(
                     rollout.metadata.get("semantic_telemetry_ready")
                 ),
@@ -330,46 +464,90 @@ def execute_smolvla_method_round(
     semantic_ready = bool(
         rollout.metadata.get("semantic_telemetry_ready")
     )
-    rollout_dir.mkdir(parents=True, exist_ok=True)
-    (rollout_dir / "_result.txt").write_text(
+    trusted_tool_evaluation = (
+        {
+            "schema_version": 1,
+            "status": "passed",
+            **evaluate_generic_task_rollout_telemetry(
+                root,
+                child_dir,
+                taskgen_manifest,
+            ),
+        }
+        if taskgen_manifest is not None and semantic_ready
+        else {
+            "schema_version": 1,
+            "status": "pending" if semantic_ready else "skipped",
+            "outcome_metric": execution_scope,
+            "outcome_authority": (
+                "llm_generated_python_ast_validated"
+                if generated_checker
+                else "official_check_success"
+            ),
+            "episode_count": 0,
+            "episodes": [],
+        }
+    )
+    result_path = child_dir / "evaluation" / "_result.txt"
+    result_path.parent.mkdir(parents=True, exist_ok=True)
+    result_path.write_text(
         f"{1.0 if rollout.success else 0.0}\n",
         encoding="utf-8",
     )
-    child_manifest = {
-        "schema_version": 1,
-        "run_id": run_id,
-        "status": "completed",
-        "task_name": contract["task_name"],
-        "task_module": contract["task_module"],
-        "generation_kind": "official_passthrough",
-        "policy_backend": "smolvla",
-        "scene_validation": {
-            "render_success": bool(
-                rollout.artifacts.get("initial_frame")
-                and Path(rollout.artifacts["initial_frame"]).is_file()
+    scene_validation = (
+        deepcopy(taskgen_manifest["scene_validation"])
+        if taskgen_manifest is not None
+        else {
+            "render_success": (
+                _artifact_exists(rollout.artifacts.get("initial_frame"))
+                or _artifact_exists(rollout.artifacts.get("video"))
             ),
             "rule_check": {
                 "passed": True,
                 "authority": "official_task_setup_completed",
             },
-        },
+        }
+    )
+    task_artifact_summary = (
+        deepcopy(taskgen_manifest["task_artifact_summary"])
+        if taskgen_manifest is not None
+        else {
+            "success_official_equivalent": True,
+            "success_execution_scope": execution_scope,
+        }
+    )
+    child_manifest = {
+        **(deepcopy(taskgen_manifest) if taskgen_manifest is not None else {}),
+        "schema_version": 1,
+        "run_id": run_id,
+        "status": "completed",
+        "task_name": contract["task_name"],
+        "task_module": str(
+            candidate.task_contract.get("task_module")
+            or contract["task_module"]
+        ),
+        "generation_kind": (
+            str(taskgen_manifest["generation_kind"])
+            if taskgen_manifest is not None
+            else "official_passthrough"
+        ),
+        "policy_backend": policy_backend,
+        "scene_validation": scene_validation,
         "act_evaluation": {
             "passed": True,
             "actual_seeds": [seed],
-            "policy_name": "SmolVLA",
+            "policy_name": policy_name,
         },
-        "task_artifact_summary": {
-            "success_official_equivalent": True,
-            "success_execution_scope": "official_check_success",
-        },
-        "trusted_tool_evaluation": {
-            "schema_version": 1,
-            "status": "pending" if semantic_ready else "skipped",
-            "outcome_metric": "official_check_success",
-            "outcome_authority": "official_check_success",
-            "episode_count": 0,
-            "episodes": [],
-        },
+        "task_artifact_summary": task_artifact_summary,
+        "trusted_tool_evaluation": trusted_tool_evaluation,
+        "taskgen_runtime_binding": (
+            {
+                "validation": deepcopy(dict(candidate.validation)),
+                "artifacts": deepcopy(dict(candidate.artifacts)),
+            }
+            if taskgen_manifest is not None
+            else None
+        ),
         "method_runtime": {
             "binding": binding.to_dict(),
             "candidate": candidate.to_dict(),
@@ -398,7 +576,103 @@ def execute_smolvla_method_round(
     }
 
 
+def execute_smolvla_method_round(
+    *,
+    repo_root: str | Path,
+    evaluation_dir: str | Path,
+    evaluation_id: str,
+    round_plan: Mapping[str, Any],
+    runtime_target: Mapping[str, Any],
+    telemetry_profile: str,
+    policy_server_port: int,
+    gpu: int = 0,
+    provider: Any = None,
+    text_model: str = "",
+    vision_model: str = "",
+    max_reflections: int = 1,
+    generated_task_materializer: (
+        GeneratedTaskMaterializer | None
+    ) = None,
+) -> dict[str, Any]:
+    """Construct a SmolVLA runner and execute the shared native round."""
+
+    del gpu
+    return _execute_robotwin_method_round(
+        policy_backend="smolvla",
+        policy_name="SmolVLA",
+        rollout_runner=SmolVLARobotwinRolloutRunner(
+            port=policy_server_port,
+            repo_root=repo_root,
+            telemetry_profile=telemetry_profile,
+        ),
+        repo_root=repo_root,
+        evaluation_dir=evaluation_dir,
+        evaluation_id=evaluation_id,
+        round_plan=round_plan,
+        runtime_target=runtime_target,
+        telemetry_profile=telemetry_profile,
+        provider=provider,
+        text_model=text_model,
+        vision_model=vision_model,
+        max_reflections=max_reflections,
+        generated_task_materializer=generated_task_materializer,
+        execution_vqa_connected=False,
+        rollout_output_subdir="evaluation",
+    )
+
+
+def execute_act_method_round(
+    *,
+    repo_root: str | Path,
+    evaluation_dir: str | Path,
+    evaluation_id: str,
+    round_plan: Mapping[str, Any],
+    runtime_target: Mapping[str, Any],
+    telemetry_profile: str,
+    policy_server_port: int,
+    gpu: int = 0,
+    provider: Any = None,
+    text_model: str = "",
+    vision_model: str = "",
+    max_reflections: int = 1,
+    generated_task_materializer: (
+        GeneratedTaskMaterializer | None
+    ) = None,
+) -> dict[str, Any]:
+    """Construct an ACT runner and execute the shared native round.
+
+    ``policy_server_port`` belongs to the common native-backend call contract;
+    ACT runs in-process and intentionally ignores it.
+    """
+
+    del policy_server_port
+    return _execute_robotwin_method_round(
+        policy_backend="act",
+        policy_name="ACT",
+        rollout_runner=ACTRobotwinRolloutRunner(
+            repo_root=repo_root,
+            gpu=gpu,
+            telemetry_profile=telemetry_profile,
+        ),
+        repo_root=repo_root,
+        evaluation_dir=evaluation_dir,
+        evaluation_id=evaluation_id,
+        round_plan=round_plan,
+        runtime_target=runtime_target,
+        telemetry_profile=telemetry_profile,
+        provider=provider,
+        text_model=text_model,
+        vision_model=vision_model,
+        max_reflections=max_reflections,
+        generated_task_materializer=generated_task_materializer,
+        execution_vqa_connected=True,
+        rollout_output_subdir=None,
+    )
+
+
 __all__ = [
+    "GeneratedTaskMaterializer",
     "NativeAgentRoundError",
+    "execute_act_method_round",
     "execute_smolvla_method_round",
 ]

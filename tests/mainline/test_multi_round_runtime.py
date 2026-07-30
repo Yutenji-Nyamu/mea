@@ -9,6 +9,7 @@ from scripts.manipeval_agent import (
     build_taskgen_command,
     execute_round,
     reuse_bound_child_checker_tool,
+    summarize_round,
 )
 from scripts.manipeval_taskgen import collect_position_samples, newest_eval_dir
 
@@ -27,6 +28,63 @@ ROUND_2 = {
 
 
 class MultiRoundRuntimeTests(unittest.TestCase):
+    def test_native_generic_round_does_not_require_legacy_position_samples(self):
+        round_plan = {
+            "round_id": "round_1",
+            "template_id": None,
+            "candidate_id": "candidate.native-generic",
+            "sub_aspect": "query_interpretation.visual_robustness",
+            "task_instruction": "evaluate the generated scene",
+            "task_name": "beat_block_hammer",
+            "route": "generic_provider_scene_checker_codegen",
+            "execution": {"backend": "act", "seeds": [7], "num_episodes": 1},
+        }
+        child_manifest = {
+            "run_id": "run_native_generic",
+            "status": "completed",
+            "static_validation": {
+                "provider_scene_checker": {
+                    "valid": True,
+                    "model_written_python": True,
+                    "restricted_success_spec_compiler_used": False,
+                    "ast_policy": "taskgen_provider_python_v1",
+                }
+            },
+            "scene_validation": {
+                "render_success": True,
+                "rule_check": {"passed": True},
+                "expert": {"passed": True},
+                "generic_preflight": {
+                    "render_passed": True,
+                    "expert_passed": True,
+                    "scene_change_passed": True,
+                    "checker_fixtures": [{"passed": True}],
+                },
+            },
+            "vision_validation": {"status": "passed", "passed": True},
+            "task_generation_acceptance": {
+                "visual_self_check_required": True,
+            },
+            "act_evaluation": {"passed": True, "actual_seeds": [7]},
+            "trusted_tool_evaluation": {"episode_count": 1},
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            child_dir = Path(temporary)
+            (child_dir / "evaluation").mkdir()
+            (child_dir / "evaluation/_result.txt").write_text(
+                "1\n", encoding="utf-8"
+            )
+            summary = summarize_round(
+                round_plan,
+                child_manifest,
+                child_dir,
+                tool_evaluation={"status": "passed"},
+                aggregate_result={"status": "passed"},
+                execution_vqa={"status": "passed"},
+            )
+        self.assertTrue(summary["pipeline_passed"])
+        self.assertEqual(summary["observations"]["position_samples"], [])
+
     def test_scene_only_child_routes_official_checker_through_standard_toolgen(self):
         child_manifest = {
             "generation_kind": "generic_provider_scene_checker_codegen",

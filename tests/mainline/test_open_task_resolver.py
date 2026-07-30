@@ -134,6 +134,8 @@ class QueryInterpretationTests(unittest.TestCase):
         self.assertIn("Put distractors", prompt)
         self.assertIn("jointly realizable", prompt)
         self.assertIn("RGB is only", prompt)
+        self.assertIn('"all other object poses"', prompt)
+        self.assertIn("Do not invent an absolute perturbation magnitude", prompt)
         self.assertNotIn("open_laptop", prompt)
         self.assertNotIn("object.appearance", prompt)
 

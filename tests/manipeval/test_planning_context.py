@@ -114,27 +114,15 @@ class PlanningContextTests(unittest.TestCase):
 
             self.assertEqual(context["adapter_view"]["templates"], [])
             self.assertEqual(
-                projected["generation_card"]["taskgen_operations"],
-                [
-                    {
-                        "operation": "retrieve_or_generate_scene_checker",
-                        "controlled_axis": None,
-                        "generation_mode": (
-                            "generic_provider_scene_checker_codegen"
-                        ),
-                        "allowed_change_roots": [
-                            "load_actors",
-                            "check_success",
-                        ],
-                    }
-                ],
-            )
-            self.assertEqual(
-                projected["generation_card"]["toolgen"],
+                projected["generation_card"]["backend_primitives"],
                 {
-                    "retrieve_first": True,
-                    "can_generate_rule_metric": True,
-                    "can_generate_vqa_question": True,
+                    "scene": True,
+                    "checker": True,
+                    "telemetry": True,
+                    "rule": True,
+                    "vqa": True,
+                    "retrieve": True,
+                    "generate": True,
                 },
             )
             self.assertEqual(

@@ -123,8 +123,6 @@ from .claim_first_initial import (
     ClaimFirstInitialPlanError,
     build_plan_agent_control_round,
     build_plan_agent_execution_binding,
-    build_claim_first_control_round,
-    build_claim_first_execution_binding,
 )
 from .open_task_resolver import (
     PlanAgentQueryInterpreter,
@@ -298,8 +296,6 @@ __all__ = [
     "build_plan_agent_execution_binding",
     "ClaimFirstInitialPlanBuilder",
     "ClaimFirstInitialPlanError",
-    "build_claim_first_control_round",
-    "build_claim_first_execution_binding",
     "FreeConcernAgent",
     "PlanAgentQueryInterpreter",
     "discover_robotwin_task_inventory",

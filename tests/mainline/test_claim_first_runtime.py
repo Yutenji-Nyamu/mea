@@ -199,6 +199,44 @@ def semantic_bundle(sub_aspect="object_position.left_fixed"):
     }
 
 
+def semantic_stop_bundle(query, capabilities, evidence_history):
+    lineage = build_open_query_planning_lineage(
+        query,
+        capabilities,
+        evidence_history,
+    )
+    return {
+        "schema_version": 2,
+        "source": "provider_plan_agent_open_query",
+        "proposal": {
+            "schema_version": 2,
+            "action": "stop",
+            "sub_aspect": None,
+            "hypothesis": (
+                "The completed evidence identifies the first bounded failure."
+            ),
+            "requested_perturbation": None,
+            "scene_need": {"required": False, "description": None},
+            "checker_need": {"required": False, "description": None},
+            "rule_tool_need": {
+                "required": False,
+                "description": None,
+                "reuse_first": True,
+            },
+            "vqa_tool_need": {
+                "required": False,
+                "description": None,
+                "reuse_first": True,
+            },
+            "rationale": (
+                "A definitive candidate failure answers the diagnostic Query."
+            ),
+        },
+        "input_digest": lineage["input_digest"],
+        "planning_lineage": lineage,
+    }
+
+
 def open_query_capabilities():
     return {
         "schema_version": 1,
@@ -263,6 +301,26 @@ class EvidenceConditionedPlanner:
         bundle["input_digest"] = lineage["input_digest"]
         bundle["planning_lineage"] = lineage
         return bundle
+
+
+class EvidenceConditionedStopPlanner:
+    def __init__(self):
+        self.histories = []
+
+    def propose(
+        self,
+        user_query,
+        *,
+        capabilities,
+        evidence_history,
+        evaluation_intent=None,
+    ):
+        self.histories.append(list(evidence_history))
+        return semantic_stop_bundle(
+            user_query,
+            capabilities,
+            evidence_history,
+        )
 
 
 class ClaimFirstRuntimeTests(unittest.TestCase):
@@ -1639,6 +1697,165 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         self.assertGreaterEqual(
             len(state["query_answer"]["evidence_refs"]), 6
         )
+
+    def test_plan_agent_stop_is_admitted_when_query_contract_is_sufficient(self):
+        query = "Where does this policy first expose a weakness?"
+        controller = ClaimFirstRuntimeController(query, target())
+        control = round_plan(
+            1, "performance.completion_time_stability.official"
+        )
+        candidate = round_plan(2, "object_position.left_fixed")
+        state = controller.observe(
+            [control, candidate],
+            [summary(control, 1.0), summary(candidate, 0.0)],
+        )
+        capabilities = open_query_capabilities()
+        bundle = semantic_stop_bundle(
+            query,
+            capabilities,
+            state["open_query_evidence_history"],
+        )
+
+        bound = controller.bind_evidence_conditioned_semantic_step(
+            bundle,
+            state,
+            capabilities=capabilities,
+            executed_candidate_ids=[
+                control["template_id"],
+                candidate["template_id"],
+            ],
+        )
+
+        self.assertEqual(bound["plan_step"]["action"], "stop")
+        self.assertTrue(bound["plan_step"]["answered_query"])
+        self.assertEqual(
+            bound["resolution"]["resolution"],
+            "query_contract_validated_stop",
+        )
+        self.assertEqual(
+            bound["query_assessment"]["stop_reason"],
+            "evidence_sufficient",
+        )
+        self.assertEqual(
+            bound["planning_lineage"]["decision_kind"],
+            "evidence_conditioned_refinement",
+        )
+
+    def test_agent_path_allows_stop_decision_after_sufficient_evidence(self):
+        query = "Where does this policy first expose a weakness?"
+        controller = ClaimFirstRuntimeController(query, target())
+        control = round_plan(
+            1, "performance.completion_time_stability.official"
+        )
+        candidate = round_plan(2, "object_position.left_fixed")
+        state = controller.observe(
+            [control, candidate],
+            [summary(control, 1.0), summary(candidate, 0.0)],
+        )
+        planner = EvidenceConditionedStopPlanner()
+
+        bound = controller.propose_and_bind_semantic_step(
+            planner,
+            state,
+            capabilities=open_query_capabilities(),
+            executed_candidate_ids=[
+                control["template_id"],
+                candidate["template_id"],
+            ],
+        )
+
+        self.assertEqual(bound["plan_step"]["action"], "stop")
+        self.assertEqual(len(planner.histories), 1)
+        self.assertEqual(
+            [item["round_id"] for item in planner.histories[0]],
+            ["round_1", "round_2"],
+        )
+
+    def test_agent_path_allows_continue_after_sufficiency_with_budget(self):
+        query = "Where does this policy first expose a weakness?"
+        controller = ClaimFirstRuntimeController(query, target())
+        control = round_plan(
+            1, "performance.completion_time_stability.official"
+        )
+        candidate = round_plan(2, "object_position.left_fixed")
+        state = controller.observe(
+            [control, candidate],
+            [summary(control, 1.0), summary(candidate, 0.0)],
+        )
+        planner = EvidenceConditionedPlanner()
+
+        self.assertTrue(state["assessment"]["evidence_sufficient"])
+        self.assertGreater(state["assessment"]["budget_remaining"], 0)
+        bound = controller.propose_and_bind_semantic_step(
+            planner,
+            state,
+            capabilities=open_query_capabilities(),
+            executed_candidate_ids=[
+                control["template_id"],
+                candidate["template_id"],
+            ],
+        )
+
+        self.assertEqual(bound["plan_step"]["action"], "propose")
+        self.assertEqual(len(planner.histories), 1)
+
+    def test_agent_path_rejects_continue_when_budget_is_exhausted(self):
+        query = "Where does this policy first expose a weakness?"
+        limited_target = target()
+        limited_target["max_rounds"] = 2
+        controller = ClaimFirstRuntimeController(query, limited_target)
+        control = round_plan(
+            1, "performance.completion_time_stability.official"
+        )
+        candidate = round_plan(2, "object_position.left_fixed")
+        state = controller.observe(
+            [control, candidate],
+            [summary(control, 1.0), summary(candidate, 0.0)],
+        )
+        planner = EvidenceConditionedPlanner()
+
+        self.assertTrue(state["assessment"]["evidence_sufficient"])
+        self.assertEqual(state["assessment"]["budget_remaining"], 0)
+        with self.assertRaisesRegex(
+            ClaimFirstRuntimeError,
+            "after the query contract stopped",
+        ):
+            controller.propose_and_bind_semantic_step(
+                planner,
+                state,
+                capabilities=open_query_capabilities(),
+                executed_candidate_ids=[
+                    control["template_id"],
+                    candidate["template_id"],
+                ],
+            )
+
+        self.assertEqual(len(planner.histories), 1)
+
+    def test_plan_agent_stop_is_rejected_before_query_contract_is_sufficient(self):
+        query = "Where does this policy first expose a weakness?"
+        controller = ClaimFirstRuntimeController(query, target())
+        control = round_plan(
+            1, "performance.completion_time_stability.official"
+        )
+        state = controller.observe([control], [summary(control, 1.0)])
+        capabilities = open_query_capabilities()
+        bundle = semantic_stop_bundle(
+            query,
+            capabilities,
+            state["open_query_evidence_history"],
+        )
+
+        with self.assertRaisesRegex(
+            ClaimFirstRuntimeError,
+            "stop rejected by QueryContract",
+        ):
+            controller.bind_evidence_conditioned_semantic_step(
+                bundle,
+                state,
+                capabilities=capabilities,
+                executed_candidate_ids=[control["template_id"]],
+            )
 
     def test_chinese_failure_query_requires_a_failing_witness(self):
         controller = ClaimFirstRuntimeController(

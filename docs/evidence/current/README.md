@@ -1,6 +1,7 @@
 # MEA method evidence: eval_20260730_batch31_grab_roller_broad_live_v3
 
 > Compact, movable view of one real method run. Complete raw telemetry and Aggregate payloads remain in the server evaluation directory.
+> This remains the latest publishable positive method evidence; later native-runtime development attempts ended before candidate ACT and do not replace it.
 
 ## 1. Query and execution scope
 

@@ -25,7 +25,7 @@ from mea.taskgen.provider_scene_checker import (
     run_provider_codegen,
     validate_method_ast,
 )
-from scripts.manipeval_taskgen import (
+from mea.taskgen.runtime import (
     build_preservation_report,
     record_generic_taskgen_generation_failure,
 )
@@ -702,6 +702,45 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             "same_seed_simulator_state:"
             "tracked_actors.position+quaternion",
         )
+
+    def test_same_seed_pose_probe_jitter_is_not_a_semantic_change(self) -> None:
+        report = build_preservation_report(
+            ["target position and orientation"],
+            scene_generated=True,
+            checker_generated=False,
+            visual_self_check_enabled=True,
+            visual={"passed": True, "unexpected_changes": []},
+            official_setup={
+                "seed": 18,
+                "tracked_actors": [
+                    {
+                        "id": "target",
+                        "position": [0.1, -0.2, 0.3],
+                        "quaternion": [0.0, 0.0, 0.7071068, 0.7071068],
+                        "contact_points": {},
+                    }
+                ],
+            },
+            generated_setup={
+                "seed": 18,
+                "tracked_actors": [
+                    {
+                        "id": "target",
+                        "position": [0.1000005, -0.2000004, 0.3000001],
+                        "quaternion": [
+                            0.0001,
+                            -0.0001,
+                            0.7072068,
+                            0.7070068,
+                        ],
+                        "contact_points": {},
+                    }
+                ],
+            },
+        )
+
+        self.assertTrue(report["verified"])
+        self.assertEqual(report["status"], "verified")
 
     def test_contact_target_position_and_orientation_checks_all(self) -> None:
         report = build_preservation_report(
@@ -1707,6 +1746,14 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             self.assertIn(
                 "Assign it only when adding an entirely new actor",
                 prompt,
+            )
+            self.assertIn(
+                "do not cache initial poses, heights, thresholds, or flags "
+                "on self",
+                prompt,
+            )
+            self.assertIn(
+                "derive the smallest measurable change", prompt
             )
 
     def test_partial_generation_reuses_unrequested_official_method(

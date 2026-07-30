@@ -57,7 +57,17 @@ _CAPABILITY_KEYS = {
     "simulator_card",
     "generation_card",
 }
-_GENERATION_KEYS = {"taskgen_operations", "toolgen"}
+_GENERATION_KEYS = {"backend_primitives"}
+_BACKEND_PRIMITIVE_KEYS = {
+    "scene",
+    "checker",
+    "telemetry",
+    "rule",
+    "vqa",
+    "retrieve",
+    "generate",
+}
+_LEGACY_GENERATION_KEYS = {"taskgen_operations", "toolgen"}
 _TASKGEN_OPERATION_KEYS = {
     "operation",
     "controlled_axis",
@@ -161,7 +171,12 @@ def _assert_no_navigation_keys(value: Any, *, field: str) -> None:
 
 
 def validate_open_query_capabilities(value: Mapping[str, Any]) -> dict[str, Any]:
-    """Validate a semantic capability projection with no aspect itinerary."""
+    """Validate a semantic capability projection with no aspect itinerary.
+
+    Schema v2 exposes only backend primitives.  Schema v1 is retained as a
+    reader for historical evidence bundles; it is never emitted by the current
+    production projection.
+    """
 
     if not isinstance(value, Mapping) or set(value) != _CAPABILITY_KEYS:
         raise ClaimFirstPlanError(
@@ -169,8 +184,10 @@ def validate_open_query_capabilities(value: Mapping[str, Any]) -> dict[str, Any]
             f"{sorted(_CAPABILITY_KEYS)}"
         )
     result = deepcopy(dict(value))
-    if result.get("schema_version") != 1:
-        raise ClaimFirstPlanError("OpenQueryCapabilities.schema_version must be 1")
+    if result.get("schema_version") not in {1, 2}:
+        raise ClaimFirstPlanError(
+            "OpenQueryCapabilities.schema_version must be 1 or 2"
+        )
     _assert_no_navigation_keys(result, field="OpenQueryCapabilities")
 
     policy = result.get("policy_card")
@@ -180,9 +197,47 @@ def validate_open_query_capabilities(value: Mapping[str, Any]) -> dict[str, Any]
         raise ClaimFirstPlanError("policy_card must be a non-empty object")
     if not isinstance(simulator, Mapping) or not simulator:
         raise ClaimFirstPlanError("simulator_card must be a non-empty object")
-    if not isinstance(generation, Mapping) or set(generation) != _GENERATION_KEYS:
+    if not isinstance(generation, Mapping):
+        raise ClaimFirstPlanError("generation_card must be an object")
+    generation_keys = set(generation)
+    if generation_keys == _GENERATION_KEYS:
+        if result["schema_version"] != 2:
+            raise ClaimFirstPlanError(
+                "backend_primitives generation cards require schema_version 2"
+            )
+        primitives = generation.get("backend_primitives")
+        if (
+            not isinstance(primitives, Mapping)
+            or set(primitives) != _BACKEND_PRIMITIVE_KEYS
+        ):
+            raise ClaimFirstPlanError(
+                "backend_primitives fields must be exactly "
+                f"{sorted(_BACKEND_PRIMITIVE_KEYS)}"
+            )
+        if any(
+            not isinstance(primitives.get(key), bool)
+            for key in _BACKEND_PRIMITIVE_KEYS
+        ):
+            raise ClaimFirstPlanError(
+                "all backend primitive capability flags must be bool"
+            )
+        result["policy_card"] = deepcopy(dict(policy))
+        result["simulator_card"] = deepcopy(dict(simulator))
+        result["generation_card"] = {
+            "backend_primitives": deepcopy(dict(primitives))
+        }
+        return result
+
+    if generation_keys != _LEGACY_GENERATION_KEYS:
         raise ClaimFirstPlanError(
-            f"generation_card fields must be exactly {sorted(_GENERATION_KEYS)}"
+            "generation_card fields must match either the current "
+            f"{sorted(_GENERATION_KEYS)} or historical "
+            f"{sorted(_LEGACY_GENERATION_KEYS)} shape"
+        )
+    if result["schema_version"] != 1:
+        raise ClaimFirstPlanError(
+            "historical taskgen_operations generation cards require "
+            "schema_version 1"
         )
     operations = generation.get("taskgen_operations")
     if not isinstance(operations, list):
@@ -232,81 +287,54 @@ def project_open_query_capabilities(
     *,
     allowed_aspect_ids: Sequence[str] | None = None,
 ) -> dict[str, Any]:
-    """Remove catalog navigation from a trusted runtime PlanningContext.
+    """Project one runtime into paper-level backend primitives.
 
     The caller is expected to validate/build ``planning_context`` through the
-    repository-owned context adapter first.  This projection deliberately
-    omits adapter aspect/template ids as well as the simulator's redundant
-    ``available_aspect_ids`` field.
+    repository-owned context adapter first.  Templates remain a retrieval
+    index downstream; they do not define what the Plan Agent may propose.
     """
 
     if not isinstance(planning_context, Mapping):
         raise ClaimFirstPlanError("PlanningContext must be an object")
     policy = planning_context.get("policy_card")
     simulator = planning_context.get("simulator_card")
-    adapter = planning_context.get("adapter_view")
     if not isinstance(policy, Mapping):
         raise ClaimFirstPlanError("PlanningContext.policy_card must be an object")
     if not isinstance(simulator, Mapping):
         raise ClaimFirstPlanError("PlanningContext.simulator_card must be an object")
-    if not isinstance(adapter, Mapping):
-        raise ClaimFirstPlanError("PlanningContext.adapter_view must be an object")
-    templates = adapter.get("templates")
-    if not isinstance(templates, list):
-        raise ClaimFirstPlanError("PlanningContext adapter templates must be a list")
-
-    operations: list[dict[str, Any]] = []
-    allowed = (
-        {_text(item, "allowed_aspect_ids[]") for item in allowed_aspect_ids}
-        if allowed_aspect_ids is not None
-        else None
-    )
-    for index, template in enumerate(templates):
-        if not isinstance(template, Mapping):
-            raise ClaimFirstPlanError(
-                f"PlanningContext adapter template {index} must be an object"
-            )
-        if allowed is not None and template.get("aspect_id") not in allowed:
-            continue
-        item = {
-            "operation": template.get("taskgen_operation"),
-            "controlled_axis": template.get("controlled_axis"),
-            "generation_mode": template.get("generation_mode"),
-            "allowed_change_roots": deepcopy(
-                template.get("allowed_change_roots")
-            ),
-        }
-        if item not in operations:
-            operations.append(item)
-    generic_generation = {
-        "operation": "retrieve_or_generate_scene_checker",
-        "controlled_axis": None,
-        "generation_mode": "generic_provider_scene_checker_codegen",
-        "allowed_change_roots": ["load_actors", "check_success"],
-    }
-    if generic_generation not in operations:
-        operations.append(generic_generation)
-    if allowed is not None and not operations:
-        raise ClaimFirstPlanError(
-            "allowed aspect domain has no projected TaskGen operation"
-        )
+    if allowed_aspect_ids is not None:
+        # Kept only so historical callers do not break.  The production
+        # capability boundary is deliberately independent of routed aspects.
+        _text_list(list(allowed_aspect_ids), "allowed_aspect_ids")
 
     projected_simulator = {
         key: deepcopy(nested)
         for key, nested in simulator.items()
         if key != "available_aspect_ids"
     }
+    success_contract = simulator.get("success_contract")
+    telemetry_available = bool(
+        simulator.get("tracked_actors")
+        or simulator.get("semantic_fields")
+        or (
+            isinstance(success_contract, Mapping)
+            and success_contract.get("semantic_telemetry_available") is True
+        )
+    )
     return validate_open_query_capabilities(
         {
-            "schema_version": 1,
+            "schema_version": 2,
             "policy_card": deepcopy(dict(policy)),
             "simulator_card": projected_simulator,
             "generation_card": {
-                "taskgen_operations": operations,
-                "toolgen": {
-                    "retrieve_first": True,
-                    "can_generate_rule_metric": True,
-                    "can_generate_vqa_question": True,
+                "backend_primitives": {
+                    "scene": True,
+                    "checker": True,
+                    "telemetry": telemetry_available,
+                    "rule": True,
+                    "vqa": True,
+                    "retrieve": True,
+                    "generate": True,
                 },
             },
         }
@@ -721,10 +749,11 @@ requested change, preserved conditions, hypothesis, and required observation.
         return f"""You are the Plan Agent in ManipEvalAgent.
 Discover a small set of evaluation sub-aspects online.  There is no predeclared
 candidate/template-ID itinerary, success-then-switch script, or fallback route.
-Supported controlled axes and operations may appear in the capability cards;
-they are execution boundaries, not a prescribed test order.  Choose only the
-single most informative next experiment for the original Query, using the
-policy/simulator capabilities and completed evidence below.
+The capability card exposes only backend primitives such as scene/checker
+generation, telemetry, Rule/VQA Tools, and artifact retrieval.  It is an
+execution boundary, not an operation menu or prescribed test order.  Choose
+only the single most informative next experiment for the original Query, using
+the policy/simulator capabilities and completed evidence below.
 
 For action=continue, invent a precise semantic sub_aspect identifier and one
 falsifiable hypothesis.  Request a bounded perturbation supported by the
@@ -737,19 +766,20 @@ ambiguous evidence requires a more observable version.
 Each Rule/VQA need must name one primary scalar or boolean observation for this
 round.  Leave independent measurements for a later evidence-conditioned round
 instead of bundling them into one Tool request.
+For both rule_tool_need and vqa_tool_need, reuse_first MUST always be true,
+including when required=false: retrieve-first is the ToolGen method contract,
+not a choice to bypass reuse.
 State the intentional delta in requested_perturbation.description and
 controlled_changes with an explicit operation and concrete value or direction;
 put unchanged conditions only in preserve.  When scene_need.required is true,
 repeat that same explicit delta in scene_need.description.  Preserve only the
 isolation-critical factors supported by an advertised simulator, frozen-binding,
 or visual authority; do not claim that every unspecified state is unchanged.
-The generic RoboTwin TaskGen surface can change only what the advertised
-allowed_change_roots directly implement.  In particular, load_actors can alter
-actors, assets, appearance, scale, pose, clutter, lighting, and other simulator
-scene state; it cannot reduce policy/controller/gripper precision, inject
-action noise or latency, or change policy weights unless an explicit runtime
-intervention root is advertised.  After successful evidence, refine to another
-executable physical scene/checker/tool concern instead of relabelling a scene
+TaskGen may retrieve or generate scene and checker code; ToolGen may retrieve
+or generate Rule/VQA Tools.  These artifact primitives do not authorize policy
+or controller intervention: do not reduce gripper precision, inject action
+noise or latency, or change policy weights.  After successful evidence, refine
+to another executable scene/checker/tool concern instead of relabelling a scene
 change as an unavailable policy intervention.
 {EXPERIMENTAL_SUCCESS_CHECKER_GUIDANCE}
 

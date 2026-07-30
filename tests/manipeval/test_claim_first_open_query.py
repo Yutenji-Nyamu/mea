@@ -317,15 +317,15 @@ class ClaimFirstOpenQueryTest(unittest.TestCase):
         self.assertTrue(proposal["scene_need"]["required"])
         self.assertFalse(proposal["checker_need"]["required"])
 
-    def test_prompt_distinguishes_visible_axes_from_hidden_itinerary(self):
+    def test_prompt_distinguishes_backend_primitives_from_hidden_itinerary(self):
         prompt = ClaimFirstOpenQueryAgent._prompt(
             "Where is the first generalization weakness?",
             _capabilities(),
             [],
         )
         self.assertIn("candidate/template-ID itinerary", prompt)
-        self.assertIn("may appear in the capability cards", prompt)
-        self.assertIn("not a prescribed test order", prompt)
+        self.assertIn("backend primitives", prompt)
+        self.assertIn("not an operation menu", prompt)
         self.assertNotIn("There is no candidate\naspect list", prompt)
 
     def test_capabilities_reject_predeclared_navigation(self):
@@ -369,12 +369,23 @@ class ClaimFirstOpenQueryTest(unittest.TestCase):
         self.assertNotIn("available_aspect_ids", serialized)
         self.assertNotIn("template_id", serialized)
         self.assertNotIn("aspect_id", serialized)
+        self.assertNotIn("scene_overlay", serialized)
+        self.assertNotIn("controlled_axis", serialized)
+        self.assertEqual(projected["schema_version"], 2)
         self.assertEqual(
-            projected["generation_card"]["taskgen_operations"][0]["operation"],
-            "scene_overlay",
+            projected["generation_card"]["backend_primitives"],
+            {
+                "scene": True,
+                "checker": True,
+                "telemetry": False,
+                "rule": True,
+                "vqa": True,
+                "retrieve": True,
+                "generate": True,
+            },
         )
 
-    def test_runtime_projection_filters_to_query_bound_operation(self):
+    def test_runtime_projection_is_independent_of_query_bound_templates(self):
         context = {
             "policy_card": {"policy_name": "ACT", "task_name": "click_bell"},
             "simulator_card": {
@@ -407,30 +418,23 @@ class ClaimFirstOpenQueryTest(unittest.TestCase):
             context,
             allowed_aspect_ids=["robustness.distractor_avoidance"],
         )
+        unfiltered = project_open_query_capabilities(context)
 
+        self.assertEqual(projected, unfiltered)
         self.assertEqual(
-            projected["generation_card"]["taskgen_operations"],
-            [
-                {
-                    "operation": "provider_scene_checker_codegen",
-                    "controlled_axis": "robustness.distractor_avoidance",
-                    "generation_mode": "provider_scene_checker_codegen",
-                    "allowed_change_roots": ["distractor"],
-                },
-                {
-                    "operation": "retrieve_or_generate_scene_checker",
-                    "controlled_axis": None,
-                    "generation_mode": (
-                        "generic_provider_scene_checker_codegen"
-                    ),
-                    "allowed_change_roots": [
-                        "load_actors",
-                        "check_success",
-                    ],
-                },
-            ],
+            set(projected["generation_card"]["backend_primitives"]),
+            {
+                "scene",
+                "checker",
+                "telemetry",
+                "rule",
+                "vqa",
+                "retrieve",
+                "generate",
+            },
         )
         self.assertNotIn("aspect_id", json.dumps(projected))
+        self.assertNotIn("distractor", json.dumps(projected))
 
     def test_success_failure_and_ambiguous_evidence_choose_different_next_tests(self):
         query = (
@@ -481,6 +485,10 @@ class ClaimFirstOpenQueryTest(unittest.TestCase):
             provider.prompts[0],
         )
         self.assertNotIn("claim-first Plan Agent", provider.prompts[0])
+        self.assertIn(
+            "reuse_first MUST always be true",
+            provider.prompts[0],
+        )
         self.assertEqual(
             result["proposal"]["sub_aspect"], "object_position.edge_offset"
         )

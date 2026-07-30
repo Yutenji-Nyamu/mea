@@ -31,6 +31,13 @@ direct alignment；但 execution coverage 仍为 partial，`preserved_conditions
 scale，且没有测完全部 requested signals）。原 Answer 与原始运行保持不可变，重审
 只作为附加审计。
 
+本批已把生产 ACT round 迁入原生 `RoundExecutor`，并完成服务器回归，但没有形成
+新的正旗舰：BBH official control 失败；`grab_roller` control 成功后的 Plan Agent
+输出最初违反 Tool retrieve-first schema，prompt 修正后用同一真实 evidence 做 0-ACT
+回归，已能提出新的 scene/checker/Rule Tool Proposal；后续 no-control 通用 TaskGen
+真实触发 simulator preservation、VLM 与唯一一次局部 repair，但所有候选均在 ACT
+之前 fail closed。故本批是实现与负向诊断证据，不能替换上面的 batch31 正证据。
+
 ## 方法 claim
 
 | 论文 claim | 当前项目证据 | 判断 |
@@ -38,9 +45,9 @@ scale，且没有测完全部 requested signals）。原 Answer 与原始运行�
 | Fig. 2/5：开放 Query 驱动，Plan Agent 自主提出 sub-aspect | 生产入口由 `PlanAgentInitialPlanBuilder` 直接建立首轮计划，不调用 catalog/task-specific planner。batch31 broad Query 未给候选；official evidence 后 Plan Agent 自选 scale，并依据 0.85 evidence 细化到 0.70 | **小范围 evidence-conditioned sub-aspect refinement 已真实完成**。仍只有一个 task/seed 和一条尺度方向，尚未证明跨多类 concern 的自主搜索 |
 | 上一轮 evidence 决定下一轮，并在充分时停止 | batch31 证明 evidence 改变下一 Proposal，但三轮均成功后因 `budget_exhausted` 停止；旧 live13 证明有限 existential contract 可因 `evidence_sufficient` 停止，但候选已由 Query 限定 | **“动态细化”和“充分停止”分别有正例，尚未在同一 broad flagship 合一** |
 | Fig. 3：Proposal → retrieve/generate scene + `check_success()` → rollout | batch31 在 `grab_roller` 上两次使用同一通用 backend 生成 scene/task subclass，并用 official checker wrapper 裁决 ACT；两个 Proposal 的 `checker_need` 均为空，且没有任务名专属分支 | **通用 scene generation 已有多轮正例，本次没有新增 checker codegen 证据**。早期实验 checker 案例仍单独成立；本次 preservation 与 observation coverage 都不完整 |
-| 首帧视觉诊断，失败时局部重生成 | 通用 TaskGen 已运行真实 VLM visual diagnosis，并只允许一次局部 repair；preservation 仍由 simulator state、collision geometry、AST/checker fixture 与 frozen binding 独立裁决 | **职责边界已完成**。最新旗舰没有触发 repair，因此尚缺“视觉发现问题→一次修复→通过”的在线正例；视觉不能替代数值 authority |
+| 首帧视觉诊断，失败时局部重生成 | 通用 TaskGen 已运行真实 VLM visual diagnosis，并只允许一次局部 repair；preservation 仍由 simulator state、collision geometry、AST/checker fixture 与 frozen binding 独立裁决 | **职责边界已完成**。batch31 未触发 repair；本批真实触发“诊断→一次 repair→仍不合格后终止”，只证明 fail-closed recovery，仍无“repair 后通过”的在线正例 |
 | Fig. 4：ToolGen retrieve/generate/validate/register/reuse | batch31 两个 live round 均由 provider 生成 Python Rule Tool、取得非空 TCP 距离并进入 Aggregate；Batch30 另有 AST/确定性/oracle/artifact gate 与第二 Query `run_local_reuse`。验证器也支持 caller 提供独立 oracle/fixtures 的 `derived_observable`，无 oracle 时生产默认不广告 | **live 生成与测量已完成，精确复用仍是分离的 0-ACT 案例**。尚缺同一旗舰和跨 evaluation reviewed reuse |
-| rollout → Rule/VQA → Aggregate → Plan Agent session → Answer | batch31 的单一命令保存 Query、逐轮 prompt/decision、两份 TaskGen 代码、render、三次 ACT video/telemetry、Rule Tool、辅助 Execution VQA、Aggregate 和受限 Answer；两个 Proposal 均未请求 VQA | **RoboTwin 小范围基本完成**。Execution VQA 不能误记为 Query 诱发的新 Tool |
+| rollout → Rule/VQA → Aggregate → Plan Agent session → Answer | batch31 的单一命令保存 Query、逐轮 prompt/decision、两份 TaskGen 代码、render、三次 ACT video/telemetry、Rule Tool、辅助 Execution VQA、Aggregate 和受限 Answer；两个 Proposal 均未请求 VQA。原生 runtime 已完成代码与服务器回归，但本批没有新增候选 ACT | **RoboTwin 小范围基本完成**。Execution VQA 不能误记为 Query 诱发的新 Tool；native runtime 尚缺 clean live acceptance |
 | 回答原 Query 并显式约束确定性 | `AnswerScope` 强制记录 N、唯一 seeds、候选域、冲突、stop reason 与限制；live13 正确表述 2 个 episode 只有一个 seed `[100301]` | **当前完成度高**。输出明确不是统计泛化保证 |
 | RoboTwin/LIBERO 使用同一外层方法语义 | `MethodRuntime`、`QueryContract` 与 policy-task binding 已抽成共享接口。生产 Plan Agent CLI 已用 `--policy-backend smolvla` 在 schema-backed `click_bell` 完成一次 N=1 official rollout，并写出 Rule/Aggregate；该 episode 的 official check 为 true。原在线 pipeline 因未请求 VQA 却被执行而失败，修复后只做了 append-only 0-rollout 投影并得到 pipeline pass；Planner 仍以 `budget_exhausted`、`inconclusive` 结束。LIBERO 仍进入独立 backend chain | **只证明 live backend/post-rollout mechanism 与事后投影，不是 clean online acceptance**。generic scene/checker 与请求型 VQA 尚未接入 SmolVLA；跨 simulator 外层 loop 未统一 |
 
@@ -59,10 +66,11 @@ scale，且没有测完全部 requested signals）。原 Answer 与原始运行�
 
 ## 当前最重要的 gap
 
-1. **让 broad refinement 因 evidence sufficient 而停。** batch31 已把 broad
-   Query、自主 scale concern、两轮通用 scene generation、official checker reuse
-   与 live Python Tool 合在同一数据流，但仍因预算停止。下一次应冻结可满足的有限
-   Query contract，让 evidence 决定继续、换 concern 或充分停止，而不是再增加接口。
+1. **先取得 clean native broad flagship，再让 refinement 因 evidence sufficient
+   而停。** 本批 direct TaskGen 均在生成验证阶段 fail closed；下一次首先要求同一原生
+   bundle 通过 gate 并进入 1 个 ACT。随后冻结可满足的有限 Query contract，让 Plan
+   Agent 主动提出停止、由 QueryContract 验证 evidence 是否支持，而不是由预算或合同
+   代替 Agent 作决定。
 2. **让 Proposal 的 preservation 与 required observation 可被真实 authority 裁决。**
    batch31 的尺度变化经重审已是 direct alignment，但模型写入了当前 simulator/VLM
    无法完整验证的保持条件，而且两轮没有覆盖各自声明的全部 observation。Prompt 应只

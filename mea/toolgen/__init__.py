@@ -63,8 +63,14 @@ from .metric_spec import (
 from .open_request import (
     OpenToolRequestAgent,
     OpenToolRequestError,
+    OpenToolRequestUnsupported,
     tool_generation_context,
     validate_open_tool_request,
+)
+from .artifact_context import (
+    ToolArtifactContextError,
+    build_tool_artifact_context,
+    validate_tool_artifact_context,
 )
 
 __all__ = [
@@ -116,6 +122,10 @@ __all__ = [
     "validate_metric_spec",
     "OpenToolRequestAgent",
     "OpenToolRequestError",
+    "OpenToolRequestUnsupported",
     "tool_generation_context",
     "validate_open_tool_request",
+    "ToolArtifactContextError",
+    "build_tool_artifact_context",
+    "validate_tool_artifact_context",
 ]

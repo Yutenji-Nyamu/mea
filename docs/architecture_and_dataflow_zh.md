@@ -47,12 +47,12 @@ Proposal 能否执行。任务专属 legacy planner 仅由论文消融/兼容入
         （所有失败阶段共用至多一次局部 repair）
       → policy rollout（由显式 policy-task binding 选择 backend）
       → 按实际 telemetry schema 生成或精确复用 Rule Tool
-      → task-owned VQA；无已审查问题时使用通用 tracked-object 问题
+      → task-owned VQA；检索 miss 时由 ToolGen 生成、验证并注册结构化问题
       → Aggregate
   → Plan Agent session
       ├─ 先验证 completed round evidence 与 lineage/input digest
-      ├─ evidence 不充分：此时才生成并绑定下一个 sub-aspect
-      └─ evidence 充分：停止
+      ├─ Agent 主动提出继续：此时才生成并绑定下一个 sub-aspect
+      └─ Agent 主动提出停止：QueryContract 验证 evidence 是否足以支持
   → 回答原始 Query，并列出未覆盖候选、N 和限制
 ```
 
@@ -65,10 +65,10 @@ Proposal 能否执行。任务专属 legacy planner 仅由论文消融/兼容入
 | Artifact 检索 | `mea/artifact_retrieval_index.py`、`mea/capability_adapter.py` | 前者提供非授权性的 reviewed artifact 检索；后者只为旧模板与消融保留兼容数据。成员关系不是执行许可 |
 | Query interpretation | `mea/planner/open_task_resolver.py` | 在不展示 task inventory 的情况下解释 Query；随后从 official inventory 检索可绑定任务，并在 policy scope 内决定复用、生成或 unsupported。`global_query.py` 仅保留旧 portfolio 兼容 |
 | Plan Agent | `mea/planner/claim_first_initial.py`、`claim_first_runtime.py`、`claim_first.py`、`query_contract.py`、`open_world_session.py` | 直接创建首轮计划；严格在 completed evidence 后产生/绑定下一 Proposal，并冻结 lineage；按 Query 真值条件判断继续或停止。文件名中的旧术语仅为兼容 |
-| TaskGen | `mea/taskgen/generic_backend.py`、`artifact_index.py`、`mea/taskgen/act_runtime.py`、`scripts/manipeval_taskgen.py` | 仅在 typed need 要求 scene/checker 时运行；ACT 命令/产物对齐已从 CLI 抽离；exact reuse 仍重跑当前 seed 验证 |
+| TaskGen | `mea/taskgen/runtime.py`、`generic_backend.py`、`artifact_index.py`、`act_runtime.py` | 仅在 typed need 要求 scene/checker 时运行；通用生成、验证及一次局部 repair 已从 CLI 抽出；exact reuse 仍重跑当前 seed 验证 |
 | Policy | policy-task binding、对应 policy runner 及 paper experiment adapter | 在明确 task、checkpoint、seed 下产生 rollout、video 与 telemetry；policy 对照协议留在论文实验层 |
-| 共享执行合同 | `mea/robotwin/runtime.py`、`mea/robotwin/executed_projection.py` | native backend 定义 bind→materialize→rollout→evidence；兼容 projection 将已真实执行的 child bundle 映射并校验，不重复运行 simulator/provider |
-| ToolGen/VQA | `mea/toolgen/`、`mea/execution_vqa/` | retrieve-first；按已声明 telemetry 字段生成并验证缺失 metric；VQA 优先使用 task-owned 问题，再退回通用 tracked-object 问题 |
+| 共享执行合同 | `mea/round_executor.py`、`mea/robotwin/runtime.py`、`native_agent_round.py` | `RoundExecutor` 已实现原生 policy→Rule/VQA→Aggregate；RoboTwin backend 定义 bind→materialize→rollout→evidence，不再使用事后 executed projection。实现/回归通过不等于已有 clean live acceptance |
+| ToolGen/VQA | `mea/toolgen/`、`mea/execution_vqa/` | retrieve-first；按已声明 telemetry 字段生成并验证缺失 metric；VQA 优先精确复用 task-owned 问题，miss 时生成、验证并注册结构化问题 |
 | Aggregate/Answer | `mea/toolkit/aggregate.py`、`mea/feedback/` | 汇总样本，决定证据是否充分，回答 Query |
 
 开放 concern 仍受执行面约束：`load_actors` 只能改变 simulator scene，不能冒充
@@ -146,8 +146,9 @@ Git 只发布一个最近运行的紧凑证据包 `docs/evidence/current/`：保
   隐式改变生产 Plan Agent 的方法路径。
 - official task discovery、checkpoint-ready binding 与生成式方法证据是三个不同层级；
   可发现任务数量或 adapter 数量都不等于论文方法已经跨任务复现。
-- 修正后的 preservation gate 对 exact spatial/contact 约束比较 same-seed simulator
-  state；对没有 simulator/AST authority 的 geometry 返回 `unknown`，而不是乐观通过；
+- 修正后的 preservation gate 对 spatial/contact 约束比较 same-seed simulator
+  state；位置与四元数使用显式小容差隔离 physics settling，真实扰动仍必须超过该容差。
+  对没有 simulator/AST authority 的 geometry 返回 `unknown`，而不是乐观通过；
   `false` 可触发一次局部 regeneration；checker fixture failure 若先发生，则可保持
   已验证 scene、只修 checker，但没有第二份重试预算。generic backend 还会在 lookup/provider 之前拒绝
   同时要求 uniform scale、center/origin 不变与 contact-point world position 不变、且
@@ -168,9 +169,8 @@ Git 只发布一个最近运行的紧凑证据包 `docs/evidence/current/`：保
 - RoboTwin SmolVLA 的 server-only 安装、隔离 IPC 和 policy adapter 协议见
   [RoboTwin / SmolVLA 复现](robotwin_smolvla_reproduction_zh.md)。它目前属于
   `experiments/paper/` policy adapter，不是第二条 MEA Plan Agent/TaskGen 主链。
-- `executed_projection.py` 是迁移桥：它验证既有真实 child execution 符合共享
-  `MethodRuntime` 合同，但生产 mechanics 尚未完全委托给 native backend，不能据此声称
-  RoboTwin/LIBERO 已共享完整执行环。
+- RoboTwin 的 ACT/SmolVLA runner 已共用 `RoundExecutor` 外层；LIBERO 仍有独立
+  benchmark chain，尚未共享完整 Plan Agent session。
 - generated checker 是实验评价语义，必须与 RoboTwin official success 分开报告。
 
 运行结论和样本边界会随当前旗舰替换，不在架构文档中固化。请以
