@@ -1,180 +1,80 @@
-# MEA method evidence: eval_20260730_batch31_grab_roller_broad_live_v3
+# MEA method evidence: `eval_20260730_batch31_grab_roller_broad_live_v3`
 
-> Compact, movable view of one real method run. Complete raw telemetry and Aggregate payloads remain in the server evaluation directory.
-> This remains the latest publishable positive method evidence; later native-runtime development attempts ended before candidate ACT and do not replace it.
+> 当前最新的可发布方法运行；后续 native-runtime 尝试在 policy rollout 前结束，不替换本证据。完整 raw telemetry 保留在服务器 evaluation 目录。
 
-## 1. Query and execution scope
+## 运行范围
 
-> 这个ACT策略在grab_roller任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？
+- Published commit: `4cb352b8acb62d271bb0718f504eafd7d5e4e229`
+- Query: “这个 ACT 策略在 `grab_roller` 任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？”
+- Policy / task / checkpoint: `ACT` / `grab_roller` / `act-grab_roller/demo_clean-50`
+- Seed / N: `100401` / `N=3` policy episodes（每轮 `N=1`，同一 seed）
+- Round budget: `3`
+- Final state: `stopped_after_round_3_budget_exhausted`
+- Query interpretation: [prompt](artifacts/plan/query_interpretation_prompt.md) · [response](artifacts/plan/query_interpretation_response_1.txt) · [structured result](artifacts/plan/query_interpretation.json)
 
-- Task: `grab_roller`
-- Policy: `ACT`
-- Checkpoint: `act-grab_roller/demo_clean-50`
-- Round budget / episodes: `3` / `[1, 1, 1]`
-
-## 2. Paper-level data flow
+## 方法数据流
 
 ```mermaid
 flowchart LR
-  Q["Open Query"] --> P["Plan Agent / sub-aspect"]
-  P --> T["TaskGen: reuse or generate"]
-  T --> I["Render / visual reflection"]
-  I --> E["Policy rollout"]
-  E --> V["Rule Tool + dynamic VQA"]
+  Q["Open Query"] --> P["Plan Agent / Proposal"]
+  P --> T["TaskGen / visual check"]
+  T --> R["Policy rollout"]
+  R --> V["Rule Tool + VQA"]
   V --> A["Aggregate"]
   A -->|"evidence"| P
-  A --> R["Final answer"]
+  A --> F["Answer"]
 ```
 
-## 3. Plan Agent trace
+- Round 1 的 control evidence 触发新的尺度 sub-aspect；Round 2 的不充分证据又触发更强尺度与另一侧观测。
+- 两次生成任务均通过 fixture、视觉和 expert gate；最终因预算而非证据充分停止。
 
-- Goal: answer_open_query_with_evidence: 这个ACT策略在grab_roller任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？
-- Initial round: `round_1`
-- Final planning state: `stopped_after_round_3_budget_exhausted`
-- Query interpretation trace: [prompt](artifacts/plan/query_interpretation_prompt.md) / [response 1](artifacts/plan/query_interpretation_response_1.txt)
+## Round 1 — official baseline
 
-## 4.1. `round_1` — task_execution.official_baseline
+- Proposal：先确认未扰动任务能执行；TaskGen：`official_passthrough`；rollout：成功 `1/1`。
+- Tool：复用 `official_check_success=true`；VQA：`passed`、无冲突；Aggregate：`passed`。
+- Plan decision：证据不足以定位弱点，`continue → switch_concern`，下一轮测试可执行的物体尺度变化。
+- Artifacts: [VariantSpec](data/round_1_variant_spec.json) · [render](assets/round_1_scene.png) · [video](assets/round_1_act.mp4) · [Tool](artifacts/tool/round_1/tool_execution.json) · [VQA](artifacts/vqa/round_1.json) · [Aggregate](artifacts/aggregate/round_1.json) · [decision](artifacts/plan/decisions/after_round_1.json)
+- Next-step trace: [prompt](artifacts/plan/plan_agent_steps/after_round_01/prompt.md) · [response](artifacts/plan/plan_agent_steps/after_round_01/response_1.txt) · [bound Proposal](artifacts/plan/plan_agent_steps/after_round_01/bound_semantic_step.json)
 
-### Plan → TaskGen
+![Round 1 render](assets/round_1_scene.png)
 
-- Task: `grab_roller`
-- Route/materialization: `official` / `official_passthrough`
-- Gates: {"generation_attempts": null, "checker_fixtures": null, "vision_passed": null, "expert_passed": null}
-- Generated/reused source: N/A (artifact was not present)
-- VariantSpec: [round_1_variant_spec.json](data/round_1_variant_spec.json)
+## Round 2 — roller scale `0.85`
 
-### Render / scene check
+- Proposal：缩小可抓取 roller 以降低双臂抓取几何容错；TaskGen：provider 生成 scene/checker，首次生成通过 `2/2` fixtures、visual 和 expert gates。
+- Rollout：官方成功 `1/1`；Tool：生成 `query_left_tcp_to_roller_left_contact_min_distance=0.022060869 m`；VQA：`passed`、无冲突；Aggregate：`passed`。
+- Plan decision：单侧距离与成功样本仍不足以定位边界，`continue → switch_concern`，细化到 `0.70` 并补另一侧观测。
+- Generation: [Proposal](artifacts/taskgen/round_2/generation/proposal.json) · [prompt](artifacts/taskgen/round_2/generation/code_prompt.md) · [response](artifacts/taskgen/round_2/generation/provider_response.txt) · [task code](code/round_2_task.py)
+- Validation: [checker fixtures](artifacts/taskgen/round_2/validation/checker_fixtures.json) · [visual result](artifacts/taskgen/round_2/validation/vision.json) · [visual prompt](artifacts/taskgen/round_2/validation/vision_prompt.md) · [expert gate](artifacts/taskgen/round_2/validation/expert_preflight.json)
+- Evidence: [render](assets/round_2_scene.png) · [scene comparison](artifacts/taskgen/round_2/evidence/scene_comparison.png) · [video](assets/round_2_act.mp4) · [Tool code](code/round_2_tool.py) · [Tool result](artifacts/tool/round_2/tool_execution.json) · [VQA](artifacts/vqa/round_2.json) · [Aggregate](artifacts/aggregate/round_2.json) · [decision](artifacts/plan/decisions/after_round_2.json)
+- Next-step trace: [prompt](artifacts/plan/plan_agent_steps/after_round_02/prompt.md) · [response](artifacts/plan/plan_agent_steps/after_round_02/response_1.txt) · [bound Proposal](artifacts/plan/plan_agent_steps/after_round_02/bound_semantic_step.json)
 
-![round_1 initial scene](assets/round_1_scene.png)
+![Round 2 render](assets/round_2_scene.png)
 
-### Rollout
+## Round 3 — roller scale `0.70`
 
-- Backend/seeds: `ACT` / `[100401]`
-- Pipeline/policy success: `True` / `1.0`
+- Proposal：进一步缩小同一物体属性；TaskGen：provider 生成 scene/checker，首次生成通过 `2/2` fixtures、visual 和 expert gates。
+- Rollout：官方成功 `1/1`；Tool：生成 `query_right_tcp_to_roller_right_contact_min_distance=0.046543039 m`；VQA：`passed`、无冲突；Aggregate：`passed`。
+- Plan decision：`stop`；QueryContract 判定 `evidence_sufficient=false`、`claim_verdict=inconclusive`、`stop_reason=budget_exhausted`。
+- Generation: [Proposal](artifacts/taskgen/round_3/generation/proposal.json) · [prompt](artifacts/taskgen/round_3/generation/code_prompt.md) · [response](artifacts/taskgen/round_3/generation/provider_response.txt) · [task code](code/round_3_task.py)
+- Validation: [checker fixtures](artifacts/taskgen/round_3/validation/checker_fixtures.json) · [visual result](artifacts/taskgen/round_3/validation/vision.json) · [visual prompt](artifacts/taskgen/round_3/validation/vision_prompt.md) · [expert gate](artifacts/taskgen/round_3/validation/expert_preflight.json)
+- Evidence: [render](assets/round_3_scene.png) · [scene comparison](artifacts/taskgen/round_3/evidence/scene_comparison.png) · [video](assets/round_3_act.mp4) · [Tool code](code/round_3_tool.py) · [Tool result](artifacts/tool/round_3/tool_execution.json) · [VQA](artifacts/vqa/round_3.json) · [Aggregate](artifacts/aggregate/round_3.json) · [decision](artifacts/plan/decisions/after_round_3.json)
 
-[Open policy video](assets/round_1_act.mp4)
+![Round 3 render](assets/round_3_scene.png)
 
-<video src="assets/round_1_act.mp4" controls width="720"></video>
+## 最终 Answer
 
-### Tool / VQA
+> 目前无法确定 ACT 最先在哪种物体属性或场景变化上暴露弱点。基线、roller 缩小至原尺度 `0.85`、以及缩小至 `0.70` 的测试均通过官方成功检查；因此在本次已测试范围内尚未观察到任务失败，结论为不确定。
 
-- Tool: `reuse` → `official_check_success`
-- Values: [{"role": "policy_under_evaluation", "policy_name": "ACT", "seed": 100401, "value": true, "unit": null, "passed": true}]
-- VQA status: `passed`; conflict: `False`
+- Stop/verdict: `budget_exhausted` / `inconclusive`；不是 evidence-sufficient stop。
+- Findings: 三轮均 `1/1` 通过；执行链无证据冲突；没有观测到“最早弱点”。
+- Limitation: 仅 `N=3` 且使用同一 seed；候选空间未封闭，不能推出最坏情况或一般化结论。
+- Limitation: 两个 Query-derived candidate 的 preservation 与 required-observation 覆盖仍不完整，不能将结果视为原始扰动意图的决定性证据。
+- Next: 完整验证尺度扰动与双侧观测后，以多个新 seed 做更细尺度扫描，再用首次失败尺度回答 Query。
+- Answer artifacts: [answer](artifacts/answer/answer.json) · [query answer](artifacts/answer/query_answer.json) · [final Aggregate](artifacts/aggregate/final.json) · [semantic re-audit](artifacts/audit/semantic_alignment_reaudit.json)
 
-![round_1 VQA keyframes](assets/round_1_vqa_montage.png)
+## 证据边界
 
-### Aggregate -> next decision
-
-- Aggregate: {"status": "passed", "source_count": 1, "episode_result_count": 2, "unique_episode_count": 1, "metric_ids": ["official_check_success", "time_to_success"], "input_issue_count": 0}
-- Decision: {"action": "continue", "transition": "switch_concern", "decision_reason": "provider_authored_open_world_step", "observation_summary": "官方未扰动场景已成功，说明当前失败不太可能来自基本任务流程；但仅一轮成功不能回答哪种物体或场景变化最先暴露弱点。尺度缩小直接降低双臂抓取的几何容错，且是load_actors明确支持的物体属性变化，比改变不可用的策略噪声或控制精度更可执行。该单因素扰动可用峰值高度和TCP接触距离诊断失败机制，同时保留官方checker以判断任务是否仍成功。", "answered_query": false, "evidence_sufficient": null, "claim_verdict": null, "stop_reason": null}
-
-## 4.2. `round_2` — object_geometry.graspable_scale_reduction
-
-### Plan → TaskGen
-
-- Task: `grab_roller`
-- Route/materialization: `generic_provider_scene_checker_codegen` / `generic_provider_scene_checker_codegen`
-- Gates: {"generation_attempts": 1, "checker_fixtures": "2/2", "vision_passed": true, "expert_passed": true}
-- Proposal: [proposal.json](artifacts/taskgen/round_2/generation/proposal.json)
-- Provider trace: [prompt](artifacts/taskgen/round_2/generation/code_prompt.md) / [response](artifacts/taskgen/round_2/generation/provider_response.txt)
-- Task artifact: [round_2_task.py](code/round_2_task.py)
-
-### Render / scene check
-
-![round_2 initial scene](assets/round_2_scene.png)
-
-### Rollout
-
-- Backend/seeds: `ACT` / `[100401]`
-- Pipeline/policy success: `True` / `1.0`
-
-[Open policy video](assets/round_2_act.mp4)
-
-<video src="assets/round_2_act.mp4" controls width="720"></video>
-
-### Tool / VQA
-
-- Tool: `provider_python_codegen` → `query_left_tcp_to_roller_left_contact_min_distance`
-- Values: [{"role": "policy_under_evaluation", "policy_name": "ACT", "seed": 100401, "value": 0.02206086926162243, "unit": "m", "passed": null}]
-- [Open generated/reused Tool source](code/round_2_tool.py)
-- VQA status: `passed`; conflict: `False`
-
-![round_2 VQA keyframes](assets/round_2_vqa_montage.png)
-
-### Aggregate -> next decision
-
-- Aggregate: {"status": "passed", "source_count": 2, "episode_result_count": 3, "unique_episode_count": 2, "metric_ids": ["official_check_success", "query_left_tcp_to_roller_left_contact_min_distance", "time_to_success"], "input_issue_count": 0}
-- Decision: {"action": "continue", "transition": "switch_concern", "decision_reason": "provider_authored_open_world_step", "observation_summary": "基线未扰动场景成功率为1.0，但0.85尺度测试仍成功且仅获得单侧22.1毫米距离观测，证据被标记为ambiguous并提示原始意图不完整，无法判断尺度变化是否接近失效边界。因此在保持其他因素不变的前提下，将同一可执行物体属性进一步缩小到0.70是对该不确定性的更具判别力的可观测版本；同时补充双侧距离，避免单侧观测掩盖双臂抓取瓶颈。", "answered_query": false, "evidence_sufficient": null, "claim_verdict": null, "stop_reason": null}
-
-## 4.3. `round_3` — object_geometry.graspable_scale_strong_reduction
-
-### Plan → TaskGen
-
-- Task: `grab_roller`
-- Route/materialization: `generic_provider_scene_checker_codegen` / `generic_provider_scene_checker_codegen`
-- Gates: {"generation_attempts": 1, "checker_fixtures": "2/2", "vision_passed": true, "expert_passed": true}
-- Proposal: [proposal.json](artifacts/taskgen/round_3/generation/proposal.json)
-- Provider trace: [prompt](artifacts/taskgen/round_3/generation/code_prompt.md) / [response](artifacts/taskgen/round_3/generation/provider_response.txt)
-- Task artifact: [round_3_task.py](code/round_3_task.py)
-
-### Render / scene check
-
-![round_3 initial scene](assets/round_3_scene.png)
-
-### Rollout
-
-- Backend/seeds: `ACT` / `[100401]`
-- Pipeline/policy success: `True` / `1.0`
-
-[Open policy video](assets/round_3_act.mp4)
-
-<video src="assets/round_3_act.mp4" controls width="720"></video>
-
-### Tool / VQA
-
-- Tool: `provider_python_codegen` → `query_right_tcp_to_roller_right_contact_min_distance`
-- Values: [{"role": "policy_under_evaluation", "policy_name": "ACT", "seed": 100401, "value": 0.04654303938150406, "unit": "m", "passed": null}]
-- [Open generated/reused Tool source](code/round_3_tool.py)
-- VQA status: `passed`; conflict: `False`
-
-![round_3 VQA keyframes](assets/round_3_vqa_montage.png)
-
-### Aggregate -> next decision
-
-- Aggregate: {"status": "passed", "source_count": 2, "episode_result_count": 3, "unique_episode_count": 2, "metric_ids": ["official_check_success", "query_right_tcp_to_roller_right_contact_min_distance", "time_to_success"], "input_issue_count": 0}
-- Decision: {"action": "stop", "transition": "stop", "decision_reason": "plan_agent_evidence_sufficiency", "observation_summary": "The bounded rollout budget ended before the query sufficiency contract was satisfied.", "answered_query": false, "evidence_sufficient": false, "claim_verdict": "inconclusive", "stop_reason": "budget_exhausted"}
-
-## 5. Final answer to the original Query
-
-> 目前无法确定 ACT 最先在哪种物体属性或场景变化上暴露弱点。基线、roller 缩小至原尺度 0.85、以及缩小至 0.70 的测试均通过官方成功检查；因此在本次已测试范围内尚未观察到任务失败，结论为不确定。
-
-- Finding: 未扰动基线官方成功率为 1/1。
-- Finding: roller 缩小至原尺度 0.85 的候选官方成功率为 1/1，未显示任务失败。
-- Finding: roller 缩小至原尺度 0.70 的候选官方成功率为 1/1，未显示任务失败。
-- Finding: 执行流水线完成且没有报告证据冲突，但查询充分性契约未满足，因此不能据此认定存在已验证的最早弱点。
-- Next: 在明确绑定并验证完整 0.85 与 0.70 尺度扰动、保持条件及双侧接触观测后，使用多个新种子进行更细的尺度递减扫描，直到官方成功检查首次失败；再将首次失败尺度与基线比较，以定位最早弱点。
-- Limitation: 本次仅有 N=3 个策略 episode，且全部使用种子 [100401]，不是广泛泛化评估。
-- Limitation: 评估在预算耗尽前未满足查询充分性契约，结论为 inconclusive。
-- Limitation: 两个 Query-derived 候选的原始意图字段均未覆盖，包括 requested_change、preserved_conditions、hypothesis 和 required_observation；因此不能把这些结果当作完整实现原始扰动意图的决定性证据。
-- Limitation: 候选空间未封闭，不能推出穷尽性、最坏情况或一般化结论。
-- Limitation: Evidence contains N=3 policy episodes at seeds [100401].
-- Limitation: Tested Query-derived candidate contract requirements remain uncovered: ['intent.7d4cb852954896a8:requested_change', 'intent.7d4cb852954896a8:preserved_conditions', 'intent.7d4cb852954896a8:hypothesis', 'intent.7d4cb852954896a8:required_observation', 'intent.4660c0a7908d4c45:requested_change', 'intent.4660c0a7908d4c45:preserved_conditions', 'intent.4660c0a7908d4c45:hypothesis', 'intent.4660c0a7908d4c45:required_observation'].
-- Limitation: The run stopped because its round budget was exhausted before the query-sufficiency contract was satisfied.
-
-### Post-run 0-ACT semantic alignment re-audit
-
-{"act_rollouts_started": 0, "mutates_source_evaluation": false, "rounds": [{"round_id": "round_2", "original_relationship": "diagnostic_proxy", "recomputed_relationship": "direct", "recomputed_coverage": "partial", "pending_intent_fields": ["preserved_conditions", "required_observation"]}, {"round_id": "round_3", "original_relationship": "diagnostic_proxy", "recomputed_relationship": "direct", "recomputed_coverage": "partial", "pending_intent_fields": ["preserved_conditions", "required_observation"]}], "conclusion": "The quantified scale assignments are direct scene changes rather than unchanged-scene proxies. Required-observation and preservation coverage remain pending: each round executed one scalar Rule Tool, and the original preservation conditions lack complete simulator or visual authority."}
-The source evaluation and Answer remain immutable; this cached recomputation adds no policy-performance evidence.
-## 6. Boundaries
-
-- Policy results and pipeline status are reported separately.
-- Expert evidence, when present, is a solvability/instrumentation gate, not evaluated-policy performance.
-- Few-shot N=1 rounds demonstrate method wiring, not benchmark-level generalization.
-- Missing artifacts are shown as N/A; this report never substitutes proxy images or invented values.
-
-## 7. Artifact index
-
-- [Compact machine summary](run_summary.json)
-- [Published-file inventory with bytes and SHA-256](evidence_bundle_manifest.json)
-- Complete raw source remains server-side at `mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3`.
+- Policy 成功与 pipeline gate 分开报告；expert gate 只验证可解性/仪器链，不代表被评策略性能。
+- 每轮 `N=1` 只证明方法接线；post-run re-audit 使用缓存证据、启动 `0` 个新 rollout，不增加性能证据。
+- 本 README 只做人工可读索引；字段真值见 [run_summary.json](run_summary.json)，文件完整性见 [evidence_bundle_manifest.json](evidence_bundle_manifest.json)。
+- Raw source: server `mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3`。
