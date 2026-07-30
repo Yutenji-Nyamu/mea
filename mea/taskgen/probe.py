@@ -575,11 +575,48 @@ def run_probe(arguments: argparse.Namespace) -> dict[str, Any]:
                     action_type="expert_plan",
                 )
             task.play_once()
+            generated_checker_success = bool(task.check_success())
+            official_core_checker = getattr(
+                task,
+                "mea_official_check_success",
+                None,
+            )
+            official_core_predicate_satisfied = (
+                bool(official_core_checker())
+                if callable(official_core_checker)
+                else generated_checker_success
+            )
+            # Keep the setup-time ``tracked_actors``/``actors`` fields intact.
+            # These explicit terminal snapshots are the simulator authority for
+            # expert-positive checker fixtures and repair diagnosis.
+            result["expert_terminal_tracked_actors"] = tracked_actor_summary(
+                task,
+                schema,
+            )
+            result["expert_terminal_actors"] = actor_summary(task)
+            result["expert_terminal_task_attributes"] = task_attribute_summary(
+                task,
+                schema,
+            )
             result["expert"] = {
                 "plan_success": bool(task.plan_success),
-                "check_success": bool(task.check_success()),
+                "check_success": generated_checker_success,
+                "official_check_success": official_core_predicate_satisfied,
+                "official_core_predicate_satisfied": (
+                    official_core_predicate_satisfied
+                ),
+                "official_success_authority": (
+                    "mea_official_check_success"
+                    if callable(official_core_checker)
+                    else "active_check_success"
+                ),
             }
-            result["expert"]["passed"] = all(result["expert"].values())
+            # Preserve the historical gate: ``passed`` means the expert plan
+            # and the active (possibly generated) checker both succeeded.
+            result["expert"]["passed"] = bool(
+                result["expert"]["plan_success"]
+                and result["expert"]["check_success"]
+            )
             if recorder is not None:
                 recorder.on_policy_action_end(
                     task,

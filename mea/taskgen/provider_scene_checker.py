@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol
 
 from .attempts import (
+    REPAIR_SUCCESS_SPEC,
     TaskGenerationRecoveryError,
     TaskGenerationStageError,
     run_bounded_task_generation,
@@ -414,19 +415,40 @@ def run_provider_codegen(
     attempt_path = Path(attempt_root)
     state: dict[str, Any] = {"attempt_root": str(attempt_path)}
     diagnosis: str | None = None
+    previous_methods: dict[str, str] | None = None
 
     def execute_attempt(
         attempt_dir: Path, _index: int, requested_action: str | None
     ) -> dict[str, Any]:
-        nonlocal diagnosis
+        nonlocal diagnosis, previous_methods
         current_prompt = prompt
+        checker_only_repair = bool(
+            requested_action == REPAIR_SUCCESS_SPEC
+            and diagnosis
+            and previous_methods is not None
+        )
         if requested_action is not None and diagnosis:
             current_prompt += (
                 "\n\nLOCAL VALIDATION FAILED ON THE PREVIOUS RESPONSE:\n"
                 + diagnosis
-                + "\nRegenerate both complete methods once. Do not return "
-                "a patch or explanation."
             )
+            if checker_only_repair:
+                current_prompt += (
+                    "\nThe previous load_actors method already passed the "
+                    "same-seed simulator setup and render gates. Copy that "
+                    "method exactly and repair only check_success; changing "
+                    "the accepted scene would invalidate a checker-local "
+                    "repair.\n\nPREVIOUS METHOD PAIR:\n"
+                    + json.dumps(
+                        previous_methods,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        indent=2,
+                    )
+                )
+            else:
+                current_prompt += "\nRegenerate both complete methods once."
+            current_prompt += " Do not return a patch or explanation."
         (attempt_dir / "provider_prompt.md").write_text(
             current_prompt, encoding="utf-8"
         )
@@ -448,13 +470,49 @@ def run_provider_codegen(
             getattr(provider, "last_metadata", {}) or {}
         )
         try:
-            methods = parse_method_pair(response, error_type=error_type)
+            accepted_previous_methods = (
+                dict(previous_methods) if checker_only_repair else None
+            )
+            raw_methods = parse_method_pair(response, error_type=error_type)
+            methods = dict(raw_methods)
+            if checker_only_repair:
+                assert accepted_previous_methods is not None
+                accepted_scene = accepted_previous_methods["load_actors"]
+                provider_changed_scene = (
+                    methods["load_actors"] != accepted_scene
+                )
+                methods["load_actors"] = accepted_scene
+                _write_json(
+                    attempt_dir / "repair_scope.json",
+                    {
+                        "schema_version": 1,
+                        "scope": "checker_only",
+                        "preserved_method": "load_actors",
+                        "regenerated_method": "check_success",
+                        "provider_changed_preserved_method": (
+                            provider_changed_scene
+                        ),
+                        "provider_scene_output_ignored": provider_changed_scene,
+                        "authority": (
+                            "previous_same_seed_simulator_setup_and_render"
+                        ),
+                    },
+                )
+            previous_methods = dict(methods)
             validation = validate(methods)
         except error_type as exc:
             diagnosis = str(exc)
+            checker_validation_failure = diagnosis.startswith(
+                (
+                    "generated checker failed live negative/positive fixtures",
+                    "generated checker contradicts TaskSchema success contract",
+                )
+            )
             raise TaskGenerationStageError(
-                "scene_codegen",
-                "invalid_candidate",
+                "success_spec" if checker_validation_failure else "scene_codegen",
+                "invalid_spec"
+                if checker_validation_failure
+                else "invalid_candidate",
                 diagnosis,
                 runtime={"provider_calls": 1},
                 diagnosis={"provider_metadata": provider_metadata},

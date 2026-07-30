@@ -22,12 +22,11 @@ ManipEvalAgent（MEA）迁移到 LIBERO 的最小接口和协议。它不把 LIB
 仓库入口：
 
 - [adapter contract gate](../experiments/paper/libero_adapter_smoke.py)
-- [紧凑 smoke 结果](../experiments/paper/results/batch23_claim_closure/libero_smolvla_smoke_v1.json)
-- [100-step method-chain compact 结果](../experiments/paper/results/batch24_libero_method_chain_v2/compact_result.json)
-- [Planner–TaskGen 协议审计](../experiments/paper/results/batch24_libero_method_chain_v2/evidence/protocol_audit.json)
-- [batch24 四项结果索引](../experiments/paper/results/batch24_claim_closure/summary.json)
-- [batch26 严格 control 结果](../experiments/paper/results/batch26_claim_closure/libero_compact_result.json)
-- [batch27 两回合方法链结果](../experiments/paper/results/batch27_unified_adapter_libero/libero/compact_result.json)
+- [论文 claim 与当前 gap](paper_claim_gap_zh.md)
+- [当前证据入口](evidence/current/README.md)
+
+动态运行结果只在上述两处维护；`experiments/paper/results/` 中的 batch 文件是不可变
+实验输入/历史产物，不作为本文的“当前状态”。
 
 ## 1. 已核实环境与产物
 
@@ -208,25 +207,29 @@ payload、586 份 metadata 和真实 rollout 均已通过；该 marker 保留，
 
 ```bash
 # [I 环境反推；输出为 L 日志确认]
+MEA_REPO=/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime
 /root/autodl-tmp/envs/mea-libero/bin/python \
-  /root/autodl-tmp/mea/experiments/paper/libero_adapter_smoke.py \
+  "$MEA_REPO/experiments/paper/libero_adapter_smoke.py" \
   --checkpoint /root/autodl-tmp/checkpoints/libero/smolvla_libero \
   --load-model \
   --device cpu \
   --output \
-  /root/autodl-tmp/mea/mea/protocol_runs/batch23_libero_smolvla_adapter_smoke/model_load_cpu.json
+  "$MEA_REPO/mea/protocol_runs/batch23_libero_smolvla_adapter_smoke/model_load_cpu.json"
 ```
 
 该 gate 验证两路 `[3,256,256]` 图像、8D state、7D action contract，并在 CPU
 完整加载 604,934,176 个参数；它不是 rollout。
 
-## 3. 已跑通的 official control
+## 3. Official control 复现命令与故障经验
 
-成功 runner 保存了实际命令：
+成功 runner 保存了实际命令。旧结果位于下列
+`historical_run_root`，只作日志定位；新运行写入 canonical worktree：
 
 ```bash
 # [L 日志确认]
-run_root=/root/autodl-tmp/mea/mea/protocol_runs/batch23_libero_smolvla_adapter_smoke/live_eval_task0_seed100800_20260726T1242_retry1
+historical_run_root=/root/autodl-tmp/mea/mea/protocol_runs/batch23_libero_smolvla_adapter_smoke/live_eval_task0_seed100800_20260726T1242_retry1
+MEA_REPO=/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime
+run_root="$MEA_REPO/mea/protocol_runs/reproductions/libero_task0_seed100800"
 
 env \
   HF_HOME=/root/autodl-tmp/cache/huggingface \
@@ -263,7 +266,7 @@ task 0 是 `pick_up_the_alphabet_soup_and_place_it_in_the_basket`。关键边界
 - `relative` 对应 LIBERO 的 7D delta end-effector action。
 - 即使 `recording=false`，LeRobot 0.6.0 仍输出了约 67 KiB episode MP4。
 - 此 runner 没有显式实施论文的 100-step 对齐 horizon；LeRobot 日志允许最多 280
-  steps。因此这次 1/1 结果只是环境/推理 smoke，不是论文对齐实验。
+  steps。因此该单 episode 命令只适合环境/推理 smoke，不是论文对齐实验。
 
 成功产物：
 
@@ -281,8 +284,10 @@ mea/protocol_runs/batch23_libero_smolvla_adapter_smoke/
     └── exit_code.txt
 ```
 
-结果为 1/1 success、reward 1.0、官方 eval 31.13 s、总 wall 89 s、逐秒采样的
-GPU 总显存峰值 2512 MiB。它是单回合 feasibility smoke。
+该命令只用于验证 environment、policy processor 与 inference/eval 路径；无论单回合
+结果为何，都不能当作 MEA、效率、排名或泛化证据。具体运行结果只从
+[论文 claim 与当前 gap](paper_claim_gap_zh.md)和
+[当前证据入口](evidence/current/README.md)读取。
 
 首次启动目录 `live_eval_task0_seed100800_20260726T1240/` 保留 exit 127 和错误：
 
@@ -297,10 +302,10 @@ robosuite private macro 与 `OpenGL_accelerate` 缺失是本次的非致命警�
 
 ### stock evaluator 与 direct adapter 的 seed parity
 
-batch26 出现“同一 task/seed 下 stock evaluator 成功、direct adapter 失败”并不是
-checkpoint 或 BDDL 不兼容。排查确认 SmolVLA policy 构造和 processor 初始化也会消耗
+若同一 task/seed 下 stock evaluator 与 direct adapter 行为不一致，不能立即归因于
+checkpoint 或 BDDL。SmolVLA policy 构造和 processor 初始化也会消耗
 Python/NumPy/PyTorch 全局 RNG；只给环境 reset 同一个 seed，不能保证两条执行路径拿到
-相同状态。batch27 将 direct adapter 的顺序固定为：
+相同状态。direct adapter 必须固定以下顺序：
 
 ```text
 set_seed
@@ -312,8 +317,8 @@ set_seed
 
 official control 使用与 stock evaluator 相同的 official env factory。对 paired custom
 rollout，在 official 环境/policy 初始化后捕获 RNG state，并在构造 custom env 前恢复，
-从而把“环境差异”与“初始化顺序差异”分开。该修复使 task0 official control 在 direct
-chain 中重现成功；它不意味着所有 task/seed 均与 stock evaluator 等价。
+从而把“环境差异”与“初始化顺序差异”分开。一次 paired parity 成功也不意味着所有
+task/seed 均与 stock evaluator 等价。
 
 ## 4. RoboTwin 与 LIBERO 的语义边界
 
@@ -327,27 +332,28 @@ chain 中重现成功；它不意味着所有 task/seed 均与 stock evaluator �
 | policy rollout | ACT/DP3 专用 evaluation entry | `lerobot-eval`/LeRobot policy processor | 扩展现有 normalized `episode.json` 为 benchmark-neutral `EpisodeRecord` |
 | telemetry/tool hooks | 已有 state、video、telemetry、Rule/VQA hooks | 当前只保存 aggregate、视频与有限 env 输出 | adapter 暴露 predicate/state/contact/action，而非事后猜测 |
 | render | SAPIEN 首帧、多相机与 TaskGen visual gate | MuJoCo EGL，agent/wrist cameras | 统一首帧与 clip 引用，但保留 simulator camera 语义 |
-| 当前结果 | RoboTwin 的小范围 MEA 证据链 | SmolVLA task0 单回合成功 | task、policy、sim、action、seed 均不同，数值不可直接比较 |
+| 证据记账 | RoboTwin 与 LIBERO 分别记录自己的 simulator/policy 协议 | official smoke 与 custom method chain 分开记录 | task、policy、sim、action、seed 不同，数值不可直接比较 |
 
 ## 5. MEA on LIBERO 设计
 
 继续复用现有方法层：
 
 ```text
-QueryContract
-→ ClaimFirst Planner
+Query interpretation
+→ Plan Agent
 → Proposal
 → Tool registry / VQA
 → Aggregate
+→ Plan Agent session
 → AnswerScope
 ```
 
-新增 4 个实现单元和 2 个轻量 schema，不复制第二套 Planner、registry、VQA 或
+新增 4 个实现单元和 2 个轻量 schema，不复制第二套 Plan Agent、registry、VQA 或
 provenance 系统：
 
 | 单元 | 最小职责 |
 |---|---|
-| `LiberoBenchmarkAdapter` | official suite/task 与 custom `.bddl` env factory，reset/step/render/close，official reward/success 与 predicate state；`capability_inventory()` 直接生成 Global router 已消费的 schema |
+| `LiberoBenchmarkAdapter` | official suite/task 与 custom `.bddl` env factory，reset/step/render/close，official reward/success 与 predicate state；在 Query interpretation 后提供可绑定的 task/predicate metadata |
 | `LeRobotPolicyAdapter` | checkpoint identity，observation key/shape 映射，pre/postprocessor，action chunk 与 control mode |
 | `LiberoTaskGen backend` | Phase 1 生成 state-compatible `.bddl` 并复用注册 class；更改 workspace/camera/execution/check 逻辑时才生成/修改并注册 Python class |
 | `LiberoTool/Rule backend` | 只提供 benchmark-specific predicate/state/action extractor 与 `BDDLBaseDomain` binding；复用现有 ToolGen validation、registry 和 Aggregate |
@@ -361,11 +367,12 @@ provenance 系统：
 ### 最小注入点
 
 - `scripts/manipeval_agent.py --benchmark {robotwin,libero}` 只选择现有 adapter factory；
-  不复制 Agent CLI、Query router 或 Planner。
+  不复制 Agent CLI、Query interpretation 或 Plan Agent。
 - `scripts/manipeval_taskgen.py --benchmark {robotwin,libero}` 只 dispatch 对应 TaskGen
   backend。
-- `LiberoBenchmarkAdapter.capability_inventory()` 输出当前 Global router 已消费的
-  capability schema；不新增 `CapabilityCatalogAdapter`。
+- `LiberoBenchmarkAdapter.capability_inventory()` 只在 Query interpretation 后输出
+  execution-binding metadata；不把 inventory 暴露给首轮解释，也不新增
+  `CapabilityCatalogAdapter`。
 - 当前 episode recorder 写标准 `episode.json`，LIBERO 字段作为 benchmark-neutral
   extension 投影到既有 telemetry/video/keyframes/Rule/VQA/Aggregate 路径。
 
@@ -417,7 +424,7 @@ Query need
 → run-local validation
 → existing Tool registry
 → EpisodeRecord / episode.json
-→ Aggregate / Planner
+→ Aggregate / Plan Agent session
 ```
 
 official predicate truth 与额外 metric 必须并列保存，不能让模型生成的 detector 静默覆盖
@@ -453,7 +460,7 @@ LeRobot/SmolVLA adapter parity 设置：单 episode 最多 280 steps、observati
 
 ### Rollout 1：official control
 
-- 冻结开放 Query、`QueryContract`、SmolVLA checkpoint、official task、seed、init index、
+- 冻结开放 Query、Query contract、SmolVLA checkpoint、official task、seed、init index、
   relative control、280-step 上限和 rollout budget，再执行 official task 1 episode。
 - `LiberoBenchmarkAdapter` 与 `LeRobotPolicyAdapter` 扩展现有 recorder，写入标准
   `episode.json` / `EpisodeRecord`，并投影到既有 telemetry root、video 与 keyframes。
@@ -462,7 +469,7 @@ LeRobot/SmolVLA adapter parity 设置：单 episode 最多 280 steps、observati
 
 ### Rollout 1→2：evidence-conditioned generation gate
 
-- ClaimFirst Planner 只在收到 control `EpisodeRecord` 后生成具体 Proposal。
+- Plan Agent 只在收到 control `EpisodeRecord` 后生成具体 Proposal。
 - Phase 1 只接受 state-compatible Proposal：`LiberoTaskGen backend` 生成一个新的
   `.bddl`，复用同一已注册 Python Problem/domain class；运行 parser、implementation
   registry、init-state compatibility、reset/render 和 predicate fixtures。
@@ -480,57 +487,18 @@ LeRobot/SmolVLA adapter parity 设置：单 episode 最多 280 steps、observati
   policy processor/rollout。
 - 同一 checkpoint、seed 策略、通过 compatibility probe 的 initial-state source、
   control mode 和 280-step 上限执行 state-compatible variation。
-- 至少一个 Query-induced detector/metric 得到非空 live 值，影响 Aggregate/Planner；
+- 至少一个 Query-induced detector/metric 得到非空 live 值，影响 Aggregate/Plan Agent session；
   第二次相同需要可在 0 additional SmolVLA rollout replay 中 exact reuse。
 - variation 成功或失败都可接受，但 simulator 必须合法完成，official 与 experimental
   semantics 必须分别报告。
 
-### batch26 历史结果：control 失败后严格短路
+### 结果读取
 
-`eval_20260727_batch26_libero_parity_live_v1` 绑定
-`libero_object/task0`、SmolVLA checkpoint 和 seed `100800`。Gate 0 与 policy load
-通过，official episode 按 280/360/action10/relative 协议合法写出 video、actions 与
-`episode.json`，但 official success 为 false。系统因此在第 1 个 rollout 后返回：
-
-```text
-status=control_failed
-rollouts_executed=1 / rollout_budget=2
-stop_reason=official_control_failed
-custom_rollout_authorized=false
-method_chain_valid=false
-paper_performance_evidence=false
-```
-
-没有调用 TaskGen provider、没有生成 custom BDDL，也没有执行第二 rollout。这是
-fail-closed 协议的真实正证据，同时是 LIBERO 方法链的负结果。batch24 历史运行曾让
-official/custom 各跑 100 steps，但 control 失败且 Planner–TaskGen 变更不对齐；当前
-alignment gate 已把这类第二回合提前阻断。
-
-### batch27 执行结果：两回合方法链合法完成
-
-`eval_20260727_batch27_libero_seed_parity_v3` 使用
-`libero_object/task0`、SmolVLA、seed `100800` 和上述 parity 顺序。结果为：
-
-```text
-official control: success=true
-custom BDDL: salad_dressing_1 goal, success=false
-rollouts_executed=2
-wall_seconds=132.698
-method_chain_valid=true
-episode_protocol_matches=true
-tool_live_value=false
-tool_exact_reuse=true
-query_sufficient=false
-paper_performance_evidence=false
-scientific_evidence_eligible=false
-```
-
-第一回合 evidence 之后才生成具体 Proposal 和 state-compatible custom BDDL；第二回合
-通过 direct `OffScreenRenderEnv` 执行，并将 predicate Tool 的非空 live 值送入
-Aggregate/Planner。相同 Tool need 随后 exact reuse，未增加 rollout。custom failure
-是合法观测，不是链路错误；由于仍有四个未测 goal object 且只运行单 seed，系统以预算
-耗尽和 `query_sufficient=false` 收尾。该结果只支持“LIBERO basic-adaptation
-method-chain 可执行”，不支持 SmolVLA robustness、采样效率或跨模拟器一致性。
+control-failed 短路、seed/RNG parity 修复和两回合 method-chain 的实际结果不在安装/
+设计文档重复维护。当前判断见
+[论文 claim 与当前 gap](paper_claim_gap_zh.md)，最新可审计 artifact 见
+[当前证据入口](evidence/current/README.md)；旧 batch 仅作为
+`experiments/paper/results/` 下的不可变实验历史读取。
 
 ### 验收条件
 
@@ -541,7 +509,7 @@ method-chain 可执行”，不支持 SmolVLA robustness、采样效率或跨模
   prompt overlay、虚构第二个 Problem 文件或旁路 checker。
 - custom rollout 确实通过 `OffScreenRenderEnv`/custom env factory 执行，而不是把
   custom 文件名误传给只支持 official suite 的 stock `--task_ids`。
-- Rule/VQA/Aggregate/Planner/AnswerScope 消费同一证据并回应原 Query；证据不足、冲突或
+- Rule/VQA/Aggregate/Plan Agent session/AnswerScope 消费同一证据并回应原 Query；证据不足、冲突或
   control 失败时，`answered=false` / `inconclusive` 是合法且优先于强行作答的结果。
 - Answer 强制列出每个 condition N=1、最多 2 episodes、280-step 上限与实际 steps、
   单 policy、单 seed、未覆盖 suite/task/属性和停止原因。
@@ -553,17 +521,10 @@ method-chain 可执行”，不支持 SmolVLA robustness、采样效率或跨模
 - Appendix A.3.2 对 LIBERO 的描述只支持 **basic adaptation**。它不证明 LIBERO
   已达到论文在 RoboTwin 上的同规模主链完整度。
 - Tables 1/2/4/5/9 含 LIBERO 参照结果，但这些表不自动证明 Query→TaskGen→ToolGen→
-  evidence-conditioned Planner 的完整主链在两个 simulator 上一致。
+  evidence-conditioned Plan Agent 的完整主链在两个 simulator 上一致。
 - Table 10 明确不保证 absolute correctness；结论仍受 LLM、simulator fidelity、
   observation、predicate/tool 和有限 samples 约束。
-- batch23 的 1/1 SmolVLA success 只证明 official evaluator、LIBERO environment 与
-  SmolVLA inference/eval 路径能端到端运行，不证明 MEA adapter。它不能与 RoboTwin
-  ACT/DP3 数值直接比较，也不能支持效率、排名或泛化结论。
-- batch24 的 2×100-step method-chain 只证明 BDDL/custom env/确定性 predicate
-  MetricSpec adapter/reuse 机制可执行，但没有证明模型生成新 Tool；control failure
-  与 Planner–TaskGen misalignment 使整条科学协议无效，它同样不能支持 SmolVLA
-  robustness 或 RoboTwin↔LIBERO 一致性结论。
-- batch26 的 control-failed 结果保留为 fail-closed 历史负例；batch27 修复 seed/RNG
-  parity 后，official-positive/custom-negative 两回合已形成合法方法链。但
-  `query_sufficient=false`、单 task/seed 与 2-rollout 预算决定了它仍不是论文表格、
-  robustness 或跨环境一致性结果。
+- official evaluator smoke 只证明 LIBERO environment 与 policy inference/eval 路径可
+  运行，不证明 MEA adapter；basic-adaptation method-chain 也不能自动支持效率、排名、
+  robustness 或 RoboTwin↔LIBERO 一致性结论。具体样本与结果边界统一见
+  [论文 claim 与当前 gap](paper_claim_gap_zh.md)。

@@ -1,12 +1,12 @@
 import unittest
 
-from mea.capability_adapter import resolve_task_adapter
 from mea.planner.claim_first import build_open_query_planning_lineage
 from mea.planner.claim_first_runtime import (
+    PlanAgentSession,
+    PlanAgentSessionError,
     ClaimFirstRuntimeController,
     ClaimFirstRuntimeError,
     build_claim_first_evidence_record,
-    build_control_anchor_proposal,
     build_dynamic_experiment_candidate,
     build_initial_semantic_proposal_bundle,
     control_template_id,
@@ -266,6 +266,10 @@ class EvidenceConditionedPlanner:
 
 
 class ClaimFirstRuntimeTests(unittest.TestCase):
+    def test_plan_agent_session_is_canonical_with_legacy_aliases(self):
+        self.assertIs(ClaimFirstRuntimeController, PlanAgentSession)
+        self.assertIs(ClaimFirstRuntimeError, PlanAgentSessionError)
+
     def test_unregistered_runtime_task_uses_official_control_anchor(self):
         task_name = "runtime_schema_task"
         runtime_target = {
@@ -289,16 +293,6 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             control_template_id(runtime_target),
             "task_execution.official_baseline",
         )
-        proposal = build_control_anchor_proposal(
-            runtime_target,
-            "Where does this policy first expose a weakness?",
-        )
-        self.assertEqual(proposal["task_name"], task_name)
-        self.assertEqual(
-            proposal["requested_aspect_ids"],
-            ["task_execution.official_baseline"],
-        )
-
         plan = round_plan(1, "task_execution.official_baseline")
         plan["task_name"] = task_name
         plan["task_proposal"]["changes"] = {}
@@ -380,55 +374,6 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
                 control_template_id(generic_target),
                 "task_execution.official_baseline",
             )
-            proposal = build_control_anchor_proposal(
-                generic_target,
-                f"Does {task_name} pass its clean control?",
-            )
-            self.assertEqual(proposal["task_name"], task_name)
-            self.assertEqual(
-                proposal["requested_aspect_ids"],
-                ["task_execution.official_baseline"],
-            )
-
-    def test_deep_tasks_use_neutral_official_control_anchors(self):
-        for task_name, planner_kind in (
-            ("beat_block_hammer", "bounded_bbh_v1"),
-            ("click_bell", "model_click_bell_adaptive_v1"),
-        ):
-            adapter = resolve_task_adapter(task_name)
-            deep_target = {
-                "task_name": task_name,
-                "max_rounds": 3,
-                "policy": {"policy_name": "ACT"},
-                "aspects": [
-                    {
-                        "aspect_id": contract["aspect"]["aspect_id"],
-                        "description": "Registered capability.",
-                        "template_ids": [contract["template_id"]],
-                    }
-                    for contract in adapter["capability_contracts"]
-                ],
-            }
-            self.assertEqual(
-                control_template_id(deep_target),
-                "task_execution.official_baseline",
-            )
-            proposal = build_control_anchor_proposal(
-                deep_target,
-                "Where does this policy first expose a weakness?",
-            )
-            self.assertEqual(proposal["task_name"], task_name)
-            if planner_kind == "bounded_bbh_v1":
-                self.assertEqual(
-                    proposal["requested_template_ids"],
-                    ["task_execution.official_baseline"],
-                )
-            else:
-                self.assertEqual(
-                    proposal["requested_aspect_ids"],
-                    ["task_execution.official_baseline"],
-                )
-
     def test_routed_aspects_bound_query_candidate_universe(self):
         controller = ClaimFirstRuntimeController(
             "Can it succeed on at least one bell-property variation?",
@@ -538,7 +483,7 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
 
         self.assertEqual(
             bundle["source"],
-            "provider_free_concern_direct_materialization",
+            "provider_plan_agent_direct_materialization",
         )
         self.assertIn("50%", candidate["scene_need"]["description"])
         self.assertIsNone(candidate["checker_need"])
@@ -547,7 +492,7 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             candidate["intent_alignment"]["relationship"],
             "direct",
         )
-        controller = ClaimFirstRuntimeController(query, target())
+        controller = PlanAgentSession(query, target())
         registered = controller.register_frozen_candidate(candidate)
         self.assertIn(
             registered["candidate_id"],
@@ -572,7 +517,7 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         )
         self.assertEqual(
             bound["resolution"]["resolution"],
-            "frozen_free_concern_candidate",
+            "pre_evidence_query_proposal",
         )
         self.assertEqual(
             bound["plan_step"]["candidate_id"],
@@ -1069,9 +1014,11 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             executed_template_ids=[control["template_id"]],
         )
         self.assertEqual(
-            bound["plan_step"]["template_id"],
+            bound["resolution"]["retrieval_template_id"],
             "object_position.left_fixed",
         )
+        self.assertNotIn("template_id", bound["plan_step"])
+        self.assertIn("proposal", bound["plan_step"])
         self.assertFalse(
             bound["resolution"]["catalog_was_model_visible"]
         )
@@ -1104,9 +1051,10 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             ["round_1"],
         )
         self.assertEqual(
-            bound["plan_step"]["template_id"],
+            bound["resolution"]["retrieval_template_id"],
             "object_position.left_fixed",
         )
+        self.assertIn("proposal", bound["plan_step"])
         self.assertEqual(
             bound["planning_lineage"]["decision_kind"],
             "evidence_conditioned_refinement",
@@ -1153,9 +1101,10 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             "success",
         )
         self.assertEqual(
-            bound["plan_step"]["template_id"],
+            bound["resolution"]["retrieval_template_id"],
             "object_instance.base0",
         )
+        self.assertIn("proposal", bound["plan_step"])
         self.assertEqual(
             bound["planning_lineage"]["completed_round_ids"],
             ["round_1", "round_2"],
@@ -1239,7 +1188,7 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             ["object_position.left_fixed"],
         )
 
-    def test_exact_aspect_uses_hidden_runtime_order_then_next_variant(self):
+    def test_exact_retrieval_is_only_a_hint_for_typed_proposal(self):
         controller = ClaimFirstRuntimeController(
             "Where does this policy first expose a weakness?",
             target(),
@@ -1257,26 +1206,29 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         )
         self.assertEqual(
             first["resolution"]["resolution"],
-            "exact_aspect_runtime_order",
+            "retrieval_hint_then_reuse_or_generate",
         )
         self.assertTrue(first["resolution"]["hidden"])
         self.assertEqual(
-            first["plan_step"]["template_id"],
+            first["resolution"]["retrieval_template_id"],
             "object_position.left_fixed",
         )
+        self.assertIsNone(first["resolution"]["resolved_template_id"])
+        self.assertNotIn("template_id", first["plan_step"])
+        self.assertIn("proposal", first["plan_step"])
 
-        second = controller.bind_semantic_step(
-            semantic_bundle("object_position"),
-            state,
-            executed_template_ids=[
-                control["template_id"],
-                "object_position.left_fixed",
-            ],
-        )
-        self.assertEqual(
-            second["plan_step"]["template_id"],
-            "object_position.right_fixed",
-        )
+        with self.assertRaisesRegex(
+            ClaimFirstRuntimeError,
+            "dynamic candidate was already executed",
+        ):
+            controller.bind_semantic_step(
+                semantic_bundle("object_position"),
+                state,
+                executed_template_ids=[
+                    control["template_id"],
+                    first["plan_step"]["candidate_id"],
+                ],
+            )
 
     def test_failed_control_stops_before_property_attribution(self):
         controller = ClaimFirstRuntimeController(
@@ -1697,11 +1649,11 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         )
 
         dynamic_step = bound["plan_step"]
-        candidate = dynamic_step["experiment_candidate"]
+        candidate = dynamic_step["proposal"]
         self.assertEqual(bound["schema_version"], 2)
         self.assertEqual(
             bound["resolution"]["resolution"],
-            "dynamic_experiment_candidate",
+            "proposal_reuse_or_generate",
         )
         self.assertNotIn("template_id", dynamic_step)
         self.assertEqual(candidate["base_task"], "place_phone_stand")
@@ -1777,7 +1729,7 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
 
         self.assertEqual(
             bound["resolution"]["resolution"],
-            "dynamic_experiment_candidate",
+            "proposal_reuse_or_generate",
         )
         self.assertEqual(controller.query_contract["schema_version"], 3)
         self.assertFalse(
@@ -1839,9 +1791,9 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         )
         self.assertEqual(
             bound["resolution"]["resolution"],
-            "dynamic_experiment_candidate",
+            "proposal_reuse_or_generate",
         )
-        candidate = bound["plan_step"]["experiment_candidate"]
+        candidate = bound["plan_step"]["proposal"]
         self.assertIsNone(candidate["scene_need"])
         self.assertIsNone(candidate["checker_need"])
         self.assertIsNotNone(candidate["rule_tool_need"])

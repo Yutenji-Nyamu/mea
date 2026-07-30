@@ -18,6 +18,11 @@ from copy import deepcopy
 from typing import Any, Mapping
 
 from .aspects import AspectError, aspect_semantics, canonicalize_aspect_id
+from .artifact_retrieval_index import (
+    ArtifactRetrievalIndexError,
+    OFFICIAL_CONTROL_TEMPLATE_ID,
+    resolve_task_retrieval_index as _resolve_task_retrieval_index,
+)
 
 
 class CapabilityAdapterError(ValueError):
@@ -65,12 +70,6 @@ _VQA_QUESTION_KEYS = {
     "visual_scope",
     "numeric_authority",
 }
-
-# The unchanged official task is a protocol anchor, not a generated
-# capability.  Source/schema-backed tasks that have no reviewed retrieval
-# entries may still use this identifier after their execution binding has
-# independently validated the official task source and TaskSchema.
-OFFICIAL_CONTROL_TEMPLATE_ID = "task_execution.official_baseline"
 
 _OPERATIONS = {
     "force_codegen",
@@ -642,11 +641,11 @@ def _click_contracts() -> list[dict[str, Any]]:
 
 
 def _generic_official_contracts() -> list[dict[str, Any]]:
-    """Expose unchanged official execution for schema-backed ACT tasks.
+    """Expose legacy retrieval hints for schema-backed ACT tasks.
 
-    These tasks do not yet claim generated variants.  Registering only the
-    official baseline lets the public router and ClaimFirst control reuse the
-    common TaskGen/ToolGen boundary without inventing unsupported aspects.
+    This compatibility inventory intentionally lists only the official
+    baseline. It does not authorize or prohibit runtime Proposal generation;
+    the Plan Agent and generic TaskGen backend own that decision.
     """
 
     phenomenon_by_task = {
@@ -1155,53 +1154,39 @@ def resolve_task_adapter(task_name: Any) -> dict[str, Any]:
     return validate_task_adapter(_raw_task_adapter(normalized))
 
 
+def _known_artifact_adapter(task_name: str) -> dict[str, Any] | None:
+    """Compatibility data source for the paper-aligned retrieval index.
+
+    Returning ``None`` for unknown tasks is deliberately different from
+    runtime authorization.  The new retrieval module owns the public
+    projection; this bridge only exposes reviewed legacy records until the
+    remaining paper protocols move out of this module.
+    """
+
+    if task_name not in _TASK_ADAPTER_METADATA:
+        return None
+    return resolve_task_adapter(task_name)
+
+
 def resolve_task_retrieval_index(
     task_name: Any,
     *,
     allow_unregistered: bool = False,
 ) -> dict[str, Any]:
-    """Project known artifacts into an explicitly non-authoritative index.
+    """Compatibility export for :mod:`mea.artifact_retrieval_index`.
 
-    The projection deliberately omits ``planner_kind``, ``task_profile`` and
-    ``max_rounds``.  Those legacy fields describe old protocols, not what a
-    Query may ask or what a runtime-generated candidate may execute.
-
-    ``allow_unregistered`` is for the open-world production path only.  It
-    returns an empty retrieval index for a task whose source/TaskSchema
-    execution authority is validated elsewhere.  It does *not* register or
-    authorize that task, and the strict legacy :func:`resolve_task_adapter`
-    behavior remains unchanged.
+    New production code should import that module directly.  Existing callers
+    retain the historical ``CapabilityAdapterError`` boundary while the actual
+    non-authoritative projection is owned by the retrieval-index module.
     """
 
-    if not isinstance(allow_unregistered, bool):
-        raise CapabilityAdapterError("allow_unregistered must be bool")
-    normalized = _text(task_name, field="task_name")
-    if normalized not in _TASK_ADAPTER_METADATA:
-        if not allow_unregistered:
-            raise CapabilityAdapterError(
-                f"unknown task adapter: {normalized!r}"
-            )
-        return {
-            "schema_version": 1,
-            "index_role": "retrieval_only",
-            "execution_authority": False,
-            "task_name": normalized,
-            "control_template_id": OFFICIAL_CONTROL_TEMPLATE_ID,
-            "entries": [],
-            "vqa_questions": {},
-            "vqa_metric_rules": {},
-        }
-    adapter = resolve_task_adapter(normalized)
-    return {
-        "schema_version": 1,
-        "index_role": "retrieval_only",
-        "execution_authority": False,
-        "task_name": adapter["task_name"],
-        "control_template_id": adapter["control_template_id"],
-        "entries": deepcopy(adapter["capability_contracts"]),
-        "vqa_questions": deepcopy(adapter["vqa_questions"]),
-        "vqa_metric_rules": deepcopy(adapter["vqa_metric_rules"]),
-    }
+    try:
+        return _resolve_task_retrieval_index(
+            task_name,
+            allow_unregistered=allow_unregistered,
+        )
+    except ArtifactRetrievalIndexError as exc:
+        raise CapabilityAdapterError(str(exc)) from exc
 
 
 def registered_task_adapters() -> list[dict[str, Any]]:

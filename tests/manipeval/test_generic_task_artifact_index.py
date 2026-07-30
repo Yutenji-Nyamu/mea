@@ -73,6 +73,11 @@ class GenericTaskArtifactIndexTests(unittest.TestCase):
                 "checker_need": "require upright placement",
                 "tool_need": "measure contact",
             }
+            # Historical source artifacts remain readable during exact reuse.
+            (source / "generation/experiment_candidate.json").write_text(
+                json.dumps(candidate),
+                encoding="utf-8",
+            )
             manifest = {
                 "run_id": "run_source",
                 "generation_kind": (
@@ -82,6 +87,10 @@ class GenericTaskArtifactIndexTests(unittest.TestCase):
                 "task_name": "adjust_bottle",
                 "task_module": "mea.generated_tasks.run_source.task",
                 "candidate_module_sha256": module_hash,
+                "experiment_candidate": candidate,
+                "experiment_candidate_path": (
+                    "generation/experiment_candidate.json"
+                ),
                 "scene_validation": {
                     "generic_preflight": {
                         "scene_change_passed": True,
@@ -144,6 +153,20 @@ class GenericTaskArtifactIndexTests(unittest.TestCase):
             destination = root / "mea/generated_tasks/run_reused"
             self.assertTrue((destination / "task.py").is_file())
             self.assertTrue((destination / "manifest.json").is_file())
+            self.assertEqual(reused["proposal_path"], "generation/proposal.json")
+            self.assertEqual(
+                reused["proposal"]["candidate_id"],
+                candidate["candidate_id"],
+            )
+            self.assertTrue(
+                (destination / "generation/proposal.json").is_file()
+            )
+            self.assertFalse(
+                (
+                    destination
+                    / "generation/experiment_candidate.json"
+                ).exists()
+            )
             self.assertNotIn("act_evaluation", reused)
             self.assertEqual(
                 reused["task_generation_acceptance"]["status"],

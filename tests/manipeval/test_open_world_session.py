@@ -255,7 +255,7 @@ class OpenWorldPlanSessionTests(unittest.TestCase):
             decision["planning_lineage"]["completed_round_ids"],
             ["round_1"],
         )
-        self.assertEqual(options["session_kind"], "open_world_claim_first")
+        self.assertEqual(options["session_kind"], "plan_agent_session")
 
     def test_refinement_lineage_cannot_omit_latest_completed_round(self):
         candidate = _candidate()
@@ -622,7 +622,7 @@ class OpenWorldPlanSessionTests(unittest.TestCase):
             snapshot["control_round"]["template_id"],
             "task_execution.official_baseline",
         )
-        self.assertEqual(snapshot["experiment_candidates"], [])
+        self.assertEqual(snapshot["proposals"], [])
         self.assertTrue(
             snapshot["query_assessment"]["candidate_discovery_required"]
         )

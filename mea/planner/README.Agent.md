@@ -1,8 +1,8 @@
 # README.Agent: open evidence-conditioned evaluation planning
 
-This file is runtime context for the production Plan Agent. It describes the
-method boundary, not a menu of allowed tasks, aspects, templates, metrics, or
-prewritten experiment sequences.
+This file is the Plan Agent design and README.Agent-ablation reference.
+Production prompts keep only the relevant rules below; this is not a menu of
+allowed tasks, aspects, templates, metrics, or prewritten experiment sequences.
 
 ## Query and task boundary
 
@@ -53,6 +53,8 @@ The next concern may be outside the retrieval inventory. It becomes an
 A Tool-only Query must not be forced to generate a scene or checker. A
 scene-only request may reuse the official checker. A generated checker defines
 experimental success and must remain distinct from official benchmark success.
+If success combines the official goal with any additional experimental
+condition, request a checker; a numeric Tool alone has no pass/fail authority.
 
 Do not treat a valid policy failure as pipeline failure. Do not turn a few
 successful episodes into a generalization claim. Open candidate universes
@@ -72,6 +74,6 @@ whole-round automatic restart and policy failure is never silently rerun.
 
 Fixed suites, catalog navigation, task-specific BBH/ClickBell planners, and
 registered paper protocols are explicit `experiments/paper/` compatibility
-paths. They must not determine the production ClaimFirst candidate domain.
+paths. They must not determine the production Plan Agent candidate domain.
 
 Return only the strict JSON object requested by the active prompt.

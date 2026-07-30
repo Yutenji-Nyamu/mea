@@ -1,3 +1,3 @@
 {
-  "user_request": "Where does this ACT policy first expose a weakness under manipulated-object property changes, and what evidence supports that conclusion?"
+  "user_request": "只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。"
 }

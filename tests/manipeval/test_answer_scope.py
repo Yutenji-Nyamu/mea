@@ -6,7 +6,7 @@ from pathlib import Path
 
 from mea.feedback import (
     AnswerScopeError,
-    FeedbackAgent,
+    PlanAgentFinalSummary,
     build_answer_scope,
     project_answer_scope,
     validate_answer_scope_projection,
@@ -126,7 +126,7 @@ class AnswerScopeTests(unittest.TestCase):
             scope["required_limitations"][-1]["text"],
         )
 
-    def test_claim_first_runtime_assessment_reaches_final_scope(self):
+    def test_plan_agent_session_assessment_reaches_final_scope(self):
         value = {
             "total_episodes": 2,
             "rounds": [
@@ -147,7 +147,7 @@ class AnswerScopeTests(unittest.TestCase):
                     },
                 },
             ],
-            "claim_first_runtime": {
+            "plan_agent_session": {
                 "assessment": {
                     "stop_reason": "evidence_sufficient",
                     "should_stop": True,
@@ -159,6 +159,17 @@ class AnswerScopeTests(unittest.TestCase):
                         "object_position.right_fixed",
                         "object_instance.base1",
                     ],
+                    "conflict_candidate_ids": [],
+                }
+            },
+            "claim_first_runtime": {
+                "assessment": {
+                    "stop_reason": "budget_exhausted",
+                    "should_stop": True,
+                    "evidence_sufficient": False,
+                    "claim_verdict": "inconclusive",
+                    "observed_candidate_ids": [],
+                    "untested_candidate_ids": ["legacy.stale"],
                     "conflict_candidate_ids": [],
                 }
             },
@@ -178,6 +189,15 @@ class AnswerScopeTests(unittest.TestCase):
                 "object_position.right_fixed",
                 "object_instance.base1",
             ],
+        )
+
+        historical = deepcopy(value)
+        historical["claim_first_runtime"] = historical.pop(
+            "plan_agent_session"
+        )
+        self.assertEqual(
+            build_answer_scope(historical)["claim_verdict"],
+            "supported",
         )
 
     def test_adversarial_omissions_fail_closed(self):
@@ -237,10 +257,10 @@ class AnswerScopeTests(unittest.TestCase):
         with self.assertRaisesRegex(AnswerScopeError, "complete testing"):
             validate_answer_scope_projection(chinese_false_coverage, scope)
 
-    def test_feedback_agent_attaches_scope_deterministically(self):
+    def test_plan_agent_summary_attaches_scope_deterministically(self):
         repo_root = Path(__file__).resolve().parents[2]
         with tempfile.TemporaryDirectory() as temp:
-            feedback = FeedbackAgent(
+            feedback = PlanAgentFinalSummary(
                 repo_root, Provider(), model="fake"
             ).generate(evidence(), output_dir=Path(temp))
         self.assertEqual(

@@ -6,7 +6,7 @@
   "taskgen_kind": "official_passthrough",
   "execution_backend": "ACT",
   "seeds": [
-    100000
+    100301
   ],
   "pipeline_passed": true,
   "policy_success": 1.0,
@@ -16,7 +16,7 @@
     {
       "role": "policy_under_evaluation",
       "policy_name": "ACT",
-      "seed": 100000,
+      "seed": 100301,
       "value": true,
       "unit": null,
       "passed": true
@@ -26,18 +26,17 @@
     "status": "passed",
     "questions": [
       {
-        "id": "bell_visibly_pressed",
-        "question": "Does the robot visibly press or actuate the target bell?"
+        "id": "roller_visibly_lifted",
+        "question": "Is the target roller visibly lifted by both robot arms?"
       }
     ],
     "phenomena": [
       {
-        "id": "bell_visibly_pressed",
+        "id": "roller_visibly_lifted",
         "observed": true,
-        "description": "The robot visibly presses the target bell.",
+        "description": "The roller is visibly lifted by both robot arms.",
         "confidence": 1.0,
         "frame_ids": [
-          "success_before",
           "success_after"
         ]
       }
@@ -50,11 +49,11 @@
     "schema_version": 2,
     "action": "continue",
     "transition": "switch_concern",
-    "candidate_id": "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23",
-    "observation_summary": "Testing object position variation directly probes the robustness of the ACT policy under manipulated-object property changes, addressing a key uncertainty in the original Query.",
+    "candidate_id": "dynamic.grab.roller.task.execution.non.target.proximity.effect.when.a.non.target.roller.with.the.same.appearance.as.the.target.roller.is.placed.closer.to.the.robot.than.the.target.roller.the.policy.will.still.successfully.achieve.the.target.roller.s.final.height.of.at.least.0.8.meters.while.keeping.the.non.target.roller.s.final.height.below.0.8.meters.5800b2471f80",
+    "observation_summary": "This test isolates the effect of the non-target roller's proximity on the policy's ability to achieve the success conditions defined in the Query. It directly addresses the Query's core uncertainty by introducing a controlled perturbation to the scene.",
     "decision_reason": "provider_authored_open_world_step",
     "answered_query": false,
-    "plan_step_source": "provider_claim_first_open_query",
+    "plan_step_source": "provider_plan_agent_open_query",
     "planning_lineage": {
       "schema_version": 1,
       "decision_kind": "evidence_conditioned_refinement",
@@ -63,49 +62,53 @@
         "round_1"
       ],
       "completed_round_count": 1,
-      "input_digest": "ec67ceece3e66171cc151cd19cab45bb8c2e73af05f6995d2f3570c78db34d1a"
+      "input_digest": "3088c51604bac3ebf459d9eed8583353efdb6da721c54a943bd6aee4e370c7c1"
     },
     "plan_step_proposal": {
       "schema_version": 2,
       "action": "propose",
-      "aspect_id": "task_execution.object_position_variation",
-      "candidate_id": "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23",
+      "aspect_id": "task_execution.non_target_proximity_effect",
+      "candidate_id": "dynamic.grab.roller.task.execution.non.target.proximity.effect.when.a.non.target.roller.with.the.same.appearance.as.the.target.roller.is.placed.closer.to.the.robot.than.the.target.roller.the.policy.will.still.successfully.achieve.the.target.roller.s.final.height.of.at.least.0.8.meters.while.keeping.the.non.target.roller.s.final.height.below.0.8.meters.5800b2471f80",
       "execution_mode": "reuse_or_generate",
-      "experiment_candidate": {
+      "proposal": {
         "schema_version": 2,
-        "candidate_id": "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23",
-        "source_query": "Where does this ACT policy first expose a weakness under manipulated-object property changes, and what evidence supports that conclusion?",
-        "base_task": "click_bell",
-        "semantic_concern": "task_execution.object_position_variation: The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds.",
+        "candidate_id": "dynamic.grab.roller.task.execution.non.target.proximity.effect.when.a.non.target.roller.with.the.same.appearance.as.the.target.roller.is.placed.closer.to.the.robot.than.the.target.roller.the.policy.will.still.successfully.achieve.the.target.roller.s.final.height.of.at.least.0.8.meters.while.keeping.the.non.target.roller.s.final.height.below.0.8.meters.5800b2471f80",
+        "source_query": "只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。",
+        "base_task": "grab_roller",
+        "semantic_concern": "task_execution.non_target_proximity_effect: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
         "scene_need": {
           "kind": "adapt",
-          "description": "Introduce a bounded variation in the bell's position. Preserve unchanged: task identity; policy checkpoint.",
+          "description": "Place a non-target roller with identical appearance closer to the robot than the target roller. Preserve unchanged: task identity; policy checkpoint.",
           "reuse_first": true
         },
-        "checker_need": null,
+        "checker_need": {
+          "kind": "generate",
+          "description": "A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters. Numeric Rule Tool needed to report the final height difference between the target and non-target rollers. Hypothesis: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
+          "reuse_first": true
+        },
         "rule_tool_need": {
           "kind": "measure",
-          "description": "Numeric or symbolic Rule Tool observable needed. Hypothesis: The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds.",
+          "description": "A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters. Numeric Rule Tool needed to report the final height difference between the target and non-target rollers. Hypothesis: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
           "reuse_first": true
         },
         "vqa_tool_need": null,
         "tool_need": {
           "kind": "measure",
-          "description": "Numeric or symbolic Rule Tool observable needed. Hypothesis: The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds.",
+          "description": "A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters. Numeric Rule Tool needed to report the final height difference between the target and non-target rollers. Hypothesis: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
           "reuse_first": true
         },
         "evaluation_intent": {
           "schema_version": 1,
-          "intent_id": "intent.fbdf63ddcef3951b",
-          "source_query": "Where does this ACT policy first expose a weakness under manipulated-object property changes, and what evidence supports that conclusion?",
-          "original_concern": "task_execution.object_position_variation",
-          "hypothesis": "The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds.",
-          "requested_change": "Introduce a bounded variation in the bell's position.",
+          "intent_id": "intent.51984254800abf8c",
+          "source_query": "只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。",
+          "original_concern": "task_execution.non_target_proximity_effect",
+          "hypothesis": "When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
+          "requested_change": "Place a non-target roller with identical appearance closer to the robot than the target roller.",
           "preserved_conditions": [
             "task identity",
             "policy checkpoint"
           ],
-          "required_observation": "Numeric or symbolic Rule Tool observable needed."
+          "required_observation": "A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters. Numeric Rule Tool needed to report the final height difference between the target and non-target rollers."
         },
         "intent_alignment": {
           "schema_version": 1,
@@ -120,7 +123,7 @@
           "unmatched_intent_fields": []
         }
       },
-      "rationale": "Testing object position variation directly probes the robustness of the ACT policy under manipulated-object property changes, addressing a key uncertainty in the original Query.",
+      "rationale": "This test isolates the effect of the non-target roller's proximity on the policy's ability to achieve the success conditions defined in the Query. It directly addresses the Query's core uncertainty by introducing a controlled perturbation to the scene.",
       "answered_query": false,
       "planning_lineage": {
         "schema_version": 1,
@@ -130,29 +133,29 @@
           "round_1"
         ],
         "completed_round_count": 1,
-        "input_digest": "ec67ceece3e66171cc151cd19cab45bb8c2e73af05f6995d2f3570c78db34d1a"
+        "input_digest": "3088c51604bac3ebf459d9eed8583353efdb6da721c54a943bd6aee4e370c7c1"
       }
     },
-    "round_budget_before_decision": 2,
+    "round_budget_before_decision": 1,
     "query_assessment": {
       "schema_version": 1,
       "contract": {
         "schema_version": 3,
-        "claim_type": "diagnostic",
+        "claim_type": "existential",
         "candidate_universe": [
-          "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23"
+          "dynamic.grab.roller.task.execution.non.target.proximity.effect.when.a.non.target.roller.with.the.same.appearance.as.the.target.roller.is.placed.closer.to.the.robot.than.the.target.roller.the.policy.will.still.successfully.achieve.the.target.roller.s.final.height.of.at.least.0.8.meters.while.keeping.the.non.target.roller.s.final.height.below.0.8.meters.5800b2471f80"
         ],
         "required_coverage": {
           "candidate_ids": [
-            "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23"
+            "dynamic.grab.roller.task.execution.non.target.proximity.effect.when.a.non.target.roller.with.the.same.appearance.as.the.target.roller.is.placed.closer.to.the.robot.than.the.target.roller.the.policy.will.still.successfully.achieve.the.target.roller.s.final.height.of.at.least.0.8.meters.while.keeping.the.non.target.roller.s.final.height.below.0.8.meters.5800b2471f80"
           ],
           "minimum_evaluated": 1,
           "minimum_per_group": null
         },
-        "round_budget": 2,
+        "round_budget": 1,
         "comparison_groups": null,
         "candidate_universe_closed": false,
-        "existential_witness_outcome": null,
+        "existential_witness_outcome": "pass",
         "control_requirement": "required"
       },
       "should_stop": false,
@@ -160,8 +163,8 @@
       "claim_verdict": "inconclusive",
       "evidence_sufficient": false,
       "completed_rounds": 0,
-      "round_budget": 2,
-      "budget_remaining": 2,
+      "round_budget": 1,
+      "budget_remaining": 1,
       "candidate_universe_closed": false,
       "candidate_discovery_required": true,
       "observed_candidate_ids": [],
@@ -169,63 +172,67 @@
       "conflict_candidate_ids": [],
       "unknown_candidate_ids": [],
       "untested_required_candidate_ids": [
-        "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23"
+        "dynamic.grab.roller.task.execution.non.target.proximity.effect.when.a.non.target.roller.with.the.same.appearance.as.the.target.roller.is.placed.closer.to.the.robot.than.the.target.roller.the.policy.will.still.successfully.achieve.the.target.roller.s.final.height.of.at.least.0.8.meters.while.keeping.the.non.target.roller.s.final.height.below.0.8.meters.5800b2471f80"
       ],
       "untested_candidate_ids": [
-        "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23"
+        "dynamic.grab.roller.task.execution.non.target.proximity.effect.when.a.non.target.roller.with.the.same.appearance.as.the.target.roller.is.placed.closer.to.the.robot.than.the.target.roller.the.policy.will.still.successfully.achieve.the.target.roller.s.final.height.of.at.least.0.8.meters.while.keeping.the.non.target.roller.s.final.height.below.0.8.meters.5800b2471f80"
       ],
       "recommended_candidate_ids": [
-        "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23"
+        "dynamic.grab.roller.task.execution.non.target.proximity.effect.when.a.non.target.roller.with.the.same.appearance.as.the.target.roller.is.placed.closer.to.the.robot.than.the.target.roller.the.policy.will.still.successfully.achieve.the.target.roller.s.final.height.of.at.least.0.8.meters.while.keeping.the.non.target.roller.s.final.height.below.0.8.meters.5800b2471f80"
       ],
       "rationale": "The query contract still has unresolved required evidence.",
       "statistics": {
-        "diagnosed_failure_candidate_ids": []
+        "existential_witness_outcome": "pass",
+        "witness_candidate_ids": []
       },
       "limitations": [
         "This is a finite-domain stopping prototype, not a statistical generalization guarantee.",
-        "The candidate universe is open; exhaustive, no-counterexample, and worst-case conclusions are not licensed.",
-        "Diagnosis strings are trusted upstream evidence labels; this contract does not independently infer or validate causality."
+        "The candidate universe is open; exhaustive, no-counterexample, and worst-case conclusions are not licensed."
       ]
     },
     "next_round": {
       "round_id": "round_2",
       "template_id": null,
-      "candidate_id": "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23",
-      "experiment_candidate": {
+      "candidate_id": "dynamic.grab.roller.task.execution.non.target.proximity.effect.when.a.non.target.roller.with.the.same.appearance.as.the.target.roller.is.placed.closer.to.the.robot.than.the.target.roller.the.policy.will.still.successfully.achieve.the.target.roller.s.final.height.of.at.least.0.8.meters.while.keeping.the.non.target.roller.s.final.height.below.0.8.meters.5800b2471f80",
+      "proposal": {
         "schema_version": 2,
-        "candidate_id": "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23",
-        "source_query": "Where does this ACT policy first expose a weakness under manipulated-object property changes, and what evidence supports that conclusion?",
-        "base_task": "click_bell",
-        "semantic_concern": "task_execution.object_position_variation: The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds.",
+        "candidate_id": "dynamic.grab.roller.task.execution.non.target.proximity.effect.when.a.non.target.roller.with.the.same.appearance.as.the.target.roller.is.placed.closer.to.the.robot.than.the.target.roller.the.policy.will.still.successfully.achieve.the.target.roller.s.final.height.of.at.least.0.8.meters.while.keeping.the.non.target.roller.s.final.height.below.0.8.meters.5800b2471f80",
+        "source_query": "只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。",
+        "base_task": "grab_roller",
+        "semantic_concern": "task_execution.non_target_proximity_effect: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
         "scene_need": {
           "kind": "adapt",
-          "description": "Introduce a bounded variation in the bell's position. Preserve unchanged: task identity; policy checkpoint.",
+          "description": "Place a non-target roller with identical appearance closer to the robot than the target roller. Preserve unchanged: task identity; policy checkpoint.",
           "reuse_first": true
         },
-        "checker_need": null,
+        "checker_need": {
+          "kind": "generate",
+          "description": "A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters. Numeric Rule Tool needed to report the final height difference between the target and non-target rollers. Hypothesis: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
+          "reuse_first": true
+        },
         "rule_tool_need": {
           "kind": "measure",
-          "description": "Numeric or symbolic Rule Tool observable needed. Hypothesis: The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds.",
+          "description": "A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters. Numeric Rule Tool needed to report the final height difference between the target and non-target rollers. Hypothesis: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
           "reuse_first": true
         },
         "vqa_tool_need": null,
         "tool_need": {
           "kind": "measure",
-          "description": "Numeric or symbolic Rule Tool observable needed. Hypothesis: The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds.",
+          "description": "A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters. Numeric Rule Tool needed to report the final height difference between the target and non-target rollers. Hypothesis: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
           "reuse_first": true
         },
         "evaluation_intent": {
           "schema_version": 1,
-          "intent_id": "intent.fbdf63ddcef3951b",
-          "source_query": "Where does this ACT policy first expose a weakness under manipulated-object property changes, and what evidence supports that conclusion?",
-          "original_concern": "task_execution.object_position_variation",
-          "hypothesis": "The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds.",
-          "requested_change": "Introduce a bounded variation in the bell's position.",
+          "intent_id": "intent.51984254800abf8c",
+          "source_query": "只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。",
+          "original_concern": "task_execution.non_target_proximity_effect",
+          "hypothesis": "When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
+          "requested_change": "Place a non-target roller with identical appearance closer to the robot than the target roller.",
           "preserved_conditions": [
             "task identity",
             "policy checkpoint"
           ],
-          "required_observation": "Numeric or symbolic Rule Tool observable needed."
+          "required_observation": "A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters. Numeric Rule Tool needed to report the final height difference between the target and non-target rollers."
         },
         "intent_alignment": {
           "schema_version": 1,
@@ -240,10 +247,10 @@
           "unmatched_intent_fields": []
         }
       },
-      "sub_aspect": "task_execution.object_position_variation",
+      "sub_aspect": "task_execution.non_target_proximity_effect",
       "rationale": "Materialize only the Query-derived Task or Tool needs; no catalog template authorizes this round.",
-      "task_instruction": "Where does this ACT policy first expose a weakness under manipulated-object property changes, and what evidence supports that conclusion?\nScene need: Introduce a bounded variation in the bell's position. Preserve unchanged: task identity; policy checkpoint.\nChecker need: reuse the official implementation",
-      "task_name": "click_bell",
+      "task_instruction": "只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。\nScene need: Place a non-target roller with identical appearance closer to the robot than the target roller. Preserve unchanged: task identity; policy checkpoint.\nChecker need: A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters. Numeric Rule Tool needed to report the final height difference between the target and non-target rollers. Hypothesis: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
+      "task_name": "grab_roller",
       "task_module": null,
       "telemetry_profile": "balanced_v1",
       "route": "generic_provider_scene_checker_codegen",
@@ -251,7 +258,7 @@
       "execution": {
         "backend": "act",
         "seeds": [
-          100000
+          100301
         ],
         "num_episodes": 1,
         "gates": [
@@ -274,30 +281,30 @@
       ],
       "tool_request": {
         "schema_version": 1,
-        "task_name": "click_bell",
-        "metric": "official_check_success",
+        "task_name": "grab_roller",
+        "metric": "generated_check_success",
         "question": "Fallback only: did the task success predicate pass?"
       },
       "open_tool_request_deferred": true,
       "vqa_phenomenon_ids": [],
       "semantic_need_execution": {
         "schema_version": 2,
-        "candidate_id": "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23",
+        "candidate_id": "dynamic.grab.roller.task.execution.non.target.proximity.effect.when.a.non.target.roller.with.the.same.appearance.as.the.target.roller.is.placed.closer.to.the.robot.than.the.target.roller.the.policy.will.still.successfully.achieve.the.target.roller.s.final.height.of.at.least.0.8.meters.while.keeping.the.non.target.roller.s.final.height.below.0.8.meters.5800b2471f80",
         "task": {
           "requested": true,
-          "description": "Introduce a bounded variation in the bell's position. Preserve unchanged: task identity; policy checkpoint.",
+          "description": "Place a non-target roller with identical appearance closer to the robot than the target roller. Preserve unchanged: task identity; policy checkpoint.",
           "route": "generic_provider_scene_checker_codegen",
           "status": "selected"
         },
         "checker": {
-          "requested": false,
-          "description": null,
-          "route": "official_checker_reuse",
-          "status": "not_requested"
+          "requested": true,
+          "description": "A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters. Numeric Rule Tool needed to report the final height difference between the target and non-target rollers. Hypothesis: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
+          "route": "provider_written_python",
+          "status": "selected"
         },
         "rule_tool": {
           "requested": true,
-          "description": "Numeric or symbolic Rule Tool observable needed. Hypothesis: The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds.",
+          "description": "A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters. Numeric Rule Tool needed to report the final height difference between the target and non-target rollers. Hypothesis: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
           "route": "after_executed_telemetry_schema",
           "status": "pending"
         },
@@ -309,5 +316,11 @@
         }
       }
     }
+  },
+  "taskgen_gates": {
+    "generation_attempts": null,
+    "checker_fixtures": null,
+    "vision_passed": null,
+    "expert_passed": null
   }
 }

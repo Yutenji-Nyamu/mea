@@ -15,7 +15,7 @@ def _episode_tool_results(episode: Mapping[str, Any]) -> list[dict[str, Any]]:
     return [result for result in raw_results if isinstance(result, dict)]
 
 
-def _valid_free_concern_provider_trace(
+def _valid_query_interpretation_provider_trace(
     provider_trace: Mapping[str, Any],
 ) -> bool:
     """Accept a direct response or exactly one schema-guided repair."""
@@ -176,11 +176,14 @@ def build_compact_flagship_acceptance(
         else None
     )
     free_provider = free_provider if isinstance(free_provider, Mapping) else {}
-    online_free_concern = bool(
+    online_query_interpretation = bool(
         isinstance(free_concern_bundle, Mapping)
         and free_concern_bundle.get("source")
-        == "provider_catalog_free_concern"
-        and _valid_free_concern_provider_trace(free_provider)
+        in {
+            "provider_plan_agent_query_interpretation",
+            "provider_catalog_free_concern",
+        }
+        and _valid_query_interpretation_provider_trace(free_provider)
         and isinstance(open_task_resolution, Mapping)
         and open_task_resolution.get("decision") == "retrieve_and_adapt"
     )
@@ -332,7 +335,7 @@ def build_compact_flagship_acceptance(
         same_bundle_bound_checker_reuse or typed_execution_complete
     )
     accepted = bool(
-        online_free_concern
+        online_query_interpretation
         and online_query_candidate_binding
         and query_candidates_bound
         and not cli_candidate_hint_used
@@ -351,10 +354,10 @@ def build_compact_flagship_acceptance(
         "accepted": accepted,
         "execution_entrypoint": "scripts/manipeval_agent.py",
         "history_replay_disabled": history_disabled,
-        "online_free_concern": online_free_concern,
-        "free_concern_attempt_count": free_provider.get("attempt_count"),
-        "free_concern_bounded_repair_used": bool(
-            online_free_concern
+        "online_query_interpretation": online_query_interpretation,
+        "query_interpretation_attempt_count": free_provider.get("attempt_count"),
+        "query_interpretation_bounded_repair_used": bool(
+            online_query_interpretation
             and free_provider.get("attempt_count") == 2
         ),
         "online_query_candidate_binding": online_query_candidate_binding,
@@ -396,3 +399,10 @@ def build_compact_flagship_acceptance(
         "bound_checker_module_sha256": bound_checker_module_sha256,
         "cross_query_registry_reuse_established": False,
     }
+
+
+# Historical tests and immutable evidence readers may retain the old helper
+# name, but new acceptance artifacts use Query interpretation terminology.
+_valid_free_concern_provider_trace = (
+    _valid_query_interpretation_provider_trace
+)

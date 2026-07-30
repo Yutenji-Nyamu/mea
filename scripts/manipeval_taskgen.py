@@ -30,6 +30,7 @@ from mea.providers import OpenAICompatibleProvider
 from mea.proposals import ProposalError, validate_task_proposal
 from mea.toolkit import evaluate_telemetry_root
 from mea.toolkit import aggregate_tool_executions
+from mea.toolkit.schema import load_task_schema
 from mea.taskgen import (
     BBHDistractorTaskGenError,
     ClickBellTaskGenError,
@@ -1533,6 +1534,107 @@ def run_probe(
     return scene
 
 
+def _tracked_actor_heights(scene: Mapping[str, Any]) -> dict[str, float]:
+    """Return compact simulator-authoritative actor heights for repair feedback."""
+
+    heights: dict[str, float] = {}
+    terminal_actors = scene.get("expert_terminal_tracked_actors")
+    tracked_actors = (
+        terminal_actors
+        if isinstance(terminal_actors, list)
+        else scene.get("tracked_actors")
+    )
+    for actor in tracked_actors or []:
+        if not isinstance(actor, Mapping):
+            continue
+        actor_id = str(actor.get("id") or "").strip()
+        position = actor.get("position")
+        if (
+            not actor_id
+            or not isinstance(position, list)
+            or len(position) < 3
+            or isinstance(position[2], bool)
+            or not isinstance(position[2], (int, float))
+        ):
+            continue
+        heights[actor_id] = round(float(position[2]), 6)
+    return heights
+
+
+def _expert_terminal_authority_failure(
+    expert: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    """Separate an unsolved expert scene from a generated-checker mismatch."""
+
+    outcome = expert.get("expert")
+    if not isinstance(outcome, Mapping):
+        return None
+    plan_success = outcome.get("plan_success")
+    official_success = outcome.get("official_core_predicate_satisfied")
+    if not isinstance(official_success, bool):
+        official_success = outcome.get("official_check_success")
+    if plan_success is False:
+        reason = "expert_plan_unsuccessful"
+    elif official_success is False:
+        reason = "official_success_false_after_expert_plan"
+    else:
+        return None
+    return {
+        "reason": reason,
+        "plan_success": plan_success,
+        "generated_checker_success": outcome.get("check_success"),
+        "official_core_predicate_satisfied": official_success,
+        "expert_terminal_actor_z_m": _tracked_actor_heights(expert),
+        "repair_scope": "scene_or_expert_plan_not_checker_only",
+    }
+
+
+def _checker_fixture_failure_diagnosis(
+    fixtures: list[dict[str, Any]],
+    *,
+    setup: Mapping[str, Any],
+    expert: Mapping[str, Any],
+    success_contract: Mapping[str, Any] | None = None,
+) -> str:
+    """Give one bounded regeneration concrete semantic evidence, not a return code."""
+
+    failed = [
+        {
+            "fixture_id": item["fixture_id"],
+            "expected": item["expected"],
+            "observed": item["observed"],
+        }
+        for item in fixtures
+        if not item["passed"]
+    ]
+    initial_heights = _tracked_actor_heights(setup)
+    terminal_heights = _tracked_actor_heights(expert)
+    contract = dict(success_contract or {})
+    target_actor_id = str(contract.get("target_actor_id") or "").strip()
+    minimum_height = contract.get("minimum_height_m")
+    lift_boundary = (
+        float(minimum_height)
+        if not isinstance(minimum_height, bool)
+        and isinstance(minimum_height, (int, float))
+        and math.isfinite(float(minimum_height))
+        else None
+    )
+    evidence: dict[str, Any] = {
+        "failed_fixtures": failed,
+        "initial_actor_z_m": initial_heights,
+        "expert_terminal_actor_z_m": terminal_heights,
+    }
+    if lift_boundary is not None:
+        evidence["official_lift_contract"] = {
+            "target_actor_id": target_actor_id or None,
+            "minimum_height_m": lift_boundary,
+        }
+    return (
+        "generated checker failed live negative/positive fixtures: "
+        + json.dumps(evidence, ensure_ascii=False, sort_keys=True)
+    )
+
+
 def create_generic_provider_taskgen_run(
     repo_root: Path,
     *,
@@ -1569,6 +1671,10 @@ def create_generic_provider_taskgen_run(
     request = str(user_request).strip()
     if not request:
         raise GenericTaskGenError("user_request must be non-empty")
+    official_task_schema = load_task_schema(
+        repo_root,
+        candidate["base_task"],
+    )
     accepted_preflight: dict[str, Any] = {}
     visual_attempts: list[dict[str, Any]] = []
     visual_self_check_enabled = bool(
@@ -1718,7 +1824,20 @@ def create_generic_provider_taskgen_run(
             log_path=attempt_dir / "expert_preflight.log",
             max_expert_attempts=3,
             telemetry_profile=telemetry_profile,
+            raise_on_failure=False,
         )
+        expert_returncode = expert.get("returncode")
+        if expert_returncode not in {None, 0, 2}:
+            error = expert.get("error")
+            detail = (
+                json.dumps(error, ensure_ascii=False, sort_keys=True)
+                if isinstance(error, Mapping)
+                else "no structured simulator diagnosis"
+            )
+            raise GenericTaskGenError(
+                "official expert probe execution failed before checker "
+                f"validation: returncode={expert_returncode}; {detail}"
+            )
         fixtures = [
             {
                 "fixture_id": "simulator_initial_negative",
@@ -1739,6 +1858,17 @@ def create_generic_provider_taskgen_run(
                 "authority": "official_expert_terminal_state",
             },
         ]
+        terminal_authority_failure = _expert_terminal_authority_failure(expert)
+        if terminal_authority_failure is not None:
+            raise GenericTaskGenError(
+                "generated scene/expert failed official terminal-state "
+                "authority: "
+                + json.dumps(
+                    terminal_authority_failure,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
+            )
         scene_change = scene_change_report(
             official_setup,
             setup,
@@ -1826,6 +1956,8 @@ def create_generic_provider_taskgen_run(
             "preservation_checks": preservation_report["checks"],
             "preservation_authority": "per_condition_authority",
             "checker_fixtures": fixtures,
+            "initial_actor_z_m": _tracked_actor_heights(setup),
+            "expert_terminal_actor_z_m": _tracked_actor_heights(expert),
             "official_setup_scene": str(
                 (
                     attempt_dir / "official_setup_preflight.json"
@@ -1859,7 +1991,14 @@ def create_generic_provider_taskgen_run(
                 ).replace("\\", "/")
         if not all(item["passed"] for item in fixtures):
             raise GenericTaskGenError(
-                "generated checker failed live negative/positive fixtures"
+                _checker_fixture_failure_diagnosis(
+                    fixtures,
+                    setup=setup,
+                    expert=expert,
+                    success_contract=official_task_schema.get(
+                        "success_contract"
+                    ),
+                )
             )
         if not scene_change["passed"]:
             raise GenericTaskGenError(
@@ -1970,7 +2109,7 @@ def create_generic_provider_taskgen_run(
         moves = {
             "proposal_prompt.md": "generation/code_prompt.md",
             "provider_response.txt": "generation/provider_response.txt",
-            "proposal.json": "generation/experiment_candidate.json",
+            "proposal.json": "generation/proposal.json",
             "checker_fixtures.json": "validation/checker_fixtures.json",
             "provider_attempts.json": "generation/provider_attempts.json",
         }
@@ -2292,8 +2431,8 @@ def create_generic_provider_taskgen_run(
         "taskgen_prompt_components": candidate_manifest[
             "codegen_provenance"
         ]["prompt_components"],
-        "experiment_candidate": candidate,
-        "experiment_candidate_path": "generation/experiment_candidate.json",
+        "proposal": candidate,
+        "proposal_path": "generation/proposal.json",
         "implementation_trace": implementation_trace,
         "implementation_trace_path": (
             "validation/implementation_trace.json"
@@ -2398,7 +2537,7 @@ def record_generic_taskgen_generation_failure(
         (run_dir / child).mkdir(parents=True, exist_ok=True)
     write_json(run_dir / "request.json", {"user_request": user_request})
     write_json(
-        run_dir / "generation/experiment_candidate.json",
+        run_dir / "generation/proposal.json",
         candidate,
     )
     attempt_source = (
@@ -2441,10 +2580,8 @@ def record_generic_taskgen_generation_failure(
             "model_requested": model,
             "called": True,
         },
-        "experiment_candidate": candidate,
-        "experiment_candidate_path": (
-            "generation/experiment_candidate.json"
-        ),
+        "proposal": candidate,
+        "proposal_path": "generation/proposal.json",
         "task_generation_attempts": attempt_artifact,
         "failure": {
             "stage": "provider_scene_checker_generation",
@@ -4030,11 +4167,16 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--experiment-candidate-json",
+        "--proposal-json",
         help=(
-            "Runtime open-world ExperimentCandidate. It contains no catalog "
-            "template/aspect and is consumed by generic scene+checker TaskGen."
+            "Plan Agent Proposal. It contains no catalog template/aspect and "
+            "is consumed by generic scene+checker TaskGen."
         ),
+    )
+    parser.add_argument(
+        "--experiment-candidate-json",
+        dest="legacy_experiment_candidate_json",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--reviewed-task-registry",
@@ -4158,36 +4300,44 @@ def main() -> None:
             )
         except (json.JSONDecodeError, ProposalError) as exc:
             raise SystemExit(f"invalid --task-proposal-json: {exc}") from exc
+    if (
+        args.proposal_json is not None
+        and args.legacy_experiment_candidate_json is not None
+    ):
+        raise SystemExit(
+            "--proposal-json and the legacy candidate option are mutually exclusive"
+        )
+    raw_proposal_json = (
+        args.proposal_json
+        if args.proposal_json is not None
+        else args.legacy_experiment_candidate_json
+    )
     experiment_candidate: dict[str, Any] | None = None
-    if args.experiment_candidate_json is not None:
+    if raw_proposal_json is not None:
         if args.resume_run:
             raise SystemExit(
-                "--experiment-candidate-json cannot be used with --resume-run"
+                "--proposal-json cannot be used with --resume-run"
             )
         if args.mode != "generic_provider_scene_checker_codegen":
             raise SystemExit(
-                "--experiment-candidate-json requires generic provider mode"
+                "--proposal-json requires generic provider mode"
             )
         if task_proposal is not None:
             raise SystemExit(
-                "ExperimentCandidate and legacy TaskProposal are mutually exclusive"
+                "Plan Agent Proposal and legacy TaskProposal are mutually exclusive"
             )
         try:
             experiment_candidate = validate_experiment_candidate(
-                json.loads(args.experiment_candidate_json)
+                json.loads(raw_proposal_json)
             )
         except (json.JSONDecodeError, ExperimentCandidateError) as exc:
-            raise SystemExit(
-                f"invalid --experiment-candidate-json: {exc}"
-            ) from exc
+            raise SystemExit(f"invalid --proposal-json: {exc}") from exc
         if experiment_candidate["base_task"] != args.task_name:
             raise SystemExit(
-                "ExperimentCandidate.base_task differs from --task-name"
+                "Proposal.base_task differs from --task-name"
             )
     elif args.mode == "generic_provider_scene_checker_codegen":
-        raise SystemExit(
-            "generic provider mode requires --experiment-candidate-json"
-        )
+        raise SystemExit("generic provider mode requires --proposal-json")
     reviewed_task_registry = (
         args.reviewed_task_registry.expanduser().resolve()
         if args.reviewed_task_registry is not None
@@ -4417,7 +4567,7 @@ def main() -> None:
             ):
                 raise SystemExit(
                     "generic scene+checker codegen requires a provider, "
-                    "ExperimentCandidate, and explicit --run-id"
+                    "Proposal, and explicit --run-id"
                 )
             try:
                 manifest = create_generic_provider_taskgen_run(

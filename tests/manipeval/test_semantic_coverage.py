@@ -133,6 +133,26 @@ class SemanticCoverageTests(unittest.TestCase):
             ],
         )
 
+    def test_ensuring_remain_unchanged_clause_is_normalized(self):
+        intent = evaluation_intent_from_free_concern(
+            {
+                "schema_version": 1,
+                "source_query": "Can the policy avoid a distractor?",
+                "sub_aspect": "target selection",
+                "hypothesis": "The policy lifts only the target.",
+                "requested_variation": (
+                    "Add a distractor roller, ensuring the center position, "
+                    "material, and scene layout remain unchanged."
+                ),
+                "measurement_need": "Measure target and distractor lift.",
+            }
+        )
+
+        self.assertEqual(
+            intent["preserved_conditions"],
+            ["the center position", "material", "scene layout"],
+        )
+
     def test_source_query_preservation_survives_provider_omission(self):
         intent = evaluation_intent_from_free_concern(
             {

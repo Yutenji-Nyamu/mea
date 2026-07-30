@@ -162,9 +162,18 @@ def _query_assessment(evidence: Mapping[str, Any]) -> Mapping[str, Any] | None:
         value = plan.get("query_sufficiency")
         if isinstance(value, Mapping):
             return value
-    claim_first = evidence.get("claim_first_runtime")
-    if isinstance(claim_first, Mapping):
-        value = claim_first.get("assessment")
+    # New evidence uses the paper-aligned Plan Agent session name.  When both
+    # fields exist it is authoritative; the historical field is fallback-only.
+    if "plan_agent_session" in evidence:
+        session = evidence.get("plan_agent_session")
+        if isinstance(session, Mapping):
+            value = session.get("assessment")
+            if isinstance(value, Mapping):
+                return value
+        return None
+    session = evidence.get("claim_first_runtime")
+    if isinstance(session, Mapping):
+        value = session.get("assessment")
         if isinstance(value, Mapping):
             return value
     return None

@@ -110,7 +110,7 @@ def click_near_tie_inventory() -> list[dict]:
     ]
 
 
-class FreeConcernTests(unittest.TestCase):
+class QueryInterpretationTests(unittest.TestCase):
     class Provider:
         last_metadata = {"provider": "fixture"}
 
@@ -151,8 +151,14 @@ class FreeConcernTests(unittest.TestCase):
     def test_agent_retries_without_ever_exposing_inventory(self):
         value = concern("grab a hammer and hit the target block")
         provider = self.Provider(["{}", json.dumps(value)])
-        result = resolver.FreeConcernAgent(provider, model="fixture").propose(
+        result = resolver.PlanAgentQueryInterpreter(
+            provider, model="fixture"
+        ).propose(
             value["source_query"], policy_card=single_task_policy()
+        )
+        self.assertEqual(
+            result["source"],
+            "provider_plan_agent_query_interpretation",
         )
         self.assertEqual(result["concern"], value)
         self.assertEqual(result["provider"]["attempt_count"], 2)
@@ -184,7 +190,7 @@ class FreeConcernTests(unittest.TestCase):
         }
         provider = self.Provider([json.dumps(typed)])
 
-        result = resolver.FreeConcernAgent(
+        result = resolver.PlanAgentQueryInterpreter(
             provider,
             model="fixture",
         ).propose(value["source_query"], policy_card=single_task_policy())
@@ -199,17 +205,78 @@ class FreeConcernTests(unittest.TestCase):
         )
         self.assertIn("A Tool-only Query must not invent", provider.prompts[0])
 
+    def test_explicit_success_definition_retries_until_checker_is_requested(self):
+        query = (
+            "是否存在一个成功样本，使 ACT 只抬起目标滚筒且不抬起"
+            "非目标滚筒？"
+        )
+        value = {
+            **concern("lift the target roller"),
+            "source_query": query,
+        }
+        false_needs = {
+            **value,
+            "scene_need": {
+                "required": True,
+                "description": "Add one physical distractor roller.",
+            },
+            "checker_need": {"required": False, "description": None},
+            "rule_tool_need": {
+                "required": True,
+                "description": "Measure target and distractor lift.",
+                "reuse_first": True,
+            },
+            "vqa_tool_need": {
+                "required": False,
+                "description": None,
+                "reuse_first": True,
+            },
+        }
+        corrected = {
+            **false_needs,
+            "checker_need": {
+                "required": True,
+                "description": (
+                    "Success iff the target is lifted and the distractor is not."
+                ),
+            },
+        }
+        provider = self.Provider(
+            [json.dumps(false_needs), json.dumps(corrected)]
+        )
+
+        result = resolver.PlanAgentQueryInterpreter(
+            provider,
+            model="fixture",
+        ).propose(query, policy_card=single_task_policy("grab_roller"))
+
+        self.assertTrue(
+            result["experiment_needs"]["checker_need"]["required"]
+        )
+        self.assertEqual(result["provider"]["attempt_count"], 2)
+        self.assertIn(
+            '"checker_need": {\n    "required": true',
+            provider.prompts[0],
+        )
+        self.assertIn("checker_need.required", provider.prompts[1])
+
     def test_agent_can_be_frozen_to_one_attempt(self):
         provider = self.Provider(["{}"])
         with self.assertRaisesRegex(
             resolver.OpenTaskResolutionError, "1 FreeConcern attempt"
         ):
-            resolver.FreeConcernAgent(
+            resolver.PlanAgentQueryInterpreter(
                 provider, model="fixture", max_attempts=1
             ).propose(
                 "Which concern matters?", policy_card=single_task_policy()
             )
         self.assertEqual(len(provider.prompts), 1)
+
+    def test_historical_free_concern_class_name_remains_readable(self):
+        self.assertIs(
+            resolver.FreeConcernAgent,
+            resolver.PlanAgentQueryInterpreter,
+        )
 
 
 class InventoryTests(unittest.TestCase):
@@ -330,7 +397,7 @@ class PolicyGateTests(unittest.TestCase):
             result["selected_base_task"]["task_name"], "beat_block_hammer"
         )
         self.assertEqual(
-            result["free_concern"]["sub_aspect"],
+            result["query_interpretation"]["sub_aspect"],
             "novel.reflective_surface_confusion",
         )
         self.assertEqual(

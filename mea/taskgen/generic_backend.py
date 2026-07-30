@@ -5,9 +5,9 @@ adapter.  The adapter describes the official task program and exposes the
 small simulator-specific hooks needed to validate generated code.  It does
 not enumerate aspects, variants, metrics, or planner routes.
 
-Task reuse is exact and semantic.  A miss invokes the provider once, with at
-most one local regeneration covering static, fixture, render, and expert
-validation.  Policy execution remains outside this module.
+Task reuse is exact and semantic. A miss invokes the provider with at most one
+local regeneration after static, fixture, render, or expert diagnosis. Policy
+execution remains outside this module.
 """
 
 from __future__ import annotations
@@ -25,6 +25,10 @@ from typing import Any, Callable, Mapping
 from mea.planner.experiment_candidate import (
     ExperimentCandidateError,
     validate_experiment_candidate,
+)
+from mea.planner.proposal_execution import (
+    ProposalExecutionError,
+    validate_taskgen_candidate_execution,
 )
 from mea.planner.semantic_coverage import (
     SemanticCoverageError,
@@ -958,6 +962,7 @@ def _normalize_adapter(
         "generation_hook_contract": {
             "methods": ["load_actors", "check_success"],
             "static_and_fixture_validation": True,
+            "semantic_validation": "task_schema_contract_v2",
             "render_preflight": True,
             "expert_preflight": True,
             "local_regeneration_limit": 1,
@@ -1177,7 +1182,14 @@ def _core_prompt(
         "JSON fields remain required for transport, but when a need is null "
         "return an empty string for that field: the runtime ignores that text "
         "and injects the exact official method before AST, fixture, render, "
-        "and expert validation. Actors already present in the TASK "
+        "and expert validation. "
+        "A changed load_actors method must directly implement the requested "
+        "scene change. Comments or an unrelated actor/pose change are not "
+        "implementation evidence. load_actors cannot alter policy weights, "
+        "controller or gripper precision, action noise, latency, or inference. "
+        "Those require an explicit runtime intervention and must not be "
+        "simulated by relabelling a scene change. Actors already present in "
+        "the TASK "
         "TELEMETRY/EXECUTION SCHEMA are tracked automatically even when their "
         "pose or instance is replaced. Do not assign "
         "self.mea_telemetry_tracked_actors merely to repeat one of those base "
@@ -1321,6 +1333,13 @@ class GenericRoboTwinTaskGenBackend:
             raise GenericTaskGenError(
                 f"invalid ExperimentCandidate: {exc}"
             ) from exc
+        try:
+            normalized_candidate = validate_taskgen_candidate_execution(
+                normalized_candidate,
+                allowed_change_roots=("load_actors", "check_success"),
+            )
+        except ProposalExecutionError as exc:
+            raise GenericTaskGenError(str(exc)) from exc
         _validate_preservation_feasibility(normalized_candidate)
         if (
             normalized_candidate["scene_need"] is None

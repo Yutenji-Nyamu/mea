@@ -41,27 +41,26 @@ VLM；修正后仍须通过 state/checker、render、VLM 与 expert gate。
   --evaluation-id <unique-plan-id>
 ```
 
-`--auto-route` 的生产默认值就是 ClaimFirst，无需重复选择 Planner。这会先调用一次
-inventory-free FreeConcern，再做 official task retrieval、policy compatibility gate 和
-QueryContract；`ClaimFirstInitialPlanBuilder` 随后直接写初始计划，不调用
-`CatalogPlanAgent` 或任务专属 Planner。它不运行 simulator/ACT，也不是 policy 性能
-证据。重点检查 `free_concern.json`、`task_resolution.json` 中的候选、决策、
-provider/repair/retry 计数，以及 `manifest.planner.kind` 是否为
-`claim_first_direct_initial_v1`、`task_specific_planner_used=false`。
+`--auto-route` 的生产默认值就是 Plan Agent，无需重复选择规划器。这会先完成一次
+inventory-free Query interpretation，再做 official task retrieval、policy compatibility
+gate 和 Query contract；`PlanAgentInitialPlanBuilder` 随后直接写初始计划，不调用
+`CatalogPlanAgent` 或任务专属 legacy planner。它不运行 simulator/ACT，也不是 policy 性能
+证据。重点检查 `plan/query_interpretation.json`、`plan/open_task_resolution.json` 中的候选、
+决策、provider/repair/retry 计数，以及 `manifest.planner.kind` 是否为
+`plan_agent_direct_initial_v1`、`task_specific_planner_used=false`。
 
-若原始 Query 提出 catalog 外 concern，plan-only 应保存 FreeConcern、
-candidate-domain resolution 与 QueryContract，并明确它没有执行 scene/checker/tool
+若原始 Query 提出 artifact index 外 concern，plan-only 应保存 Query interpretation、
+Proposal-domain resolution 与 Query contract，并明确它没有执行 scene/checker/tool
 materialization。只有 `control_requirement=required` 才绑定 neutral official control；
-`not_required` 的 live 可直接从 FreeConcern 形成首个 Query-derived candidate。因此
-no-control plan 的初始 `rounds` 可以为空，状态应为
-`awaiting_initial_query_candidate_materialization`；这不是缺少计划，而是避免制造
-假的 control 壳。plan-only 不能预测后续一定 exact reuse 或 generation，更不得写成
-policy evidence。
+`not_required` 的 live 可直接从 Query interpretation 形成首个 Query-derived Proposal。因此
+no-control plan 的初始 `rounds` 可以为空，并明确等待首个 Proposal materialization；
+这不是缺少计划，而是避免制造假的 control 壳。plan-only 不能预测后续一定 exact reuse
+或 generation，更不得写成 policy evidence。
 
 若 online resolver 已输出 `unsupported`，之后基于冻结 concern 的 0-provider replay
 只能证明确定性 resolver/control handoff，不能倒推成一次在线成功。通用在线语义验收
 要求：无 aspect/template CLI hint、无 history rollout replay、一个进程完成有界的
-control/candidate→TaskGen→Tool/VQA→Aggregate→Answer；每个动态 candidate 必须有
+control/Proposal→TaskGen→Tool/VQA→Aggregate→Answer；每个动态 Proposal 必须有
 `direct+complete` ImplementationTrace，且 post-run acceptance projection 必须与最终
 回答一致。`accepted=true` 是正验收条件，不是尚未运行时的预设结果。
 
@@ -82,11 +81,12 @@ task 名覆盖绕过 scope gate。
 - evaluation id；
 - live/ACT 授权开关。
 
-`--auto-route` live 的默认 Planner 应为 ClaimFirst；不要在这条生产链重新启用 legacy
-task-specific planner、whole-round recovery 或 fault injection。TaskGen/ToolGen 各允许
-一次局部修复。执行后至少核对：
+`--auto-route` live 的默认规划器应为 Plan Agent；不要在这条生产链重新启用 legacy
+task-specific planner、whole-round recovery 或 fault injection。generic TaskGen 的
+所有失败阶段共用至多一次局部 repair；checker fixture 失败可保持已验证 scene、只修 checker；
+ToolGen 最多一次局部修复。执行后至少核对：
 
-1. QueryContract 的 `control_requirement` 与首轮 proposal；
+1. Query contract 的 `control_requirement` 与首轮 Proposal；
 2. scene/checker、render 和 gate；
 3. 实际 rollout seed、video、telemetry；
 4. Rule/VQA 与 Aggregate 是否消费同一 episode；
@@ -94,8 +94,8 @@ task-specific planner、whole-round recovery 或 fault injection。TaskGen/ToolG
 6. stop 是 evidence sufficient、unsupported 还是 budget exhausted；
 7. Answer 是否列出 N、未覆盖候选和限制。
 
-open-world round 先由 QueryContract 决定是否需要 neutral official control；仅 Query
-需要对照时才执行。随后用 `ExperimentCandidate` 做 Task exact lookup，miss 才调用
+open-world round 先由 Query contract 决定是否需要 neutral official control；仅 Query
+需要对照时才执行。随后用 Proposal 做 Task exact lookup，miss 才调用
 provider。scene/checker/tool need 是独立的：Tool-only Query 不启动 TaskGen；
 scene/checker need 才走 exact reuse 或 generate。无论 Task 生成还是复用，都必须在当前
 seed 重跑 state/checker、render、VLM 与 expert gate；从同一采样 Pose 派生新 actor
@@ -105,8 +105,9 @@ seed 重跑 state/checker、render、VLM 与 expert gate；从同一采样 Pose 
 Answer 不得把实验语义写成 official benchmark 结论。
 
 若 measurement need 明确要求已声明 semantic trace 的 final/terminal `x/y/z/height`
-分量，ToolGen 必须生成 `terminal_signal_component`；不能改用 event time 或 distance
-绕过原始问题。动态 VQA 找不到 exact rule 时，先选择该 task 的已审查问题，再退回
+单信号分量，ToolGen 必须生成 `terminal_signal_component`；若要求 target-vs-distractor
+等两信号终态差，则必须生成 `terminal_signal_difference`。两者都不能改用 event time
+或 distance 绕过原始问题。动态 VQA 找不到 exact rule 时，先选择该 task 的已审查问题，再退回
 `run_local.tracked_object_visible_state_change`；不得继承其他任务的 block/hammer/bell
 问题。VQA 与 Rule/checker 冲突时保留 `numeric_consistency=conflict` 和
 `evidence_conflict=true`，不能由较高 VLM confidence 覆盖。
@@ -119,7 +120,9 @@ Answer 不得把实验语义写成 official benchmark 结论。
 
 最近一次公开索引见
 `docs/evidence/current/evidence_bundle_manifest.json`。原始 bundle 根目录由
-manifest 的 `source_server_path` 记录。阅读顺序：
+manifest 的 `source_server_path` 记录。`README.md` 是语义阅读索引；
+`evidence_bundle_manifest.json` 只保存 bundle-relative 文件路径、大小与 SHA-256，
+不重复嵌入 rounds。阅读顺序：
 
 ```text
 query
@@ -156,16 +159,16 @@ post-run artifact，并明确它没有增加 policy sample。
 LIBERO 的固定环境、official control 与 MEA 迁移协议见
 [LIBERO / SmolVLA 复现与 MEA 接入](libero_smolvla_reproduction_zh.md)。
 
-当前 SmolVLA checkpoint 没有可审计的训练 task manifest，声明 scope 为 unknown。
-因此 unbound LIBERO 请求必须在 rollout 前拒绝；`--bound-task-name libero_object/task0`
-只授权该次协议，不证明 checkpoint 的广泛 task scope。direct chain 必须沿用已验证的
+若 SmolVLA checkpoint 没有可审计的训练 task manifest，必须把 scope 声明为 unknown。
+此时 unbound LIBERO 请求应在 rollout 前拒绝；显式 `--bound-task-name` 只授权该次协议，
+不证明 checkpoint 的广泛 task scope。direct chain 必须沿用已验证的
 顺序 `set_seed → make_env → make_policy → processors → rollout`；paired custom
 rollout 在构造 custom env 前恢复捕获的 RNG state，避免把初始化顺序差异误判为 BDDL
 效应。
 
 ## 6. 测试原则
 
-- 纯 schema、Planner、fixture 和 registry 单测可在服务器快速执行。
+- 纯 schema、Plan Agent、fixture 和 registry 单测可在服务器快速执行。
 - 修改主链后运行相关测试，再运行一次 plan-only。
 - 触及 TaskGen/ToolGen、simulator adapter 或 rollout 绑定时，追加一个最小 live smoke。
 - 不以固定测试数量为目标；被删除的旧链路测试随实现一起删除。

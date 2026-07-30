@@ -3,29 +3,30 @@
   "selection": {
     "schema_version": 3,
     "decision": "route",
-    "task_name": "click_bell",
-    "task_profile": "adaptive_properties",
-    "evaluation_goal": "answer_open_query_with_evidence: Where does this ACT policy first expose a weakness under manipulated-object property changes, and what evidence supports that conclusion?",
+    "task_name": "grab_roller",
+    "task_profile": "official",
+    "evaluation_goal": "answer_open_query_with_evidence: 只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。",
     "requested_aspect_ids": [],
     "first_aspect_id": null,
     "unsupported_capabilities": [],
     "binding_only": true
   },
   "resolved": {
-    "task_name": "click_bell",
-    "task_family": "press_contact",
-    "task_profile": "adaptive_properties",
-    "planner_kind": "model_click_bell_adaptive_v1",
+    "task_name": "grab_roller",
+    "task_family": "dual_arm_lift",
+    "task_profile": "official",
+    "planner_kind": "plan_agent_v1",
     "checkpoint": {
       "policy_name": "ACT",
       "checkpoint_setting": "demo_clean",
       "expert_data_num": 50,
-      "checkpoint_id": "act-click_bell/demo_clean-50",
+      "checkpoint_id": "act-grab_roller/demo_clean-50",
       "ready": true
     },
     "aspects": []
   },
-  "catalog_sha256": "84d6c7311621cd227c2cc519a6b74e1ac83c357708e4aa2bbdb952aeba87fc7f",
+  "catalog_sha256": null,
+  "runtime_binding_sha256": "2bca1a6485cd889062fa0fb6922fba8a7148a24488e104d990f1b693319210b1",
   "provider_called": false,
   "attempt_count": 0,
   "validation_errors": [],
@@ -35,6 +36,18 @@
   "task_resolution_scope": {
     "mode": "query_first_bound_policy_task",
     "artifact": "plan/open_task_resolution.json"
+  },
+  "runtime_binding_scope": {
+    "authority": "official_source_task_schema_act_checkpoint",
+    "catalog_membership_required": false,
+    "ready_task_names": [
+      "adjust_bottle",
+      "beat_block_hammer",
+      "click_bell",
+      "grab_roller",
+      "place_phone_stand"
+    ],
+    "excluded_task_names": []
   },
   "history_retrieval": {
     "schema_version": 1,

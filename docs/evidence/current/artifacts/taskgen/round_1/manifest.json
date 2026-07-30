@@ -1,28 +1,28 @@
 {
   "schema_version": 1,
-  "run_id": "run_20260729_b30_refinement_live_v2_round_1",
+  "run_id": "run_20260730_b44_grab_roller_plan_agent_live13_round_1",
   "status": "completed",
-  "created_at": "2026-07-29T15:53:17.463167+08:00",
-  "user_request": "Where does this ACT policy first expose a weakness under manipulated-object property changes, and what evidence supports that conclusion?",
-  "task_name": "click_bell",
-  "task_module": "envs.click_bell",
+  "created_at": "2026-07-30T10:48:23.456034+08:00",
+  "user_request": "只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。",
+  "task_name": "grab_roller",
+  "task_module": "envs.grab_roller",
   "mode": "official",
   "generation_kind": "official_passthrough",
-  "base_commit": "ea03ddfbb624def181ba2587f9c785a6ca01689f",
-  "overlay": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_1/overlay.yml",
+  "base_commit": "5fb9ae910d1ec1bd96e0f50bfab6becbd437942a",
+  "overlay": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_1/overlay.yml",
   "telemetry_profile": "balanced_v1",
   "static_validation": {
     "official_passthrough": {
       "valid": true,
       "task_class_found": true,
-      "task_module": "envs.click_bell",
-      "source": "envs/click_bell.py"
+      "task_module": "envs.grab_roller",
+      "source": "envs/grab_roller.py"
     },
     "task_schema": {
       "valid": true,
       "schema_version": 1,
-      "task_family": "press_contact",
-      "source": "mea/toolkit/schemas/click_bell.json"
+      "task_family": "dual_arm_lift",
+      "source": "mea/toolkit/schemas/grab_roller.json"
     },
     "code_generation": {
       "performed": false,
@@ -44,9 +44,9 @@
   },
   "requested_execution_backend": "act",
   "scene_validation": {
-    "task_name": "click_bell",
-    "task_module": "envs.click_bell",
-    "seed": 100000,
+    "task_name": "grab_roller",
+    "task_module": "envs.grab_roller",
+    "seed": 100301,
     "setup_success": true,
     "render_success": true,
     "expert_requested": false,
@@ -55,15 +55,16 @@
     "execution_receipt_requested": false,
     "task_schema": {
       "schema_version": 1,
-      "task_name": "click_bell",
-      "task_family": "press_contact",
+      "task_name": "grab_roller",
+      "task_family": "dual_arm_lift",
       "trusted_tool_profile": "generic_success",
       "tracked_actor_ids": [
-        "bell"
+        "roller"
       ],
       "semantic_field_names": [
-        "bell_position",
-        "bell_contact_position",
+        "roller_position",
+        "roller_left_contact_position",
+        "roller_right_contact_position",
         "left_tcp_position",
         "right_tcp_position"
       ]
@@ -107,6 +108,20 @@
     },
     "actors": [
       {
+        "name": "102_roller",
+        "position": [
+          -0.07744024693965912,
+          -0.06961455196142197,
+          0.7416645884513855
+        ],
+        "quaternion": [
+          0.19325308501720428,
+          0.19415003061294556,
+          0.6815027594566345,
+          0.678611159324646
+        ]
+      },
+      {
         "name": "ground",
         "position": [
           0.0,
@@ -147,60 +162,46 @@
           0.0,
           0.0
         ]
-      },
-      {
-        "name": "050_bell",
-        "position": [
-          0.07269548624753952,
-          -0.11030896753072739,
-          0.7409999966621399
-        ],
-        "quaternion": [
-          0.5,
-          0.5,
-          0.5,
-          0.5
-        ]
       }
     ],
     "tracked_actors": [
       {
-        "id": "bell",
-        "task_attribute": "bell",
-        "scene_name": "050_bell",
+        "id": "roller",
+        "task_attribute": "roller",
+        "scene_name": "102_roller",
         "position": [
-          0.07269548624753952,
-          -0.11030896753072739,
-          0.7409999966621399
+          -0.07744024693965912,
+          -0.06961455196142197,
+          0.7416645884513855
         ],
         "quaternion": [
-          0.5,
-          0.5,
-          0.5,
-          0.5
+          0.19325308501720428,
+          0.19415003061294556,
+          0.6815027594566345,
+          0.678611159324646
         ],
         "collision_geometry": [
           {
             "geometry_type": "create_actor_asset",
-            "modelname": "050_bell",
-            "model_id": 1,
-            "collision_asset": "assets/objects/050_bell/collision/base1.glb",
+            "modelname": "102_roller",
+            "model_id": 2,
+            "collision_asset": "assets/objects/102_roller/collision/base2.glb",
             "convex": true,
-            "is_static": true,
+            "is_static": false,
             "scale": [
-              0.04,
-              0.04,
-              0.04
+              0.13,
+              0.1,
+              0.1
             ],
             "extents": [
-              2.5883968548477228,
-              1.3250785247084105,
-              2.5887140724986057
+              1.9311913944412211,
+              0.32168825746682084,
+              0.3103910043535411
             ],
             "center": [
-              8.667908080472183e-05,
-              0.6445632287777463,
-              0.0006842777984963255
+              2.118178000711387e-05,
+              0.11274457106981156,
+              0.0013336256808618475
             ]
           }
         ],
@@ -208,27 +209,41 @@
         "contact_points": {
           "0": {
             "position": [
-              0.07269548624753952,
-              -0.11030896753072739,
-              0.7667903971672058
+              -0.1517805872741177,
+              -0.020864043415604293,
+              0.7551978901411976
             ],
             "raw": [
-              0.07269548624753952,
-              -0.11030896753072739,
-              0.7667903971672058,
-              0.5000000000000001,
-              0.5,
-              0.5000000000000001,
-              0.5000000000000001
+              -0.1517805872741177,
+              -0.020864043415604293,
+              0.7551978901411976,
+              0.19325304918059488,
+              0.1941500115981655,
+              0.6815027148591383,
+              0.6786111416845878
+            ]
+          },
+          "1": {
+            "position": [
+              -0.0025015978186608973,
+              -0.11628481144405739,
+              0.7541296693073063
+            ],
+            "raw": [
+              -0.0025015978186608973,
+              -0.11628481144405739,
+              0.7541296693073063,
+              0.681502714859138,
+              0.6786111416845875,
+              -0.19325304918059483,
+              -0.19415001159816556
             ]
           }
         }
       }
     ],
-    "task_attributes": {
-      "bell_id": 1
-    },
-    "image": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_1/evidence/initial_head.png",
+    "task_attributes": {},
+    "image": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_1/evidence/initial_head.png",
     "rule_check": {
       "all_tracked_actor_attributes_present": true,
       "tracked_actor_runtime_names_match": true,
@@ -237,10 +252,10 @@
       "official_check_success_callable": true,
       "passed": true,
       "tracked_actor_ids": [
-        "bell"
+        "roller"
       ],
       "declared_scene_names": [
-        "050_bell"
+        "102_roller"
       ]
     },
     "initial_check_success": false,
@@ -264,52 +279,52 @@
       "PYTHON_BIN=/root/autodl-tmp/conda/envs/RoboTwin/bin/python",
       "bash",
       "policy/ACT/eval_mea.sh",
-      "click_bell",
+      "grab_roller",
       "demo_clean",
       "demo_clean",
       "50",
       "0",
       "0",
       "1",
-      "envs.click_bell",
-      "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_1/overlay.yml",
-      "100000",
-      "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_1/evaluation/telemetry/act",
+      "envs.grab_roller",
+      "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_1/overlay.yml",
+      "100301",
+      "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_1/evaluation/telemetry/act",
       "balanced_v1"
     ],
-    "started_at": "2026-07-29T15:53:56.583056+08:00",
-    "finished_at": "2026-07-29T15:55:20.709302+08:00",
+    "started_at": "2026-07-30T10:49:04.116608+08:00",
+    "finished_at": "2026-07-30T10:50:14.266329+08:00",
     "returncode": 0,
-    "task_name": "click_bell",
+    "task_name": "grab_roller",
     "task_config": "demo_clean",
     "checkpoint_setting": "demo_clean",
     "expert_data_num": 50,
     "policy_seed": 0,
     "num_episodes": 1,
     "actual_seeds": [
-      100000
+      100301
     ],
     "checkpoint": {
-      "directory": "policy/ACT/act_ckpt/act-click_bell/demo_clean-50",
+      "directory": "policy/ACT/act_ckpt/act-grab_roller/demo_clean-50",
       "required_files": [
-        "policy/ACT/act_ckpt/act-click_bell/demo_clean-50/policy_last.ckpt",
-        "policy/ACT/act_ckpt/act-click_bell/demo_clean-50/dataset_stats.pkl"
+        "policy/ACT/act_ckpt/act-grab_roller/demo_clean-50/policy_last.ckpt",
+        "policy/ACT/act_ckpt/act-grab_roller/demo_clean-50/dataset_stats.pkl"
       ],
       "preflight_passed": true
     },
     "execution_receipt": null,
-    "source_eval_dir": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/eval_result/click_bell/ACT/demo_clean/demo_clean/2026-07-29 15:54:01",
+    "source_eval_dir": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/eval_result/grab_roller/ACT/demo_clean/demo_clean/2026-07-30 10:49:09",
     "copied_artifacts": [
-      "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_1/evaluation/episode0.mp4",
-      "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_1/evaluation/_result.txt"
+      "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_1/evaluation/episode0.mp4",
+      "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_1/evaluation/_result.txt"
     ],
     "copied_video_count": 1,
-    "telemetry_root": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_1/evaluation/telemetry/act",
+    "telemetry_root": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_1/evaluation/telemetry/act",
     "telemetry_episode_count": 1,
     "video_associations": [
       {
-        "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_1/evaluation/telemetry/act/episode_000_seed_100000",
-        "video": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_1/evaluation/telemetry/act/episode_000_seed_100000/video.mp4",
+        "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_1/evaluation/telemetry/act/episode_000_seed_100301",
+        "video": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_1/evaluation/telemetry/act/episode_000_seed_100301/video.mp4",
         "episode_index": 0
       }
     ],
@@ -332,7 +347,7 @@
     "reason": "paired expert/ACT execution was not requested",
     "expert_seeds": [],
     "act_seeds": [
-      100000
+      100301
     ]
   },
   "failure": null,
@@ -343,14 +358,14 @@
     "setup_render_rule"
   ],
   "trusted_tool_evaluation": {
-    "artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_1/evaluation/telemetry/tool_results.json",
+    "artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_1/evaluation/telemetry/tool_results.json",
     "episode_count": 1,
     "outcome_metric": "official_check_success",
     "outcome_authority": "official_check_success",
     "outcome_binding": null,
     "tool_retrieval": {
       "schema_version": 1,
-      "task_name": "click_bell",
+      "task_name": "grab_roller",
       "selected_tools": [
         "official_check_success",
         "time_to_success"
@@ -540,7 +555,7 @@
       ],
       "task_schema": {
         "schema_version": 1,
-        "task_family": "press_contact",
+        "task_family": "dual_arm_lift",
         "trusted_tool_profile": "generic_success"
       },
       "selection_mode": "schema_profile_plus_deterministic_keywords",
@@ -548,9 +563,9 @@
     },
     "episodes": [
       {
-        "episode_dir": "act/episode_000_seed_100000",
+        "episode_dir": "act/episode_000_seed_100301",
         "policy_name": "ACT",
-        "seed": 100000,
+        "seed": 100301,
         "success": true,
         "tool_results": [
           {
@@ -560,15 +575,15 @@
             "value": true,
             "unit": null,
             "evidence_steps": [
-              5505
+              7810
             ],
             "evidence": [
               {
                 "type": "success_transition",
-                "policy_step": 76,
-                "physics_step": 5505,
-                "simulation_time_seconds": 22.02,
-                "video_frame_index": 76
+                "policy_step": 88,
+                "physics_step": 7810,
+                "simulation_time_seconds": 31.240000000000002,
+                "video_frame_index": 88
               }
             ],
             "details": {
@@ -581,22 +596,22 @@
             "tool": "time_to_success",
             "version": 1,
             "tool_sha256": "15b7e9522b6d4d018755674f6cf959233d80315bddeda7db0f49e039341b7104",
-            "value": 22.02,
+            "value": 31.240000000000002,
             "unit": "s",
             "evidence_steps": [
-              5505
+              7810
             ],
             "evidence": [
               {
                 "type": "success_transition",
-                "policy_step": 76,
-                "physics_step": 5505,
-                "simulation_time_seconds": 22.02,
-                "video_frame_index": 76
+                "policy_step": 88,
+                "physics_step": 7810,
+                "simulation_time_seconds": 31.240000000000002,
+                "video_frame_index": 88
               }
             ],
             "details": {
-              "physics_step": 5505
+              "physics_step": 7810
             }
           }
         ]

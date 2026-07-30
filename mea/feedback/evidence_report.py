@@ -9,6 +9,7 @@ missing image, code file, metric, or model answer.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -25,12 +26,13 @@ class EvidenceReportError(RuntimeError):
 _PLAN_ARTIFACTS = (
     "evaluation_plan.json", "bound_task_session.json",
     "query_sufficiency_contract.json", "global_query_route.json",
-    "free_concern.json", "free_concern_prompt.md",
+    "open_task_resolution.json",
 )
 
 _TASKGEN_ARTIFACTS = (
-    "manifest.json", "generation/experiment_candidate.json",
+    "manifest.json",
     "generation/code_prompt.md", "generation/provider_response.txt",
+    "generation/provider_attempts.json",
     "validation/static.json", "validation/checker_fixtures.json",
     "validation/implementation_trace.json", "validation/setup_preflight.json",
     "validation/expert_preflight.json", "validation/vision.json",
@@ -38,7 +40,6 @@ _TASKGEN_ARTIFACTS = (
 )
 
 _TASKGEN_RENDER_ARTIFACTS = (
-    "evidence/official_initial_head.png", "evidence/expert_head.png",
     "evidence/scene_comparison.png",
 )
 
@@ -55,16 +56,9 @@ _TOOL_ARTIFACT_ROLES = {
 }
 
 _FINAL_ARTIFACTS = (
-    ("feedback/feedback.json", "answer/feedback.json"),
-    ("evaluation_report.md", "answer/evaluation_report.md"),
     ("summary/aggregate_result.json", "aggregate/final.json"),
-    ("summary/summary.json", "audit/summary.json"),
-    ("summary/evidence_bundle.json", "audit/evidence_bundle.json"),
-    ("manifest.json", "audit/source_manifest.json"),
     ("plan/semantic_preservation_audit.json",
      "audit/semantic_preservation_audit.json"),
-    ("summary/semantic_preservation_audit.json",
-     "audit/summary_semantic_preservation_audit.json"),
     ("audit/final_audit.json", "audit/final_audit.json"),
     ("audit/protocol_audit.json", "audit/protocol_audit.json"),
 )
@@ -139,22 +133,6 @@ def _json_block(value: Any) -> str:
     return "```json\n" + json.dumps(value, ensure_ascii=False, indent=2) + "\n```"
 
 
-def _code_excerpt(path: Path, *, max_lines: int = 80, max_chars: int = 9000) -> str:
-    try:
-        source = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeError):
-        return ""
-    source_lines = source.splitlines()
-    lines = source_lines[:max_lines]
-    excerpt = "\n".join(lines)
-    truncated = len(source_lines) > max_lines or len(excerpt) > max_chars
-    if len(excerpt) > max_chars:
-        excerpt = excerpt[:max_chars].rsplit("\n", 1)[0]
-    if truncated:
-        excerpt += "\n# ... truncated; open the linked artifact for the full source"
-    return excerpt
-
-
 def _quote(value: Any) -> list[str]:
     text = str(value or "N/A").strip() or "N/A"
     return [f"> {line}" if line else ">" for line in text.splitlines()]
@@ -209,6 +187,25 @@ def _compact_vqa(vqa: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _compact_decision(value: Any) -> dict[str, Any]:
+    decision = dict(value) if isinstance(value, Mapping) else {}
+    assessment = (
+        dict(decision.get("evidence_assessment"))
+        if isinstance(decision.get("evidence_assessment"), Mapping)
+        else {}
+    )
+    return {
+        "action": decision.get("action"),
+        "transition": decision.get("transition"),
+        "decision_reason": decision.get("decision_reason"),
+        "observation_summary": decision.get("observation_summary"),
+        "answered_query": decision.get("answered_query"),
+        "evidence_sufficient": assessment.get("evidence_sufficient"),
+        "claim_verdict": assessment.get("claim_verdict"),
+        "stop_reason": assessment.get("stop_reason"),
+    }
+
+
 def _resolve_child_ids(manifest: Mapping[str, Any], rounds: list[dict[str, Any]]) -> list[str | None]:
     ids = list(manifest.get("child_run_ids") or [])
     result: list[str | None] = []
@@ -243,7 +240,12 @@ def write_evidence_report(
     )
     summary = _read_json(evaluation / "summary/summary.json")
     evidence = _read_json(evaluation / "summary/evidence_bundle.json")
-    feedback = _read_json(evaluation / "feedback/feedback.json")
+    canonical_answer = evaluation / "answer/answer.json"
+    feedback = (
+        _read_json(canonical_answer)
+        if canonical_answer.is_file()
+        else _read_json(evaluation / "feedback/feedback.json")
+    )
     session = _read_json(evaluation / "plan/bound_task_session.json")
     requested_report = (
         Path(destination).expanduser()
@@ -266,10 +268,15 @@ def write_evidence_report(
         if not isinstance(old_files, list):
             raise EvidenceReportError("previous evidence manifest has no files list")
         old_paths: list[Path] = []
+        old_path_root = (
+            bundle_root
+            if previous.get("path_basis") == "bundle_relative"
+            else root
+        )
         for raw in old_files:
             if not isinstance(raw, str) or not raw:
                 raise EvidenceReportError("previous evidence manifest has invalid path")
-            old_path = root / raw
+            old_path = old_path_root / raw
             old_resolved = old_path.resolve()
             if bundle_root not in old_resolved.parents:
                 raise EvidenceReportError(
@@ -355,9 +362,18 @@ def write_evidence_report(
         destination_resolved.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source_resolved, destination_resolved)
         copied_destinations.add(destination_resolved)
-        relative = destination_resolved.relative_to(root).as_posix()
+        relative = destination_resolved.relative_to(bundle_root).as_posix()
         published_files.append(relative)
         return destination_resolved
+
+    def publish_first(
+        sources: tuple[Path, ...],
+        destination: Path,
+    ) -> Path | None:
+        """Publish the canonical artifact, falling back to a legacy path."""
+
+        source = next((item for item in sources if item.is_file()), None)
+        return publish_copy(source, destination)
 
     rounds = [
         deepcopy(item)
@@ -418,49 +434,88 @@ def write_evidence_report(
             evaluation / "plan" / relative,
             semantic_dir / "plan" / relative,
         )
-    for stem in ("free_concern_response",):
-        for response_index in range(1, 5):
-            publish_copy(
-                evaluation / f"plan/{stem}_{response_index}.txt",
-                semantic_dir / f"plan/{stem}_{response_index}.txt",
-            )
-        publish_copy(
-            evaluation / f"plan/{stem}.txt",
-            semantic_dir / f"plan/{stem}.txt",
+    publish_first(
+        (
+            evaluation / "plan/query_interpretation.json",
+            evaluation / "plan/free_concern.json",
+        ),
+        semantic_dir / "plan/query_interpretation.json",
+    )
+    publish_first(
+        (
+            evaluation / "plan/query_interpretation_prompt.md",
+            evaluation / "plan/free_concern_prompt.md",
+        ),
+        semantic_dir / "plan/query_interpretation_prompt.md",
+    )
+    for response_index in range(1, 5):
+        publish_first(
+            (
+                evaluation
+                / f"plan/query_interpretation_response_{response_index}.txt",
+                evaluation
+                / f"plan/free_concern_response_{response_index}.txt",
+            ),
+            semantic_dir
+            / f"plan/query_interpretation_response_{response_index}.txt",
         )
+    publish_first(
+        (
+            evaluation / "plan/query_interpretation_response.txt",
+            evaluation / "plan/free_concern_response.txt",
+        ),
+        semantic_dir / "plan/query_interpretation_response.txt",
+    )
 
     for step_index in range(1, len(rounds) + 1):
-        source_root = (
-            evaluation / f"plan/claim_first_steps/after_round_{step_index:02d}"
-        )
         destination_root = (
-            semantic_dir / f"plan/claim_first_steps/after_round_{step_index:02d}"
+            semantic_dir / f"plan/plan_agent_steps/after_round_{step_index:02d}"
         )
         for name in (
             "prompt.md",
             "semantic_proposal_bundle.json",
             "bound_semantic_step.json",
         ):
-            publish_copy(
-                source_root / name,
+            publish_first(
+                (
+                    evaluation
+                    / f"plan/plan_agent_steps/after_round_{step_index:02d}"
+                    / name,
+                    evaluation
+                    / f"plan/claim_first_steps/after_round_{step_index:02d}"
+                    / name,
+                ),
                 destination_root / name,
             )
         for response_index in range(1, 5):
-            publish_copy(
-                source_root / f"response_{response_index}.txt",
+            publish_first(
+                (
+                    evaluation
+                    / f"plan/plan_agent_steps/after_round_{step_index:02d}"
+                    / f"response_{response_index}.txt",
+                    evaluation
+                    / f"plan/claim_first_steps/after_round_{step_index:02d}"
+                    / f"response_{response_index}.txt",
+                ),
                 destination_root / f"response_{response_index}.txt",
             )
 
-    claim_runtime = evaluation / "plan/claim_first_runtime"
     for round_index in range(1, len(rounds) + 1):
-        publish_copy(
-            claim_runtime / f"evidence_after_round_{round_index:02d}.json",
+        name = f"evidence_after_round_{round_index:02d}.json"
+        publish_first(
+            (
+                evaluation / "plan/plan_agent_session" / name,
+                evaluation / "plan/claim_first_runtime" / name,
+            ),
             semantic_dir
-            / "plan/claim_first_runtime"
-            / f"evidence_after_round_{round_index:02d}.json",
+            / "plan/plan_agent_session"
+            / name,
         )
-    publish_copy(
-        claim_runtime / "query_answer.json",
+    publish_first(
+        (
+            evaluation / "plan/plan_agent_session/query_answer.json",
+            evaluation / "plan/claim_first_runtime/query_answer.json",
+        ),
         semantic_dir / "answer/query_answer.json",
     )
 
@@ -487,7 +542,7 @@ def write_evidence_report(
             }
         ),
         "",
-        "One evaluation keeps this task and ACT checkpoint fixed. Adaptation happens only across this task's sub-aspects/variants.",
+        "One evaluation keeps this task and policy checkpoint fixed. Adaptation happens only across this task's sub-aspects/variants.",
         "",
         "## 2. Paper-level data flow",
         "",
@@ -496,7 +551,7 @@ def write_evidence_report(
         '  Q["Open Query"] --> P["Plan Agent / sub-aspect"]',
         '  P --> T["TaskGen: reuse or generate"]',
         '  T --> I["Render / visual reflection"]',
-        '  I --> E["ACT rollout"]',
+        '  I --> E["Policy rollout"]',
         '  E --> V["Rule Tool + dynamic VQA"]',
         '  V --> A["Aggregate"]',
         '  A -->|"evidence"| P',
@@ -519,6 +574,25 @@ def write_evidence_report(
         ),
         "",
     ]
+    interpretation_prompt = (
+        semantic_dir / "plan/query_interpretation_prompt.md"
+    )
+    interpretation_responses = sorted(
+        (semantic_dir / "plan").glob("query_interpretation_response_*.txt")
+    )
+    if interpretation_prompt.is_file() and interpretation_responses:
+        response_links = " / ".join(
+            f"[response {index}]({_relative_link(path, report_path)})"
+            for index, path in enumerate(interpretation_responses, start=1)
+        )
+        lines.extend(
+            [
+                "- Query interpretation trace: "
+                f"[prompt]({_relative_link(interpretation_prompt, report_path)})"
+                f" / {response_links}",
+                "",
+            ]
+        )
 
     compact_rounds: list[dict[str, Any]] = []
     for index, round_plan in enumerate(rounds, start=1):
@@ -598,7 +672,15 @@ def write_evidence_report(
         )
 
         taskgen_destination = semantic_dir / "taskgen" / round_id
+        proposal_copy = None
         if child is not None:
+            proposal_copy = publish_first(
+                (
+                    child / "generation/proposal.json",
+                    child / "generation/experiment_candidate.json",
+                ),
+                taskgen_destination / "generation/proposal.json",
+            )
             for relative in _TASKGEN_ARTIFACTS:
                 publish_copy(
                     child / relative,
@@ -677,6 +759,33 @@ def write_evidence_report(
             if isinstance(round_summary.get("observations"), dict)
             else {}
         )
+        scene_validation = (
+            child_manifest.get("scene_validation")
+            if isinstance(child_manifest.get("scene_validation"), Mapping)
+            else {}
+        )
+        generic_preflight = (
+            scene_validation.get("generic_preflight")
+            if isinstance(scene_validation.get("generic_preflight"), Mapping)
+            else {}
+        )
+        checker_contract = (
+            child_manifest.get("checker_contract")
+            if isinstance(child_manifest.get("checker_contract"), Mapping)
+            else {}
+        )
+        taskgen_provider = (
+            child_manifest.get("provider")
+            if isinstance(child_manifest.get("provider"), Mapping)
+            else {}
+        )
+        vision_validation = (
+            generic_preflight.get("vision_validation")
+            if isinstance(
+                generic_preflight.get("vision_validation"), Mapping
+            )
+            else {}
+        )
         compact = {
             "round_id": round_id,
             "aspect_id": round_plan.get("aspect_id") or round_plan.get("sub_aspect"),
@@ -694,6 +803,19 @@ def write_evidence_report(
             "vqa": _compact_vqa(vqa),
             "aggregate_status": aggregate.get("status"),
             "next_decision": decisions[index - 1] if index - 1 < len(decisions) else None,
+            "taskgen_gates": {
+                "generation_attempts": taskgen_provider.get(
+                    "provider_call_count"
+                ),
+                "checker_fixtures": (
+                    f"{checker_contract.get('fixture_pass_count')}/"
+                    f"{checker_contract.get('fixture_count')}"
+                    if checker_contract.get("fixture_count") is not None
+                    else None
+                ),
+                "vision_passed": vision_validation.get("passed"),
+                "expert_passed": generic_preflight.get("expert_passed"),
+            },
         }
         compact_rounds.append(compact)
         data_path = data_dir / f"{round_id}.json"
@@ -702,61 +824,54 @@ def write_evidence_report(
             json.dumps(compact, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
-        data_relative = data_path.relative_to(root).as_posix()
+        data_relative = data_path.relative_to(bundle_root).as_posix()
         published_files.append(data_relative)
-
-        persisted_task_proposal = round_plan.get("task_proposal")
-        if isinstance(persisted_task_proposal, Mapping):
-            task_proposal_heading = "### Plan -> TaskProposal"
-            task_proposal_payload = persisted_task_proposal
-        else:
-            task_proposal_heading = (
-                "### Compatibility task projection (not used for planning)"
-            )
-            task_proposal_payload = {
-                "proposal_status": "not_projected_in_compatibility_view",
-                "task_name": round_plan.get("task_name") or target.get("task_name"),
-                "aspect_id": compact["aspect_id"],
-                "task_instruction": round_plan.get("task_instruction"),
-            }
-        persisted_tool_proposal = round_plan.get("tool_proposal")
-        if isinstance(persisted_tool_proposal, Mapping):
-            tool_proposal_heading = "### ToolProposal -> ToolGen / reuse"
-            tool_proposal_payload = persisted_tool_proposal
-        else:
-            tool_proposal_heading = (
-                "### Compatibility Tool projection (not used for planning)"
-            )
-            tool_proposal_payload = {
-                "proposal_status": "not_projected_in_compatibility_view",
-                "tool_request": tool.get("tool_request") or None,
-            }
 
         lines.extend(
             [
                 f"## 4.{index}. {round_id}: {compact['aspect_id']}",
                 "",
-                task_proposal_heading,
+                "### Plan → TaskGen",
                 "",
-                _json_block(task_proposal_payload),
+                f"- Task: `{round_plan.get('task_name') or target.get('task_name')}`",
+                f"- Instruction: {round_plan.get('task_instruction') or 'N/A'}",
                 "",
                 "### TaskGen output",
                 "",
                 f"- Route: `{compact['taskgen_route']}`",
                 f"- Materialization: `{compact['taskgen_kind'] or 'not recorded'}`",
                 f"- Child run: `{child_id or 'N/A'}`",
+                "- Validation gates: "
+                + json.dumps(
+                    compact["taskgen_gates"],
+                    ensure_ascii=False,
+                ),
             ]
         )
-        if code_copy:
-            language = "python" if code_copy.suffix == ".py" else "yaml"
-            lines.extend(
-                [
-                    f"- Full task artifact: [{code_copy.name}]({_relative_link(code_copy, report_path)})",
-                    "",
-                    f"```{language}",
-                    _code_excerpt(code_copy),
-                    "```",
-                ]
+        if proposal_copy:
+            lines.append(
+                f"- Proposal: [{proposal_copy.name}]"
+                f"({_relative_link(proposal_copy, report_path)})"
+            )
+        taskgen_prompt = taskgen_destination / "generation/code_prompt.md"
+        taskgen_response = (
+            taskgen_destination / "generation/provider_response.txt"
+        )
+        if taskgen_prompt.is_file() and taskgen_response.is_file():
+            lines.append(
+                "- Provider trace: "
+                f"[prompt]({_relative_link(taskgen_prompt, report_path)}) / "
+                f"[response]({_relative_link(taskgen_response, report_path)})"
+            )
+        if code_copy and code_copy.stat().st_size > 3:
+            lines.append(
+                f"- Full task artifact: [{code_copy.name}]"
+                f"({_relative_link(code_copy, report_path)})"
+            )
+        elif code_copy:
+            lines.append(
+                f"- Official passthrough marker: [{code_copy.name}]"
+                f"({_relative_link(code_copy, report_path)})"
             )
         else:
             lines.append("- Generated/reused source: N/A (artifact was not present)")
@@ -779,7 +894,7 @@ def write_evidence_report(
         lines.extend(
             [
                 "",
-                "### ACT rollout",
+                "### Policy rollout",
                 "",
                 _json_block(
                     {
@@ -793,39 +908,39 @@ def write_evidence_report(
         )
         if video_copy:
             link = _relative_link(video_copy, report_path)
-            lines.extend(["", f"[Open ACT video]({link})", "", f'<video src="{link}" controls width="720"></video>'])
+            lines.extend(["", f"[Open policy video]({link})", "", f'<video src="{link}" controls width="720"></video>'])
         elif video_source is not None:
             lines.append("\nVideo exists in the raw run but exceeded the publish size limit.")
         else:
-            lines.append("\nN/A - no ACT video was found.")
+            lines.append("\nN/A - no evaluated-policy video was found.")
 
         lines.extend(
             [
                 "",
-                tool_proposal_heading,
+                "### Tool / VQA",
                 "",
-                _json_block(tool_proposal_payload),
-                "",
-                _json_block(
-                    {
-                        "route": compact["tool_route"],
-                        "metric": compact["tool_metric"],
-                        "episodes": compact["tool_rows"],
-                    }
-                ),
+                f"- Tool route: `{compact['tool_route']}`",
+                f"- Metric: `{compact['tool_metric']}`",
+                "- Measurements: "
+                + json.dumps(compact["tool_rows"], ensure_ascii=False),
             ]
         )
         if tool_code_copy:
-            lines.extend(
-                [
-                    f"\n[Open generated/reused Tool source]({_relative_link(tool_code_copy, report_path)})",
-                    "",
-                    "```python",
-                    _code_excerpt(tool_code_copy),
-                    "```",
-                ]
+            lines.append(
+                f"- [Open generated/reused Tool source]"
+                f"({_relative_link(tool_code_copy, report_path)})"
             )
-        lines.extend(["", "### Dynamic VQA", "", _json_block(compact["vqa"])])
+        lines.extend(
+            [
+                f"- VQA status: `{compact['vqa'].get('status')}`; "
+                f"conflict: `{compact['vqa'].get('evidence_conflict')}`",
+                "- VQA phenomena: "
+                + json.dumps(
+                    compact["vqa"].get("phenomena") or [],
+                    ensure_ascii=False,
+                ),
+            ]
+        )
         if montage_copy:
             lines.extend(
                 [
@@ -838,17 +953,24 @@ def write_evidence_report(
                 "",
                 "### Aggregate -> next decision",
                 "",
-                _json_block(
-                    {
-                        "aggregate_status": compact["aggregate_status"],
-                        "policy_success": compact["policy_success"],
-                        "decision": compact["next_decision"],
-                    }
+                f"- Aggregate: `{compact['aggregate_status']}`",
+                f"- Policy success: `{compact['policy_success']}`",
+                "- Decision: "
+                + json.dumps(
+                    _compact_decision(compact["next_decision"]),
+                    ensure_ascii=False,
                 ),
                 "",
             ]
         )
 
+    publish_first(
+        (
+            evaluation / "answer/answer.json",
+            evaluation / "feedback/feedback.json",
+        ),
+        semantic_dir / "answer/answer.json",
+    )
     for source, destination in _FINAL_ARTIFACTS:
         publish_copy(
             evaluation / source,
@@ -915,17 +1037,20 @@ def write_evidence_report(
             "## 6. Boundaries",
             "",
             "- Policy results and pipeline status are reported separately.",
-            "- Expert evidence, when present, is a solvability/instrumentation gate, not ACT performance.",
+            "- Expert evidence, when present, is a solvability/instrumentation gate, not evaluated-policy performance.",
             "- Few-shot N=1 rounds demonstrate method wiring, not benchmark-level generalization.",
             "- Missing artifacts are shown as N/A; this report never substitutes proxy images or invented values.",
             "",
             "## 7. Raw artifact index",
             "",
+            "- [Payload inventory with bytes and SHA-256]"
+            "(evidence_bundle_manifest.json)",
         ]
     )
     if repair_result is not None:
         lines.extend(
             [
+                "",
                 "### Append-only completed-round Tool reuse audit",
                 "",
                 _json_block(
@@ -952,7 +1077,7 @@ def write_evidence_report(
                     }
                 ),
                 "",
-                "This audit reuses completed ACT telemetry and starts no "
+                "This audit reuses completed policy telemetry and starts no "
                 "simulator or policy rollout. It proves exact run-local reuse, "
                 "not independent cross-evaluation reuse.",
                 "",
@@ -963,6 +1088,7 @@ def write_evidence_report(
         evaluation / "plan/evaluation_plan.json",
         evaluation / "plan/bound_task_session.json",
         evaluation / "summary/evidence_bundle.json",
+        evaluation / "answer/answer.json",
         evaluation / "feedback/feedback.json",
         evaluation / "evaluation_report.md",
     ):
@@ -975,15 +1101,29 @@ def write_evidence_report(
                 lines.append(f"- [{raw.name}]({_relative_link(raw, report_path)})")
 
     report_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
-    published_files.append(str(report_path.relative_to(root)).replace("\\", "/"))
+    published_files.append(report_path.relative_to(bundle_root).as_posix())
+    artifact_inventory = []
+    for relative in sorted(set(published_files)):
+        artifact_path = bundle_root / relative
+        artifact_inventory.append(
+            {
+                "path": relative,
+                "bytes": artifact_path.stat().st_size,
+                "sha256": hashlib.sha256(
+                    artifact_path.read_bytes()
+                ).hexdigest(),
+            }
+        )
     bundle_manifest = {
-        "schema_version": 1,
+        "schema_version": 2,
+        "path_basis": "bundle_relative",
         "evaluation_id": manifest.get("evaluation_id"),
         "source_evaluation": str(evaluation.relative_to(root)).replace("\\", "/"),
         "source_server_path": str(evaluation.resolve()) if publish else None,
-        "report": str(report_path.relative_to(root)).replace("\\", "/"),
+        "report": report_path.relative_to(bundle_root).as_posix(),
         "publish_mode": bool(publish),
         "files": sorted(set(published_files)),
+        "artifacts": artifact_inventory,
         "round_count": len(compact_rounds),
         "video_size_limit_bytes": int(max_video_bytes),
         "included_repair_id": include_repair_id,
@@ -997,7 +1137,7 @@ def write_evidence_report(
         set(
             [
                 *bundle_manifest["files"],
-                str(manifest_path.relative_to(root)).replace("\\", "/"),
+                manifest_path.relative_to(bundle_root).as_posix(),
             ]
         )
     )

@@ -235,7 +235,7 @@ class RoundEvidence:
         }
 
     def to_planner_dict(self) -> dict[str, Any]:
-        """Project onto the strict public ClaimFirst evidence schema."""
+        """Project onto the strict public Plan Agent evidence schema."""
 
         return {
             "schema_version": 1,

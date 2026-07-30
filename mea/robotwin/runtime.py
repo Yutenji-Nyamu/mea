@@ -212,20 +212,20 @@ class RoboTwinMethodBackend:
                 request.proposal_bundle
             )
         except ExperimentCandidateError as exc:
-            raise ValueError(f"invalid ExperimentCandidate: {exc}") from exc
+            raise ValueError(f"invalid Proposal: {exc}") from exc
         if candidate["candidate_id"] != request.candidate_id:
             raise ValueError(
                 "CandidateRequest.candidate_id differs from "
-                "ExperimentCandidate.candidate_id"
+                "Proposal.candidate_id"
             )
         if candidate["source_query"] != request.source_query:
             raise ValueError(
                 "CandidateRequest.source_query differs from "
-                "ExperimentCandidate.source_query"
+                "Proposal.source_query"
             )
         if candidate["base_task"] != adapter.task_name:
             raise ValueError(
-                "ExperimentCandidate.base_task differs from the bound task"
+                "Proposal.base_task differs from the bound task"
             )
 
         taskgen_required = bool(
@@ -272,7 +272,7 @@ class RoboTwinMethodBackend:
                 "task_name": adapter.task_name,
                 "task_module": f"envs.{adapter.task_name}",
                 "generation_kind": "official_passthrough",
-                "experiment_candidate": candidate,
+                "proposal": candidate,
             }
             artifacts = {
                 "official_source": adapter.official_source,

@@ -1,41 +1,73 @@
 """Provider-generated RoboTwin task candidate."""
 
-import envs.click_bell as _official_task_module
-from envs.click_bell import *
+import envs.grab_roller as _official_task_module
+from envs.grab_roller import *
 
 
-class click_bell(_official_task_module.click_bell):
+class grab_roller(_official_task_module.grab_roller):
     def load_actors(self):
-            rand_pos = rand_pose(
-                xlim=[-0.25, 0.25],
-                ylim=[-0.2, 0.0],
-                qpos=[0.5, 0.5, 0.5, 0.5],
+            ori_qpos = [[0.5, 0.5, 0.5, 0.5], [0.5, 0.5, 0.5, 0.5], [0, 0, 0.707, 0.707]]
+            self.model_id = np.random.choice([0, 2], 1)[0]
+
+            # Target roller
+            target_pos = rand_pose(
+                xlim=[-0.15, 0.15],
+                ylim=[-0.25, -0.05],
+                qpos=ori_qpos[self.model_id],
+                rotate_rand=True,
+                rotate_lim=[0, 0.8, 0],
             )
-            while abs(rand_pos.p[0]) < 0.05:
-                rand_pos = rand_pose(
-                    xlim=[-0.25, 0.25],
-                    ylim=[-0.2, 0.0],
-                    qpos=[0.5, 0.5, 0.5, 0.5],
-                )
-
-            # Introduce bounded variation in the bell's position
-            perturbation = np.random.uniform(-0.02, 0.02, size=3)
-            perturbed_position = rand_pos.p + perturbation
-            rand_pos = sapien.Pose(p=perturbed_position, q=rand_pos.q)
-
-            self.bell_id = np.random.choice([0, 1], 1)[0]
-            self.bell = create_actor(
+            self.roller = create_actor(
                 scene=self,
-                pose=rand_pos,
-                modelname="050_bell",
+                pose=target_pos,
+                modelname="102_roller",
                 convex=True,
-                model_id=self.bell_id,
-                is_static=True,
+                model_id=self.model_id,
             )
 
-            self.add_prohibit_area(self.bell, padding=0.07)
-            self.check_arm_function = self.is_left_gripper_close if self.bell.get_pose().p[0] < 0 else self.is_right_gripper_close
+            # Non-target roller
+            non_target_pos = rand_pose(
+                xlim=[-0.1, 0.1],
+                ylim=[-0.4, -0.3],
+                qpos=ori_qpos[self.model_id],
+                rotate_rand=True,
+                rotate_lim=[0, 0.8, 0],
+            )
+            self.non_target_roller = create_actor(
+                scene=self,
+                pose=non_target_pos,
+                modelname="102_roller",
+                convex=True,
+                model_id=self.model_id,
+                runtime_name="non_target_roller"
+            )
+
+            self.add_prohibit_area(self.roller, padding=0.1)
+            self.add_prohibit_area(self.non_target_roller, padding=0.1)
+
+            self.mea_telemetry_tracked_actors = [
+                {
+                    "id": "non_target_roller",
+                    "task_attribute": "non_target_roller",
+                    "scene_name": "non_target_roller",
+                    "functional_points": [],
+                    "contact_points": [],
+                    "contact_focus": False
+                }
+            ]
+
+    def check_success(self):
+            target_pose = self.roller.get_pose().p
+            non_target_pose = self.non_target_roller.get_pose().p
+
+            target_height = target_pose[2]
+            non_target_height = non_target_pose[2]
+
+            success_target = target_height >= 0.8
+            success_non_target = non_target_height < 0.8
+
+            return success_target and success_non_target
 
     def mea_official_check_success(self):
         """Evaluate the untouched official core predicate."""
-        return _official_task_module.click_bell.check_success(self)
+        return _official_task_module.grab_roller.check_success(self)

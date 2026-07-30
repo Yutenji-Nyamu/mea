@@ -21,7 +21,10 @@ from mea.taskgen.generic_backend import (
     load_generic_robotwin_task_adapter,
     validate_generic_task_methods,
 )
-from mea.taskgen.provider_scene_checker import validate_method_ast
+from mea.taskgen.provider_scene_checker import (
+    run_provider_codegen,
+    validate_method_ast,
+)
 from scripts.manipeval_taskgen import (
     build_preservation_report,
     record_generic_taskgen_generation_failure,
@@ -42,6 +45,70 @@ class _Provider:
         self.last_metadata = {"call": self.calls}
         return json.dumps(response)
 
+
+class ProviderSceneCheckerRepairTests(unittest.TestCase):
+    def test_live_checker_failure_preserves_simulator_validated_scene(self):
+        first_scene = (
+            "def load_actors(self):\n"
+            '    self.target = "stable_scene"\n'
+        )
+        provider = _Provider(
+            [
+                {
+                    "load_actors": first_scene,
+                    "check_success": (
+                        "def check_success(self):\n"
+                        "    return False\n"
+                    ),
+                },
+                {
+                    "load_actors": (
+                        "def load_actors(self):\n"
+                        '    self.target = "changed_scene"\n'
+                    ),
+                    "check_success": (
+                        "def check_success(self):\n"
+                        "    return True\n"
+                    ),
+                },
+            ]
+        )
+        validations = 0
+
+        def validate(methods: Mapping[str, Any]) -> dict[str, Any]:
+            nonlocal validations
+            validations += 1
+            if validations == 1:
+                raise GenericTaskGenError(
+                    "generated checker failed live negative/positive fixtures: "
+                    '{"failed_fixtures": []}'
+                )
+            self.assertEqual(methods["load_actors"], first_scene)
+            return {"valid": True}
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = run_provider_codegen(
+                attempt_root=Path(temp_dir) / "attempts",
+                proposal={"candidate_id": "dynamic.synthetic"},
+                prompt="Generate a method pair.",
+                provider=provider,
+                model="fixture-model",
+                validate=validate,
+                error_type=GenericTaskGenError,
+                max_regenerations=1,
+            )
+            repair_scope = json.loads(
+                (
+                    Path(temp_dir)
+                    / "attempts/attempt_02/repair_scope.json"
+                ).read_text(encoding="utf-8")
+            )
+
+        self.assertEqual(result["methods"]["load_actors"], first_scene)
+        self.assertIn("Copy that method exactly", provider.prompts[1])
+        self.assertIn("PREVIOUS METHOD PAIR", provider.prompts[1])
+        self.assertEqual(repair_scope["scope"], "checker_only")
+        self.assertTrue(repair_scope["provider_scene_output_ignored"])
 
 def _write_cold_task_repo(root: Path) -> None:
     source = root / "envs/cold_unseen_task.py"
@@ -371,6 +438,44 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                     _adapter(),
                     run_id="run_tool_only_must_bypass",
                 )
+
+    def test_runtime_only_change_fails_before_provider_generation(self) -> None:
+        query = "Does lower gripper precision expose a weakness?"
+        intent = build_evaluation_intent(
+            source_query=query,
+            original_concern="task_execution.gripper_precision",
+            hypothesis="Reduced gripper precision may miss the target.",
+            requested_change="Reduce the precision of the gripper.",
+            preserved_conditions=("task identity", "policy checkpoint"),
+            required_observation="Observe which object is lifted.",
+        )
+        candidate = build_experiment_candidate(
+            source_query=query,
+            base_task="cold_unseen_task",
+            semantic_concern="task_execution.gripper_precision",
+            scene_need="Reduce the precision of the gripper.",
+            checker_need="Require only the target to be lifted.",
+            rule_tool_need="Measure target and non-target lift.",
+            evaluation_intent=intent,
+        )
+        provider = _Provider([])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaisesRegex(
+                GenericTaskGenError,
+                "TaskGen cannot implement the requested runtime intervention",
+            ):
+                GenericRoboTwinTaskGenBackend(
+                    Path(temp_dir),
+                    provider,
+                    model="fixture-model",
+                ).materialize(
+                    candidate,
+                    _adapter(),
+                    run_id="run_runtime_change_must_fail",
+                )
+
+        self.assertEqual(provider.calls, 0)
 
     def test_preservation_report_separates_available_authorities(self) -> None:
         report = build_preservation_report(
@@ -923,6 +1028,23 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             self.assertEqual(
                 manifest["failure"]["stage"],
                 "provider_scene_checker_generation",
+            )
+            self.assertEqual(
+                manifest["proposal_path"],
+                "generation/proposal.json",
+            )
+            self.assertEqual(
+                manifest["proposal"]["candidate_id"],
+                _candidate()["candidate_id"],
+            )
+            self.assertTrue(
+                (run_dir / "generation/proposal.json").is_file()
+            )
+            self.assertFalse(
+                (
+                    run_dir
+                    / "generation/experiment_candidate.json"
+                ).exists()
             )
 
     def test_loader_discovers_unknown_task_without_a_core_registry(self) -> None:
@@ -1567,6 +1689,7 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                 attempt_summary["attempts"][0]["recovery_action"],
                 "regenerate_candidate",
             )
+            self.assertEqual(attempt_summary["max_regenerations"], 1)
             prompt = provider.prompts[0]
             self.assertIn("cold_unseen_task", prompt)
             self.assertIn("TASK TELEMETRY/EXECUTION SCHEMA", prompt)

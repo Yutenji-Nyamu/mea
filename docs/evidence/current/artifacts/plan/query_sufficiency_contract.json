@@ -1,21 +1,15 @@
 {
   "schema_version": 3,
-  "claim_type": "diagnostic",
-  "candidate_universe": [
-    "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23",
-    "dynamic.click.bell.task.execution.object.instance.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.object.instance.is.perturbed.within.allowable.bounds.5cc7bb074cee"
-  ],
+  "claim_type": "existential",
+  "candidate_universe": [],
   "required_coverage": {
-    "candidate_ids": [
-      "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23",
-      "dynamic.click.bell.task.execution.object.instance.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.object.instance.is.perturbed.within.allowable.bounds.5cc7bb074cee"
-    ],
-    "minimum_evaluated": 1,
+    "candidate_ids": [],
+    "minimum_evaluated": 0,
     "minimum_per_group": null
   },
-  "round_budget": 2,
+  "round_budget": 1,
   "comparison_groups": null,
   "candidate_universe_closed": false,
-  "existential_witness_outcome": null,
+  "existential_witness_outcome": "pass",
   "control_requirement": "required"
 }

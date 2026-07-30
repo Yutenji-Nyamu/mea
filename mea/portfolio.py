@@ -473,9 +473,9 @@ def _load_child(root: Path, task_name: str, evaluation_id: str) -> dict[str, Any
         "feedback": _artifact_path(
             root,
             evaluation_dir,
-            manifest.get("feedback_path"),
-            default="feedback/feedback.json",
-            field=f"{evaluation_id}.feedback_path",
+            manifest.get("answer_path") or manifest.get("feedback_path"),
+            default="answer/answer.json",
+            field=f"{evaluation_id}.answer_path",
         ),
         "report": _artifact_path(
             root,

@@ -1,6 +1,6 @@
-"""Runtime bridge for claim-first open-Query planning.
+"""Runtime bridge for Plan Agent open-Query planning.
 
-``ClaimFirstOpenQueryAgent`` deliberately emits a semantic experiment rather
+``PlanAgent`` deliberately emits a semantic experiment rather
 than an executable catalog step.  This module connects that semantic proposal
 to the existing bounded ACT runtime without letting a language model invent
 execution details or decide when evidence is sufficient.
@@ -13,7 +13,7 @@ The bridge has four explicit responsibilities:
   the runtime-owned EvidencePacket and lightweight artifact paths;
 * apply the query-sufficiency contract before accepting a model-authored stop;
 * reuse a matching trusted template when one exists, otherwise materialize a
-  Query-derived ``ExperimentCandidate`` for TaskGen/ToolGen.
+  Query-derived ``Proposal`` for TaskGen/ToolGen.
 
 The legacy finite catalog path remains supported.  Dynamic candidates use an
 open-world sufficiency contract and never make the hidden executable catalog
@@ -29,7 +29,6 @@ from typing import Any, Mapping, Sequence
 
 from mea.aspects import public_aspect_ontology
 from mea.capability_adapter import (
-    resolve_task_adapter,
     resolve_task_retrieval_index,
 )
 
@@ -67,8 +66,12 @@ from .query_contract import (
 )
 
 
-class ClaimFirstRuntimeError(ValueError):
+class PlanAgentSessionError(ValueError):
     """Raised when semantic planning cannot be bound to trusted evidence."""
+
+
+# Compatibility name for existing callers and historical exception handlers.
+ClaimFirstRuntimeError = PlanAgentSessionError
 
 
 _SEMANTIC_STOPWORDS = {
@@ -118,7 +121,7 @@ def build_initial_semantic_proposal_bundle(
 ) -> dict[str, Any]:
     """Materialize a Query-only candidate before any runtime evidence exists.
 
-    ``FreeConcernAgent`` already chose the first sub-aspect, hypothesis,
+    Query interpretation already chose the first sub-aspect, hypothesis,
     perturbation, observation, and independent Task/Tool needs before catalog
     retrieval.  This adapter preserves that Query-authored seed for a no-control
     first round or a legacy protocol.  It is explicitly marked
@@ -150,7 +153,7 @@ def build_initial_semantic_proposal_bundle(
         {
             "schema_version": 2,
             "action": "continue",
-            "sub_aspect": f"free_concern.{slug[:96]}",
+            "sub_aspect": f"query_interpretation.{slug[:96]}",
             "hypothesis": intent["hypothesis"],
             "requested_perturbation": {
                 "description": intent["requested_change"],
@@ -168,7 +171,7 @@ def build_initial_semantic_proposal_bundle(
     )
     return {
         "schema_version": 1,
-        "source": "provider_free_concern_direct_materialization",
+        "source": "provider_plan_agent_direct_materialization",
         "input_intent_id": intent["intent_id"],
         "planning_lineage": {
             "schema_version": 1,
@@ -193,7 +196,7 @@ def build_dynamic_experiment_candidate(
     """Bind one semantic proposal without rewriting its first-candidate intent.
 
     The provider owns the four independent generation/tool requirements.  For
-    the first Query-derived candidate, the already-authored FreeConcern owns
+    the first Query-derived candidate, the Query interpretation owns
     the exact change, hypothesis, preserved conditions, and observation text.
     Later evidence-driven pivots receive a fresh per-candidate intent derived
     directly from their proposal, so every round carries the same traceable
@@ -203,7 +206,7 @@ def build_dynamic_experiment_candidate(
     trusted = validate_open_query_plan_proposal(proposal, has_evidence=True)
     if trusted["action"] != "continue":
         raise ClaimFirstRuntimeError(
-            "only a continue proposal can become an ExperimentCandidate"
+            "only a continue decision can become an executable Proposal"
         )
     perturbation = trusted["requested_perturbation"]
     scene_need = trusted["scene_need"]
@@ -394,20 +397,6 @@ def _target_task_name(target: Mapping[str, Any]) -> str:
     return _nonempty_text(target.get("task_name"), "target.task_name")
 
 
-def _target_policy(target: Mapping[str, Any]) -> dict[str, Any]:
-    if "policy_task_binding" in target:
-        try:
-            return deepcopy(
-                policy_task_binding_from_target(target)["policy"]
-            )
-        except (PolicyTaskBindingError, TypeError) as exc:
-            raise ClaimFirstRuntimeError(str(exc)) from exc
-    policy = target.get("policy")
-    if not isinstance(policy, Mapping):
-        raise ClaimFirstRuntimeError("target.policy must be an object")
-    return deepcopy(dict(policy))
-
-
 def _adapter_retrieval_aspects(task_name: str) -> list[dict[str, Any]]:
     """Project registered artifacts without adding them to the binding."""
 
@@ -490,76 +479,6 @@ def _uses_task_control_template(round_plan: Mapping[str, Any]) -> bool:
     return template_id.strip() == retrieval_index["control_template_id"]
 
 
-def build_control_anchor_proposal(
-    target: Mapping[str, Any],
-    user_query: str,
-) -> dict[str, Any]:
-    """Build the cached first-round proposal consumed by legacy materializers.
-
-    No provider call is needed to choose a control: it is a protocol
-    prerequisite rather than an answer to the open Query.
-    """
-
-    query = _nonempty_text(user_query, "user_query")
-    task_name = _target_task_name(target)
-    template_id = control_template_id(target)
-    retrieval_index = resolve_task_retrieval_index(
-        task_name,
-        allow_unregistered=True,
-    )
-    adapter = (
-        resolve_task_adapter(task_name)
-        if retrieval_index["entries"]
-        else None
-    )
-    planner_kind = (
-        adapter["planner_kind"] if adapter is not None else None
-    )
-    if planner_kind == "model_click_bell_adaptive_v1":
-        control_aspect_id = next(
-            contract["aspect"]["aspect_id"]
-            for contract in adapter["capability_contracts"]
-            if contract["template_id"] == template_id
-        )
-        return {
-            "schema_version": 1,
-            "task_name": "click_bell",
-            "evaluation_goal": (
-                "establish_clean_control_before_claim_first_attribution: "
-                + query
-            ),
-            "requested_aspect_ids": [control_aspect_id],
-            "first_aspect_id": control_aspect_id,
-        }
-    if planner_kind == "bounded_bbh_v1":
-        return {
-            "schema_version": 5,
-            "task_name": "beat_block_hammer",
-            "policy": _target_policy(target),
-            "evaluation_goal": (
-                "establish_clean_control_before_claim_first_attribution: "
-                + query
-            ),
-            "requested_template_ids": [template_id],
-            "first_template_id": template_id,
-            "max_rounds": int(target["max_rounds"]),
-        }
-    if planner_kind in {None, "deterministic_official_task"}:
-        return {
-            "schema_version": 1,
-            "task_name": task_name,
-            "evaluation_goal": (
-                "establish_clean_control_before_claim_first_attribution: "
-                + query
-            ),
-            "requested_aspect_ids": ["task_execution.official_baseline"],
-            "first_aspect_id": "task_execution.official_baseline",
-        }
-    raise ClaimFirstRuntimeError(
-        f"claim-first control proposal is not supported for {task_name!r}"
-    )
-
-
 def _template_aspect(target: Mapping[str, Any]) -> dict[str, str]:
     return {
         str(template_id): str(aspect["aspect_id"])
@@ -611,7 +530,7 @@ def _catalog_external_specificity(
     """Describe a concrete, Query-grounded concern without inventing a route.
 
     A concern is specific only when a non-generic semantic anchor occurs in at
-    least two FreeConcern fields *and* in the original Query.  This keeps a
+    least two Query-interpretation fields *and* in the original Query. This
     broad Query such as "test general robustness" ambiguous instead of letting
     a model-authored detail silently create an executable itinerary.
 
@@ -667,9 +586,9 @@ def resolve_concern_candidate_domain(
     *,
     target: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Bind an online FreeConcern to a finite capability domain.
+    """Bind an online Query interpretation to a finite capability domain.
 
-    FreeConcern is authored before task/capability retrieval and never sees the
+    Query interpretation is authored before task/capability retrieval and never sees the
     executable catalog.  The runtime may therefore use its semantic fields to
     narrow a trusted capability inventory, but only on an exact or unique
     lexical match.  Broad or tied concerns keep the complete non-control
@@ -679,9 +598,11 @@ def resolve_concern_candidate_domain(
     """
 
     if not isinstance(concern, Mapping):
-        raise ClaimFirstRuntimeError("FreeConcern must be an object")
+        raise ClaimFirstRuntimeError("Query interpretation must be an object")
     semantic_fields = {
-        field: _nonempty_text(concern.get(field), f"FreeConcern.{field}")
+        field: _nonempty_text(
+            concern.get(field), f"QueryInterpretation.{field}"
+        )
         for field in (
             "sub_aspect",
             "hypothesis",
@@ -690,7 +611,7 @@ def resolve_concern_candidate_domain(
         )
     }
     source_query = _nonempty_text(
-        concern.get("source_query"), "FreeConcern.source_query"
+        concern.get("source_query"), "QueryInterpretation.source_query"
     )
     control_template = control_template_id(target)
     concern_text = " ".join(semantic_fields.values()).casefold()
@@ -751,7 +672,7 @@ def resolve_concern_candidate_domain(
                 # There is no registered non-control domain to discover
                 # inside.  Admit the Query to the open-world Planner instead
                 # of treating an empty catalog as an unsupported request.
-                # The later semantic proposal, not this broad FreeConcern,
+                # The later Proposal, not this broad Query interpretation,
                 # decides which scene/checker/tool needs materialization.
                 "decision": "catalog_external",
                 "resolution": "open_world_candidate_discovery_required",
@@ -918,7 +839,7 @@ def resolve_semantic_proposal(
     normalized = validate_open_query_plan_proposal(proposal, has_evidence=True)
     if normalized["action"] != "continue":
         raise ClaimFirstRuntimeError(
-            "the query contract, not the model, owns claim-first stopping"
+            "the query contract, not the model, owns Plan Agent stopping"
         )
     executed = {str(item) for item in executed_template_ids}
     proposal_aspect = str(normalized["sub_aspect"])
@@ -1051,7 +972,7 @@ def _round_artifact_refs(
 
     These are navigation pointers, not integrity claims.  Experimental
     preregistration may hash a bundle separately without making the normal
-    ClaimFirst runtime depend on a provenance subsystem.
+    Plan Agent runtime depend on a provenance subsystem.
     """
 
     refs: list[dict[str, Any]] = []
@@ -1525,11 +1446,11 @@ def _current_planning_evidence(
     """Return evidence whose round lineage agrees with runtime records."""
 
     if not isinstance(observation, Mapping):
-        raise ClaimFirstRuntimeError("claim-first observation must be an object")
+        raise ClaimFirstRuntimeError("Plan Agent observation must be an object")
     raw_history = observation.get("open_query_evidence_history")
     if not isinstance(raw_history, list):
         raise ClaimFirstRuntimeError(
-            "claim-first observation has no open_query_evidence_history"
+            "Plan Agent observation has no open_query_evidence_history"
         )
     try:
         history = validate_open_query_evidence(raw_history)
@@ -1537,12 +1458,12 @@ def _current_planning_evidence(
         raise ClaimFirstRuntimeError(str(exc)) from exc
     records = observation.get("records")
     if not isinstance(records, list):
-        raise ClaimFirstRuntimeError("claim-first observation has no records")
+        raise ClaimFirstRuntimeError("Plan Agent observation has no records")
     record_round_ids: list[str] = []
     for index, record in enumerate(records):
         if not isinstance(record, Mapping):
             raise ClaimFirstRuntimeError(
-                f"claim-first observation record {index} must be an object"
+                f"Plan Agent observation record {index} must be an object"
             )
         record_round_ids.append(
             _nonempty_text(
@@ -1578,7 +1499,7 @@ def _attach_planning_lineage(
     return result
 
 
-class ClaimFirstRuntimeController:
+class PlanAgentSession:
     """Own control gating, query sufficiency, retrieval, and generation hand-off."""
 
     def __init__(
@@ -1693,7 +1614,7 @@ class ClaimFirstRuntimeController:
             round_budget = 1
         if round_budget < 1:
             raise ClaimFirstRuntimeError(
-                "claim-first runtime needs budget for at least one candidate round"
+                "Plan Agent runtime needs budget for at least one candidate round"
             )
         if query_contract is None:
             claim_type = infer_claim_type(self.user_query)
@@ -1794,6 +1715,7 @@ class ClaimFirstRuntimeController:
         executed_candidate_ids: Sequence[str],
         resolution: str,
         catalog_resolution_error: str | None,
+        retrieval_hint: Mapping[str, Any] | None = None,
         require_direct: bool = False,
     ) -> dict[str, Any]:
         trusted = self._register_dynamic_candidate(
@@ -1805,17 +1727,21 @@ class ClaimFirstRuntimeController:
             raise ClaimFirstRuntimeError(
                 f"dynamic candidate was already executed: {candidate_id}"
             )
+        hint = dict(retrieval_hint or {})
         dynamic_resolution = {
             "schema_version": 1,
             "semantic_sub_aspect": proposal["sub_aspect"],
-            "resolved_aspect_id": None,
+            "resolved_aspect_id": hint.get("resolved_aspect_id"),
             "resolved_template_id": None,
             "resolved_candidate_id": candidate_id,
             "resolution": resolution,
-            "hidden": False,
-            "matched_tokens": [],
+            "hidden": bool(hint.get("hidden", False)),
+            "matched_tokens": list(hint.get("matched_tokens") or []),
             "catalog_was_model_visible": False,
             "catalog_resolution_error": catalog_resolution_error,
+            "retrieval_aspect_id": hint.get("resolved_aspect_id"),
+            "retrieval_template_id": hint.get("resolved_template_id"),
+            "retrieval_resolution": hint.get("resolution"),
         }
         return {
             "schema_version": 2,
@@ -1866,7 +1792,7 @@ class ClaimFirstRuntimeController:
                 "aspect_id": proposal["sub_aspect"],
                 "candidate_id": candidate_id,
                 "execution_mode": "reuse_or_generate",
-                "experiment_candidate": trusted,
+                "proposal": trusted,
                 "rationale": proposal["rationale"],
                 "answered_query": False,
             },
@@ -1891,7 +1817,7 @@ class ClaimFirstRuntimeController:
         assessment = observation.get("assessment")
         if not isinstance(assessment, Mapping):
             raise ClaimFirstRuntimeError(
-                "claim-first observation has no assessment"
+                "Plan Agent observation has no assessment"
             )
         if assessment.get("should_stop"):
             raise ClaimFirstRuntimeError(
@@ -1944,7 +1870,7 @@ class ClaimFirstRuntimeController:
             proposal=proposal,
             candidate=candidate,
             executed_candidate_ids=executed_candidate_ids,
-            resolution="frozen_free_concern_candidate",
+            resolution="pre_evidence_query_proposal",
             catalog_resolution_error=None,
             require_direct=True,
         )
@@ -1976,7 +1902,7 @@ class ClaimFirstRuntimeController:
         if self.require_control_anchor:
             if records[0]["template_id"] != self.control_template:
                 raise ClaimFirstRuntimeError(
-                    "claim-first property attribution requires the control "
+                    "Plan Agent property attribution requires the control "
                     "template first"
                 )
             control_packet = records[0]["evidence_packet"]
@@ -2231,7 +2157,7 @@ class ClaimFirstRuntimeController:
         assessment = observation.get("assessment")
         if not isinstance(assessment, Mapping):
             raise ClaimFirstRuntimeError(
-                "claim-first observation has no assessment"
+                "Plan Agent observation has no assessment"
             )
         if assessment.get("should_stop"):
             raise ClaimFirstRuntimeError(
@@ -2259,7 +2185,7 @@ class ClaimFirstRuntimeController:
         propose = getattr(planner, "propose", None)
         if not callable(propose):
             raise ClaimFirstRuntimeError(
-                "claim-first planner must expose a callable propose()"
+                "Plan Agent must expose a callable propose()"
             )
         try:
             proposal_bundle = propose(
@@ -2278,7 +2204,7 @@ class ClaimFirstRuntimeController:
             ) from exc
         if not isinstance(proposal_bundle, Mapping):
             raise ClaimFirstRuntimeError(
-                "claim-first planner returned no proposal bundle"
+                "Plan Agent returned no proposal bundle"
             )
         return self.bind_evidence_conditioned_semantic_step(
             proposal_bundle,
@@ -2296,11 +2222,19 @@ class ClaimFirstRuntimeController:
         executed_template_ids: Sequence[str],
         evaluation_intent: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Validate and resolve a provider/cached semantic next-step bundle."""
+        """Validate and bind one semantic Proposal to the generic runtime.
+
+        Retrieval may identify an exact historical artifact, but it is only a
+        reuse hint.  It never changes the Proposal into a catalog-authorized
+        execution step.  Consequently every production Plan Agent round has
+        the same typed Proposal boundary and the generic TaskGen/ToolGen
+        materializer decides whether to reuse or generate each requested
+        artifact.
+        """
 
         assessment = observation.get("assessment")
         if not isinstance(assessment, Mapping):
-            raise ClaimFirstRuntimeError("claim-first observation has no assessment")
+            raise ClaimFirstRuntimeError("Plan Agent observation has no assessment")
         if assessment.get("should_stop"):
             raise ClaimFirstRuntimeError(
                 "cannot bind a semantic step after the query contract stopped"
@@ -2315,7 +2249,7 @@ class ClaimFirstRuntimeController:
         raw_proposal = proposal_bundle.get("proposal")
         if not isinstance(raw_proposal, Mapping):
             raise ClaimFirstRuntimeError(
-                "claim-first proposal bundle has no proposal object"
+                "Plan Agent proposal bundle has no proposal object"
             )
         try:
             proposal = validate_open_query_plan_proposal(
@@ -2326,67 +2260,50 @@ class ClaimFirstRuntimeController:
             raise ClaimFirstRuntimeError(str(exc)) from exc
         if proposal["action"] != "continue":
             raise ClaimFirstRuntimeError(
-                "the query contract, not the model, owns claim-first stopping"
+                "the query contract, not the model, owns Plan Agent stopping"
             )
+        retrieval_hint: dict[str, Any] | None = None
+        retrieval_error: str | None = None
         try:
-            resolution = resolve_semantic_proposal(
+            retrieval_hint = resolve_semantic_proposal(
                 proposal,
                 target={"aspects": self.retrieval_aspects},
                 executed_template_ids=executed_template_ids,
                 control_template=self.control_template,
             )
         except ClaimFirstRuntimeError as catalog_error:
-            candidate = build_dynamic_experiment_candidate(
-                user_query=self.user_query,
-                task_name=self.task_name,
-                proposal=proposal,
-                evaluation_intent=evaluation_intent,
-            )
-            return self._bind_dynamic_candidate(
-                proposal_bundle=proposal_bundle,
-                proposal=proposal,
-                candidate=candidate,
-                executed_candidate_ids=executed_template_ids,
-                resolution="dynamic_experiment_candidate",
-                catalog_resolution_error=str(catalog_error),
-            )
-        current_aspect = (
-            self.template_to_aspect.get(str(executed_template_ids[-1]))
-            if executed_template_ids
-            else None
+            retrieval_error = str(catalog_error)
+        candidate = build_dynamic_experiment_candidate(
+            user_query=self.user_query,
+            task_name=self.task_name,
+            proposal=proposal,
+            evaluation_intent=evaluation_intent,
         )
-        return {
-            "schema_version": 1,
-            "semantic_proposal_bundle": deepcopy(dict(proposal_bundle)),
-            "semantic_needs": {
-                "scene_need": deepcopy(proposal["scene_need"]),
-                "checker_need": deepcopy(proposal["checker_need"]),
-                "rule_tool_need": deepcopy(proposal["rule_tool_need"]),
-                "vqa_tool_need": deepcopy(proposal["vqa_tool_need"]),
-                "task_need": deepcopy(proposal["task_need"]),
-                "tool_need": deepcopy(proposal["tool_need"]),
-            },
-            "resolution": resolution,
-            "plan_step": {
-                "schema_version": 1,
-                "action": (
-                    "refine"
-                    if resolution["resolved_aspect_id"] == current_aspect
-                    else "propose"
-                ),
-                "aspect_id": resolution["resolved_aspect_id"],
-                "template_id": resolution["resolved_template_id"],
-                "rationale": proposal["rationale"],
-                "answered_query": False,
-            },
-        }
+        return self._bind_dynamic_candidate(
+            proposal_bundle=proposal_bundle,
+            proposal=proposal,
+            candidate=candidate,
+            executed_candidate_ids=executed_template_ids,
+            resolution=(
+                "retrieval_hint_then_reuse_or_generate"
+                if retrieval_hint is not None
+                else "proposal_reuse_or_generate"
+            ),
+            catalog_resolution_error=retrieval_error,
+            retrieval_hint=retrieval_hint,
+        )
+
+
+# Compatibility class name; new callers should use ``PlanAgentSession``.
+ClaimFirstRuntimeController = PlanAgentSession
 
 
 __all__ = [
+    "PlanAgentSession",
+    "PlanAgentSessionError",
     "ClaimFirstRuntimeController",
     "ClaimFirstRuntimeError",
     "build_claim_first_evidence_record",
-    "build_control_anchor_proposal",
     "build_dynamic_experiment_candidate",
     "build_initial_semantic_proposal_bundle",
     "control_template_id",

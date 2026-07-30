@@ -353,7 +353,7 @@ class CommonPlanProposalAdapterTests(unittest.TestCase):
         self.assertEqual(
             artifact["proposal_source"],
             (
-                "runtime_bound_claim_first_semantics_to_registered_"
+                "runtime_bound_plan_agent_semantics_to_registered_"
                 "scene_checker"
             ),
         )

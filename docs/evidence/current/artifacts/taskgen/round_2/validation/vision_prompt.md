@@ -3,13 +3,13 @@ The image shows the same-seed official scene on the left and the generated
 Query-derived scene on the right.
 
 SEMANTIC CONCERN:
-task_execution.object_position_variation: The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds.
+task_execution.non_target_proximity_effect: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.
 
 REQUESTED SCENE NEED:
-Introduce a bounded variation in the bell's position. Preserve unchanged: task identity; policy checkpoint.
+Place a non-target roller with identical appearance closer to the robot than the target roller. Preserve unchanged: task identity; policy checkpoint.
 
 CHECKER NEED (context only; RGB cannot validate success logic):
-No change requested; preserve the official implementation.
+A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters. Numeric Rule Tool needed to report the final height difference between the target and non-target rollers. Hypothesis: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.
 
 DECLARED CONDITIONS TO PRESERVE:
 - task identity

@@ -1,7 +1,7 @@
 """Compatibility facade for catalog-bound paper protocols.
 
 The production open-query path builds its initial plan directly through
-``ClaimFirstInitialPlanBuilder`` and treats the catalog only as a retrieval
+``PlanAgentInitialPlanBuilder`` and treats the catalog only as a retrieval
 index. ``CatalogPlanAgent`` remains for explicit legacy and paper-ablation
 protocols that still materialize reviewed templates or task-specific modes.
 """
@@ -47,7 +47,7 @@ def _validated_inner_proposal(
     *,
     task_name: str,
 ) -> dict[str, Any] | None:
-    """Normalize a global-route wrapper or direct ClaimFirst proposal.
+    """Normalize a global-route wrapper or direct Plan Agent proposal.
 
     Schema-specific validation deliberately remains in the trusted delegate.
     This function only checks the cross-planner boundary and unwraps the

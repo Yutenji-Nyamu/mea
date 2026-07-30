@@ -233,12 +233,15 @@ def _round_evidence(
     implementation_trace = round_summary["observations"].get(
         "implementation_trace"
     )
-    round_experiment_candidate = round_plan.get("experiment_candidate")
+    round_proposal = (
+        round_plan.get("proposal")
+        or round_plan.get("experiment_candidate")
+    )
     round_candidate_id = (
         round_plan.get("candidate_id")
         or (
-            round_experiment_candidate.get("candidate_id")
-            if isinstance(round_experiment_candidate, Mapping)
+            round_proposal.get("candidate_id")
+            if isinstance(round_proposal, Mapping)
             else None
         )
         or round_plan.get("template_id")

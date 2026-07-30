@@ -200,10 +200,12 @@ def project_executed_round_through_method_runtime(
 ) -> dict[str, Any]:
     """Validate one completed open-world round through the shared runtime."""
 
-    raw_candidate = round_plan.get("experiment_candidate")
+    raw_candidate = round_plan.get("proposal")
+    if raw_candidate is None:
+        raw_candidate = round_plan.get("experiment_candidate")
     if not isinstance(raw_candidate, Mapping):
         raise ValueError(
-            "RoboTwin MethodRuntime projection requires ExperimentCandidate"
+            "RoboTwin MethodRuntime projection requires a Proposal"
         )
     candidate = validate_experiment_candidate(raw_candidate)
     plan_candidate_id = str(
@@ -211,13 +213,13 @@ def project_executed_round_through_method_runtime(
     ).strip()
     if plan_candidate_id != candidate["candidate_id"]:
         raise ValueError(
-            "round plan candidate_id differs from ExperimentCandidate"
+            "round plan candidate_id differs from Proposal"
         )
     plan_task = _required_text(round_plan.get("task_name"), "task_name")
     requested_task = _required_text(task_name, "task_name")
     if plan_task != requested_task or candidate["base_task"] != requested_task:
         raise ValueError(
-            "round plan, ExperimentCandidate, and bound task disagree"
+            "round plan, Proposal, and bound task disagree"
         )
     observations = round_summary.get("observations")
     if not isinstance(observations, Mapping):

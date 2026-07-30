@@ -11,7 +11,7 @@
     "numeric_standard_deviation": "population",
     "role_isolation": "strict"
   },
-  "episode_result_count": 3,
+  "episode_result_count": 2,
   "input_issues": [],
   "metrics": [
     {
@@ -34,17 +34,17 @@
                     "valid": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 1
@@ -60,17 +60,17 @@
                       "numerator": 0,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 0.0
@@ -78,17 +78,17 @@
                     "true_count": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 1
@@ -98,17 +98,17 @@
                       "numerator": 1,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 1.0
@@ -131,17 +131,17 @@
                     "valid": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 1
@@ -157,73 +157,35 @@
                       "numerator": 0,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 0.0
                     },
-                    "success_count": {
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": true,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 1
-                    },
-                    "success_rate": {
-                      "denominator": 1,
-                      "numerator": 1,
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": true,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 1.0
-                    },
                     "true_count": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 1
@@ -233,17 +195,17 @@
                       "numerator": 1,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 1.0
@@ -271,17 +233,17 @@
                     "valid": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 1
@@ -297,17 +259,17 @@
                       "numerator": 0,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 0.0
@@ -315,17 +277,17 @@
                     "true_count": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 1
@@ -335,17 +297,17 @@
                       "numerator": 1,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 1.0
@@ -368,17 +330,17 @@
                     "valid": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 1
@@ -394,73 +356,35 @@
                       "numerator": 0,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 0.0
                     },
-                    "success_count": {
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": true,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 1
-                    },
-                    "success_rate": {
-                      "denominator": 1,
-                      "numerator": 1,
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": true,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 1.0
-                    },
                     "true_count": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 1
@@ -470,17 +394,17 @@
                       "numerator": 1,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 1.0
@@ -508,17 +432,17 @@
                     "valid": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 1
@@ -534,17 +458,17 @@
                       "numerator": 0,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 0.0
@@ -552,17 +476,17 @@
                     "true_count": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 1
@@ -572,17 +496,17 @@
                       "numerator": 1,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 1.0
@@ -605,17 +529,17 @@
                     "valid": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 1
@@ -631,73 +555,35 @@
                       "numerator": 0,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 0.0
                     },
-                    "success_count": {
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": true,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 1
-                    },
-                    "success_rate": {
-                      "denominator": 1,
-                      "numerator": 1,
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": true,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 1.0
-                    },
                     "true_count": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 1
@@ -707,17 +593,17 @@
                       "numerator": 1,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 1.0
@@ -726,7 +612,7 @@
                   "unit": null,
                   "value_kind": "boolean"
                 },
-                "value": 100000
+                "value": 100301
               }
             ],
             "variant": [
@@ -745,17 +631,17 @@
                     "valid": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 1
@@ -771,17 +657,17 @@
                       "numerator": 0,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 0.0
@@ -789,17 +675,17 @@
                     "true_count": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 1
@@ -809,17 +695,17 @@
                       "numerator": 1,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 1.0
@@ -842,17 +728,17 @@
                     "valid": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 1
@@ -868,73 +754,35 @@
                       "numerator": 0,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 0.0
                     },
-                    "success_count": {
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": true,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 1
-                    },
-                    "success_rate": {
-                      "denominator": 1,
-                      "numerator": 1,
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": true,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 1.0
-                    },
                     "true_count": {
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 1
@@ -944,17 +792,17 @@
                       "numerator": 1,
                       "provenance": [
                         {
-                          "episode_dir": "act/episode_000_seed_100000",
+                          "episode_dir": "act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                          "seed": 100301,
+                          "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                           "value": true,
-                          "variant": "task_execution.object_position_variation"
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 1.0
@@ -963,7 +811,7 @@
                   "unit": null,
                   "value_kind": "boolean"
                 },
-                "value": "task_execution.object_position_variation"
+                "value": "task_execution.non_target_proximity_effect"
               }
             ]
           },
@@ -981,17 +829,17 @@
               "valid": {
                 "provenance": [
                   {
-                    "episode_dir": "act/episode_000_seed_100000",
+                    "episode_dir": "act/episode_000_seed_100301",
                     "evidence_steps": [
-                      5514
+                      7821
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100000,
-                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                    "seed": 100301,
+                    "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                     "value": true,
-                    "variant": "task_execution.object_position_variation"
+                    "variant": "task_execution.non_target_proximity_effect"
                   }
                 ],
                 "value": 1
@@ -1007,17 +855,17 @@
                 "numerator": 0,
                 "provenance": [
                   {
-                    "episode_dir": "act/episode_000_seed_100000",
+                    "episode_dir": "act/episode_000_seed_100301",
                     "evidence_steps": [
-                      5514
+                      7821
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100000,
-                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                    "seed": 100301,
+                    "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                     "value": true,
-                    "variant": "task_execution.object_position_variation"
+                    "variant": "task_execution.non_target_proximity_effect"
                   }
                 ],
                 "value": 0.0
@@ -1025,17 +873,17 @@
               "true_count": {
                 "provenance": [
                   {
-                    "episode_dir": "act/episode_000_seed_100000",
+                    "episode_dir": "act/episode_000_seed_100301",
                     "evidence_steps": [
-                      5514
+                      7821
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100000,
-                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                    "seed": 100301,
+                    "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                     "value": true,
-                    "variant": "task_execution.object_position_variation"
+                    "variant": "task_execution.non_target_proximity_effect"
                   }
                 ],
                 "value": 1
@@ -1045,17 +893,17 @@
                 "numerator": 1,
                 "provenance": [
                   {
-                    "episode_dir": "act/episode_000_seed_100000",
+                    "episode_dir": "act/episode_000_seed_100301",
                     "evidence_steps": [
-                      5514
+                      7821
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100000,
-                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                    "seed": 100301,
+                    "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                     "value": true,
-                    "variant": "task_execution.object_position_variation"
+                    "variant": "task_execution.non_target_proximity_effect"
                   }
                 ],
                 "value": 1.0
@@ -1082,17 +930,17 @@
               "valid": {
                 "provenance": [
                   {
-                    "episode_dir": "act/episode_000_seed_100000",
+                    "episode_dir": "act/episode_000_seed_100301",
                     "evidence_steps": [
-                      5514
+                      7821
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100000,
-                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                    "seed": 100301,
+                    "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                     "value": true,
-                    "variant": "task_execution.object_position_variation"
+                    "variant": "task_execution.non_target_proximity_effect"
                   }
                 ],
                 "value": 1
@@ -1108,73 +956,35 @@
                 "numerator": 0,
                 "provenance": [
                   {
-                    "episode_dir": "act/episode_000_seed_100000",
+                    "episode_dir": "act/episode_000_seed_100301",
                     "evidence_steps": [
-                      5514
+                      7821
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100000,
-                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                    "seed": 100301,
+                    "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                     "value": true,
-                    "variant": "task_execution.object_position_variation"
+                    "variant": "task_execution.non_target_proximity_effect"
                   }
                 ],
                 "value": 0.0
               },
-              "success_count": {
-                "provenance": [
-                  {
-                    "episode_dir": "act/episode_000_seed_100000",
-                    "evidence_steps": [
-                      5514
-                    ],
-                    "policy_name": "ACT",
-                    "role": "policy_under_evaluation",
-                    "round_id": "round_2",
-                    "seed": 100000,
-                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                    "value": true,
-                    "variant": "task_execution.object_position_variation"
-                  }
-                ],
-                "value": 1
-              },
-              "success_rate": {
-                "denominator": 1,
-                "numerator": 1,
-                "provenance": [
-                  {
-                    "episode_dir": "act/episode_000_seed_100000",
-                    "evidence_steps": [
-                      5514
-                    ],
-                    "policy_name": "ACT",
-                    "role": "policy_under_evaluation",
-                    "round_id": "round_2",
-                    "seed": 100000,
-                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                    "value": true,
-                    "variant": "task_execution.object_position_variation"
-                  }
-                ],
-                "value": 1.0
-              },
               "true_count": {
                 "provenance": [
                   {
-                    "episode_dir": "act/episode_000_seed_100000",
+                    "episode_dir": "act/episode_000_seed_100301",
                     "evidence_steps": [
-                      5514
+                      7821
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100000,
-                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                    "seed": 100301,
+                    "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                     "value": true,
-                    "variant": "task_execution.object_position_variation"
+                    "variant": "task_execution.non_target_proximity_effect"
                   }
                 ],
                 "value": 1
@@ -1184,17 +994,17 @@
                 "numerator": 1,
                 "provenance": [
                   {
-                    "episode_dir": "act/episode_000_seed_100000",
+                    "episode_dir": "act/episode_000_seed_100301",
                     "evidence_steps": [
-                      5514
+                      7821
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100000,
-                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+                    "seed": 100301,
+                    "source_artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
                     "value": true,
-                    "variant": "task_execution.object_position_variation"
+                    "variant": "task_execution.non_target_proximity_effect"
                   }
                 ],
                 "value": 1.0
@@ -1205,9 +1015,9 @@
           }
         }
       ],
-      "metric": "official_check_success",
+      "metric": "generated_check_success",
       "tools": [
-        "official_check_success"
+        "generated_check_success"
       ],
       "unit": null,
       "value_kind": "boolean"
@@ -1233,17 +1043,17 @@
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+                          "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.021466496280102353,
-                          "variant": "task_execution.object_position_variation"
+                          "seed": 100301,
+                          "source_artifact": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.05838477611541748,
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 1
@@ -1254,93 +1064,93 @@
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+                          "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.021466496280102353,
-                          "variant": "task_execution.object_position_variation"
+                          "seed": 100301,
+                          "source_artifact": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.05838477611541748,
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
-                      "value": 0.021466496280102353
+                      "value": 0.05838477611541748
                     },
                     "mean": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+                          "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.021466496280102353,
-                          "variant": "task_execution.object_position_variation"
+                          "seed": 100301,
+                          "source_artifact": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.05838477611541748,
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
-                      "value": 0.021466496280102353
+                      "value": 0.05838477611541748
                     },
                     "median": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+                          "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.021466496280102353,
-                          "variant": "task_execution.object_position_variation"
+                          "seed": 100301,
+                          "source_artifact": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.05838477611541748,
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
-                      "value": 0.021466496280102353
+                      "value": 0.05838477611541748
                     },
                     "min": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+                          "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.021466496280102353,
-                          "variant": "task_execution.object_position_variation"
+                          "seed": 100301,
+                          "source_artifact": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.05838477611541748,
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
-                      "value": 0.021466496280102353
+                      "value": 0.05838477611541748
                     },
                     "population_stddev": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+                          "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.021466496280102353,
-                          "variant": "task_execution.object_position_variation"
+                          "seed": 100301,
+                          "source_artifact": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.05838477611541748,
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 0.0
@@ -1369,17 +1179,17 @@
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+                          "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.021466496280102353,
-                          "variant": "task_execution.object_position_variation"
+                          "seed": 100301,
+                          "source_artifact": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.05838477611541748,
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 1
@@ -1390,93 +1200,93 @@
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+                          "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.021466496280102353,
-                          "variant": "task_execution.object_position_variation"
+                          "seed": 100301,
+                          "source_artifact": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.05838477611541748,
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
-                      "value": 0.021466496280102353
+                      "value": 0.05838477611541748
                     },
                     "mean": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+                          "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.021466496280102353,
-                          "variant": "task_execution.object_position_variation"
+                          "seed": 100301,
+                          "source_artifact": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.05838477611541748,
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
-                      "value": 0.021466496280102353
+                      "value": 0.05838477611541748
                     },
                     "median": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+                          "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.021466496280102353,
-                          "variant": "task_execution.object_position_variation"
+                          "seed": 100301,
+                          "source_artifact": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.05838477611541748,
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
-                      "value": 0.021466496280102353
+                      "value": 0.05838477611541748
                     },
                     "min": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+                          "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.021466496280102353,
-                          "variant": "task_execution.object_position_variation"
+                          "seed": 100301,
+                          "source_artifact": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.05838477611541748,
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
-                      "value": 0.021466496280102353
+                      "value": 0.05838477611541748
                     },
                     "population_stddev": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+                          "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.021466496280102353,
-                          "variant": "task_execution.object_position_variation"
+                          "seed": 100301,
+                          "source_artifact": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.05838477611541748,
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 0.0
@@ -1505,17 +1315,17 @@
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+                          "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.021466496280102353,
-                          "variant": "task_execution.object_position_variation"
+                          "seed": 100301,
+                          "source_artifact": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.05838477611541748,
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 1
@@ -1526,93 +1336,93 @@
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+                          "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.021466496280102353,
-                          "variant": "task_execution.object_position_variation"
+                          "seed": 100301,
+                          "source_artifact": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.05838477611541748,
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
-                      "value": 0.021466496280102353
+                      "value": 0.05838477611541748
                     },
                     "mean": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+                          "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.021466496280102353,
-                          "variant": "task_execution.object_position_variation"
+                          "seed": 100301,
+                          "source_artifact": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.05838477611541748,
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
-                      "value": 0.021466496280102353
+                      "value": 0.05838477611541748
                     },
                     "median": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+                          "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.021466496280102353,
-                          "variant": "task_execution.object_position_variation"
+                          "seed": 100301,
+                          "source_artifact": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.05838477611541748,
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
-                      "value": 0.021466496280102353
+                      "value": 0.05838477611541748
                     },
                     "min": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+                          "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.021466496280102353,
-                          "variant": "task_execution.object_position_variation"
+                          "seed": 100301,
+                          "source_artifact": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.05838477611541748,
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
-                      "value": 0.021466496280102353
+                      "value": 0.05838477611541748
                     },
                     "population_stddev": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+                          "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.021466496280102353,
-                          "variant": "task_execution.object_position_variation"
+                          "seed": 100301,
+                          "source_artifact": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.05838477611541748,
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 0.0
@@ -1621,7 +1431,7 @@
                   "unit": "m",
                   "value_kind": "numeric"
                 },
-                "value": 100000
+                "value": 100301
               }
             ],
             "variant": [
@@ -1641,17 +1451,17 @@
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+                          "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.021466496280102353,
-                          "variant": "task_execution.object_position_variation"
+                          "seed": 100301,
+                          "source_artifact": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.05838477611541748,
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 1
@@ -1662,93 +1472,93 @@
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+                          "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.021466496280102353,
-                          "variant": "task_execution.object_position_variation"
+                          "seed": 100301,
+                          "source_artifact": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.05838477611541748,
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
-                      "value": 0.021466496280102353
+                      "value": 0.05838477611541748
                     },
                     "mean": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+                          "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.021466496280102353,
-                          "variant": "task_execution.object_position_variation"
+                          "seed": 100301,
+                          "source_artifact": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.05838477611541748,
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
-                      "value": 0.021466496280102353
+                      "value": 0.05838477611541748
                     },
                     "median": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+                          "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.021466496280102353,
-                          "variant": "task_execution.object_position_variation"
+                          "seed": 100301,
+                          "source_artifact": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.05838477611541748,
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
-                      "value": 0.021466496280102353
+                      "value": 0.05838477611541748
                     },
                     "min": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+                          "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.021466496280102353,
-                          "variant": "task_execution.object_position_variation"
+                          "seed": 100301,
+                          "source_artifact": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.05838477611541748,
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
-                      "value": 0.021466496280102353
+                      "value": 0.05838477611541748
                     },
                     "population_stddev": {
                       "provenance": [
                         {
                           "details_reason": "measured",
-                          "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+                          "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
                           "evidence_steps": [
-                            5514
+                            7821
                           ],
                           "policy_name": "ACT",
                           "role": "policy_under_evaluation",
                           "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
-                          "value": 0.021466496280102353,
-                          "variant": "task_execution.object_position_variation"
+                          "seed": 100301,
+                          "source_artifact": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_execution.json",
+                          "value": 0.05838477611541748,
+                          "variant": "task_execution.non_target_proximity_effect"
                         }
                       ],
                       "value": 0.0
@@ -1757,7 +1567,7 @@
                   "unit": "m",
                   "value_kind": "numeric"
                 },
-                "value": "task_execution.object_position_variation"
+                "value": "task_execution.non_target_proximity_effect"
               }
             ]
           },
@@ -1780,17 +1590,17 @@
                 "provenance": [
                   {
                     "details_reason": "measured",
-                    "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+                    "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
                     "evidence_steps": [
-                      5514
+                      7821
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100000,
-                    "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
-                    "value": 0.021466496280102353,
-                    "variant": "task_execution.object_position_variation"
+                    "seed": 100301,
+                    "source_artifact": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_execution.json",
+                    "value": 0.05838477611541748,
+                    "variant": "task_execution.non_target_proximity_effect"
                   }
                 ],
                 "value": 1
@@ -1801,93 +1611,93 @@
                 "provenance": [
                   {
                     "details_reason": "measured",
-                    "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+                    "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
                     "evidence_steps": [
-                      5514
+                      7821
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100000,
-                    "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
-                    "value": 0.021466496280102353,
-                    "variant": "task_execution.object_position_variation"
+                    "seed": 100301,
+                    "source_artifact": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_execution.json",
+                    "value": 0.05838477611541748,
+                    "variant": "task_execution.non_target_proximity_effect"
                   }
                 ],
-                "value": 0.021466496280102353
+                "value": 0.05838477611541748
               },
               "mean": {
                 "provenance": [
                   {
                     "details_reason": "measured",
-                    "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+                    "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
                     "evidence_steps": [
-                      5514
+                      7821
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100000,
-                    "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
-                    "value": 0.021466496280102353,
-                    "variant": "task_execution.object_position_variation"
+                    "seed": 100301,
+                    "source_artifact": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_execution.json",
+                    "value": 0.05838477611541748,
+                    "variant": "task_execution.non_target_proximity_effect"
                   }
                 ],
-                "value": 0.021466496280102353
+                "value": 0.05838477611541748
               },
               "median": {
                 "provenance": [
                   {
                     "details_reason": "measured",
-                    "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+                    "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
                     "evidence_steps": [
-                      5514
+                      7821
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100000,
-                    "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
-                    "value": 0.021466496280102353,
-                    "variant": "task_execution.object_position_variation"
+                    "seed": 100301,
+                    "source_artifact": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_execution.json",
+                    "value": 0.05838477611541748,
+                    "variant": "task_execution.non_target_proximity_effect"
                   }
                 ],
-                "value": 0.021466496280102353
+                "value": 0.05838477611541748
               },
               "min": {
                 "provenance": [
                   {
                     "details_reason": "measured",
-                    "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+                    "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
                     "evidence_steps": [
-                      5514
+                      7821
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100000,
-                    "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
-                    "value": 0.021466496280102353,
-                    "variant": "task_execution.object_position_variation"
+                    "seed": 100301,
+                    "source_artifact": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_execution.json",
+                    "value": 0.05838477611541748,
+                    "variant": "task_execution.non_target_proximity_effect"
                   }
                 ],
-                "value": 0.021466496280102353
+                "value": 0.05838477611541748
               },
               "population_stddev": {
                 "provenance": [
                   {
                     "details_reason": "measured",
-                    "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
+                    "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
                     "evidence_steps": [
-                      5514
+                      7821
                     ],
                     "policy_name": "ACT",
                     "role": "policy_under_evaluation",
                     "round_id": "round_2",
-                    "seed": 100000,
-                    "source_artifact": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_2/planned_tool/tool_execution.json",
-                    "value": 0.021466496280102353,
-                    "variant": "task_execution.object_position_variation"
+                    "seed": 100301,
+                    "source_artifact": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_execution.json",
+                    "value": 0.05838477611541748,
+                    "variant": "task_execution.non_target_proximity_effect"
                   }
                 ],
                 "value": 0.0
@@ -1903,669 +1713,6 @@
         "query_derived_metric"
       ],
       "unit": "m",
-      "value_kind": "numeric"
-    },
-    {
-      "cohorts": [
-        {
-          "groups": {
-            "policy_name": [
-              {
-                "summary": {
-                  "episode_result_count": 1,
-                  "quality": {
-                    "invalid": {
-                      "provenance": [],
-                      "value": 0
-                    },
-                    "missing": {
-                      "provenance": [],
-                      "value": 0
-                    },
-                    "valid": {
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 22.056,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 1
-                    }
-                  },
-                  "statistics": {
-                    "max": {
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 22.056,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 22.056
-                    },
-                    "mean": {
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 22.056,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 22.056
-                    },
-                    "median": {
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 22.056,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 22.056
-                    },
-                    "min": {
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 22.056,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 22.056
-                    },
-                    "population_stddev": {
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 22.056,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 0.0
-                    }
-                  },
-                  "unit": "s",
-                  "value_kind": "numeric"
-                },
-                "value": "ACT"
-              }
-            ],
-            "round_id": [
-              {
-                "summary": {
-                  "episode_result_count": 1,
-                  "quality": {
-                    "invalid": {
-                      "provenance": [],
-                      "value": 0
-                    },
-                    "missing": {
-                      "provenance": [],
-                      "value": 0
-                    },
-                    "valid": {
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 22.056,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 1
-                    }
-                  },
-                  "statistics": {
-                    "max": {
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 22.056,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 22.056
-                    },
-                    "mean": {
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 22.056,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 22.056
-                    },
-                    "median": {
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 22.056,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 22.056
-                    },
-                    "min": {
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 22.056,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 22.056
-                    },
-                    "population_stddev": {
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 22.056,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 0.0
-                    }
-                  },
-                  "unit": "s",
-                  "value_kind": "numeric"
-                },
-                "value": "round_2"
-              }
-            ],
-            "seed": [
-              {
-                "summary": {
-                  "episode_result_count": 1,
-                  "quality": {
-                    "invalid": {
-                      "provenance": [],
-                      "value": 0
-                    },
-                    "missing": {
-                      "provenance": [],
-                      "value": 0
-                    },
-                    "valid": {
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 22.056,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 1
-                    }
-                  },
-                  "statistics": {
-                    "max": {
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 22.056,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 22.056
-                    },
-                    "mean": {
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 22.056,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 22.056
-                    },
-                    "median": {
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 22.056,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 22.056
-                    },
-                    "min": {
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 22.056,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 22.056
-                    },
-                    "population_stddev": {
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 22.056,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 0.0
-                    }
-                  },
-                  "unit": "s",
-                  "value_kind": "numeric"
-                },
-                "value": 100000
-              }
-            ],
-            "variant": [
-              {
-                "summary": {
-                  "episode_result_count": 1,
-                  "quality": {
-                    "invalid": {
-                      "provenance": [],
-                      "value": 0
-                    },
-                    "missing": {
-                      "provenance": [],
-                      "value": 0
-                    },
-                    "valid": {
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 22.056,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 1
-                    }
-                  },
-                  "statistics": {
-                    "max": {
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 22.056,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 22.056
-                    },
-                    "mean": {
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 22.056,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 22.056
-                    },
-                    "median": {
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 22.056,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 22.056
-                    },
-                    "min": {
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 22.056,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 22.056
-                    },
-                    "population_stddev": {
-                      "provenance": [
-                        {
-                          "episode_dir": "act/episode_000_seed_100000",
-                          "evidence_steps": [
-                            5514
-                          ],
-                          "policy_name": "ACT",
-                          "role": "policy_under_evaluation",
-                          "round_id": "round_2",
-                          "seed": 100000,
-                          "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                          "value": 22.056,
-                          "variant": "task_execution.object_position_variation"
-                        }
-                      ],
-                      "value": 0.0
-                    }
-                  },
-                  "unit": "s",
-                  "value_kind": "numeric"
-                },
-                "value": "task_execution.object_position_variation"
-              }
-            ]
-          },
-          "policy_names": [
-            "ACT"
-          ],
-          "role": "policy_under_evaluation",
-          "summary": {
-            "episode_result_count": 1,
-            "quality": {
-              "invalid": {
-                "provenance": [],
-                "value": 0
-              },
-              "missing": {
-                "provenance": [],
-                "value": 0
-              },
-              "valid": {
-                "provenance": [
-                  {
-                    "episode_dir": "act/episode_000_seed_100000",
-                    "evidence_steps": [
-                      5514
-                    ],
-                    "policy_name": "ACT",
-                    "role": "policy_under_evaluation",
-                    "round_id": "round_2",
-                    "seed": 100000,
-                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                    "value": 22.056,
-                    "variant": "task_execution.object_position_variation"
-                  }
-                ],
-                "value": 1
-              }
-            },
-            "statistics": {
-              "max": {
-                "provenance": [
-                  {
-                    "episode_dir": "act/episode_000_seed_100000",
-                    "evidence_steps": [
-                      5514
-                    ],
-                    "policy_name": "ACT",
-                    "role": "policy_under_evaluation",
-                    "round_id": "round_2",
-                    "seed": 100000,
-                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                    "value": 22.056,
-                    "variant": "task_execution.object_position_variation"
-                  }
-                ],
-                "value": 22.056
-              },
-              "mean": {
-                "provenance": [
-                  {
-                    "episode_dir": "act/episode_000_seed_100000",
-                    "evidence_steps": [
-                      5514
-                    ],
-                    "policy_name": "ACT",
-                    "role": "policy_under_evaluation",
-                    "round_id": "round_2",
-                    "seed": 100000,
-                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                    "value": 22.056,
-                    "variant": "task_execution.object_position_variation"
-                  }
-                ],
-                "value": 22.056
-              },
-              "median": {
-                "provenance": [
-                  {
-                    "episode_dir": "act/episode_000_seed_100000",
-                    "evidence_steps": [
-                      5514
-                    ],
-                    "policy_name": "ACT",
-                    "role": "policy_under_evaluation",
-                    "round_id": "round_2",
-                    "seed": 100000,
-                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                    "value": 22.056,
-                    "variant": "task_execution.object_position_variation"
-                  }
-                ],
-                "value": 22.056
-              },
-              "min": {
-                "provenance": [
-                  {
-                    "episode_dir": "act/episode_000_seed_100000",
-                    "evidence_steps": [
-                      5514
-                    ],
-                    "policy_name": "ACT",
-                    "role": "policy_under_evaluation",
-                    "round_id": "round_2",
-                    "seed": 100000,
-                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                    "value": 22.056,
-                    "variant": "task_execution.object_position_variation"
-                  }
-                ],
-                "value": 22.056
-              },
-              "population_stddev": {
-                "provenance": [
-                  {
-                    "episode_dir": "act/episode_000_seed_100000",
-                    "evidence_steps": [
-                      5514
-                    ],
-                    "policy_name": "ACT",
-                    "role": "policy_under_evaluation",
-                    "round_id": "round_2",
-                    "seed": 100000,
-                    "source_artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
-                    "value": 22.056,
-                    "variant": "task_execution.object_position_variation"
-                  }
-                ],
-                "value": 0.0
-              }
-            },
-            "unit": "s",
-            "value_kind": "numeric"
-          }
-        }
-      ],
-      "metric": "time_to_success",
-      "tools": [
-        "time_to_success"
-      ],
-      "unit": "s",
       "value_kind": "numeric"
     }
   ],

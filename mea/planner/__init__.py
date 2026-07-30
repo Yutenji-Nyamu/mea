@@ -84,12 +84,15 @@ from .semantic_coverage import (
     build_candidate_intent_alignment,
     build_evaluation_intent,
     build_implementation_trace,
+    evaluation_intent_from_query_interpretation,
     evaluation_intent_from_free_concern,
     validate_evaluation_intent,
     validate_implementation_trace,
     validate_intent_alignment,
 )
 from .claim_first import (
+    PlanAgent,
+    PlanAgentError as OpenQueryPlanAgentError,
     ClaimFirstOpenQueryAgent,
     ClaimFirstPlanError,
     build_open_query_planning_lineage,
@@ -101,10 +104,11 @@ from .claim_first import (
     validate_open_query_proposal_lineage,
 )
 from .claim_first_runtime import (
+    PlanAgentSession,
+    PlanAgentSessionError,
     ClaimFirstRuntimeController,
     ClaimFirstRuntimeError,
     build_claim_first_evidence_record,
-    build_control_anchor_proposal,
     build_dynamic_experiment_candidate,
     build_initial_semantic_proposal_bundle,
     control_template_id,
@@ -113,17 +117,23 @@ from .claim_first_runtime import (
     resolve_semantic_proposal,
 )
 from .claim_first_initial import (
+    PlanAgentInitialPlanBuilder,
+    PlanAgentInitialPlanError,
     ClaimFirstInitialPlanBuilder,
     ClaimFirstInitialPlanError,
+    build_plan_agent_control_round,
+    build_plan_agent_execution_binding,
     build_claim_first_control_round,
     build_claim_first_execution_binding,
 )
 from .open_task_resolver import (
+    PlanAgentQueryInterpreter,
     FreeConcernAgent,
     discover_robotwin_task_inventory,
     resolve_open_task,
 )
 from .open_world_session import (
+    PlanAgentExecutionSession,
     OpenWorldPlanSession,
     OpenWorldSessionError,
     build_open_world_evaluation_target,
@@ -138,7 +148,7 @@ from .policy_task_binding import (
 
 
 # These task-specific and catalog planners are compatibility/paper protocols.
-# Preserve the public import API while keeping normal ClaimFirst imports free of
+# Preserve the public import API while keeping normal Plan Agent imports free of
 # their modules and construction side effects.
 _LEGACY_EXPORTS = {
     "OFFICIAL_GATES": (".official", "OFFICIAL_GATES"),
@@ -256,9 +266,12 @@ __all__ = [
     "build_evaluation_intent",
     "build_implementation_trace",
     "evaluation_intent_from_free_concern",
+    "evaluation_intent_from_query_interpretation",
     "validate_evaluation_intent",
     "validate_implementation_trace",
     "validate_intent_alignment",
+    "PlanAgent",
+    "OpenQueryPlanAgentError",
     "ClaimFirstOpenQueryAgent",
     "ClaimFirstPlanError",
     "build_open_query_planning_lineage",
@@ -268,24 +281,31 @@ __all__ = [
     "validate_open_query_evidence",
     "validate_open_query_plan_proposal",
     "validate_open_query_proposal_lineage",
+    "PlanAgentSession",
+    "PlanAgentSessionError",
     "ClaimFirstRuntimeController",
     "ClaimFirstRuntimeError",
     "build_claim_first_evidence_record",
-    "build_control_anchor_proposal",
     "build_dynamic_experiment_candidate",
     "build_initial_semantic_proposal_bundle",
     "control_template_id",
     "render_query_answer",
     "resolve_concern_candidate_domain",
     "resolve_semantic_proposal",
+    "PlanAgentInitialPlanBuilder",
+    "PlanAgentInitialPlanError",
+    "build_plan_agent_control_round",
+    "build_plan_agent_execution_binding",
     "ClaimFirstInitialPlanBuilder",
     "ClaimFirstInitialPlanError",
     "build_claim_first_control_round",
     "build_claim_first_execution_binding",
     "FreeConcernAgent",
+    "PlanAgentQueryInterpreter",
     "discover_robotwin_task_inventory",
     "resolve_open_task",
     "OpenWorldPlanSession",
+    "PlanAgentExecutionSession",
     "OpenWorldSessionError",
     "build_open_world_evaluation_target",
     "validate_open_world_evaluation_target",

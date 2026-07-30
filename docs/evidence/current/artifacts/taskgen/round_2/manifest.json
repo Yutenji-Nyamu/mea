@@ -1,25 +1,25 @@
 {
   "schema_version": 1,
-  "run_id": "run_20260729_b30_refinement_live_v2_round_2",
+  "run_id": "run_20260730_b44_grab_roller_plan_agent_live13_round_2",
   "status": "completed",
-  "created_at": "2026-07-29T15:57:41.185176+08:00",
-  "user_request": "Where does this ACT policy first expose a weakness under manipulated-object property changes, and what evidence supports that conclusion?\nScene need: Introduce a bounded variation in the bell's position. Preserve unchanged: task identity; policy checkpoint.\nChecker need: reuse the official implementation",
-  "task_name": "click_bell",
-  "task_module": "mea.generated_tasks.run_20260729_b30_refinement_live_v2_round_2.task",
+  "created_at": "2026-07-30T10:52:46.834345+08:00",
+  "user_request": "只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。\nScene need: Place a non-target roller with identical appearance closer to the robot than the target roller. Preserve unchanged: task identity; policy checkpoint.\nChecker need: A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters. Numeric Rule Tool needed to report the final height difference between the target and non-target rollers. Hypothesis: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
+  "task_name": "grab_roller",
+  "task_module": "mea.generated_tasks.run_20260730_b44_grab_roller_plan_agent_live13_round_2.task",
   "mode": "generic_provider_scene_checker_codegen",
   "generation_kind": "generic_provider_scene_checker_codegen",
-  "base_commit": "ea03ddfbb624def181ba2587f9c785a6ca01689f",
+  "base_commit": "5fb9ae910d1ec1bd96e0f50bfab6becbd437942a",
   "protected_hashes_before": {
     "envs/beat_block_hammer.py": "90269f15f9ce274fb5bcad703c47b0b552ff5a2f0a3ff62d12dbe9a553018014",
     "policy/ACT/eval.sh": "65fa39ced68bae149dec3d0194d044cbefc7ea48870803fe94889211435f4b4d",
     "script/eval_policy.py": "b7138c259c790d2013ede0edfdb138a56ddc11bf664abd3baa57f19fa8933c2e"
   },
-  "overlay": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/overlay.yml",
+  "overlay": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/overlay.yml",
   "telemetry_profile": "balanced_v1",
   "static_validation": {
     "provider_scene_checker": {
       "valid": true,
-      "ast_policy": "generic_official_api_ast_v1:ae51ba2ec403f51e",
+      "ast_policy": "generic_official_api_ast_v1:8c98bc539cd3c6f8",
       "model_written_python": true,
       "restricted_success_spec_compiler_used": false,
       "checker_fixture_count": 2,
@@ -27,9 +27,9 @@
     }
   },
   "scene_validation": {
-    "task_name": "click_bell",
-    "task_module": "mea.generated_task_attempts.run_20260729_b30_refinement_live_v2_round_2.attempt_01.candidate_task",
-    "seed": 100000,
+    "task_name": "grab_roller",
+    "task_module": "mea.generated_task_attempts.run_20260730_b44_grab_roller_plan_agent_live13_round_2.attempt_01.candidate_task",
+    "seed": 100301,
     "setup_success": true,
     "render_success": true,
     "expert_requested": true,
@@ -38,17 +38,20 @@
     "execution_receipt_requested": false,
     "task_schema": {
       "schema_version": 1,
-      "task_name": "click_bell",
-      "task_family": "press_contact",
+      "task_name": "grab_roller",
+      "task_family": "dual_arm_lift",
       "trusted_tool_profile": "generic_success",
       "tracked_actor_ids": [
-        "bell"
+        "roller",
+        "non_target_roller"
       ],
       "semantic_field_names": [
-        "bell_position",
-        "bell_contact_position",
+        "roller_position",
+        "roller_left_contact_position",
+        "roller_right_contact_position",
         "left_tcp_position",
-        "right_tcp_position"
+        "right_tcp_position",
+        "non_target_roller_position"
       ]
     },
     "domain_randomization": {
@@ -90,6 +93,34 @@
     },
     "actors": [
       {
+        "name": "102_roller",
+        "position": [
+          -0.07744024693965912,
+          -0.06961455196142197,
+          0.7416645884513855
+        ],
+        "quaternion": [
+          0.19325308501720428,
+          0.19415003061294556,
+          0.6815027594566345,
+          0.678611159324646
+        ]
+      },
+      {
+        "name": "non_target_roller",
+        "position": [
+          -0.01590118370950222,
+          -0.30600106716156006,
+          0.7416644096374512
+        ],
+        "quaternion": [
+          -0.0025369867216795683,
+          -0.0024714116007089615,
+          0.7080894708633423,
+          0.7061140537261963
+        ]
+      },
+      {
         "name": "ground",
         "position": [
           0.0,
@@ -130,60 +161,46 @@
           0.0,
           0.0
         ]
-      },
-      {
-        "name": "050_bell",
-        "position": [
-          0.06159507855772972,
-          -0.11331125348806381,
-          0.7359002232551575
-        ],
-        "quaternion": [
-          0.5,
-          0.5,
-          0.5,
-          0.5
-        ]
       }
     ],
     "tracked_actors": [
       {
-        "id": "bell",
-        "task_attribute": "bell",
-        "scene_name": "050_bell",
+        "id": "roller",
+        "task_attribute": "roller",
+        "scene_name": "102_roller",
         "position": [
-          0.06159507855772972,
-          -0.11331125348806381,
-          0.7359002232551575
+          -0.07744024693965912,
+          -0.06961455196142197,
+          0.7416645884513855
         ],
         "quaternion": [
-          0.5,
-          0.5,
-          0.5,
-          0.5
+          0.19325308501720428,
+          0.19415003061294556,
+          0.6815027594566345,
+          0.678611159324646
         ],
         "collision_geometry": [
           {
             "geometry_type": "create_actor_asset",
-            "modelname": "050_bell",
-            "model_id": 1,
-            "collision_asset": "assets/objects/050_bell/collision/base1.glb",
+            "modelname": "102_roller",
+            "model_id": 2,
+            "collision_asset": "assets/objects/102_roller/collision/base2.glb",
             "convex": true,
-            "is_static": true,
+            "is_static": false,
             "scale": [
-              0.04,
-              0.04,
-              0.04
+              0.13,
+              0.1,
+              0.1
             ],
             "extents": [
-              2.5883968548477228,
-              1.3250785247084105,
-              2.5887140724986057
+              1.9311913944412211,
+              0.32168825746682084,
+              0.3103910043535411
             ],
             "center": [
-              8.667908080472183e-05,
-              0.6445632287777463,
-              0.0006842777984963255
+              2.118178000711387e-05,
+              0.11274457106981156,
+              0.0013336256808618475
             ]
           }
         ],
@@ -191,27 +208,84 @@
         "contact_points": {
           "0": {
             "position": [
-              0.06159507855772972,
-              -0.11331125348806381,
-              0.7616906237602233
+              -0.1517805872741177,
+              -0.020864043415604293,
+              0.7551978901411976
             ],
             "raw": [
-              0.06159507855772972,
-              -0.11331125348806381,
-              0.7616906237602233,
-              0.5000000000000001,
-              0.5,
-              0.5000000000000001,
-              0.5000000000000001
+              -0.1517805872741177,
+              -0.020864043415604293,
+              0.7551978901411976,
+              0.19325304918059488,
+              0.1941500115981655,
+              0.6815027148591383,
+              0.6786111416845878
+            ]
+          },
+          "1": {
+            "position": [
+              -0.0025015978186608973,
+              -0.11628481144405739,
+              0.7541296693073063
+            ],
+            "raw": [
+              -0.0025015978186608973,
+              -0.11628481144405739,
+              0.7541296693073063,
+              0.681502714859138,
+              0.6786111416845875,
+              -0.19325304918059483,
+              -0.19415001159816556
             ]
           }
         }
+      },
+      {
+        "id": "non_target_roller",
+        "task_attribute": "non_target_roller",
+        "scene_name": "non_target_roller",
+        "position": [
+          -0.01590118370950222,
+          -0.30600106716156006,
+          0.7416644096374512
+        ],
+        "quaternion": [
+          -0.0025369867216795683,
+          -0.0024714116007089615,
+          0.7080894708633423,
+          0.7061140537261963
+        ],
+        "collision_geometry": [
+          {
+            "geometry_type": "create_actor_asset",
+            "modelname": "102_roller",
+            "model_id": 2,
+            "collision_asset": "assets/objects/102_roller/collision/base2.glb",
+            "convex": true,
+            "is_static": false,
+            "scale": [
+              0.13,
+              0.1,
+              0.1
+            ],
+            "extents": [
+              1.9311913944412211,
+              0.32168825746682084,
+              0.3103910043535411
+            ],
+            "center": [
+              2.118178000711387e-05,
+              0.11274457106981156,
+              0.0013336256808618475
+            ]
+          }
+        ],
+        "functional_points": {},
+        "contact_points": {}
       }
     ],
-    "task_attributes": {
-      "bell_id": 1
-    },
-    "image": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_task_attempts/run_20260729_b30_refinement_live_v2_round_2/attempt_01/expert_head.png",
+    "task_attributes": {},
+    "image": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_task_attempts/run_20260730_b44_grab_roller_plan_agent_live13_round_2/attempt_01/expert_head.png",
     "rule_check": {
       "all_tracked_actor_attributes_present": true,
       "tracked_actor_runtime_names_match": true,
@@ -220,16 +294,215 @@
       "official_check_success_callable": true,
       "passed": true,
       "tracked_actor_ids": [
-        "bell"
+        "roller",
+        "non_target_roller"
       ],
       "declared_scene_names": [
-        "050_bell"
+        "102_roller",
+        "non_target_roller"
       ]
     },
     "initial_check_success": false,
+    "expert_terminal_tracked_actors": [
+      {
+        "id": "roller",
+        "task_attribute": "roller",
+        "scene_name": "102_roller",
+        "position": [
+          -0.07542768120765686,
+          -0.06579278409481049,
+          0.8486258387565613
+        ],
+        "quaternion": [
+          0.23063327372074127,
+          0.14059339463710785,
+          0.5060070753097534,
+          0.8191452622413635
+        ],
+        "collision_geometry": [
+          {
+            "geometry_type": "create_actor_asset",
+            "modelname": "102_roller",
+            "model_id": 2,
+            "collision_asset": "assets/objects/102_roller/collision/base2.glb",
+            "convex": true,
+            "is_static": false,
+            "scale": [
+              0.13,
+              0.1,
+              0.1
+            ],
+            "extents": [
+              1.9311913944412211,
+              0.32168825746682084,
+              0.3103910043535411
+            ],
+            "center": [
+              2.118178000711387e-05,
+              0.11274457106981156,
+              0.0013336256808618475
+            ]
+          }
+        ],
+        "functional_points": {},
+        "contact_points": {
+          "0": {
+            "position": [
+              -0.15349728103784954,
+              -0.02304685246424426,
+              0.8614387606092341
+            ],
+            "raw": [
+              -0.15349728103784954,
+              -0.02304685246424426,
+              0.8614387606092341,
+              0.23063322536623454,
+              0.14059337213345158,
+              0.5060070150031183,
+              0.8191451152493965
+            ]
+          },
+          "1": {
+            "position": [
+              -0.0030739231916283166,
+              -0.11664732867862541,
+              0.8599413420594647
+            ],
+            "raw": [
+              -0.0030739231916283166,
+              -0.11664732867862541,
+              0.8599413420594647,
+              0.5060070150031182,
+              0.8191451152493963,
+              -0.23063322536623443,
+              -0.14059337213345166
+            ]
+          }
+        }
+      },
+      {
+        "id": "non_target_roller",
+        "task_attribute": "non_target_roller",
+        "scene_name": "non_target_roller",
+        "position": [
+          -0.01590118370950222,
+          -0.30600106716156006,
+          0.7416644096374512
+        ],
+        "quaternion": [
+          -0.0025369867216795683,
+          -0.0024714116007089615,
+          0.7080894708633423,
+          0.7061140537261963
+        ],
+        "collision_geometry": [
+          {
+            "geometry_type": "create_actor_asset",
+            "modelname": "102_roller",
+            "model_id": 2,
+            "collision_asset": "assets/objects/102_roller/collision/base2.glb",
+            "convex": true,
+            "is_static": false,
+            "scale": [
+              0.13,
+              0.1,
+              0.1
+            ],
+            "extents": [
+              1.9311913944412211,
+              0.32168825746682084,
+              0.3103910043535411
+            ],
+            "center": [
+              2.118178000711387e-05,
+              0.11274457106981156,
+              0.0013336256808618475
+            ]
+          }
+        ],
+        "functional_points": {},
+        "contact_points": {}
+      }
+    ],
+    "expert_terminal_actors": [
+      {
+        "name": "102_roller",
+        "position": [
+          -0.07542768120765686,
+          -0.06579278409481049,
+          0.8486258387565613
+        ],
+        "quaternion": [
+          0.23063327372074127,
+          0.14059339463710785,
+          0.5060070753097534,
+          0.8191452622413635
+        ]
+      },
+      {
+        "name": "non_target_roller",
+        "position": [
+          -0.01590118370950222,
+          -0.30600106716156006,
+          0.7416644096374512
+        ],
+        "quaternion": [
+          -0.0025369867216795683,
+          -0.0024714116007089615,
+          0.7080894708633423,
+          0.7061140537261963
+        ]
+      },
+      {
+        "name": "ground",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "quaternion": [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "name": "wall",
+        "position": [
+          0.0,
+          1.0,
+          1.5
+        ],
+        "quaternion": [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "name": "table",
+        "position": [
+          0.0,
+          0.0,
+          0.7400000095367432
+        ],
+        "quaternion": [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    ],
+    "expert_terminal_task_attributes": {},
     "expert": {
       "plan_success": true,
       "check_success": true,
+      "official_check_success": true,
+      "official_core_predicate_satisfied": true,
+      "official_success_authority": "mea_official_check_success",
       "passed": true,
       "attempts_used": 1
     },
@@ -240,6 +513,9 @@
         "expert": {
           "plan_success": true,
           "check_success": true,
+          "official_check_success": true,
+          "official_core_predicate_satisfied": true,
+          "official_success_authority": "mea_official_check_success",
           "passed": true,
           "attempts_used": 1
         }
@@ -247,9 +523,9 @@
     ],
     "returncode": 0,
     "setup_fixture": {
-      "task_name": "click_bell",
-      "task_module": "mea.generated_task_attempts.run_20260729_b30_refinement_live_v2_round_2.attempt_01.candidate_task",
-      "seed": 100000,
+      "task_name": "grab_roller",
+      "task_module": "mea.generated_task_attempts.run_20260730_b44_grab_roller_plan_agent_live13_round_2.attempt_01.candidate_task",
+      "seed": 100301,
       "setup_success": true,
       "render_success": true,
       "expert_requested": false,
@@ -258,17 +534,20 @@
       "execution_receipt_requested": false,
       "task_schema": {
         "schema_version": 1,
-        "task_name": "click_bell",
-        "task_family": "press_contact",
+        "task_name": "grab_roller",
+        "task_family": "dual_arm_lift",
         "trusted_tool_profile": "generic_success",
         "tracked_actor_ids": [
-          "bell"
+          "roller",
+          "non_target_roller"
         ],
         "semantic_field_names": [
-          "bell_position",
-          "bell_contact_position",
+          "roller_position",
+          "roller_left_contact_position",
+          "roller_right_contact_position",
           "left_tcp_position",
-          "right_tcp_position"
+          "right_tcp_position",
+          "non_target_roller_position"
         ]
       },
       "domain_randomization": {
@@ -310,6 +589,34 @@
       },
       "actors": [
         {
+          "name": "102_roller",
+          "position": [
+            -0.07744024693965912,
+            -0.06961455196142197,
+            0.7416645884513855
+          ],
+          "quaternion": [
+            0.19325308501720428,
+            0.19415003061294556,
+            0.6815027594566345,
+            0.678611159324646
+          ]
+        },
+        {
+          "name": "non_target_roller",
+          "position": [
+            -0.01590118370950222,
+            -0.30600106716156006,
+            0.7416644096374512
+          ],
+          "quaternion": [
+            -0.0025369867216795683,
+            -0.0024714116007089615,
+            0.7080894708633423,
+            0.7061140537261963
+          ]
+        },
+        {
           "name": "ground",
           "position": [
             0.0,
@@ -350,60 +657,46 @@
             0.0,
             0.0
           ]
-        },
-        {
-          "name": "050_bell",
-          "position": [
-            0.06159507855772972,
-            -0.11331125348806381,
-            0.7359002232551575
-          ],
-          "quaternion": [
-            0.5,
-            0.5,
-            0.5,
-            0.5
-          ]
         }
       ],
       "tracked_actors": [
         {
-          "id": "bell",
-          "task_attribute": "bell",
-          "scene_name": "050_bell",
+          "id": "roller",
+          "task_attribute": "roller",
+          "scene_name": "102_roller",
           "position": [
-            0.06159507855772972,
-            -0.11331125348806381,
-            0.7359002232551575
+            -0.07744024693965912,
+            -0.06961455196142197,
+            0.7416645884513855
           ],
           "quaternion": [
-            0.5,
-            0.5,
-            0.5,
-            0.5
+            0.19325308501720428,
+            0.19415003061294556,
+            0.6815027594566345,
+            0.678611159324646
           ],
           "collision_geometry": [
             {
               "geometry_type": "create_actor_asset",
-              "modelname": "050_bell",
-              "model_id": 1,
-              "collision_asset": "assets/objects/050_bell/collision/base1.glb",
+              "modelname": "102_roller",
+              "model_id": 2,
+              "collision_asset": "assets/objects/102_roller/collision/base2.glb",
               "convex": true,
-              "is_static": true,
+              "is_static": false,
               "scale": [
-                0.04,
-                0.04,
-                0.04
+                0.13,
+                0.1,
+                0.1
               ],
               "extents": [
-                2.5883968548477228,
-                1.3250785247084105,
-                2.5887140724986057
+                1.9311913944412211,
+                0.32168825746682084,
+                0.3103910043535411
               ],
               "center": [
-                8.667908080472183e-05,
-                0.6445632287777463,
-                0.0006842777984963255
+                2.118178000711387e-05,
+                0.11274457106981156,
+                0.0013336256808618475
               ]
             }
           ],
@@ -411,27 +704,84 @@
           "contact_points": {
             "0": {
               "position": [
-                0.06159507855772972,
-                -0.11331125348806381,
-                0.7616906237602233
+                -0.1517805872741177,
+                -0.020864043415604293,
+                0.7551978901411976
               ],
               "raw": [
-                0.06159507855772972,
-                -0.11331125348806381,
-                0.7616906237602233,
-                0.5000000000000001,
-                0.5,
-                0.5000000000000001,
-                0.5000000000000001
+                -0.1517805872741177,
+                -0.020864043415604293,
+                0.7551978901411976,
+                0.19325304918059488,
+                0.1941500115981655,
+                0.6815027148591383,
+                0.6786111416845878
+              ]
+            },
+            "1": {
+              "position": [
+                -0.0025015978186608973,
+                -0.11628481144405739,
+                0.7541296693073063
+              ],
+              "raw": [
+                -0.0025015978186608973,
+                -0.11628481144405739,
+                0.7541296693073063,
+                0.681502714859138,
+                0.6786111416845875,
+                -0.19325304918059483,
+                -0.19415001159816556
               ]
             }
           }
+        },
+        {
+          "id": "non_target_roller",
+          "task_attribute": "non_target_roller",
+          "scene_name": "non_target_roller",
+          "position": [
+            -0.01590118370950222,
+            -0.30600106716156006,
+            0.7416644096374512
+          ],
+          "quaternion": [
+            -0.0025369867216795683,
+            -0.0024714116007089615,
+            0.7080894708633423,
+            0.7061140537261963
+          ],
+          "collision_geometry": [
+            {
+              "geometry_type": "create_actor_asset",
+              "modelname": "102_roller",
+              "model_id": 2,
+              "collision_asset": "assets/objects/102_roller/collision/base2.glb",
+              "convex": true,
+              "is_static": false,
+              "scale": [
+                0.13,
+                0.1,
+                0.1
+              ],
+              "extents": [
+                1.9311913944412211,
+                0.32168825746682084,
+                0.3103910043535411
+              ],
+              "center": [
+                2.118178000711387e-05,
+                0.11274457106981156,
+                0.0013336256808618475
+              ]
+            }
+          ],
+          "functional_points": {},
+          "contact_points": {}
         }
       ],
-      "task_attributes": {
-        "bell_id": 1
-      },
-      "image": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_task_attempts/run_20260729_b30_refinement_live_v2_round_2/attempt_01/setup_head.png",
+      "task_attributes": {},
+      "image": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_task_attempts/run_20260730_b44_grab_roller_plan_agent_live13_round_2/attempt_01/setup_head.png",
       "rule_check": {
         "all_tracked_actor_attributes_present": true,
         "tracked_actor_runtime_names_match": true,
@@ -440,10 +790,12 @@
         "official_check_success_callable": true,
         "passed": true,
         "tracked_actor_ids": [
-          "bell"
+          "roller",
+          "non_target_roller"
         ],
         "declared_scene_names": [
-          "050_bell"
+          "102_roller",
+          "non_target_roller"
         ]
       },
       "initial_check_success": false,
@@ -464,10 +816,10 @@
           "tracked_actors"
         ],
         "render_changed": true,
-        "official_render_sha256": "0fe101e82ac32633018e0b0622eb3f62bd7a8bc878521172e41b97a094d3f55e",
-        "generated_render_sha256": "8de34fef59f4565b1499214ee3afc3a26c2d8bfde029cb34b7ca900e1872fb8b",
+        "official_render_sha256": "cb6a9521c8fed7ac734d947f26b9191f8d4ef656a3b4eee86949b931d7c4521c",
+        "generated_render_sha256": "e03ba756afc093f38a4242c22395ab00a73f9febb3372f92ef45f228a84c94f8",
         "scene_need": {
-          "description": "Introduce a bounded variation in the bell's position. Preserve unchanged: task identity; policy checkpoint.",
+          "description": "Place a non-target roller with identical appearance closer to the robot than the target roller. Preserve unchanged: task identity; policy checkpoint.",
           "kind": "adapt",
           "reuse_first": true
         },
@@ -487,7 +839,7 @@
         "passed": true,
         "model_requested": "gpt-4o-2024-11-20",
         "provider_metadata": {
-          "id": "chatcmpl-E6tSVvYZ6LOCkihryjtxoD9Gjlgkh",
+          "id": "chatcmpl-E7BAxrE6xkWcJOb8uMUKPxKBlUmxK",
           "model": "gpt-4o-2024-11-20",
           "finish_reason": "stop",
           "usage": {
@@ -499,22 +851,22 @@
               "rejected_prediction_tokens": 0
             },
             "latency_checkpoint": {
-              "engine_tbt_ms": 10,
-              "engine_ttft_ms": 453,
-              "engine_ttlt_ms": 1358,
-              "pre_inference_ms": 350,
-              "service_tbt_ms": 10,
-              "service_ttft_ms": 1070,
-              "service_ttlt_ms": 1973,
-              "total_duration_ms": 1660,
-              "user_visible_ttft_ms": 720
+              "engine_tbt_ms": 17,
+              "engine_ttft_ms": 464,
+              "engine_ttlt_ms": 2057,
+              "pre_inference_ms": 116,
+              "service_tbt_ms": 17,
+              "service_ttft_ms": 1569,
+              "service_ttlt_ms": 3159,
+              "total_duration_ms": 3050,
+              "user_visible_ttft_ms": 1453
             },
-            "prompt_tokens": 681,
+            "prompt_tokens": 843,
             "prompt_tokens_details": {
               "audio_tokens": 0,
               "cached_tokens": 0
             },
-            "total_tokens": 775
+            "total_tokens": 937
           },
           "retry_count": 0
         },
@@ -557,16 +909,24 @@
           "authority": "official_expert_terminal_state"
         }
       ],
-      "official_setup_scene": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/validation/official_setup_preflight.json",
-      "official_setup_image": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evidence/official_initial_head.png",
-      "setup_scene": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/validation/setup_preflight.json",
-      "expert_scene": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/validation/expert_preflight.json",
-      "setup_image": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evidence/initial_head.png",
-      "expert_image": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evidence/expert_head.png",
-      "visual_comparison_image": "mea/generated_task_attempts/run_20260729_b30_refinement_live_v2_round_2/attempt_01/visual/official_vs_generated.png",
-      "visual_prompt": "mea/generated_task_attempts/run_20260729_b30_refinement_live_v2_round_2/attempt_01/visual/vision_prompt.md",
-      "visual_response": "mea/generated_task_attempts/run_20260729_b30_refinement_live_v2_round_2/attempt_01/visual/vision_response.txt",
-      "visual_result": "mea/generated_task_attempts/run_20260729_b30_refinement_live_v2_round_2/attempt_01/visual/vision.json"
+      "initial_actor_z_m": {
+        "roller": 0.741665,
+        "non_target_roller": 0.741664
+      },
+      "expert_terminal_actor_z_m": {
+        "roller": 0.848626,
+        "non_target_roller": 0.741664
+      },
+      "official_setup_scene": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/validation/official_setup_preflight.json",
+      "official_setup_image": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evidence/official_initial_head.png",
+      "setup_scene": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/validation/setup_preflight.json",
+      "expert_scene": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/validation/expert_preflight.json",
+      "setup_image": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evidence/initial_head.png",
+      "expert_image": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evidence/expert_head.png",
+      "visual_comparison_image": "mea/generated_task_attempts/run_20260730_b44_grab_roller_plan_agent_live13_round_2/attempt_01/visual/official_vs_generated.png",
+      "visual_prompt": "mea/generated_task_attempts/run_20260730_b44_grab_roller_plan_agent_live13_round_2/attempt_01/visual/vision_prompt.md",
+      "visual_response": "mea/generated_task_attempts/run_20260730_b44_grab_roller_plan_agent_live13_round_2/attempt_01/visual/vision_response.txt",
+      "visual_result": "mea/generated_task_attempts/run_20260730_b44_grab_roller_plan_agent_live13_round_2/attempt_01/visual/vision.json"
     }
   },
   "vision_validation": {
@@ -583,7 +943,7 @@
     "passed": true,
     "model_requested": "gpt-4o-2024-11-20",
     "provider_metadata": {
-      "id": "chatcmpl-E6tSVvYZ6LOCkihryjtxoD9Gjlgkh",
+      "id": "chatcmpl-E7BAxrE6xkWcJOb8uMUKPxKBlUmxK",
       "model": "gpt-4o-2024-11-20",
       "finish_reason": "stop",
       "usage": {
@@ -595,22 +955,22 @@
           "rejected_prediction_tokens": 0
         },
         "latency_checkpoint": {
-          "engine_tbt_ms": 10,
-          "engine_ttft_ms": 453,
-          "engine_ttlt_ms": 1358,
-          "pre_inference_ms": 350,
-          "service_tbt_ms": 10,
-          "service_ttft_ms": 1070,
-          "service_ttlt_ms": 1973,
-          "total_duration_ms": 1660,
-          "user_visible_ttft_ms": 720
+          "engine_tbt_ms": 17,
+          "engine_ttft_ms": 464,
+          "engine_ttlt_ms": 2057,
+          "pre_inference_ms": 116,
+          "service_tbt_ms": 17,
+          "service_ttft_ms": 1569,
+          "service_ttlt_ms": 3159,
+          "total_duration_ms": 3050,
+          "user_visible_ttft_ms": 1453
         },
-        "prompt_tokens": 681,
+        "prompt_tokens": 843,
         "prompt_tokens_details": {
           "audio_tokens": 0,
           "cached_tokens": 0
         },
-        "total_tokens": 775
+        "total_tokens": 937
       },
       "retry_count": 0
     },
@@ -652,41 +1012,45 @@
     "readme_agent_context": true,
     "visual_self_check": true
   },
-  "experiment_candidate": {
+  "proposal": {
     "schema_version": 2,
-    "candidate_id": "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23",
-    "source_query": "Where does this ACT policy first expose a weakness under manipulated-object property changes, and what evidence supports that conclusion?",
-    "base_task": "click_bell",
-    "semantic_concern": "task_execution.object_position_variation: The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds.",
+    "candidate_id": "dynamic.grab.roller.task.execution.non.target.proximity.effect.when.a.non.target.roller.with.the.same.appearance.as.the.target.roller.is.placed.closer.to.the.robot.than.the.target.roller.the.policy.will.still.successfully.achieve.the.target.roller.s.final.height.of.at.least.0.8.meters.while.keeping.the.non.target.roller.s.final.height.below.0.8.meters.5800b2471f80",
+    "source_query": "只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。",
+    "base_task": "grab_roller",
+    "semantic_concern": "task_execution.non_target_proximity_effect: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
     "scene_need": {
-      "description": "Introduce a bounded variation in the bell's position. Preserve unchanged: task identity; policy checkpoint.",
+      "description": "Place a non-target roller with identical appearance closer to the robot than the target roller. Preserve unchanged: task identity; policy checkpoint.",
       "kind": "adapt",
       "reuse_first": true
     },
-    "checker_need": null,
+    "checker_need": {
+      "description": "A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters. Numeric Rule Tool needed to report the final height difference between the target and non-target rollers. Hypothesis: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
+      "kind": "generate",
+      "reuse_first": true
+    },
     "rule_tool_need": {
-      "description": "Numeric or symbolic Rule Tool observable needed. Hypothesis: The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds.",
+      "description": "A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters. Numeric Rule Tool needed to report the final height difference between the target and non-target rollers. Hypothesis: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
       "kind": "measure",
       "reuse_first": true
     },
     "vqa_tool_need": null,
     "tool_need": {
-      "description": "Numeric or symbolic Rule Tool observable needed. Hypothesis: The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds.",
+      "description": "A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters. Numeric Rule Tool needed to report the final height difference between the target and non-target rollers. Hypothesis: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
       "kind": "measure",
       "reuse_first": true
     },
     "evaluation_intent": {
-      "hypothesis": "The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds.",
-      "intent_id": "intent.fbdf63ddcef3951b",
-      "original_concern": "task_execution.object_position_variation",
+      "hypothesis": "When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
+      "intent_id": "intent.51984254800abf8c",
+      "original_concern": "task_execution.non_target_proximity_effect",
       "preserved_conditions": [
         "task identity",
         "policy checkpoint"
       ],
-      "requested_change": "Introduce a bounded variation in the bell's position.",
-      "required_observation": "Numeric or symbolic Rule Tool observable needed.",
+      "requested_change": "Place a non-target roller with identical appearance closer to the robot than the target roller.",
+      "required_observation": "A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters. Numeric Rule Tool needed to report the final height difference between the target and non-target rollers.",
       "schema_version": 1,
-      "source_query": "Where does this ACT policy first expose a weakness under manipulated-object property changes, and what evidence supports that conclusion?"
+      "source_query": "只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。"
     },
     "intent_alignment": {
       "schema_version": 1,
@@ -701,11 +1065,11 @@
       "unmatched_intent_fields": []
     }
   },
-  "experiment_candidate_path": "generation/experiment_candidate.json",
+  "proposal_path": "generation/proposal.json",
   "implementation_trace": {
     "schema_version": 1,
-    "intent_id": "intent.fbdf63ddcef3951b",
-    "candidate_id": "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23",
+    "intent_id": "intent.51984254800abf8c",
+    "candidate_id": "dynamic.grab.roller.task.execution.non.target.proximity.effect.when.a.non.target.roller.with.the.same.appearance.as.the.target.roller.is.placed.closer.to.the.robot.than.the.target.roller.the.policy.will.still.successfully.achieve.the.target.roller.s.final.height.of.at.least.0.8.meters.while.keeping.the.non.target.roller.s.final.height.below.0.8.meters.5800b2471f80",
     "stage": "taskgen",
     "relationship": "direct",
     "rationale": "Candidate preserves the requested change, hypothesis, and observation semantics.",
@@ -730,18 +1094,18 @@
   },
   "implementation_trace_path": "validation/implementation_trace.json",
   "checker_contract": {
-    "outcome_label": "official_check_success",
+    "outcome_label": "generated_check_success",
     "act_runtime_eligible": true,
-    "preserved": true,
-    "official_equivalent": true,
-    "semantic_scope": "official_check_success_reused",
-    "metric": "official_check_success",
-    "authority": "official_task_method_reused",
-    "official_success": true,
+    "preserved": false,
+    "official_equivalent": false,
+    "semantic_scope": "query_derived_experimental_predicate",
+    "metric": "generated_check_success",
+    "authority": "llm_generated_python_ast_validated",
+    "official_success": false,
     "fixture_count": 2,
     "fixture_pass_count": 2
   },
-  "candidate_module_sha256": "d736c84050ce47efca0037e2094130071675159ec1c48a1bcd00d6088ae531ba",
+  "candidate_module_sha256": "67f9474663d4b45048437b914c5e52a5c5b717cba4bdd5759152576e953eac26",
   "candidate_manifest": "candidate_manifest.json",
   "generic_taskgen_resolution": "generic_taskgen_resolution.json",
   "task_generation_acceptance": {
@@ -758,13 +1122,13 @@
   },
   "task_artifact_summary": {
     "scene_origin": "provider_generated_code",
-    "success_origin": "official_method_reuse",
-    "success_semantics_preserved": true,
-    "success_official_equivalent": true,
-    "success_compiler_eligible": true,
+    "success_origin": "provider_generated_python",
+    "success_semantics_preserved": false,
+    "success_official_equivalent": false,
+    "success_compiler_eligible": false,
     "success_act_eligible": true,
-    "success_execution_scope": "official_equivalent",
-    "success_outcome_label": "official_check_success"
+    "success_execution_scope": "provider_generated_checker",
+    "success_outcome_label": "generated_check_success"
   },
   "artifact_registry": {
     "kind": "task",
@@ -772,23 +1136,23 @@
       "adapter_contract": {
         "asset_dependencies": [
           {
-            "path": "description/objects_description/050_bell/base0.json",
-            "sha256": "543240a1b5b88f5a2ec5975dcbfd865c2eb9b8eda7546775ef3069359225b09f"
+            "path": "description/objects_description/102_roller/base0.json",
+            "sha256": "70d032760ec6d0c161d036a0a7dceb6e74d5283b154bf6bc1acff8a03eceaab8"
           },
           {
-            "path": "description/objects_description/050_bell/base1.json",
-            "sha256": "6c4efb216f006a833724dfe4a760c914f305921c850aae457ac48575754f8ea2"
+            "path": "description/objects_description/102_roller/base1.json",
+            "sha256": "c73730c36d420a692126fb89117080829d50134548a2cfa6a4aa586233f3d0ea"
+          },
+          {
+            "path": "description/objects_description/102_roller/base2.json",
+            "sha256": "cab5e8cec78767df7563713595ee1f55bc5ac6d8a73e80b81f63049dc5e2f72b"
           }
         ],
-        "ast_policy": "generic_official_api_ast_v1:ae51ba2ec403f51e",
+        "ast_policy": "generic_official_api_ast_v1:8c98bc539cd3c6f8",
         "documentation_dependencies": [
           {
-            "path": "description/task_instruction/click_bell.json",
-            "sha256": "226f74cb0691ab1954cf77ac1a7672afb1d709525f22e5dbe17f8ed3ae247f39"
-          },
-          {
-            "path": "mea/knowledge/tasks/click_bell.md",
-            "sha256": "93b81659cd36670aa614153760e4cb5da69de8a22b7c7f3929b70e43cda6e938"
+            "path": "description/task_instruction/grab_roller.json",
+            "sha256": "8913870868d6a7549e80241272e840279157fb421fca0de25f2754be29552d73"
           }
         ],
         "generation_hook_contract": {
@@ -799,32 +1163,36 @@
             "check_success"
           ],
           "render_preflight": true,
+          "semantic_validation": "task_schema_contract_v2",
           "static_and_fixture_validation": true
         },
-        "official_class": "click_bell",
-        "official_source": "envs/click_bell.py",
-        "official_source_sha256": "a0b7673e6ef842738999acbccaaa3d01f86d62a147bb8387cb92163218db48ac",
+        "official_class": "grab_roller",
+        "official_source": "envs/grab_roller.py",
+        "official_source_sha256": "f0e1864199605acf59cf8982dded05129d873bb3934f200e47abafd918d41c89",
         "prompt_constraints_sha256": "cc6480335efbe9b6e7cb8fd07c1249e0ca32cb5b48224389ad9afe7af15e16ce",
         "task_schema": {
           "action_dimension": 14,
           "contact_focus_actor_ids": [
-            "bell"
+            "roller"
           ],
           "physics_timestep_seconds": 0.004,
-          "probe_task_attributes": [
-            "bell_id"
-          ],
           "schema_version": 1,
           "semantic_fields": [
             {
-              "actor_id": "bell",
-              "name": "bell_position",
+              "actor_id": "roller",
+              "name": "roller_position",
               "source": "actor_position"
             },
             {
-              "actor_id": "bell",
-              "name": "bell_contact_position",
+              "actor_id": "roller",
+              "name": "roller_left_contact_position",
               "point_id": 0,
+              "source": "actor_contact_position"
+            },
+            {
+              "actor_id": "roller",
+              "name": "roller_right_contact_position",
+              "point_id": 1,
               "source": "actor_contact_position"
             },
             {
@@ -839,50 +1207,52 @@
             }
           ],
           "semantic_roles": {
+            "left_target_contact_position": "roller_left_contact_position",
             "left_tcp_position": "left_tcp_position",
-            "manipulated_object_position": "bell_position",
-            "right_tcp_position": "right_tcp_position",
-            "target_contact_position": "bell_contact_position"
+            "manipulated_object_position": "roller_position",
+            "right_target_contact_position": "roller_right_contact_position",
+            "right_tcp_position": "right_tcp_position"
           },
           "success_contract": {
-            "requires_closed_active_gripper": true,
-            "target_actor_id": "bell",
-            "target_contact_point": 0,
-            "type": "official_check_success",
-            "xy_tolerance_m": [
-              0.025,
-              0.025
-            ],
-            "z_tolerance_m": 0.03
+            "minimum_height_m": 0.8,
+            "requires_left_gripper_closed": true,
+            "requires_right_gripper_closed": true,
+            "target_actor_id": "roller",
+            "type": "official_check_success"
           },
-          "task_family": "press_contact",
-          "task_name": "click_bell",
+          "task_family": "dual_arm_lift",
+          "task_name": "grab_roller",
           "tracked_actors": [
             {
               "contact_points": [
-                0
+                0,
+                1
               ],
               "functional_points": [],
-              "id": "bell",
-              "scene_name": "050_bell",
-              "task_attribute": "bell"
+              "id": "roller",
+              "scene_name": "102_roller",
+              "task_attribute": "roller"
             }
           ],
           "trusted_tool_profile": "generic_success"
         },
-        "taskgen_readme_sha256": "c2da0c5f4e527f4e23b53a1f8b55790f072cff09bd614bb319dc6bd55328bf81"
+        "taskgen_readme_sha256": "d86918d5bd8d0692e25172ddb2b09f3244accbb6ed4794156e008ed8b00336a0"
       },
-      "base_task": "click_bell",
-      "checker_need": null,
+      "base_task": "grab_roller",
+      "checker_need": {
+        "description": "A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters. Numeric Rule Tool needed to report the final height difference between the target and non-target rollers. Hypothesis: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
+        "kind": "generate",
+        "reuse_first": true
+      },
       "scene_need": {
-        "description": "Introduce a bounded variation in the bell's position. Preserve unchanged: task identity; policy checkpoint.",
+        "description": "Place a non-target roller with identical appearance closer to the robot than the target roller. Preserve unchanged: task identity; policy checkpoint.",
         "kind": "adapt",
         "reuse_first": true
       },
       "schema_version": 1,
-      "semantic_concern": "task_execution.object_position_variation: The ACT policy fails to achieve success when the bell's position is perturbed within the allowable bounds."
+      "semantic_concern": "task_execution.non_target_proximity_effect: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters."
     },
-    "artifact_path": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/manifest.json",
+    "artifact_path": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/manifest.json",
     "reuse_count": 0,
     "index_path": "mea/artifacts/index.json"
   },
@@ -900,52 +1270,52 @@
       "PYTHON_BIN=/root/autodl-tmp/conda/envs/RoboTwin/bin/python",
       "bash",
       "policy/ACT/eval_mea.sh",
-      "click_bell",
+      "grab_roller",
       "demo_clean",
       "demo_clean",
       "50",
       "0",
       "0",
       "1",
-      "mea.generated_tasks.run_20260729_b30_refinement_live_v2_round_2.task",
-      "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/overlay.yml",
-      "100000",
-      "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act",
+      "mea.generated_tasks.run_20260730_b44_grab_roller_plan_agent_live13_round_2.task",
+      "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/overlay.yml",
+      "100301",
+      "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act",
       "balanced_v1"
     ],
-    "started_at": "2026-07-29T15:57:41.200211+08:00",
-    "finished_at": "2026-07-29T15:58:40.750158+08:00",
+    "started_at": "2026-07-30T10:52:46.858129+08:00",
+    "finished_at": "2026-07-30T10:53:58.230204+08:00",
     "returncode": 0,
-    "task_name": "click_bell",
+    "task_name": "grab_roller",
     "task_config": "demo_clean",
     "checkpoint_setting": "demo_clean",
     "expert_data_num": 50,
     "policy_seed": 0,
     "num_episodes": 1,
     "actual_seeds": [
-      100000
+      100301
     ],
     "checkpoint": {
-      "directory": "policy/ACT/act_ckpt/act-click_bell/demo_clean-50",
+      "directory": "policy/ACT/act_ckpt/act-grab_roller/demo_clean-50",
       "required_files": [
-        "policy/ACT/act_ckpt/act-click_bell/demo_clean-50/policy_last.ckpt",
-        "policy/ACT/act_ckpt/act-click_bell/demo_clean-50/dataset_stats.pkl"
+        "policy/ACT/act_ckpt/act-grab_roller/demo_clean-50/policy_last.ckpt",
+        "policy/ACT/act_ckpt/act-grab_roller/demo_clean-50/dataset_stats.pkl"
       ],
       "preflight_passed": true
     },
     "execution_receipt": null,
-    "source_eval_dir": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/eval_result/click_bell/ACT/demo_clean/demo_clean/2026-07-29 15:57:46",
+    "source_eval_dir": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/eval_result/grab_roller/ACT/demo_clean/demo_clean/2026-07-30 10:52:52",
     "copied_artifacts": [
-      "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/episode0.mp4",
-      "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/_result.txt"
+      "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/episode0.mp4",
+      "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/_result.txt"
     ],
     "copied_video_count": 1,
-    "telemetry_root": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act",
+    "telemetry_root": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act",
     "telemetry_episode_count": 1,
     "video_associations": [
       {
-        "episode_dir": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000",
-        "video": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/act/episode_000_seed_100000/video.mp4",
+        "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
+        "video": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301/video.mp4",
         "episode_index": 0
       }
     ],
@@ -968,7 +1338,7 @@
     "reason": "paired expert/ACT execution was not requested",
     "expert_seeds": [],
     "act_seeds": [
-      100000
+      100301
     ]
   },
   "failure": null,
@@ -981,67 +1351,55 @@
     "controlled_variation_samples"
   ],
   "trusted_tool_evaluation": {
-    "artifact": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_2/evaluation/telemetry/tool_results.json",
+    "artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
     "episode_count": 1,
-    "outcome_metric": "official_check_success",
-    "outcome_authority": "official_check_success_reused",
-    "outcome_binding": null,
+    "outcome_metric": "generated_check_success",
+    "outcome_authority": "llm_generated_python_ast_validated",
+    "outcome_binding": {
+      "metric": "generated_check_success",
+      "authority": "llm_generated_python_ast_validated",
+      "module_sha256": "67f9474663d4b45048437b914c5e52a5c5b717cba4bdd5759152576e953eac26",
+      "task_module": "mea.generated_tasks.run_20260730_b44_grab_roller_plan_agent_live13_round_2.task"
+    },
     "tool_retrieval": {
-      "route": "official_checker_reuse",
+      "route": "bound_llm_generated_checker",
       "generated_new_tool": false
     },
     "episodes": [
       {
-        "episode_dir": "act/episode_000_seed_100000",
+        "episode_dir": "act/episode_000_seed_100301",
         "policy_name": "ACT",
-        "seed": 100000,
+        "seed": 100301,
         "success": true,
         "tool_results": [
           {
-            "tool": "official_check_success",
+            "tool": "generated_check_success",
             "version": 1,
-            "tool_sha256": "a81c64679f614717fa869b312e8e927bff9fbfae65c02f57bddcf14964285822",
+            "tool_sha256": "03c152fabc89c773516e92ba5a880951c01904941866fa76147e3b367372045c",
             "value": true,
             "unit": null,
             "evidence_steps": [
-              5514
+              7821
             ],
             "evidence": [
               {
                 "type": "success_transition",
-                "policy_step": 74,
-                "physics_step": 5514,
-                "simulation_time_seconds": 22.056,
-                "video_frame_index": 74
+                "policy_step": 89,
+                "physics_step": 7821,
+                "simulation_time_seconds": 31.284,
+                "video_frame_index": 89
               }
             ],
             "details": {
               "latched_eval_success": true,
-              "success_transition_recorded": true
+              "success_transition_recorded": true,
+              "authority": "llm_generated_python_ast_validated",
+              "module_sha256": "67f9474663d4b45048437b914c5e52a5c5b717cba4bdd5759152576e953eac26",
+              "task_module": "mea.generated_tasks.run_20260730_b44_grab_roller_plan_agent_live13_round_2.task",
+              "generated_checker_success": true,
+              "official_core_predicate_satisfied": true
             },
             "passed": true
-          },
-          {
-            "tool": "time_to_success",
-            "version": 1,
-            "tool_sha256": "15b7e9522b6d4d018755674f6cf959233d80315bddeda7db0f49e039341b7104",
-            "value": 22.056,
-            "unit": "s",
-            "evidence_steps": [
-              5514
-            ],
-            "evidence": [
-              {
-                "type": "success_transition",
-                "policy_step": 74,
-                "physics_step": 5514,
-                "simulation_time_seconds": 22.056,
-                "video_frame_index": 74
-              }
-            ],
-            "details": {
-              "physics_step": 5514
-            }
           }
         ]
       }

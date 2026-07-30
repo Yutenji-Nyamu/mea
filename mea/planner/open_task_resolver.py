@@ -1,9 +1,10 @@
 """Query-first task retrieval for open manipulation evaluation.
 
-The Plan Agent should discover a semantic concern before it sees executable
+The Plan Agent should interpret the Query and propose a semantic sub-aspect
+before it sees executable
 task/aspect choices.  This module keeps that ordering explicit:
 
-1. validate a provider-authored ``FreeConcern``;
+1. validate a provider-authored initial sub-aspect proposal;
 2. discover the public RoboTwin task library from official environment and
    instruction files;
 3. retrieve the nearest base task using only the concern's task semantics;
@@ -81,6 +82,22 @@ _STOPWORDS = {
     "using",
     "with",
 }
+_EXPLICIT_SUCCESS_SEMANTICS = re.compile(
+    r"(?:define|defined|definition)\s+(?:of\s+)?success"
+    r"|success\s+(?:means|requires|iff|if\s+and\s+only\s+if)"
+    r"|(?:successful?\s+(?:sample|episode)|成功样本).{0,40}"
+    r"(?:where|in\s+which|such\s+that|使|其中|要求|必须)"
+    r"|check_success"
+    r"|(?:把|将)?成功(?:条件)?定义为"
+    r"|以.{1,80}为成功(?:条件)?",
+    re.IGNORECASE,
+)
+EXPERIMENTAL_SUCCESS_CHECKER_GUIDANCE = (
+    "If a Query calls an episode successful only when the official goal and "
+    "any additional experimental condition both hold, request checker_need. A numeric "
+    "difference Tool reports magnitude but cannot supply that pass/fail "
+    "predicate."
+)
 
 
 def _text(value: Any, field: str) -> str:
@@ -199,6 +216,30 @@ def _split_free_concern_response(
     )
 
 
+def _validate_query_required_needs(
+    user_query: str,
+    needs: Mapping[str, Any] | None,
+) -> None:
+    """Reject a Proposal that drops explicit success semantics from the Query."""
+
+    if _EXPLICIT_SUCCESS_SEMANTICS.search(user_query) is None:
+        return
+    checker = needs.get("checker_need") if isinstance(needs, Mapping) else None
+    if not isinstance(checker, Mapping) or checker.get("required") is not True:
+        raise OpenTaskResolutionError(
+            "the original Query explicitly defines experimental success "
+            "semantics, so checker_need.required must be true"
+        )
+
+
+def query_requires_experimental_checker(user_query: str) -> bool:
+    """Return whether the Query explicitly defines non-official success."""
+
+    return _EXPLICIT_SUCCESS_SEMANTICS.search(
+        _text(user_query, "user_query")
+    ) is not None
+
+
 def _extract_json_response(response: Any) -> dict[str, Any]:
     source = str(response).strip()
     start = source.find("{")
@@ -224,6 +265,7 @@ def build_free_concern_prompt(user_query: str, policy_card: Mapping[str, Any]) -
 
     query = _text(user_query, "user_query")
     scope = policy_task_scope_from_card(policy_card)
+    checker_required = query_requires_experimental_checker(query)
     example = {
         "schema_version": 1,
         "source_query": query,
@@ -237,8 +279,12 @@ def build_free_concern_prompt(user_query: str, policy_card: Mapping[str, Any]) -
             "description": "the scene change needed to realize requested_variation",
         },
         "checker_need": {
-            "required": False,
-            "description": None,
+            "required": checker_required,
+            "description": (
+                "the additional experimental success predicate"
+                if checker_required
+                else None
+            ),
         },
         "rule_tool_need": {
             "required": True,
@@ -257,7 +303,7 @@ def build_free_concern_prompt(user_query: str, policy_card: Mapping[str, Any]) -
         "training_tasks": scope["training_tasks"],
         "language_conditioned": scope["language_conditioned"],
     }
-    return f"""You are the open-Query concern stage of ManipEvalAgent.
+    return f"""You are the Plan Agent in ManipEvalAgent.
 Read the original Query and first discover the single most informative
 sub-aspect and falsifiable hypothesis.  Describe the manipulation semantics
 needed for that test in concise English in task_intent, even when the Query is
@@ -286,6 +332,7 @@ request a checker only when the Query needs success semantics beyond the
 official task; request a Rule Tool for numeric or symbolic evidence; request a
 VQA Tool only for a visual judgment.  A Tool-only Query must not invent a scene
 or checker.  Every Tool need must retrieve before generating.
+{EXPERIMENTAL_SUCCESS_CHECKER_GUIDANCE}
 
 ORIGINAL QUERY:
 {query}
@@ -321,8 +368,8 @@ def validate_free_concern(
     return result
 
 
-class FreeConcernAgent:
-    """Create the pre-retrieval concern without exposing task candidates."""
+class PlanAgentQueryInterpreter:
+    """Create the Plan Agent's initial proposal without exposing task candidates."""
 
     def __init__(self, provider: Any, *, model: str, max_attempts: int = 2):
         self.provider = provider
@@ -359,7 +406,7 @@ class FreeConcernAgent:
                 response = self.provider.text(
                     attempt_prompt,
                     model=self.model,
-                    system="Return only strict FreeConcern JSON.",
+                    system="Return only strict InitialSubAspectProposal JSON.",
                     max_tokens=700,
                     temperature=0.0,
                 )
@@ -367,6 +414,10 @@ class FreeConcernAgent:
                 concern, experiment_needs = _split_free_concern_response(
                     _extract_json_response(response),
                     expected_query=user_query,
+                )
+                _validate_query_required_needs(
+                    user_query,
+                    experiment_needs,
                 )
                 break
             except Exception as exc:
@@ -378,7 +429,7 @@ class FreeConcernAgent:
             )
         return {
             "schema_version": 1,
-            "source": "provider_catalog_free_concern",
+            "source": "provider_plan_agent_query_interpretation",
             "concern": concern,
             "experiment_needs": experiment_needs,
             "provider": {
@@ -807,14 +858,14 @@ def resolve_open_task(
         "schema_version": 1,
         "decision": decision,
         "reason_code": reason_code,
-        "free_concern": trusted_concern,
+        "query_interpretation": trusted_concern,
         "policy_scope": scope,
         "selected_base_task": deepcopy(selected),
         "ranked_candidates": deepcopy(ranked),
         "resolution_contract": {
             "concern_created_before_inventory": True,
             "catalog_role": "execution_capability_inventory_only",
-            "retrieval_field": "FreeConcern.task_intent",
+            "retrieval_field": "QueryInterpretation.task_intent",
             "semantic_threshold": float(semantic_threshold),
             "semantic_near_tie_margin": float(near_tie_margin),
             "plausible_candidate_names": [
@@ -825,13 +876,20 @@ def resolve_open_task(
     }
 
 
+# Compatibility class name for historical callers and immutable artifacts.
+FreeConcernAgent = PlanAgentQueryInterpreter
+
+
 __all__ = [
+    "PlanAgentQueryInterpreter",
+    "EXPERIMENTAL_SUCCESS_CHECKER_GUIDANCE",
     "FreeConcernAgent",
     "OpenTaskResolutionError",
     "build_free_concern_prompt",
     "discover_robotwin_runtime_task_inventory",
     "discover_robotwin_task_inventory",
     "policy_task_scope_from_card",
+    "query_requires_experimental_checker",
     "rank_official_tasks",
     "resolve_open_task",
     "validate_free_concern",

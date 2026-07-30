@@ -18,8 +18,10 @@
   equal to it; the asset `modelname` is not the actor identity. Declare only
   new actors, with exactly `id`, `task_attribute`, `scene_name`,
   `functional_points`, `contact_points`, and boolean `contact_focus`.
-- The explicit `provider_scene_checker_codegen` route must generate both
-  `load_actors()` and `check_success()` from the same Proposal. Its checker is
-  experimental and must never be relabeled as official success.
+- When a Proposal requests both scene and checker, generate `load_actors()` and
+  `check_success()` together. The checker is experimental and must never be
+  relabeled as official success.
+- For lift checkers, derive bounds from TaskSchema or initial actor state:
+  near-zero world z does not mean an actor stayed unlifted on raised support.
 - A paper-claim run requires compile/semantic fixtures, render, expert
   solvability, and the generated scene/checker to remain bound to one artifact.

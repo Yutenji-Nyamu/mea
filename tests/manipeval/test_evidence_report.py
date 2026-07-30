@@ -58,8 +58,13 @@ class EvidenceReportTests(unittest.TestCase):
                     "debug.log": "not part of the public bundle",
                 }.items():
                     _write_text(child / relative, value)
+                proposal_artifact = (
+                    "generation/proposal.json"
+                    if index == 1
+                    else "generation/experiment_candidate.json"
+                )
                 for relative, value in {
-                    "generation/experiment_candidate.json": {
+                    proposal_artifact: {
                         "candidate_id": f"candidate_{index}"
                     },
                     "validation/static.json": {"passed": True},
@@ -240,14 +245,26 @@ class EvidenceReportTests(unittest.TestCase):
                 "plan/global_query_route.json": {
                     "selection": "beat_block_hammer"
                 },
+                "plan/open_task_resolution.json": {
+                    "decision": "ready",
+                    "selected_base_task": {"task_name": "beat_block_hammer"},
+                },
                 "plan/free_concern.json": {
+                    "sub_aspect": "legacy_object_appearance.color"
+                },
+                "plan/query_interpretation.json": {
                     "sub_aspect": "object_appearance.color"
                 },
                 "plan/query_sufficiency_contract.json": {"claim_type": "some"},
             }.items():
                 _write_json(evaluation / relative, value)
             _write_text(
-                evaluation / "plan/free_concern_prompt.md", "find one concern"
+                evaluation / "plan/free_concern_prompt.md",
+                "legacy prompt must not win",
+            )
+            _write_text(
+                evaluation / "plan/query_interpretation_prompt.md",
+                "find one concern",
             )
             _write_text(
                 evaluation / "plan/free_concern_response_1.txt",
@@ -305,6 +322,15 @@ class EvidenceReportTests(unittest.TestCase):
             _write_json(
                 evaluation / "feedback/feedback.json",
                 {
+                    "answer": "legacy feedback must not win",
+                    "findings": ["one failure and one success"],
+                    "limitations": ["N=1"],
+                    "recommended_next_step": "repeat with N=3",
+                },
+            )
+            _write_json(
+                evaluation / "answer/answer.json",
+                {
                     "answer": "ACT was mixed in this tiny run.",
                     "findings": ["one failure and one success"],
                     "limitations": ["N=1"],
@@ -322,18 +348,29 @@ class EvidenceReportTests(unittest.TestCase):
             report = destination.read_text(encoding="utf-8")
             self.assertIn("How does ACT handle appearance variation?", report)
             self.assertIn("act-bbh/demo_clean-50", report)
-            self.assertIn("TaskProposal", report)
-            self.assertIn("```python", report)
-            self.assertIn("```yaml", report)
+            self.assertIn("### Plan → TaskGen", report)
+            self.assertIn("round_1_task.py", report)
+            self.assertIn("round_2_overlay.yml", report)
             self.assertIn("![round_1 initial scene]", report)
-            self.assertIn("Open ACT video", report)
+            self.assertIn("Open policy video", report)
             self.assertIn("first-round evidence requested timing", report)
+            self.assertIn("ACT was mixed in this tiny run.", report)
+            self.assertNotIn("legacy feedback must not win", report)
             self.assertNotIn("/root/", report)
+            self.assertLessEqual(len(report.splitlines()), 250)
             self.assertEqual(bundle["round_count"], 2)
             expected_artifacts = (
                 "artifacts/query/request.json",
-                "artifacts/plan/free_concern_prompt.md",
-                "artifacts/plan/free_concern_response_1.txt",
+                "artifacts/plan/query_interpretation.json",
+                "artifacts/plan/query_interpretation_prompt.md",
+                "artifacts/plan/query_interpretation_response_1.txt",
+                "artifacts/plan/open_task_resolution.json",
+                (
+                    "artifacts/plan/plan_agent_session/"
+                    "evidence_after_round_01.json"
+                ),
+                "artifacts/taskgen/round_1/generation/proposal.json",
+                "artifacts/taskgen/round_2/generation/proposal.json",
                 "artifacts/taskgen/round_1/generation/code_prompt.md",
                 "artifacts/taskgen/round_1/validation/static.json",
                 "artifacts/taskgen/round_1/evidence/scene_comparison.png",
@@ -343,13 +380,43 @@ class EvidenceReportTests(unittest.TestCase):
                 "artifacts/tool/round_2/codegen_validation.json",
                 "artifacts/aggregate/round_1.json",
                 "artifacts/answer/query_answer.json",
-                "artifacts/answer/feedback.json",
+                "artifacts/answer/answer.json",
                 "artifacts/audit/semantic_preservation_audit.json",
             )
             for relative in expected_artifacts:
                 self.assertTrue((destination.parent / relative).is_file(), relative)
+            self.assertEqual(
+                json.loads(
+                    (
+                        destination.parent
+                        / "artifacts/plan/query_interpretation.json"
+                    ).read_text(encoding="utf-8")
+                )["sub_aspect"],
+                "object_appearance.color",
+            )
+            self.assertEqual(
+                (
+                    destination.parent
+                    / "artifacts/plan/query_interpretation_prompt.md"
+                ).read_text(encoding="utf-8"),
+                "find one concern",
+            )
             for relative in bundle["files"]:
-                self.assertTrue((root / relative).is_file(), relative)
+                self.assertTrue((destination.parent / relative).is_file(), relative)
+            self.assertEqual(
+                {item["path"] for item in bundle["artifacts"]},
+                set(bundle["files"])
+                - {"evidence_bundle_manifest.json"},
+            )
+            self.assertEqual(bundle["path_basis"], "bundle_relative")
+            self.assertEqual(bundle["report"], "README.md")
+            self.assertTrue(
+                all(
+                    item["bytes"] > 0
+                    and re.fullmatch(r"[0-9a-f]{64}", item["sha256"])
+                    for item in bundle["artifacts"]
+                )
+            )
             self.assertFalse(
                 (
                     destination.parent
@@ -364,6 +431,16 @@ class EvidenceReportTests(unittest.TestCase):
                 root, evaluation, destination=destination, publish=True
             )
             self.assertEqual(replaced["files"], bundle["files"])
+            promoted = root / "promoted/current"
+            promoted.parent.mkdir(parents=True)
+            destination.parent.rename(promoted)
+            promoted_manifest = json.loads(
+                (promoted / "evidence_bundle_manifest.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            for relative in promoted_manifest["files"]:
+                self.assertTrue((promoted / relative).is_file(), relative)
 
     def test_legacy_round_is_labeled_as_projection_not_as_proposal(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -398,6 +475,10 @@ class EvidenceReportTests(unittest.TestCase):
                     "plan": plan,
                 },
             )
+            _write_json(
+                evaluation / "feedback/feedback.json",
+                {"answer": "legacy answer remains readable"},
+            )
             destination = root / "docs/evidence_runs/eval_legacy/README.md"
             write_evidence_report(
                 root,
@@ -415,20 +496,15 @@ class EvidenceReportTests(unittest.TestCase):
                 published_manifest["source_server_path"],
                 str(evaluation.resolve()),
             )
-            self.assertIn(
-                "### Compatibility task projection (not used for planning)",
-                report,
+            self.assertIn("### Plan → TaskGen", report)
+            self.assertIn("### Tool / VQA", report)
+            self.assertNotIn("not_projected_in_compatibility_view", report)
+            self.assertTrue(
+                (
+                    destination.parent
+                    / "artifacts/answer/answer.json"
+                ).is_file()
             )
-            self.assertIn(
-                "### Compatibility Tool projection (not used for planning)",
-                report,
-            )
-            self.assertIn(
-                '"proposal_status": "not_projected_in_compatibility_view"',
-                report,
-            )
-            self.assertNotIn("### Plan -> TaskProposal", report)
-            self.assertNotIn("### ToolProposal -> ToolGen / reuse", report)
 
     def test_publish_rejects_unsafe_ids_and_nonfresh_destination(self):
         with tempfile.TemporaryDirectory() as temporary:

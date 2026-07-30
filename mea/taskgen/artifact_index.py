@@ -38,6 +38,48 @@ def _repo_file(repo_root: Path, value: str, *, label: str) -> Path:
     return path
 
 
+def _read_generation_proposal(
+    run_dir: Path,
+    manifest: Mapping[str, Any],
+) -> tuple[dict[str, Any], Path]:
+    """Read the canonical Proposal, falling back to the historical filename."""
+
+    raw_paths = [
+        manifest.get("proposal_path"),
+        "generation/proposal.json",
+        manifest.get("experiment_candidate_path"),
+        "generation/experiment_candidate.json",
+    ]
+    seen: set[str] = set()
+    for raw in raw_paths:
+        if not isinstance(raw, str) or not raw.strip() or raw in seen:
+            continue
+        seen.add(raw)
+        path = (run_dir / raw).resolve()
+        try:
+            path.relative_to(run_dir)
+        except ValueError as exc:
+            raise GenericTaskArtifactError(
+                "generic Task Proposal path escapes its run directory"
+            ) from exc
+        if not path.is_file():
+            continue
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise GenericTaskArtifactError(
+                "generic Task Proposal artifact is invalid"
+            ) from exc
+        if not isinstance(value, dict):
+            raise GenericTaskArtifactError(
+                "generic Task Proposal artifact must contain an object"
+            )
+        return value, path
+    raise GenericTaskArtifactError(
+        "generic Task Proposal artifact is unavailable"
+    )
+
+
 class GenericTaskArtifactIndex:
     """Adapt ArtifactRegistry to GenericRoboTwinTaskGenBackend exact lookup."""
 
@@ -105,6 +147,7 @@ class GenericTaskArtifactIndex:
             raise GenericTaskArtifactError(
                 "indexed generic Task manifest differs from its validation"
             )
+        _read_generation_proposal(manifest_path.parent, manifest)
         task_path = manifest_path.parent / "task.py"
         if (
             not task_path.is_file()
@@ -186,6 +229,7 @@ class GenericTaskArtifactIndex:
                 "generic Task manifest must be inside the repository"
             ) from exc
         manifest = json.loads(path.read_text(encoding="utf-8"))
+        _read_generation_proposal(path.parent, manifest)
         task_path = path.parent / "task.py"
         candidate_manifest_path = path.parent / "candidate_manifest.json"
         try:
@@ -290,6 +334,7 @@ def materialize_reused_generic_task(
         raise GenericTaskArtifactError(
             "generic Task reuse source manifest is invalid"
         ) from exc
+    _read_generation_proposal(source_dir, manifest)
     preserved = (
         "schema_version",
         "generation_kind",
@@ -320,10 +365,8 @@ def materialize_reused_generic_task(
             "overlay": (
                 f"mea/generated_tasks/{run_id}/overlay.yml"
             ),
-            "experiment_candidate": deepcopy(dict(candidate)),
-            "experiment_candidate_path": (
-                "generation/experiment_candidate.json"
-            ),
+            "proposal": deepcopy(dict(candidate)),
+            "proposal_path": "generation/proposal.json",
             "generic_taskgen_resolution": (
                 "generic_taskgen_resolution.json"
             ),
@@ -365,7 +408,8 @@ def materialize_reused_generic_task(
     }
     generation_dir = destination / "generation"
     generation_dir.mkdir(exist_ok=True)
-    (generation_dir / "experiment_candidate.json").write_text(
+    (generation_dir / "experiment_candidate.json").unlink(missing_ok=True)
+    (generation_dir / "proposal.json").write_text(
         json.dumps(candidate, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )

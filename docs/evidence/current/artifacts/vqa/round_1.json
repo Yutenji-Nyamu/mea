@@ -2,8 +2,8 @@
   "schema_version": 1,
   "model_requested": "gpt-4o-2024-11-20",
   "selection": {
-    "video_path": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_1/evaluation/telemetry/act/episode_000_seed_100000/video.mp4",
-    "frame_count": 78,
+    "video_path": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_1/evaluation/telemetry/act/episode_000_seed_100301/video.mp4",
+    "frame_count": 90,
     "fps": 10.0,
     "selected_frames": [
       {
@@ -13,46 +13,46 @@
       },
       {
         "frame_id": "success_before",
-        "frame_index": 75,
+        "frame_index": 87,
         "source": "official_success_event"
       },
       {
         "frame_id": "success_after",
-        "frame_index": 76,
+        "frame_index": 88,
         "source": "official_success_event"
       },
       {
         "frame_id": "final",
-        "frame_index": 77,
+        "frame_index": 89,
         "source": "video_boundary"
       }
     ],
-    "reference_scene": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_1/evidence/initial_head.png",
-    "montage_path": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_1/execution_vqa/execution_montage.png"
+    "reference_scene": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_1/evidence/initial_head.png",
+    "montage_path": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_1/execution_vqa/execution_montage.png"
   },
   "query": {
     "schema_version": 1,
     "profile": "dynamic_v1",
-    "task_name": "click_bell",
+    "task_name": "grab_roller",
     "template_id": "task_execution.official_baseline",
     "sub_aspect": "task_execution.official_baseline",
     "tool_metric": "official_check_success",
     "phenomenon_ids": [
-      "bell_visibly_pressed"
+      "roller_visibly_lifted"
     ],
     "questions": [
       {
-        "id": "bell_visibly_pressed",
+        "id": "roller_visibly_lifted",
         "question_type": "visible_state_change",
-        "target_role": "task_target",
-        "question": "Does the robot visibly press or actuate the target bell?",
+        "target_role": "manipulated_object",
+        "question": "Is the target roller visibly lifted by both robot arms?",
         "visual_scope": "rollout_change",
-        "numeric_authority": "official_core_predicate_is_authoritative_when_available_else_official_check_success"
+        "numeric_authority": "official_check_success_is_authoritative"
       }
     ],
     "selection_reasons": [
-      "capability_adapter:click_bell:task_execution.official_baseline",
-      "task_metric:click_bell:official_check_success"
+      "capability_adapter:grab_roller:task_execution.official_baseline",
+      "task_metric:grab_roller:official_check_success"
     ],
     "answer_contract": {
       "required_response_keys": [
@@ -85,15 +85,15 @@
       "value": true,
       "unit": null,
       "evidence_steps": [
-        5505
+        7810
       ],
       "evidence": [
         {
           "type": "success_transition",
-          "policy_step": 76,
-          "physics_step": 5505,
-          "simulation_time_seconds": 22.02,
-          "video_frame_index": 76
+          "policy_step": 88,
+          "physics_step": 7810,
+          "simulation_time_seconds": 31.240000000000002,
+          "video_frame_index": 88
         }
       ],
       "details": {
@@ -106,41 +106,39 @@
       "tool": "time_to_success",
       "version": 1,
       "tool_sha256": "15b7e9522b6d4d018755674f6cf959233d80315bddeda7db0f49e039341b7104",
-      "value": 22.02,
+      "value": 31.240000000000002,
       "unit": "s",
       "evidence_steps": [
-        5505
+        7810
       ],
       "evidence": [
         {
           "type": "success_transition",
-          "policy_step": 76,
-          "physics_step": 5505,
-          "simulation_time_seconds": 22.02,
-          "video_frame_index": 76
+          "policy_step": 88,
+          "physics_step": 7810,
+          "simulation_time_seconds": 31.240000000000002,
+          "video_frame_index": 88
         }
       ],
       "details": {
-        "physics_step": 5505
+        "physics_step": 7810
       }
     }
   ],
   "observation": {
     "phenomena": [
       {
-        "id": "bell_visibly_pressed",
+        "id": "roller_visibly_lifted",
         "observed": true,
-        "description": "The robot visibly presses the target bell.",
+        "description": "The roller is visibly lifted by both robot arms.",
         "confidence": 1.0,
         "frame_ids": [
-          "success_before",
           "success_after"
         ]
       }
     ],
     "confidence": 1.0,
     "frame_ids": [
-      "success_before",
       "success_after"
     ],
     "numeric_consistency": "consistent",
@@ -149,15 +147,15 @@
   },
   "evidence_conflict": false,
   "provider_metadata": {
-    "id": "chatcmpl-E6tQKeNkLf3mYV8VCCSTXWgveFWU5",
+    "id": "chatcmpl-E7B8av5u8Vd2NleRa1HsPDPr0gzXv",
     "model": "gpt-4o-2024-11-20",
     "finish_reason": "stop",
     "usage": {
-      "prompt_tokens": 1500,
-      "completion_tokens": 108,
-      "total_tokens": 1608,
+      "prompt_tokens": 1509,
+      "completion_tokens": 104,
+      "total_tokens": 1613,
       "prompt_tokens_details": {
-        "cached_tokens": 0,
+        "cached_tokens": 1408,
         "audio_tokens": 0
       },
       "completion_tokens_details": {
@@ -167,27 +165,27 @@
         "rejected_prediction_tokens": 0
       },
       "latency_checkpoint": {
-        "engine_tbt_ms": 10,
-        "engine_ttft_ms": 642,
-        "engine_ttlt_ms": 1726,
-        "pre_inference_ms": 272,
-        "service_tbt_ms": 10,
-        "service_ttft_ms": 1250,
-        "service_ttlt_ms": 2331,
-        "total_duration_ms": 2067,
-        "user_visible_ttft_ms": 978
+        "engine_tbt_ms": 14,
+        "engine_ttft_ms": 671,
+        "engine_ttlt_ms": 2094,
+        "pre_inference_ms": 322,
+        "service_tbt_ms": 14,
+        "service_ttft_ms": 1215,
+        "service_ttlt_ms": 2635,
+        "total_duration_ms": 2320,
+        "user_visible_ttft_ms": 893
       }
     },
     "retry_count": 0
   },
   "artifacts": {
-    "result": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_1/execution_vqa/execution_vqa.json",
-    "prompt": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_1/execution_vqa/execution_vqa_prompt.md",
-    "response": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_1/execution_vqa/execution_vqa_response.txt",
-    "montage": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_1/execution_vqa/execution_montage.png",
-    "selection": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_1/execution_vqa/keyframe_selection.json",
-    "query": "mea/evaluation_runs/eval_20260729_b30_refinement_live_v2/execution/round_1/execution_vqa/execution_vqa_query.json"
+    "result": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_1/execution_vqa/execution_vqa.json",
+    "prompt": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_1/execution_vqa/execution_vqa_prompt.md",
+    "response": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_1/execution_vqa/execution_vqa_response.txt",
+    "montage": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_1/execution_vqa/execution_montage.png",
+    "selection": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_1/execution_vqa/keyframe_selection.json",
+    "query": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_1/execution_vqa/execution_vqa_query.json"
   },
   "status": "passed",
-  "representative_episode": "mea/generated_tasks/run_20260729_b30_refinement_live_v2_round_1/evaluation/telemetry/act/episode_000_seed_100000"
+  "representative_episode": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_1/evaluation/telemetry/act/episode_000_seed_100301"
 }

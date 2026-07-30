@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "task_name": "click_bell",
+  "task_name": "grab_roller",
   "intent": "evaluate_official_task_unchanged",
   "generation_mode": "official",
   "changes": {},

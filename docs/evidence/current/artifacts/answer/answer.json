@@ -1,0 +1,103 @@
+{
+  "answer": "是的，存在一个成功样本。",
+  "evaluation_scope": "本次测试范围包括2个样本，种子为[100301]，测试了候选项'dynamic.grab.roller.task.execution.non.target.proximity.effect.when.a.non.target.roller.with.the.same.appearance.as.the.target.roller.is.placed.closer.to.the.robot.than.the.target.roller.the.policy.will.still.successfully.achieve.the.target.roller.s.final.height.of.at.least.0.8.meters.while.keeping.the.non.target.roller.s.final.height.below.0.8.meters.5800b2471f80'。",
+  "findings": [
+    "目标滚筒的最终高度不低于0.8米，非目标滚筒的最终高度低于0.8米。",
+    "目标滚筒与非目标滚筒的最终高度差为0.0584米。"
+  ],
+  "limitations": [
+    "证据包含2个样本，种子为[100301]。",
+    "本次评估基于有限域的查询充分性协议，不能作为统计泛化的保证。",
+    "至少一个候选项的结论基于生成的检查器，不能视为官方基准的成功结果。",
+    "生成的检查器尚未被认证为与官方核心谓词等效，其结论应视为实验性。",
+    "Evidence contains N=2 policy episodes at seeds [100301].",
+    "The run stopped because the finite query-sufficiency contract was satisfied; this is not a statistical generalization guarantee."
+  ],
+  "recommended_next_step": "若需更广泛的结论，建议增加样本数量并进行多种场景的测试。",
+  "consistency_validation": {
+    "passed": true,
+    "attempts_used": 1,
+    "rejected_responses": 0,
+    "errors": [],
+    "deterministic_correction": false
+  },
+  "evidence_policy": {
+    "aggregate_source": "deterministic_aggregate",
+    "aggregate_status": "passed",
+    "episode_math_by_plan_agent_summary": false,
+    "numeric_simulator_tools_authoritative": true,
+    "execution_vqa_is_visual_only": true,
+    "evidence_conflict": false
+  },
+  "provider_metadata": {
+    "id": "chatcmpl-E7BCKp1ruYALpuUyTHWa7aNTiisyA",
+    "model": "gpt-4o-2024-11-20",
+    "finish_reason": "stop",
+    "usage": {
+      "prompt_tokens": 38355,
+      "completion_tokens": 346,
+      "total_tokens": 38701,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 6,
+        "engine_ttft_ms": 2790,
+        "engine_ttlt_ms": 4906,
+        "pre_inference_ms": 303,
+        "service_tbt_ms": 6,
+        "service_ttft_ms": 4308,
+        "service_ttlt_ms": 6414,
+        "total_duration_ms": 6120,
+        "user_visible_ttft_ms": 4005
+      }
+    },
+    "retry_count": 0
+  },
+  "answer_scope": {
+    "schema_version": 1,
+    "sample_count": 2,
+    "seeds": [
+      100301
+    ],
+    "tested_candidate_ids": [
+      "dynamic.grab.roller.task.execution.non.target.proximity.effect.when.a.non.target.roller.with.the.same.appearance.as.the.target.roller.is.placed.closer.to.the.robot.than.the.target.roller.the.policy.will.still.successfully.achieve.the.target.roller.s.final.height.of.at.least.0.8.meters.while.keeping.the.non.target.roller.s.final.height.below.0.8.meters.5800b2471f80"
+    ],
+    "untested_candidate_ids": [],
+    "original_intent_ids": [
+      "intent.51984254800abf8c"
+    ],
+    "covered_original_intent_fields": [
+      "intent.51984254800abf8c:requested_change",
+      "intent.51984254800abf8c:preserved_conditions",
+      "intent.51984254800abf8c:hypothesis",
+      "intent.51984254800abf8c:required_observation"
+    ],
+    "uncovered_original_intent_fields": [],
+    "unsupported_capabilities": [],
+    "evidence_conflict": false,
+    "termination": "evidence_sufficient",
+    "claim_verdict": "supported",
+    "required_limitations": [
+      {
+        "code": "sample_count_and_seeds",
+        "text": "Evidence contains N=2 policy episodes at seeds [100301]."
+      },
+      {
+        "code": "termination_evidence_sufficient",
+        "text": "The run stopped because the finite query-sufficiency contract was satisfied; this is not a statistical generalization guarantee."
+      }
+    ]
+  },
+  "limitation_codes": [
+    "sample_count_and_seeds",
+    "termination_evidence_sufficient"
+  ]
+}

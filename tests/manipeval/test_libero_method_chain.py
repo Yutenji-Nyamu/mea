@@ -68,7 +68,7 @@ class _FakeProvider:
         )
 
 
-def test_libero_capabilities_match_public_claim_first_schema() -> None:
+def test_libero_capabilities_match_public_plan_agent_schema() -> None:
     official = TaskContract(
         schema_version=1,
         benchmark="libero",
@@ -553,7 +553,7 @@ def test_official_control_failure_short_circuits_custom_rollout(
     monkeypatch.setattr(chain_module, "OpenAICompatibleProvider", lambda **_kwargs: object())
     monkeypatch.setattr(chain_module, "LiberoBenchmarkAdapter", FakeBenchmark)
     monkeypatch.setattr(chain_module, "LeRobotPolicyAdapter", FakePolicy)
-    monkeypatch.setattr(chain_module, "ClaimFirstOpenQueryAgent", forbidden)
+    monkeypatch.setattr(chain_module, "PlanAgent", forbidden)
     monkeypatch.setattr(chain_module, "LiberoTaskGenBackend", forbidden)
 
     result = chain_module.run_libero_method_chain(

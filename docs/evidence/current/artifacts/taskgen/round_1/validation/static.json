@@ -2,14 +2,14 @@
   "official_passthrough": {
     "valid": true,
     "task_class_found": true,
-    "task_module": "envs.click_bell",
-    "source": "envs/click_bell.py"
+    "task_module": "envs.grab_roller",
+    "source": "envs/grab_roller.py"
   },
   "task_schema": {
     "valid": true,
     "schema_version": 1,
-    "task_family": "press_contact",
-    "source": "mea/toolkit/schemas/click_bell.json"
+    "task_family": "dual_arm_lift",
+    "source": "mea/toolkit/schemas/grab_roller.json"
   },
   "code_generation": {
     "performed": false,

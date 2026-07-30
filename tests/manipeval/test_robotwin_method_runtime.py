@@ -315,7 +315,7 @@ def test_executed_child_projection_uses_shared_runtime_without_rerun() -> None:
         round_plan={
             "round_id": "round_2",
             "candidate_id": candidate["candidate_id"],
-            "experiment_candidate": candidate,
+            "proposal": candidate,
             "task_name": "runtime_task",
             "task_module": None,
             "sub_aspect": "target pose robustness",

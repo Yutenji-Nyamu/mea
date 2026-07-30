@@ -1,10 +1,10 @@
-"""Open-world, single-checkpoint planning session.
+"""Plan Agent execution session for one bound policy checkpoint.
 
 The legacy :class:`BoundTaskPlanSession` is intentionally a finite catalog
-protocol.  This module is the production ClaimFirst counterpart: the catalog
-retrieves one ACT-ready base task and its official control, while later rounds
-carry Query-derived :class:`ExperimentCandidate` objects rather than requiring
-an aspect or template registration.
+protocol.  This module is the production Plan Agent execution boundary: runtime
+binding retrieves one policy-ready base task and its official control, while
+later rounds carry Query-derived Proposals rather than requiring an aspect or
+template registration.
 
 The session freezes task, policy, checkpoint, and total rollout budget.  Its
 QueryContract decides whether an official control round is required.  It does
@@ -68,7 +68,7 @@ def _decision_planning_lineage(
     step: Mapping[str, Any],
     observation_history: Iterable[Mapping[str, Any]],
 ) -> dict[str, Any] | None:
-    """Validate round ordering for an auditable ClaimFirst decision."""
+    """Validate round ordering for an auditable Plan Agent decision."""
 
     raw = step.get("planning_lineage")
     if raw is None:
@@ -248,7 +248,7 @@ def validate_open_world_evaluation_target(
 ) -> dict[str, Any]:
     """Validate a frozen runtime target.
 
-    The production ClaimFirst path validates the already bound target directly;
+    The production Plan Agent path validates the bound target directly;
     the catalog is only needed while task/checkpoint discovery builds the
     frozen target. Runtime candidates are never admitted by catalog membership.
     """
@@ -295,8 +295,8 @@ def validate_open_world_evaluation_target(
     return target
 
 
-class OpenWorldPlanSession:
-    """ClaimFirst session with runtime candidates and a frozen ACT binding."""
+class PlanAgentExecutionSession:
+    """Plan Agent session with runtime Proposals and a frozen policy binding."""
 
     def __init__(
         self,
@@ -339,7 +339,7 @@ class OpenWorldPlanSession:
         *,
         control_round: Mapping[str, Any] | None = None,
         query_contract: Mapping[str, Any] | None = None,
-    ) -> "OpenWorldPlanSession":
+    ) -> "PlanAgentExecutionSession":
         """Start from an already frozen runtime binding.
 
         This is the production constructor.  It keeps task/checkpoint discovery
@@ -407,9 +407,12 @@ class OpenWorldPlanSession:
                 "control_round cannot change bound task_module"
             )
         _text(control.get("round_id"), "control_round.round_id")
-        if control.get("experiment_candidate") is not None:
+        if (
+            control.get("proposal") is not None
+            or control.get("experiment_candidate") is not None
+        ):
             raise OpenWorldSessionError(
-                "the official control round cannot carry an ExperimentCandidate"
+                "the official control round cannot carry a Proposal"
             )
         return control
 
@@ -498,23 +501,26 @@ class OpenWorldPlanSession:
                 execution, location=f"{location}.execution"
             )
         try:
+            raw_proposal = round_plan.get("proposal")
+            if raw_proposal is None:
+                raw_proposal = round_plan.get("experiment_candidate")
             candidate = validate_experiment_candidate(
-                round_plan.get("experiment_candidate")
+                raw_proposal
             )
         except (ExperimentCandidateError, TypeError) as exc:
             raise OpenWorldSessionError(
-                f"{location} needs a valid ExperimentCandidate: {exc}"
+                f"{location} needs a valid Proposal: {exc}"
             ) from exc
         if candidate["base_task"] != self.task_name:
             raise OpenWorldSessionError(
-                f"{location} ExperimentCandidate cannot switch the base task"
+                f"{location} Proposal cannot switch the base task"
             )
         round_candidate_id = round_plan.get(
             "candidate_id", candidate["candidate_id"]
         )
         if round_candidate_id != candidate["candidate_id"]:
             raise OpenWorldSessionError(
-                f"{location}.candidate_id conflicts with ExperimentCandidate"
+                f"{location}.candidate_id conflicts with Proposal"
             )
         if round_plan.get("template_id") not in {None, ""}:
             raise OpenWorldSessionError(
@@ -587,9 +593,10 @@ class OpenWorldPlanSession:
                 )
             round_ids.add(round_id)
             enriched = deepcopy(dict(raw_round))
+            enriched.pop("experiment_candidate", None)
             enriched["task_name"] = self.task_name
             enriched["candidate_id"] = candidate_id
-            enriched["experiment_candidate"] = candidate
+            enriched["proposal"] = candidate
             normalized_rounds.append(enriched)
             candidates.append(candidate)
             candidate_ids.append(candidate_id)
@@ -623,7 +630,8 @@ class OpenWorldPlanSession:
         normalized["checkpoint_id"] = self.checkpoint.get("checkpoint_id")
         normalized["max_rounds"] = self.target["max_rounds"]
         normalized["rounds"] = normalized_rounds
-        normalized["experiment_candidates"] = candidates
+        normalized.pop("experiment_candidates", None)
+        normalized["proposals"] = candidates
         normalized["requested_candidate_ids"] = candidate_ids
         if contract is not None:
             normalized["query_contract"] = deepcopy(contract)
@@ -638,7 +646,7 @@ class OpenWorldPlanSession:
         """Return trusted retrieval context for the frozen base task.
 
         The returned adapter templates are retrieval hints.  Open-world round
-        authorization is owned by ``ExperimentCandidate`` validation here, not
+        authorization is owned by typed Proposal validation here, not
         by membership in that template list.
         """
 
@@ -761,12 +769,15 @@ class OpenWorldPlanSession:
                     "open-world round budget is exhausted"
                 )
             try:
+                raw_proposal = step.get("proposal")
+                if raw_proposal is None:
+                    raw_proposal = step.get("experiment_candidate")
                 candidate = validate_experiment_candidate(
-                    step.get("experiment_candidate")
+                    raw_proposal
                 )
             except (ExperimentCandidateError, TypeError) as exc:
                 raise OpenWorldSessionError(
-                    f"continuing PlanStepProposal needs ExperimentCandidate: {exc}"
+                    f"continuing PlanStepProposal needs Proposal: {exc}"
                 ) from exc
             if candidate["base_task"] != self.task_name:
                 raise OpenWorldSessionError(
@@ -777,7 +788,7 @@ class OpenWorldPlanSession:
                 != candidate["candidate_id"]
             ):
                 raise OpenWorldSessionError(
-                    "PlanStepProposal candidate_id conflicts with ExperimentCandidate"
+                    "PlanStepProposal candidate_id conflicts with Proposal"
                 )
             if candidate["candidate_id"] in current[
                 "requested_candidate_ids"
@@ -790,13 +801,14 @@ class OpenWorldPlanSession:
                     "continuing PlanStepProposal needs a materialized round"
                 )
             next_round = deepcopy(dict(materialized_round))
-            next_round.setdefault("experiment_candidate", candidate)
+            next_round.pop("experiment_candidate", None)
+            next_round.setdefault("proposal", candidate)
             next_round.setdefault("candidate_id", candidate["candidate_id"])
             self._candidate_from_round(
                 next_round, location="PlanStepProposal.materialized_round"
             )
             if (
-                next_round["experiment_candidate"] != candidate
+                next_round["proposal"] != candidate
                 or next_round["candidate_id"] != candidate["candidate_id"]
             ):
                 raise OpenWorldSessionError(
@@ -851,7 +863,7 @@ class OpenWorldPlanSession:
         )
         return self._normalize_plan(updated), decision, {
             "schema_version": 1,
-            "session_kind": "open_world_claim_first",
+            "session_kind": "plan_agent_session",
             "query_assessment": deepcopy(assessment),
             "round_budget_remaining": max(
                 self.target["max_rounds"] - len(current["rounds"]), 0
@@ -905,8 +917,8 @@ class OpenWorldPlanSession:
                 if control_required and normalized["rounds"]
                 else None
             ),
-            "experiment_candidates": deepcopy(
-                normalized["experiment_candidates"]
+            "proposals": deepcopy(
+                normalized["proposals"]
             ),
             "planning_state": normalized.get("planning_state"),
             "round_budget": normalized["max_rounds"],
@@ -920,7 +932,11 @@ class OpenWorldPlanSession:
         }
 
 
+OpenWorldPlanSession = PlanAgentExecutionSession
+
+
 __all__ = [
+    "PlanAgentExecutionSession",
     "OpenWorldPlanSession",
     "OpenWorldSessionError",
     "build_open_world_evaluation_target",

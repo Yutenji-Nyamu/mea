@@ -1,4 +1,4 @@
-"""Claim-first open-Query planning without a predeclared aspect itinerary.
+"""Plan Agent open-Query planning without a predeclared aspect itinerary.
 
 The existing adaptive planner deliberately selects from trusted executable
 templates.  That is useful for production routing, but it cannot demonstrate
@@ -32,11 +32,23 @@ from mea.planner.semantic_coverage import (
     build_candidate_intent_alignment,
     validate_evaluation_intent,
 )
+from mea.planner.open_task_resolver import (
+    EXPERIMENTAL_SUCCESS_CHECKER_GUIDANCE,
+    query_requires_experimental_checker,
+)
+from mea.planner.proposal_execution import (
+    ProposalExecutionError,
+    validate_plan_agent_proposal_execution,
+)
 from mea.providers.json_response import extract_json_response
 
 
-class ClaimFirstPlanError(ValueError):
+class PlanAgentError(ValueError):
     """Raised when open-Query inputs or a semantic proposal are invalid."""
+
+
+# Compatibility name for callers and historical exception handlers.
+ClaimFirstPlanError = PlanAgentError
 
 
 _CAPABILITY_KEYS = {
@@ -641,7 +653,7 @@ def validate_open_query_proposal_lineage(
     return lineage
 
 
-class ClaimFirstOpenQueryAgent:
+class PlanAgent:
     """Ask a provider to discover the next sub-aspect from evidence."""
 
     def __init__(self, provider: Any, *, model: str):
@@ -658,6 +670,7 @@ class ClaimFirstOpenQueryAgent:
         evidence_history: Sequence[Mapping[str, Any]],
         evaluation_intent: Mapping[str, Any] | None = None,
     ) -> str:
+        checker_required = query_requires_experimental_checker(user_query)
         example = {
             "schema_version": 2,
             "action": "continue",
@@ -673,8 +686,12 @@ class ClaimFirstOpenQueryAgent:
                 "description": "Scene construction or adaptation needed.",
             },
             "checker_need": {
-                "required": False,
-                "description": None,
+                "required": checker_required,
+                "description": (
+                    "The additional experimental success predicate."
+                    if checker_required
+                    else None
+                ),
             },
             "rule_tool_need": {
                 "required": True,
@@ -698,7 +715,7 @@ Every action=continue proposal must directly implement this frozen intent.
 Do not silently replace it with a nearby diagnostic proxy.  Preserve its
 requested change, preserved conditions, hypothesis, and required observation.
 """
-        return f"""You are the claim-first Plan Agent in ManipEvalAgent.
+        return f"""You are the Plan Agent in ManipEvalAgent.
 Discover a small set of evaluation sub-aspects online.  There is no predeclared
 candidate/template-ID itinerary, success-then-switch script, or fallback route.
 Supported controlled axes and operations may appear in the capability cards;
@@ -714,6 +731,15 @@ a scene or checker merely because a Tool is needed, and do not couple scene
 and checker needs.  A new Tool need may be named even when it is not in an
 existing metric/question list.  Avoid repeating a tested perturbation unless
 ambiguous evidence requires a more observable version.
+The generic RoboTwin TaskGen surface can change only what the advertised
+allowed_change_roots directly implement.  In particular, load_actors can alter
+actors, assets, appearance, scale, pose, clutter, lighting, and other simulator
+scene state; it cannot reduce policy/controller/gripper precision, inject
+action noise or latency, or change policy weights unless an explicit runtime
+intervention root is advertised.  After successful evidence, refine to another
+executable physical scene/checker/tool concern instead of relabelling a scene
+change as an unavailable policy intervention.
+{EXPERIMENTAL_SUCCESS_CHECKER_GUIDANCE}
 
 Use success to probe the most consequential remaining uncertainty; use failure
 to discriminate a causal failure hypothesis; use ambiguous evidence to improve
@@ -785,6 +811,22 @@ Return strict JSON with exactly these fields:
                     extract_json_response(response),
                     has_evidence=bool(trusted_evidence),
                 )
+                try:
+                    proposal = validate_plan_agent_proposal_execution(
+                        proposal,
+                        capabilities=trusted_capabilities,
+                    )
+                except ProposalExecutionError as exc:
+                    raise PlanAgentError(str(exc)) from exc
+                if (
+                    proposal["action"] == "continue"
+                    and query_requires_experimental_checker(query)
+                    and proposal["checker_need"]["required"] is not True
+                ):
+                    raise PlanAgentError(
+                        "the original Query explicitly defines experimental "
+                        "success semantics, so checker_need.required must be true"
+                    )
                 if trusted_intent is not None and proposal["action"] == "continue":
                     scene_need = proposal["scene_need"]
                     checker_need = proposal["checker_need"]
@@ -864,7 +906,7 @@ Return strict JSON with exactly these fields:
         )
         return {
             "schema_version": 1,
-            "source": "provider_claim_first_open_query",
+            "source": "provider_plan_agent_open_query",
             "input_digest": planning_lineage["input_digest"],
             "planning_lineage": planning_lineage,
             "proposal": proposal,
@@ -880,7 +922,13 @@ Return strict JSON with exactly these fields:
         }
 
 
+# Compatibility class name; new callers should use ``PlanAgent``.
+ClaimFirstOpenQueryAgent = PlanAgent
+
+
 __all__ = [
+    "PlanAgent",
+    "PlanAgentError",
     "ClaimFirstOpenQueryAgent",
     "ClaimFirstPlanError",
     "build_open_query_planning_lineage",

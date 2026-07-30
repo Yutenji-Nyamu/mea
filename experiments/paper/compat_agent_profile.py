@@ -1,6 +1,7 @@
 """Legacy Agent profile parsing and validation for explicit paper protocols.
 
-The production Agent defaults to ClaimFirst.  This module owns only the hidden
+The production entry point exposes the paper's Plan Agent.  This module owns
+only the hidden
 catalog/fixed/registered and task-specific compatibility surface retained for
 paper experiments.  Production code imports it lazily after such a profile is
 actually requested or resolved.
@@ -53,7 +54,9 @@ def resolve_compat_agent_profile(
             "paper compatibility resolution requires an explicit legacy profile"
         )
     planner = requested_open_query_planner or "catalog_step_v1"
-    claim_first_mode = planner == "claim_first_v1"
+    if planner == "claim_first_v1":
+        planner = "plan_agent_v1"
+    claim_first_mode = planner == "plan_agent_v1"
     proposal_mode = getattr(args, "proposal_mode", "catalog")
     planning_policy = getattr(
         args,
@@ -66,11 +69,11 @@ def resolve_compat_agent_profile(
         )
     if claim_first_mode and planning_policy != "dynamic_evidence_v1":
         raise CompatAgentProfileError(
-            "claim_first_v1 requires --planning-policy dynamic_evidence_v1"
+            "plan_agent_v1 requires --planning-policy dynamic_evidence_v1"
         )
     if claim_first_mode and proposal_mode != "catalog":
         raise CompatAgentProfileError(
-            "claim_first_v1 resolves its semantic proposal after evidence; "
+            "plan_agent_v1 resolves its semantic proposal after evidence; "
             "do not also select a predeclared --proposal-mode"
         )
 

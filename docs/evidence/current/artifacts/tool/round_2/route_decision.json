@@ -4,13 +4,13 @@
   "matching_policy": "strict_exact_metric_id",
   "requested_route": "auto",
   "resolved_route": "typed_metric_spec_compile",
-  "task_name": "click_bell",
+  "task_name": "grab_roller",
   "metric": "query_derived_metric",
   "exact_match": true,
   "matched_registry": "typed_metric_spec_v1",
   "reference_tool": null,
   "provider_required": false,
   "reason": "validated typed MetricSpec can be compiled and differentially gated",
-  "catalog_snapshot_sha256": "f68d3894ea38589f958c78ac1b226f633955d0480d35b4987e6e145341c897be",
+  "catalog_snapshot_sha256": "81566074a5d92dbe64d25d988e9d42594549a53a8149370802349d7018d94a26",
   "provider_called": false
 }

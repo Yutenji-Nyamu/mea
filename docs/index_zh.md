@@ -3,10 +3,11 @@
 根 `README.md` 保持上游项目说明，不承载本复现实验日志。当前文档只保留以下入口：
 
 - [架构与干净数据流](architecture_and_dataflow_zh.md)：`--auto-route` 开放 Query 的
-  唯一生产主链及每轮证据结构；旧 catalog/fixed 入口仅作兼容与论文消融。
+  Plan Agent、Query interpretation、Proposal、Plan Agent session 主链及每轮证据结构；
+  旧 catalog/fixed 入口仅作兼容与论文消融。
 - [运行指南](running_guide_zh.md)：plan-only、live rollout 与证据查看。
 - [LIBERO / SmolVLA 复现与 MEA 接入](libero_smolvla_reproduction_zh.md)：服务器安装、镜像/限流问题、seed/RNG parity、official/custom 两回合方法链及复现协议；这是长期保留、按需读取的 cold reference。
-- [RoboTwin / SmolVLA 复现](robotwin_smolvla_reproduction_zh.md)：checkpoint 固定与校验、服务器网络、Python/NumPy 隔离、双进程 IPC、五任务 N=1 pilot 和完整回滚边界；这是长期保留、按需读取的 cold reference。
+- [RoboTwin / SmolVLA 复现](robotwin_smolvla_reproduction_zh.md)：checkpoint 固定与校验、服务器网络、Python/NumPy 隔离、双进程 IPC、policy adapter 协议和完整回滚边界；这是长期保留、按需读取的 cold reference。
 - [论文 claim 与 gap](paper_claim_gap_zh.md)：论文声称、当前证据和下一步。
 - [开发者参考](developer_reference_zh.md)：扩展任务、生成器和工具时的最小接口。
 - [当前证据](evidence/current/README.md)：最近一次可审计运行的紧凑索引。

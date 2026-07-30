@@ -19,7 +19,7 @@ from mea.method_runtime import (
     RolloutRequest,
     BackendBindingRequest,
 )
-from mea.planner.claim_first import ClaimFirstOpenQueryAgent
+from mea.planner.claim_first import PlanAgent
 from mea.providers import OpenAICompatibleProvider
 from mea.toolkit.aggregate import aggregate_tool_executions
 
@@ -229,7 +229,7 @@ def _capabilities(
 def _persist_planner_bundle(
     root: Path,
     name: str,
-    planner: ClaimFirstOpenQueryAgent,
+    planner: PlanAgent,
     bundle: dict[str, Any],
 ) -> Path:
     target = root / "planner" / name
@@ -493,7 +493,7 @@ def run_libero_method_chain(
             _write_json(root / "compact_result.json", result)
             return result
 
-        planner = ClaimFirstOpenQueryAgent(provider, model=planner_model)
+        planner = PlanAgent(provider, model=planner_model)
         first_bundle = planner.propose(
             request,
             capabilities=_capabilities(checkpoint_path, official_contract),
@@ -502,7 +502,7 @@ def run_libero_method_chain(
         _persist_planner_bundle(root, "after_control", planner, first_bundle)
         if first_bundle["proposal"]["action"] != "continue":
             raise RuntimeError(
-                "ClaimFirst stopped after control; no provider-authored custom task was authorized"
+                "Plan Agent stopped after control; no provider-authored custom task was authorized"
             )
         proposal = first_bundle["proposal"]
         planner_concern = " ".join(

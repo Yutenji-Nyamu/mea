@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "source": "provider_plan_agent_open_query",
+  "input_digest": "3088c51604bac3ebf459d9eed8583353efdb6da721c54a943bd6aee4e370c7c1",
+  "planning_lineage": {
+    "schema_version": 1,
+    "decision_kind": "evidence_conditioned_refinement",
+    "evidence_conditioned": true,
+    "completed_round_ids": [
+      "round_1"
+    ],
+    "completed_round_count": 1,
+    "input_digest": "3088c51604bac3ebf459d9eed8583353efdb6da721c54a943bd6aee4e370c7c1"
+  },
+  "proposal": {
+    "schema_version": 2,
+    "action": "continue",
+    "sub_aspect": "task_execution.non_target_proximity_effect",
+    "hypothesis": "When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
+    "requested_perturbation": {
+      "description": "Place a non-target roller with identical appearance closer to the robot than the target roller.",
+      "controlled_changes": [
+        "non-target roller position"
+      ],
+      "preserve": [
+        "task identity",
+        "policy checkpoint"
+      ]
+    },
+    "scene_need": {
+      "required": true,
+      "description": "Adapt the scene to include a non-target roller with identical appearance placed closer to the robot than the target roller."
+    },
+    "checker_need": {
+      "required": true,
+      "description": "A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters."
+    },
+    "rule_tool_need": {
+      "required": true,
+      "description": "Numeric Rule Tool needed to report the final height difference between the target and non-target rollers.",
+      "reuse_first": true
+    },
+    "vqa_tool_need": {
+      "required": false,
+      "description": null,
+      "reuse_first": true
+    },
+    "rationale": "This test isolates the effect of the non-target roller's proximity on the policy's ability to achieve the success conditions defined in the Query. It directly addresses the Query's core uncertainty by introducing a controlled perturbation to the scene.",
+    "task_need": {
+      "required": true,
+      "description": "Adapt the scene to include a non-target roller with identical appearance placed closer to the robot than the target roller. | A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters."
+    },
+    "tool_need": {
+      "required": true,
+      "description": "Numeric Rule Tool needed to report the final height difference between the target and non-target rollers.",
+      "reuse_first": true
+    }
+  },
+  "provider": {
+    "model_requested": "gpt-4o-2024-11-20",
+    "called": true,
+    "attempt_count": 2,
+    "errors": [
+      "PlanAgentError: the original Query explicitly defines experimental success semantics, so checker_need.required must be true"
+    ],
+    "last_metadata": {
+      "id": "chatcmpl-E7B8iJgHZppYGHNVBPhWA6gBfHbio",
+      "model": "gpt-4o-2024-11-20",
+      "finish_reason": "stop",
+      "usage": {
+        "completion_tokens": 396,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": 0
+        },
+        "latency_checkpoint": {
+          "engine_tbt_ms": 8,
+          "engine_ttft_ms": 47,
+          "engine_ttlt_ms": 3222,
+          "pre_inference_ms": 127,
+          "service_tbt_ms": 8,
+          "service_ttft_ms": 378,
+          "service_ttlt_ms": 3547,
+          "total_duration_ms": 3480,
+          "user_visible_ttft_ms": 251
+        },
+        "prompt_tokens": 1762,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 1664
+        },
+        "total_tokens": 2158
+      },
+      "retry_count": 0
+    }
+  }
+}

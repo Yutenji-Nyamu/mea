@@ -1,7 +1,7 @@
 {
-  "task_name": "click_bell",
-  "task_module": "mea.generated_task_attempts.run_20260729_b30_refinement_live_v2_round_2.attempt_01.candidate_task",
-  "seed": 100000,
+  "task_name": "grab_roller",
+  "task_module": "mea.generated_task_attempts.run_20260730_b44_grab_roller_plan_agent_live13_round_2.attempt_01.candidate_task",
+  "seed": 100301,
   "setup_success": true,
   "render_success": true,
   "expert_requested": true,
@@ -10,17 +10,20 @@
   "execution_receipt_requested": false,
   "task_schema": {
     "schema_version": 1,
-    "task_name": "click_bell",
-    "task_family": "press_contact",
+    "task_name": "grab_roller",
+    "task_family": "dual_arm_lift",
     "trusted_tool_profile": "generic_success",
     "tracked_actor_ids": [
-      "bell"
+      "roller",
+      "non_target_roller"
     ],
     "semantic_field_names": [
-      "bell_position",
-      "bell_contact_position",
+      "roller_position",
+      "roller_left_contact_position",
+      "roller_right_contact_position",
       "left_tcp_position",
-      "right_tcp_position"
+      "right_tcp_position",
+      "non_target_roller_position"
     ]
   },
   "domain_randomization": {
@@ -62,6 +65,34 @@
   },
   "actors": [
     {
+      "name": "102_roller",
+      "position": [
+        -0.07744024693965912,
+        -0.06961455196142197,
+        0.7416645884513855
+      ],
+      "quaternion": [
+        0.19325308501720428,
+        0.19415003061294556,
+        0.6815027594566345,
+        0.678611159324646
+      ]
+    },
+    {
+      "name": "non_target_roller",
+      "position": [
+        -0.01590118370950222,
+        -0.30600106716156006,
+        0.7416644096374512
+      ],
+      "quaternion": [
+        -0.0025369867216795683,
+        -0.0024714116007089615,
+        0.7080894708633423,
+        0.7061140537261963
+      ]
+    },
+    {
       "name": "ground",
       "position": [
         0.0,
@@ -102,60 +133,46 @@
         0.0,
         0.0
       ]
-    },
-    {
-      "name": "050_bell",
-      "position": [
-        0.06159507855772972,
-        -0.11331125348806381,
-        0.7359002232551575
-      ],
-      "quaternion": [
-        0.5,
-        0.5,
-        0.5,
-        0.5
-      ]
     }
   ],
   "tracked_actors": [
     {
-      "id": "bell",
-      "task_attribute": "bell",
-      "scene_name": "050_bell",
+      "id": "roller",
+      "task_attribute": "roller",
+      "scene_name": "102_roller",
       "position": [
-        0.06159507855772972,
-        -0.11331125348806381,
-        0.7359002232551575
+        -0.07744024693965912,
+        -0.06961455196142197,
+        0.7416645884513855
       ],
       "quaternion": [
-        0.5,
-        0.5,
-        0.5,
-        0.5
+        0.19325308501720428,
+        0.19415003061294556,
+        0.6815027594566345,
+        0.678611159324646
       ],
       "collision_geometry": [
         {
           "geometry_type": "create_actor_asset",
-          "modelname": "050_bell",
-          "model_id": 1,
-          "collision_asset": "assets/objects/050_bell/collision/base1.glb",
+          "modelname": "102_roller",
+          "model_id": 2,
+          "collision_asset": "assets/objects/102_roller/collision/base2.glb",
           "convex": true,
-          "is_static": true,
+          "is_static": false,
           "scale": [
-            0.04,
-            0.04,
-            0.04
+            0.13,
+            0.1,
+            0.1
           ],
           "extents": [
-            2.5883968548477228,
-            1.3250785247084105,
-            2.5887140724986057
+            1.9311913944412211,
+            0.32168825746682084,
+            0.3103910043535411
           ],
           "center": [
-            8.667908080472183e-05,
-            0.6445632287777463,
-            0.0006842777984963255
+            2.118178000711387e-05,
+            0.11274457106981156,
+            0.0013336256808618475
           ]
         }
       ],
@@ -163,27 +180,84 @@
       "contact_points": {
         "0": {
           "position": [
-            0.06159507855772972,
-            -0.11331125348806381,
-            0.7616906237602233
+            -0.1517805872741177,
+            -0.020864043415604293,
+            0.7551978901411976
           ],
           "raw": [
-            0.06159507855772972,
-            -0.11331125348806381,
-            0.7616906237602233,
-            0.5000000000000001,
-            0.5,
-            0.5000000000000001,
-            0.5000000000000001
+            -0.1517805872741177,
+            -0.020864043415604293,
+            0.7551978901411976,
+            0.19325304918059488,
+            0.1941500115981655,
+            0.6815027148591383,
+            0.6786111416845878
+          ]
+        },
+        "1": {
+          "position": [
+            -0.0025015978186608973,
+            -0.11628481144405739,
+            0.7541296693073063
+          ],
+          "raw": [
+            -0.0025015978186608973,
+            -0.11628481144405739,
+            0.7541296693073063,
+            0.681502714859138,
+            0.6786111416845875,
+            -0.19325304918059483,
+            -0.19415001159816556
           ]
         }
       }
+    },
+    {
+      "id": "non_target_roller",
+      "task_attribute": "non_target_roller",
+      "scene_name": "non_target_roller",
+      "position": [
+        -0.01590118370950222,
+        -0.30600106716156006,
+        0.7416644096374512
+      ],
+      "quaternion": [
+        -0.0025369867216795683,
+        -0.0024714116007089615,
+        0.7080894708633423,
+        0.7061140537261963
+      ],
+      "collision_geometry": [
+        {
+          "geometry_type": "create_actor_asset",
+          "modelname": "102_roller",
+          "model_id": 2,
+          "collision_asset": "assets/objects/102_roller/collision/base2.glb",
+          "convex": true,
+          "is_static": false,
+          "scale": [
+            0.13,
+            0.1,
+            0.1
+          ],
+          "extents": [
+            1.9311913944412211,
+            0.32168825746682084,
+            0.3103910043535411
+          ],
+          "center": [
+            2.118178000711387e-05,
+            0.11274457106981156,
+            0.0013336256808618475
+          ]
+        }
+      ],
+      "functional_points": {},
+      "contact_points": {}
     }
   ],
-  "task_attributes": {
-    "bell_id": 1
-  },
-  "image": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_task_attempts/run_20260729_b30_refinement_live_v2_round_2/attempt_01/expert_head.png",
+  "task_attributes": {},
+  "image": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_task_attempts/run_20260730_b44_grab_roller_plan_agent_live13_round_2/attempt_01/expert_head.png",
   "rule_check": {
     "all_tracked_actor_attributes_present": true,
     "tracked_actor_runtime_names_match": true,
@@ -192,16 +266,215 @@
     "official_check_success_callable": true,
     "passed": true,
     "tracked_actor_ids": [
-      "bell"
+      "roller",
+      "non_target_roller"
     ],
     "declared_scene_names": [
-      "050_bell"
+      "102_roller",
+      "non_target_roller"
     ]
   },
   "initial_check_success": false,
+  "expert_terminal_tracked_actors": [
+    {
+      "id": "roller",
+      "task_attribute": "roller",
+      "scene_name": "102_roller",
+      "position": [
+        -0.07542768120765686,
+        -0.06579278409481049,
+        0.8486258387565613
+      ],
+      "quaternion": [
+        0.23063327372074127,
+        0.14059339463710785,
+        0.5060070753097534,
+        0.8191452622413635
+      ],
+      "collision_geometry": [
+        {
+          "geometry_type": "create_actor_asset",
+          "modelname": "102_roller",
+          "model_id": 2,
+          "collision_asset": "assets/objects/102_roller/collision/base2.glb",
+          "convex": true,
+          "is_static": false,
+          "scale": [
+            0.13,
+            0.1,
+            0.1
+          ],
+          "extents": [
+            1.9311913944412211,
+            0.32168825746682084,
+            0.3103910043535411
+          ],
+          "center": [
+            2.118178000711387e-05,
+            0.11274457106981156,
+            0.0013336256808618475
+          ]
+        }
+      ],
+      "functional_points": {},
+      "contact_points": {
+        "0": {
+          "position": [
+            -0.15349728103784954,
+            -0.02304685246424426,
+            0.8614387606092341
+          ],
+          "raw": [
+            -0.15349728103784954,
+            -0.02304685246424426,
+            0.8614387606092341,
+            0.23063322536623454,
+            0.14059337213345158,
+            0.5060070150031183,
+            0.8191451152493965
+          ]
+        },
+        "1": {
+          "position": [
+            -0.0030739231916283166,
+            -0.11664732867862541,
+            0.8599413420594647
+          ],
+          "raw": [
+            -0.0030739231916283166,
+            -0.11664732867862541,
+            0.8599413420594647,
+            0.5060070150031182,
+            0.8191451152493963,
+            -0.23063322536623443,
+            -0.14059337213345166
+          ]
+        }
+      }
+    },
+    {
+      "id": "non_target_roller",
+      "task_attribute": "non_target_roller",
+      "scene_name": "non_target_roller",
+      "position": [
+        -0.01590118370950222,
+        -0.30600106716156006,
+        0.7416644096374512
+      ],
+      "quaternion": [
+        -0.0025369867216795683,
+        -0.0024714116007089615,
+        0.7080894708633423,
+        0.7061140537261963
+      ],
+      "collision_geometry": [
+        {
+          "geometry_type": "create_actor_asset",
+          "modelname": "102_roller",
+          "model_id": 2,
+          "collision_asset": "assets/objects/102_roller/collision/base2.glb",
+          "convex": true,
+          "is_static": false,
+          "scale": [
+            0.13,
+            0.1,
+            0.1
+          ],
+          "extents": [
+            1.9311913944412211,
+            0.32168825746682084,
+            0.3103910043535411
+          ],
+          "center": [
+            2.118178000711387e-05,
+            0.11274457106981156,
+            0.0013336256808618475
+          ]
+        }
+      ],
+      "functional_points": {},
+      "contact_points": {}
+    }
+  ],
+  "expert_terminal_actors": [
+    {
+      "name": "102_roller",
+      "position": [
+        -0.07542768120765686,
+        -0.06579278409481049,
+        0.8486258387565613
+      ],
+      "quaternion": [
+        0.23063327372074127,
+        0.14059339463710785,
+        0.5060070753097534,
+        0.8191452622413635
+      ]
+    },
+    {
+      "name": "non_target_roller",
+      "position": [
+        -0.01590118370950222,
+        -0.30600106716156006,
+        0.7416644096374512
+      ],
+      "quaternion": [
+        -0.0025369867216795683,
+        -0.0024714116007089615,
+        0.7080894708633423,
+        0.7061140537261963
+      ]
+    },
+    {
+      "name": "ground",
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "quaternion": [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name": "wall",
+      "position": [
+        0.0,
+        1.0,
+        1.5
+      ],
+      "quaternion": [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name": "table",
+      "position": [
+        0.0,
+        0.0,
+        0.7400000095367432
+      ],
+      "quaternion": [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "expert_terminal_task_attributes": {},
   "expert": {
     "plan_success": true,
     "check_success": true,
+    "official_check_success": true,
+    "official_core_predicate_satisfied": true,
+    "official_success_authority": "mea_official_check_success",
     "passed": true,
     "attempts_used": 1
   },
@@ -212,6 +485,9 @@
       "expert": {
         "plan_success": true,
         "check_success": true,
+        "official_check_success": true,
+        "official_core_predicate_satisfied": true,
+        "official_success_authority": "mea_official_check_success",
         "passed": true,
         "attempts_used": 1
       }

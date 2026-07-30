@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "intent_id": "intent.fbdf63ddcef3951b",
-  "candidate_id": "dynamic.click.bell.task.execution.object.position.variation.the.act.policy.fails.to.achieve.success.when.the.bell.s.position.is.perturbed.within.the.allowable.bounds.08dc2b2b5a23",
+  "intent_id": "intent.51984254800abf8c",
+  "candidate_id": "dynamic.grab.roller.task.execution.non.target.proximity.effect.when.a.non.target.roller.with.the.same.appearance.as.the.target.roller.is.placed.closer.to.the.robot.than.the.target.roller.the.policy.will.still.successfully.achieve.the.target.roller.s.final.height.of.at.least.0.8.meters.while.keeping.the.non.target.roller.s.final.height.below.0.8.meters.5800b2471f80",
   "stage": "taskgen",
   "relationship": "direct",
   "rationale": "Candidate preserves the requested change, hypothesis, and observation semantics.",

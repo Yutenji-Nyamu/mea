@@ -40,8 +40,9 @@ def parse_args() -> argparse.Namespace:
             "Explicitly request the production Query-first route (already the "
             "default unless a hidden paper-compatibility protocol is selected). "
             "With "
-            "--bound-task-name, claim_first_v1 creates a catalog-free concern "
-            "then checks it against the bound policy and the official RoboTwin "
+            "--bound-task-name, the Plan Agent interprets the Query without "
+            "seeing the task inventory, then checks the proposed sub-aspect "
+            "against the bound policy and the official RoboTwin "
             "task library. Without a bound task, the same catalog-free concern "
             "is created first and only then retrieves a checkpoint-ready base "
             "task; this portfolio convenience is not one policy executing "
@@ -95,7 +96,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--open-query-planner",
-        choices=["catalog_step_v1", "claim_first_v1"],
+        choices=["catalog_step_v1", "claim_first_v1", "plan_agent_v1"],
         default=None,
         help=argparse.SUPPRESS,
     )
@@ -104,7 +105,7 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         help=(
             "Optional preregistered QuerySufficiencyContract JSON for "
-            "claim_first_v1. Comparative Queries require this explicit "
+            "the Plan Agent. Comparative Queries require this explicit "
             "two-group contract."
         ),
     )
@@ -161,7 +162,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--taskgen-model")
     parser.add_argument("--toolgen-model")
     parser.add_argument("--vision-model")
-    parser.add_argument("--feedback-model")
+    parser.add_argument("--answer-model", dest="feedback_model")
+    parser.add_argument(
+        "--feedback-model",
+        dest="feedback_model",
+        help=argparse.SUPPRESS,
+    )
     parser.add_argument("--base-url", default=None)
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument(
@@ -232,7 +238,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def resolve_default_open_query_planner(args: argparse.Namespace) -> str:
-    """Choose the explicit planner or the production ClaimFirst default.
+    """Choose the explicit planner or the production Plan Agent default.
 
     Hidden paper-profile overrides live in
     ``experiments.paper.compat_agent_profile`` and are applied lazily by the
@@ -241,11 +247,15 @@ def resolve_default_open_query_planner(args: argparse.Namespace) -> str:
 
     selected = getattr(args, "open_query_planner", None)
     if selected is not None:
-        return str(selected)
-    return "claim_first_v1"
+        return (
+            "plan_agent_v1"
+            if str(selected) == "claim_first_v1"
+            else str(selected)
+        )
+    return "plan_agent_v1"
 
 
-def resolve_claim_first_control_required(
+def resolve_plan_agent_control_required(
     user_request: str,
     *,
     query_contract: Mapping[str, Any] | None,
@@ -264,13 +274,14 @@ def resolve_claim_first_control_required(
     )
 
 
-def resolve_claim_first_allowed_aspects(
+def resolve_plan_agent_allowed_aspects(
     explicit_aspect_ids: list[str] | None,
 ) -> list[str] | None:
     """Restrict planning only when the caller explicitly binds an aspect.
 
-    A pre-control FreeConcern or catalog retrieval score is routing evidence,
-    not permission to freeze the Plan Agent's later semantic search space.
+    A pre-control Query interpretation or catalog retrieval score is routing
+    evidence, not permission to freeze the Plan Agent's later semantic search
+    space.
     ``None`` keeps the complete retrieval inventory available while an
     unmatched concern may still enter open-world Task/Tool generation.
     """
@@ -283,11 +294,11 @@ def resolve_claim_first_allowed_aspects(
         if isinstance(item, str) and item.strip()
     ]
     if not normalized:
-        raise ValueError("explicit ClaimFirst aspect binding cannot be empty")
+        raise ValueError("explicit Plan Agent aspect binding cannot be empty")
     return list(dict.fromkeys(normalized))
 
 
-def resolve_claim_first_candidate_budget(
+def resolve_plan_agent_candidate_budget(
     max_agent_rounds: int | None,
     *,
     user_request: str,
@@ -299,9 +310,16 @@ def resolve_claim_first_candidate_budget(
     if max_agent_rounds is None:
         return None
     return int(max_agent_rounds) - int(
-        resolve_claim_first_control_required(
+        resolve_plan_agent_control_required(
             user_request,
             query_contract=query_contract,
             semantic_context=semantic_context,
         )
     )
+
+
+# Read-only compatibility aliases for paper protocols and historical tests.
+# Production imports use the paper-aligned Plan Agent names above.
+resolve_claim_first_control_required = resolve_plan_agent_control_required
+resolve_claim_first_allowed_aspects = resolve_plan_agent_allowed_aspects
+resolve_claim_first_candidate_budget = resolve_plan_agent_candidate_budget

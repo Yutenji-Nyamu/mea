@@ -36,12 +36,12 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             "print(json.dumps({"
             "'parse_args':module.parse_args is agent_cli.parse_args,"
             "'allowed_aspects':"
-            "module.resolve_claim_first_allowed_aspects "
-            "is agent_cli.resolve_claim_first_allowed_aspects,"
+            "module.resolve_plan_agent_allowed_aspects "
+            "is agent_cli.resolve_plan_agent_allowed_aspects,"
             "'planner_default':module.resolve_default_open_query_planner "
             "is agent_cli.resolve_default_open_query_planner,"
-            "'candidate_budget':module.resolve_claim_first_candidate_budget "
-            "is agent_cli.resolve_claim_first_candidate_budget,"
+            "'candidate_budget':module.resolve_plan_agent_candidate_budget "
+            "is agent_cli.resolve_plan_agent_candidate_budget,"
             "'flagship_acceptance':module.build_compact_flagship_acceptance "
             "is agent_acceptance.build_compact_flagship_acceptance,"
             "'episode_results':module._episode_tool_results "
@@ -59,20 +59,20 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             },
         )
 
-    def test_free_concern_acceptance_allows_one_bounded_schema_repair(
+    def test_query_interpretation_acceptance_allows_one_bounded_schema_repair(
         self,
     ) -> None:
         from mea.agent_acceptance import (
-            _valid_free_concern_provider_trace,
+            _valid_query_interpretation_provider_trace,
         )
 
         self.assertTrue(
-            _valid_free_concern_provider_trace(
+            _valid_query_interpretation_provider_trace(
                 {"called": True, "attempt_count": 1, "errors": []}
             )
         )
         self.assertTrue(
-            _valid_free_concern_provider_trace(
+            _valid_query_interpretation_provider_trace(
                 {
                     "called": True,
                     "attempt_count": 2,
@@ -81,7 +81,7 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             )
         )
         self.assertFalse(
-            _valid_free_concern_provider_trace(
+            _valid_query_interpretation_provider_trace(
                 {
                     "called": True,
                     "attempt_count": 3,
@@ -149,7 +149,7 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             self.assertNotIn(option, process.stdout)
         self.assertIn("--auto-route", process.stdout)
 
-    def test_default_production_mode_is_claim_first(self) -> None:
+    def test_default_production_mode_is_plan_agent(self) -> None:
         probe = (
             "import argparse,importlib.util,json,pathlib;"
             "from experiments.paper.compat_agent_profile "
@@ -173,9 +173,22 @@ class ProductionCliBoundaryTests(unittest.TestCase):
         self.assertEqual(
             run_import_probe(probe),
             {
-                "production": "claim_first_v1",
+                "production": "plan_agent_v1",
                 "paper": "catalog_step_v1",
             },
+        )
+
+    def test_historical_claim_first_value_normalizes_to_plan_agent(self) -> None:
+        probe = (
+            "import argparse,json;"
+            "from mea.agent_cli import resolve_default_open_query_planner;"
+            "value=resolve_default_open_query_planner("
+            "argparse.Namespace(open_query_planner='claim_first_v1'));"
+            "print(json.dumps({'planner':value}))"
+        )
+        self.assertEqual(
+            run_import_probe(probe),
+            {"planner": "plan_agent_v1"},
         )
 
     def test_control_path_plans_next_subaspect_after_evidence(self) -> None:
@@ -197,8 +210,8 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             "module=importlib.util.module_from_spec(spec);"
             "spec.loader.exec_module(module);"
             "print(json.dumps({"
-            "'open':module.resolve_claim_first_allowed_aspects(None),"
-            "'explicit':module.resolve_claim_first_allowed_aspects("
+            "'open':module.resolve_plan_agent_allowed_aspects(None),"
+            "'explicit':module.resolve_plan_agent_allowed_aspects("
             "['object_position','object_position','object_instance'])}))"
         )
         self.assertEqual(
@@ -239,7 +252,7 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             "'hypothesis':'Measure the terminal telemetry field.',"
             "'requested_variation':'none',"
             "'measurement_need':'Measure terminal bottle telemetry height.'};"
-            "budget=module.resolve_claim_first_candidate_budget("
+            "budget=module.resolve_plan_agent_candidate_budget("
             "1,user_request='What is the terminal bottle telemetry height?',"
             "query_contract=None,semantic_context=context);"
             "print(json.dumps({'budget':budget}))"
