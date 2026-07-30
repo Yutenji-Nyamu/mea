@@ -1609,6 +1609,31 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                 official_class=task_name,
             )
             self.assertTrue(report["valid"])
+            conjunct_checker = {
+                **methods,
+                "check_success": (
+                    "def check_success(self):\n"
+                    "    return self.mea_official_check_success() and "
+                    "self.target is not None\n"
+                ),
+            }
+            report = validate_generic_task_methods(
+                conjunct_checker,
+                official_source=root / f"envs/{task_name}.py",
+                official_class=task_name,
+                require_official_core_conjunct=True,
+            )
+            self.assertTrue(report["official_core_directly_called"])
+            with self.assertRaisesRegex(
+                GenericTaskGenError,
+                "must call self.mea_official_check_success",
+            ):
+                validate_generic_task_methods(
+                    methods,
+                    official_source=root / f"envs/{task_name}.py",
+                    official_class=task_name,
+                    require_official_core_conjunct=True,
+                )
 
     def test_pose_property_item_assignment_is_rejected(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]

@@ -113,6 +113,7 @@ _GENERIC_SAFE_MODULE_CALLS = {
 _GENERIC_READ_ONLY_METHOD_CALLS = {
     "get_contacts",
     "get_links",
+    "mea_official_check_success",
 }
 
 
@@ -467,6 +468,7 @@ def validate_generic_task_methods(
     official_class: str,
     required_method_changes: Mapping[str, bool] | None = None,
     scene_need: Any = None,
+    require_official_core_conjunct: bool = False,
 ) -> dict[str, Any]:
     """Apply one data-derived AST and compile boundary to a method pair.
 
@@ -500,6 +502,25 @@ def validate_generic_task_methods(
         )
         for name in ("load_actors", "check_success")
     }
+    official_core_directly_called = any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "self"
+        and node.func.attr == "mea_official_check_success"
+        and not node.args
+        and not node.keywords
+        for node in ast.walk(parsed["check_success"])
+    )
+    if (
+        require_official_core_conjunct
+        and not official_core_directly_called
+    ):
+        raise GenericTaskGenError(
+            "generated checker must call "
+            "self.mea_official_check_success() directly when the Proposal "
+            "preserves or composes the official task goal"
+        )
     _reject_pose_property_item_assignment(parsed)
     _validate_literal_scale_alignment(
         parsed["load_actors"], scene_need=scene_need
@@ -566,6 +587,10 @@ def validate_generic_task_methods(
         "success_sha256": text_sha256(methods["check_success"]),
         "changed_from_official": changed_from_official,
         "required_method_changes": required_changes,
+        "official_core_conjunct_required": bool(
+            require_official_core_conjunct
+        ),
+        "official_core_directly_called": official_core_directly_called,
     }
 
 
@@ -777,6 +802,42 @@ def discover_generic_robotwin_task_identity(
     }
 
 
+def _candidate_requires_official_core_conjunct(
+    candidate: Mapping[str, Any],
+) -> bool:
+    """Recognize a Proposal that retains the official task goal.
+
+    The generated checker may add an experimental condition, but it must not
+    copy the official predicate.  A direct call to the runtime-provided
+    untouched method is the only supported composition boundary.
+    """
+
+    checker_need = candidate.get("checker_need")
+    if not isinstance(checker_need, Mapping):
+        return False
+    fragments = [str(checker_need.get("description") or "")]
+    intent = candidate.get("evaluation_intent")
+    if isinstance(intent, Mapping):
+        preserved = intent.get("preserved_conditions")
+        if isinstance(preserved, list):
+            fragments.extend(str(item) for item in preserved)
+    text = " ".join(fragments).casefold()
+    return any(
+        marker in text
+        for marker in (
+            "official task goal",
+            "official goal",
+            "official success",
+            "official check_success",
+            "untouched official",
+            "官方任务目标",
+            "官方目标",
+            "官方成功",
+            "官方 check_success",
+        )
+    )
+
+
 def load_generic_robotwin_task_adapter(
     repo_root: str | Path,
     task_name: str,
@@ -847,6 +908,9 @@ def load_generic_robotwin_task_adapter(
                 "load_actors": candidate.get("scene_need") is not None,
                 "check_success": candidate.get("checker_need") is not None,
             },
+            require_official_core_conjunct=(
+                _candidate_requires_official_core_conjunct(candidate)
+            ),
         )
         try:
             raw_fixtures = checker_fixtures(methods, candidate)
