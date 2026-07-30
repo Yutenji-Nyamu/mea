@@ -1444,6 +1444,23 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                 official_class=task_name,
             )
             self.assertTrue(report["valid"])
+            contact_checker = {
+                **methods,
+                "check_success": (
+                    "def check_success(self):\n"
+                    "    robot_links = self.robot.get_links()\n"
+                    "    return not any(\n"
+                    "        contact.actor0 in robot_links\n"
+                    "        for contact in self.scene.get_contacts()\n"
+                    "    )\n"
+                ),
+            }
+            report = validate_generic_task_methods(
+                contact_checker,
+                official_source=root / f"envs/{task_name}.py",
+                official_class=task_name,
+            )
+            self.assertTrue(report["valid"])
 
     def test_pose_property_item_assignment_is_rejected(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]
@@ -1755,6 +1772,8 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             self.assertIn(
                 "derive the smallest measurable change", prompt
             )
+            self.assertIn("self.scene.get_contacts()", prompt)
+            self.assertIn("do not invent a helper", prompt)
 
     def test_partial_generation_reuses_unrequested_official_method(
         self,

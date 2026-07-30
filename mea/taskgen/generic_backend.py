@@ -98,6 +98,10 @@ _GENERIC_SAFE_MODULE_CALLS = {
     ("np", "asarray"),
     ("np", "sum"),
 }
+_GENERIC_READ_ONLY_METHOD_CALLS = {
+    "get_contacts",
+    "get_links",
+}
 
 
 @dataclass(frozen=True)
@@ -383,7 +387,7 @@ def _derived_ast_policy(
     safe_module_calls: set[tuple[str, ...]] = set(
         _GENERIC_SAFE_MODULE_CALLS
     )
-    safe_method_calls: set[str] = set()
+    safe_method_calls: set[str] = set(_GENERIC_READ_ONLY_METHOD_CALLS)
     allowed_private_attributes = {
         node.attr
         for node in ast.walk(class_node)
@@ -1204,6 +1208,11 @@ def _core_prompt(
         "particular, do not cache initial poses, heights, thresholds, or flags "
         "on self. Compute checker values from current simulator state and "
         "literal or Query-specified thresholds. "
+        "For a simulator-verifiable robot-contact condition, inspect "
+        "self.scene.get_contacts() and the relevant articulation's get_links(); "
+        "do not invent a helper such as self.check_contact unless that exact "
+        "method appears in the retrieved official source. These APIs are "
+        "read-only and must not mutate simulator state. "
         "self.mea_telemetry_tracked_actors is the metadata exception. Assign "
         "it only when adding an entirely new actor, include "
         "only new actors, and give every entry exactly id, task_attribute, "
