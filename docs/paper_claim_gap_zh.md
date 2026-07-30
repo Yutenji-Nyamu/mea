@@ -18,7 +18,9 @@ control。Plan Agent 在 control 通过后才 materialize 这个 Query-derived P
 Proposal 生成新 scene 与新 `check_success()`、生成高度差 Rule Tool、完成
 render/VLM/expert、第二次 ACT、Aggregate、充分性停止与最终 Answer。实验 checker
 和 official core 均为真；目标/非目标终态高度为 `0.80005/0.74166 m`，新 Tool
-测得 `0.05838 m`。随后以已完成 telemetry 做 0-ACT 审计，第二次请求走
+测得 `0.05838 m`。随后以已完成 telemetry 做 0-ACT 审计：首次请求由 GPT
+编写 Python Rule Tool，经过一次基于真实失败的局部修复后通过 AST、双次执行、
+独立 MetricSpec oracle 与 artifact 不变性检查；第二个 Query 精确走
 `run_local_reuse` 且未调用 provider。
 
 这次运行也留下了有价值的模型失败：Query interpretation 与下一步 Plan Agent
@@ -34,10 +36,10 @@ render/VLM/expert、第二次 ACT、Aggregate、充分性停止与最终 Answer�
 | 上一轮 evidence 决定下一轮，并在充分时停止 | live13 的 round 1 official evidence 只负责 control gate 和 lineage；它没有决定测试方向。round 2 checker pass 后 existential contract 以 `evidence_sufficient` 停止 | **evidence-gated continuation/stop 完成**。`eval_20260726_batch23_open_query_live_n1_v5` 另有 scale→distractor refinement，但两种能力尚未在同一旗舰合一 |
 | Fig. 3：Proposal → retrieve/generate scene + `check_success()` → rollout | live13 在原本 official-only 的 `grab_roller` 上通过通用 backend 同时生成 scene/checker；2/2 simulator fixtures、render、VLM、expert 通过后直接裁决 ACT，且未新增任务名分支 | **一个完整冷启动正例完成**。生成 checker 明确标为 experimental，不冒充 official benchmark success |
 | 首帧视觉诊断，失败时局部重生成 | 通用 TaskGen 已运行真实 VLM visual diagnosis，并只允许一次局部 repair；preservation 仍由 simulator state、collision geometry、AST/checker fixture 与 frozen binding 独立裁决 | **职责边界已完成**。最新旗舰没有触发 repair，因此尚缺“视觉发现问题→一次修复→通过”的在线正例；视觉不能替代数值 authority |
-| Fig. 4：ToolGen retrieve/generate/validate/register/reuse | live13 的 Query 诱发 typed MetricSpec，编译和差分验证后得到 `0.05838 m`，进入 Aggregate/Plan Agent；追加 0-ACT replay 的第二次请求精确走 `run_local_reuse` | **同一 completed-round 审计内闭合**。仍缺第二个独立 Query/evaluation 从持久 registry 复用 |
+| Fig. 4：ToolGen retrieve/generate/validate/register/reuse | live13 的原运行以 typed MetricSpec 得到 `0.05838 m` 并进入 Aggregate/Plan Agent；Batch30 又在同一真实 telemetry 上完成 provider-written Python Tool、AST/确定性/oracle/artifact gate、run-local 注册及第二 Query exact reuse | **开放 Python 实现生成已有 0-ACT 在线正例**。语义需求仍先落入五个 typed operator；尚缺同一 live flagship 内生成与跨 evaluation reviewed reuse |
 | rollout → Rule/VQA → Aggregate → Plan Agent session → Answer | live13 的单一命令生成 Query、逐轮 prompt/decision、TaskGen 代码、render、ACT video/telemetry、Tool/VQA、Aggregate 和受限 Answer | **RoboTwin 小范围基本完成** |
 | 回答原 Query 并显式约束确定性 | `AnswerScope` 强制记录 N、唯一 seeds、候选域、冲突、stop reason 与限制；live13 正确表述 2 个 episode 只有一个 seed `[100301]` | **当前完成度高**。输出明确不是统计泛化保证 |
-| RoboTwin/LIBERO 使用同一外层方法语义 | `MethodRuntime`、`QueryContract` 与 policy-task binding 已抽成共享接口；RoboTwin 真实 child bundle 会经过 typed runtime projection，LIBERO 仍进入独立 backend chain | **合同开始统一，原生执行环未统一**。projection 验证既有执行结果，不等于生产编排已经委托给共享 runtime |
+| RoboTwin/LIBERO 使用同一外层方法语义 | `MethodRuntime`、`QueryContract` 与 policy-task binding 已抽成共享接口；SmolVLA 已通过 `MethodRuntime/RoboTwinMethodBackend` 在新任务 `turn_switch` 执行 official control，LIBERO 仍进入独立 backend chain | **原生 official-control 边界已通，完整外层 loop 未统一**。生产 Plan Agent CLI 仍使用 ACT child pipeline；SmolVLA 尚无 semantic telemetry bridge |
 
 ## 实验 claim
 
@@ -50,7 +52,7 @@ render/VLM/expert、第二次 ACT、Aggregate、充分性停止与最终 Answer�
 | Table 9：少样本保持 ACT/DP/DP3/RDT/π0 排名 | ACT/DP3 三 seed pilot 为 2/3 对 2/3，平局；Spearman 不可计算 | **未复现**。暂不为制造排名扩大策略 |
 | Fig. 6：约 5% 系统错误率与模块分布 | 冻结 10 个 terminal operations，10/10 pass | **分母不足，未复现** |
 | 数百条、五类、人工 sub-aspect Query 数据集 | 30 条中文 proxy Query、五类各 6 条 | **最小协议样本，不是论文数据贡献** |
-| 多任务、跨 policy、RoboTwin/LIBERO 一致性 | RoboTwin 当前有五份数据完备 TaskSchema 和相应 checkpoint；生产 binding 已不要求五任务 TaskAdapter。SmolVLA 统一 checkpoint 在五任务 N=1 顺序 pilot 为 4/5，但未进入 MEA 方法链。LIBERO task0 为 official-positive/custom-negative basic adaptation | **跨任务/跨环境结论未复现**。代码通用边界与多任务 policy 可运行性都不等于跨任务生成式闭环证据或 50-task 成功率 |
+| 多任务、跨 policy、RoboTwin/LIBERO 一致性 | RoboTwin 动态发现 50 个 official task，均可由共享 SmolVLA binding 尝试 official rollout；仅 5 个有 semantic TaskSchema。五任务 N=1 为 4/5；新增 `click_alarmclock` 与 `turn_switch` 均合法执行但 policy failure，后者走原生 MethodRuntime。LIBERO task0 为 official-positive/custom-negative basic adaptation | **跨任务/跨环境结论未复现**。50 个 rollout-ready 只表示执行资格，不表示 50-task 成功率、训练覆盖证明或生成式闭环 |
 
 ## 当前最重要的 gap
 
@@ -63,10 +65,12 @@ render/VLM/expert、第二次 ACT、Aggregate、充分性停止与最终 Answer�
    `BoundedProposalAgent` 与 BBH/ClickBell dialect。下一步应先做语义 artifact exact
    retrieval，miss 后统一走 generic backend，使 task-specific dialect 只留在
    `experiments/paper/`。
-3. **让跨 evaluation Tool reuse 成为正常 Query 路径。** 当前只证明同一已完成
-   telemetry 的 exact reuse；还需第二个独立 Query 直接检索持久 artifact。
-4. **把共享 `MethodRuntime` 从兼容投影变成原生执行边界。** 当前 projection 不重复
-   TaskGen/ACT，但真正生产 mechanics 仍在旧 child pipeline；应逐阶段迁移，而不是再加一套编排。
+3. **继续放开 Tool 的语义发明。** provider 已真正编写 Python 实现，但 MetricSpec
+   需求仍限于五个 typed operator；下一步应允许模型提出新的、可独立验证的 observable，
+   同时补第二个 evaluation 的 reviewed exact reuse。
+4. **把共享 `MethodRuntime` 变成生产 Plan Agent 的原生执行边界。** SmolVLA official
+   control 已原生执行，但完整 production round 仍在 ACT child pipeline；应补 backend
+   selector 与 semantic telemetry bridge，逐阶段迁移而不是再加一套编排。
 5. **统一 RoboTwin/LIBERO 的外层 loop。** simulator backend 可以不同，但 route/session、
    RoundExecutor、Aggregate、stop contract 与 Answer 不应重复实现。
 6. **方法稳定后再补实验规模。** 首先做三 seed、非平凡 compare/worst-case 的

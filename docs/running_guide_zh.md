@@ -9,7 +9,8 @@ SAPIEN/RoboTwin、也不执行 setup/render/expert/rollout 的纯单测。根 RE
 ## 1. 运行前检查
 
 ```bash
-MEA_REPO=/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime
+# 先指向现场确认过的 clean main clone/worktree。
+: "${MEA_REPO:?export MEA_REPO=/absolute/path/to/clean/mea-main}"
 cd "$MEA_REPO"
 git status --short
 git rev-parse HEAD
@@ -104,13 +105,10 @@ seed 重跑 state/checker、render、VLM 与 expert gate；从同一采样 Pose 
 预写 metric。生成 checker 与 official success 必须并列记录；二者冲突或不可比较时，
 Answer 不得把实验语义写成 official benchmark 结论。
 
-若 measurement need 明确要求已声明 semantic trace 的 final/terminal `x/y/z/height`
-单信号分量，ToolGen 必须生成 `terminal_signal_component`；若要求 target-vs-distractor
-等两信号终态差，则必须生成 `terminal_signal_difference`。两者都不能改用 event time
-或 distance 绕过原始问题。动态 VQA 找不到 exact rule 时，先选择该 task 的已审查问题，再退回
-`run_local.tracked_object_visible_state_change`；不得继承其他任务的 block/hammer/bell
-问题。VQA 与 Rule/checker 冲突时保留 `numeric_consistency=conflict` 和
-`evidence_conflict=true`，不能由较高 VLM confidence 覆盖。
+ToolGen 先做 exact reuse；miss 后若 typed oracle 能表达该 observable，则由 provider
+编写 Python Tool，并以 AST、双次确定性、oracle 与 artifact 不变性验证；仍不可表达时
+明确报告 unsupported，不能偷换 metric。动态 VQA 只检索当前 task 的已审查问题。
+VQA 与 Rule/checker 冲突时保留 `evidence_conflict=true`，不能由较高 VLM confidence 覆盖。
 
 同一 evaluation 内的后续 Query 可 exact reuse 其 run-local Tool；跨独立 evaluation
 只接受显式 approved 的 reviewed registry 条目。两类检索命中后都必须在当前 episode
@@ -121,8 +119,11 @@ Answer 不得把实验语义写成 official benchmark 结论。
 最近一次公开索引见
 `docs/evidence/current/evidence_bundle_manifest.json`。原始 bundle 根目录由
 manifest 的 `source_server_path` 记录。`README.md` 是语义阅读索引；
+`run_summary.json` 是 Query、逐轮结果、decision 与 Answer 的机器可读投影；
+`artifacts/aggregate/` 另保留去除重复 provenance 后的逐轮/最终语义统计。完整
+Aggregate 和 telemetry 留在服务器。
 `evidence_bundle_manifest.json` 只保存 bundle-relative 文件路径、大小与 SHA-256，
-不重复嵌入 rounds。阅读顺序：
+不重复嵌入 run payload。阅读顺序：
 
 ```text
 query
@@ -173,15 +174,17 @@ rollout 在构造 custom env 前恢复捕获的 RNG state，避免把初始化�
 - 触及 TaskGen/ToolGen、simulator adapter 或 rollout 绑定时，追加一个最小 live smoke。
 - 不以固定测试数量为目标；被删除的旧链路测试随实现一起删除。
 - 大规模 N、更多 policy 或真实消融须另行预注册，不混入日常 smoke。
+- 裸 `pytest` 只运行 `tests/mainline/`；显式传入 `tests` 才运行
+  mainline、compat 与 paper experiment 全集。
 
 包含 LIBERO 测试时必须先加载专用环境路径；否则 upstream `libero` 会交互询问
 dataset 路径，不能被解释为代码回归：
 
 ```bash
-MEA_REPO=/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime
+: "${MEA_REPO:?export MEA_REPO=/absolute/path/to/clean/mea-main}"
 cd "$MEA_REPO"
 . /root/autodl-tmp/envs/mea-libero/etc/conda/activate.d/10_mea_libero_paths.sh
-/root/autodl-tmp/envs/mea-libero/bin/python -m pytest -q tests/manipeval
+/root/autodl-tmp/envs/mea-libero/bin/python -m pytest -q tests
 ```
 
 非交互 shell 若没有执行 conda activation，可一次性安装同一配置作为 upstream 默认值：

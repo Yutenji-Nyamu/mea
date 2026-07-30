@@ -1,74 +1,14 @@
 {
   "schema_version": 1,
-  "repair_id": "live13_exact_tool_reuse_v1",
-  "source_evaluation_id": "eval_20260730_b44_grab_roller_plan_agent_live13",
-  "source_round_id": "round_2",
-  "created_at": "2026-07-30T10:55:04.317883+08:00",
-  "mode": "completed_act_tool_aggregate_planner_replay",
-  "act_rollouts_started": 0,
-  "source_artifacts_immutable": true,
-  "source_round_summary": "recorded",
-  "source_artifacts": [
-    {
-      "path": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/manifest.json",
-      "sha256": "e5e0c6a72a5f52feeda543e7106877785a7371745df588a89a43a978877d5ebf"
-    },
-    {
-      "path": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/plan/evaluation_plan.json",
-      "sha256": "6386e290af510b9629678e0ebe144e046af680577d7f76775f4be62174f440bf"
-    },
-    {
-      "path": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/plan/query_sufficiency_contract.json",
-      "sha256": "a9302fa7ec342e1ed82732a10a61700836280e3ae4496f7d2b325e8833ed5803"
-    },
-    {
-      "path": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/manifest.json",
-      "sha256": "513209a01f0a0cae4841d82630a3fb70b43a3e4f8d83f885071bdb1a6729adac"
-    },
-    {
-      "path": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301/episode.json",
-      "sha256": "b8c1a39485637eb46fad5709e1a8e4aee8b61f49b0cc9f2d7db6d44e760d8f97"
-    },
-    {
-      "path": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/summary/round_2.json",
-      "sha256": "9a34d434bbabec6c92169628d4f24b2c076662739f9e2b13d7674054a69b65e3"
-    },
-    {
-      "path": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/open_tool_request/tool_request_bundle.json",
-      "sha256": "d2b367b6fe96cd23e353437b913cb1c365537c21f940e671780fd4420f94ead9"
-    }
-  ],
-  "original_tool_request": {
-    "status": "recorded",
-    "path": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/open_tool_request/tool_request_bundle.json",
-    "sha256": "d2b367b6fe96cd23e353437b913cb1c365537c21f940e671780fd4420f94ead9"
-  },
-  "repaired_tool_request": {
-    "path": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_request.json",
-    "sha256": "6143cd0cc54e11c1fc933e2334543e74d9962ebe4c3f177dcab42feac4e4c7cf",
-    "request": {
-      "schema_version": 2,
-      "task_name": "grab_roller",
-      "metric": "query_derived_metric",
-      "question": "Does the policy achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters, and what is the final height difference between the two rollers?",
-      "metric_spec": {
-        "schema_version": 1,
-        "operation": "terminal_signal_difference",
-        "left_signal": "roller_position",
-        "right_signal": "non_target_roller_position",
-        "component": "z",
-        "unit": "m",
-        "null_semantics": "null_if_terminal_not_finite",
-        "absolute": false
-      }
-    }
-  },
-  "execution_vqa": {
-    "source": "original_round_summary",
-    "path": null,
-    "sha256": null
-  },
-  "status": "completed",
-  "completed_at": "2026-07-30T10:55:05.852532+08:00",
-  "result_path": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/repairs/live13_exact_tool_reuse_v1/result.json"
+  "repair_id": "live14_provider_python_toolgen_v1",
+  "kind": "provider_python_toolgen_cached_telemetry",
+  "source_evaluation": "eval_20260730_b44_grab_roller_plan_agent_live13",
+  "source_child": "run_20260730_b44_grab_roller_plan_agent_live13_round_2",
+  "source_output": "/root/autodl-tmp/tmp/batch30_open_toolgen_live_v2",
+  "simulator_or_policy_reinvoked": false,
+  "prompt_learning": [
+    "return JSON-native scalars",
+    "diagnostic metrics without thresholds use passed=None",
+    "avoid ndarray methods outside the AST allowlist"
+  ]
 }

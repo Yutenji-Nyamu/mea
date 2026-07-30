@@ -20,8 +20,8 @@ The function runs after rollout and receives a fresh, read-only-style
 }
 ```
 
-Available trajectory data is declared by the task schema. The current bounded
-prototypes expose:
+Available trajectory data is declared by the executed task schema. Common
+fields include:
 
 - `trajectory.trace`: 250 Hz NumPy arrays. Common fields include
   `physics_step`, `policy_step`, `simulation_time_seconds`, `success`,
@@ -46,10 +46,24 @@ Rules:
 - Use physical contact only when `physical_contact` is true. A reported contact
   interval alone is not sufficient.
 - `evidence_steps` contains physics steps, not policy steps or video frames.
+- Convert every returned NumPy scalar to a plain Python `float`, `int`, or
+  `bool`; JSON-compatible means no `np.float*`, `np.int*`, or `np.bool*`.
+- A diagnostic MetricSpec without a pass threshold must return `passed=None`;
+  do not import success thresholds from the natural-language Query or checker.
+  For example, a terminal height-difference Tool still returns `passed=None`
+  even when the Query also asks whether two height thresholds were satisfied.
+- Copy the requested operation into `details.operation`.  Use
+  `details.reason="measured"` for a valid measurement and only the null reason
+  named by the prompt when the measurement is unavailable.
 - No type annotations, decorators, helper functions, or top-level statements.
 - Prefer simulator values over visual inference.
 - Only access arrays as `trajectory.trace["field_name"]`;
   `trajectory.semantic_trace` does not exist.
+- Do not call ndarray methods such as `.all()` or `.tolist()`; use the
+  allowlisted `np` functions and convert only the final scalar outputs.
+- For a Query-induced typed metric, implement the requested observable in
+  Python. The MetricSpec shown in the prompt is an independent validation
+  oracle; it is not generated source to quote or a preselected Tool ID.
 
 For `pickup_to_first_contact_time`, pickup is the first trace sample whose
 hammer center Z rise from the initial sample is at least

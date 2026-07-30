@@ -1,14 +1,8 @@
-"""Typed, proposal-derived ToolGen metrics with a deterministic compiler.
+"""Typed semantic oracles for proposal-derived ToolGen metrics.
 
-The paper permits ToolGen to synthesize a rule metric from proposal context and
-task code.  Arbitrary Python is unnecessarily broad for the first functional
-slice, so this module exposes a small declarative operator set, compiles it to
-the same ``generated_tool`` contract used by ToolGen, validates it on cached
-trajectories, and can register the result in the existing run-local registry.
-
-This is intentionally not a replacement for model-generated tools.  It is the
-smallest task-agnostic path proving that a metric need not be pre-enumerated in
-``COMPOSITE_TARGETS`` before it can be generated, gated, and reused.
+MetricSpec is the independent oracle used to validate provider-written Python;
+it is not the production implementation of the Tool.  A compiler remains only
+as a provider-free compatibility path for frozen experiments and unit tests.
 """
 
 from __future__ import annotations
@@ -941,6 +935,225 @@ def build_task_code_context(
     }
 
 
+def _provider_codegen_prompt(
+    *,
+    repo_root: Path,
+    metric: str,
+    question: str,
+    metric_spec: Mapping[str, Any],
+    trajectory: TrajectoryView,
+    task_code_context: Mapping[str, Any] | None,
+    previous_error: str | None,
+) -> str:
+    """Build the compact prompt for a real Python ToolGen attempt."""
+
+    contract = (repo_root / "mea/toolgen/README.Agent.md").read_text(
+        encoding="utf-8"
+    )
+    operation = str(metric_spec["operation"])
+    normal_reason = "measured"
+    null_reasons = {
+        "minimum_distance": ["no_finite_sample"],
+        "terminal_signal_component": ["terminal_not_finite"],
+        "terminal_signal_difference": ["terminal_not_finite"],
+        "event_count": [],
+        "time_between_events": [
+            "start_event_missing",
+            "end_event_missing",
+            "end_event_precedes_start_event",
+        ],
+    }[operation]
+    result_contract = {
+        "passed": None,
+        "evidence_steps": "plain Python int physics steps",
+        "details.operation": operation,
+        "details.reason_on_measurement": normal_reason,
+        "details.allowed_null_reasons": null_reasons,
+        "json_native_scalars_only": True,
+    }
+    telemetry = {
+        key: {
+            "shape": list(value.shape),
+            "dtype": str(value.dtype),
+        }
+        for key, value in sorted(trajectory.trace.items())
+    }
+    repair = (
+        "\nPREVIOUS VALIDATION FAILURE:\n"
+        + previous_error
+        + "\nRepair only the reported failure and return the complete function.\n"
+        if previous_error
+        else ""
+    )
+    return f"""You are ToolGen in ManipEvalAgent.
+Write the Python implementation of one Query-induced Rule Tool.  The typed
+MetricSpec below is an independent semantic oracle, not source code to copy.
+Implement the same observable from the recorded trajectory.  The result will
+be checked by an AST allowlist, executed twice on real telemetry, compared
+against the independent oracle, and rejected if episode artifacts change.
+
+METRIC ID:
+{metric}
+
+QUESTION:
+{question}
+
+SEMANTIC ORACLE CONTRACT:
+{json.dumps(metric_spec, ensure_ascii=False, indent=2)}
+
+REQUIRED RESULT SEMANTICS:
+{json.dumps(result_contract, ensure_ascii=False, indent=2)}
+
+REAL TELEMETRY SURFACE:
+{json.dumps(telemetry, ensure_ascii=False, indent=2)}
+
+TASKGEN CONTEXT:
+{json.dumps(task_code_context, ensure_ascii=False, indent=2)}
+
+TOOL CONTRACT:
+{contract}
+{repair}
+Return exactly one Python fenced block containing the complete
+def generated_tool(trajectory): function and nothing else.
+"""
+
+
+def _validate_metric_source(
+    *,
+    source_text: str,
+    metric: str,
+    spec: Mapping[str, Any],
+    episodes: list[Path],
+    trajectories: list[TrajectoryView],
+) -> tuple[list[dict[str, Any]], list[Any]]:
+    """Run static, determinism, oracle, and artifact-preservation gates."""
+
+    from mea.toolgen.prototype import (
+        ToolGenError,
+        execute_generated_tool,
+        validate_generated_tool,
+    )
+
+    try:
+        validate_generated_tool(source_text)
+    except ToolGenError as exc:
+        raise MetricSpecError(f"generated Python failed the static gate: {exc}") from exc
+    rows: list[dict[str, Any]] = []
+    values: list[Any] = []
+    for episode, trajectory in zip(episodes, trajectories):
+        before = {
+            name: _file_sha256(episode / name)
+            for name in _CORE_ARTIFACTS
+            if (episode / name).is_file()
+        }
+        try:
+            first = execute_generated_tool(source_text, episode, tool_name=metric)
+            second = execute_generated_tool(source_text, episode, tool_name=metric)
+        except ToolGenError as exc:
+            raise MetricSpecError(
+                f"generated Python failed on real telemetry: {exc}"
+            ) from exc
+        oracle = evaluate_metric_spec(spec, trajectory)
+        generated = {
+            key: first.get(key)
+            for key in ("value", "unit", "passed", "evidence_steps", "details")
+        }
+        deterministic = _canonical(first) == _canonical(second)
+        semantic_differences = _metric_semantic_differences(
+            generated,
+            oracle,
+        )
+        oracle_agreement = not semantic_differences
+        after = {
+            name: _file_sha256(episode / name)
+            for name in _CORE_ARTIFACTS
+            if (episode / name).is_file()
+        }
+        if not deterministic or not oracle_agreement or before != after:
+            raise MetricSpecError(
+                "generated Python validation failed: "
+                + _canonical(
+                    {
+                        "deterministic": deterministic,
+                        "oracle_agreement": oracle_agreement,
+                        "artifacts_unchanged": before == after,
+                        "semantic_differences": semantic_differences,
+                        "expected": _metric_semantic_projection(oracle),
+                        "actual": _metric_semantic_projection(generated),
+                    }
+                )
+            )
+        values.append(oracle.get("value"))
+        rows.append(
+            {
+                "episode_dir": str(episode),
+                "policy_name": trajectory.metadata.get("policy_name"),
+                "seed": trajectory.metadata.get("seed"),
+                "generated_result": first,
+                "oracle_projection": oracle,
+                "deterministic": deterministic,
+                "oracle_agreement": oracle_agreement,
+                "artifacts_unchanged": before == after,
+            }
+        )
+    return rows, values
+
+
+def _metric_semantic_projection(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Project only fields that define the metric's observable semantics."""
+
+    details = payload.get("details")
+    details = details if isinstance(details, Mapping) else {}
+    return {
+        "value": payload.get("value"),
+        "unit": payload.get("unit"),
+        "passed": payload.get("passed"),
+        "evidence_steps": payload.get("evidence_steps"),
+        "details": {
+            "operation": details.get("operation"),
+            "reason": details.get("reason"),
+        },
+    }
+
+
+def _metric_values_equal(actual: Any, expected: Any) -> bool:
+    if (
+        isinstance(actual, (int, float))
+        and not isinstance(actual, bool)
+        and isinstance(expected, (int, float))
+        and not isinstance(expected, bool)
+    ):
+        return math.isclose(
+            float(actual),
+            float(expected),
+            rel_tol=1e-6,
+            abs_tol=1e-8,
+        )
+    return actual == expected
+
+
+def _metric_semantic_differences(
+    actual: Mapping[str, Any],
+    expected: Mapping[str, Any],
+) -> list[str]:
+    actual_projection = _metric_semantic_projection(actual)
+    expected_projection = _metric_semantic_projection(expected)
+    differences = []
+    for field in ("value", "unit", "passed", "evidence_steps"):
+        if not _metric_values_equal(
+            actual_projection[field],
+            expected_projection[field],
+        ):
+            differences.append(field)
+    for field in ("operation", "reason"):
+        if (
+            actual_projection["details"][field]
+            != expected_projection["details"][field]
+        ):
+            differences.append(f"details.{field}")
+    return differences
+
+
 def execute_metric_spec(
     *,
     task_name: str,
@@ -951,12 +1164,15 @@ def execute_metric_spec(
     output_dir: str | Path,
     task_code_context: Mapping[str, Any] | None = None,
     registry_dir: str | Path | None = None,
+    provider: Any | None = None,
+    model: str | None = None,
+    max_attempts: int = 2,
 ) -> dict[str, Any]:
-    """Compile, differentially validate, and optionally register one typed Tool."""
+    """Generate, validate, and optionally register one Query-induced Tool."""
 
     from mea.toolgen.prototype import (
         ToolGenError,
-        execute_generated_tool,
+        extract_generated_tool,
         validate_generated_tool,
     )
     from mea.toolgen.registry import (
@@ -1021,6 +1237,110 @@ def execute_metric_spec(
     if registry_match is not None:
         source_path = registry_match["source_path"]
         route = "run_local_reuse"
+        generation: dict[str, Any] | None = None
+        rows, values = _validate_metric_source(
+            source_text=source_path.read_text(encoding="utf-8"),
+            metric=metric,
+            spec=spec,
+            episodes=episodes,
+            trajectories=trajectories,
+        )
+    elif provider is not None:
+        if not isinstance(model, str) or not model.strip():
+            raise MetricSpecError("provider Python codegen requires model")
+        attempts_dir = destination / "attempts"
+        attempts_dir.mkdir()
+        failures: list[dict[str, Any]] = []
+        rows = []
+        values = []
+        source_text: str | None = None
+        successful_attempt: int | None = None
+        attempt_limit = max(1, min(int(max_attempts), 3))
+        for attempt_index in range(attempt_limit):
+            attempt_dir = attempts_dir / f"attempt_{attempt_index}"
+            attempt_dir.mkdir()
+            prompt = _provider_codegen_prompt(
+                repo_root=Path(__file__).resolve().parents[2],
+                metric=metric,
+                question=question,
+                metric_spec=spec,
+                trajectory=trajectories[0],
+                task_code_context=context,
+                previous_error=(
+                    failures[-1]["message"] if failures else None
+                ),
+            )
+            (attempt_dir / "prompt.md").write_text(prompt, encoding="utf-8")
+            try:
+                response = provider.text(
+                    prompt,
+                    model=model.strip(),
+                    system=(
+                        "Return exactly one Python code fence containing the "
+                        "complete generated_tool(trajectory) function."
+                    ),
+                    max_tokens=1800,
+                    temperature=0.0,
+                )
+                (attempt_dir / "response.txt").write_text(
+                    response + "\n", encoding="utf-8"
+                )
+                candidate = extract_generated_tool(response)
+                (attempt_dir / "generated_tool.py").write_text(
+                    candidate, encoding="utf-8"
+                )
+                candidate_rows, candidate_values = _validate_metric_source(
+                    source_text=candidate,
+                    metric=metric,
+                    spec=spec,
+                    episodes=episodes,
+                    trajectories=trajectories,
+                )
+            except Exception as exc:
+                failure = {
+                    "attempt_index": attempt_index,
+                    "type": type(exc).__name__,
+                    "message": str(exc),
+                    "provider": deepcopy(
+                        dict(getattr(provider, "last_metadata", {}))
+                    ),
+                }
+                failures.append(failure)
+                _write_json(
+                    attempt_dir / "validation.json",
+                    {"valid": False, **failure},
+                )
+                continue
+            source_text = candidate
+            rows = candidate_rows
+            values = candidate_values
+            successful_attempt = attempt_index
+            _write_json(
+                attempt_dir / "validation.json",
+                {
+                    "valid": True,
+                    "episode_count": len(rows),
+                    "deterministic": True,
+                    "oracle_agreement": True,
+                    "artifacts_unchanged": True,
+                },
+            )
+            break
+        if source_text is None:
+            raise MetricSpecError(
+                "provider failed to generate a valid Python Tool: "
+                + " | ".join(item["message"] for item in failures)
+            )
+        source_path = destination / "generated_tool.py"
+        source_path.write_text(source_text, encoding="utf-8")
+        route = "provider_python_codegen"
+        generation = {
+            "successful_attempt": successful_attempt,
+            "attempt_count": len(failures) + 1,
+            "failures": failures,
+            "model_requested": model.strip(),
+            "provider": deepcopy(dict(getattr(provider, "last_metadata", {}))),
+        }
     else:
         source_path = destination / "generated_tool.py"
         source_path.write_text(compile_metric_spec_source(spec), encoding="utf-8")
@@ -1031,49 +1351,13 @@ def execute_metric_spec(
                 f"compiled MetricSpec failed the ToolGen static gate: {exc}"
             ) from exc
         route = "typed_metric_spec_compile"
-
-    source_text = source_path.read_text(encoding="utf-8")
-    rows = []
-    values = []
-    for episode, trajectory in zip(episodes, trajectories):
-        before = {
-            name: _file_sha256(episode / name)
-            for name in _CORE_ARTIFACTS
-            if (episode / name).is_file()
-        }
-        try:
-            first = execute_generated_tool(source_text, episode, tool_name=metric)
-            second = execute_generated_tool(source_text, episode, tool_name=metric)
-        except ToolGenError as exc:
-            raise MetricSpecError(
-                f"compiled MetricSpec failed on telemetry: {exc}"
-            ) from exc
-        oracle = evaluate_metric_spec(spec, trajectory)
-        generated = {
-            key: first.get(key)
-            for key in ("value", "unit", "passed", "evidence_steps", "details")
-        }
-        deterministic = _canonical(first) == _canonical(second)
-        oracle_agreement = _canonical(generated) == _canonical(oracle)
-        after = {
-            name: _file_sha256(episode / name)
-            for name in _CORE_ARTIFACTS
-            if (episode / name).is_file()
-        }
-        if not deterministic or not oracle_agreement or before != after:
-            raise MetricSpecError("compiled MetricSpec failed deterministic gates")
-        values.append(oracle.get("value"))
-        rows.append(
-            {
-                "episode_dir": str(episode),
-                "policy_name": trajectory.metadata.get("policy_name"),
-                "seed": trajectory.metadata.get("seed"),
-                "generated_result": first,
-                "oracle_projection": oracle,
-                "deterministic": deterministic,
-                "oracle_agreement": oracle_agreement,
-                "artifacts_unchanged": before == after,
-            }
+        generation = None
+        rows, values = _validate_metric_source(
+            source_text=source_path.read_text(encoding="utf-8"),
+            metric=metric,
+            spec=spec,
+            episodes=episodes,
+            trajectories=trajectories,
         )
     finite_values = [float(item) for item in values if isinstance(item, (int, float))]
     if any(not math.isfinite(item) for item in finite_values):
@@ -1093,8 +1377,16 @@ def execute_metric_spec(
                 "oracle_kind": "typed_metric_spec_v1",
             },
             generation_manifest={
-                "successful_attempt": None,
-                "model_requested": None,
+                "successful_attempt": (
+                    generation.get("successful_attempt")
+                    if generation is not None
+                    else None
+                ),
+                "model_requested": (
+                    generation.get("model_requested")
+                    if generation is not None
+                    else None
+                ),
                 "generator_source_sha256": _file_sha256(source_path),
                 "contract_sha256": hashlib.sha256(_canonical(spec).encode()).hexdigest(),
                 "example_validation": [],
@@ -1115,7 +1407,9 @@ def execute_metric_spec(
         "schema_version": 1,
         "status": "passed",
         "route": route,
-        "provider_called": False,
+        "provider_called": generation is not None,
+        "generation": generation,
+        "source_path": str(source_path),
         "tool_spec": tool_spec,
         "task_code_context_consumed": context is not None,
         "episodes": rows,
@@ -1124,9 +1418,15 @@ def execute_metric_spec(
         ),
         "limitations": [
             "five bounded typed operators only",
-            "development compiler path, not arbitrary Python generation",
             (
-                "compiled output is checked twice against the trusted "
+                "provider-generated Python"
+                if generation is not None
+                else "reused validated generated Python"
+                if route == "run_local_reuse"
+                else "provider-free compatibility compiler"
+            ),
+            (
+                "output is checked twice against the trusted "
                 "interpreter on each live episode; live values need not differ"
             ),
         ],

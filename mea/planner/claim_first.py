@@ -743,8 +743,16 @@ change as an unavailable policy intervention.
 
 Use success to probe the most consequential remaining uncertainty; use failure
 to discriminate a causal failure hypothesis; use ambiguous evidence to improve
-observability or isolate the confound.  Stop only when the completed evidence
-already answers the original Query.  For action=stop set sub_aspect and
+observability or isolate the confound.  When completed evidence is non-empty,
+the rationale must cite a concrete observed outcome or limitation and explain
+why it changed the priority of this sub-aspect.  Do not present a candidate
+that was already frozen before seeing that evidence as evidence-conditioned
+refinement.  For a broad robustness Query, for example, a successful control
+can justify selecting the highest-risk supported perturbation, while a failed
+control should redirect to baseline reliability or failure diagnosis.
+
+Stop only when the completed evidence already answers the original Query.  For
+action=stop set sub_aspect and
 requested_perturbation to null, all four needs to
 required=false/description=null, and express the evidence-supported conclusion
 in hypothesis.

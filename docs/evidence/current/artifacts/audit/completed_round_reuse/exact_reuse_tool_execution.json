@@ -8,7 +8,7 @@
     "schema_version": 1,
     "task_name": "grab_roller",
     "metric": "query_derived_metric",
-    "question": "Does the policy achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters, and what is the final height difference between the two rollers?",
+    "question": "Reuse the validated Tool to report the same terminal height difference.",
     "route": "force_codegen",
     "reference_tool": null,
     "required_signals": [
@@ -43,7 +43,7 @@
     "schema_version": 2,
     "task_name": "grab_roller",
     "metric": "query_derived_metric",
-    "question": "Does the policy achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters, and what is the final height difference between the two rollers?",
+    "question": "Reuse the validated Tool to report the same terminal height difference.",
     "metric_spec": {
       "schema_version": 1,
       "operation": "terminal_signal_difference",
@@ -75,8 +75,8 @@
     "scope": "run_local_registry",
     "tool": "query_derived_metric",
     "reference_tool": null,
-    "artifact": null,
-    "registration_id": "runlocal_8b62cc7f7c3da9c902fa"
+    "artifact": "/root/autodl-tmp/tmp/batch30_open_toolgen_live_v2/registry/entries/runlocal_4af8b3a53c7b8aabe597/generated_tool.py",
+    "registration_id": "runlocal_4af8b3a53c7b8aabe597"
   },
   "episodes": [
     {
@@ -94,32 +94,26 @@
         ],
         "details": {
           "operation": "terminal_signal_difference",
-          "left_signal": "roller_position",
-          "right_signal": "non_target_roller_position",
-          "component": "z",
-          "absolute": false,
-          "left_terminal_value": 0.8000491857528687,
-          "right_terminal_value": 0.7416644096374512,
-          "terminal_index": 7821,
           "reason": "measured"
         },
-        "tool_sha256": "56f94cafde8743bb96827efc37900d31ffe029de9fac384fa7654b1a9ad36c43"
+        "tool_sha256": "60522ca8d1bc2f57a1f9de6dc01509196cff49ca67dfbd986a4d7f1a350ad96d"
       }
     }
   ],
   "validation": {
     "provider_called": false,
     "typed_metric_spec": true,
+    "python_generated_by_model": false,
     "task_code_context_consumed": true,
     "episode_count": 1,
     "differential_gates_passed": true
   },
   "artifacts": {
-    "tool_request": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/repairs/live13_exact_tool_reuse_v1/second_query_exact_reuse/planned_tool/tool_request.json",
-    "catalog_snapshot": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/repairs/live13_exact_tool_reuse_v1/second_query_exact_reuse/planned_tool/catalog_snapshot.json",
-    "route_decision": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/repairs/live13_exact_tool_reuse_v1/second_query_exact_reuse/planned_tool/route_decision.json",
-    "metric_spec_execution": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/repairs/live13_exact_tool_reuse_v1/second_query_exact_reuse/planned_tool/typed_metric_spec/execution.json",
-    "resolved_tool_spec": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/repairs/live13_exact_tool_reuse_v1/second_query_exact_reuse/planned_tool/resolved_tool_spec.json",
-    "tool_execution": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/repairs/live13_exact_tool_reuse_v1/second_query_exact_reuse/planned_tool/tool_execution.json"
+    "tool_request": "/root/autodl-tmp/tmp/batch30_open_toolgen_live_v2/second_query_exact_reuse/tool_request.json",
+    "catalog_snapshot": "/root/autodl-tmp/tmp/batch30_open_toolgen_live_v2/second_query_exact_reuse/catalog_snapshot.json",
+    "route_decision": "/root/autodl-tmp/tmp/batch30_open_toolgen_live_v2/second_query_exact_reuse/route_decision.json",
+    "metric_spec_execution": "/root/autodl-tmp/tmp/batch30_open_toolgen_live_v2/second_query_exact_reuse/typed_metric_spec/execution.json",
+    "resolved_tool_spec": "/root/autodl-tmp/tmp/batch30_open_toolgen_live_v2/second_query_exact_reuse/resolved_tool_spec.json",
+    "tool_execution": "/root/autodl-tmp/tmp/batch30_open_toolgen_live_v2/second_query_exact_reuse/tool_execution.json"
   }
 }

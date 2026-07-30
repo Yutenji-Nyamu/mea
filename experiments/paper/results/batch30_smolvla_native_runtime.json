@@ -1,0 +1,84 @@
+{
+  "schema_version": 2,
+  "status": "completed_policy_failure",
+  "purpose": "Native MethodRuntime backend and unseen official-task rollout smoke",
+  "policy": {
+    "name": "SmolVLA",
+    "checkpoint_id": "lerobot/smolvla_robotwin",
+    "checkpoint_path": "/root/autodl-tmp/checkpoints/robotwin/smolvla_robotwin"
+  },
+  "runtime_manifest": {
+    "official_task_count": 50,
+    "official_rollout_ready_count": 50,
+    "task_schema_ready_count": 5,
+    "checkpoint_id_count": 1
+  },
+  "rollouts": [
+    {
+      "execution_path": "standalone_native_runner",
+      "task": "click_alarmclock",
+      "seed": 1001,
+      "policy_instruction": "click alarmclock",
+      "actions_executed": 400,
+      "chunk_count": 8,
+      "success": false,
+      "official_check_success": false,
+      "wall_seconds": 63.72516933828592,
+      "semantic_telemetry_ready": false,
+      "server_artifacts": {
+        "root": "/root/autodl-tmp/tmp/batch30_smolvla_click_alarmclock_v1",
+        "result_json": {
+          "path": "episode/result.json",
+          "bytes": 163487,
+          "sha256": "bc1abd77016829613cbdba88d697c505b283f698d4d98588ac280cc977e1e7d6"
+        },
+        "video": {
+          "path": "episode/episode0.mp4",
+          "bytes": 16728,
+          "sha256": "9fcfa11949f5bd449265fd5e3bed6d9e724aab8005a25ecb57f13ebeb9041106"
+        },
+        "cuda_peak_allocated_bytes": 1270694912,
+        "cuda_peak_reserved_bytes": 1314914304
+      }
+    },
+    {
+      "execution_path": "MethodRuntime/RoboTwinMethodBackend",
+      "binding_id": "turn_switch/SmolVLA",
+      "task": "turn_switch",
+      "seed": 1002,
+      "policy_instruction": "turn switch",
+      "actions_executed": 400,
+      "chunk_count": 8,
+      "success": false,
+      "official_check_success": false,
+      "wall_seconds": 55.78016335889697,
+      "semantic_telemetry_ready": false,
+      "server_artifacts": {
+        "root": "/root/autodl-tmp/tmp/batch30_smolvla_method_runtime_v2",
+        "method_runtime_result": {
+          "path": "method_runtime_result.json",
+          "bytes": 178096,
+          "sha256": "d21839127383eff4134b689f41980359d79e8598f36725d2062ca7fc98b327e9"
+        },
+        "result_json": {
+          "path": "episode/result.json",
+          "bytes": 163933,
+          "sha256": "3cb5ab0a7311e16d98cecde9f0a9a25d5f1ba71b6a9d2061e66b8dd74291469c"
+        },
+        "video": {
+          "path": "episode/episode0.mp4",
+          "bytes": 21511,
+          "sha256": "380e91e4fdb321e739e472c09d6b635571773457be6083ea4d9deaa79a061c56"
+        },
+        "policy_server_load_seconds": 20.350434705615044,
+        "policy_server_cuda_allocated_bytes": 1209838592
+      }
+    }
+  ],
+  "interpretation": [
+    "The shared checkpoint can attempt official tasks outside the prior five-task pilot.",
+    "The second rollout executes through MethodRuntime and RoboTwinMethodBackend rather than only the standalone runner.",
+    "Both valid policy failures are retained as outcomes, not retried or counted as pipeline errors.",
+    "These tasks have no MEA TaskSchema, so the runs support official success and video only; they are not complete TaskGen/ToolGen loops."
+  ]
+}

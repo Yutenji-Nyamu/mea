@@ -24,15 +24,13 @@ class EvidenceReportError(RuntimeError):
 
 
 _PLAN_ARTIFACTS = (
-    "evaluation_plan.json", "bound_task_session.json",
-    "query_sufficiency_contract.json", "global_query_route.json",
+    "query_sufficiency_contract.json",
+    "global_query_route.json",
     "open_task_resolution.json",
 )
 
 _TASKGEN_ARTIFACTS = (
-    "manifest.json",
     "generation/code_prompt.md", "generation/provider_response.txt",
-    "generation/provider_attempts.json",
     "validation/static.json", "validation/checker_fixtures.json",
     "validation/implementation_trace.json", "validation/setup_preflight.json",
     "validation/expert_preflight.json", "validation/vision.json",
@@ -55,8 +53,7 @@ _TOOL_ARTIFACT_ROLES = {
     "review_manifest": frozenset({".json"}),
 }
 
-_FINAL_ARTIFACTS = (
-    ("summary/aggregate_result.json", "aggregate/final.json"),
+_FINAL_AUDIT_ARTIFACTS = (
     ("plan/semantic_preservation_audit.json",
      "audit/semantic_preservation_audit.json"),
     ("audit/final_audit.json", "audit/final_audit.json"),
@@ -129,10 +126,6 @@ def _relative_link(path: Path, report_path: Path) -> str:
     return Path(os.path.relpath(path, report_path.parent)).as_posix()
 
 
-def _json_block(value: Any) -> str:
-    return "```json\n" + json.dumps(value, ensure_ascii=False, indent=2) + "\n```"
-
-
 def _quote(value: Any) -> list[str]:
     text = str(value or "N/A").strip() or "N/A"
     return [f"> {line}" if line else ">" for line in text.splitlines()]
@@ -184,6 +177,75 @@ def _compact_vqa(vqa: Mapping[str, Any]) -> dict[str, Any]:
         ],
         "numeric_consistency": observation.get("numeric_consistency"),
         "evidence_conflict": vqa.get("evidence_conflict"),
+    }
+
+
+def _compact_aggregate(aggregate: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "status": aggregate.get("status"),
+        "source_count": aggregate.get("source_count"),
+        "episode_result_count": aggregate.get("episode_result_count"),
+        "unique_episode_count": aggregate.get("unique_episode_count"),
+        "metric_ids": [
+            item.get("metric")
+            for item in aggregate.get("metrics") or []
+            if isinstance(item, Mapping) and item.get("metric")
+        ],
+        "input_issue_count": len(aggregate.get("input_issues") or []),
+    }
+
+
+def _without_provenance(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {
+            str(key): _without_provenance(item)
+            for key, item in value.items()
+            if key != "provenance"
+        }
+    if isinstance(value, list):
+        return [_without_provenance(item) for item in value]
+    return deepcopy(value)
+
+
+def _semantic_aggregate(aggregate: Mapping[str, Any]) -> dict[str, Any]:
+    """Keep Aggregate semantics while dropping repeated sample provenance."""
+
+    metrics = []
+    for raw_metric in aggregate.get("metrics") or []:
+        if not isinstance(raw_metric, Mapping):
+            continue
+        cohorts = []
+        for raw_cohort in raw_metric.get("cohorts") or []:
+            if not isinstance(raw_cohort, Mapping):
+                continue
+            cohort = {
+                "role": raw_cohort.get("role"),
+                "policy_names": deepcopy(raw_cohort.get("policy_names") or []),
+                "summary": _without_provenance(
+                    raw_cohort.get("summary") or {}
+                ),
+            }
+            if raw_cohort.get("passed_summary") is not None:
+                cohort["passed_summary"] = _without_provenance(
+                    raw_cohort.get("passed_summary")
+                )
+            cohorts.append(cohort)
+        metrics.append(
+            {
+                "metric": raw_metric.get("metric"),
+                "tools": deepcopy(raw_metric.get("tools") or []),
+                "unit": raw_metric.get("unit"),
+                "value_kind": raw_metric.get("value_kind"),
+                "cohorts": cohorts,
+            }
+        )
+    return {
+        "schema_version": 1,
+        **_compact_aggregate(aggregate),
+        "input_issues": _without_provenance(
+            aggregate.get("input_issues") or []
+        ),
+        "metrics": metrics,
     }
 
 
@@ -375,6 +437,26 @@ def write_evidence_report(
         source = next((item for item in sources if item.is_file()), None)
         return publish_copy(source, destination)
 
+    def publish_json(value: Mapping[str, Any], destination: Path) -> Path:
+        destination_resolved = destination.resolve()
+        if bundle_root not in destination_resolved.parents:
+            raise EvidenceReportError("artifact destination is outside bundle")
+        if destination.is_symlink() or destination.absolute() != destination_resolved:
+            raise EvidenceReportError(
+                "artifact destination must be a fresh non-symlink path"
+            )
+        if destination_resolved.exists():
+            raise EvidenceReportError("artifact destination already exists")
+        destination_resolved.parent.mkdir(parents=True, exist_ok=True)
+        destination_resolved.write_text(
+            json.dumps(value, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        published_files.append(
+            destination_resolved.relative_to(bundle_root).as_posix()
+        )
+        return destination_resolved
+
     rounds = [
         deepcopy(item)
         for item in plan.get("rounds") or []
@@ -500,17 +582,6 @@ def write_evidence_report(
                 destination_root / f"response_{response_index}.txt",
             )
 
-    for round_index in range(1, len(rounds) + 1):
-        name = f"evidence_after_round_{round_index:02d}.json"
-        publish_first(
-            (
-                evaluation / "plan/plan_agent_session" / name,
-                evaluation / "plan/claim_first_runtime" / name,
-            ),
-            semantic_dir
-            / "plan/plan_agent_session"
-            / name,
-        )
     publish_first(
         (
             evaluation / "plan/plan_agent_session/query_answer.json",
@@ -522,27 +593,19 @@ def write_evidence_report(
     lines = [
         f"# MEA method evidence: {manifest.get('evaluation_id', evaluation.name)}",
         "",
-        "> This is a compact view of real run artifacts. The complete machine audit remains in the evaluation directory.",
+        "> Compact, movable view of one real method run. Complete raw telemetry "
+        "and Aggregate payloads remain in the server evaluation directory.",
         "",
-        "## 1. Query and fixed policy scope",
+        "## 1. Query and execution scope",
         "",
         *_quote(query),
         "",
-        _json_block(
-            {
-                "binding_mode": target.get("binding_mode"),
-                "task_name": target.get("task_name"),
-                "task_profile": target.get("task_profile"),
-                "policy": target.get("policy"),
-                "checkpoint": target.get("checkpoint"),
-                "round_budget": session.get("round_budget") or plan.get("max_rounds"),
-                "episodes_per_round": [
-                    (item.get("execution") or {}).get("num_episodes") for item in rounds
-                ],
-            }
-        ),
-        "",
-        "One evaluation keeps this task and policy checkpoint fixed. Adaptation happens only across this task's sub-aspects/variants.",
+        f"- Task: `{target.get('task_name')}`",
+        f"- Policy: `{(target.get('policy') or {}).get('name')}`",
+        f"- Checkpoint: `{(target.get('checkpoint') or {}).get('checkpoint_id')}`",
+        "- Round budget / episodes: "
+        f"`{session.get('round_budget') or plan.get('max_rounds')}` / "
+        f"`{[(item.get('execution') or {}).get('num_episodes') for item in rounds]}`",
         "",
         "## 2. Paper-level data flow",
         "",
@@ -558,21 +621,11 @@ def write_evidence_report(
         '  A --> R["Final answer"]',
         "```",
         "",
-        "## 3. Initial decomposition",
+        "## 3. Plan Agent trace",
         "",
-        _json_block(
-            {
-                "evaluation_goal": plan.get("evaluation_goal"),
-                "selected_aspect_ids": (
-                    session.get("selected_aspect_ids")
-                    or plan.get("requested_aspect_ids")
-                ),
-                "requested_template_ids": plan.get("requested_template_ids"),
-                "first_round": rounds[0].get("round_id") if rounds else None,
-                "planning_state": plan.get("planning_state"),
-            }
-        ),
-        "",
+        f"- Goal: {plan.get('evaluation_goal')}",
+        f"- Initial round: `{rounds[0].get('round_id') if rounds else None}`",
+        f"- Final planning state: `{plan.get('planning_state')}`",
     ]
     interpretation_prompt = (
         semantic_dir / "plan/query_interpretation_prompt.md"
@@ -617,7 +670,11 @@ def write_evidence_report(
         task_code = child / "task.py" if child and (child / "task.py").is_file() else None
         overlay = child / "overlay.yml" if child and (child / "overlay.yml").is_file() else None
         variant_spec = child / "variant_spec.json" if child and (child / "variant_spec.json").is_file() else None
-        display_code = task_code or overlay
+        display_code = task_code or (
+            overlay
+            if overlay is not None and overlay.stat().st_size > 3
+            else None
+        )
         code_copy = publish_copy(
             display_code,
             code_dir / f"{round_id}_{display_code.name}" if display_code else code_dir / "missing",
@@ -749,10 +806,6 @@ def write_evidence_report(
             execution / "execution_vqa/execution_vqa.json",
             semantic_dir / "vqa" / f"{round_id}.json",
         )
-        publish_copy(
-            execution / "aggregate_result.json",
-            semantic_dir / "aggregate" / f"{round_id}.json",
-        )
 
         observations = (
             round_summary.get("observations")
@@ -801,8 +854,10 @@ def write_evidence_report(
             "tool_route": tool.get("route"),
             "tool_rows": _compact_tool_rows(tool),
             "vqa": _compact_vqa(vqa),
-            "aggregate_status": aggregate.get("status"),
-            "next_decision": decisions[index - 1] if index - 1 < len(decisions) else None,
+            "aggregate": _compact_aggregate(aggregate),
+            "next_decision": _compact_decision(
+                decisions[index - 1] if index - 1 < len(decisions) else None
+            ),
             "taskgen_gates": {
                 "generation_attempts": taskgen_provider.get(
                     "provider_call_count"
@@ -818,30 +873,21 @@ def write_evidence_report(
             },
         }
         compact_rounds.append(compact)
-        data_path = data_dir / f"{round_id}.json"
-        data_path.parent.mkdir(parents=True, exist_ok=True)
-        data_path.write_text(
-            json.dumps(compact, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
+        publish_json(
+            _semantic_aggregate(aggregate),
+            semantic_dir / "aggregate" / f"{round_id}.json",
         )
-        data_relative = data_path.relative_to(bundle_root).as_posix()
-        published_files.append(data_relative)
 
         lines.extend(
             [
-                f"## 4.{index}. {round_id}: {compact['aspect_id']}",
+                f"## 4.{index}. `{round_id}` — {compact['aspect_id']}",
                 "",
                 "### Plan → TaskGen",
                 "",
                 f"- Task: `{round_plan.get('task_name') or target.get('task_name')}`",
-                f"- Instruction: {round_plan.get('task_instruction') or 'N/A'}",
-                "",
-                "### TaskGen output",
-                "",
-                f"- Route: `{compact['taskgen_route']}`",
-                f"- Materialization: `{compact['taskgen_kind'] or 'not recorded'}`",
-                f"- Child run: `{child_id or 'N/A'}`",
-                "- Validation gates: "
+                f"- Route/materialization: `{compact['taskgen_route']}` / "
+                f"`{compact['taskgen_kind'] or 'not recorded'}`",
+                "- Gates: "
                 + json.dumps(
                     compact["taskgen_gates"],
                     ensure_ascii=False,
@@ -865,7 +911,7 @@ def write_evidence_report(
             )
         if code_copy and code_copy.stat().st_size > 3:
             lines.append(
-                f"- Full task artifact: [{code_copy.name}]"
+                f"- Task artifact: [{code_copy.name}]"
                 f"({_relative_link(code_copy, report_path)})"
             )
         elif code_copy:
@@ -894,16 +940,12 @@ def write_evidence_report(
         lines.extend(
             [
                 "",
-                "### Policy rollout",
+                "### Rollout",
                 "",
-                _json_block(
-                    {
-                        "backend": compact["execution_backend"],
-                        "seeds": compact["seeds"],
-                        "pipeline_passed": compact["pipeline_passed"],
-                        "policy_success": compact["policy_success"],
-                    }
-                ),
+                f"- Backend/seeds: `{compact['execution_backend']}` / "
+                f"`{compact['seeds']}`",
+                f"- Pipeline/policy success: `{compact['pipeline_passed']}` / "
+                f"`{compact['policy_success']}`",
             ]
         )
         if video_copy:
@@ -919,9 +961,8 @@ def write_evidence_report(
                 "",
                 "### Tool / VQA",
                 "",
-                f"- Tool route: `{compact['tool_route']}`",
-                f"- Metric: `{compact['tool_metric']}`",
-                "- Measurements: "
+                f"- Tool: `{compact['tool_route']}` → `{compact['tool_metric']}`",
+                "- Values: "
                 + json.dumps(compact["tool_rows"], ensure_ascii=False),
             ]
         )
@@ -934,11 +975,6 @@ def write_evidence_report(
             [
                 f"- VQA status: `{compact['vqa'].get('status')}`; "
                 f"conflict: `{compact['vqa'].get('evidence_conflict')}`",
-                "- VQA phenomena: "
-                + json.dumps(
-                    compact["vqa"].get("phenomena") or [],
-                    ensure_ascii=False,
-                ),
             ]
         )
         if montage_copy:
@@ -953,13 +989,10 @@ def write_evidence_report(
                 "",
                 "### Aggregate -> next decision",
                 "",
-                f"- Aggregate: `{compact['aggregate_status']}`",
-                f"- Policy success: `{compact['policy_success']}`",
+                "- Aggregate: "
+                + json.dumps(compact["aggregate"], ensure_ascii=False),
                 "- Decision: "
-                + json.dumps(
-                    _compact_decision(compact["next_decision"]),
-                    ensure_ascii=False,
-                ),
+                + json.dumps(compact["next_decision"], ensure_ascii=False),
                 "",
             ]
         )
@@ -971,7 +1004,7 @@ def write_evidence_report(
         ),
         semantic_dir / "answer/answer.json",
     )
-    for source, destination in _FINAL_ARTIFACTS:
+    for source, destination in _FINAL_AUDIT_ARTIFACTS:
         publish_copy(
             evaluation / source,
             semantic_dir / destination,
@@ -1013,6 +1046,33 @@ def write_evidence_report(
                 repair_root / source,
                 semantic_dir / "audit" / "completed_round_reuse" / destination,
             )
+        typed_root = repair_root / "first_query/planned_tool/typed_metric_spec"
+        publish_copy(
+            typed_root / "generated_tool.py",
+            semantic_dir
+            / "audit/completed_round_reuse/provider_generated_tool.py",
+            allowed_suffixes=frozenset({".py"}),
+        )
+        typed_execution = _read_json(typed_root / "execution.json")
+        successful_attempt = (
+            typed_execution.get("generation") or {}
+        ).get("successful_attempt")
+        if isinstance(successful_attempt, int) and successful_attempt >= 0:
+            attempt = typed_root / "attempts" / f"attempt_{successful_attempt}"
+            for source_name, destination_name in (
+                ("prompt.md", "provider_codegen_prompt.md"),
+                ("response.txt", "provider_codegen_response.txt"),
+                ("validation.json", "provider_codegen_validation.json"),
+            ):
+                publish_copy(
+                    attempt / source_name,
+                    semantic_dir
+                    / "audit/completed_round_reuse"
+                    / destination_name,
+                    allowed_suffixes=frozenset(
+                        {Path(source_name).suffix.lower()}
+                    ),
+                )
 
     final_payload = {
         "answer": feedback.get("answer"),
@@ -1020,20 +1080,65 @@ def write_evidence_report(
         "recommended_next_step": feedback.get("recommended_next_step"),
         "limitations": feedback.get("limitations"),
     }
+    reuse_summary = None
+    if repair_result is not None:
+        reuse_summary = {
+            "repair_id": repair_result.get("repair_id"),
+            "act_rollouts_started": repair_result.get("act_rollouts_started"),
+            "first_query_route": repair_result.get("first_query_route"),
+            "first_query_measurements": repair_result.get(
+                "first_query_measurements"
+            ),
+            "exact_reuse_route": repair_result.get("exact_reuse_route"),
+            "exact_reuse_provider_called": repair_result.get(
+                "exact_reuse_provider_called"
+            ),
+            "aggregate_status": repair_result.get("aggregate_status"),
+        }
+    final_aggregate = _read_json(
+        evaluation / "summary/aggregate_result.json"
+    )
+    publish_json(
+        _semantic_aggregate(final_aggregate),
+        semantic_dir / "aggregate/final.json",
+    )
+    run_summary_path = publish_json(
+        {
+            "schema_version": 1,
+            "evaluation_id": manifest.get("evaluation_id"),
+            "source_evaluation": str(evaluation.relative_to(root)).replace(
+                "\\", "/"
+            ),
+            "query": query,
+            "target": target,
+            "plan": {
+                "evaluation_goal": plan.get("evaluation_goal"),
+                "planning_state": plan.get("planning_state"),
+                "round_budget": session.get("round_budget")
+                or plan.get("max_rounds"),
+            },
+            "rounds": compact_rounds,
+            "final_aggregate": _semantic_aggregate(final_aggregate),
+            "answer": final_payload,
+            "completed_round_reuse": reuse_summary,
+        },
+        bundle_root / "run_summary.json",
+    )
     lines.extend(
         [
             "## 5. Final answer to the original Query",
             "",
             *_quote(final_payload["answer"]),
             "",
-            _json_block(
-                {
-                    "findings": final_payload["findings"],
-                    "recommended_next_step": final_payload["recommended_next_step"],
-                    "limitations": final_payload["limitations"],
-                }
-            ),
-            "",
+            *[
+                f"- Finding: {item}"
+                for item in final_payload.get("findings") or []
+            ],
+            f"- Next: {final_payload.get('recommended_next_step')}",
+            *[
+                f"- Limitation: {item}"
+                for item in final_payload.get("limitations") or []
+            ],
             "## 6. Boundaries",
             "",
             "- Policy results and pipeline status are reported separately.",
@@ -1041,64 +1146,27 @@ def write_evidence_report(
             "- Few-shot N=1 rounds demonstrate method wiring, not benchmark-level generalization.",
             "- Missing artifacts are shown as N/A; this report never substitutes proxy images or invented values.",
             "",
-            "## 7. Raw artifact index",
+            "## 7. Artifact index",
             "",
-            "- [Payload inventory with bytes and SHA-256]"
+            f"- [Compact machine summary]({_relative_link(run_summary_path, report_path)})",
+            "- [Published-file inventory with bytes and SHA-256]"
             "(evidence_bundle_manifest.json)",
+            f"- Complete raw source remains server-side at `{str(evaluation.relative_to(root)).replace(chr(92), '/')}`.",
         ]
     )
     if repair_result is not None:
         lines.extend(
             [
                 "",
-                "### Append-only completed-round Tool reuse audit",
+                "### Completed-round Tool reuse audit",
                 "",
-                _json_block(
-                    {
-                        "repair_id": repair_result.get("repair_id"),
-                        "act_rollouts_started": repair_result.get(
-                            "act_rollouts_started"
-                        ),
-                        "first_query_route": repair_result.get(
-                            "first_query_route"
-                        ),
-                        "first_query_measurements": repair_result.get(
-                            "first_query_measurements"
-                        ),
-                        "exact_reuse_route": repair_result.get(
-                            "exact_reuse_route"
-                        ),
-                        "exact_reuse_provider_called": repair_result.get(
-                            "exact_reuse_provider_called"
-                        ),
-                        "aggregate_status": repair_result.get(
-                            "aggregate_status"
-                        ),
-                    }
-                ),
-                "",
+                json.dumps(reuse_summary, ensure_ascii=False),
                 "This audit reuses completed policy telemetry and starts no "
                 "simulator or policy rollout. It proves exact run-local reuse, "
                 "not independent cross-evaluation reuse.",
                 "",
             ]
         )
-    for raw in (
-        evaluation / "manifest.json",
-        evaluation / "plan/evaluation_plan.json",
-        evaluation / "plan/bound_task_session.json",
-        evaluation / "summary/evidence_bundle.json",
-        evaluation / "answer/answer.json",
-        evaluation / "feedback/feedback.json",
-        evaluation / "evaluation_report.md",
-    ):
-        if raw.is_file():
-            if publish:
-                lines.append(
-                    f"- Server source: `{raw.relative_to(root).as_posix()}`"
-                )
-            else:
-                lines.append(f"- [{raw.name}]({_relative_link(raw, report_path)})")
 
     report_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
     published_files.append(report_path.relative_to(bundle_root).as_posix())
@@ -1115,12 +1183,13 @@ def write_evidence_report(
             }
         )
     bundle_manifest = {
-        "schema_version": 2,
+        "schema_version": 3,
         "path_basis": "bundle_relative",
         "evaluation_id": manifest.get("evaluation_id"),
         "source_evaluation": str(evaluation.relative_to(root)).replace("\\", "/"),
         "source_server_path": str(evaluation.resolve()) if publish else None,
         "report": report_path.relative_to(bundle_root).as_posix(),
+        "summary": run_summary_path.relative_to(bundle_root).as_posix(),
         "publish_mode": bool(publish),
         "files": sorted(set(published_files)),
         "artifacts": artifact_inventory,

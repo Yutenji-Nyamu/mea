@@ -31,7 +31,8 @@ _BINDING_KEYS = {
     "checkpoint",
     "hooks",
 }
-_TASK_SCHEMA_KEYS = {"path", "task_family"}
+_LEGACY_TASK_SCHEMA_KEYS = {"path", "task_family"}
+_OPTIONAL_TASK_SCHEMA_KEYS = {"path", "task_family", "available"}
 _HOOK_KEYS = {"official_success", "render", "rollout"}
 _OFFICIAL_SUCCESS_KEYS = {"kind", "module", "class_name", "method"}
 _RENDER_KEYS = {"kind", "module"}
@@ -67,6 +68,8 @@ def build_policy_task_binding(
     policy: Mapping[str, Any],
     checkpoint: Mapping[str, Any],
     task_module: str | None = None,
+    rollout: Mapping[str, Any] | None = None,
+    task_schema_available: bool = True,
 ) -> dict[str, Any]:
     """Build the minimal immutable execution boundary for a RoboTwin task."""
 
@@ -81,16 +84,27 @@ def build_policy_task_binding(
     if _DOTTED_IDENTIFIER.fullmatch(module) is None:
         raise PolicyTaskBindingError("task_module must be a dotted identifier")
     family = _text(task_family, field="task_family")
+    if not isinstance(task_schema_available, bool):
+        raise PolicyTaskBindingError("task_schema_available must be bool")
+    task_schema = (
+        {
+            "path": f"mea/toolkit/schemas/{name}.json",
+            "task_family": family,
+        }
+        if task_schema_available
+        else {
+            "path": None,
+            "task_family": family,
+            "available": False,
+        }
+    )
     return validate_policy_task_binding(
         {
             "schema_version": 1,
             "simulator": "robotwin",
             "task_name": name,
             "task_module": module,
-            "task_schema": {
-                "path": f"mea/toolkit/schemas/{name}.json",
-                "task_family": family,
-            },
+            "task_schema": task_schema,
             "policy": deepcopy(dict(policy)),
             "checkpoint": deepcopy(dict(checkpoint)),
             "hooks": {
@@ -104,11 +118,15 @@ def build_policy_task_binding(
                     "kind": "robotwin_initial_frame",
                     "module": module,
                 },
-                "rollout": {
-                    "kind": "act_eval_mea",
-                    "entrypoint": "policy/ACT/eval_mea.sh",
-                    "task_name": name,
-                },
+                "rollout": (
+                    deepcopy(dict(rollout))
+                    if rollout is not None
+                    else {
+                        "kind": "act_eval_mea",
+                        "entrypoint": "policy/ACT/eval_mea.sh",
+                        "task_name": name,
+                    }
+                ),
             },
         }
     )
@@ -148,9 +166,24 @@ def validate_policy_task_binding(
     task_schema = _mapping(
         binding.get("task_schema"),
         field="binding.task_schema",
-        keys=_TASK_SCHEMA_KEYS,
     )
-    expected_schema_path = f"mea/toolkit/schemas/{task_name}.json"
+    if frozenset(task_schema) not in {
+        frozenset(_LEGACY_TASK_SCHEMA_KEYS),
+        frozenset(_OPTIONAL_TASK_SCHEMA_KEYS),
+    }:
+        raise PolicyTaskBindingError(
+            "binding.task_schema fields are invalid"
+        )
+    schema_available = task_schema.get("available", True)
+    if not isinstance(schema_available, bool):
+        raise PolicyTaskBindingError(
+            "binding.task_schema.available must be bool"
+        )
+    expected_schema_path = (
+        f"mea/toolkit/schemas/{task_name}.json"
+        if schema_available
+        else None
+    )
     if task_schema.get("path") != expected_schema_path:
         raise PolicyTaskBindingError(
             "binding.task_schema.path differs from the bound task"
@@ -161,6 +194,16 @@ def validate_policy_task_binding(
     )
 
     policy = _mapping(binding.get("policy"), field="binding.policy")
+    policy_name = _text(
+        policy.get("name"),
+        field="binding.policy.name",
+    )
+    raw_backend = policy.get("backend")
+    policy_backend = (
+        "act"
+        if raw_backend is None and policy_name.casefold() == "act"
+        else _text(raw_backend, field="binding.policy.backend")
+    )
     checkpoint = _mapping(
         binding.get("checkpoint"), field="binding.checkpoint"
     )
@@ -170,7 +213,32 @@ def validate_policy_task_binding(
         checkpoint.get("checkpoint_id"),
         field="binding.checkpoint.checkpoint_id",
     )
-    if not checkpoint_id.startswith(f"act-{task_name}/"):
+    raw_checkpoint_policy = checkpoint.get("policy_name")
+    checkpoint_policy = (
+        policy_name
+        if raw_checkpoint_policy is None and policy_name.casefold() == "act"
+        else _text(
+            raw_checkpoint_policy,
+            field="binding.checkpoint.policy_name",
+        )
+    )
+    if checkpoint_policy.casefold() != policy_name.casefold():
+        raise PolicyTaskBindingError(
+            "binding checkpoint policy differs from the bound policy"
+        )
+    task_scope = checkpoint.get("task_scope")
+    if task_scope is None and policy_name.casefold() == "act":
+        # Historical ACT bindings predate the explicit task-scope field.
+        task_scope = task_name
+    if task_scope not in {task_name, "robotwin_official_tasks"}:
+        raise PolicyTaskBindingError(
+            "binding checkpoint task_scope does not cover the bound task"
+        )
+    if (
+        task_scope == task_name
+        and policy_name.casefold() == "act"
+        and not checkpoint_id.startswith(f"act-{task_name}/")
+    ):
         raise PolicyTaskBindingError(
             "binding checkpoint_id differs from the bound task"
         )
@@ -209,13 +277,28 @@ def validate_policy_task_binding(
         field="binding.hooks.rollout",
         keys=_ROLLOUT_KEYS,
     )
-    if rollout != {
-        "kind": "act_eval_mea",
-        "entrypoint": "policy/ACT/eval_mea.sh",
-        "task_name": task_name,
-    }:
+    rollout["kind"] = _text(
+        rollout.get("kind"),
+        field="binding.hooks.rollout.kind",
+    )
+    rollout["entrypoint"] = _text(
+        rollout.get("entrypoint"),
+        field="binding.hooks.rollout.entrypoint",
+    )
+    if rollout.get("task_name") != task_name:
         raise PolicyTaskBindingError(
-            "binding rollout hook differs from the ACT runtime"
+            "binding rollout hook differs from the bound task"
+        )
+    known_rollout = {
+        "act": ("act_eval_mea", "policy/ACT/eval_mea.sh"),
+        "smolvla": ("smolvla_robotwin", "mea.robotwin.smolvla_rollout"),
+    }.get(policy_backend)
+    if known_rollout is not None and (
+        rollout["kind"],
+        rollout["entrypoint"],
+    ) != known_rollout:
+        raise PolicyTaskBindingError(
+            "binding rollout hook differs from the policy backend"
         )
 
     binding.update(

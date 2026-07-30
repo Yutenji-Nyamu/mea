@@ -2,7 +2,7 @@
   "schema_version": 1,
   "status": "passed",
   "requested_route": "auto",
-  "route": "typed_metric_spec_compile",
+  "route": "provider_python_codegen",
   "reference_tool": null,
   "tool_spec": {
     "schema_version": 1,
@@ -60,23 +60,23 @@
     "status": "resolved",
     "matching_policy": "strict_exact_metric_id",
     "requested_route": "auto",
-    "resolved_route": "typed_metric_spec_compile",
+    "resolved_route": "provider_python_codegen",
     "task_name": "grab_roller",
     "metric": "query_derived_metric",
     "exact_match": true,
-    "matched_registry": "typed_metric_spec_v1",
+    "matched_registry": "query_induced_python_tool",
     "reference_tool": null,
     "provider_required": false,
-    "reason": "validated typed MetricSpec can be compiled and differentially gated",
+    "reason": "registry miss triggered provider Python generation; static, determinism, oracle, artifact, and live-telemetry gates passed",
     "catalog_snapshot_sha256": "81566074a5d92dbe64d25d988e9d42594549a53a8149370802349d7018d94a26",
-    "provider_called": false
+    "provider_called": true
   },
   "source": {
     "scope": "run_local_generated",
     "tool": "query_derived_metric",
     "reference_tool": null,
-    "artifact": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/repairs/live13_exact_tool_reuse_v1/first_query/planned_tool/typed_metric_spec/generated_tool.py",
-    "registration_id": "runlocal_8b62cc7f7c3da9c902fa"
+    "artifact": "/root/autodl-tmp/tmp/batch30_open_toolgen_live_v2/first_query/typed_metric_spec/generated_tool.py",
+    "registration_id": "runlocal_4af8b3a53c7b8aabe597"
   },
   "episodes": [
     {
@@ -94,32 +94,26 @@
         ],
         "details": {
           "operation": "terminal_signal_difference",
-          "left_signal": "roller_position",
-          "right_signal": "non_target_roller_position",
-          "component": "z",
-          "absolute": false,
-          "left_terminal_value": 0.8000491857528687,
-          "right_terminal_value": 0.7416644096374512,
-          "terminal_index": 7821,
           "reason": "measured"
         },
-        "tool_sha256": "56f94cafde8743bb96827efc37900d31ffe029de9fac384fa7654b1a9ad36c43"
+        "tool_sha256": "60522ca8d1bc2f57a1f9de6dc01509196cff49ca67dfbd986a4d7f1a350ad96d"
       }
     }
   ],
   "validation": {
-    "provider_called": false,
+    "provider_called": true,
     "typed_metric_spec": true,
+    "python_generated_by_model": true,
     "task_code_context_consumed": true,
     "episode_count": 1,
     "differential_gates_passed": true
   },
   "artifacts": {
-    "tool_request": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/repairs/live13_exact_tool_reuse_v1/first_query/planned_tool/tool_request.json",
-    "catalog_snapshot": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/repairs/live13_exact_tool_reuse_v1/first_query/planned_tool/catalog_snapshot.json",
-    "route_decision": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/repairs/live13_exact_tool_reuse_v1/first_query/planned_tool/route_decision.json",
-    "metric_spec_execution": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/repairs/live13_exact_tool_reuse_v1/first_query/planned_tool/typed_metric_spec/execution.json",
-    "resolved_tool_spec": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/repairs/live13_exact_tool_reuse_v1/first_query/planned_tool/resolved_tool_spec.json",
-    "tool_execution": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/repairs/live13_exact_tool_reuse_v1/first_query/planned_tool/tool_execution.json"
+    "tool_request": "/root/autodl-tmp/tmp/batch30_open_toolgen_live_v2/first_query/tool_request.json",
+    "catalog_snapshot": "/root/autodl-tmp/tmp/batch30_open_toolgen_live_v2/first_query/catalog_snapshot.json",
+    "route_decision": "/root/autodl-tmp/tmp/batch30_open_toolgen_live_v2/first_query/route_decision.json",
+    "metric_spec_execution": "/root/autodl-tmp/tmp/batch30_open_toolgen_live_v2/first_query/typed_metric_spec/execution.json",
+    "resolved_tool_spec": "/root/autodl-tmp/tmp/batch30_open_toolgen_live_v2/first_query/resolved_tool_spec.json",
+    "tool_execution": "/root/autodl-tmp/tmp/batch30_open_toolgen_live_v2/first_query/tool_execution.json"
   }
 }

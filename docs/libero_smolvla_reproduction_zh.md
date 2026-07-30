@@ -207,7 +207,7 @@ payload、586 份 metadata 和真实 rollout 均已通过；该 marker 保留，
 
 ```bash
 # [I 环境反推；输出为 L 日志确认]
-MEA_REPO=/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime
+: "${MEA_REPO:?export MEA_REPO=/absolute/path/to/clean/mea-main}"
 /root/autodl-tmp/envs/mea-libero/bin/python \
   "$MEA_REPO/experiments/paper/libero_adapter_smoke.py" \
   --checkpoint /root/autodl-tmp/checkpoints/libero/smolvla_libero \
@@ -228,7 +228,7 @@ MEA_REPO=/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime
 ```bash
 # [L 日志确认]
 historical_run_root=/root/autodl-tmp/mea/mea/protocol_runs/batch23_libero_smolvla_adapter_smoke/live_eval_task0_seed100800_20260726T1242_retry1
-MEA_REPO=/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime
+: "${MEA_REPO:?export MEA_REPO=/absolute/path/to/clean/mea-main}"
 run_root="$MEA_REPO/mea/protocol_runs/reproductions/libero_task0_seed100800"
 
 env \

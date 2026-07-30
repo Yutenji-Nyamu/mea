@@ -1,9 +1,10 @@
 """Query-induced Tool requests for the open-world evaluation path.
 
-The Plan Agent names an evidence need.  This adapter exposes only the
-task's recorded telemetry schema and the executable Tool registry, then asks
-the provider for either an exact reusable metric or a typed MetricSpec.  It
-does not expose task/aspect templates or a preferred metric.
+The Plan Agent names an evidence need.  This adapter exposes only the task's
+recorded telemetry schema and executable Tool registry, then asks the provider
+for either exact reuse or a typed semantic oracle.  On a miss, ToolGen writes
+the Python implementation and validates it against that independent oracle.
+No task/aspect template or preferred metric is exposed.
 """
 
 from __future__ import annotations
@@ -212,7 +213,7 @@ def validate_open_tool_request(
     forbidden_metric_ids: set[str] | None = None,
     measurement_need: str | None = None,
 ) -> dict[str, Any]:
-    """Require an executable exact reuse or typed MetricSpec request."""
+    """Require exact reuse or an oracle-backed Python Tool request."""
 
     try:
         request = validate_tool_request(dict(value))
@@ -580,9 +581,11 @@ class OpenToolRequestAgent:
             "trusted static registry and validated_generated_tools. For an "
             "exact static match, return schema_version=1 with its metric id. "
             "For an exact generated match, copy that entry's schema_version=2 "
-            "request and MetricSpec exactly. Otherwise return "
-            "schema_version=2 and a MetricSpec using only the advertised typed "
-            "operator contracts and telemetry names. Replace angle-bracket "
+            "request and MetricSpec exactly. Otherwise return schema_version=2 "
+            "and the smallest MetricSpec semantic oracle using only the "
+            "advertised typed operator contracts and telemetry names. ToolGen "
+            "will then generate Python rather than compiling this oracle. "
+            "Replace angle-bracket "
             "placeholders with real advertised names or null. A registered "
             "composite target is an exact static match and may be selected by "
             "its schema_version=1 metric id; it will be generated and validated "

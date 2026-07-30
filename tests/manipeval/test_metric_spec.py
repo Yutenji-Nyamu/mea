@@ -19,7 +19,7 @@ from mea.toolgen import (
 )
 from mea.toolkit.tools import TrajectoryView
 from mea.proposals import tool_request_from_proposal, validate_tool_proposal
-from tests.manipeval.test_tool_orchestration import write_episode
+from tests.mainline.test_tool_orchestration import write_episode
 
 
 SPEC = {

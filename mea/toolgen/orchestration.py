@@ -993,8 +993,11 @@ def _execute_typed_metric_request(
     registry_root: Path | None,
     reviewed_root: Path | None,
     task_proposal: dict[str, Any] | None,
+    provider: Any | None,
+    model: str | None,
+    max_attempts: int,
 ) -> dict[str, Any]:
-    """Compile one ToolProposal v3 metric over the round's real telemetry."""
+    """Generate one ToolProposal metric and gate it on the round's telemetry."""
 
     telemetry_root = child_run_dir / "evaluation/telemetry"
     episode_dirs = [
@@ -1118,6 +1121,9 @@ def _execute_typed_metric_request(
             output_dir=destination / "typed_metric_spec",
             task_code_context=context,
             registry_dir=registry_root,
+            provider=provider,
+            model=model,
+            max_attempts=max_attempts,
         )
     except MetricSpecError as exc:
         raise ToolOrchestrationError(f"typed MetricSpec execution failed: {exc}") from exc
@@ -1130,7 +1136,13 @@ def _execute_typed_metric_request(
             "exact typed MetricSpec, task, and telemetry schema matched a "
             "validated evaluation-local Tool"
         )
-    decision["provider_called"] = False
+    elif actual_route == "provider_python_codegen":
+        decision["matched_registry"] = "query_induced_python_tool"
+        decision["reason"] = (
+            "registry miss triggered provider Python generation; static, "
+            "determinism, oracle, artifact, and live-telemetry gates passed"
+        )
+    decision["provider_called"] = bool(raw.get("provider_called"))
     _write_json(destination / "route_decision.json", decision)
 
     normalized_episodes = [
@@ -1143,7 +1155,10 @@ def _execute_typed_metric_request(
         }
         for row in raw["episodes"]
     ]
-    generated_source = destination / "typed_metric_spec/generated_tool.py"
+    generated_source = Path(
+        raw.get("source_path")
+        or destination / "typed_metric_spec/generated_tool.py"
+    ).expanduser().resolve()
     registration = raw.get("registration")
     execution = {
         "schema_version": 1,
@@ -1175,8 +1190,9 @@ def _execute_typed_metric_request(
         },
         "episodes": normalized_episodes,
         "validation": {
-            "provider_called": False,
+            "provider_called": bool(raw.get("provider_called")),
             "typed_metric_spec": True,
+            "python_generated_by_model": actual_route == "provider_python_codegen",
             "task_code_context_consumed": bool(
                 raw.get("task_code_context_consumed")
             ),
@@ -1341,10 +1357,18 @@ def execute_tool_request(
                 registry_root=registry_root,
                 reviewed_root=reviewed_root,
                 task_proposal=task_proposal,
+                provider=provider,
+                model=model,
+                max_attempts=max_attempts,
             )
         except Exception as exc:
             decision["status"] = "execution_failed"
-            decision["provider_called"] = False
+            attempt_root = destination / "typed_metric_spec/attempts"
+            attempt_count = len(
+                list(attempt_root.glob("attempt_*/validation.json"))
+            )
+            decision["provider_called"] = attempt_count > 0
+            decision["provider_attempt_count"] = attempt_count
             decision["failure"] = {
                 "type": type(exc).__name__,
                 "message": str(exc),

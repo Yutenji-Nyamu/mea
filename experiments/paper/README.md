@@ -29,14 +29,20 @@
 | [`manipeval_portfolio.py`](manipeval_portfolio.py) | 规划或审计历史 cross-task portfolio | 否 |
 | [`libero_adapter_smoke.py`](libero_adapter_smoke.py) | LIBERO/SmolVLA adapter feasibility smoke | 显式调用时可能 |
 
-RoboTwin/SmolVLA 的独立 policy adapter 位于
-[`robotwin_smolvla/`](robotwin_smolvla/README.md)。它证明多任务 inference/rollout
-接口可运行，不是第二条 MEA Planner/TaskGen 主链。
+RoboTwin/SmolVLA 的早期独立 adapter 位于
+[`robotwin_smolvla/`](robotwin_smolvla/README.md)；当前共享 runtime backend 为
+[`mea/robotwin/smolvla_rollout.py`](../../mea/robotwin/smolvla_rollout.py)，已通过
+`MethodRuntime` 完成 official-control smoke，但尚未接管完整 Plan Agent 外层 loop。
+逐命令部署流水和早期测试 runner 位于其
+[`history/20260729/`](robotwin_smolvla/history/20260729/README.md)，属于冷归档，
+默认不递归读取。
 
 ## 2. Compatibility-only protocols
 
 以下文件保留旧实验的可恢复性，不应成为新功能依赖：
 
+- [`compat_agent_profile.py`](compat_agent_profile.py)：集中解析生产 CLI
+  延迟加载的 catalog、fixed、registered 和 task-specific 兼容参数。
 - [`legacy_planner_factory.py`](legacy_planner_factory.py)：显式加载 catalog、fixed-suite
   和 task-specific legacy Planner。
 - [`registered_execution_adapter.py`](registered_execution_adapter.py)：在 paper protocol
@@ -81,6 +87,8 @@ RoboTwin/SmolVLA 的独立 policy adapter 位于
 | [`results/batch27_unified_adapter_libero/`](results/batch27_unified_adapter_libero/) | unified adapter、LIBERO 和 PlacePhoneStand 历史结果 |
 | [`results/batch24_click_bell_conclusion_fidelity_n3.json`](results/batch24_click_bell_conclusion_fidelity_n3.json) | 三 seed conclusion-fidelity toy |
 | [`results/batch24_table3_scene_checker_unseen5_v1.json`](results/batch24_table3_scene_checker_unseen5_v1.json) | 五 Proposal Table 3 toy |
+| [`results/batch30_smolvla_native_runtime.json`](results/batch30_smolvla_native_runtime.json) | 50-task manifest、两个新任务 policy failure 与原生 MethodRuntime smoke |
+| [`results/batch30_open_python_toolgen_live/`](results/batch30_open_python_toolgen_live/) | 缓存真实 telemetry 上的 provider Python ToolGen、一次 repair 与 exact reuse |
 
 旧运行的简短结论与边界另见
 [`docs/evidence/history.jsonl`](../../docs/evidence/history.jsonl)。若两处描述冲突，

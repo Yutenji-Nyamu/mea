@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "status": "completed",
+  "execution_kind": "cached_real_telemetry_zero_act",
+  "source_evaluation": "eval_20260730_b44_grab_roller_plan_agent_live13",
+  "source_child": "run_20260730_b44_grab_roller_plan_agent_live13_round_2",
+  "metric": "query_derived_metric",
+  "metric_spec_operation": "terminal_signal_difference",
+  "first_query": {
+    "route": "provider_python_codegen",
+    "provider_called": true,
+    "provider_attempt_count": 2,
+    "successful_attempt": 1,
+    "value": 0.05838477611541748,
+    "unit": "m",
+    "deterministic": true,
+    "oracle_agreement": true,
+    "artifacts_unchanged": true,
+    "registration_id": "runlocal_4af8b3a53c7b8aabe597",
+    "code_sha256": "60522ca8d1bc2f57a1f9de6dc01509196cff49ca67dfbd986a4d7f1a350ad96d"
+  },
+  "second_query": {
+    "route": "run_local_reuse",
+    "provider_called": false,
+    "registration_id": "runlocal_4af8b3a53c7b8aabe597",
+    "value": 0.05838477611541748,
+    "deterministic": true,
+    "oracle_agreement": true,
+    "artifacts_unchanged": true
+  },
+  "prompt_learning": [
+    "Return NumPy scalars as plain Python float, int, or bool.",
+    "A diagnostic metric without a threshold returns passed=None even if the Query contains checker thresholds.",
+    "Do not use ndarray methods outside the AST allowlist."
+  ],
+  "server_artifacts": {
+    "root": "/root/autodl-tmp/tmp/batch30_open_toolgen_live_v2",
+    "accepted_prompt": {
+      "path": "first_query/typed_metric_spec/attempts/attempt_1/prompt.md",
+      "bytes": 16033,
+      "sha256": "f27d18b12887bbbe335171e3479a2e97895b803dda13d28b57d31b9951ce7d74"
+    },
+    "accepted_response": {
+      "path": "first_query/typed_metric_spec/attempts/attempt_1/response.txt",
+      "bytes": 1353,
+      "sha256": "ef9856876bc5a8ed6be54520840e5deaf759b00f7c40666a80eb341527e3db1d"
+    }
+  },
+  "limitations": [
+    "five bounded typed operators only",
+    "same-evaluation run-local reuse only",
+    "no simulator or policy rollout was started"
+  ]
+}

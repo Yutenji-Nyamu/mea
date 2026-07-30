@@ -1,0 +1,512 @@
+{
+  "schema_version": 1,
+  "evaluation_id": "eval_20260730_b44_grab_roller_plan_agent_live13",
+  "source_evaluation": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13",
+  "query": "只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。",
+  "target": {
+    "binding_mode": "single_task_single_checkpoint_open_world",
+    "task_name": "grab_roller",
+    "task_profile": null,
+    "policy": {
+      "name": "ACT",
+      "checkpoint_setting": "demo_clean",
+      "expert_data_num": 50,
+      "language_conditioned": false
+    },
+    "checkpoint": {
+      "policy_name": "ACT",
+      "checkpoint_setting": "demo_clean",
+      "expert_data_num": 50,
+      "checkpoint_id": "act-grab_roller/demo_clean-50",
+      "ready": true
+    }
+  },
+  "plan": {
+    "evaluation_goal": "answer_open_query_with_evidence: 只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。",
+    "planning_state": "stopped_after_round_2_evidence_sufficient",
+    "round_budget": 2
+  },
+  "rounds": [
+    {
+      "round_id": "round_1",
+      "aspect_id": "task_execution.official_baseline",
+      "template_id": "task_execution.official_baseline",
+      "taskgen_route": "official",
+      "taskgen_kind": "official_passthrough",
+      "execution_backend": "ACT",
+      "seeds": [
+        100301
+      ],
+      "pipeline_passed": true,
+      "policy_success": 1.0,
+      "tool_metric": "official_check_success",
+      "tool_route": "reuse",
+      "tool_rows": [
+        {
+          "role": "policy_under_evaluation",
+          "policy_name": "ACT",
+          "seed": 100301,
+          "value": true,
+          "unit": null,
+          "passed": true
+        }
+      ],
+      "vqa": {
+        "status": "passed",
+        "questions": [
+          {
+            "id": "roller_visibly_lifted",
+            "question": "Is the target roller visibly lifted by both robot arms?"
+          }
+        ],
+        "phenomena": [
+          {
+            "id": "roller_visibly_lifted",
+            "observed": true,
+            "description": "The roller is visibly lifted by both robot arms.",
+            "confidence": 1.0,
+            "frame_ids": [
+              "success_after"
+            ]
+          }
+        ],
+        "numeric_consistency": "consistent",
+        "evidence_conflict": false
+      },
+      "aggregate": {
+        "status": "passed",
+        "source_count": 1,
+        "episode_result_count": 2,
+        "unique_episode_count": 1,
+        "metric_ids": [
+          "official_check_success",
+          "time_to_success"
+        ],
+        "input_issue_count": 0
+      },
+      "next_decision": {
+        "action": "continue",
+        "transition": "switch_concern",
+        "decision_reason": "provider_authored_open_world_step",
+        "observation_summary": "This test isolates the effect of the non-target roller's proximity on the policy's ability to achieve the success conditions defined in the Query. It directly addresses the Query's core uncertainty by introducing a controlled perturbation to the scene.",
+        "answered_query": false,
+        "evidence_sufficient": null,
+        "claim_verdict": null,
+        "stop_reason": null
+      },
+      "taskgen_gates": {
+        "generation_attempts": null,
+        "checker_fixtures": null,
+        "vision_passed": null,
+        "expert_passed": null
+      }
+    },
+    {
+      "round_id": "round_2",
+      "aspect_id": "task_execution.non_target_proximity_effect",
+      "template_id": null,
+      "taskgen_route": "generic_provider_scene_checker_codegen",
+      "taskgen_kind": "generic_provider_scene_checker_codegen",
+      "execution_backend": "ACT",
+      "seeds": [
+        100301
+      ],
+      "pipeline_passed": true,
+      "policy_success": 1.0,
+      "tool_metric": "query_derived_metric",
+      "tool_route": "typed_metric_spec_compile",
+      "tool_rows": [
+        {
+          "role": "policy_under_evaluation",
+          "policy_name": "ACT",
+          "seed": 100301,
+          "value": 0.05838477611541748,
+          "unit": "m",
+          "passed": null
+        }
+      ],
+      "vqa": {
+        "status": "passed",
+        "questions": [
+          {
+            "id": "roller_visibly_lifted",
+            "question": "Is the target roller visibly lifted by both robot arms?"
+          }
+        ],
+        "phenomena": [
+          {
+            "id": "roller_visibly_lifted",
+            "observed": true,
+            "description": "The roller is visibly lifted by both robot arms in the final frame.",
+            "confidence": 0.95,
+            "frame_ids": [
+              "final"
+            ]
+          }
+        ],
+        "numeric_consistency": "consistent",
+        "evidence_conflict": false
+      },
+      "aggregate": {
+        "status": "passed",
+        "source_count": 2,
+        "episode_result_count": 2,
+        "unique_episode_count": 2,
+        "metric_ids": [
+          "generated_check_success",
+          "query_derived_metric"
+        ],
+        "input_issue_count": 0
+      },
+      "next_decision": {
+        "action": "stop",
+        "transition": "stop",
+        "decision_reason": "plan_agent_evidence_sufficiency",
+        "observation_summary": "A definitive pass candidate witnesses the existential claim.",
+        "answered_query": true,
+        "evidence_sufficient": true,
+        "claim_verdict": "supported",
+        "stop_reason": "evidence_sufficient"
+      },
+      "taskgen_gates": {
+        "generation_attempts": 1,
+        "checker_fixtures": "2/2",
+        "vision_passed": true,
+        "expert_passed": true
+      }
+    }
+  ],
+  "final_aggregate": {
+    "schema_version": 1,
+    "status": "passed",
+    "source_count": 3,
+    "episode_result_count": 4,
+    "unique_episode_count": 3,
+    "metric_ids": [
+      "generated_check_success",
+      "official_check_success",
+      "query_derived_metric",
+      "time_to_success"
+    ],
+    "input_issue_count": 0,
+    "input_issues": [],
+    "metrics": [
+      {
+        "metric": "generated_check_success",
+        "tools": [
+          "generated_check_success"
+        ],
+        "unit": null,
+        "value_kind": "boolean",
+        "cohorts": [
+          {
+            "role": "policy_under_evaluation",
+            "policy_names": [
+              "ACT"
+            ],
+            "summary": {
+              "episode_result_count": 1,
+              "quality": {
+                "invalid": {
+                  "value": 0
+                },
+                "missing": {
+                  "value": 0
+                },
+                "valid": {
+                  "value": 1
+                }
+              },
+              "statistics": {
+                "false_count": {
+                  "value": 0
+                },
+                "false_rate": {
+                  "denominator": 1,
+                  "numerator": 0,
+                  "value": 0.0
+                },
+                "true_count": {
+                  "value": 1
+                },
+                "true_rate": {
+                  "denominator": 1,
+                  "numerator": 1,
+                  "value": 1.0
+                }
+              },
+              "unit": null,
+              "value_kind": "boolean"
+            },
+            "passed_summary": {
+              "episode_result_count": 1,
+              "quality": {
+                "invalid": {
+                  "value": 0
+                },
+                "missing": {
+                  "value": 0
+                },
+                "valid": {
+                  "value": 1
+                }
+              },
+              "statistics": {
+                "false_count": {
+                  "value": 0
+                },
+                "false_rate": {
+                  "denominator": 1,
+                  "numerator": 0,
+                  "value": 0.0
+                },
+                "true_count": {
+                  "value": 1
+                },
+                "true_rate": {
+                  "denominator": 1,
+                  "numerator": 1,
+                  "value": 1.0
+                }
+              },
+              "unit": null,
+              "value_kind": "boolean"
+            }
+          }
+        ]
+      },
+      {
+        "metric": "official_check_success",
+        "tools": [
+          "official_check_success"
+        ],
+        "unit": null,
+        "value_kind": "boolean",
+        "cohorts": [
+          {
+            "role": "policy_under_evaluation",
+            "policy_names": [
+              "ACT"
+            ],
+            "summary": {
+              "episode_result_count": 1,
+              "quality": {
+                "invalid": {
+                  "value": 0
+                },
+                "missing": {
+                  "value": 0
+                },
+                "valid": {
+                  "value": 1
+                }
+              },
+              "statistics": {
+                "false_count": {
+                  "value": 0
+                },
+                "false_rate": {
+                  "denominator": 1,
+                  "numerator": 0,
+                  "value": 0.0
+                },
+                "success_count": {
+                  "value": 1
+                },
+                "success_rate": {
+                  "denominator": 1,
+                  "numerator": 1,
+                  "value": 1.0
+                },
+                "true_count": {
+                  "value": 1
+                },
+                "true_rate": {
+                  "denominator": 1,
+                  "numerator": 1,
+                  "value": 1.0
+                }
+              },
+              "unit": null,
+              "value_kind": "boolean"
+            },
+            "passed_summary": {
+              "episode_result_count": 1,
+              "quality": {
+                "invalid": {
+                  "value": 0
+                },
+                "missing": {
+                  "value": 0
+                },
+                "valid": {
+                  "value": 1
+                }
+              },
+              "statistics": {
+                "false_count": {
+                  "value": 0
+                },
+                "false_rate": {
+                  "denominator": 1,
+                  "numerator": 0,
+                  "value": 0.0
+                },
+                "true_count": {
+                  "value": 1
+                },
+                "true_rate": {
+                  "denominator": 1,
+                  "numerator": 1,
+                  "value": 1.0
+                }
+              },
+              "unit": null,
+              "value_kind": "boolean"
+            }
+          }
+        ]
+      },
+      {
+        "metric": "query_derived_metric",
+        "tools": [
+          "query_derived_metric"
+        ],
+        "unit": "m",
+        "value_kind": "numeric",
+        "cohorts": [
+          {
+            "role": "policy_under_evaluation",
+            "policy_names": [
+              "ACT"
+            ],
+            "summary": {
+              "episode_result_count": 1,
+              "quality": {
+                "invalid": {
+                  "value": 0
+                },
+                "missing": {
+                  "value": 0
+                },
+                "valid": {
+                  "value": 1
+                }
+              },
+              "statistics": {
+                "max": {
+                  "value": 0.05838477611541748
+                },
+                "mean": {
+                  "value": 0.05838477611541748
+                },
+                "median": {
+                  "value": 0.05838477611541748
+                },
+                "min": {
+                  "value": 0.05838477611541748
+                },
+                "population_stddev": {
+                  "value": 0.0
+                }
+              },
+              "unit": "m",
+              "value_kind": "numeric"
+            }
+          }
+        ]
+      },
+      {
+        "metric": "time_to_success",
+        "tools": [
+          "time_to_success"
+        ],
+        "unit": "s",
+        "value_kind": "numeric",
+        "cohorts": [
+          {
+            "role": "policy_under_evaluation",
+            "policy_names": [
+              "ACT"
+            ],
+            "summary": {
+              "episode_result_count": 1,
+              "quality": {
+                "invalid": {
+                  "value": 0
+                },
+                "missing": {
+                  "value": 0
+                },
+                "valid": {
+                  "value": 1
+                }
+              },
+              "statistics": {
+                "max": {
+                  "value": 31.240000000000002
+                },
+                "mean": {
+                  "value": 31.240000000000002
+                },
+                "median": {
+                  "value": 31.240000000000002
+                },
+                "min": {
+                  "value": 31.240000000000002
+                },
+                "population_stddev": {
+                  "value": 0.0
+                }
+              },
+              "unit": "s",
+              "value_kind": "numeric"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "answer": {
+    "answer": "是的，存在一个成功样本。",
+    "findings": [
+      "目标滚筒的最终高度不低于0.8米，非目标滚筒的最终高度低于0.8米。",
+      "目标滚筒与非目标滚筒的最终高度差为0.0584米。"
+    ],
+    "recommended_next_step": "若需更广泛的结论，建议增加样本数量并进行多种场景的测试。",
+    "limitations": [
+      "证据包含2个样本，种子为[100301]。",
+      "本次评估基于有限域的查询充分性协议，不能作为统计泛化的保证。",
+      "至少一个候选项的结论基于生成的检查器，不能视为官方基准的成功结果。",
+      "生成的检查器尚未被认证为与官方核心谓词等效，其结论应视为实验性。",
+      "Evidence contains N=2 policy episodes at seeds [100301].",
+      "The run stopped because the finite query-sufficiency contract was satisfied; this is not a statistical generalization guarantee."
+    ]
+  },
+  "completed_round_reuse": {
+    "repair_id": "live14_provider_python_toolgen_v1",
+    "act_rollouts_started": 0,
+    "first_query_route": "provider_python_codegen",
+    "first_query_measurements": [
+      {
+        "tool": "query_derived_metric",
+        "version": 1,
+        "generated": true,
+        "tool_sha256": "60522ca8d1bc2f57a1f9de6dc01509196cff49ca67dfbd986a4d7f1a350ad96d",
+        "value": 0.05838477611541748,
+        "unit": "m",
+        "passed": null,
+        "evidence_steps": [
+          7821
+        ],
+        "details": {
+          "operation": "terminal_signal_difference",
+          "reason": "measured"
+        }
+      }
+    ],
+    "exact_reuse_route": "run_local_reuse",
+    "exact_reuse_provider_called": false,
+    "aggregate_status": "not_recomputed"
+  }
+}

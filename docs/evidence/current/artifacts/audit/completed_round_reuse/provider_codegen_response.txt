@@ -1,0 +1,40 @@
+```python
+def generated_tool(trajectory):
+    roller_position = trajectory.trace["roller_position"]
+    non_target_roller_position = trajectory.trace["non_target_roller_position"]
+    physics_step = trajectory.trace["physics_step"]
+
+    # Extract the final heights (z-component) of the target and non-target rollers
+    target_final_height = float(roller_position[-1, 2])
+    non_target_final_height = float(non_target_roller_position[-1, 2])
+
+    # Compute the height difference
+    height_difference = target_final_height - non_target_final_height
+
+    # Determine the evidence step (last physics step)
+    evidence_step = int(physics_step[-1])
+
+    # Check if the heights meet the conditions
+    if not np.isfinite(target_final_height) or not np.isfinite(non_target_final_height):
+        return {
+            "value": None,
+            "unit": "m",
+            "passed": None,
+            "evidence_steps": [evidence_step],
+            "details": {
+                "operation": "terminal_signal_difference",
+                "reason": "terminal_not_finite"
+            },
+        }
+
+    return {
+        "value": height_difference,
+        "unit": "m",
+        "passed": None,
+        "evidence_steps": [evidence_step],
+        "details": {
+            "operation": "terminal_signal_difference",
+            "reason": "measured"
+        },
+    }
+```

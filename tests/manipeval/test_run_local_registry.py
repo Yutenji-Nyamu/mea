@@ -8,7 +8,7 @@ from mea.toolgen import (
     load_registry,
     pickup_to_contact_tool_request,
 )
-from tests.manipeval.test_tool_orchestration import (
+from tests.mainline.test_tool_orchestration import (
     FakeProvider,
     NeverCalledProvider,
     generated_pickup_to_contact_source,

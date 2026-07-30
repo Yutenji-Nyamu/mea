@@ -365,10 +365,6 @@ class EvidenceReportTests(unittest.TestCase):
                 "artifacts/plan/query_interpretation_prompt.md",
                 "artifacts/plan/query_interpretation_response_1.txt",
                 "artifacts/plan/open_task_resolution.json",
-                (
-                    "artifacts/plan/plan_agent_session/"
-                    "evidence_after_round_01.json"
-                ),
                 "artifacts/taskgen/round_1/generation/proposal.json",
                 "artifacts/taskgen/round_2/generation/proposal.json",
                 "artifacts/taskgen/round_1/generation/code_prompt.md",
@@ -378,7 +374,7 @@ class EvidenceReportTests(unittest.TestCase):
                 "artifacts/tool/round_2/codegen_prompt.md",
                 "artifacts/tool/round_2/codegen_response.txt",
                 "artifacts/tool/round_2/codegen_validation.json",
-                "artifacts/aggregate/round_1.json",
+                "run_summary.json",
                 "artifacts/answer/query_answer.json",
                 "artifacts/answer/answer.json",
                 "artifacts/audit/semantic_preservation_audit.json",
@@ -409,7 +405,29 @@ class EvidenceReportTests(unittest.TestCase):
                 - {"evidence_bundle_manifest.json"},
             )
             self.assertEqual(bundle["path_basis"], "bundle_relative")
+            self.assertEqual(bundle["schema_version"], 3)
             self.assertEqual(bundle["report"], "README.md")
+            self.assertEqual(bundle["summary"], "run_summary.json")
+            compact_summary = json.loads(
+                (destination.parent / bundle["summary"]).read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(compact_summary["schema_version"], 1)
+            self.assertEqual(len(compact_summary["rounds"]), 2)
+            round_aggregate_path = (
+                destination.parent / "artifacts/aggregate/round_1.json"
+            )
+            self.assertTrue(round_aggregate_path.is_file())
+            self.assertTrue(
+                (
+                    destination.parent / "artifacts/aggregate/final.json"
+                ).is_file()
+            )
+            self.assertNotIn(
+                '"provenance"',
+                round_aggregate_path.read_text(encoding="utf-8"),
+            )
             self.assertTrue(
                 all(
                     item["bytes"] > 0

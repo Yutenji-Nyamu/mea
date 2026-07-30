@@ -37,8 +37,13 @@ from mea.taskgen.generic_backend import (
     GenericRoboTwinTaskGenBackend,
 )
 
+from .task_identity import (
+    RoboTwinTaskIdentity,
+    discover_robotwin_task_identity,
+)
 
-TaskAdapterFactory = Callable[[str], GenericRoboTwinTaskAdapter]
+RuntimeTaskIdentity = GenericRoboTwinTaskAdapter | RoboTwinTaskIdentity
+TaskAdapterFactory = Callable[[str], RuntimeTaskIdentity]
 
 
 class RoboTwinRolloutRunner(Protocol):
@@ -62,7 +67,7 @@ class RoboTwinRolloutRunner(Protocol):
 
 @dataclass(frozen=True)
 class _RoboTwinNativeCandidate:
-    adapter: GenericRoboTwinTaskAdapter
+    adapter: RuntimeTaskIdentity
     experiment_candidate: Mapping[str, Any]
     taskgen_resolution: Mapping[str, Any]
     rollout_manifest: Mapping[str, Any]
@@ -90,12 +95,17 @@ class RoboTwinMethodBackend:
         self,
         *,
         repo_root: str | Path,
-        task_adapter_factory: TaskAdapterFactory,
-        taskgen_backend: GenericRoboTwinTaskGenBackend,
+        task_adapter_factory: TaskAdapterFactory | None = None,
+        taskgen_backend: GenericRoboTwinTaskGenBackend | None = None,
         rollout_runner: RoboTwinRolloutRunner,
     ) -> None:
         self.repo_root = Path(repo_root).expanduser().resolve()
-        self.task_adapter_factory = task_adapter_factory
+        self.task_adapter_factory = task_adapter_factory or (
+            lambda task_name: discover_robotwin_task_identity(
+                self.repo_root,
+                task_name,
+            )
+        )
         self.taskgen_backend = taskgen_backend
         self.rollout_runner = rollout_runner
 
@@ -109,12 +119,15 @@ class RoboTwinMethodBackend:
         )
         adapter = self.task_adapter_factory(task_name)
         if (
-            not isinstance(adapter, GenericRoboTwinTaskAdapter)
+            not isinstance(
+                adapter,
+                (GenericRoboTwinTaskAdapter, RoboTwinTaskIdentity),
+            )
             or adapter.task_name != task_name
         ):
             raise TypeError(
                 "task_adapter_factory must return a matching "
-                "GenericRoboTwinTaskAdapter"
+                "RoboTwin task identity"
             )
         policy = request.task_reference.get("policy", {})
         if not isinstance(policy, Mapping):
@@ -133,7 +146,12 @@ class RoboTwinMethodBackend:
                 "task_name": task_name,
                 "official_source": adapter.official_source,
                 "official_class": adapter.official_class,
-                "task_schema": deepcopy(dict(adapter.task_schema)),
+                "task_schema": (
+                    deepcopy(dict(adapter.task_schema))
+                    if adapter.task_schema is not None
+                    else None
+                ),
+                "task_schema_available": adapter.task_schema is not None,
                 "policy": policy_contract,
             },
             native_task=adapter,
@@ -156,10 +174,12 @@ class RoboTwinMethodBackend:
         candidate_id: str = "official_control",
     ) -> MaterializedCandidate:
         adapter = binding.native_task
-        if not isinstance(adapter, GenericRoboTwinTaskAdapter):
+        if not isinstance(
+            adapter,
+            (GenericRoboTwinTaskAdapter, RoboTwinTaskIdentity),
+        ):
             raise TypeError(
-                "RoboTwin binding native_task must be a "
-                "GenericRoboTwinTaskAdapter"
+                "RoboTwin binding native_task has the wrong runtime type"
             )
         manifest = {
             "schema_version": 1,
@@ -202,10 +222,12 @@ class RoboTwinMethodBackend:
         request: CandidateRequest,
     ) -> MaterializedCandidate:
         adapter = binding.native_task
-        if not isinstance(adapter, GenericRoboTwinTaskAdapter):
+        if not isinstance(
+            adapter,
+            (GenericRoboTwinTaskAdapter, RoboTwinTaskIdentity),
+        ):
             raise TypeError(
-                "RoboTwin binding native_task must be a "
-                "GenericRoboTwinTaskAdapter"
+                "RoboTwin binding native_task has the wrong runtime type"
             )
         try:
             candidate = validate_experiment_candidate(
@@ -233,6 +255,14 @@ class RoboTwinMethodBackend:
             or candidate["checker_need"] is not None
         )
         if taskgen_required:
+            if not isinstance(adapter, GenericRoboTwinTaskAdapter):
+                raise ValueError(
+                    "generated scene/checker requires a validated TaskSchema"
+                )
+            if self.taskgen_backend is None:
+                raise ValueError(
+                    "generated scene/checker requires a TaskGen backend"
+                )
             run_id = str(
                 request.context.get("taskgen_run_id")
                 or request.output_dir.name
