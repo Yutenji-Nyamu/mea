@@ -1359,6 +1359,7 @@ def materialize_open_world_round(
     round_number: int,
     candidate: Mapping[str, Any],
     control_execution: Mapping[str, Any],
+    policy_backend: str = "act",
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Materialize only the TaskGen and ToolGen stages requested by a candidate."""
 
@@ -1414,11 +1415,24 @@ def materialize_open_world_round(
     write_json(artifact_dir / PROPOSAL_FILENAME, normalized)
     write_json(artifact_dir / "tool_request_bundle.json", tool_bundle)
     execution = deepcopy(dict(control_execution))
+    if policy_backend not in {"act", "smolvla"}:
+        raise ValueError(f"unsupported production policy backend: {policy_backend!r}")
+    # ``backend`` remains the legacy policy-vs-expert evidence selector until
+    # its compatibility readers are migrated.  ``policy_backend`` is the
+    # actual runner used by the native MethodRuntime.
     execution["backend"] = "act"
+    execution["policy_backend"] = policy_backend
     execution["gates"] = (
-        ["ast", "render", "visual_diagnosis", "expert", "act", "toolkit"]
+        [
+            "ast",
+            "render",
+            "visual_diagnosis",
+            "expert",
+            policy_backend,
+            "toolkit",
+        ]
         if taskgen_requested
-        else ["render", "act", "toolkit"]
+        else ["render", policy_backend, "toolkit"]
     )
     if rule_tool_requested:
         execution["gates"].append("planned_tool")
@@ -2934,7 +2948,12 @@ def summarize_round(
 
 def _build_round_executor(*, native_act: bool) -> RoundExecutor:
     native_policy_rounds = {
-        "smolvla": execute_smolvla_method_round,
+        "smolvla": partial(
+            execute_smolvla_method_round,
+            generated_task_materializer=(
+                create_generic_provider_taskgen_run
+            ),
+        ),
     }
     if native_act:
         native_policy_rounds["act"] = partial(
@@ -4132,6 +4151,7 @@ def main() -> None:
             round_number=1,
             candidate=initial_open_candidate,
             control_execution=manifest["initial_execution_binding"],
+            policy_backend=args.policy_backend,
         )
         plan["rounds"] = [initial_round]
         plan["query_contract"] = deepcopy(query_sufficiency_contract)
@@ -4930,6 +4950,7 @@ def main() -> None:
                         control_execution=plan_before_decision["rounds"][0][
                             "execution"
                         ],
+                        policy_backend=args.policy_backend,
                     )
                     bound_semantic_step["execution_binding"] = {
                         "schema_version": 2,

@@ -347,6 +347,10 @@ class QueryInterpretationTests(unittest.TestCase):
             provider.prompts[0],
         )
         self.assertIn("checker_need.required", provider.prompts[1])
+        self.assertIn(
+            "keep their roles distinct",
+            provider.prompts[0],
+        )
 
     def test_agent_can_be_frozen_to_one_attempt(self):
         provider = self.Provider(["{}"])

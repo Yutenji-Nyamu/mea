@@ -99,7 +99,13 @@ EXPERIMENTAL_SUCCESS_CHECKER_GUIDANCE = (
     "difference Tool reports magnitude but cannot supply that pass/fail "
     "predicate. Mentioning the official goal or official predicate as one "
     "component of a combined condition does not make the Query official-only; "
-    "preserve every additional condition from the original Query."
+    "preserve every additional condition from the original Query. When both "
+    "checker_need and rule_tool_need are required, keep their roles distinct: "
+    "checker_need must describe a boolean conjunction such as 'official goal "
+    "AND distractor remains uncontacted', while rule_tool_need describes the "
+    "scalar or boolean observation used to diagnose it. Never copy a raw "
+    "numeric measurement into checker_need as though it were a pass/fail "
+    "predicate."
 )
 
 

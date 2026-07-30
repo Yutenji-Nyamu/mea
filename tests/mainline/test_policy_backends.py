@@ -309,6 +309,31 @@ def test_act_native_envelope_delegates_to_shared_method_round(tmp_path):
     assert call["execution_vqa_connected"] is True
 
 
+def test_smolvla_native_envelope_accepts_shared_taskgen_and_vqa(tmp_path):
+    expected = {"unsupported": False}
+    materializer = lambda *args, **kwargs: {}
+    with patch(
+        "mea.robotwin.native_agent_round._execute_robotwin_method_round",
+        return_value=expected,
+    ) as execute_shared:
+        result = execute_smolvla_method_round(
+            repo_root=tmp_path,
+            evaluation_dir=tmp_path / "evaluation",
+            evaluation_id="eval",
+            round_plan={"round_id": "round_1"},
+            runtime_target={},
+            telemetry_profile="balanced_v1",
+            policy_server_port=18771,
+            generated_task_materializer=materializer,
+        )
+
+    assert result is expected
+    call = execute_shared.call_args.kwargs
+    assert call["policy_backend"] == "smolvla"
+    assert call["generated_task_materializer"] is materializer
+    assert call["execution_vqa_connected"] is True
+
+
 def test_smolvla_runner_enables_telemetry_only_for_schema_backed_candidate(
     tmp_path,
 ):

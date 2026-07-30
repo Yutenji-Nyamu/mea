@@ -284,6 +284,10 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             agent_source,
         )
         self.assertIn(
+            '"smolvla": partial(',
+            agent_source,
+        )
+        self.assertIn(
             "generated_task_materializer=(",
             agent_source,
         )

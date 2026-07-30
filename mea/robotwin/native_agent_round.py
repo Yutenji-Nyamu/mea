@@ -616,7 +616,7 @@ def execute_smolvla_method_round(
         vision_model=vision_model,
         max_reflections=max_reflections,
         generated_task_materializer=generated_task_materializer,
-        execution_vqa_connected=False,
+        execution_vqa_connected=True,
         rollout_output_subdir="evaluation",
     )
 
