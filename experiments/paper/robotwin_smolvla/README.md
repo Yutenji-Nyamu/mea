@@ -24,6 +24,10 @@ stale-ready-file checks after the run; server-side CLI/import validation covers
 those edits, while the evidence episodes retain hashes of the exact temporary
 runners that produced them.
 
+The exact tested runners and raw command ledger are kept out of the active
+context under [`history/20260729/`](history/20260729/README.md). They are
+provenance only and must not be imported by the maintained runner.
+
 Run the server:
 
 ```bash

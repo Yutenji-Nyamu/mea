@@ -577,7 +577,9 @@ tested temporary sim_client.py sha256:
 仓库版保持相同 observation/action 与 rollout 合同，并在服务器做 CLI/import 边界
 复验；它未被用来重新生成本表五个 episode。
 
-本批真实产物仍只保存在 canonical server：
+实际测试 runner 与原始命令流水另存于仓库冷归档
+[`experiments/paper/robotwin_smolvla/history/20260729/`](../experiments/paper/robotwin_smolvla/history/20260729/README.md)，
+不属于默认阅读上下文。完整 episode 产物仍只保存在 canonical server：
 
 ```text
 /root/autodl-tmp/tmp/mea-smolvla-robotwin/command_ledger.md
