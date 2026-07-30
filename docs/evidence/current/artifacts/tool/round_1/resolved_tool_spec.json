@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "tool_spec": {
+    "schema_version": 1,
+    "task_name": "grab_roller",
+    "metric": "official_check_success",
+    "question": "Did the rollout satisfy the official RoboTwin success check?",
+    "route": "reuse",
+    "reference_tool": "official_check_success",
+    "required_signals": [],
+    "output_contract": {
+      "source": "trusted_tool_catalog"
+    },
+    "validation_requirements": {
+      "min_episodes": 1,
+      "distinct_reference_values": false,
+      "required_reference_values": []
+    }
+  },
+  "resolved_route": "reuse",
+  "resolved_tool_name": "official_check_success",
+  "resolved_episodes": [
+    {
+      "role": "policy_under_evaluation",
+      "policy_name": "ACT",
+      "seed": 100301,
+      "oracle_value": true,
+      "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_1/evaluation/telemetry/act/episode_000_seed_100301"
+    }
+  ],
+  "requested_route": "auto",
+  "route_decision": {
+    "schema_version": 1,
+    "status": "resolved",
+    "matching_policy": "strict_exact_metric_id",
+    "requested_route": "auto",
+    "resolved_route": "reuse",
+    "task_name": "grab_roller",
+    "metric": "official_check_success",
+    "exact_match": true,
+    "matched_registry": "trusted_tool_catalog",
+    "reference_tool": "official_check_success",
+    "provider_required": false,
+    "reason": "exact metric identifier matched a Trusted Tool",
+    "catalog_snapshot_sha256": "81566074a5d92dbe64d25d988e9d42594549a53a8149370802349d7018d94a26",
+    "provider_called": false
+  }
+}

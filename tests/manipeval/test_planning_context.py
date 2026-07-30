@@ -5,11 +5,13 @@ from copy import deepcopy
 from pathlib import Path
 
 from mea.planner import BoundTaskPlanSession, build_act_catalog
+from mea.planner.claim_first import project_open_query_capabilities
 from mea.planner.context import (
     PlanningContextError,
     build_planning_context,
     validate_planning_context,
 )
+from mea.planner.policy_task_binding import build_policy_task_binding
 
 
 def _task_schema(task_name: str) -> dict:
@@ -63,6 +65,87 @@ def _ready_catalog(root: Path) -> dict:
 
 
 class PlanningContextTests(unittest.TestCase):
+    def test_unregistered_runtime_binding_keeps_generic_generation_card(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            task_name = "runtime_schema_task"
+            schema = root / "mea/toolkit/schemas" / f"{task_name}.json"
+            schema.parent.mkdir(parents=True, exist_ok=True)
+            schema.write_text(
+                json.dumps(_task_schema(task_name)),
+                encoding="utf-8",
+            )
+            source = root / "envs" / f"{task_name}.py"
+            source.parent.mkdir(parents=True, exist_ok=True)
+            source.write_text(
+                (
+                    f"class {task_name}:\n"
+                    "    def load_actors(self):\n"
+                    "        pass\n\n"
+                    "    def check_success(self):\n"
+                    "        return False\n"
+                ),
+                encoding="utf-8",
+            )
+            target = {
+                "schema_version": 3,
+                "binding_mode": "single_task_single_checkpoint_open_world",
+                "policy_task_binding": build_policy_task_binding(
+                    task_name=task_name,
+                    task_family="manipulation",
+                    policy={
+                        "name": "ACT",
+                        "language_conditioned": False,
+                    },
+                    checkpoint={
+                        "checkpoint_id": (
+                            f"act-{task_name}/demo_clean-50"
+                        ),
+                        "checkpoint_setting": "demo_clean",
+                        "expert_data_num": 50,
+                        "ready": True,
+                    },
+                ),
+                "max_rounds": 2,
+            }
+
+            context = build_planning_context(root, target)
+            projected = project_open_query_capabilities(context)
+
+            self.assertEqual(context["adapter_view"]["templates"], [])
+            self.assertEqual(
+                projected["generation_card"]["taskgen_operations"],
+                [
+                    {
+                        "operation": "retrieve_or_generate_scene_checker",
+                        "controlled_axis": None,
+                        "generation_mode": (
+                            "generic_provider_scene_checker_codegen"
+                        ),
+                        "allowed_change_roots": [
+                            "load_actors",
+                            "check_success",
+                        ],
+                    }
+                ],
+            )
+            self.assertEqual(
+                projected["generation_card"]["toolgen"],
+                {
+                    "retrieve_first": True,
+                    "can_generate_rule_metric": True,
+                    "can_generate_vqa_question": True,
+                },
+            )
+            self.assertEqual(
+                validate_planning_context(
+                    context,
+                    repo_root=root,
+                    target=target,
+                ),
+                context,
+            )
+
     def test_cards_are_schema_driven_and_cross_task(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -112,6 +195,17 @@ class PlanningContextTests(unittest.TestCase):
             with self.assertRaisesRegex(PlanningContextError, "fields"):
                 validate_planning_context(
                     changed, repo_root=root, target=session.target
+                )
+            changed = deepcopy(context)
+            changed["adapter_view"]["templates"] = []
+            with self.assertRaisesRegex(
+                PlanningContextError,
+                "legacy adapter_view.templates must be non-empty",
+            ):
+                validate_planning_context(
+                    changed,
+                    repo_root=root,
+                    target=session.target,
                 )
 
 

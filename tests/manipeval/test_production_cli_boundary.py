@@ -25,6 +25,71 @@ def run_import_probe(source: str) -> dict[str, bool]:
 
 
 class ProductionCliBoundaryTests(unittest.TestCase):
+    def test_agent_reexports_extracted_cli_and_acceptance_contracts(self) -> None:
+        probe = (
+            "import importlib.util,json,pathlib;"
+            "from mea import agent_acceptance,agent_cli;"
+            "path=pathlib.Path('scripts/manipeval_agent.py');"
+            "spec=importlib.util.spec_from_file_location('agent_reexports',path);"
+            "module=importlib.util.module_from_spec(spec);"
+            "spec.loader.exec_module(module);"
+            "print(json.dumps({"
+            "'parse_args':module.parse_args is agent_cli.parse_args,"
+            "'allowed_aspects':"
+            "module.resolve_plan_agent_allowed_aspects "
+            "is agent_cli.resolve_plan_agent_allowed_aspects,"
+            "'planner_default':module.resolve_default_open_query_planner "
+            "is agent_cli.resolve_default_open_query_planner,"
+            "'candidate_budget':module.resolve_plan_agent_candidate_budget "
+            "is agent_cli.resolve_plan_agent_candidate_budget,"
+            "'flagship_acceptance':module.build_compact_flagship_acceptance "
+            "is agent_acceptance.build_compact_flagship_acceptance,"
+            "'episode_results':module._episode_tool_results "
+            "is agent_acceptance._episode_tool_results}))"
+        )
+        self.assertEqual(
+            run_import_probe(probe),
+            {
+                "parse_args": True,
+                "allowed_aspects": True,
+                "planner_default": True,
+                "candidate_budget": True,
+                "flagship_acceptance": True,
+                "episode_results": True,
+            },
+        )
+
+    def test_query_interpretation_acceptance_allows_one_bounded_schema_repair(
+        self,
+    ) -> None:
+        from mea.agent_acceptance import (
+            _valid_query_interpretation_provider_trace,
+        )
+
+        self.assertTrue(
+            _valid_query_interpretation_provider_trace(
+                {"called": True, "attempt_count": 1, "errors": []}
+            )
+        )
+        self.assertTrue(
+            _valid_query_interpretation_provider_trace(
+                {
+                    "called": True,
+                    "attempt_count": 2,
+                    "errors": ["FreeConcern schema mismatch"],
+                }
+            )
+        )
+        self.assertFalse(
+            _valid_query_interpretation_provider_trace(
+                {
+                    "called": True,
+                    "attempt_count": 3,
+                    "errors": ["first", "second"],
+                }
+            )
+        )
+
     def test_agent_import_does_not_load_paper_or_task_specific_planners(self) -> None:
         modules = [
             "mea.strategy_plan",
@@ -84,9 +149,11 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             self.assertNotIn(option, process.stdout)
         self.assertIn("--auto-route", process.stdout)
 
-    def test_default_production_mode_is_claim_first(self) -> None:
+    def test_default_production_mode_is_plan_agent(self) -> None:
         probe = (
             "import argparse,importlib.util,json,pathlib;"
+            "from experiments.paper.compat_agent_profile "
+            "import resolve_compat_agent_profile;"
             "path=pathlib.Path('scripts/manipeval_agent.py');"
             "spec=importlib.util.spec_from_file_location('agent_defaults',path);"
             "module=importlib.util.module_from_spec(spec);"
@@ -97,16 +164,81 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             "production=module.resolve_default_open_query_planner("
             "argparse.Namespace(**base));"
             "base['planning_policy']='fixed_predeclared_v1';"
-            "paper=module.resolve_default_open_query_planner("
-            "argparse.Namespace(**base));"
+            "paper=resolve_compat_agent_profile("
+            "argparse.Namespace(auto_route=False,evidence_manifest=None,"
+            "command_plan=None,registered_route=None,evaluation_id=None,**base),"
+            "requested_open_query_planner=None)['open_query_planner'];"
             "print(json.dumps({'production':production,'paper':paper}))"
         )
         self.assertEqual(
             run_import_probe(probe),
             {
-                "production": "claim_first_v1",
+                "production": "plan_agent_v1",
                 "paper": "catalog_step_v1",
             },
+        )
+
+    def test_historical_claim_first_value_normalizes_to_plan_agent(self) -> None:
+        probe = (
+            "import argparse,json;"
+            "from mea.agent_cli import resolve_default_open_query_planner;"
+            "value=resolve_default_open_query_planner("
+            "argparse.Namespace(open_query_planner='claim_first_v1'));"
+            "print(json.dumps({'planner':value}))"
+        )
+        self.assertEqual(
+            run_import_probe(probe),
+            {"planner": "plan_agent_v1"},
+        )
+
+    def test_control_path_plans_next_subaspect_after_evidence(self) -> None:
+        source = (REPO_ROOT / "scripts/manipeval_agent.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "claim_first_controller.propose_and_bind_semantic_step(",
+            source,
+        )
+        self.assertNotIn("pending_first_semantic_bundle", source)
+        self.assertNotIn("use_pending_first", source)
+
+    def test_precontrol_concern_does_not_shrink_planner_domain(self) -> None:
+        probe = (
+            "import importlib.util,json,pathlib;"
+            "path=pathlib.Path('scripts/manipeval_agent.py');"
+            "spec=importlib.util.spec_from_file_location('agent_domain',path);"
+            "module=importlib.util.module_from_spec(spec);"
+            "spec.loader.exec_module(module);"
+            "print(json.dumps({"
+            "'open':module.resolve_plan_agent_allowed_aspects(None),"
+            "'explicit':module.resolve_plan_agent_allowed_aspects("
+            "['object_position','object_position','object_instance'])}))"
+        )
+        self.assertEqual(
+            run_import_probe(probe),
+            {
+                "open": None,
+                "explicit": ["object_position", "object_instance"],
+            },
+        )
+
+    def test_open_world_execution_projects_existing_child_into_method_runtime(
+        self,
+    ) -> None:
+        source = (REPO_ROOT / "scripts/manipeval_agent.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "project_executed_round_through_method_runtime(",
+            source,
+        )
+        self.assertIn(
+            '"taskgen_reinvoked": method_runtime_projection[',
+            source,
+        )
+        self.assertIn(
+            '"policy_rollout_reinvoked": method_runtime_projection[',
+            source,
         )
 
     def test_no_control_query_keeps_its_only_candidate_round(self) -> None:
@@ -120,7 +252,7 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             "'hypothesis':'Measure the terminal telemetry field.',"
             "'requested_variation':'none',"
             "'measurement_need':'Measure terminal bottle telemetry height.'};"
-            "budget=module.resolve_claim_first_candidate_budget("
+            "budget=module.resolve_plan_agent_candidate_budget("
             "1,user_request='What is the terminal bottle telemetry height?',"
             "query_contract=None,semantic_context=context);"
             "print(json.dumps({'budget':budget}))"

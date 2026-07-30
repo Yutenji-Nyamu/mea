@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "requested_route": "auto",
+  "route": "run_local_reuse",
+  "reference_tool": null,
+  "tool_spec": {
+    "schema_version": 1,
+    "task_name": "grab_roller",
+    "metric": "query_derived_metric",
+    "question": "Does the policy achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters, and what is the final height difference between the two rollers?",
+    "route": "force_codegen",
+    "reference_tool": null,
+    "required_signals": [
+      "semantic_trace.roller_position",
+      "semantic_trace.non_target_roller_position",
+      "semantic_trace.physics_step"
+    ],
+    "output_contract": {
+      "source": "typed_metric_spec_v1",
+      "metric_spec": {
+        "schema_version": 1,
+        "operation": "terminal_signal_difference",
+        "left_signal": "roller_position",
+        "right_signal": "non_target_roller_position",
+        "component": "z",
+        "unit": "m",
+        "null_semantics": "null_if_terminal_not_finite",
+        "absolute": false
+      },
+      "value_type": "number_or_null",
+      "unit": "m",
+      "passed": null,
+      "evidence": "terminal_physics_step"
+    },
+    "validation_requirements": {
+      "min_episodes": 1,
+      "distinct_reference_values": false,
+      "required_reference_values": []
+    }
+  },
+  "tool_request": {
+    "schema_version": 2,
+    "task_name": "grab_roller",
+    "metric": "query_derived_metric",
+    "question": "Does the policy achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters, and what is the final height difference between the two rollers?",
+    "metric_spec": {
+      "schema_version": 1,
+      "operation": "terminal_signal_difference",
+      "left_signal": "roller_position",
+      "right_signal": "non_target_roller_position",
+      "component": "z",
+      "unit": "m",
+      "null_semantics": "null_if_terminal_not_finite",
+      "absolute": false
+    }
+  },
+  "route_decision": {
+    "schema_version": 1,
+    "status": "resolved",
+    "matching_policy": "strict_exact_metric_id",
+    "requested_route": "auto",
+    "resolved_route": "run_local_reuse",
+    "task_name": "grab_roller",
+    "metric": "query_derived_metric",
+    "exact_match": true,
+    "matched_registry": "evaluation_local_tool_registry",
+    "reference_tool": null,
+    "provider_required": false,
+    "reason": "exact typed MetricSpec, task, and telemetry schema matched a validated evaluation-local Tool",
+    "catalog_snapshot_sha256": "81566074a5d92dbe64d25d988e9d42594549a53a8149370802349d7018d94a26",
+    "provider_called": false
+  },
+  "source": {
+    "scope": "run_local_registry",
+    "tool": "query_derived_metric",
+    "reference_tool": null,
+    "artifact": null,
+    "registration_id": "runlocal_8b62cc7f7c3da9c902fa"
+  },
+  "episodes": [
+    {
+      "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
+      "policy_name": "ACT",
+      "seed": 100301,
+      "role": "policy_under_evaluation",
+      "result": {
+        "tool": "query_derived_metric",
+        "value": 0.05838477611541748,
+        "unit": "m",
+        "passed": null,
+        "evidence_steps": [
+          7821
+        ],
+        "details": {
+          "operation": "terminal_signal_difference",
+          "left_signal": "roller_position",
+          "right_signal": "non_target_roller_position",
+          "component": "z",
+          "absolute": false,
+          "left_terminal_value": 0.8000491857528687,
+          "right_terminal_value": 0.7416644096374512,
+          "terminal_index": 7821,
+          "reason": "measured"
+        },
+        "tool_sha256": "56f94cafde8743bb96827efc37900d31ffe029de9fac384fa7654b1a9ad36c43"
+      }
+    }
+  ],
+  "validation": {
+    "provider_called": false,
+    "typed_metric_spec": true,
+    "task_code_context_consumed": true,
+    "episode_count": 1,
+    "differential_gates_passed": true
+  },
+  "artifacts": {
+    "tool_request": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/repairs/live13_exact_tool_reuse_v1/second_query_exact_reuse/planned_tool/tool_request.json",
+    "catalog_snapshot": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/repairs/live13_exact_tool_reuse_v1/second_query_exact_reuse/planned_tool/catalog_snapshot.json",
+    "route_decision": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/repairs/live13_exact_tool_reuse_v1/second_query_exact_reuse/planned_tool/route_decision.json",
+    "metric_spec_execution": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/repairs/live13_exact_tool_reuse_v1/second_query_exact_reuse/planned_tool/typed_metric_spec/execution.json",
+    "resolved_tool_spec": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/repairs/live13_exact_tool_reuse_v1/second_query_exact_reuse/planned_tool/resolved_tool_spec.json",
+    "tool_execution": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/repairs/live13_exact_tool_reuse_v1/second_query_exact_reuse/planned_tool/tool_execution.json"
+  }
+}

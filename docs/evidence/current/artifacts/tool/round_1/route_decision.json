@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "status": "resolved",
+  "matching_policy": "strict_exact_metric_id",
+  "requested_route": "auto",
+  "resolved_route": "reuse",
+  "task_name": "grab_roller",
+  "metric": "official_check_success",
+  "exact_match": true,
+  "matched_registry": "trusted_tool_catalog",
+  "reference_tool": "official_check_success",
+  "provider_required": false,
+  "reason": "exact metric identifier matched a Trusted Tool",
+  "catalog_snapshot_sha256": "81566074a5d92dbe64d25d988e9d42594549a53a8149370802349d7018d94a26",
+  "provider_called": false
+}

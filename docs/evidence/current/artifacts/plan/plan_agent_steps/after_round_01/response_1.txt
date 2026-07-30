@@ -1,0 +1,37 @@
+```json
+{
+  "schema_version": 2,
+  "action": "continue",
+  "sub_aspect": "task_execution.non_target_proximity_effect",
+  "hypothesis": "When a non-target roller with identical appearance is placed closer to the robot than the target roller, the policy will still successfully achieve the task by lifting the target roller to a height of at least 0.8 meters while keeping the non-target roller below 0.8 meters.",
+  "requested_perturbation": {
+    "description": "Place a non-target roller with identical appearance closer to the robot than the target roller.",
+    "controlled_changes": [
+      "non-target roller initial position"
+    ],
+    "preserve": [
+      "task identity",
+      "policy checkpoint"
+    ]
+  },
+  "scene_need": {
+    "required": true,
+    "description": "Adapt the scene to include a non-target roller with identical appearance positioned closer to the robot than the target roller."
+  },
+  "checker_need": {
+    "required": false,
+    "description": null
+  },
+  "rule_tool_need": {
+    "required": true,
+    "description": "Numeric Rule Tool to measure the final heights of both rollers and their difference.",
+    "reuse_first": true
+  },
+  "vqa_tool_need": {
+    "required": false,
+    "description": null,
+    "reuse_first": true
+  },
+  "rationale": "The perturbation directly tests the impact of a closer non-target roller on the policy's ability to distinguish and manipulate the target roller, addressing the core uncertainty in the original Query."
+}
+```

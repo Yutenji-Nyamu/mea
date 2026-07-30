@@ -9,7 +9,7 @@ import os
 import traceback
 import math
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 import yaml
 
@@ -131,6 +131,111 @@ def _pose_summary(pose: Any) -> dict[str, list[float]]:
     }
 
 
+def _numeric_sequence(value: Any) -> list[float] | None:
+    """Return one finite JSON numeric vector, or ``None`` when unsupported."""
+
+    if value is None:
+        return None
+    tolist = getattr(value, "tolist", None)
+    if callable(tolist):
+        value = tolist()
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        vector = [float(value)]
+    elif isinstance(value, (list, tuple)):
+        try:
+            vector = [float(item) for item in value]
+        except (TypeError, ValueError):
+            return None
+    else:
+        return None
+    return vector if vector and all(math.isfinite(item) for item in vector) else None
+
+
+def _collision_geometry_summary(actor: Any) -> list[dict[str, Any]]:
+    """Read simulator collision geometry without assigning authority to RGB.
+
+    SAPIEN geometry classes expose different numeric fields.  Recording the
+    class, local pose, and every supported dimension/scale field gives the
+    preservation gate an exact same-seed simulator signature while remaining
+    compatible with primitive and mesh-backed actors.  An empty list means the
+    simulator did not expose comparable geometry and must never be treated as a
+    successful preservation check.
+    """
+
+    get_shapes = getattr(actor, "get_collision_shapes", None)
+    if not callable(get_shapes):
+        return []
+    result: list[dict[str, Any]] = []
+    for shape in list(get_shapes() or []):
+        geometry = getattr(shape, "geometry", None)
+        if geometry is None:
+            get_geometry = getattr(shape, "get_collision_geometry", None)
+            geometry = get_geometry() if callable(get_geometry) else None
+        if geometry is None:
+            continue
+        item: dict[str, Any] = {
+            "geometry_type": type(geometry).__name__,
+        }
+        get_local_pose = getattr(shape, "get_local_pose", None)
+        if callable(get_local_pose):
+            try:
+                item["local_pose"] = _pose_summary(get_local_pose())
+            except (AttributeError, TypeError, ValueError):
+                pass
+        for field in (
+            "half_lengths",
+            "half_size",
+            "scale",
+            "radius",
+            "length",
+            "half_length",
+        ):
+            vector = _numeric_sequence(getattr(geometry, field, None))
+            if vector is not None:
+                item[field] = vector
+        # A class name (and even a local pose) does not identify the shape or
+        # its dimensions.  Fall back to the create_actor construction
+        # signature instead of treating type-only geometry as authority.
+        if set(item).difference({"geometry_type", "local_pose"}):
+            result.append(item)
+    return result
+
+
+def _actor_model_geometry_summary(actor: Any) -> list[dict[str, Any]]:
+    """Fallback signature for create_actor mesh collision geometry.
+
+    RoboTwin's Actor wrapper may not expose collision shapes directly, but
+    create_actor builds collision and visual meshes from the same asset/model
+    identity and scale stored in Actor.config.  This signature therefore
+    provides simulator-construction authority without treating RGB as
+    geometry evidence.
+    """
+
+    config = getattr(actor, "config", None)
+    if not isinstance(config, Mapping):
+        return []
+    identity = config.get("_mea_asset_identity")
+    if not isinstance(identity, Mapping):
+        return []
+    modelname = identity.get("modelname")
+    model_id = identity.get("model_id")
+    if not isinstance(modelname, str) or not modelname:
+        return []
+    item: dict[str, Any] = {
+        "geometry_type": "create_actor_asset",
+        "modelname": modelname,
+        "model_id": model_id,
+    }
+    for field in ("collision_asset", "convex", "is_static"):
+        if field in identity:
+            item[field] = identity[field]
+    for field in ("scale", "extents", "center"):
+        values = _numeric_sequence(config.get(field))
+        if values is not None:
+            item[field] = values
+    return [item]
+
+
 def tracked_actor_summary(
     task: Any,
     schema: dict[str, Any],
@@ -140,11 +245,15 @@ def tracked_actor_summary(
     summaries: list[dict[str, Any]] = []
     for actor_spec in schema["tracked_actors"]:
         actor = getattr(task, actor_spec["task_attribute"])
+        collision_geometry = _collision_geometry_summary(actor)
+        if not collision_geometry:
+            collision_geometry = _actor_model_geometry_summary(actor)
         summary: dict[str, Any] = {
             "id": actor_spec["id"],
             "task_attribute": actor_spec["task_attribute"],
             "scene_name": actor_spec["scene_name"],
             **_pose_summary(actor.get_pose()),
+            "collision_geometry": collision_geometry,
             "functional_points": {},
             "contact_points": {},
         }
@@ -191,8 +300,18 @@ def task_schema_rule_check(
 ) -> dict[str, Any]:
     """Setup-only structural checks shared by every schema-backed task."""
 
-    scene_names = {actor["name"] for actor in scene_actors}
+    scene_name_counts: dict[str, int] = {}
+    for actor in scene_actors:
+        name = actor["name"]
+        scene_name_counts[name] = scene_name_counts.get(name, 0) + 1
     declared_scene_names = {actor["scene_name"] for actor in schema["tracked_actors"]}
+    runtime_names_match = True
+    for actor_spec in schema["tracked_actors"]:
+        runtime_actor = getattr(task, actor_spec["task_attribute"], None)
+        get_name = getattr(runtime_actor, "get_name", None)
+        if not callable(get_name) or get_name() != actor_spec["scene_name"]:
+            runtime_names_match = False
+            break
     numeric_values: list[float] = []
     for actor in tracked_actors:
         numeric_values.extend(actor["position"])
@@ -206,7 +325,11 @@ def task_schema_rule_check(
         "all_tracked_actor_attributes_present": all(
             hasattr(task, actor["task_attribute"]) for actor in schema["tracked_actors"]
         ),
-        "declared_scene_names_present": declared_scene_names.issubset(scene_names),
+        "tracked_actor_runtime_names_match": runtime_names_match,
+        "declared_scene_names_unique": all(
+            scene_name_counts.get(name, 0) == 1
+            for name in declared_scene_names
+        ),
         "finite_tracked_actor_state": bool(numeric_values)
         and all(math.isfinite(value) and abs(value) < 100 for value in numeric_values),
         "official_check_success_callable": callable(
@@ -452,11 +575,48 @@ def run_probe(arguments: argparse.Namespace) -> dict[str, Any]:
                     action_type="expert_plan",
                 )
             task.play_once()
+            generated_checker_success = bool(task.check_success())
+            official_core_checker = getattr(
+                task,
+                "mea_official_check_success",
+                None,
+            )
+            official_core_predicate_satisfied = (
+                bool(official_core_checker())
+                if callable(official_core_checker)
+                else generated_checker_success
+            )
+            # Keep the setup-time ``tracked_actors``/``actors`` fields intact.
+            # These explicit terminal snapshots are the simulator authority for
+            # expert-positive checker fixtures and repair diagnosis.
+            result["expert_terminal_tracked_actors"] = tracked_actor_summary(
+                task,
+                schema,
+            )
+            result["expert_terminal_actors"] = actor_summary(task)
+            result["expert_terminal_task_attributes"] = task_attribute_summary(
+                task,
+                schema,
+            )
             result["expert"] = {
                 "plan_success": bool(task.plan_success),
-                "check_success": bool(task.check_success()),
+                "check_success": generated_checker_success,
+                "official_check_success": official_core_predicate_satisfied,
+                "official_core_predicate_satisfied": (
+                    official_core_predicate_satisfied
+                ),
+                "official_success_authority": (
+                    "mea_official_check_success"
+                    if callable(official_core_checker)
+                    else "active_check_success"
+                ),
             }
-            result["expert"]["passed"] = all(result["expert"].values())
+            # Preserve the historical gate: ``passed`` means the expert plan
+            # and the active (possibly generated) checker both succeeded.
+            result["expert"]["passed"] = bool(
+                result["expert"]["plan_success"]
+                and result["expert"]["check_success"]
+            )
             if recorder is not None:
                 recorder.on_policy_action_end(
                     task,

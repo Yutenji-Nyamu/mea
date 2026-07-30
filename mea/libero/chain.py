@@ -1,4 +1,4 @@
-"""Two-rollout ClaimFirst -> TaskGen -> MetricSpec adapter LIBERO smoke."""
+"""LIBERO backend composition for the shared MEA outer method runtime."""
 
 from __future__ import annotations
 
@@ -7,11 +7,19 @@ import json
 import os
 import re
 import time
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 from mea.feedback.answer_scope import build_answer_scope
-from mea.planner.claim_first import ClaimFirstOpenQueryAgent
+from mea.method_runtime import (
+    CandidateRequest,
+    EvidenceRequest,
+    MethodRuntime,
+    RolloutRequest,
+    BackendBindingRequest,
+)
+from mea.planner.claim_first import PlanAgent
 from mea.providers import OpenAICompatibleProvider
 from mea.toolkit.aggregate import aggregate_tool_executions
 
@@ -24,6 +32,7 @@ from .benchmark import (
     build_official_task_contract,
 )
 from .policy import LeRobotPolicyAdapter
+from .runtime import LiberoMethodBackend
 from .retrieval import (
     BDDLRetrieval,
     BDDLTaskIndex,
@@ -217,32 +226,10 @@ def _capabilities(
     }
 
 
-def _round_evidence(
-    *,
-    round_id: str,
-    sub_aspect: str,
-    hypothesis: str,
-    perturbation: str,
-    success: bool,
-    summary: str,
-    limitations: list[str],
-) -> dict[str, Any]:
-    return {
-        "schema_version": 1,
-        "round_id": round_id,
-        "tested_sub_aspect": sub_aspect,
-        "tested_hypothesis": hypothesis,
-        "tested_perturbation": perturbation,
-        "outcome": "success" if success else "failure",
-        "evidence_summary": summary,
-        "limitations": limitations,
-    }
-
-
 def _persist_planner_bundle(
     root: Path,
     name: str,
-    planner: ClaimFirstOpenQueryAgent,
+    planner: PlanAgent,
     bundle: dict[str, Any],
 ) -> Path:
     target = root / "planner" / name
@@ -339,10 +326,16 @@ def run_libero_method_chain(
     root = repo / "mea" / "evaluation_runs" / evaluation_id
     root.mkdir(parents=True, exist_ok=False)
     started = time.monotonic()
-    official_contract = build_official_task_contract(
-        suite=bound_suite,
-        task_id=bound_task_id,
+    binding_runtime = MethodRuntime(
+        LiberoMethodBackend(task_contract_factory=build_official_task_contract)
     )
+    official_binding = binding_runtime.bind_task(
+        BackendBindingRequest(
+            task_reference={"suite": bound_suite, "task_id": bound_task_id}
+        )
+    )
+    official_contract = official_binding.native_task
+    _write_json(root / "runtime" / "task_binding.json", official_binding.to_dict())
     compatibility, query_retrieval, pending_change = _open_query_retrieval(
         request=request,
         checkpoint=checkpoint_path,
@@ -412,45 +405,70 @@ def run_libero_method_chain(
         suite_name=official_contract.suite,
         task_id=official_contract.official_task_id,
     )
+    method_backend = LiberoMethodBackend(
+        benchmark_adapter=benchmark,
+        policy_adapter=policy,
+        task_contract_factory=build_official_task_contract,
+    )
+    method_runtime = MethodRuntime(method_backend)
     rollouts_executed = 0
     try:
         _write_json(root / "policy_load.json", policy.load(seed=seed))
-        official_record = policy.run(
-            env_factory=benchmark.make_official_env,
-            seed=seed,
-            output_dir=root / "round_01_official" / "episode",
-            task_id=(
-                f"{official_contract.suite}/task"
-                f"{official_contract.official_task_id}/official"
-            ),
+        official_candidate = method_backend.official_candidate(
+            official_binding,
+            source_query=request,
             task_contract_path=official_contract_path,
-            bddl_path=official_contract.bddl_path,
-            provenance={
-                "round": 1,
-                "route": "official_control",
-                "stock_task_ids": True,
-                "horizon_steps": HORIZON_STEPS,
-            },
-            use_stock_official_env=True,
         )
-        rollouts_executed += 1
-        control_evidence = _round_evidence(
-            round_id="round_01_official_control",
-            sub_aspect="official_control",
-            hypothesis="The local SmolVLA checkpoint can execute the unchanged task.",
-            perturbation="none",
-            success=official_record.success,
-            summary=(
-                f"Official {official_contract.suite}/task"
-                f"{official_contract.official_task_id} live rollout "
-                f"success={official_record.success}; "
-                f"reward_sum={official_record.reward_sum}; steps={official_record.executed_steps}."
+        _write_json(
+            root / "runtime" / "round_01_candidate.json",
+            official_candidate.to_dict(),
+        )
+        official_rollout = method_runtime.rollout(
+            official_candidate,
+            RolloutRequest(
+                round_id="round_01_official_control",
+                seed=seed,
+                output_dir=root / "round_01_official" / "episode",
+                provenance={
+                    "round": 1,
+                    "route": "official_control",
+                    "stock_task_ids": True,
+                    "horizon_steps": HORIZON_STEPS,
+                },
             ),
-            limitations=[
-                "N=1 fixed seed",
-                "batch23-parity 280-step feasibility horizon",
-            ],
         )
+        _write_json(
+            root / "runtime" / "round_01_rollout.json",
+            official_rollout.to_dict(),
+        )
+        official_record = official_rollout.native_episode
+        rollouts_executed += 1
+        control_evidence_record = method_runtime.evidence(
+            official_rollout,
+            EvidenceRequest(
+                sub_aspect="official_control",
+                hypothesis=(
+                    "The local SmolVLA checkpoint can execute the unchanged task."
+                ),
+                perturbation="none",
+                summary=(
+                    f"Official {official_contract.suite}/task"
+                    f"{official_contract.official_task_id} live rollout "
+                    f"success={official_record.success}; "
+                    f"reward_sum={official_record.reward_sum}; "
+                    f"steps={official_record.executed_steps}."
+                ),
+                limitations=(
+                    "N=1 fixed seed",
+                    "batch23-parity 280-step feasibility horizon",
+                ),
+            ),
+        )
+        _write_json(
+            root / "runtime" / "round_01_evidence.json",
+            control_evidence_record.to_dict(),
+        )
+        control_evidence = control_evidence_record.to_planner_dict()
         _write_json(root / "round_01_official" / "evidence.json", control_evidence)
         if not official_record.success:
             result = {
@@ -475,7 +493,7 @@ def run_libero_method_chain(
             _write_json(root / "compact_result.json", result)
             return result
 
-        planner = ClaimFirstOpenQueryAgent(provider, model=planner_model)
+        planner = PlanAgent(provider, model=planner_model)
         first_bundle = planner.propose(
             request,
             capabilities=_capabilities(checkpoint_path, official_contract),
@@ -484,7 +502,7 @@ def run_libero_method_chain(
         _persist_planner_bundle(root, "after_control", planner, first_bundle)
         if first_bundle["proposal"]["action"] != "continue":
             raise RuntimeError(
-                "ClaimFirst stopped after control; no provider-authored custom task was authorized"
+                "Plan Agent stopped after control; no provider-authored custom task was authorized"
             )
         proposal = first_bundle["proposal"]
         planner_concern = " ".join(
@@ -528,14 +546,33 @@ def run_libero_method_chain(
         controlled_change.require_authorized()
 
         taskgen = LiberoTaskGenBackend(provider, model=taskgen_model)
-        custom_contract, taskgen_result = taskgen.generate(
-            user_query=request,
-            proposal_bundle=first_bundle,
-            output_dir=root / "round_02_custom" / "taskgen",
-            seed=seed,
-            retrieval=planner_retrieval,
-            change_contract=controlled_change,
+        custom_backend = LiberoMethodBackend(
+            benchmark_adapter=benchmark,
+            policy_adapter=policy,
+            taskgen_backend=taskgen,
+            task_contract_factory=build_official_task_contract,
         )
+        custom_runtime = MethodRuntime(custom_backend)
+        custom_candidate = custom_runtime.materialize_candidate(
+            official_binding,
+            CandidateRequest(
+                candidate_id="generated_custom_task",
+                source_query=request,
+                proposal_bundle=first_bundle,
+                output_dir=root / "round_02_custom" / "taskgen",
+                seed=seed,
+                context={
+                    "retrieval": planner_retrieval,
+                    "change_contract": controlled_change,
+                },
+            ),
+        )
+        _write_json(
+            root / "runtime" / "round_02_candidate.json",
+            custom_candidate.to_dict(),
+        )
+        custom_contract = custom_candidate.native_task
+        taskgen_result = custom_candidate.metadata["taskgen_result"]
         custom_contract_path = Path(taskgen_result["artifacts"]["task_contract"])
         probe = benchmark.render_and_init_probe(
             benchmark.make_custom_env(custom_contract),
@@ -544,24 +581,26 @@ def run_libero_method_chain(
         )
         _write_json(root / "round_02_custom" / "gate" / "compatibility_probe.json", probe)
 
-        custom_record = policy.run(
-            env_factory=lambda: benchmark.make_custom_env(custom_contract),
-            seed=seed,
-            output_dir=root / "round_02_custom" / "episode",
-            task_id=(
-                f"{custom_contract.suite}/task"
-                f"{custom_contract.official_task_id}/mea_custom"
+        custom_rollout = custom_runtime.rollout(
+            custom_candidate,
+            RolloutRequest(
+                round_id="round_02_custom_bddl",
+                seed=seed,
+                output_dir=root / "round_02_custom" / "episode",
+                provenance={
+                    "round": 2,
+                    "route": "custom_offscreen_render_env_factory",
+                    "stock_task_ids": False,
+                    "official_init_state_reused_after_probe": True,
+                    "horizon_steps": HORIZON_STEPS,
+                },
             ),
-            task_contract_path=custom_contract_path,
-            bddl_path=custom_contract.bddl_path,
-            provenance={
-                "round": 2,
-                "route": "custom_offscreen_render_env_factory",
-                "stock_task_ids": False,
-                "official_init_state_reused_after_probe": True,
-                "horizon_steps": HORIZON_STEPS,
-            },
         )
+        _write_json(
+            root / "runtime" / "round_02_rollout.json",
+            custom_rollout.to_dict(),
+        )
+        custom_record = custom_rollout.native_episode
         rollouts_executed += 1
 
         tool_backend = LiberoPredicateToolBackend(registry_dir=root / "tool_registry")
@@ -585,25 +624,53 @@ def run_libero_method_chain(
                 "LIBERO goal predicate succeed?"
             ),
         )
-        custom_evidence = _round_evidence(
-            round_id="round_02_custom_bddl",
-            sub_aspect=str(first_bundle["proposal"]["sub_aspect"]),
-            hypothesis=str(first_bundle["proposal"]["hypothesis"]),
-            perturbation=str(
-                first_bundle["proposal"]["requested_perturbation"]["description"]
-            ),
-            success=bool(tool_result["tool_execution"]["episodes"][0]["result"]["value"]),
-            summary=(
-                f"Provider-written BDDL selected {taskgen_result['selected_object']}; "
-                f"live predicate={custom_record.goal_predicate_satisfied}; "
-                f"steps={custom_record.executed_steps}; compiled MetricSpec "
-                "adapter value entered Aggregate."
-            ),
-            limitations=[
-                "N=1 fixed seed",
-                "one state-compatible generated object-identity variation",
-            ],
+        tool_value = bool(
+            tool_result["tool_execution"]["episodes"][0]["result"]["value"]
         )
+        # The generated predicate Tool owns the experimental outcome even when
+        # its value happens to agree with the benchmark termination signal.
+        # Preserve the native episode while making that authority explicit in
+        # the rich runtime evidence.
+        evidence_rollout = replace(
+            custom_rollout,
+            success=tool_value,
+            metadata={
+                **custom_rollout.metadata,
+                "outcome_authority": "generated_predicate_tool",
+                "benchmark_success_agrees": (
+                    tool_value == custom_rollout.success
+                ),
+            },
+        )
+        custom_evidence_record = custom_runtime.evidence(
+            evidence_rollout,
+            EvidenceRequest(
+                sub_aspect=str(first_bundle["proposal"]["sub_aspect"]),
+                hypothesis=str(first_bundle["proposal"]["hypothesis"]),
+                perturbation=str(
+                    first_bundle["proposal"]["requested_perturbation"][
+                        "description"
+                    ]
+                ),
+                summary=(
+                    "Provider-written BDDL selected "
+                    f"{taskgen_result['selected_object']}; live predicate="
+                    f"{custom_record.goal_predicate_satisfied}; "
+                    f"steps={custom_record.executed_steps}; compiled MetricSpec "
+                    "adapter value entered Aggregate; outcome authority="
+                    "generated_predicate_tool."
+                ),
+                limitations=(
+                    "N=1 fixed seed",
+                    "one state-compatible generated object-identity variation",
+                ),
+            ),
+        )
+        _write_json(
+            root / "runtime" / "round_02_evidence.json",
+            custom_evidence_record.to_dict(),
+        )
+        custom_evidence = custom_evidence_record.to_planner_dict()
         _write_json(root / "round_02_custom" / "evidence.json", custom_evidence)
 
         second_bundle: dict[str, Any] | None = None
@@ -649,7 +716,7 @@ def run_libero_method_chain(
             {
                 "observed_candidate_ids": [
                     "official_control",
-                    f"generated_goal:{taskgen_result['selected_object']}",
+                    custom_candidate.candidate_id,
                 ],
                 "untested_candidate_ids": alternative_objects,
                 # A control/custom outcome difference is the tested effect, not
@@ -777,6 +844,27 @@ def run_libero_method_chain(
                 "reuse": str(root / "reuse_query" / "tool_reuse_result.json"),
                 "evidence_packet": str(root / "evidence_packet.json"),
                 "answer_scope": str(root / "answer_scope.json"),
+                "runtime_task_binding": str(
+                    root / "runtime" / "task_binding.json"
+                ),
+                "runtime_official_candidate": str(
+                    root / "runtime" / "round_01_candidate.json"
+                ),
+                "runtime_official_rollout": str(
+                    root / "runtime" / "round_01_rollout.json"
+                ),
+                "runtime_official_evidence": str(
+                    root / "runtime" / "round_01_evidence.json"
+                ),
+                "runtime_custom_candidate": str(
+                    root / "runtime" / "round_02_candidate.json"
+                ),
+                "runtime_custom_rollout": str(
+                    root / "runtime" / "round_02_rollout.json"
+                ),
+                "runtime_custom_evidence": str(
+                    root / "runtime" / "round_02_evidence.json"
+                ),
             },
         }
         _write_json(root / "compact_result.json", compact)

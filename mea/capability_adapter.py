@@ -18,6 +18,11 @@ from copy import deepcopy
 from typing import Any, Mapping
 
 from .aspects import AspectError, aspect_semantics, canonicalize_aspect_id
+from .artifact_retrieval_index import (
+    ArtifactRetrievalIndexError,
+    OFFICIAL_CONTROL_TEMPLATE_ID,
+    resolve_task_retrieval_index as _resolve_task_retrieval_index,
+)
 
 
 class CapabilityAdapterError(ValueError):
@@ -636,11 +641,11 @@ def _click_contracts() -> list[dict[str, Any]]:
 
 
 def _generic_official_contracts() -> list[dict[str, Any]]:
-    """Expose unchanged official execution for schema-backed ACT tasks.
+    """Expose legacy retrieval hints for schema-backed ACT tasks.
 
-    These tasks do not yet claim generated variants.  Registering only the
-    official baseline lets the public router and ClaimFirst control reuse the
-    common TaskGen/ToolGen boundary without inventing unsupported aspects.
+    This compatibility inventory intentionally lists only the official
+    baseline. It does not authorize or prohibit runtime Proposal generation;
+    the Plan Agent and generic TaskGen backend own that decision.
     """
 
     phenomenon_by_task = {
@@ -1149,25 +1154,39 @@ def resolve_task_adapter(task_name: Any) -> dict[str, Any]:
     return validate_task_adapter(_raw_task_adapter(normalized))
 
 
-def resolve_task_retrieval_index(task_name: Any) -> dict[str, Any]:
-    """Project known artifacts into an explicitly non-authoritative index.
+def _known_artifact_adapter(task_name: str) -> dict[str, Any] | None:
+    """Compatibility data source for the paper-aligned retrieval index.
 
-    The projection deliberately omits ``planner_kind``, ``task_profile`` and
-    ``max_rounds``.  Those legacy fields describe old protocols, not what a
-    Query may ask or what a runtime-generated candidate may execute.
+    Returning ``None`` for unknown tasks is deliberately different from
+    runtime authorization.  The new retrieval module owns the public
+    projection; this bridge only exposes reviewed legacy records until the
+    remaining paper protocols move out of this module.
     """
 
-    adapter = resolve_task_adapter(task_name)
-    return {
-        "schema_version": 1,
-        "index_role": "retrieval_only",
-        "execution_authority": False,
-        "task_name": adapter["task_name"],
-        "control_template_id": adapter["control_template_id"],
-        "entries": deepcopy(adapter["capability_contracts"]),
-        "vqa_questions": deepcopy(adapter["vqa_questions"]),
-        "vqa_metric_rules": deepcopy(adapter["vqa_metric_rules"]),
-    }
+    if task_name not in _TASK_ADAPTER_METADATA:
+        return None
+    return resolve_task_adapter(task_name)
+
+
+def resolve_task_retrieval_index(
+    task_name: Any,
+    *,
+    allow_unregistered: bool = False,
+) -> dict[str, Any]:
+    """Compatibility export for :mod:`mea.artifact_retrieval_index`.
+
+    New production code should import that module directly.  Existing callers
+    retain the historical ``CapabilityAdapterError`` boundary while the actual
+    non-authoritative projection is owned by the retrieval-index module.
+    """
+
+    try:
+        return _resolve_task_retrieval_index(
+            task_name,
+            allow_unregistered=allow_unregistered,
+        )
+    except ArtifactRetrievalIndexError as exc:
+        raise CapabilityAdapterError(str(exc)) from exc
 
 
 def registered_task_adapters() -> list[dict[str, Any]]:
@@ -1305,25 +1324,17 @@ def registered_capability_contracts(
     ]
 
 
-def registered_templates(task_name: str) -> list[str]:
-    """Return every template covered by one task adapter."""
-
-    return [
-        contract["template_id"]
-        for contract in registered_capability_contracts(task_name)
-    ]
-
-
 __all__ = [
     "CapabilityAdapterError",
+    "OFFICIAL_CONTROL_TEMPLATE_ID",
     "build_contract_tool_request",
     "registered_capability_contracts",
     "registered_task_adapters",
     "registered_task_names",
     "registered_task_vqa_questions",
-    "registered_templates",
     "resolve_capability_contract",
     "resolve_task_adapter",
+    "resolve_task_retrieval_index",
     "task_vqa_metric_phenomena",
     "taskgen_route",
     "validate_capability_contract",

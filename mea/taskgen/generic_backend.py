@@ -5,9 +5,9 @@ adapter.  The adapter describes the official task program and exposes the
 small simulator-specific hooks needed to validate generated code.  It does
 not enumerate aspects, variants, metrics, or planner routes.
 
-Task reuse is exact and semantic.  A miss invokes the provider once, with at
-most one local regeneration covering static, fixture, render, and expert
-validation.  Policy execution remains outside this module.
+Task reuse is exact and semantic. A miss invokes the provider with at most one
+local regeneration after static, fixture, render, or expert diagnosis. Policy
+execution remains outside this module.
 """
 
 from __future__ import annotations
@@ -25,6 +25,10 @@ from typing import Any, Callable, Mapping
 from mea.planner.experiment_candidate import (
     ExperimentCandidateError,
     validate_experiment_candidate,
+)
+from mea.planner.proposal_execution import (
+    ProposalExecutionError,
+    validate_taskgen_candidate_execution,
 )
 from mea.planner.semantic_coverage import (
     SemanticCoverageError,
@@ -571,8 +575,9 @@ def build_generic_task_subclass_module(
     *,
     official_module: str,
     official_class: str,
+    emit_overrides: Mapping[str, bool] | None = None,
 ) -> str:
-    """Build a thin subclass while inheriting the official module namespace."""
+    """Build a thin subclass and override only the requested task methods."""
 
     if (
         not isinstance(official_module, str)
@@ -599,11 +604,27 @@ def build_generic_task_subclass_module(
         raise GenericTaskGenError(
             "subclass builder requires load_actors and check_success"
         )
-    scene = textwrap.indent(
-        textwrap.dedent(str(methods["load_actors"])).strip(), "    "
+    overrides = (
+        {"load_actors": True, "check_success": True}
+        if emit_overrides is None
+        else dict(emit_overrides)
     )
-    checker = textwrap.indent(
-        textwrap.dedent(str(methods["check_success"])).strip(), "    "
+    if (
+        set(overrides) != {"load_actors", "check_success"}
+        or any(not isinstance(value, bool) for value in overrides.values())
+    ):
+        raise GenericTaskGenError(
+            "emit_overrides must map load_actors/check_success to bool"
+        )
+    method_blocks = [
+        textwrap.indent(
+            textwrap.dedent(str(methods[name])).strip(), "    "
+        )
+        for name in ("load_actors", "check_success")
+        if overrides[name]
+    ]
+    generated_methods = (
+        "\n\n".join(method_blocks) + "\n\n" if method_blocks else ""
     )
     source = (
         '"""Provider-generated RoboTwin task candidate."""\n\n'
@@ -611,8 +632,7 @@ def build_generic_task_subclass_module(
         f"from {official_module} import *\n\n\n"
         f"class {official_class}("
         f"_official_task_module.{official_class}):\n"
-        f"{scene}\n\n"
-        f"{checker}\n\n"
+        f"{generated_methods}"
         "    def mea_official_check_success(self):\n"
         "        \"\"\"Evaluate the untouched official core predicate.\"\"\"\n"
         f"        return _official_task_module.{official_class}."
@@ -684,6 +704,53 @@ def _discover_asset_descriptions(
     return tuple(paths)
 
 
+def discover_generic_robotwin_task_identity(
+    repo_root: str | Path,
+    task_name: str,
+) -> dict[str, Any]:
+    """Discover one executable RoboTwin base without a task-name registry.
+
+    This hook-free identity is the authority boundary shared by routing and
+    TaskGen.  A task is discoverable only when its official source declares
+    the expected class and its repository-owned TaskSchema validates.  Known
+    capability entries may later enrich retrieval, but are not membership
+    requirements here.
+    """
+
+    if not isinstance(task_name, str) or not _TASK_NAME.fullmatch(task_name):
+        raise GenericTaskGenError("task_name is not a RoboTwin identifier")
+    root = Path(repo_root).expanduser().resolve()
+    relative_source = f"envs/{task_name}.py"
+    source_path = _resolve_repo_file(
+        root, relative_source, label="official task source"
+    )
+    _official_class(source_path, class_name=task_name)
+    try:
+        schema = load_task_schema(root, task_name)
+    except TaskSchemaError as exc:
+        raise GenericTaskGenError(
+            f"task toolkit schema is unavailable: {exc}"
+        ) from exc
+    return {
+        "schema_version": 1,
+        "task_name": task_name,
+        "official_source": relative_source,
+        "official_class": task_name,
+        "task_schema": deepcopy(schema),
+        "documentation_paths": list(
+            _discover_task_documents(root, task_name=task_name)
+        ),
+        "asset_paths": list(
+            _discover_asset_descriptions(
+                root,
+                source_path=source_path,
+                class_name=task_name,
+                task_schema=schema,
+            )
+        ),
+    }
+
+
 def load_generic_robotwin_task_adapter(
     repo_root: str | Path,
     task_name: str,
@@ -718,17 +785,12 @@ def load_generic_robotwin_task_adapter(
             "metric and checker contract resolvers must be callable"
         )
     root = Path(repo_root).expanduser().resolve()
-    relative_source = f"envs/{task_name}.py"
+    identity = discover_generic_robotwin_task_identity(root, task_name)
+    relative_source = str(identity["official_source"])
     source_path = _resolve_repo_file(
         root, relative_source, label="official task source"
     )
-    _official_class(source_path, class_name=task_name)
-    try:
-        schema = load_task_schema(root, task_name)
-    except TaskSchemaError as exc:
-        raise GenericTaskGenError(
-            f"task toolkit schema is unavailable: {exc}"
-        ) from exc
+    schema = deepcopy(identity["task_schema"])
     readme = root / "mea/taskgen/README.Agent.md"
     if not readme.is_file():
         raise GenericTaskGenError(
@@ -776,11 +838,19 @@ def load_generic_robotwin_task_adapter(
     )
     hooks = GenericTaskGenHooks(
         validate_methods=validate,
-        build_module=lambda methods, _candidate: (
+        build_module=lambda methods, candidate: (
             build_generic_task_subclass_module(
                 methods,
                 official_module=module_name,
                 official_class=task_name,
+                emit_overrides={
+                    "load_actors": (
+                        candidate.get("scene_need") is not None
+                    ),
+                    "check_success": (
+                        candidate.get("checker_need") is not None
+                    ),
+                },
             )
         ),
         preflight_candidate=preflight_candidate,
@@ -789,19 +859,12 @@ def load_generic_robotwin_task_adapter(
         prompt_constraints=prompt_constraints,
     )
     return GenericRoboTwinTaskAdapter(
-        task_name=task_name,
+        task_name=str(identity["task_name"]),
         official_source=relative_source,
-        official_class=task_name,
+        official_class=str(identity["official_class"]),
         task_schema=schema,
-        documentation_paths=_discover_task_documents(
-            root, task_name=task_name
-        ),
-        asset_paths=_discover_asset_descriptions(
-            root,
-            source_path=source_path,
-            class_name=task_name,
-            task_schema=schema,
-        ),
+        documentation_paths=tuple(identity["documentation_paths"]),
+        asset_paths=tuple(identity["asset_paths"]),
         hooks=hooks,
     )
 
@@ -899,6 +962,7 @@ def _normalize_adapter(
         "generation_hook_contract": {
             "methods": ["load_actors", "check_success"],
             "static_and_fixture_validation": True,
+            "semantic_validation": "task_schema_contract_v2",
             "render_preflight": True,
             "expert_preflight": True,
             "local_regeneration_limit": 1,
@@ -1118,7 +1182,21 @@ def _core_prompt(
         "JSON fields remain required for transport, but when a need is null "
         "return an empty string for that field: the runtime ignores that text "
         "and injects the exact official method before AST, fixture, render, "
-        "and expert validation. Do not return Markdown, a template id, or an "
+        "and expert validation. "
+        "A changed load_actors method must directly implement the requested "
+        "scene change. Comments or an unrelated actor/pose change are not "
+        "implementation evidence. load_actors cannot alter policy weights, "
+        "controller or gripper precision, action noise, latency, or inference. "
+        "Those require an explicit runtime intervention and must not be "
+        "simulated by relabelling a scene change. Actors already present in "
+        "the TASK "
+        "TELEMETRY/EXECUTION SCHEMA are tracked automatically even when their "
+        "pose or instance is replaced. Do not assign "
+        "self.mea_telemetry_tracked_actors merely to repeat one of those base "
+        "actors. Assign it only when adding an entirely new actor, include "
+        "only new actors, and give every entry exactly id, task_attribute, "
+        "scene_name, functional_points, contact_points, and a boolean "
+        "contact_focus. Do not return Markdown, a template id, or an "
         "explanation. When the retrieved API supports scale_multiplier, it "
         "is the final-size/original-size ratio: increasing size by 50% uses "
         "1.5, while reducing size by 50% (or to 50%) uses 0.5."
@@ -1255,6 +1333,13 @@ class GenericRoboTwinTaskGenBackend:
             raise GenericTaskGenError(
                 f"invalid ExperimentCandidate: {exc}"
             ) from exc
+        try:
+            normalized_candidate = validate_taskgen_candidate_execution(
+                normalized_candidate,
+                allowed_change_roots=("load_actors", "check_success"),
+            )
+        except ProposalExecutionError as exc:
+            raise GenericTaskGenError(str(exc)) from exc
         _validate_preservation_feasibility(normalized_candidate)
         if (
             normalized_candidate["scene_need"] is None
@@ -1504,6 +1589,7 @@ __all__ = [
     "GenericTaskGenError",
     "GenericTaskGenHooks",
     "build_generic_task_subclass_module",
+    "discover_generic_robotwin_task_identity",
     "generic_task_semantic_key",
     "load_generic_robotwin_task_adapter",
     "validate_generic_task_methods",

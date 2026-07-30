@@ -1,19 +1,15 @@
 {
   "schema_version": 3,
-  "claim_type": "diagnostic",
-  "candidate_universe": [
-    "dynamic.click.bell.robustness.to.a.bounded.change.in.the.bell.s.color.while.its.task.relevant.geometry.and.location.remain.fixed.act.will.be.less.likely.to.click.the.bell.successfully.when.the.bell.color.is.changed.to.a.bounded.alternate.color.despite.identical.bell.position.shape.size.material.scene.layout.camera.viewpoint.and.click.bell.instruction.69a658418526"
-  ],
+  "claim_type": "existential",
+  "candidate_universe": [],
   "required_coverage": {
-    "candidate_ids": [
-      "dynamic.click.bell.robustness.to.a.bounded.change.in.the.bell.s.color.while.its.task.relevant.geometry.and.location.remain.fixed.act.will.be.less.likely.to.click.the.bell.successfully.when.the.bell.color.is.changed.to.a.bounded.alternate.color.despite.identical.bell.position.shape.size.material.scene.layout.camera.viewpoint.and.click.bell.instruction.69a658418526"
-    ],
-    "minimum_evaluated": 1,
+    "candidate_ids": [],
+    "minimum_evaluated": 0,
     "minimum_per_group": null
   },
-  "round_budget": 2,
+  "round_budget": 1,
   "comparison_groups": null,
   "candidate_universe_closed": false,
-  "existential_witness_outcome": null,
+  "existential_witness_outcome": "pass",
   "control_requirement": "required"
 }

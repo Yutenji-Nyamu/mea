@@ -2,13 +2,17 @@ import json
 import unittest
 
 from mea.planner.claim_first import (
+    PlanAgent,
+    PlanAgentError,
     ClaimFirstOpenQueryAgent,
     ClaimFirstPlanError,
+    build_open_query_planning_lineage,
     open_query_input_digest,
     project_open_query_capabilities,
     validate_open_query_capabilities,
     validate_open_query_evidence,
     validate_open_query_plan_proposal,
+    validate_open_query_proposal_lineage,
 )
 from mea.planner.semantic_coverage import build_evaluation_intent
 
@@ -258,6 +262,10 @@ def _motion_intent():
 
 
 class ClaimFirstOpenQueryTest(unittest.TestCase):
+    def test_plan_agent_is_canonical_and_claim_first_is_compatibility_alias(self):
+        self.assertIs(ClaimFirstOpenQueryAgent, PlanAgent)
+        self.assertIs(ClaimFirstPlanError, PlanAgentError)
+
     def test_typed_needs_are_independent_and_keep_legacy_views(self):
         proposal = validate_open_query_plan_proposal(
             {
@@ -440,6 +448,17 @@ class ClaimFirstOpenQueryTest(unittest.TestCase):
                 evidence_history=[_evidence(outcome)],
             )
             selected[outcome] = bundle["proposal"]["sub_aspect"]
+            self.assertEqual(
+                bundle["planning_lineage"]["decision_kind"],
+                "evidence_conditioned_refinement",
+            )
+            self.assertTrue(
+                bundle["planning_lineage"]["evidence_conditioned"]
+            )
+            self.assertEqual(
+                bundle["planning_lineage"]["completed_round_ids"],
+                ["round_01"],
+            )
             self.assertIn(query, provider.prompts[0])
             self.assertIn(f'"outcome": "{outcome}"', provider.prompts[0])
             self.assertNotIn('"aspect_id"', provider.prompts[0])
@@ -451,11 +470,17 @@ class ClaimFirstOpenQueryTest(unittest.TestCase):
 
     def test_first_proposal_has_no_hidden_route_or_fallback(self):
         provider = _BranchingProvider()
-        result = ClaimFirstOpenQueryAgent(provider, model="fixture").propose(
+        result = PlanAgent(provider, model="fixture").propose(
             "Where is this policy's first object-generalization weakness?",
             capabilities=_capabilities(),
             evidence_history=[],
         )
+        self.assertEqual(result["source"], "provider_plan_agent_open_query")
+        self.assertIn(
+            "You are the Plan Agent in ManipEvalAgent",
+            provider.prompts[0],
+        )
+        self.assertNotIn("claim-first Plan Agent", provider.prompts[0])
         self.assertEqual(
             result["proposal"]["sub_aspect"], "object_position.edge_offset"
         )
@@ -464,6 +489,196 @@ class ClaimFirstOpenQueryTest(unittest.TestCase):
             provider.prompts[0],
         )
         self.assertNotIn("fallback_step", provider.prompts[0])
+        self.assertEqual(
+            result["planning_lineage"],
+            build_open_query_planning_lineage(
+                "Where is this policy's first object-generalization weakness?",
+                _capabilities(),
+                [],
+            ),
+        )
+        self.assertEqual(
+            result["planning_lineage"]["decision_kind"],
+            "query_initial_candidate",
+        )
+        legacy_bundle = dict(result)
+        legacy_bundle["source"] = "provider_claim_first_open_query"
+        self.assertEqual(
+            validate_open_query_proposal_lineage(
+                legacy_bundle,
+                user_query=(
+                    "Where is this policy's first "
+                    "object-generalization weakness?"
+                ),
+                capabilities=_capabilities(),
+                evidence_history=[],
+            ),
+            result["planning_lineage"],
+        )
+
+    def test_explicit_success_definition_repairs_missing_checker_need(self):
+        query = (
+            "Is there a successful episode in which the target roller is "
+            "lifted while the distractor roller remains on the table?"
+        )
+        missing_checker = _proposal(
+            "target_selection.distractor",
+            hypothesis="The policy may lift the wrong roller.",
+            perturbation="Add one physical distractor roller.",
+            task_required=True,
+            tool_required=True,
+        )
+        corrected = {
+            "schema_version": 2,
+            "action": "continue",
+            "sub_aspect": "target_selection.distractor",
+            "hypothesis": "The policy may lift the wrong roller.",
+            "requested_perturbation": {
+                "description": "Add one physical distractor roller.",
+                "controlled_changes": ["distractor roller"],
+                "preserve": ["target roller pose", "policy checkpoint"],
+            },
+            "scene_need": {
+                "required": True,
+                "description": "Add one physical distractor roller.",
+            },
+            "checker_need": {
+                "required": True,
+                "description": (
+                    "Success iff the target is lifted and the distractor "
+                    "remains on the table."
+                ),
+            },
+            "rule_tool_need": {
+                "required": True,
+                "description": "Measure both roller lift heights.",
+                "reuse_first": True,
+            },
+            "vqa_tool_need": {
+                "required": False,
+                "description": None,
+                "reuse_first": True,
+            },
+            "rationale": "The experiment directly tests target selection.",
+        }
+
+        class Provider:
+            last_metadata = {"model": "fixture"}
+
+            def __init__(self):
+                self.responses = [
+                    json.dumps(missing_checker),
+                    json.dumps(corrected),
+                ]
+                self.prompts = []
+
+            def text(self, prompt, **_kwargs):
+                self.prompts.append(prompt)
+                return self.responses.pop(0)
+
+        provider = Provider()
+        result = PlanAgent(provider, model="fixture").propose(
+            query,
+            capabilities=_capabilities(),
+            evidence_history=[_evidence("success")],
+        )
+
+        self.assertTrue(result["proposal"]["checker_need"]["required"])
+        self.assertEqual(result["provider"]["attempt_count"], 2)
+        self.assertIn(
+            '"checker_need": {\n    "required": true',
+            provider.prompts[0],
+        )
+        self.assertIn("checker_need.required", provider.prompts[1])
+
+    def test_unadvertised_runtime_intervention_is_repaired_to_scene_change(self):
+        unsupported = {
+            "schema_version": 2,
+            "action": "continue",
+            "sub_aspect": "task_execution.gripper_precision",
+            "hypothesis": "Reduced gripper precision may lift both objects.",
+            "requested_perturbation": {
+                "description": "Reduce the precision of the gripper.",
+                "controlled_changes": ["gripper precision"],
+                "preserve": ["task identity", "policy checkpoint"],
+            },
+            "scene_need": {
+                "required": True,
+                "description": "Generate a reduced-gripper-precision scene.",
+            },
+            "checker_need": {"required": False, "description": None},
+            "rule_tool_need": {
+                "required": True,
+                "description": "Measure the target/non-target lift difference.",
+                "reuse_first": True,
+            },
+            "vqa_tool_need": {
+                "required": False,
+                "description": None,
+                "reuse_first": True,
+            },
+            "rationale": "Probe a possible manipulation weakness.",
+        }
+        corrected = {
+            **unsupported,
+            "sub_aspect": "scene_geometry.distractor_spacing",
+            "hypothesis": "Reduced target-distractor spacing may confuse selection.",
+            "requested_perturbation": {
+                "description": "Move the physical distractor closer to the target.",
+                "controlled_changes": ["target-distractor spacing"],
+                "preserve": ["task identity", "policy checkpoint"],
+            },
+            "scene_need": {
+                "required": True,
+                "description": "Change the distractor pose in load_actors.",
+            },
+        }
+
+        class Provider:
+            last_metadata = {"model": "fixture"}
+
+            def __init__(self):
+                self.responses = [json.dumps(unsupported), json.dumps(corrected)]
+                self.prompts = []
+
+            def text(self, prompt, **_kwargs):
+                self.prompts.append(prompt)
+                return self.responses.pop(0)
+
+        provider = Provider()
+        result = PlanAgent(provider, model="fixture").propose(
+            "Where does target selection first become weak?",
+            capabilities=_capabilities(),
+            evidence_history=[_evidence("success")],
+        )
+
+        self.assertEqual(
+            result["proposal"]["sub_aspect"],
+            "scene_geometry.distractor_spacing",
+        )
+        self.assertEqual(result["provider"]["attempt_count"], 2)
+        self.assertIn("runtime intervention", provider.prompts[1])
+
+    def test_stale_bundle_cannot_be_relabelled_as_post_evidence_refinement(self):
+        query = "Where is this policy's first object-generalization weakness?"
+        bundle = ClaimFirstOpenQueryAgent(
+            _BranchingProvider(), model="fixture"
+        ).propose(
+            query,
+            capabilities=_capabilities(),
+            evidence_history=[],
+        )
+
+        with self.assertRaisesRegex(
+            ClaimFirstPlanError,
+            "does not match the current completed",
+        ):
+            validate_open_query_proposal_lineage(
+                bundle,
+                user_query=query,
+                capabilities=_capabilities(),
+                evidence_history=[_evidence("success")],
+            )
 
     def test_frozen_intent_repairs_silent_diagnostic_proxy(self):
         provider = _IntentRepairProvider()

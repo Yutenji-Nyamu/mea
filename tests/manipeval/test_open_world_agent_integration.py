@@ -78,7 +78,7 @@ class OpenWorldAgentIntegrationTest(unittest.TestCase):
             self.assertIsNone(round_plan["template_id"])
             self.assertEqual(
                 round_plan["candidate_id"],
-                round_plan["experiment_candidate"]["candidate_id"],
+                round_plan["proposal"]["candidate_id"],
             )
             self.assertEqual(
                 round_plan["route"],
@@ -119,7 +119,7 @@ class OpenWorldAgentIntegrationTest(unittest.TestCase):
             "official_check_success",
         )
         self.assertIsNone(
-            round_plan["experiment_candidate"]["checker_need"]
+            round_plan["proposal"]["checker_need"]
         )
 
     def test_vqa_only_round_keeps_rule_tool_unrequested(self):
@@ -241,7 +241,7 @@ class OpenWorldAgentIntegrationTest(unittest.TestCase):
             "round_id": "round_2",
             "template_id": None,
             "candidate_id": candidate["candidate_id"],
-            "experiment_candidate": candidate,
+            "proposal": candidate,
             "sub_aspect": "object_physics.mass",
             "task_instruction": candidate["source_query"],
             "task_name": "adjust_bottle",
@@ -273,7 +273,7 @@ class OpenWorldAgentIntegrationTest(unittest.TestCase):
             max_reflections=1,
         )
         self.assertEqual(run_id, "run_open_world_fixture_round_2")
-        self.assertIn("--experiment-candidate-json", command)
+        self.assertIn("--proposal-json", command)
         self.assertIn("generic_provider_scene_checker_codegen", command)
         self.assertNotIn("--variant-id", command)
         self.assertIn("--run-act", command)
@@ -285,7 +285,7 @@ class OpenWorldAgentIntegrationTest(unittest.TestCase):
             "round_id": "round_2",
             "template_id": None,
             "candidate_id": candidate["candidate_id"],
-            "experiment_candidate": candidate,
+            "proposal": candidate,
             "sub_aspect": "object_physics.mass",
             "task_instruction": candidate["source_query"],
             "task_name": "adjust_bottle",

@@ -124,6 +124,41 @@ def infer_claim_type(user_query: str) -> str:
     """
 
     query = _text(user_query, "user_query").casefold()
+    # These are truth-condition markers, not task/aspect keywords.  Keeping
+    # the Chinese forms explicit avoids constraining concern discovery while
+    # giving a Chinese Query the same stopping semantics as its English form.
+    if (
+        any(marker in query for marker in ("列出", "枚举", "汇总", "哪些"))
+        and any(marker in query for marker in ("失败", "失效"))
+    ):
+        return "failure_enumeration"
+    chinese_markers = (
+        ("worst_case", ("最差", "最弱表现", "表现最低")),
+        (
+            "failure_enumeration",
+            ("列出所有失败", "枚举失败", "全部失败模式", "哪些条件会失败"),
+        ),
+        ("comparative", ("比较", "对比", "优于", "劣于", "差异")),
+        ("universal", ("所有", "全部", "每个", "任意一个", "任何一个")),
+        (
+            "existential",
+            (
+                "至少一个",
+                "是否有一个",
+                "是否存在",
+                "存不存在",
+                "有没有一种",
+                "存在一个",
+                "哪一种",
+                "哪一个",
+                "暴露弱点",
+                "找到反例",
+            ),
+        ),
+    )
+    for claim_type, markers in chinese_markers:
+        if any(marker in query for marker in markers):
+            return claim_type
     patterns = (
         (
             "worst_case",
@@ -153,13 +188,37 @@ def infer_claim_type(user_query: str) -> str:
         (
             "existential",
             r"\b(any\s+one|at\s+least\s+one|exists?|some)\b"
-            r"|至少(?:有)?一个|是否有一个|存在一个",
+            r"|至少(?:有)?一个|是否有一个|是否存在|存不存在"
+            r"|有没有一种|存在一个",
         ),
     )
     for claim_type, pattern in patterns:
         if re.search(pattern, query, re.IGNORECASE):
             return claim_type
     return "diagnostic"
+
+
+def infer_existential_witness_outcome(user_query: str) -> str:
+    """Return the outcome that satisfies one existential Query.
+
+    Existence-of-success Queries keep the conventional ``pass`` witness.
+    Queries asking for a weakness, failure, or counterexample instead require
+    a measured ``fail`` witness.
+    """
+
+    query = _text(user_query, "user_query").casefold()
+    if (
+        re.search(
+            r"\b(?:fail(?:s|ed|ing|ure)?|weakness|counterexample|breaks?)\b",
+            query,
+        )
+        or any(
+            marker in query
+            for marker in ("失败", "失效", "弱点", "反例", "崩溃")
+        )
+    ):
+        return "fail"
+    return "pass"
 
 
 def infer_control_requirement(
@@ -285,7 +344,10 @@ def build_query_sufficiency_contract(
             else candidate_universe_closed
         ),
         "existential_witness_outcome": (
-            str(existential_witness_outcome or "pass")
+            str(
+                existential_witness_outcome
+                or infer_existential_witness_outcome(user_query)
+            )
             if resolved_type == "existential"
             else None
         ),

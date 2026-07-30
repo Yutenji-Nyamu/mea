@@ -1,0 +1,120 @@
+{
+  "accepted_result": {
+    "provider_metadata": {
+      "finish_reason": "stop",
+      "id": "chatcmpl-E7B8oBUIRSZAz6D7VVeBnth7C8Lhq",
+      "model": "gpt-4o-2024-11-20",
+      "retry_count": 0,
+      "usage": {
+        "completion_tokens": 604,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": 0
+        },
+        "latency_checkpoint": {
+          "engine_tbt_ms": 4,
+          "engine_ttft_ms": 129,
+          "engine_ttlt_ms": 2752,
+          "pre_inference_ms": 144,
+          "service_tbt_ms": 4,
+          "service_ttft_ms": 567,
+          "service_ttlt_ms": 3178,
+          "total_duration_ms": 3042,
+          "user_visible_ttft_ms": 423
+        },
+        "prompt_tokens": 4792,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0
+        },
+        "total_tokens": 5396
+      }
+    },
+    "runtime": {
+      "provider_calls": 1
+    },
+    "status": "accepted"
+  },
+  "attempt_count": 1,
+  "attempts": [
+    {
+      "attempt_index": 1,
+      "failure": null,
+      "finished_at": "2026-07-30T10:52:46.815842+08:00",
+      "recovery_action": "none",
+      "requested_action": null,
+      "result": {
+        "provider_metadata": {
+          "finish_reason": "stop",
+          "id": "chatcmpl-E7B8oBUIRSZAz6D7VVeBnth7C8Lhq",
+          "model": "gpt-4o-2024-11-20",
+          "retry_count": 0,
+          "usage": {
+            "completion_tokens": 604,
+            "completion_tokens_details": {
+              "accepted_prediction_tokens": 0,
+              "audio_tokens": 0,
+              "reasoning_tokens": 0,
+              "rejected_prediction_tokens": 0
+            },
+            "latency_checkpoint": {
+              "engine_tbt_ms": 4,
+              "engine_ttft_ms": 129,
+              "engine_ttlt_ms": 2752,
+              "pre_inference_ms": 144,
+              "service_tbt_ms": 4,
+              "service_ttft_ms": 567,
+              "service_ttlt_ms": 3178,
+              "total_duration_ms": 3042,
+              "user_visible_ttft_ms": 423
+            },
+            "prompt_tokens": 4792,
+            "prompt_tokens_details": {
+              "audio_tokens": 0,
+              "cached_tokens": 0
+            },
+            "total_tokens": 5396
+          }
+        },
+        "runtime": {
+          "provider_calls": 1
+        },
+        "status": "accepted"
+      },
+      "runtime": {
+        "act_rollouts_started": 0,
+        "expert_probes": 0,
+        "provider_calls": 1,
+        "simulator_probes": 0
+      },
+      "started_at": "2026-07-30T10:50:28.888905+08:00",
+      "status": "accepted"
+    }
+  ],
+  "max_regenerations": 2,
+  "policy_retry_allowed": false,
+  "proposal_identity_sha256": "8043603919160f31762c716504980c4fd28258e9fde9f0510a8018e867d22514",
+  "recovery_action_limits": {
+    "regenerate_candidate": 1,
+    "repair_scene": 0,
+    "repair_success_spec": 1
+  },
+  "recovery_action_usage": {
+    "regenerate_candidate": 0,
+    "repair_scene": 0,
+    "repair_success_spec": 0
+  },
+  "recovery_budget_mode": "per_action",
+  "recovery_scope": "task_generation_before_policy",
+  "regenerations_used": 0,
+  "runtime": {
+    "act_rollouts_started": 0,
+    "expert_probes": 0,
+    "provider_calls": 1,
+    "simulator_probes": 0
+  },
+  "schema_version": 1,
+  "status": "accepted"
+}

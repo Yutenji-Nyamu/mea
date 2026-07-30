@@ -1,77 +1,233 @@
-# 当前证据：开放 Query 三轮运行的语义审计
+# MEA method evidence: eval_20260730_b44_grab_roller_plan_agent_live13
 
-这份精简包对应服务器运行
-`eval_20260728_batch29_open_flagship_v19`。它保留论文方法所需的干净数据流，
-不包含 raw telemetry、重复 montage、调试日志或事后 repair 流程。
+> This is a compact view of real run artifacts. The complete machine audit remains in the evaluation directory.
 
-## 一句话结果
+## 1. Query and fixed policy scope
 
-输入没有 aspect/template 的开放 Query 后，Planner 先测试铃铛颜色；该候选的
-official rollout 成功，于是 runtime 根据 evidence 改测 80% 尺寸候选，后者的
-official rollout 失败。三轮在线机械链与 Tool
-生成/复用都真实完成，但事后 authority 审计发现两个动态候选都没有完整满足
-preservation contract；最终方法结论必须改为 `inconclusive / accepted=false`。
+> 只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。
 
-## 三轮证据
+```json
+{
+  "binding_mode": "single_task_single_checkpoint_open_world",
+  "task_name": "grab_roller",
+  "task_profile": null,
+  "policy": {
+    "name": "ACT",
+    "checkpoint_setting": "demo_clean",
+    "expert_data_num": 50,
+    "language_conditioned": false
+  },
+  "checkpoint": {
+    "policy_name": "ACT",
+    "checkpoint_setting": "demo_clean",
+    "expert_data_num": 50,
+    "checkpoint_id": "act-grab_roller/demo_clean-50",
+    "ready": true
+  },
+  "round_budget": 2,
+  "episodes_per_round": [
+    1,
+    1
+  ]
+}
+```
 
-| 轮次 | 测试 | ACT 官方成功 | Rule Tool |
-|---|---|---:|---|
-| 1 | official control | 1/1 | official metrics |
-| 2 | 意图仅改变铃铛颜色；geometry preservation 未获完整 authority | 1/1 | 现场生成；最小 XY 误差 0.0077674431 m |
-| 3 | 80% 尺寸候选；同时存在 contact-point z 漂移 | 0/1 | 同一 Tool 精确复用；最小 XY 误差 0.0452577472 m |
+One evaluation keeps this task and policy checkpoint fixed. Adaptation happens only across this task's sub-aspects/variants.
 
-三轮均使用 seed `100000`。这不是统计泛化或 benchmark 排名证据。
-其中 80% 尺寸候选保持了 bell center，却把成功判定使用的 contact point 的
-z 坐标从 `0.7667903972 m` 改为 `0.7616323171 m`（偏移
-`-0.0051580801 m`）。因此该失败同时包含尺寸与接触高度变化，不能归因为纯尺寸变化。
+## 2. Paper-level data flow
 
-## 按论文数据流阅读
+```mermaid
+flowchart LR
+  Q["Open Query"] --> P["Plan Agent / sub-aspect"]
+  P --> T["TaskGen: reuse or generate"]
+  T --> I["Render / visual reflection"]
+  I --> E["Policy rollout"]
+  E --> V["Rule Tool + dynamic VQA"]
+  V --> A["Aggregate"]
+  A -->|"evidence"| P
+  A --> R["Final answer"]
+```
 
-1. Query 与开放路由：
-   [request.json](artifacts/query/request.json) →
-   [FreeConcern prompt](artifacts/plan/free_concern_prompt.md) /
-   [response](artifacts/plan/free_concern_response.txt) →
-   [free_concern.json](artifacts/plan/free_concern.json)。
-2. 首轮动态候选：
-   [颜色 candidate](artifacts/plan/candidate_round_2.json)；
-   成功 evidence 后见
-   [transition_after_round_2.json](artifacts/plan/transition_after_round_2.json)。
-3. TaskGen：
-   [颜色生成代码](artifacts/taskgen/round_2/task.py) 与
-   [尺寸生成代码](artifacts/taskgen/round_3/task.py)；
-   每轮目录同时保留 provider prompt/response、静态验证、render/VLM
-   visual diagnosis 和 expert preflight。
-4. ToolGen：
-   [生成 Tool](artifacts/tool/generated_tool.py) →
-   [round 2 live execution](artifacts/tool/round_2_live_execution.json) →
-   [round 3 exact-reuse route](artifacts/tool/round_3_exact_reuse_route.json) /
-   [execution](artifacts/tool/round_3_live_execution.json)。
-5. Rollout 与 Aggregate：
-   [official](artifacts/rollout/round_1_official_seed_100000.mp4)、
-   [颜色](artifacts/rollout/round_2_color_seed_100000.mp4)、
-   [80% 尺寸](artifacts/rollout/round_3_size_80_seed_100000.mp4)；
-   对应 compact Aggregate 位于 `artifacts/aggregate/`。
-6. Planner 停止与回答：
-   [final runtime state](artifacts/plan/final_runtime_state.json) →
-   [query_answer.json](artifacts/answer/query_answer.json) →
-   [final_answer.md](artifacts/answer/final_answer.md)。这三项保留 source runtime 的
-   `evidence_sufficient/diagnosed` 输出用于审计，已被下述 semantic audit 覆盖，不能
-   当作当前项目结论。
+## 3. Initial decomposition
 
-## 最终语义审计
+```json
+{
+  "evaluation_goal": "answer_open_query_with_evidence: 只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。",
+  "selected_aspect_ids": null,
+  "requested_template_ids": [
+    "task_execution.official_baseline"
+  ],
+  "first_round": "round_1",
+  "planning_state": "stopped_after_round_2_evidence_sufficient"
+}
+```
 
-live 运行时使用的旧 reporting projection 只接受恰好两轮，因此原 manifest 中
-`accepted=false`。随后一版只放宽到 2–3 轮的 post-run projection 曾得到
-`accepted=true`，但它沿用了错误的 VLM preservation authority，现已明确废弃。
+- Query interpretation trace: [prompt](artifacts/plan/query_interpretation_prompt.md) / [response 1](artifacts/plan/query_interpretation_response_1.txt) / [response 2](artifacts/plan/query_interpretation_response_2.txt)
 
-最终 [append-only semantic audit](artifacts/plan/semantic_preservation_audit.json)
-用 same-seed simulator state 重算：
+## 4.1. round_1: task_execution.official_baseline
 
-- round 2 的 center position 有数值 authority，但 shape/size 无 simulator/AST
-  authority，`ImplementationTrace=direct+partial`；
-- round 3 的 contact-point world position 明确不相等，
-  `ImplementationTrace=direct+partial` 且 `repair_required=true`；
-- corrected flagship acceptance 为 `false`，原 Query 为 `inconclusive`。
+### Plan → TaskGen
 
-三次 ACT、视频和 Tool 数值仍是对实际执行场景的有效描述；它们不能直接回答原本要求
-“其他条件保持不变”的纯属性变化 Query。源运行工件没有被回写，也没有增加 ACT。
+- Task: `grab_roller`
+- Instruction: 只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。
+
+### TaskGen output
+
+- Route: `official`
+- Materialization: `official_passthrough`
+- Child run: `run_20260730_b44_grab_roller_plan_agent_live13_round_1`
+- Validation gates: {"generation_attempts": null, "checker_fixtures": null, "vision_passed": null, "expert_passed": null}
+- Official passthrough marker: [round_1_overlay.yml](code/round_1_overlay.yml)
+- VariantSpec: [round_1_variant_spec.json](data/round_1_variant_spec.json)
+
+### Render / scene check
+
+![round_1 initial scene](assets/round_1_scene.png)
+
+### Policy rollout
+
+```json
+{
+  "backend": "ACT",
+  "seeds": [
+    100301
+  ],
+  "pipeline_passed": true,
+  "policy_success": 1.0
+}
+```
+
+[Open policy video](assets/round_1_act.mp4)
+
+<video src="assets/round_1_act.mp4" controls width="720"></video>
+
+### Tool / VQA
+
+- Tool route: `reuse`
+- Metric: `official_check_success`
+- Measurements: [{"role": "policy_under_evaluation", "policy_name": "ACT", "seed": 100301, "value": true, "unit": null, "passed": true}]
+- VQA status: `passed`; conflict: `False`
+- VQA phenomena: [{"id": "roller_visibly_lifted", "observed": true, "description": "The roller is visibly lifted by both robot arms.", "confidence": 1.0, "frame_ids": ["success_after"]}]
+
+![round_1 VQA keyframes](assets/round_1_vqa_montage.png)
+
+### Aggregate -> next decision
+
+- Aggregate: `passed`
+- Policy success: `1.0`
+- Decision: {"action": "continue", "transition": "switch_concern", "decision_reason": "provider_authored_open_world_step", "observation_summary": "This test isolates the effect of the non-target roller's proximity on the policy's ability to achieve the success conditions defined in the Query. It directly addresses the Query's core uncertainty by introducing a controlled perturbation to the scene.", "answered_query": false, "evidence_sufficient": null, "claim_verdict": null, "stop_reason": null}
+
+## 4.2. round_2: task_execution.non_target_proximity_effect
+
+### Plan → TaskGen
+
+- Task: `grab_roller`
+- Instruction: 只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。
+Scene need: Place a non-target roller with identical appearance closer to the robot than the target roller. Preserve unchanged: task identity; policy checkpoint.
+Checker need: A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters. Numeric Rule Tool needed to report the final height difference between the target and non-target rollers. Hypothesis: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.
+
+### TaskGen output
+
+- Route: `generic_provider_scene_checker_codegen`
+- Materialization: `generic_provider_scene_checker_codegen`
+- Child run: `run_20260730_b44_grab_roller_plan_agent_live13_round_2`
+- Validation gates: {"generation_attempts": 1, "checker_fixtures": "2/2", "vision_passed": true, "expert_passed": true}
+- Proposal: [proposal.json](artifacts/taskgen/round_2/generation/proposal.json)
+- Provider trace: [prompt](artifacts/taskgen/round_2/generation/code_prompt.md) / [response](artifacts/taskgen/round_2/generation/provider_response.txt)
+- Full task artifact: [round_2_task.py](code/round_2_task.py)
+
+### Render / scene check
+
+![round_2 initial scene](assets/round_2_scene.png)
+
+### Policy rollout
+
+```json
+{
+  "backend": "ACT",
+  "seeds": [
+    100301
+  ],
+  "pipeline_passed": true,
+  "policy_success": 1.0
+}
+```
+
+[Open policy video](assets/round_2_act.mp4)
+
+<video src="assets/round_2_act.mp4" controls width="720"></video>
+
+### Tool / VQA
+
+- Tool route: `typed_metric_spec_compile`
+- Metric: `query_derived_metric`
+- Measurements: [{"role": "policy_under_evaluation", "policy_name": "ACT", "seed": 100301, "value": 0.05838477611541748, "unit": "m", "passed": null}]
+- [Open generated/reused Tool source](code/round_2_tool.py)
+- VQA status: `passed`; conflict: `False`
+- VQA phenomena: [{"id": "roller_visibly_lifted", "observed": true, "description": "The roller is visibly lifted by both robot arms in the final frame.", "confidence": 0.95, "frame_ids": ["final"]}]
+
+![round_2 VQA keyframes](assets/round_2_vqa_montage.png)
+
+### Aggregate -> next decision
+
+- Aggregate: `passed`
+- Policy success: `1.0`
+- Decision: {"action": "stop", "transition": "stop", "decision_reason": "plan_agent_evidence_sufficiency", "observation_summary": "A definitive pass candidate witnesses the existential claim.", "answered_query": true, "evidence_sufficient": true, "claim_verdict": "supported", "stop_reason": "evidence_sufficient"}
+
+## 5. Final answer to the original Query
+
+> 是的，存在一个成功样本。
+
+```json
+{
+  "findings": [
+    "目标滚筒的最终高度不低于0.8米，非目标滚筒的最终高度低于0.8米。",
+    "目标滚筒与非目标滚筒的最终高度差为0.0584米。"
+  ],
+  "recommended_next_step": "若需更广泛的结论，建议增加样本数量并进行多种场景的测试。",
+  "limitations": [
+    "证据包含2个样本，种子为[100301]。",
+    "本次评估基于有限域的查询充分性协议，不能作为统计泛化的保证。",
+    "至少一个候选项的结论基于生成的检查器，不能视为官方基准的成功结果。",
+    "生成的检查器尚未被认证为与官方核心谓词等效，其结论应视为实验性。",
+    "Evidence contains N=2 policy episodes at seeds [100301].",
+    "The run stopped because the finite query-sufficiency contract was satisfied; this is not a statistical generalization guarantee."
+  ]
+}
+```
+
+## 6. Boundaries
+
+- Policy results and pipeline status are reported separately.
+- Expert evidence, when present, is a solvability/instrumentation gate, not evaluated-policy performance.
+- Few-shot N=1 rounds demonstrate method wiring, not benchmark-level generalization.
+- Missing artifacts are shown as N/A; this report never substitutes proxy images or invented values.
+
+## 7. Raw artifact index
+
+- [Payload inventory with bytes and SHA-256](evidence_bundle_manifest.json)
+
+### Append-only completed-round Tool reuse audit
+
+```json
+{
+  "repair_id": "live13_exact_tool_reuse_v1",
+  "act_rollouts_started": 0,
+  "first_query_route": "typed_metric_spec_compile",
+  "first_query_measurements": [
+    0.05838477611541748
+  ],
+  "exact_reuse_route": "run_local_reuse",
+  "exact_reuse_provider_called": false,
+  "aggregate_status": "passed"
+}
+```
+
+This audit reuses completed policy telemetry and starts no simulator or policy rollout. It proves exact run-local reuse, not independent cross-evaluation reuse.
+
+- Server source: `mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/manifest.json`
+- Server source: `mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/plan/evaluation_plan.json`
+- Server source: `mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/plan/bound_task_session.json`
+- Server source: `mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/summary/evidence_bundle.json`
+- Server source: `mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/answer/answer.json`
+- Server source: `mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/evaluation_report.md`

@@ -110,7 +110,7 @@ def click_near_tie_inventory() -> list[dict]:
     ]
 
 
-class FreeConcernTests(unittest.TestCase):
+class QueryInterpretationTests(unittest.TestCase):
     class Provider:
         last_metadata = {"provider": "fixture"}
 
@@ -130,6 +130,8 @@ class FreeConcernTests(unittest.TestCase):
         self.assertIn("not available until a later retrieval stage", prompt)
         self.assertIn("invariant base action", prompt)
         self.assertIn("Put distractors", prompt)
+        self.assertIn("jointly realizable", prompt)
+        self.assertIn("RGB is only", prompt)
         self.assertNotIn("open_laptop", prompt)
         self.assertNotIn("object.appearance", prompt)
 
@@ -149,8 +151,14 @@ class FreeConcernTests(unittest.TestCase):
     def test_agent_retries_without_ever_exposing_inventory(self):
         value = concern("grab a hammer and hit the target block")
         provider = self.Provider(["{}", json.dumps(value)])
-        result = resolver.FreeConcernAgent(provider, model="fixture").propose(
+        result = resolver.PlanAgentQueryInterpreter(
+            provider, model="fixture"
+        ).propose(
             value["source_query"], policy_card=single_task_policy()
+        )
+        self.assertEqual(
+            result["source"],
+            "provider_plan_agent_query_interpretation",
         )
         self.assertEqual(result["concern"], value)
         self.assertEqual(result["provider"]["attempt_count"], 2)
@@ -182,7 +190,7 @@ class FreeConcernTests(unittest.TestCase):
         }
         provider = self.Provider([json.dumps(typed)])
 
-        result = resolver.FreeConcernAgent(
+        result = resolver.PlanAgentQueryInterpreter(
             provider,
             model="fixture",
         ).propose(value["source_query"], policy_card=single_task_policy())
@@ -197,17 +205,78 @@ class FreeConcernTests(unittest.TestCase):
         )
         self.assertIn("A Tool-only Query must not invent", provider.prompts[0])
 
+    def test_explicit_success_definition_retries_until_checker_is_requested(self):
+        query = (
+            "是否存在一个成功样本，使 ACT 只抬起目标滚筒且不抬起"
+            "非目标滚筒？"
+        )
+        value = {
+            **concern("lift the target roller"),
+            "source_query": query,
+        }
+        false_needs = {
+            **value,
+            "scene_need": {
+                "required": True,
+                "description": "Add one physical distractor roller.",
+            },
+            "checker_need": {"required": False, "description": None},
+            "rule_tool_need": {
+                "required": True,
+                "description": "Measure target and distractor lift.",
+                "reuse_first": True,
+            },
+            "vqa_tool_need": {
+                "required": False,
+                "description": None,
+                "reuse_first": True,
+            },
+        }
+        corrected = {
+            **false_needs,
+            "checker_need": {
+                "required": True,
+                "description": (
+                    "Success iff the target is lifted and the distractor is not."
+                ),
+            },
+        }
+        provider = self.Provider(
+            [json.dumps(false_needs), json.dumps(corrected)]
+        )
+
+        result = resolver.PlanAgentQueryInterpreter(
+            provider,
+            model="fixture",
+        ).propose(query, policy_card=single_task_policy("grab_roller"))
+
+        self.assertTrue(
+            result["experiment_needs"]["checker_need"]["required"]
+        )
+        self.assertEqual(result["provider"]["attempt_count"], 2)
+        self.assertIn(
+            '"checker_need": {\n    "required": true',
+            provider.prompts[0],
+        )
+        self.assertIn("checker_need.required", provider.prompts[1])
+
     def test_agent_can_be_frozen_to_one_attempt(self):
         provider = self.Provider(["{}"])
         with self.assertRaisesRegex(
             resolver.OpenTaskResolutionError, "1 FreeConcern attempt"
         ):
-            resolver.FreeConcernAgent(
+            resolver.PlanAgentQueryInterpreter(
                 provider, model="fixture", max_attempts=1
             ).propose(
                 "Which concern matters?", policy_card=single_task_policy()
             )
         self.assertEqual(len(provider.prompts), 1)
+
+    def test_historical_free_concern_class_name_remains_readable(self):
+        self.assertIs(
+            resolver.FreeConcernAgent,
+            resolver.PlanAgentQueryInterpreter,
+        )
 
 
 class InventoryTests(unittest.TestCase):
@@ -248,6 +317,32 @@ class InventoryTests(unittest.TestCase):
         )
         self.assertEqual(discovered[0]["execution_status"], "capability_registered")
         self.assertEqual(discovered[1]["execution_status"], "official_base_only")
+
+    def test_runtime_inventory_requires_source_and_schema_not_registration(self):
+        root = Path(__file__).resolve().parents[2]
+        discovered = resolver.discover_robotwin_runtime_task_inventory(root)
+        names = {item["task_name"] for item in discovered}
+
+        self.assertTrue(
+            {
+                "adjust_bottle",
+                "beat_block_hammer",
+                "click_bell",
+                "grab_roller",
+                "place_phone_stand",
+            }.issubset(names)
+        )
+        for task_name in names:
+            self.assertTrue((root / "envs" / f"{task_name}.py").is_file())
+            self.assertTrue(
+                (
+                    root
+                    / "mea"
+                    / "toolkit"
+                    / "schemas"
+                    / f"{task_name}.json"
+                ).is_file()
+            )
 
     def test_catalog_capabilities_do_not_change_semantic_ranking(self):
         base = inventory()
@@ -302,7 +397,7 @@ class PolicyGateTests(unittest.TestCase):
             result["selected_base_task"]["task_name"], "beat_block_hammer"
         )
         self.assertEqual(
-            result["free_concern"]["sub_aspect"],
+            result["query_interpretation"]["sub_aspect"],
             "novel.reflective_surface_confusion",
         )
         self.assertEqual(

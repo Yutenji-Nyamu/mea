@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from mea.feedback import FeedbackAgent, render_evaluation_report
+from mea.feedback import PlanAgentFinalSummary, render_evaluation_report
 
 
 FEEDBACK = {
@@ -55,7 +55,7 @@ class AlwaysContradictoryProvider:
         return json.dumps(value)
 
 
-class FeedbackAgentTests(unittest.TestCase):
+class PlanAgentFinalSummaryTests(unittest.TestCase):
     def test_generates_feedback_and_unified_report(self):
         repo_root = Path(__file__).resolve().parents[2]
         evidence = {
@@ -126,18 +126,26 @@ class FeedbackAgentTests(unittest.TestCase):
         }
         with tempfile.TemporaryDirectory() as temp:
             provider = FakeProvider()
-            feedback = FeedbackAgent(
+            feedback = PlanAgentFinalSummary(
                 repo_root,
                 provider,
                 model="fake-feedback",
             ).generate(evidence, output_dir=Path(temp))
             self.assertEqual(feedback["answer"], FEEDBACK["answer"])
-            self.assertTrue((Path(temp) / "feedback.json").is_file())
-            self.assertIn("禁止从 episode", provider.prompts[0])
-            self.assertIn("simulator numeric Tool", provider.prompts[0])
+            self.assertTrue((Path(temp) / "answer.json").is_file())
+            self.assertIn(
+                "Use `observations.aggregate` as the only source",
+                provider.prompts[0],
+            )
+            self.assertIn(
+                "Simulator numeric Tools are authoritative",
+                provider.prompts[0],
+            )
             self.assertTrue(feedback["evidence_policy"]["evidence_conflict"])
             self.assertFalse(
-                feedback["evidence_policy"]["episode_math_by_feedback_agent"]
+                feedback["evidence_policy"][
+                    "episode_math_by_plan_agent_summary"
+                ]
             )
             report = render_evaluation_report(evidence, feedback)
             self.assertIn("`beat_block_hammer`", report)
@@ -186,7 +194,7 @@ class FeedbackAgentTests(unittest.TestCase):
             }
         }
         with tempfile.TemporaryDirectory() as temp:
-            feedback = FeedbackAgent(
+            feedback = PlanAgentFinalSummary(
                 repo_root,
                 AlwaysContradictoryProvider(),
                 model="fake-feedback",
@@ -210,7 +218,7 @@ class FeedbackAgentTests(unittest.TestCase):
         }
         provider = ContradictoryThenCorrectProvider()
         with tempfile.TemporaryDirectory() as temp:
-            feedback = FeedbackAgent(
+            feedback = PlanAgentFinalSummary(
                 repo_root,
                 provider,
                 model="fake-feedback",
@@ -349,7 +357,7 @@ class FeedbackAgentTests(unittest.TestCase):
             }
         }
         with tempfile.TemporaryDirectory() as temp:
-            feedback = FeedbackAgent(
+            feedback = PlanAgentFinalSummary(
                 repo_root,
                 AlwaysContradictoryProvider(),
                 model="fake-feedback",

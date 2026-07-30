@@ -160,7 +160,7 @@ def efficiency_attempt(
 def run_efficiency(root: Path, prereg_path: Path, output_root: Path) -> None:
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
-    from mea.live_paper_protocols import evaluate_click_bell_efficiency
+    from experiments.paper.live_protocols import evaluate_click_bell_efficiency
     from mea.planner.query_contract import assess_query_sufficiency
 
     prereg = read_json(prereg_path)
@@ -490,7 +490,7 @@ def run_ranking(
 ) -> None:
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
-    from mea.live_paper_protocols import evaluate_exact_seed_ranking
+    from experiments.paper.live_protocols import evaluate_exact_seed_ranking
 
     prereg = read_json(prereg_path)
     output_root.mkdir(parents=True, exist_ok=True)
@@ -795,7 +795,7 @@ def run_table3(
 ) -> None:
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
-    from mea.live_paper_protocols import evaluate_table3_codegen
+    from experiments.paper.live_protocols import evaluate_table3_codegen
 
     prereg = read_json(prereg_path)
     output_root.mkdir(parents=True, exist_ok=True)

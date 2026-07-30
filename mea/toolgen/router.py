@@ -119,6 +119,7 @@ def catalog_snapshot() -> dict[str, Any]:
                 "event_count",
                 "minimum_distance",
                 "terminal_signal_component",
+                "terminal_signal_difference",
                 "time_between_events",
             ],
             "execution": "compile_validate_register",

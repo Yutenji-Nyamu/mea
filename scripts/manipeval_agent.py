@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
 import hashlib
 import json
 import re
@@ -22,6 +21,24 @@ from mea.execution_vqa import (
     is_run_local_phenomenon_id,
     run_execution_vqa,
 )
+from mea.agent_cli import (
+    parse_args,
+    resolve_plan_agent_allowed_aspects,
+    resolve_plan_agent_candidate_budget,
+    resolve_plan_agent_control_required,
+    resolve_default_open_query_planner,
+)
+from mea.agent_acceptance import (
+    _episode_tool_results,
+    build_compact_flagship_acceptance,
+)
+from mea.agent_evidence import (
+    _round_evidence,
+    build_evidence_bundle,
+    compact_aggregate_result,
+    compact_trusted_tools,
+    round_execution_backend,
+)
 from mea.capability_adapter import (
     CapabilityAdapterError,
     build_contract_tool_request,
@@ -29,17 +46,32 @@ from mea.capability_adapter import (
     validate_capability_contract,
     validate_contract_changes,
 )
-from mea.feedback import FeedbackAgent, render_evaluation_report, write_evidence_report
+from mea.feedback import (
+    PlanAgentFinalSummary,
+    render_evaluation_report,
+    write_evidence_report,
+)
 from mea.history import EvaluationHistoryDB
+from mea.plan_artifacts import (
+    INITIAL_SUB_ASPECT_PROPOSAL,
+    PLAN_AGENT_CAPABILITIES,
+    PLAN_AGENT_SESSION,
+    PLAN_AGENT_STEPS,
+    PROPOSAL_FILENAME,
+    PROPOSAL_MATERIALIZATION,
+    QUERY_INTERPRETATION,
+    QUERY_INTERPRETATION_PROMPT,
+    QUERY_INTERPRETATION_RESPONSE_PREFIX,
+)
 from mea.planner import (
     AdaptivePlanStepAgent,
     advance_implementation_trace_with_tool,
     BoundTaskPlanSession,
-    OpenWorldPlanSession,
-    ClaimFirstInitialPlanBuilder,
-    ClaimFirstOpenQueryAgent,
-    ClaimFirstRuntimeController,
-    FreeConcernAgent,
+    PlanAgentExecutionSession,
+    PlanAgent,
+    PlanAgentInitialPlanBuilder,
+    PlanAgentQueryInterpreter,
+    PlanAgentSession,
     GlobalQueryRouter,
     build_evidence_aggregate,
     build_implementation_trace,
@@ -47,10 +79,9 @@ from mea.planner import (
     build_initial_semantic_proposal_bundle,
     build_act_catalog,
     build_open_world_evaluation_target,
-    control_template_id,
-    discover_robotwin_task_inventory,
-    evaluation_intent_from_free_concern,
+    evaluation_intent_from_query_interpretation,
     make_evaluation_id,
+    policy_task_binding_from_target,
     project_open_query_capabilities,
     render_query_answer,
     resolve_concern_candidate_domain,
@@ -62,13 +93,19 @@ from mea.planner.experiment_candidate import (
     build_experiment_candidate,
     validate_experiment_candidate,
 )
-from mea.planner.open_task_resolver import rank_official_tasks
+from mea.planner.open_task_resolver import (
+    discover_robotwin_runtime_task_inventory,
+    rank_official_tasks,
+)
 from mea.planner.query_contract import (
     build_query_sufficiency_contract,
     extend_query_candidate_universe,
     infer_claim_type,
-    infer_control_requirement,
     validate_query_sufficiency_contract,
+)
+from mea.planner.runtime_task_binding import (
+    RuntimeTaskBindingError,
+    build_runtime_open_world_evaluation_target,
 )
 from mea.proposals import (
     ProposalError,
@@ -84,9 +121,9 @@ from mea.proposal_agent import (
 )
 from mea.providers import (
     OpenAICompatibleProvider,
-    available_model_profiles,
     resolve_model_profile,
 )
+from mea.robotwin import project_executed_round_through_method_runtime
 from mea.toolgen import (
     OpenToolRequestAgent,
     compatible_reviewed_tool_requests,
@@ -138,47 +175,91 @@ def should_enable_adaptive_plan_step(
     )
 
 
-def supports_claim_first_runtime(
-    catalog: dict[str, Any],
-    task_name: str,
-) -> bool:
-    """Return whether the catalog can retrieve a checkpoint-bound control.
+def discover_ready_plan_agent_targets(
+    repo_root: Path,
+    task_inventory: list[dict[str, Any]],
+    *,
+    max_rounds: int,
+) -> dict[str, Any]:
+    """Bind every source/schema/checkpoint-ready task without a task menu.
 
-    Candidate experiments are generated at runtime and therefore are not an
-    admission requirement.  Failure here means the base task/checkpoint itself
-    is unavailable, not that a concern is absent from a template menu.
+    Task discovery is source/schema driven; checkpoint availability is the
+    only policy-specific execution filter.  CapabilityAdapter and the legacy
+    catalog may later enrich retrieval, but neither authorizes membership in
+    this production runtime map.
     """
 
-    try:
-        target = BoundTaskPlanSession.from_catalog(catalog, task_name).target
-        control_template_id(target)
-    except (KeyError, TypeError, ValueError):
-        return False
-    return True
+    targets: dict[str, dict[str, Any]] = {}
+    excluded: list[dict[str, str]] = []
+    for item in sorted(
+        task_inventory,
+        key=lambda candidate: str(candidate.get("task_name", "")),
+    ):
+        task_name = str(item.get("task_name", "")).strip()
+        if not task_name:
+            raise RuntimeError("runtime task inventory contains no task_name")
+        try:
+            targets[task_name] = build_runtime_open_world_evaluation_target(
+                repo_root,
+                task_name,
+                max_rounds=max_rounds,
+            )
+        except RuntimeTaskBindingError as exc:
+            excluded.append(
+                {
+                    "task_name": task_name,
+                    "reason": str(exc),
+                }
+            )
+    return {
+        "schema_version": 1,
+        "targets": targets,
+        "excluded": excluded,
+    }
 
 
-def build_bound_claim_first_handoff(
-    catalog: dict[str, Any],
+def build_bound_plan_agent_handoff(
+    catalog: dict[str, Any] | None,
     *,
     task_name: str,
     user_request: str,
+    runtime_target: Mapping[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Bind an already resolved task/checkpoint without choosing an aspect.
 
-    FreeConcern and the policy compatibility gate have already selected the
-    executable task.  QueryContract and the direct ClaimFirst initial builder
+    Query interpretation and the policy compatibility gate have already
+    selected the executable task.  QueryContract and the direct Plan Agent
+    initial builder
     decide whether an unchanged control is required later; this handoff must
-    not manufacture an aspect/template proposal.
+    not manufacture an aspect/template proposal.  Production passes only the
+    runtime target; ``catalog`` remains an optional legacy trace input.
     """
 
     target = next(
         (
             deepcopy(item)
-            for item in catalog.get("tasks", [])
+            for item in (catalog or {}).get("tasks", [])
             if item.get("task_name") == task_name
         ),
         None,
     )
+    runtime_binding = (
+        policy_task_binding_from_target(runtime_target)
+        if runtime_target is not None
+        else None
+    )
+    if runtime_binding is not None:
+        if runtime_binding["task_name"] != task_name:
+            raise RuntimeError(
+                "runtime target task differs from the resolved task"
+            )
+        target = {
+            "task_name": runtime_binding["task_name"],
+            "task_family": runtime_binding["task_schema"]["task_family"],
+            "task_profile": "official",
+            "planner_kind": "plan_agent_v1",
+            "checkpoint": deepcopy(runtime_binding["checkpoint"]),
+        }
     if target is None:
         raise RuntimeError(f"bound task is not checkpoint-ready: {task_name!r}")
     request = str(user_request or "").strip()
@@ -212,7 +293,16 @@ def build_bound_claim_first_handoff(
             "checkpoint": deepcopy(target["checkpoint"]),
             "aspects": [],
         },
-        "catalog_sha256": catalog["catalog_sha256"],
+        "catalog_sha256": (
+            catalog.get("catalog_sha256")
+            if isinstance(catalog, Mapping)
+            else None
+        ),
+        "runtime_binding_sha256": (
+            canonical_sha256(runtime_target)
+            if runtime_target is not None
+            else None
+        ),
         "provider_called": False,
         "attempt_count": 0,
         "validation_errors": [],
@@ -226,14 +316,14 @@ def build_bound_claim_first_handoff(
 def build_pending_task_binding_policy_card() -> dict[str, Any]:
     """Describe an unbound checkpoint portfolio without exposing its menu.
 
-    The FreeConcern call must happen before the official task inventory is
+    Query interpretation must happen before the official task inventory is
     retrieved.  This neutral card makes that ordering explicit: it describes
     the evaluation surface, but contains no executable task or aspect name.
     """
 
     return {
         "policy_name": "ACT task-specific checkpoint portfolio",
-        "checkpoint_id": "selected_after_catalog_free_concern",
+        "checkpoint_id": "selected_after_query_interpretation",
         "single_task_checkpoint": False,
         "training_tasks": ["withheld_until_semantic_task_retrieval"],
         "language_conditioned": False,
@@ -242,7 +332,7 @@ def build_pending_task_binding_policy_card() -> dict[str, Any]:
     }
 
 
-def bind_ready_task_after_free_concern(
+def bind_ready_task_after_query_interpretation(
     concern: Mapping[str, Any],
     *,
     inventory: list[dict[str, Any]],
@@ -250,7 +340,7 @@ def bind_ready_task_after_free_concern(
     default_task_name: str,
     semantic_threshold: float = 0.2,
 ) -> dict[str, Any]:
-    """Bind a checkpoint only after a catalog-free semantic concern exists."""
+    """Bind a checkpoint only after inventory-free Query interpretation."""
 
     if not 0.0 < float(semantic_threshold) <= 1.0:
         raise ValueError("semantic_threshold must be in (0, 1]")
@@ -268,32 +358,39 @@ def bind_ready_task_after_free_concern(
             "no checkpoint-ready task remains after semantic task retrieval"
         )
     best = ranked_ready[0]
-    fallback_used = float(best["score"]) < float(semantic_threshold)
-    if fallback_used:
-        selected_name = (
-            default_task_name
-            if default_task_name in ready
-            else sorted(ready)[0]
-        )
-        selected = next(
-            item
-            for item in ranked_ready
-            if str(item["task_name"]) == selected_name
-        )
-        reason = "task_underspecified_cli_default_after_free_concern"
-    else:
-        selected = best
-        reason = "semantic_task_intent_retrieval"
+    del default_task_name  # retained only for historical Python-call compatibility
+    if float(best["score"]) < float(semantic_threshold):
+        return {
+            "schema_version": 1,
+            "binding_status": "ambiguous",
+            "selected_task_name": None,
+            "reason_code": "task_underspecified_no_checkpoint_binding",
+            "fallback_used": False,
+            "catalog_visible_to_concern_model": False,
+            "retrieval_field": "QueryInterpretation.task_intent",
+            "semantic_threshold": float(semantic_threshold),
+            "ranked_ready_tasks": ranked_ready,
+        }
+    selected = best
     return {
         "schema_version": 1,
+        "binding_status": "bound",
         "selected_task_name": str(selected["task_name"]),
-        "reason_code": reason,
-        "fallback_used": fallback_used,
+        "reason_code": "semantic_task_intent_retrieval",
+        "fallback_used": False,
         "catalog_visible_to_concern_model": False,
-        "retrieval_field": "FreeConcern.task_intent",
+        "retrieval_field": "QueryInterpretation.task_intent",
         "semantic_threshold": float(semantic_threshold),
         "ranked_ready_tasks": ranked_ready,
     }
+
+
+# Compatibility names for paper protocols and historical imports.
+discover_ready_claim_first_targets = discover_ready_plan_agent_targets
+build_bound_claim_first_handoff = build_bound_plan_agent_handoff
+bind_ready_task_after_free_concern = (
+    bind_ready_task_after_query_interpretation
+)
 
 
 def concern_candidate_domain_is_executable(
@@ -352,6 +449,22 @@ def canonical_sha256(value: Any) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
+def bound_target_task_name(target: Mapping[str, Any]) -> str:
+    """Read a legacy target or the production PolicyTaskBinding identity."""
+
+    task_name = target.get("task_name")
+    if not isinstance(task_name, str) or not task_name.strip():
+        binding = target.get("policy_task_binding")
+        task_name = (
+            binding.get("task_name")
+            if isinstance(binding, Mapping)
+            else None
+        )
+    if not isinstance(task_name, str) or not task_name.strip():
+        raise RuntimeError("evaluation target has no bound task identity")
+    return task_name.strip()
+
+
 def apply_bounded_round_proposal(
     *,
     proposal_agent: BoundedProposalAgent,
@@ -366,7 +479,7 @@ def apply_bounded_round_proposal(
     """Author and persist one bounded Task/Tool Proposal for a materialized round."""
 
     round_plan = deepcopy(round_plan)
-    bound_task_name = str(target.get("task_name") or "")
+    bound_task_name = bound_target_task_name(target)
     supplied_task_name = round_plan.get("task_name")
     if supplied_task_name not in {None, bound_task_name}:
         raise RuntimeError("round proposal cannot change the bound task")
@@ -387,7 +500,7 @@ def apply_bounded_round_proposal(
         and set(semantic_proposal).issubset({"task_need", "tool_need"})
     ):
         # Paper-ablation compatibility only.  The old bounded adapter carried
-        # a read-only two-need projection, not a complete ClaimFirst Proposal.
+        # a read-only two-need projection, not a complete Plan Agent Proposal.
         # Translate it at this legacy boundary without weakening the typed
         # production Proposal validator.
         legacy_task_need = deepcopy(semantic_proposal.get("task_need"))
@@ -509,7 +622,7 @@ def apply_bounded_round_proposal(
             provider_scene_checker_requested
             and semantic_proposal is not None
         ):
-            # The public ClaimFirst agent already authored the semantic
+            # The public Plan Agent already authored the semantic
             # Proposal. Re-asking a second model to copy the registered
             # scene/checker envelope adds no paper-level decision and can
             # invent incompatible VQA ids. Bind that semantic need directly
@@ -526,12 +639,12 @@ def apply_bounded_round_proposal(
                 )["route_decision"],
             }
             proposal_source = (
-                "runtime_bound_claim_first_semantics_to_registered_"
+                "runtime_bound_plan_agent_semantics_to_registered_"
                 "scene_checker"
             )
             prompt_text = (
                 "No second Proposal-model call. The provider-authored "
-                "ClaimFirst semantic need is bound to the registered "
+                "Plan Agent semantic need is bound to the registered "
                 "provider scene+checker capability; executable code remains "
                 "provider-generated and validated by TaskGen.\n"
             )
@@ -821,19 +934,23 @@ def write_open_task_resolution_trace(
     concern_bundle: dict[str, Any],
     task_inventory: list[dict[str, Any]],
     task_resolution: dict[str, Any],
-    concern_agent: FreeConcernAgent,
+    concern_agent: PlanAgentQueryInterpreter,
 ) -> None:
-    """Persist the Query-first concern and later task resolution."""
+    """Persist Plan Agent Query interpretation and later task resolution."""
 
-    write_json(evaluation_dir / "plan/free_concern.json", concern_bundle)
+    write_json(evaluation_dir / QUERY_INTERPRETATION, concern_bundle)
     write_json(evaluation_dir / "plan/robotwin_task_inventory.json", task_inventory)
     write_json(evaluation_dir / "plan/open_task_resolution.json", task_resolution)
     if concern_agent.last_prompt is not None:
-        (evaluation_dir / "plan/free_concern_prompt.md").write_text(
+        (evaluation_dir / QUERY_INTERPRETATION_PROMPT).write_text(
             concern_agent.last_prompt, encoding="utf-8"
         )
     for index, response in enumerate(concern_agent.last_responses, start=1):
-        (evaluation_dir / f"plan/free_concern_response_{index}.txt").write_text(
+        (
+            evaluation_dir
+            / "plan"
+            / f"{QUERY_INTERPRETATION_RESPONSE_PREFIX}{index}.txt"
+        ).write_text(
             response + "\n", encoding="utf-8"
         )
 
@@ -847,7 +964,7 @@ def finish_unsupported_open_task_resolution(
     concern_bundle: dict[str, Any],
     task_inventory: list[dict[str, Any]],
     task_resolution: dict[str, Any],
-    concern_agent: FreeConcernAgent,
+    concern_agent: PlanAgentQueryInterpreter,
     candidate_resolution: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Create the normal no-execution bundle for a policy/task mismatch."""
@@ -884,7 +1001,7 @@ def finish_unsupported_open_task_resolution(
         "execution_finished_at": now,
         "user_request": user_request,
         "auto_route": True,
-        "free_concern_path": "plan/free_concern.json",
+        "query_interpretation_path": QUERY_INTERPRETATION.as_posix(),
         "open_task_resolution_path": "plan/open_task_resolution.json",
         "global_act_catalog_path": "plan/global_act_catalog.json",
         "route": task_resolution,
@@ -914,18 +1031,6 @@ def finish_unsupported_open_task_resolution(
 
 def child_run_id(evaluation_id: str, round_id: str) -> str:
     return f"run_{evaluation_id.removeprefix('eval_')}_{round_id}"
-
-
-def round_execution_backend(round_plan: dict[str, Any]) -> str:
-    """Resolve policy execution independently from the TaskGen route."""
-
-    raw = (round_plan.get("execution") or {}).get("backend")
-    if raw is None:
-        raw = "expert" if round_plan.get("route") == "official" else "act"
-    backend = str(raw).casefold()
-    if backend not in {"expert", "act", "both"}:
-        raise ValueError(f"unsupported execution backend: {raw!r}")
-    return backend
 
 
 def validate_round_capability_contract(
@@ -1011,8 +1116,11 @@ def validate_round_capability_contract(
         "vqa_phenomenon_ids": expected_vqa,
         "required_gates": contract["required_gates"],
     }
+    raw_task_name = round_plan.get("task_name")
+    if not isinstance(raw_task_name, str) or not raw_task_name.strip():
+        raise ValueError("round task_name must be explicit")
     observed = {
-        "task_name": str(round_plan.get("task_name") or "beat_block_hammer"),
+        "task_name": raw_task_name.strip(),
         "template_id": round_plan.get("template_id"),
         "capability_id": round_plan.get("capability_id"),
         "task_variant_id": round_plan.get("task_variant_id"),
@@ -1052,10 +1160,13 @@ def build_taskgen_command(
     run_id = child_run_id(evaluation_id, round_plan["round_id"]) + run_id_suffix
     execution = round_plan["execution"]
     seed = execution["seeds"][0]
+    raw_task_name = round_plan.get("task_name")
+    if not isinstance(raw_task_name, str) or not raw_task_name.strip():
+        raise ValueError("round task_name must be explicit")
     task_name = (
         capability_contract["task_name"]
         if capability_contract is not None
-        else str(round_plan.get("task_name") or "beat_block_hammer")
+        else raw_task_name.strip()
     )
     task_proposal = round_plan.get("task_proposal")
     variant_hint = round_plan.get("variant_hint") or {}
@@ -1117,14 +1228,17 @@ def build_taskgen_command(
                 ),
             ]
         )
-    experiment_candidate = round_plan.get("experiment_candidate")
+    experiment_candidate = (
+        round_plan.get("proposal")
+        or round_plan.get("experiment_candidate")
+    )
     if (
         experiment_candidate is not None
         and route == "generic_provider_scene_checker_codegen"
     ):
         command.extend(
             [
-                "--experiment-candidate-json",
+                "--proposal-json",
                 json.dumps(
                     experiment_candidate,
                     ensure_ascii=False,
@@ -1250,10 +1364,10 @@ def materialize_open_world_round(
     }
     artifact_dir = (
         evaluation_dir
-        / "plan/open_world_materialization"
+        / PROPOSAL_MATERIALIZATION
         / f"round_{round_number:02d}"
     )
-    write_json(artifact_dir / "experiment_candidate.json", normalized)
+    write_json(artifact_dir / PROPOSAL_FILENAME, normalized)
     write_json(artifact_dir / "tool_request_bundle.json", tool_bundle)
     execution = deepcopy(dict(control_execution))
     execution["backend"] = "act"
@@ -1281,7 +1395,7 @@ def materialize_open_world_round(
         "round_id": f"round_{round_number}",
         "template_id": None,
         "candidate_id": candidate_id,
-        "experiment_candidate": normalized,
+        "proposal": normalized,
         "sub_aspect": sub_aspect,
         "rationale": (
             "Materialize only the Query-derived Task or Tool needs; no catalog "
@@ -1438,10 +1552,12 @@ def materialize_open_world_tool_request(
 ) -> dict[str, Any]:
     """Run ToolGen after TaskGen/ACT using the schema actually recorded."""
 
-    candidate = round_plan.get("experiment_candidate")
+    candidate = round_plan.get("proposal") or round_plan.get(
+        "experiment_candidate"
+    )
     if not isinstance(candidate, Mapping):
         raise RuntimeError(
-            "deferred open ToolGen requires an ExperimentCandidate"
+            "deferred open ToolGen requires a typed Proposal"
         )
     candidate = validate_experiment_candidate(candidate)
     rule_tool_need = candidate["rule_tool_need"]
@@ -1557,43 +1673,6 @@ def read_policy_success(result_path: Path) -> float | None:
         except ValueError:
             continue
     return None
-
-
-def _episode_tool_results(episode: Mapping[str, Any]) -> list[dict[str, Any]]:
-    raw_results = episode.get("tool_results")
-    if not isinstance(raw_results, list):
-        direct_result = episode.get("result")
-        raw_results = [direct_result] if isinstance(direct_result, dict) else []
-    return [result for result in raw_results if isinstance(result, dict)]
-
-
-def compact_trusted_tools(child_manifest: dict[str, Any]) -> list[dict[str, Any]]:
-    """Keep the numerical Toolkit evidence small enough for planner/feedback use."""
-
-    evaluation = child_manifest.get("trusted_tool_evaluation") or {}
-    episodes = []
-    for episode in evaluation.get("episodes", []):
-        raw_results = _episode_tool_results(episode)
-        episodes.append(
-            {
-                "episode_dir": episode.get("episode_dir"),
-                "policy_name": episode.get("policy_name"),
-                "seed": episode.get("seed"),
-                "success": episode.get("success"),
-                "results": [
-                    {
-                        "tool": result.get("tool"),
-                        "value": result.get("value"),
-                        "unit": result.get("unit"),
-                        "passed": result.get("passed"),
-                        "evidence_steps": result.get("evidence_steps", []),
-                        "details": result.get("details", {}),
-                    }
-                    for result in raw_results
-                ],
-            }
-        )
-    return episodes
 
 
 def reuse_bound_child_checker_tool(
@@ -1828,78 +1907,6 @@ def _aggregate_sources(
                 }
             )
     return sources
-
-
-def compact_aggregate_result(
-    aggregate: dict[str, Any] | None,
-) -> dict[str, Any] | None:
-    """Strip repeated provenance before sending aggregate evidence to an LLM."""
-
-    if not aggregate:
-        return None
-
-    def compact_summary(summary: dict[str, Any]) -> dict[str, Any]:
-        return {
-            "episode_result_count": summary.get("episode_result_count"),
-            "quality": {
-                key: value.get("value")
-                for key, value in summary.get("quality", {}).items()
-            },
-            "statistics": {
-                key: {
-                    item_key: item_value
-                    for item_key, item_value in value.items()
-                    if item_key != "provenance"
-                }
-                for key, value in summary.get("statistics", {}).items()
-            },
-        }
-
-    return {
-        "schema_version": aggregate.get("schema_version"),
-        "status": aggregate.get("status"),
-        "source_count": aggregate.get("source_count"),
-        "unique_episode_count": aggregate.get("unique_episode_count"),
-        "input_issues": aggregate.get("input_issues", []),
-        "metrics": [
-            {
-                "metric": metric.get("metric"),
-                "value_kind": metric.get("value_kind"),
-                "unit": metric.get("unit"),
-                "cohorts": [
-                    {
-                        "role": cohort.get("role"),
-                        "policy_names": cohort.get("policy_names", []),
-                        "summary": compact_summary(cohort.get("summary", {})),
-                        "passed_summary": (
-                            compact_summary(cohort["passed_summary"])
-                            if cohort.get("passed_summary")
-                            else None
-                        ),
-                        "groups": {
-                            dimension: [
-                                {
-                                    "value": group.get("value"),
-                                    "summary": compact_summary(
-                                        group.get("summary", {})
-                                    ),
-                                    "passed_summary": (
-                                        compact_summary(group["passed_summary"])
-                                        if group.get("passed_summary")
-                                        else None
-                                    ),
-                                }
-                                for group in groups
-                            ]
-                            for dimension, groups in cohort.get("groups", {}).items()
-                        },
-                    }
-                    for cohort in metric.get("cohorts", [])
-                ],
-            }
-            for metric in aggregate.get("metrics", [])
-        ],
-    }
 
 
 def aggregate_round_results(
@@ -2602,10 +2609,15 @@ def summarize_round(
     implementation_trace = child_manifest.get("implementation_trace")
     if (
         not isinstance(implementation_trace, Mapping)
-        and isinstance(round_plan.get("experiment_candidate"), Mapping)
+        and isinstance(
+            round_plan.get("proposal")
+            or round_plan.get("experiment_candidate"),
+            Mapping,
+        )
     ):
         implementation_trace = build_implementation_trace(
-            round_plan["experiment_candidate"]
+            round_plan.get("proposal")
+            or round_plan["experiment_candidate"]
         )
     if isinstance(implementation_trace, Mapping):
         semantic_needs = round_plan.get("semantic_need_execution")
@@ -2731,368 +2743,6 @@ def summarize_round(
     return summary
 
 
-def build_compact_flagship_acceptance(
-    round_runs: list[dict[str, Any]],
-    *,
-    global_route_result: Mapping[str, Any] | None,
-    claim_first_runtime_state: Mapping[str, Any] | None,
-    claim_first_query_answer: Mapping[str, Any] | None = None,
-    free_concern_bundle: Mapping[str, Any] | None,
-    open_task_resolution: Mapping[str, Any] | None,
-    concern_candidate_resolution: Mapping[str, Any] | None,
-    history_disabled: bool,
-    cli_candidate_hint_used: bool = False,
-) -> dict[str, Any]:
-    """Project a strict, scoped acceptance for one online 2-3 round run."""
-
-    act_rollouts = 0
-    round_routes: list[str] = []
-    semantics_statuses: list[str] = []
-    runtime_candidate_ids: list[str] = []
-    typed_candidate_completion: dict[str, bool] = {}
-    same_bundle_bound_checker_reuse = False
-    bound_checker_metric: str | None = None
-    bound_checker_module_sha256: str | None = None
-    for run in round_runs:
-        summary = run.get("round_summary")
-        summary = summary if isinstance(summary, Mapping) else {}
-        round_routes.append(str(summary.get("route") or ""))
-        semantic_execution = summary.get("semantic_need_execution")
-        if isinstance(semantic_execution, Mapping) and isinstance(
-            semantic_execution.get("candidate_id"), str
-        ):
-            runtime_candidate_ids.append(
-                str(semantic_execution["candidate_id"])
-            )
-        observations = summary.get("observations")
-        observations = observations if isinstance(observations, Mapping) else {}
-        implementation_trace = observations.get("implementation_trace")
-        if (
-            isinstance(semantic_execution, Mapping)
-            and isinstance(semantic_execution.get("candidate_id"), str)
-            and isinstance(implementation_trace, Mapping)
-        ):
-            typed_candidate_completion[
-                str(semantic_execution["candidate_id"])
-            ] = bool(
-                implementation_trace.get("relationship") == "direct"
-                and implementation_trace.get("coverage_status") == "complete"
-            )
-        if observations.get("execution_backend") in {"ACT", "ACT+expert"}:
-            actual_seeds = observations.get("actual_seeds")
-            if isinstance(actual_seeds, list):
-                act_rollouts += len(actual_seeds)
-        semantics = observations.get("outcome_semantics")
-        if isinstance(semantics, Mapping) and isinstance(
-            semantics.get("status"), str
-        ):
-            semantics_statuses.append(str(semantics["status"]))
-
-        tool_evaluation = run.get("tool_evaluation")
-        if not isinstance(tool_evaluation, Mapping):
-            continue
-        route_decision = tool_evaluation.get("route_decision")
-        route_decision = (
-            route_decision if isinstance(route_decision, Mapping) else {}
-        )
-        route = str(
-            tool_evaluation.get("route")
-            or route_decision.get("resolved_route")
-            or ""
-        )
-        if route != "bound_child_trusted_checker":
-            continue
-        metric = route_decision.get("metric")
-        validation = tool_evaluation.get("validation")
-        validation = validation if isinstance(validation, Mapping) else {}
-        source = tool_evaluation.get("source")
-        source = source if isinstance(source, Mapping) else {}
-        bound_episodes = tool_evaluation.get("episodes")
-        bound_episodes = (
-            bound_episodes if isinstance(bound_episodes, list) else []
-        )
-        episode_bindings: list[tuple[str, str]] = []
-        episodes_valid = bool(bound_episodes)
-        for episode in bound_episodes:
-            if (
-                not isinstance(episode, Mapping)
-                or episode.get("role") != "policy_under_evaluation"
-            ):
-                episodes_valid = False
-                continue
-            results = _episode_tool_results(episode)
-            if len(results) != 1:
-                episodes_valid = False
-                continue
-            result = results[0]
-            details = result.get("details")
-            if (
-                not isinstance(metric, str)
-                or result.get("tool") != metric
-                or not isinstance(result.get("value"), bool)
-                or not isinstance(details, Mapping)
-                or details.get("authority")
-                != "llm_generated_python_ast_validated"
-                or not isinstance(details.get("module_sha256"), str)
-                or len(details["module_sha256"]) != 64
-            ):
-                episodes_valid = False
-                continue
-            episode_bindings.append(
-                (metric, str(details["module_sha256"]))
-            )
-        one_binding = set(episode_bindings)
-        same_bundle_bound_checker_reuse = bool(
-            route_decision.get("provider_called") is False
-            and route_decision.get("exact_match") is True
-            and validation.get("status") == "passed"
-            and validation.get("exact_metric_match") is True
-            and source.get("authority")
-            == "llm_generated_python_ast_validated"
-            and episodes_valid
-            and len(one_binding) == 1
-        )
-        if same_bundle_bound_checker_reuse:
-            bound_checker_metric, bound_checker_module_sha256 = next(
-                iter(one_binding)
-            )
-
-    assessment = (
-        claim_first_runtime_state.get("assessment")
-        if isinstance(claim_first_runtime_state, Mapping)
-        else None
-    )
-    assessment = assessment if isinstance(assessment, Mapping) else {}
-    global_router_provider_calls = (
-        global_route_result.get("global_router_provider_calls")
-        if isinstance(global_route_result, Mapping)
-        else None
-    )
-    free_provider = (
-        free_concern_bundle.get("provider")
-        if isinstance(free_concern_bundle, Mapping)
-        else None
-    )
-    free_provider = free_provider if isinstance(free_provider, Mapping) else {}
-    online_free_concern = bool(
-        isinstance(free_concern_bundle, Mapping)
-        and free_concern_bundle.get("source")
-        == "provider_catalog_free_concern"
-        and free_provider.get("called") is True
-        and free_provider.get("attempt_count") == 1
-        and free_provider.get("errors") == []
-        and isinstance(open_task_resolution, Mapping)
-        and open_task_resolution.get("decision") == "retrieve_and_adapt"
-    )
-    runtime_bound_route = bool(
-        isinstance(global_route_result, Mapping)
-        and global_route_result.get("route_source")
-        in {
-            "runtime_task_checkpoint_binding",
-            "runtime_bound_control_handoff",
-        }
-        and global_route_result.get("provider_called") is False
-    )
-    exact_catalog_candidate_binding = bool(
-        isinstance(concern_candidate_resolution, Mapping)
-        and concern_candidate_resolution.get("decision")
-        == "bind_single_aspect"
-        and concern_candidate_resolution.get("resolution")
-        in {
-            "exact_query_supported_concern",
-            "unique_query_supported_concern",
-        }
-        and isinstance(
-            concern_candidate_resolution.get("candidate_aspect_ids"), list
-        )
-        and len(concern_candidate_resolution["candidate_aspect_ids"]) == 1
-        and concern_candidate_resolution.get("concern_created_before_catalog")
-        is True
-        and concern_candidate_resolution.get("catalog_was_model_visible")
-        is False
-        and isinstance(
-            concern_candidate_resolution.get("selected_template_ids"), list
-        )
-        and len(concern_candidate_resolution["selected_template_ids"]) == 1
-    )
-    runtime_candidate_discovery = bool(
-        isinstance(concern_candidate_resolution, Mapping)
-        and concern_candidate_resolution.get("decision")
-        in {"discover_candidates", "catalog_external"}
-        and concern_candidate_resolution.get("resolution")
-        in {
-            "broad_or_ambiguous",
-            "open_world_candidate_discovery_required",
-        }
-        and concern_candidate_resolution.get("concern_created_before_catalog")
-        is True
-        and concern_candidate_resolution.get("catalog_was_model_visible")
-        is False
-        and concern_candidate_resolution.get("selected_template_ids") == []
-        and len(set(runtime_candidate_ids)) >= 1
-    )
-    online_query_candidate_binding = bool(
-        exact_catalog_candidate_binding or runtime_candidate_discovery
-    )
-    query_contract = (
-        claim_first_runtime_state.get("query_contract")
-        if isinstance(claim_first_runtime_state, Mapping)
-        else None
-    )
-    query_contract = query_contract if isinstance(query_contract, Mapping) else {}
-    bound_candidate_templates = query_contract.get("candidate_universe")
-    observed_candidate_ids = assessment.get("observed_candidate_ids")
-    singleton_query_candidate = bool(
-        isinstance(observed_candidate_ids, list)
-        and len(observed_candidate_ids) == 1
-        and (
-            (
-                exact_catalog_candidate_binding
-                and isinstance(bound_candidate_templates, list)
-                and observed_candidate_ids[0] in bound_candidate_templates
-            )
-            or (
-                runtime_candidate_discovery
-                and observed_candidate_ids[0] in runtime_candidate_ids
-            )
-        )
-    )
-    query_candidates_bound = bool(
-        isinstance(observed_candidate_ids, list)
-        and observed_candidate_ids
-        and (
-            (
-                exact_catalog_candidate_binding
-                and isinstance(bound_candidate_templates, list)
-                and all(
-                    candidate_id in bound_candidate_templates
-                    for candidate_id in observed_candidate_ids
-                )
-            )
-            or (
-                runtime_candidate_discovery
-                and all(
-                    candidate_id in runtime_candidate_ids
-                    for candidate_id in observed_candidate_ids
-                )
-            )
-        )
-    )
-    answer = (
-        claim_first_query_answer
-        if isinstance(claim_first_query_answer, Mapping)
-        else {}
-    )
-    evidence_sufficient = bool(
-        assessment.get("evidence_sufficient") is True
-        and (not answer or answer.get("answered") is True)
-    )
-    no_outcome_conflict = "conflict" not in semantics_statuses
-    candidate_semantics_scoped = bool(
-        len(semantics_statuses) >= 2
-        and semantics_statuses[0] in {"official_only", "equivalent_agreement"}
-        and all(
-            status
-            in {
-                "official_only",
-                "expected_semantic_extension",
-                "equivalent_agreement",
-            }
-            for status in semantics_statuses[1:]
-        )
-    )
-    control_then_candidates = bool(
-        2 <= len(round_routes) <= 3
-        and round_routes[0] == "official"
-        and all(route != "official" for route in round_routes[1:])
-        and act_rollouts == len(round_routes)
-    )
-    answer_scope = answer.get("answer_scope")
-    answer_semantics_scoped = bool(
-        answer_scope == "official_equivalent"
-        or (
-            "expected_semantic_extension" in semantics_statuses
-            and answer_scope == "bounded_experimental_query_semantics"
-        )
-    )
-    decisive_candidate_ids = assessment.get("decisive_candidate_ids")
-    decisive_candidate_ids = (
-        decisive_candidate_ids
-        if isinstance(decisive_candidate_ids, list)
-        else []
-    )
-    typed_execution_complete = bool(
-        decisive_candidate_ids
-        and all(
-            typed_candidate_completion.get(str(candidate_id)) is True
-            for candidate_id in decisive_candidate_ids
-        )
-    )
-    candidate_execution_accepted = bool(
-        same_bundle_bound_checker_reuse or typed_execution_complete
-    )
-    accepted = bool(
-        online_free_concern
-        and online_query_candidate_binding
-        and query_candidates_bound
-        and not cli_candidate_hint_used
-        and history_disabled
-        and runtime_bound_route
-        and global_router_provider_calls == 0
-        and control_then_candidates
-        and evidence_sufficient
-        and no_outcome_conflict
-        and candidate_semantics_scoped
-        and answer_semantics_scoped
-        and candidate_execution_accepted
-    )
-    return {
-        "schema_version": 1,
-        "accepted": accepted,
-        "execution_entrypoint": "scripts/manipeval_agent.py",
-        "history_replay_disabled": history_disabled,
-        "online_free_concern": online_free_concern,
-        "online_query_candidate_binding": online_query_candidate_binding,
-        "candidate_binding_mode": (
-            "exact_catalog_retrieval"
-            if exact_catalog_candidate_binding
-            else "online_runtime_discovery"
-            if runtime_candidate_discovery
-            else "unresolved"
-        ),
-        "cli_candidate_hint_used": cli_candidate_hint_used,
-        "candidate_domain_resolution": (
-            concern_candidate_resolution.get("resolution")
-            if isinstance(concern_candidate_resolution, Mapping)
-            else None
-        ),
-        "candidate_aspect_ids": (
-            concern_candidate_resolution.get("candidate_aspect_ids")
-            if isinstance(concern_candidate_resolution, Mapping)
-            else None
-        ),
-        "bound_candidate_templates": bound_candidate_templates,
-        "singleton_query_candidate": singleton_query_candidate,
-        "query_candidates_bound": query_candidates_bound,
-        "runtime_bound_route": runtime_bound_route,
-        "global_router_provider_calls": global_router_provider_calls,
-        "act_rollouts": act_rollouts,
-        "required_act_rollouts": 2,
-        "accepted_act_rollout_range": [2, 3],
-        "round_routes": round_routes,
-        "stop_reason": answer.get("stop_reason") or assessment.get("stop_reason"),
-        "evidence_sufficient": evidence_sufficient,
-        "outcome_semantics_statuses": list(dict.fromkeys(semantics_statuses)),
-        "answer_scope": answer_scope,
-        "same_bundle_bound_checker_reuse": same_bundle_bound_checker_reuse,
-        "typed_execution_complete": typed_execution_complete,
-        "candidate_execution_accepted": candidate_execution_accepted,
-        "bound_checker_metric": bound_checker_metric,
-        "bound_checker_module_sha256": bound_checker_module_sha256,
-        "cross_query_registry_reuse_established": False,
-    }
-
-
 def execute_round(
     repo_root: Path,
     evaluation_dir: Path,
@@ -3111,14 +2761,8 @@ def execute_round(
     reviewed_tool_registry: Path | None = None,
     reviewed_vqa_registry: Path | None = None,
     registration_identity: dict[str, Any] | None = None,
-    round_attempt_index: int = 1,
 ) -> tuple[dict[str, Any], Path, dict[str, Any], dict[str, Any], int,]:
-    if round_attempt_index < 1:
-        raise ValueError("round_attempt_index must be positive")
     round_id = round_plan["round_id"]
-    run_id_suffix = (
-        "" if round_attempt_index == 1 else f"_attempt_{round_attempt_index:02d}"
-    )
     command, run_id = build_taskgen_command(
         repo_root,
         evaluation_id,
@@ -3131,11 +2775,9 @@ def execute_round(
         telemetry_profile=telemetry_profile,
         reviewed_task_registry=reviewed_task_registry,
         registration_identity=registration_identity,
-        run_id_suffix=run_id_suffix,
+        run_id_suffix="",
     )
     execution_dir = evaluation_dir / "execution" / round_id
-    if round_attempt_index > 1:
-        execution_dir = execution_dir / f"round_attempt_{round_attempt_index:02d}"
     write_json(
         execution_dir / "taskgen_command.json",
         {"command": command, "child_run_id": run_id},
@@ -3334,767 +2976,69 @@ def execute_round(
         execution_vqa,
         returncode,
     )
-    round_summary["round_attempt_index"] = round_attempt_index
+    round_summary["round_attempt_index"] = 1
     round_summary["execution_artifact_dir"] = str(
         execution_dir.relative_to(repo_root)
     ).replace("\\", "/")
+    if isinstance(
+        round_plan.get("proposal")
+        or round_plan.get("experiment_candidate"),
+        Mapping,
+    ):
+        method_runtime_path = (
+            execution_dir / "method_runtime_projection.json"
+        )
+        method_runtime_projection = (
+            project_executed_round_through_method_runtime(
+                task_name=str(round_plan["task_name"]),
+                round_plan=round_plan,
+                child_manifest=child_manifest,
+                round_summary=round_summary,
+                artifacts={
+                    "child_manifest": str(
+                        child_manifest_path.relative_to(repo_root)
+                    ).replace("\\", "/"),
+                    "taskgen_command": str(
+                        (
+                            execution_dir / "taskgen_command.json"
+                        ).relative_to(repo_root)
+                    ).replace("\\", "/"),
+                    "aggregate": str(
+                        (
+                            execution_dir / "aggregate_result.json"
+                        ).relative_to(repo_root)
+                    ).replace("\\", "/"),
+                },
+            )
+        )
+        write_json(method_runtime_path, method_runtime_projection)
+        round_summary["observations"]["method_runtime"] = {
+            "status": "validated",
+            "runtime": method_runtime_projection["runtime"],
+            "backend": method_runtime_projection["backend"],
+            "execution_reused": method_runtime_projection[
+                "execution_reused"
+            ],
+            "taskgen_reinvoked": method_runtime_projection[
+                "taskgen_reinvoked"
+            ],
+            "policy_rollout_reinvoked": method_runtime_projection[
+                "policy_rollout_reinvoked"
+            ],
+            "candidate_id": method_runtime_projection["candidate"][
+                "candidate_id"
+            ],
+            "outcome": method_runtime_projection["evidence"]["outcome"],
+            "artifact": str(
+                method_runtime_path.relative_to(repo_root)
+            ).replace("\\", "/"),
+        }
     write_json(
         execution_dir / "evidence_aggregate.json",
         round_summary["observations"]["evidence_aggregate"],
     )
     write_json(evaluation_dir / "summary" / f"{round_id}.json", round_summary)
     return child_manifest, child_dir, round_summary, tool_evaluation, returncode
-
-
-def execute_round_once(
-    repo_root: Path,
-    evaluation_dir: Path,
-    evaluation_id: str,
-    round_plan: dict[str, Any],
-    *,
-    text_model: str,
-    vision_model: str,
-    base_url: str | None,
-    gpu: int,
-    max_reflections: int,
-    provider: Any,
-    toolgen_model: str,
-    telemetry_profile: str = "balanced_v1",
-    reviewed_task_registry: Path | None = None,
-    reviewed_tool_registry: Path | None = None,
-    reviewed_vqa_registry: Path | None = None,
-    registration_identity: dict[str, Any] | None = None,
-) -> tuple[dict[str, Any], Path, dict[str, Any], dict[str, Any], int]:
-    """Execute one paper-aligned round with no central restart controller."""
-
-    return execute_round(
-        repo_root,
-        evaluation_dir,
-        evaluation_id,
-        round_plan,
-        text_model=text_model,
-        vision_model=vision_model,
-        base_url=base_url,
-        gpu=gpu,
-        max_reflections=max_reflections,
-        provider=provider,
-        toolgen_model=toolgen_model,
-        telemetry_profile=telemetry_profile,
-        reviewed_task_registry=reviewed_task_registry,
-        reviewed_tool_registry=reviewed_tool_registry,
-        reviewed_vqa_registry=reviewed_vqa_registry,
-        registration_identity=registration_identity,
-    )
-
-
-def _round_evidence(
-    repo_root: Path,
-    evaluation_id: str,
-    round_plan: dict[str, Any],
-    child_manifest: dict[str, Any],
-    child_dir: Path,
-    round_summary: dict[str, Any],
-    tool_evaluation: dict[str, Any],
-) -> dict[str, Any]:
-    static = child_manifest.get("static_validation", {})
-    scene = child_manifest.get("scene_validation", {})
-    vision = child_manifest.get("vision_validation", {})
-    reflection = child_manifest.get("visual_self_reflection", {})
-    retrieval = child_manifest.get("task_retrieval") or {}
-    knowledge = child_manifest.get("knowledge_retrieval") or {}
-    trusted_tool_evaluation = child_manifest.get("trusted_tool_evaluation") or {}
-    child_relative = child_dir.relative_to(repo_root)
-    task_module = str(child_manifest.get("task_module") or "")
-    module_source = repo_root / (task_module.replace(".", "/") + ".py")
-    generated_task_artifact = (
-        str(module_source.relative_to(repo_root))
-        if task_module and module_source.is_file()
-        else str(child_relative / "task.py")
-    )
-    act_videos = sorted(
-        str(path.relative_to(repo_root))
-        for path in (child_dir / "evaluation").glob("episode*.mp4")
-    )
-    rollout_video_paths = {
-        child_dir
-        / "evaluation/telemetry"
-        / str(episode.get("episode_dir") or "")
-        / "video.mp4"
-        for episode in trusted_tool_evaluation.get("episodes", [])
-    }
-    rollout_videos = sorted(
-        str(path.relative_to(repo_root))
-        for path in rollout_video_paths
-        if path.is_file()
-    )
-    variant_spec_path = child_dir / "variant_spec.json"
-    variant_spec = (
-        json.loads(variant_spec_path.read_text(encoding="utf-8"))
-        if variant_spec_path.is_file()
-        else None
-    )
-    feedback_observations = {
-        key: value
-        for key, value in round_summary["observations"].items()
-        if key
-        not in {
-            "trusted_tools",
-            "planned_tool",
-            "aggregate",
-            "execution_vqa",
-        }
-    }
-
-    round_execution_value = round_summary.get("execution_artifact_dir")
-    round_execution = (
-        Path(str(round_execution_value))
-        if round_execution_value
-        else Path("mea/evaluation_runs")
-        / evaluation_id
-        / "execution"
-        / round_plan["round_id"]
-    )
-    execution_vqa_observation = round_summary["observations"].get("execution_vqa") or {}
-    execution_vqa_artifacts = execution_vqa_observation.get("artifacts") or {}
-    execution_vqa_artifact = execution_vqa_artifacts.get(
-        "result"
-    ) or execution_vqa_artifacts.get("execution_vqa")
-    if not execution_vqa_artifact:
-        if execution_vqa_observation.get("status") == "skipped":
-            execution_vqa_artifact = str(round_execution / "execution_vqa_skipped.json")
-        elif execution_vqa_observation.get("status") == "failed":
-            execution_vqa_artifact = str(round_execution / "execution_vqa_error.json")
-    requested_seeds = [
-        int(value) for value in round_plan["execution"].get("seeds", [])
-    ]
-    requested_num_episodes = int(
-        round_plan["execution"].get("num_episodes", len(requested_seeds))
-    )
-    actual_policy_seeds = (
-        [
-            int(value)
-            for value in (
-                round_summary["observations"].get("actual_seeds") or []
-            )
-        ]
-        if round_execution_backend(round_plan) in {"act", "both"}
-        else []
-    )
-    implementation_trace = round_summary["observations"].get(
-        "implementation_trace"
-    )
-    round_experiment_candidate = round_plan.get("experiment_candidate")
-    round_candidate_id = (
-        round_plan.get("candidate_id")
-        or (
-            round_experiment_candidate.get("candidate_id")
-            if isinstance(round_experiment_candidate, Mapping)
-            else None
-        )
-        or round_plan.get("template_id")
-    )
-    if isinstance(implementation_trace, Mapping):
-        trace_candidate_id = implementation_trace.get("candidate_id")
-        if (
-            round_candidate_id
-            and trace_candidate_id
-            and str(trace_candidate_id) != str(round_candidate_id)
-        ):
-            raise RuntimeError(
-                "implementation trace candidate_id conflicts with the "
-                f"executed round: {trace_candidate_id!r} != "
-                f"{round_candidate_id!r}"
-            )
-    return {
-        "round_id": round_plan["round_id"],
-        "candidate_id": (
-            str(round_candidate_id) if round_candidate_id else None
-        ),
-        "child_run_id": child_manifest.get("run_id"),
-        "variant_id": (
-            round_plan.get("task_variant_id") or round_plan.get("template_id")
-        ),
-        "template_id": round_plan.get("template_id"),
-        "capability_id": round_plan.get("capability_id"),
-        "capability_contract": round_plan.get("capability_contract"),
-        "sub_aspect": round_plan["sub_aspect"],
-        "task_instruction": round_plan["task_instruction"],
-        "route": round_plan["route"],
-        "seeds": actual_policy_seeds,
-        "actual_seeds": actual_policy_seeds,
-        "requested_seeds": requested_seeds,
-        "num_episodes": len(actual_policy_seeds),
-        "requested_num_episodes": requested_num_episodes,
-        "task_retrieval": {
-            "catalog_size": retrieval.get("catalog_size"),
-            "selected_tasks": retrieval.get("selected_tasks", []),
-            "reasoning": retrieval.get("reasoning"),
-        },
-        "knowledge_retrieval": {
-            "selected_ids": knowledge.get("selected_ids", []),
-            "context_character_count": knowledge.get("context_character_count"),
-            "committed_index_current": knowledge.get("committed_index_current"),
-        },
-        "generation": {
-            "variant_spec": variant_spec,
-            "complete_method_generated": static.get("load_actors_ast", {}).get(
-                "complete_method_generated"
-            ),
-            "generated_color": static.get("load_actors_ast", {}).get("generated_color"),
-        },
-        "visual_observation": {
-            "render_success": scene.get("render_success"),
-            "aligned": vision.get("aligned"),
-            "target_actor": vision.get("target_actor"),
-            "bell_visible": vision.get("bell_visible"),
-            "observed_color": vision.get("observed_color"),
-            "unexpected_changes": vision.get("unexpected_changes"),
-            "confidence": vision.get("confidence"),
-            "position_authority": vision.get("position_authority"),
-        },
-        "visual_self_reflection": {
-            "passed": reflection.get("passed"),
-            "max_repairs": reflection.get("max_repairs"),
-            "repairs_used": reflection.get("repairs_used"),
-            "final_attempt": reflection.get("final_attempt"),
-            "attempt_count": len(reflection.get("attempts", [])),
-        },
-        "observations": {
-            **feedback_observations,
-            "pipeline_passed": round_summary["pipeline_passed"],
-        },
-        "tool_evaluation": tool_evaluation,
-        "aggregate": round_summary["observations"].get("aggregate"),
-        "execution_vqa": round_summary["observations"].get("execution_vqa"),
-        "implementation_trace": implementation_trace,
-        "trusted_tool_evaluation": {
-            "artifact": trusted_tool_evaluation.get("artifact"),
-            "episode_count": trusted_tool_evaluation.get("episode_count"),
-            "episodes": compact_trusted_tools(child_manifest),
-        },
-        "artifacts": {
-            "generated_task": generated_task_artifact,
-            "scene_image": str(child_relative / "evidence/initial_head.png"),
-            "vision_result": str(child_relative / "validation/vision.json"),
-            "position_samples": str(
-                child_relative / "validation/position_samples.json"
-            ),
-            "reflection_summary": str(child_relative / "reflection/summary.json"),
-            "act_videos": act_videos,
-            "rollout_videos": rollout_videos,
-            "act_result": str(child_relative / "evaluation/_result.txt"),
-            "trusted_tools": trusted_tool_evaluation.get("artifact"),
-            "planned_tool": tool_evaluation.get("artifacts", {}).get("tool_execution"),
-            "aggregate": str(round_execution / "aggregate_result.json"),
-            "evidence_aggregate": str(
-                round_execution / "evidence_aggregate.json"
-            ),
-            "execution_vqa": execution_vqa_artifact,
-            "execution_vqa_query": str(round_execution / "execution_vqa_query.json"),
-            "execution_vqa_montage": execution_vqa_artifacts.get("montage"),
-            "execution_vqa_selection": execution_vqa_artifacts.get("selection"),
-            "child_manifest": str(child_relative / "manifest.json"),
-        },
-    }
-
-
-def build_evidence_bundle(
-    repo_root: Path,
-    evaluation_id: str,
-    user_request: str,
-    plan: dict[str, Any],
-    round_runs: list[dict[str, Any]],
-    evaluation_aggregate: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    rounds = [
-        _round_evidence(
-            repo_root,
-            evaluation_id,
-            item["round_plan"],
-            item["child_manifest"],
-            item["child_dir"],
-            item["round_summary"],
-            item["tool_evaluation"],
-        )
-        for item in round_runs
-    ]
-    total_episodes = sum(item["num_episodes"] for item in rounds)
-    requested_total_episodes = sum(
-        item["requested_num_episodes"] for item in rounds
-    )
-    weighted_success = 0.0
-    measured_episodes = 0
-    for item in rounds:
-        rate = item["observations"].get("policy_success")
-        if rate is not None:
-            weighted_success += float(rate) * item["num_episodes"]
-            measured_episodes += item["num_episodes"]
-    policy_success = weighted_success / measured_episodes if measured_episodes else None
-    position_rounds = [
-        item for item in rounds if str(item["sub_aspect"]).startswith("object_position")
-    ]
-    position_metrics_by_round = {
-        item["round_id"]: item["observations"].get("position_metrics", {})
-        for item in position_rounds
-    }
-    sampled_xy: list[list[float]] = []
-    for item in position_rounds:
-        for sample in item["observations"].get("position_samples", []):
-            position = sample.get("bell_position") or sample.get("block_position")
-            if isinstance(position, list) and len(position) >= 2:
-                sampled_xy.append([float(position[0]), float(position[1])])
-    unique_xy = {(round(item[0], 8), round(item[1], 8)) for item in sampled_xy}
-    position_metrics = (
-        {
-            "sample_count": len(sampled_xy),
-            "unique_xy_count": len(unique_xy),
-            "x_span": (
-                max(item[0] for item in sampled_xy)
-                - min(item[0] for item in sampled_xy)
-            ),
-            "y_span": (
-                max(item[1] for item in sampled_xy)
-                - min(item[1] for item in sampled_xy)
-            ),
-            "position_varied": len(unique_xy) > 1,
-            "by_round": position_metrics_by_round,
-        }
-        if sampled_xy
-        else {}
-    )
-    evaluation_relative = Path("mea/evaluation_runs") / evaluation_id
-    completed_template_ids = [item["round_plan"]["template_id"] for item in round_runs]
-    completed_aspect_ids: list[str] = []
-    for item in round_runs:
-        round_plan = item["round_plan"]
-        proposal = round_plan.get("task_proposal") or {}
-        aspect_id = str(
-            proposal.get("aspect_id")
-            or round_plan.get("aspect_id")
-            or round_plan.get("sub_aspect")
-            or ""
-        )
-        if aspect_id and aspect_id not in completed_aspect_ids:
-            completed_aspect_ids.append(aspect_id)
-    remaining_template_ids = [
-        item
-        for item in plan.get("requested_template_ids", [])
-        if item not in completed_template_ids
-    ]
-    required_aspect_ids = list(
-        plan.get("requested_aspect_ids") or completed_aspect_ids
-    )
-    initial_requested_aspect_ids = list(
-        plan.get("initial_requested_aspect_ids") or required_aspect_ids
-    )
-    discovered_aspect_ids = [
-        item for item in completed_aspect_ids if item not in initial_requested_aspect_ids
-    ]
-    uncovered_required_aspect_ids = [
-        item for item in required_aspect_ids if item not in completed_aspect_ids
-    ]
-    decision_artifacts = [
-        str(evaluation_relative / f"plan/decision_after_round_{round_number}.json")
-        for round_number in range(1, len(plan.get("round_decisions", [])) + 1)
-    ]
-    evidence_assessment_artifacts = [
-        str(evaluation_relative / f"plan/evidence_after_round_{round_number}.json")
-        for round_number in range(1, len(plan.get("round_decisions", [])) + 1)
-    ]
-    history_path = repo_root / evaluation_relative / "plan/history_retrieval.json"
-    history_retrieval = (
-        json.loads(history_path.read_text(encoding="utf-8"))
-        if history_path.is_file()
-        else {"status": "missing", "matches": []}
-    )
-    global_route_path = repo_root / evaluation_relative / "plan/global_query_route.json"
-    global_route = (
-        json.loads(global_route_path.read_text(encoding="utf-8"))
-        if global_route_path.is_file()
-        else None
-    )
-    execution_backends = sorted(
-        {str(item["observations"].get("execution_backend") or "ACT") for item in rounds}
-    )
-    act_statuses = [item["observations"].get("act_pipeline_status") for item in rounds]
-    measured_act_statuses = [bool(value) for value in act_statuses if value is not None]
-    expert_statuses = [item["observations"].get("expert_solvable") for item in rounds]
-    measured_expert_statuses = [
-        bool(value) for value in expert_statuses if value is not None
-    ]
-    return {
-        "schema_version": 2,
-        "evaluation_id": evaluation_id,
-        "user_request": user_request,
-        "plan": {
-            "max_rounds": plan["max_rounds"],
-            "executed_rounds": len(rounds),
-            "planning_state": plan.get("planning_state"),
-            "round_decisions": plan.get("round_decisions", []),
-            "requested_template_ids": plan.get("requested_template_ids", []),
-            "completed_template_ids": completed_template_ids,
-            "remaining_template_ids": remaining_template_ids,
-            "round_budget_remaining": max(int(plan["max_rounds"]) - len(rounds), 0),
-            "aspect_coverage": {
-                "schema_version": 1,
-                "initial_requested_aspect_ids": initial_requested_aspect_ids,
-                "required_aspect_ids": required_aspect_ids,
-                "covered_aspect_ids": completed_aspect_ids,
-                "discovered_aspect_ids": discovered_aspect_ids,
-                "uncovered_required_aspect_ids": uncovered_required_aspect_ids,
-                "coverage_status": (
-                    "complete"
-                    if not uncovered_required_aspect_ids
-                    else "partial"
-                    if completed_aspect_ids
-                    else "not_started"
-                ),
-            },
-        },
-        "rounds": rounds,
-        "observations": {
-            "execution_backends": execution_backends,
-            "scene_alignment": all(
-                item["observations"]["scene_alignment"] for item in rounds
-            ),
-            "observed_color_by_round": [
-                item["observations"]["observed_color"] for item in rounds
-            ],
-            "expert_solvable": (
-                all(measured_expert_statuses) if measured_expert_statuses else None
-            ),
-            "act_pipeline_status": (
-                all(measured_act_statuses) if measured_act_statuses else None
-            ),
-            "policy_success": policy_success,
-            "policy_success_by_round": [
-                item["observations"]["policy_success"] for item in rounds
-            ],
-            "position_varied": position_metrics.get("position_varied"),
-            "position_metrics": position_metrics,
-            "position_metrics_by_round": position_metrics_by_round,
-            "pipeline_passed": all(
-                item["observations"]["pipeline_passed"] for item in rounds
-            ),
-            "aggregate": compact_aggregate_result(evaluation_aggregate),
-            "execution_vqa_conflict": any(
-                bool(item.get("execution_vqa", {}).get("evidence_conflict"))
-                for item in rounds
-            ),
-        },
-        "total_episodes": total_episodes,
-        "requested_total_episodes": requested_total_episodes,
-        "history_retrieval": history_retrieval,
-        "global_query_route": (
-            {
-                "selection": global_route.get("selection"),
-                "resolved": global_route.get("resolved"),
-                "catalog_sha256": global_route.get("catalog_sha256"),
-                "provider_called": global_route.get("provider_called"),
-                "attempt_count": global_route.get("attempt_count"),
-            }
-            if global_route is not None
-            else None
-        ),
-        "limitations": {
-            "bounded_three_round_prototype": True,
-            "few_episodes_are_not_a_generalization_benchmark": True,
-            "policy_result_is_not_pipeline_status": True,
-            "global_route_unsupported_capabilities": (
-                (global_route.get("selection") or {}).get(
-                    "unsupported_capabilities", []
-                )
-                if global_route is not None
-                else []
-            ),
-        },
-        "artifacts": {
-            "evaluation_plan": str(evaluation_relative / "plan/evaluation_plan.json"),
-            "plan_decisions": decision_artifacts,
-            "evidence_assessments": evidence_assessment_artifacts,
-            "history_retrieval": str(
-                evaluation_relative / "plan/history_retrieval.json"
-            ),
-            "global_query_route": (
-                str(evaluation_relative / "plan/global_query_route.json")
-                if global_route is not None
-                else None
-            ),
-            "summary": str(evaluation_relative / "summary/summary.json"),
-            "aggregate": str(evaluation_relative / "summary/aggregate_result.json"),
-            "round_artifacts": [item["artifacts"] for item in rounds],
-        },
-    }
-
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--request", required=True)
-    parser.add_argument("--repo-root", type=Path, default=Path.cwd())
-    parser.add_argument("--evaluation-id")
-    parser.add_argument(
-        "--benchmark",
-        choices=["robotwin", "libero"],
-        default="robotwin",
-        help="Select the existing RoboTwin chain or the bounded LIBERO backend.",
-    )
-    parser.add_argument(
-        "--libero-checkpoint",
-        type=Path,
-        default=Path("/root/autodl-tmp/checkpoints/libero/smolvla_libero"),
-    )
-    parser.add_argument("--libero-seed", type=int, default=100800)
-    parser.add_argument(
-        "--auto-route",
-        action="store_true",
-        help=(
-            "Explicitly request the production Query-first route (already the "
-            "default unless a hidden paper-compatibility protocol is selected). "
-            "With "
-            "--bound-task-name, claim_first_v1 creates a catalog-free concern "
-            "then checks it against the bound policy and the official RoboTwin "
-            "task library. Without a bound task, the same catalog-free concern "
-            "is created first and only then retrieves a checkpoint-ready base "
-            "task; this portfolio convenience is not one policy executing "
-            "arbitrary tasks."
-        ),
-    )
-    parser.add_argument(
-        "--bound-task-name",
-        help=(
-            "Bind one auto-routed evaluation to an already selected RoboTwin "
-            "task/checkpoint. The Plan Agent may change sub-aspects but cannot "
-            "route to another task."
-        ),
-    )
-    parser.add_argument(
-        "--bound-requested-aspect-id",
-        dest="bound_requested_aspect_ids",
-        action="append",
-        help=argparse.SUPPRESS,
-    )
-    parser.add_argument(
-        "--proposal-mode",
-        choices=["catalog", "novel_first_round", "bounded_each_round"],
-        default="catalog",
-        help=argparse.SUPPRESS,
-    )
-    parser.add_argument(
-        "--task-name",
-        default="beat_block_hammer",
-        help=(
-            "Canonical RoboTwin task identity. beat_block_hammer uses the "
-            "bounded Plan/TaskGen flow; other schema-backed tasks use the "
-            "unchanged official expert-probe route."
-        ),
-    )
-    parser.add_argument(
-        "--task-module",
-        help="Optional Python module for an official schema-backed task.",
-    )
-    parser.add_argument(
-        "--task-profile",
-        choices=["official", "position_lr", "adaptive_properties", "fixed_suite"],
-        default="official",
-        help=argparse.SUPPRESS,
-    )
-    parser.add_argument(
-        "--planning-policy",
-        choices=["dynamic_evidence_v1", "fixed_predeclared_v1"],
-        default="dynamic_evidence_v1",
-        help=argparse.SUPPRESS,
-    )
-    parser.add_argument(
-        "--open-query-planner",
-        choices=["catalog_step_v1", "claim_first_v1"],
-        default=None,
-        help=argparse.SUPPRESS,
-    )
-    parser.add_argument(
-        "--query-sufficiency-contract",
-        type=Path,
-        help=(
-            "Optional preregistered QuerySufficiencyContract JSON for "
-            "claim_first_v1. Comparative Queries require this explicit "
-            "two-group contract."
-        ),
-    )
-    parser.add_argument(
-        "--generated-rounds",
-        type=int,
-        choices=[1, 2, 3, 4, 5],
-        default=2,
-        help="Round budget for a bounded click_bell generated profile.",
-    )
-    parser.add_argument(
-        "--max-agent-rounds",
-        type=int,
-        choices=[1, 2, 3, 4, 5],
-        help=(
-            "Optional task-agnostic hard execution cap. After this many completed "
-            "rounds the Agent writes an auditable budget stop without asking the "
-            "planner to add another round."
-        ),
-    )
-    parser.add_argument(
-        "--execution-backend",
-        choices=["expert", "act", "both"],
-        help=(
-            "Policy backend for schema-backed official tasks. Defaults to "
-            "expert; both evaluates ACT and keeps expert as validation."
-        ),
-    )
-    parser.add_argument(
-        "--start-seed",
-        type=int,
-        default=None,
-        help=(
-            "override trusted task seeds; omitted keeps the BBH catalog "
-            "defaults and each other planner's existing default"
-        ),
-    )
-    parser.add_argument("--num-episodes", type=int, default=1)
-    parser.add_argument(
-        "--telemetry-profile",
-        choices=["balanced_v1", "legacy_v1"],
-        default="balanced_v1",
-    )
-    parser.add_argument(
-        "--model-profile",
-        choices=available_model_profiles(),
-        default="legacy",
-        help=(
-            "Named per-stage model defaults. Individual --*-model arguments "
-            "override the selected profile."
-        ),
-    )
-    parser.add_argument("--planner-model")
-    parser.add_argument("--taskgen-model")
-    parser.add_argument("--toolgen-model")
-    parser.add_argument("--vision-model")
-    parser.add_argument("--feedback-model")
-    parser.add_argument("--base-url", default=None)
-    parser.add_argument("--gpu", type=int, default=0)
-    parser.add_argument(
-        "--max-reflections",
-        type=int,
-        default=2,
-        help="Maximum visual diagnosis-driven CodeGen repairs per TaskGen run.",
-    )
-    parser.add_argument("--plan-only", action="store_true")
-    parser.add_argument(
-        "--history-database",
-        type=Path,
-        help=(
-            "SQLite planning-history cache. Defaults to "
-            "mea/evaluation_runs/history.sqlite3 under --repo-root."
-        ),
-    )
-    parser.add_argument("--history-limit", type=int, default=3)
-    parser.add_argument(
-        "--reviewed-task-registry",
-        type=Path,
-        help=(
-            "Optional explicit reviewed generated-Task registry. Exact semantic "
-            "and artifact-hash matches may be materialized without TaskGen text "
-            "generation."
-        ),
-    )
-    parser.add_argument(
-        "--reviewed-tool-registry",
-        type=Path,
-        help=(
-            "Optional explicit reviewed generated-Tool registry. Exact "
-            "contract/schema/hash matches may be reused across evaluations "
-            "without a ToolGen provider call."
-        ),
-    )
-    parser.add_argument(
-        "--reviewed-vqa-registry",
-        type=Path,
-        help=(
-            "Optional hash-pinned reviewed VQAQuerySpec registry. Matching "
-            "entries may only select existing trusted visual phenomena."
-        ),
-    )
-    parser.add_argument(
-        "--no-history",
-        action="store_true",
-        help="Disable cross-evaluation planning retrieval and indexing.",
-    )
-    parser.add_argument(
-        "--evidence-manifest",
-        help=argparse.SUPPRESS,
-    )
-    parser.add_argument(
-        "--command-plan",
-        help=argparse.SUPPRESS,
-    )
-    parser.add_argument(
-        "--registered-route",
-        help=argparse.SUPPRESS,
-    )
-    parser.add_argument(
-        "--registered-strategy",
-        choices=["fixed_predeclared_v1", "dynamic_evidence_v1"],
-        help=argparse.SUPPRESS,
-    )
-    return parser.parse_args()
-
-
-def resolve_default_open_query_planner(args: argparse.Namespace) -> str:
-    """Choose production ClaimFirst unless a paper protocol is explicit."""
-
-    selected = getattr(args, "open_query_planner", None)
-    if selected is not None:
-        return str(selected)
-    paper_compatibility = bool(
-        getattr(args, "registered_strategy", None) is not None
-        or getattr(args, "task_profile", "official") != "official"
-        or getattr(args, "planning_policy", "dynamic_evidence_v1")
-        != "dynamic_evidence_v1"
-        or getattr(args, "proposal_mode", "catalog") != "catalog"
-    )
-    return "catalog_step_v1" if paper_compatibility else "claim_first_v1"
-
-
-def resolve_claim_first_control_required(
-    user_request: str,
-    *,
-    query_contract: Mapping[str, Any] | None,
-    semantic_context: Mapping[str, Any] | None,
-) -> bool:
-    """Resolve the control cost before screening the candidate budget."""
-
-    if query_contract is not None:
-        return query_contract["control_requirement"] == "required"
-    return (
-        infer_control_requirement(
-            user_request,
-            semantic_context=semantic_context,
-        )
-        == "required"
-    )
-
-
-def resolve_claim_first_candidate_budget(
-    max_agent_rounds: int | None,
-    *,
-    user_request: str,
-    query_contract: Mapping[str, Any] | None,
-    semantic_context: Mapping[str, Any] | None,
-) -> int | None:
-    """Return candidate rounds after charging only a required control."""
-
-    if max_agent_rounds is None:
-        return None
-    return int(max_agent_rounds) - int(
-        resolve_claim_first_control_required(
-            user_request,
-            query_contract=query_contract,
-            semantic_context=semantic_context,
-        )
-    )
 
 
 def main() -> None:
@@ -4104,8 +3048,38 @@ def main() -> None:
 
         run_libero_agent_cli(args)
         return
+    requested_open_query_planner = args.open_query_planner
     args.open_query_planner = resolve_default_open_query_planner(args)
-    claim_first_mode = args.open_query_planner == "claim_first_v1"
+    compat_profile_requested = bool(
+        requested_open_query_planner == "catalog_step_v1"
+        or args.task_profile != "official"
+        or args.planning_policy != "dynamic_evidence_v1"
+        or args.proposal_mode != "catalog"
+        or any(
+            value is not None
+            for value in (
+                args.evidence_manifest,
+                args.command_plan,
+                args.registered_route,
+                args.registered_strategy,
+            )
+        )
+    )
+    if compat_profile_requested:
+        from experiments.paper.compat_agent_profile import (
+            CompatAgentProfileError,
+            resolve_compat_agent_profile,
+        )
+
+        try:
+            compat_profile = resolve_compat_agent_profile(
+                args,
+                requested_open_query_planner=requested_open_query_planner,
+            )
+        except CompatAgentProfileError as exc:
+            raise SystemExit(str(exc)) from exc
+        args.open_query_planner = compat_profile["open_query_planner"]
+    claim_first_mode = args.open_query_planner == "plan_agent_v1"
     claim_first_bound_plan_only = bool(
         claim_first_mode
         and args.plan_only
@@ -4132,48 +3106,22 @@ def main() -> None:
         raise SystemExit(
             "--bound-requested-aspect-id requires --bound-task-name"
         )
-    if args.proposal_mode != "catalog" and not args.auto_route:
-        raise SystemExit("--proposal-mode novel_first_round requires --auto-route")
     if claim_first_mode and not (
         args.auto_route or claim_first_bound_plan_only
     ):
         raise SystemExit(
-            "claim_first_v1 requires --auto-route, or --plan-only with "
+            "plan_agent_v1 requires --auto-route, or --plan-only with "
             "--bound-task-name"
         )
     if claim_first_bound_plan_only and args.bound_requested_aspect_ids is not None:
         raise SystemExit(
-            "providerless claim-first plan-only owns the control anchor; "
+            "providerless Plan Agent plan-only owns the control anchor; "
             "do not predeclare aspect ids"
-        )
-    if claim_first_mode and args.planning_policy != "dynamic_evidence_v1":
-        raise SystemExit("claim_first_v1 requires --planning-policy dynamic_evidence_v1")
-    if claim_first_mode and args.proposal_mode != "catalog":
-        raise SystemExit(
-            "claim_first_v1 resolves its semantic proposal after evidence; "
-            "do not also select a predeclared --proposal-mode"
         )
     if args.query_sufficiency_contract is not None and not claim_first_mode:
         raise SystemExit(
-            "--query-sufficiency-contract requires --open-query-planner claim_first_v1"
+            "--query-sufficiency-contract requires the production Plan Agent"
         )
-    registered_values = (
-        args.evidence_manifest,
-        args.command_plan,
-        args.registered_route,
-        args.registered_strategy,
-    )
-    if any(value is not None for value in registered_values) and not all(
-        value is not None for value in registered_values
-    ):
-        raise SystemExit(
-            "registered execution requires --evidence-manifest, --command-plan, "
-            "--registered-route, and --registered-strategy together"
-        )
-    if args.registered_strategy is not None and args.auto_route:
-        raise SystemExit("registered execution forbids live --auto-route")
-    if args.registered_strategy is not None and args.evaluation_id is None:
-        raise SystemExit("registered execution requires an explicit --evaluation-id")
     repo_root = args.repo_root.expanduser().resolve()
     query_sufficiency_contract: dict[str, Any] | None = None
     if args.query_sufficiency_contract is not None:
@@ -4246,6 +3194,8 @@ def main() -> None:
     )
     provider = None
     global_catalog: dict[str, Any] | None = None
+    runtime_claim_first_targets: dict[str, dict[str, Any]] = {}
+    runtime_binding_excluded: list[dict[str, str]] = []
     # A registered dynamic run already carries a validated route, so it skips
     # --auto-route.  It still needs the trusted catalog to construct the bound
     # PlanSession that owns evidence-conditioned PlanStep proposals.  Keep the
@@ -4267,7 +3217,7 @@ def main() -> None:
         "candidates": [],
     }
     global_router: GlobalQueryRouter | None = None
-    free_concern_agent: FreeConcernAgent | None = None
+    free_concern_agent: PlanAgentQueryInterpreter | None = None
     free_concern_bundle: dict[str, Any] | None = None
     concern_candidate_resolution: dict[str, Any] | None = None
     open_task_inventory: list[dict[str, Any]] | None = None
@@ -4283,21 +3233,30 @@ def main() -> None:
 
     if claim_first_bound_plan_only:
         global_catalog = build_act_catalog(repo_root)
-        ready_tasks = [
-            str(task["task_name"])
-            for task in global_catalog.get("tasks", [])
-        ]
+        open_task_inventory = discover_robotwin_runtime_task_inventory(
+            repo_root,
+            capability_catalog=global_catalog,
+        )
+        runtime_discovery = discover_ready_plan_agent_targets(
+            repo_root,
+            open_task_inventory,
+            max_rounds=(
+                int(args.max_agent_rounds)
+                if args.max_agent_rounds is not None
+                else max(2, int(args.generated_rounds))
+            ),
+        )
+        runtime_claim_first_targets = runtime_discovery["targets"]
+        runtime_binding_excluded = runtime_discovery["excluded"]
+        ready_tasks = sorted(runtime_claim_first_targets)
         assert args.bound_task_name is not None
         if args.bound_task_name not in ready_tasks:
             raise SystemExit(
-                f"bound task is not ACT-ready: {args.bound_task_name!r}"
+                "bound task has no source/schema/checkpoint runtime binding: "
+                f"{args.bound_task_name!r}"
             )
         args.task_name = args.bound_task_name
-        args.task_profile = (
-            "adaptive_properties"
-            if args.task_name == "click_bell"
-            else "official"
-        )
+        args.task_profile = "official"
         routed_task_profile = args.task_profile
 
     if args.auto_route:
@@ -4308,22 +3267,54 @@ def main() -> None:
             timeout=180.0,
         )
         global_catalog = build_act_catalog(repo_root)
-        ready_tasks = [task["task_name"] for task in global_catalog.get("tasks", [])]
+        if claim_first_mode:
+            open_task_inventory = discover_robotwin_runtime_task_inventory(
+                repo_root,
+                capability_catalog=global_catalog,
+            )
+            runtime_discovery = discover_ready_plan_agent_targets(
+                repo_root,
+                open_task_inventory,
+                max_rounds=(
+                    int(args.max_agent_rounds)
+                    if args.max_agent_rounds is not None
+                    else max(2, int(args.generated_rounds))
+                ),
+            )
+            runtime_claim_first_targets = runtime_discovery["targets"]
+            runtime_binding_excluded = runtime_discovery["excluded"]
+            ready_tasks = sorted(runtime_claim_first_targets)
+        else:
+            ready_tasks = [
+                task["task_name"]
+                for task in global_catalog.get("tasks", [])
+            ]
         if not ready_tasks:
-            raise SystemExit("trusted ACT catalog has no checkpoint-ready tasks")
+            raise SystemExit(
+                "no source/schema/checkpoint-ready ACT task is available"
+            )
         if args.bound_task_name is not None and args.bound_task_name not in ready_tasks:
             raise SystemExit(
                 f"bound task is not ACT-ready: {args.bound_task_name!r}"
             )
-        global_planning_contexts = {
-            task_name: BoundTaskPlanSession.from_catalog(
-                global_catalog, task_name
-            ).planning_context(repo_root)
-            for task_name in ready_tasks
-        }
+        global_planning_contexts = (
+            {
+                task_name: PlanAgentExecutionSession.from_target(
+                    runtime_claim_first_targets[task_name]
+                ).planning_context(repo_root)
+                for task_name in ready_tasks
+            }
+            if claim_first_mode
+            else {
+                task_name: BoundTaskPlanSession.from_catalog(
+                    global_catalog, task_name
+                ).planning_context(repo_root)
+                for task_name in ready_tasks
+            }
+        )
         if claim_first_mode:
             # The query-first acceptance path is intentionally fail-fast:
-            # one FreeConcern call before any task/aspect inventory reaches the
+            # one Query-interpretation call before any task/aspect inventory reaches the
             # model, followed by deterministic semantic task retrieval.
             provider.max_retries = 0
             initially_bound_task = args.bound_task_name
@@ -4332,27 +3323,47 @@ def main() -> None:
                 if initially_bound_task is not None
                 else build_pending_task_binding_policy_card()
             )
-            free_concern_agent = FreeConcernAgent(
+            free_concern_agent = PlanAgentQueryInterpreter(
                 provider,
                 model=models["planner"],
-                max_attempts=1,
+                # One strict response plus one schema-guided repair.  This is
+                # bounded provider regeneration, never cached replay or an
+                # alternate prewritten concern.
+                max_attempts=2,
             )
             free_concern_bundle = free_concern_agent.propose(
                 args.request,
                 policy_card=concern_policy_card,
             )
-            open_task_inventory = discover_robotwin_task_inventory(
-                repo_root,
-                capability_catalog=global_catalog,
-            )
+            assert open_task_inventory is not None
             checkpoint_binding: dict[str, Any] | None = None
             if initially_bound_task is None:
-                checkpoint_binding = bind_ready_task_after_free_concern(
+                checkpoint_binding = bind_ready_task_after_query_interpretation(
                     free_concern_bundle["concern"],
                     inventory=open_task_inventory,
                     ready_task_names=[str(item) for item in ready_tasks],
                     default_task_name=str(args.task_name),
                 )
+                if checkpoint_binding["selected_task_name"] is None:
+                    unresolved_task = {
+                        "schema_version": 1,
+                        "decision": "unsupported",
+                        "resolved_task_name": None,
+                        "reason_code": checkpoint_binding["reason_code"],
+                        "checkpoint_binding": checkpoint_binding,
+                    }
+                    unsupported = finish_unsupported_open_task_resolution(
+                        repo_root,
+                        evaluation_id=args.evaluation_id,
+                        user_request=args.request,
+                        catalog=global_catalog,
+                        concern_bundle=free_concern_bundle,
+                        task_inventory=open_task_inventory,
+                        task_resolution=unresolved_task,
+                        concern_agent=free_concern_agent,
+                    )
+                    print(json.dumps(unsupported, ensure_ascii=False, indent=2))
+                    return
                 args.bound_task_name = checkpoint_binding["selected_task_name"]
             assert args.bound_task_name is not None
             bound_policy_card = global_planning_contexts[
@@ -4431,9 +3442,9 @@ def main() -> None:
                 return
             concern_candidate_resolution = resolve_concern_candidate_domain(
                 free_concern_bundle["concern"],
-                target=BoundTaskPlanSession.from_catalog(
-                    global_catalog, args.bound_task_name
-                ).target,
+                target=runtime_claim_first_targets[
+                    args.bound_task_name
+                ],
             )
             semantic_context_for_budget = (
                 free_concern_bundle.get("concern")
@@ -4441,7 +3452,7 @@ def main() -> None:
                 and isinstance(free_concern_bundle.get("concern"), Mapping)
                 else None
             )
-            candidate_budget = resolve_claim_first_candidate_budget(
+            candidate_budget = resolve_plan_agent_candidate_budget(
                 args.max_agent_rounds,
                 user_request=args.request,
                 query_contract=query_sufficiency_contract,
@@ -4495,10 +3506,13 @@ def main() -> None:
                 }
         if open_task_resolution is not None:
             assert args.bound_task_name is not None
-            global_route_result, routed = build_bound_claim_first_handoff(
-                global_catalog,
+            global_route_result, routed = build_bound_plan_agent_handoff(
+                None,
                 task_name=args.bound_task_name,
                 user_request=args.request,
+                runtime_target=runtime_claim_first_targets[
+                    args.bound_task_name
+                ],
             )
             global_route_result["task_resolution_scope"] = {
                 "mode": (
@@ -4510,6 +3524,14 @@ def main() -> None:
                     else "query_first_then_checkpoint_binding"
                 ),
                 "artifact": "plan/open_task_resolution.json",
+            }
+            global_route_result["runtime_binding_scope"] = {
+                "authority": "official_source_task_schema_act_checkpoint",
+                "catalog_membership_required": False,
+                "ready_task_names": sorted(runtime_claim_first_targets),
+                "excluded_task_names": sorted(
+                    item["task_name"] for item in runtime_binding_excluded
+                ),
             }
         else:
             global_router = GlobalQueryRouter(
@@ -4546,52 +3568,60 @@ def main() -> None:
         args.task_name = routed["task_name"]
         routed_task_profile = routed["task_profile"]
         args.task_profile = (
-            (
-                "fixed_suite"
-                if args.planning_policy == "fixed_predeclared_v1"
-                else "adaptive_properties"
+            "official"
+            if claim_first_mode
+            else (
+                (
+                    "fixed_suite"
+                    if args.planning_policy == "fixed_predeclared_v1"
+                    else "adaptive_properties"
+                )
+                if args.task_name == "click_bell"
+                else "official"
             )
-            if args.task_name == "click_bell"
-            else "official"
         )
         validated_proposal = routed["proposal"]
-        if claim_first_mode and not supports_claim_first_runtime(
-            global_catalog,
-            args.task_name,
-        ):
-            raise SystemExit(
-                "claim_first_v1 requires a ready checkpoint and official task "
-                f"binding; {args.task_name!r} is unavailable"
-            )
-
-    legacy_click_bell = args.task_profile == "position_lr"
-    adaptive_click_bell = args.task_profile == "adaptive_properties"
-    fixed_click_bell = args.task_profile == "fixed_suite"
-    bounded_click_bell = legacy_click_bell or adaptive_click_bell or fixed_click_bell
-    if bounded_click_bell and args.task_name != "click_bell":
-        raise SystemExit(
-            "click_bell generated task profiles require --task-name click_bell"
-        )
-    if args.task_name == "beat_block_hammer" and args.task_profile != "official":
-        raise SystemExit("beat_block_hammer does not use click_bell task profiles")
-    if args.task_name == "beat_block_hammer" and args.execution_backend:
-        raise SystemExit(
-            "--execution-backend currently applies to schema-backed official "
-            "tasks; beat_block_hammer keeps its bounded generated-task flow"
-        )
-    if bounded_click_bell and args.execution_backend not in {None, "act"}:
-        raise SystemExit("click_bell generated profiles are ACT-only")
-    if legacy_click_bell and args.generated_rounds not in {1, 2}:
-        raise SystemExit("click_bell position_lr supports at most 2 rounds")
-    execution_backend = (
-        "act"
         if (
             claim_first_mode
+            and args.task_name not in runtime_claim_first_targets
+        ):
+            raise SystemExit(
+                "the Plan Agent requires source/schema/checkpoint runtime "
+                f"authority; {args.task_name!r} is unavailable"
+            )
+
+    if (
+        not claim_first_mode
+        and (
+            args.task_profile != "official"
             or args.task_name == "beat_block_hammer"
-            or bounded_click_bell
         )
-        else (args.execution_backend or "expert")
-    )
+    ):
+        from experiments.paper.compat_agent_profile import (
+            CompatAgentProfileError,
+            resolve_task_specific_runtime_profile,
+        )
+
+        try:
+            task_runtime_profile = resolve_task_specific_runtime_profile(
+                args,
+                claim_first_mode=claim_first_mode,
+            )
+        except CompatAgentProfileError as exc:
+            raise SystemExit(str(exc)) from exc
+        legacy_click_bell = task_runtime_profile["legacy_click_bell"]
+        adaptive_click_bell = task_runtime_profile["adaptive_click_bell"]
+        fixed_click_bell = task_runtime_profile["fixed_click_bell"]
+        bounded_click_bell = task_runtime_profile["bounded_click_bell"]
+        execution_backend = task_runtime_profile["execution_backend"]
+    else:
+        legacy_click_bell = False
+        adaptive_click_bell = False
+        fixed_click_bell = False
+        bounded_click_bell = False
+        execution_backend = (
+            "act" if claim_first_mode else (args.execution_backend or "expert")
+        )
     # The deterministic official planner can materialize --plan-only without
     # any provider credential. Full execution still creates the provider for
     # final Feedback (and for VQA when an ACT video exists).
@@ -4609,7 +3639,7 @@ def main() -> None:
         )
     planner = None
     if claim_first_mode:
-        # ClaimFirst owns initial planning directly below.  Legacy planners
+        # Plan Agent owns initial planning directly below. Legacy planners
         # remain available only for explicit compatibility/experiment modes.
         pass
     else:
@@ -4695,7 +3725,9 @@ def main() -> None:
     initial_open_candidate: dict[str, Any] | None = None
     if claim_first_mode:
         if global_catalog is None:
-            raise RuntimeError("claim-first runtime requires the trusted ACT catalog")
+            raise RuntimeError(
+                "Plan Agent runtime requires a trusted policy-task binding index"
+            )
         semantic_context = (
             free_concern_bundle.get("concern")
             if isinstance(free_concern_bundle, Mapping)
@@ -4704,7 +3736,7 @@ def main() -> None:
         )
         if semantic_context is not None:
             claim_first_evaluation_intent = (
-                evaluation_intent_from_free_concern(semantic_context)
+                evaluation_intent_from_query_interpretation(semantic_context)
             )
             raw_experiment_needs = (
                 free_concern_bundle.get("experiment_needs")
@@ -4721,21 +3753,27 @@ def main() -> None:
                         provider_record=free_concern_bundle.get("provider"),
                     )
                 )
-                frozen_first_open_candidate = (
-                    build_dynamic_experiment_candidate(
-                        user_query=args.request,
-                        task_name=args.task_name,
-                        proposal=initial_free_concern_semantic_bundle[
-                            "proposal"
-                        ],
-                        evaluation_intent=claim_first_evaluation_intent,
-                    )
-                )
-        claim_first_control_required = resolve_claim_first_control_required(
+        claim_first_control_required = resolve_plan_agent_control_required(
             args.request,
             query_contract=query_sufficiency_contract,
             semantic_context=semantic_context,
         )
+        if (
+            not claim_first_control_required
+            and initial_free_concern_semantic_bundle is not None
+        ):
+            # A control-free Query has no earlier rollout evidence, so its first
+            # candidate is legitimately Query-conditioned.  Control-required
+            # runs intentionally do not freeze this candidate: the Planner
+            # chooses the first tested sub-aspect only after observing control.
+            frozen_first_open_candidate = (
+                build_dynamic_experiment_candidate(
+                    user_query=args.request,
+                    task_name=args.task_name,
+                    proposal=initial_free_concern_semantic_bundle["proposal"],
+                    evaluation_intent=claim_first_evaluation_intent,
+                )
+            )
         claim_first_round_budget = (
             int(args.max_agent_rounds)
             if args.max_agent_rounds is not None
@@ -4747,25 +3785,25 @@ def main() -> None:
         minimum_rounds = 1 + int(claim_first_control_required)
         if claim_first_round_budget < minimum_rounds:
             raise SystemExit(
-                "claim_first_v1 round budget is smaller than the QueryContract "
+                "Plan Agent round budget is smaller than the QueryContract "
                 "control plus candidate requirement"
             )
-        if (
-            query_sufficiency_contract is None
-            and frozen_first_open_candidate is not None
-        ):
+        if query_sufficiency_contract is None:
             inferred_claim_type = infer_claim_type(args.request)
             if inferred_claim_type == "comparative":
                 raise SystemExit(
                     "comparative Query requires an explicit preregistered "
                     "--query-sufficiency-contract"
                 )
+            initial_candidate_ids = (
+                [frozen_first_open_candidate["candidate_id"]]
+                if frozen_first_open_candidate is not None
+                else []
+            )
             query_sufficiency_contract = (
                 build_query_sufficiency_contract(
                     args.request,
-                    candidate_universe=[
-                        frozen_first_open_candidate["candidate_id"]
-                    ],
+                    candidate_universe=initial_candidate_ids,
                     round_budget=(
                         claim_first_round_budget
                         - int(claim_first_control_required)
@@ -4782,13 +3820,14 @@ def main() -> None:
         if not claim_first_control_required:
             if semantic_context is None:
                 raise SystemExit(
-                    "a no-control ClaimFirst run requires an online FreeConcern"
+                    "a no-control Plan Agent run requires online Query "
+                    "interpretation"
                 )
             if initial_free_concern_semantic_bundle is not None:
                 assert frozen_first_open_candidate is not None
                 initial_open_candidate = frozen_first_open_candidate
             else:
-                # Backward compatibility for legacy cached FreeConcern
+                # Backward compatibility for cached Query-interpretation
                 # artifacts that predate independent typed needs.
                 initial_open_candidate = build_experiment_candidate(
                     source_query=args.request,
@@ -4826,22 +3865,35 @@ def main() -> None:
                 if query_sufficiency_contract["candidate_universe_closed"]:
                     raise SystemExit(
                         "closed no-control QueryContract does not contain the "
-                        "runtime FreeConcern candidate"
+                        "runtime Query-derived Proposal"
                     )
                 query_sufficiency_contract = extend_query_candidate_universe(
                     query_sufficiency_contract,
                     [initial_open_candidate["candidate_id"]],
                     candidate_universe_closed=False,
                 )
-        claim_first_initial_target = build_open_world_evaluation_target(
-            global_catalog,
-            args.task_name,
-            max_rounds=claim_first_round_budget,
-        )
+        if args.task_module is not None:
+            # Retained only for the explicit providerless compatibility
+            # spelling. Production auto-route always binds the official
+            # ``envs.<task>`` source through runtime authority below.
+            claim_first_initial_target = build_open_world_evaluation_target(
+                global_catalog,
+                args.task_name,
+                max_rounds=claim_first_round_budget,
+                task_module=args.task_module,
+            )
+        else:
+            claim_first_initial_target = (
+                build_runtime_open_world_evaluation_target(
+                    repo_root,
+                    args.task_name,
+                    max_rounds=claim_first_round_budget,
+                )
+            )
     if claim_first_mode:
         if claim_first_initial_target is None:
-            raise RuntimeError("claim-first runtime target was not initialized")
-        initial_builder = ClaimFirstInitialPlanBuilder(
+            raise RuntimeError("Plan Agent runtime target was not initialized")
+        initial_builder = PlanAgentInitialPlanBuilder(
             repo_root,
             target=claim_first_initial_target,
             max_rounds=int(claim_first_round_budget),
@@ -4900,7 +3952,7 @@ def main() -> None:
             )
             update_manifest(
                 evaluation_dir,
-                free_concern_path="plan/free_concern.json",
+                query_interpretation_path=QUERY_INTERPRETATION.as_posix(),
                 open_task_resolution_path="plan/open_task_resolution.json",
                 robotwin_task_inventory_path=(
                     "plan/robotwin_task_inventory.json"
@@ -4915,7 +3967,7 @@ def main() -> None:
             )
         ):
             raise RuntimeError(
-                "ClaimFirst materializer did not provide an execution binding"
+                "Plan Agent materializer did not provide an execution binding"
             )
         initial_round, initial_tool_bundle = materialize_open_world_round(
             repo_root,
@@ -4932,17 +3984,17 @@ def main() -> None:
             evaluation_dir,
             status=plan["planning_state"],
             plan=plan,
-            initial_candidate_source="online_free_concern_no_control",
+            initial_candidate_source="online_query_interpretation_no_control",
             initial_toolgen_route=initial_tool_bundle["source"],
         )
-    bound_plan_session: BoundTaskPlanSession | OpenWorldPlanSession | None = None
+    bound_plan_session: BoundTaskPlanSession | PlanAgentExecutionSession | None = None
     bound_plan_session_path: str | None = None
     evaluation_target: dict[str, Any] | None = None
     planning_context: dict[str, Any] | None = None
     proposal_agent: BoundedProposalAgent | None = None
     adaptive_step_agent: AdaptivePlanStepAgent | None = None
-    claim_first_controller: ClaimFirstRuntimeController | None = None
-    claim_first_agent: ClaimFirstOpenQueryAgent | None = None
+    claim_first_controller: PlanAgentSession | None = None
+    claim_first_agent: PlanAgent | None = None
     claim_first_capabilities: dict[str, Any] | None = None
     if global_catalog is not None:
         initial_failure_stage = "initial_plan_session_validation"
@@ -4957,15 +4009,15 @@ def main() -> None:
             if claim_first_mode:
                 if claim_first_round_budget is None:
                     raise RuntimeError(
-                        "claim-first open-world budget was not initialized"
+                        "Plan Agent open-world budget was not initialized"
                     )
                 effective_round_budget = claim_first_round_budget
                 plan["max_rounds"] = effective_round_budget
                 if claim_first_initial_target is None:
                     raise RuntimeError(
-                        "claim-first runtime target was not initialized"
+                        "Plan Agent runtime target was not initialized"
                     )
-                bound_plan_session = OpenWorldPlanSession.from_target(
+                bound_plan_session = PlanAgentExecutionSession.from_target(
                     claim_first_initial_target,
                     control_round=(
                         plan["rounds"][0]
@@ -4994,36 +4046,26 @@ def main() -> None:
             planning_context = bound_plan_session.planning_context(repo_root)
             write_json(evaluation_dir / "plan/planning_context.json", planning_context)
             if claim_first_mode:
+                explicit_candidate_aspect_ids = (
+                    resolve_plan_agent_allowed_aspects(
+                        args.bound_requested_aspect_ids
+                    )
+                )
                 claim_first_capabilities = project_open_query_capabilities(
                     planning_context,
-                    allowed_aspect_ids=(
-                        concern_candidate_resolution.get(
-                            "candidate_aspect_ids"
-                        )
-                        if isinstance(
-                            concern_candidate_resolution, Mapping
-                        )
-                        else None
-                    ),
+                    allowed_aspect_ids=explicit_candidate_aspect_ids,
                 )
                 # Global routing selects only the executable task/checkpoint.
-                # An online FreeConcern was authored before inventory lookup,
-                # so its semantics may uniquely bind a trusted candidate
-                # domain without exposing an executable itinerary to the
-                # model. Broad or tied concerns retain the complete domain.
-                explicit_candidate_aspect_ids = (
-                    [
-                        str(item)
-                        for item in args.bound_requested_aspect_ids
-                        if isinstance(item, str) and item.strip()
-                    ]
-                    if args.bound_requested_aspect_ids is not None
-                    else None
+                # Query interpretation is authored before inventory lookup and remains
+                # useful routing evidence, but it must not freeze the semantic
+                # domain later seen by the evidence-conditioned Planner. Only
+                # an explicit caller binding narrows reusable capabilities;
+                # generation outside that inventory remains available.
+                resolved_candidate_aspect_ids = (
+                    explicit_candidate_aspect_ids
                 )
-                resolved_candidate_aspect_ids = explicit_candidate_aspect_ids
                 if (
-                    resolved_candidate_aspect_ids is None
-                    and isinstance(free_concern_bundle, Mapping)
+                    isinstance(free_concern_bundle, Mapping)
                     and isinstance(
                         free_concern_bundle.get("concern"), Mapping
                     )
@@ -5032,29 +4074,27 @@ def main() -> None:
                         concern_candidate_resolution, Mapping
                     ):
                         raise RuntimeError(
-                            "online FreeConcern candidate domain was not "
+                            "online Query-interpretation candidate domain was not "
                             "resolved before planning"
                         )
                     write_json(
                         evaluation_dir
                         / "plan/concern_candidate_resolution.json",
-                        concern_candidate_resolution,
+                        {
+                            **concern_candidate_resolution,
+                            "planner_domain_role": (
+                                "routing_and_retrieval_hint_only"
+                            ),
+                            "planner_domain_restricted": False,
+                        },
                     )
-                    raw_candidate_aspects = (
-                        concern_candidate_resolution.get(
-                            "candidate_aspect_ids"
-                        )
-                    )
-                    if isinstance(raw_candidate_aspects, list):
-                        resolved_candidate_aspect_ids = [
-                            str(item) for item in raw_candidate_aspects
-                        ]
-                claim_first_controller = ClaimFirstRuntimeController(
+                claim_first_controller = PlanAgentSession(
                     args.request,
                     bound_plan_session.target,
                     query_contract=query_sufficiency_contract,
                     candidate_aspect_ids=resolved_candidate_aspect_ids,
                     require_control_anchor=claim_first_control_required,
+                    retrieval_aspects=bound_plan_session.retrieval_aspects,
                 )
                 if frozen_first_open_candidate is not None:
                     frozen_first_open_candidate = (
@@ -5064,12 +4104,12 @@ def main() -> None:
                     )
                 if not args.plan_only:
                     assert provider is not None
-                    claim_first_agent = ClaimFirstOpenQueryAgent(
-                        provider,
-                        model=models["planner"],
-                    )
+                    claim_first_agent = PlanAgent(
+                    provider,
+                    model=models["planner"],
+                )
                 write_json(
-                    evaluation_dir / "plan/claim_first_capabilities.json",
+                    evaluation_dir / PLAN_AGENT_CAPABILITIES,
                     claim_first_capabilities,
                 )
                 claim_first_controller.query_contract = persist_query_contract(
@@ -5079,7 +4119,7 @@ def main() -> None:
                 )
                 manifest.setdefault("planner", {}).update(
                     {
-                        "public_planner": "ClaimFirstOpenQueryAgent",
+                        "public_planner": "PlanAgent",
                         "control_anchor_owned_by_runtime": (
                             claim_first_controller.require_control_anchor
                         ),
@@ -5088,14 +4128,15 @@ def main() -> None:
                         ),
                         "catalog_navigation_was_model_visible": False,
                         "global_router_scope": "task_and_checkpoint_only",
-                        "aspect_selection_owner": "ClaimFirstOpenQueryAgent",
+                        "aspect_selection_owner": "PlanAgent",
                         "candidate_domain_source": (
                             "explicit_user_binding"
                             if explicit_candidate_aspect_ids is not None
-                            else "online_free_concern_semantic_resolution"
-                            if resolved_candidate_aspect_ids is not None
-                            else "all_non_control_bound_task_capabilities"
+                            else (
+                                "full_retrieval_inventory_plus_open_generation"
+                            )
                         ),
+                        "pre_control_concern_restricts_planner_domain": False,
                         "concern_candidate_resolution_path": (
                             "plan/concern_candidate_resolution.json"
                             if concern_candidate_resolution is not None
@@ -5112,9 +4153,7 @@ def main() -> None:
                 adaptive_step_agent = AdaptivePlanStepAgent(
                     provider, model=models["planner"]
                 )
-            if args.proposal_mode != "catalog" or (
-                claim_first_mode and not args.plan_only
-            ):
+            if args.proposal_mode != "catalog":
                 assert provider is not None
                 proposal_agent = BoundedProposalAgent(
                     provider, model=models["taskgen"]
@@ -5185,7 +4224,11 @@ def main() -> None:
         "fixed_predeclared_v1"
         if fixed_click_bell
         else "dynamic_evidence_v1"
-        if adaptive_click_bell or args.task_name == "beat_block_hammer"
+        if (
+            claim_first_mode
+            or adaptive_click_bell
+            or args.task_name == "beat_block_hammer"
+        )
         else None
     )
     registration_identity: dict[str, Any] | None = None
@@ -5238,7 +4281,13 @@ def main() -> None:
             else None
         ),
         model_profile=args.model_profile,
-        resolved_models=models,
+        resolved_models={
+            "planner": models["planner"],
+            "taskgen": models["taskgen"],
+            "toolgen": models["toolgen"],
+            "vision": models["vision"],
+            "answer": models["feedback"],
+        },
         history_database=(
             str(history_path.relative_to(repo_root))
             if history_path.is_relative_to(repo_root)
@@ -5246,7 +4295,13 @@ def main() -> None:
         ),
         history_retrieval_status=history_retrieval.get("status"),
         task_name=args.task_name,
-        task_module=args.task_module,
+        task_module=(
+            policy_task_binding_from_target(claim_first_initial_target)[
+                "task_module"
+            ]
+            if claim_first_initial_target is not None
+            else args.task_module
+        ),
         task_profile=routed_task_profile or args.task_profile,
         generated_rounds=(args.generated_rounds if bounded_click_bell else None),
         telemetry_profile=args.telemetry_profile,
@@ -5256,8 +4311,8 @@ def main() -> None:
         query_sufficiency_contract_path=(
             "plan/query_sufficiency_contract.json" if claim_first_mode else None
         ),
-        claim_first_capabilities_path=(
-            "plan/claim_first_capabilities.json" if claim_first_mode else None
+        plan_agent_capabilities_path=(
+            PLAN_AGENT_CAPABILITIES.as_posix() if claim_first_mode else None
         ),
         candidate_suite_sha256=(
             canonical_sha256(candidate_suite) if candidate_suite else None
@@ -5298,7 +4353,9 @@ def main() -> None:
         ),
         max_agent_rounds=args.max_agent_rounds,
         bound_task_name=(
-            evaluation_target["task_name"] if evaluation_target is not None else None
+            bound_target_task_name(evaluation_target)
+            if evaluation_target is not None
+            else None
         ),
         bound_requested_aspect_ids=(
             list(args.bound_requested_aspect_ids)
@@ -5314,22 +4371,22 @@ def main() -> None:
         initial_free_concern_semantic_bundle is not None
         and frozen_first_open_candidate is not None
     ):
-        frozen_dir = evaluation_dir / "plan/free_concern_first_candidate"
+        frozen_dir = evaluation_dir / INITIAL_SUB_ASPECT_PROPOSAL
         write_json(
             frozen_dir / "semantic_proposal_bundle.json",
             initial_free_concern_semantic_bundle,
         )
         write_json(
-            frozen_dir / "experiment_candidate.json",
+            frozen_dir / PROPOSAL_FILENAME,
             frozen_first_open_candidate,
         )
         frozen_first_candidate_path = (
-            "plan/free_concern_first_candidate/experiment_candidate.json"
+            (INITIAL_SUB_ASPECT_PROPOSAL / PROPOSAL_FILENAME).as_posix()
         )
         update_manifest(
             evaluation_dir,
             initial_candidate_source=(
-                "provider_free_concern_direct_materialization"
+                "provider_plan_agent_direct_materialization"
             ),
             frozen_first_candidate_path=frozen_first_candidate_path,
         )
@@ -5340,83 +4397,6 @@ def main() -> None:
         return
 
     assert provider is not None
-
-    pending_first_semantic_bundle: dict[str, Any] | None = None
-    pending_first_prompt: str | None = None
-    pending_first_responses: list[str] = []
-    if (
-        claim_first_mode
-        and claim_first_control_required
-        and claim_first_agent is not None
-        and claim_first_capabilities is not None
-        and claim_first_evaluation_intent is not None
-    ):
-        # Freeze the first experiment before the control rollout. The control
-        # is only an attribution gate; it must not cause the Planner to replace
-        # the already selected FreeConcern after seeing a successful baseline.
-        if initial_free_concern_semantic_bundle is not None:
-            pending_first_semantic_bundle = (
-                initial_free_concern_semantic_bundle
-            )
-            pending_first_prompt = (
-                free_concern_agent.last_prompt
-                if free_concern_agent is not None
-                else None
-            )
-            pending_first_responses = (
-                list(free_concern_agent.last_responses)
-                if free_concern_agent is not None
-                else []
-            )
-            update_manifest(
-                evaluation_dir,
-                pending_first_candidate_path=(
-                    "plan/free_concern_first_candidate/"
-                    "semantic_proposal_bundle.json"
-                ),
-            )
-        else:
-            # Legacy cached concerns have no typed Task/Tool needs. Keep the
-            # old second-stage decision only for those read-only artifacts.
-            pending_first_semantic_bundle = claim_first_agent.propose(
-                args.request,
-                capabilities=claim_first_capabilities,
-                evidence_history=[],
-                evaluation_intent=claim_first_evaluation_intent,
-            )
-            pending_first_prompt = claim_first_agent.last_prompt
-            pending_first_responses = list(
-                claim_first_agent.last_responses
-            )
-        if initial_free_concern_semantic_bundle is None:
-            pending_dir = (
-                evaluation_dir
-                / "plan/claim_first_steps/pending_first_candidate"
-            )
-            pending_dir.mkdir(parents=True, exist_ok=True)
-            (pending_dir / "prompt.md").write_text(
-                pending_first_prompt or "",
-                encoding="utf-8",
-            )
-            for index, response in enumerate(
-                pending_first_responses,
-                start=1,
-            ):
-                (pending_dir / f"response_{index}.txt").write_text(
-                    response + "\n",
-                    encoding="utf-8",
-                )
-            write_json(
-                pending_dir / "semantic_proposal_bundle.json",
-                pending_first_semantic_bundle,
-            )
-            update_manifest(
-                evaluation_dir,
-                pending_first_candidate_path=(
-                    "plan/claim_first_steps/pending_first_candidate/"
-                    "semantic_proposal_bundle.json"
-                ),
-            )
 
     round_runs: list[dict[str, Any]] = []
     claim_first_runtime_state: dict[str, Any] | None = None
@@ -5433,7 +4413,7 @@ def main() -> None:
                 round_summary,
                 tool_evaluation,
                 returncode,
-            ) = execute_round_once(
+            ) = execute_round(
                 repo_root,
                 evaluation_dir,
                 evaluation_id,
@@ -5465,15 +4445,15 @@ def main() -> None:
 
             if claim_first_controller is not None:
                 active_failure_stage = (
-                    f"claim_first_evidence_after_round_{executed_rounds}"
+                    f"plan_agent_evidence_after_round_{executed_rounds}"
                 )
                 claim_first_runtime_state = claim_first_controller.observe(
                     [item["round_plan"] for item in round_runs],
                     [item["round_summary"] for item in round_runs],
                 )
-                # OpenWorldPlanSession is only the execution/session transport
-                # for ClaimFirst.  Give it the same normalized candidate
-                # evidence that the authoritative ClaimFirst controller just
+                # PlanAgentExecutionSession is only the execution transport
+                # for the Plan Agent. Give it the same normalized candidate
+                # evidence that the authoritative Plan Agent controller just
                 # derived, while leaving the control round outside the Query
                 # candidate domain.
                 contract_candidate_ids = {
@@ -5488,7 +4468,7 @@ def main() -> None:
                 }
                 if len(records_by_round) != len(round_runs):
                     raise RuntimeError(
-                        "ClaimFirst records are not one-to-one with completed "
+                        "Plan Agent records are not one-to-one with completed "
                         "runtime rounds"
                     )
                 for completed_run in round_runs:
@@ -5496,14 +4476,14 @@ def main() -> None:
                     record = records_by_round.get(round_id)
                     if record is None:
                         raise RuntimeError(
-                            "ClaimFirst record is missing for completed round "
+                            "Plan Agent record is missing for completed round "
                             f"{round_id!r}"
                         )
                     if record["candidate_id"] in contract_candidate_ids:
                         completed_run["round_summary"][
                             "candidate_evidence"
                         ] = deepcopy(record["candidate_evidence"])
-                claim_first_dir = evaluation_dir / "plan/claim_first_runtime"
+                claim_first_dir = evaluation_dir / PLAN_AGENT_SESSION
                 write_json(
                     claim_first_dir
                     / f"evidence_after_round_{executed_rounds:02d}.json",
@@ -5522,7 +4502,7 @@ def main() -> None:
                         "next_template_id": None,
                         "observation_summary": assessment["rationale"],
                         "decision_reason": (
-                            "claim_first_query_sufficiency_contract"
+                            "plan_agent_evidence_sufficiency"
                         ),
                         "answered_query": bool(
                             claim_first_query_answer["answered"]
@@ -5567,14 +4547,14 @@ def main() -> None:
                         evaluation_dir,
                         status=plan["planning_state"],
                         plan=plan,
-                        claim_first_stop={
+                        plan_agent_stop={
                             "stop_reason": assessment["stop_reason"],
                             "evidence_sufficient": assessment[
                                 "evidence_sufficient"
                             ],
                             "answered_query": claim_first_query_answer["answered"],
                             "answer_path": (
-                                "plan/claim_first_runtime/query_answer.json"
+                                (PLAN_AGENT_SESSION / "query_answer.json").as_posix()
                             ),
                         },
                     )
@@ -5671,39 +4651,8 @@ def main() -> None:
             )
             if claim_first_step_session:
                 active_failure_stage = (
-                    f"claim_first_decision_after_round_{executed_rounds}"
+                    f"plan_agent_decision_after_round_{executed_rounds}"
                 )
-                # The first candidate was frozen before the control rollout;
-                # the control only authorizes attribution. Later candidates
-                # are fresh evidence-driven proposals with their own
-                # per-candidate experiment contracts.
-                use_pending_first = (
-                    pending_first_semantic_bundle is not None
-                    and executed_rounds
-                    == int(claim_first_control_required)
-                )
-                if use_pending_first:
-                    proposal_evaluation_intent = (
-                        claim_first_evaluation_intent
-                    )
-                    semantic_bundle = pending_first_semantic_bundle
-                    step_prompt = pending_first_prompt
-                    step_responses = list(pending_first_responses)
-                    pending_first_semantic_bundle = None
-                else:
-                    proposal_evaluation_intent = None
-                    semantic_bundle = claim_first_agent.propose(
-                        args.request,
-                        capabilities=claim_first_capabilities,
-                        evidence_history=claim_first_runtime_state[
-                            "open_query_evidence_history"
-                        ],
-                        evaluation_intent=None,
-                    )
-                    step_prompt = claim_first_agent.last_prompt
-                    step_responses = list(
-                        claim_first_agent.last_responses
-                    )
                 executed_candidate_ids = [
                     str(
                         item["round_plan"].get("candidate_id")
@@ -5711,99 +4660,27 @@ def main() -> None:
                     )
                     for item in round_runs
                 ]
-                if (
-                    use_pending_first
-                    and frozen_first_open_candidate is not None
-                ):
-                    bound_semantic_step = (
-                        claim_first_controller.bind_frozen_candidate(
-                            semantic_bundle,
-                            frozen_first_open_candidate,
-                            claim_first_runtime_state,
-                            executed_candidate_ids=executed_candidate_ids,
-                        )
+                # This is the temporal boundary required by Fig. 5: validate the
+                # latest Aggregate/Evidence first, then ask the Plan Agent which
+                # semantic sub-aspect should be tested next.  A pre-control
+                # Query interpretation is routing context, not a frozen experiment.
+                bound_semantic_step = (
+                    claim_first_controller.propose_and_bind_semantic_step(
+                        claim_first_agent,
+                        claim_first_runtime_state,
+                        capabilities=claim_first_capabilities,
+                        executed_candidate_ids=executed_candidate_ids,
+                        evaluation_intent=None,
                     )
-                    frozen_first_open_candidate = None
-                else:
-                    bound_semantic_step = (
-                        claim_first_controller.bind_semantic_step(
-                            semantic_bundle,
-                            claim_first_runtime_state,
-                            executed_template_ids=executed_candidate_ids,
-                            evaluation_intent=proposal_evaluation_intent,
-                        )
-                    )
-                if (
-                    isinstance(bound_plan_session, OpenWorldPlanSession)
-                    and not isinstance(
-                        bound_semantic_step["plan_step"].get(
-                            "experiment_candidate"
-                        ),
-                        Mapping,
-                    )
-                ):
-                    # A catalog match is a retrieval hint, not execution
-                    # permission in the production open-world path.  Express
-                    # the same semantic request as a runtime candidate; the
-                    # generic backend may exact-reuse a registered artifact or
-                    # generate one after a miss.
-                    semantic_proposal = semantic_bundle["proposal"]
-                    candidate = build_dynamic_experiment_candidate(
-                        user_query=args.request,
-                        task_name=args.task_name,
-                        proposal=semantic_proposal,
-                        evaluation_intent=proposal_evaluation_intent,
-                    )
-                    if candidate["intent_alignment"]["relationship"] != "direct":
-                        raise RuntimeError(
-                            "the Query-derived candidate does not directly "
-                            "implement its experiment contract"
-                        )
-                    claim_first_controller.query_contract = (
-                        extend_query_candidate_universe(
-                            claim_first_controller.query_contract,
-                            [candidate["candidate_id"]],
-                            candidate_universe_closed=False,
-                        )
-                    )
-                    claim_first_controller.query_contract = (
-                        persist_query_contract(
-                            evaluation_dir,
-                            plan,
-                            claim_first_controller.query_contract,
-                        )
-                    )
-                    bound_semantic_step = {
-                        **bound_semantic_step,
-                        "schema_version": 2,
-                        "query_contract": deepcopy(
-                            claim_first_controller.query_contract
-                        ),
-                        "resolution": {
-                            **bound_semantic_step["resolution"],
-                            "resolution": (
-                                "catalog_retrieval_hint_then_reuse_or_generate"
-                            ),
-                            "retrieval_template_id": bound_semantic_step[
-                                "plan_step"
-                            ].get("template_id"),
-                            "resolved_template_id": None,
-                            "resolved_candidate_id": candidate["candidate_id"],
-                        },
-                        "plan_step": {
-                            "schema_version": 2,
-                            "action": "propose",
-                            "aspect_id": semantic_proposal["sub_aspect"],
-                            "candidate_id": candidate["candidate_id"],
-                            "execution_mode": "reuse_or_generate",
-                            "experiment_candidate": candidate,
-                            "rationale": semantic_proposal["rationale"],
-                            "answered_query": False,
-                        },
-                    }
+                )
+                semantic_bundle = bound_semantic_step[
+                    "semantic_proposal_bundle"
+                ]
+                step_prompt = claim_first_agent.last_prompt
+                step_responses = list(claim_first_agent.last_responses)
                 step_dir = (
                     evaluation_dir
-                    / "plan/claim_first_steps"
+                    / PLAN_AGENT_STEPS
                     / f"after_round_{executed_rounds:02d}"
                 )
                 step_dir.mkdir(parents=True, exist_ok=True)
@@ -5822,110 +4699,50 @@ def main() -> None:
                 write_json(step_dir / "semantic_proposal_bundle.json", semantic_bundle)
                 write_json(step_dir / "bound_semantic_step.json", bound_semantic_step)
                 plan_step = bound_semantic_step["plan_step"]
-                dynamic_candidate = plan_step.get("experiment_candidate")
-                is_open_world_step = isinstance(dynamic_candidate, Mapping)
-                if is_open_world_step:
-                    next_round_number = len(plan_before_decision["rounds"]) + 1
-                    (
-                        materialized_round,
-                        open_tool_bundle,
-                    ) = materialize_open_world_round(
-                        repo_root,
-                        evaluation_dir=evaluation_dir,
-                        round_number=next_round_number,
-                        candidate=dynamic_candidate,
-                        control_execution=plan_before_decision["rounds"][0][
-                            "execution"
-                        ],
+                dynamic_candidate = (
+                    plan_step.get("proposal")
+                    or plan_step.get("experiment_candidate")
+                )
+                if not isinstance(dynamic_candidate, Mapping):
+                    raise RuntimeError(
+                        "Plan Agent must bind every continue decision to a "
+                        "typed Proposal before execution"
                     )
-                    bound_semantic_step["execution_binding"] = {
-                        "schema_version": 2,
-                        "candidate_id": dynamic_candidate["candidate_id"],
-                        "materialization_path": (
-                            "plan/open_world_materialization/"
-                            f"round_{next_round_number:02d}"
-                        ),
-                        "taskgen_route": materialized_round["route"],
-                        "toolgen_route": open_tool_bundle["source"],
-                        "catalog_template_used": False,
-                    }
-                    write_json(
-                        step_dir / "bound_semantic_step.json",
-                        bound_semantic_step,
-                    )
-                else:
-                    materialize = getattr(planner, "materialize_plan_step", None)
-                    if not callable(materialize):
-                        raise RuntimeError(
-                            "bound task planner cannot materialize claim-first "
-                            "PlanStep"
-                        )
-                    materialized_round = materialize(
-                        plan_step["template_id"],
-                        len(plan_before_decision["rounds"]) + 1,
-                        args.request,
-                    )
-                    semantic_proposal = semantic_bundle["proposal"]
-                    semantic_generation_required = bool(
-                        any(
-                            semantic_proposal[field]["required"]
-                            for field in (
-                                "scene_need",
-                                "checker_need",
-                                "rule_tool_need",
-                                "vqa_tool_need",
-                            )
-                        )
-                    )
-                    if semantic_generation_required:
-                        active_failure_stage = (
-                            f"semantic_task_tool_generation_after_round_"
-                            f"{executed_rounds}"
-                        )
-                        if proposal_agent is None or planning_context is None:
-                            raise RuntimeError(
-                                "registered semantic task/tool needs require the "
-                                "bounded Proposal Agent"
-                            )
-                        next_round_number = len(plan_before_decision["rounds"]) + 1
-                        (
-                            materialized_round,
-                            semantic_execution_bundle,
-                        ) = apply_bounded_round_proposal(
-                            proposal_agent=proposal_agent,
-                            user_query=args.request,
-                            target=bound_plan_session.target,
-                            planning_context=planning_context,
-                            round_plan=materialized_round,
-                            evaluation_dir=evaluation_dir,
-                            round_number=next_round_number,
-                            semantic_proposal=semantic_proposal,
-                        )
-                        bound_semantic_step["execution_binding"] = {
-                            "schema_version": 1,
-                            "proposal_bundle_path": (
-                                f"plan/bounded_proposal/round_"
-                                f"{next_round_number:02d}/proposal_bundle.json"
-                            ),
-                            "task_proposal_id": materialized_round[
-                                "task_proposal"
-                            ]["proposal_id"],
-                            "tool_proposal_id": materialized_round[
-                                "tool_proposal"
-                            ]["proposal_id"],
-                            "semantic_need_binding": semantic_execution_bundle[
-                                "semantic_need_binding"
-                            ],
-                        }
-                        write_json(
-                            step_dir / "bound_semantic_step.json",
-                            bound_semantic_step,
-                        )
+                next_round_number = len(plan_before_decision["rounds"]) + 1
+                (
+                    materialized_round,
+                    open_tool_bundle,
+                ) = materialize_open_world_round(
+                    repo_root,
+                    evaluation_dir=evaluation_dir,
+                    round_number=next_round_number,
+                    candidate=dynamic_candidate,
+                    control_execution=plan_before_decision["rounds"][0][
+                        "execution"
+                    ],
+                )
+                bound_semantic_step["execution_binding"] = {
+                    "schema_version": 2,
+                    "candidate_id": dynamic_candidate["candidate_id"],
+                    "materialization_path": (
+                        f"{PROPOSAL_MATERIALIZATION.as_posix()}/"
+                        f"round_{next_round_number:02d}"
+                    ),
+                    "taskgen_route": materialized_round["route"],
+                    "toolgen_route": open_tool_bundle["source"],
+                    "catalog_template_used": False,
+                    "retrieval_template_hint": bound_semantic_step[
+                        "resolution"
+                    ].get("retrieval_template_id"),
+                }
+                write_json(
+                    step_dir / "bound_semantic_step.json",
+                    bound_semantic_step,
+                )
                 apply_kwargs: dict[str, Any] = {}
-                if is_open_world_step:
-                    apply_kwargs["query_contract"] = bound_semantic_step.get(
-                        "query_contract"
-                    )
+                apply_kwargs["query_contract"] = bound_semantic_step.get(
+                    "query_contract"
+                )
                 plan, decision, runtime_directive = (
                     bound_plan_session.apply_plan_step(
                         plan_before_decision,
@@ -5934,7 +4751,7 @@ def main() -> None:
                         materialized_round=materialized_round,
                         source=str(
                             semantic_bundle.get("source")
-                            or "provider_claim_first_open_query"
+                            or "provider_plan_agent_open_query"
                         ),
                         **apply_kwargs,
                     )
@@ -5952,14 +4769,14 @@ def main() -> None:
                         "schema_version": 1,
                         "owner": type(bound_plan_session).__name__,
                         "adapter_role": (
-                            "claim_first_retrieve_or_generate_and_adjudicate"
+                            "plan_agent_retrieve_or_generate_and_adjudicate"
                         ),
                         **runtime_directive,
                     },
                 )
                 update_manifest(
                     evaluation_dir,
-                    last_claim_first_step={
+                    last_plan_agent_step={
                         "status": "transition_applied",
                         "after_round": executed_rounds,
                         "action": plan_step["action"],
@@ -5968,8 +4785,16 @@ def main() -> None:
                         ),
                         "resolved_template_id": plan_step.get("template_id"),
                         "resolved_candidate_id": plan_step.get("candidate_id"),
+                        "evidence_conditioned": bool(
+                            bound_semantic_step.get(
+                                "planning_lineage", {}
+                            ).get("evidence_conditioned")
+                        ),
+                        "planning_lineage": deepcopy(
+                            bound_semantic_step.get("planning_lineage")
+                        ),
                         "artifact_path": (
-                            f"plan/claim_first_steps/"
+                            f"{PLAN_AGENT_STEPS.as_posix()}/"
                             f"after_round_{executed_rounds:02d}/"
                             "bound_semantic_step.json"
                         ),
@@ -6202,10 +5027,11 @@ def main() -> None:
                 )
                 write_json(
                     evaluation_dir
-                    / "plan/claim_first_runtime/query_answer.json",
+                    / PLAN_AGENT_SESSION
+                    / "query_answer.json",
                     claim_first_query_answer,
                 )
-            evidence["claim_first_runtime"] = {
+            evidence["plan_agent_session"] = {
                 "schema_version": 1,
                 "query_contract": claim_first_runtime_state["query_contract"],
                 "assessment": claim_first_runtime_state["assessment"],
@@ -6214,11 +5040,11 @@ def main() -> None:
                 "artifacts": {
                     "query_answer": (
                         f"mea/evaluation_runs/{evaluation_id}/plan/"
-                        "claim_first_runtime/query_answer.json"
+                        "plan_agent_session/query_answer.json"
                     ),
                     "latest_evidence": (
                         f"mea/evaluation_runs/{evaluation_id}/plan/"
-                        "claim_first_runtime/"
+                        "plan_agent_session/"
                         f"evidence_after_round_{executed_rounds:02d}.json"
                     ),
                 },
@@ -6247,20 +5073,20 @@ def main() -> None:
         write_json(evaluation_dir / "summary/evidence_bundle.json", evidence)
         update_manifest(
             evaluation_dir,
-            status="generating_feedback",
+            status="generating_answer",
             summary_path="summary/summary.json",
             aggregate_path="summary/aggregate_result.json",
             evidence_path="summary/evidence_bundle.json",
             summary=summary,
         )
-        active_failure_stage = "final_feedback"
-        feedback = FeedbackAgent(
+        active_failure_stage = "final_answer"
+        feedback = PlanAgentFinalSummary(
             repo_root,
             provider,
             model=models["feedback"],
         ).generate(
             evidence,
-            output_dir=evaluation_dir / "feedback",
+            output_dir=evaluation_dir / "answer",
         )
         report_path = evaluation_dir / "evaluation_report.md"
         report_path.write_text(
@@ -6275,11 +5101,11 @@ def main() -> None:
             summary_path="summary/summary.json",
             aggregate_path="summary/aggregate_result.json",
             evidence_path="summary/evidence_bundle.json",
-            feedback_path="feedback/feedback.json",
+            answer_path="answer/answer.json",
             report_path="evaluation_report.md",
             child_run_ids=[item["child_manifest"].get("run_id") for item in round_runs],
             summary=summary,
-            feedback=feedback,
+            answer=feedback,
             flagship_acceptance=flagship_acceptance,
         )
         compact_evidence_report = write_evidence_report(
@@ -6313,7 +5139,7 @@ def main() -> None:
                         item["child_manifest"].get("run_id") for item in round_runs
                     ],
                     "summary": summary,
-                    "feedback": feedback,
+                    "answer": feedback,
                     "history_retrieval": {
                         "status": history_retrieval.get("status"),
                         "selected_count": len(history_context),

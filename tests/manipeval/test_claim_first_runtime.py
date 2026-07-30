@@ -1,17 +1,19 @@
 import unittest
 
-from mea.capability_adapter import resolve_task_adapter
+from mea.planner.claim_first import build_open_query_planning_lineage
 from mea.planner.claim_first_runtime import (
+    PlanAgentSession,
+    PlanAgentSessionError,
     ClaimFirstRuntimeController,
     ClaimFirstRuntimeError,
     build_claim_first_evidence_record,
-    build_control_anchor_proposal,
     build_dynamic_experiment_candidate,
     build_initial_semantic_proposal_bundle,
     control_template_id,
     resolve_concern_candidate_domain,
     resolve_semantic_proposal,
 )
+from mea.planner.policy_task_binding import build_policy_task_binding
 from mea.planner.query_contract import build_query_sufficiency_contract
 from mea.planner.semantic_coverage import build_evaluation_intent
 
@@ -197,7 +199,110 @@ def semantic_bundle(sub_aspect="object_position.left_fixed"):
     }
 
 
+def open_query_capabilities():
+    return {
+        "schema_version": 1,
+        "policy_card": {
+            "policy_name": "ACT",
+            "task_name": "click_bell",
+            "action_dimension": 14,
+        },
+        "simulator_card": {
+            "simulator_name": "RoboTwin",
+            "task_name": "click_bell",
+            "tracked_actors": ["bell", "robot"],
+        },
+        "generation_card": {
+            "taskgen_operations": [
+                {
+                    "operation": "retrieve_or_generate_scene_checker",
+                    "controlled_axis": None,
+                    "generation_mode": "generic_provider_scene_checker_codegen",
+                    "allowed_change_roots": [
+                        "load_actors",
+                        "check_success",
+                    ],
+                }
+            ],
+            "toolgen": {
+                "retrieve_first": True,
+                "can_generate_rule_metric": True,
+                "can_generate_vqa_question": True,
+            },
+        },
+    }
+
+
+class EvidenceConditionedPlanner:
+    def __init__(self):
+        self.histories = []
+
+    def propose(
+        self,
+        user_query,
+        *,
+        capabilities,
+        evidence_history,
+        evaluation_intent=None,
+    ):
+        self.histories.append(list(evidence_history))
+        latest = evidence_history[-1]["outcome"] if evidence_history else None
+        sub_aspect = (
+            "object_instance.base0"
+            if len(evidence_history) >= 2 and latest == "success"
+            else "object_position.left_fixed"
+        )
+        bundle = semantic_bundle(sub_aspect)
+        bundle["source"] = "provider_claim_first_open_query"
+        lineage = build_open_query_planning_lineage(
+            user_query,
+            capabilities,
+            evidence_history,
+            evaluation_intent,
+        )
+        bundle["input_digest"] = lineage["input_digest"]
+        bundle["planning_lineage"] = lineage
+        return bundle
+
+
 class ClaimFirstRuntimeTests(unittest.TestCase):
+    def test_plan_agent_session_is_canonical_with_legacy_aliases(self):
+        self.assertIs(ClaimFirstRuntimeController, PlanAgentSession)
+        self.assertIs(ClaimFirstRuntimeError, PlanAgentSessionError)
+
+    def test_unregistered_runtime_task_uses_official_control_anchor(self):
+        task_name = "runtime_schema_task"
+        runtime_target = {
+            "schema_version": 3,
+            "binding_mode": "single_task_single_checkpoint_open_world",
+            "policy_task_binding": build_policy_task_binding(
+                task_name=task_name,
+                task_family="runtime_discovered",
+                policy={"name": "ACT", "language_conditioned": False},
+                checkpoint={
+                    "checkpoint_id": f"act-{task_name}/demo_clean-50",
+                    "checkpoint_setting": "demo_clean",
+                    "expert_data_num": 50,
+                    "ready": True,
+                },
+            ),
+            "max_rounds": 2,
+        }
+
+        self.assertEqual(
+            control_template_id(runtime_target),
+            "task_execution.official_baseline",
+        )
+        plan = round_plan(1, "task_execution.official_baseline")
+        plan["task_name"] = task_name
+        plan["task_proposal"]["changes"] = {}
+        observed = summary(plan, 1.0)
+        record = build_claim_first_evidence_record(plan, observed)
+        self.assertEqual(
+            record["open_query_evidence"]["tested_perturbation"],
+            "unchanged official-scene control",
+        )
+
     def test_each_dynamic_candidate_keeps_its_own_preservation_contract(
         self,
     ):
@@ -269,55 +374,6 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
                 control_template_id(generic_target),
                 "task_execution.official_baseline",
             )
-            proposal = build_control_anchor_proposal(
-                generic_target,
-                f"Does {task_name} pass its clean control?",
-            )
-            self.assertEqual(proposal["task_name"], task_name)
-            self.assertEqual(
-                proposal["requested_aspect_ids"],
-                ["task_execution.official_baseline"],
-            )
-
-    def test_deep_tasks_use_neutral_official_control_anchors(self):
-        for task_name, planner_kind in (
-            ("beat_block_hammer", "bounded_bbh_v1"),
-            ("click_bell", "model_click_bell_adaptive_v1"),
-        ):
-            adapter = resolve_task_adapter(task_name)
-            deep_target = {
-                "task_name": task_name,
-                "max_rounds": 3,
-                "policy": {"policy_name": "ACT"},
-                "aspects": [
-                    {
-                        "aspect_id": contract["aspect"]["aspect_id"],
-                        "description": "Registered capability.",
-                        "template_ids": [contract["template_id"]],
-                    }
-                    for contract in adapter["capability_contracts"]
-                ],
-            }
-            self.assertEqual(
-                control_template_id(deep_target),
-                "task_execution.official_baseline",
-            )
-            proposal = build_control_anchor_proposal(
-                deep_target,
-                "Where does this policy first expose a weakness?",
-            )
-            self.assertEqual(proposal["task_name"], task_name)
-            if planner_kind == "bounded_bbh_v1":
-                self.assertEqual(
-                    proposal["requested_template_ids"],
-                    ["task_execution.official_baseline"],
-                )
-            else:
-                self.assertEqual(
-                    proposal["requested_aspect_ids"],
-                    ["task_execution.official_baseline"],
-                )
-
     def test_routed_aspects_bound_query_candidate_universe(self):
         controller = ClaimFirstRuntimeController(
             "Can it succeed on at least one bell-property variation?",
@@ -427,7 +483,7 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
 
         self.assertEqual(
             bundle["source"],
-            "provider_free_concern_direct_materialization",
+            "provider_plan_agent_direct_materialization",
         )
         self.assertIn("50%", candidate["scene_need"]["description"])
         self.assertIsNone(candidate["checker_need"])
@@ -436,7 +492,7 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             candidate["intent_alignment"]["relationship"],
             "direct",
         )
-        controller = ClaimFirstRuntimeController(query, target())
+        controller = PlanAgentSession(query, target())
         registered = controller.register_frozen_candidate(candidate)
         self.assertIn(
             registered["candidate_id"],
@@ -461,11 +517,22 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         )
         self.assertEqual(
             bound["resolution"]["resolution"],
-            "frozen_free_concern_candidate",
+            "pre_evidence_query_proposal",
         )
         self.assertEqual(
             bound["plan_step"]["candidate_id"],
             registered["candidate_id"],
+        )
+        self.assertEqual(
+            bound["planning_lineage"]["decision_kind"],
+            "pre_evidence_query_candidate",
+        )
+        self.assertFalse(
+            bound["planning_lineage"]["evidence_conditioned"]
+        )
+        self.assertEqual(
+            bound["planning_lineage"]["completed_round_ids"],
+            [],
         )
 
     def test_query_derived_candidate_is_not_rejected_by_catalog_inventory(self):
@@ -947,9 +1014,11 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             executed_template_ids=[control["template_id"]],
         )
         self.assertEqual(
-            bound["plan_step"]["template_id"],
+            bound["resolution"]["retrieval_template_id"],
             "object_position.left_fixed",
         )
+        self.assertNotIn("template_id", bound["plan_step"])
+        self.assertIn("proposal", bound["plan_step"])
         self.assertFalse(
             bound["resolution"]["catalog_was_model_visible"]
         )
@@ -959,6 +1028,111 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         self.assertTrue(
             bound["semantic_needs"]["tool_need"]["required"]
         )
+
+    def test_control_evidence_is_read_before_round_two_concern_is_authored(self):
+        query = "Where does this policy first expose a weakness?"
+        controller = ClaimFirstRuntimeController(query, target())
+        control = round_plan(
+            1, "performance.completion_time_stability.official"
+        )
+        state = controller.observe([control], [summary(control, 1.0)])
+        planner = EvidenceConditionedPlanner()
+
+        bound = controller.propose_and_bind_semantic_step(
+            planner,
+            state,
+            capabilities=open_query_capabilities(),
+            executed_candidate_ids=[control["template_id"]],
+        )
+
+        self.assertEqual(len(planner.histories), 1)
+        self.assertEqual(
+            [item["round_id"] for item in planner.histories[0]],
+            ["round_1"],
+        )
+        self.assertEqual(
+            bound["resolution"]["retrieval_template_id"],
+            "object_position.left_fixed",
+        )
+        self.assertIn("proposal", bound["plan_step"])
+        self.assertEqual(
+            bound["planning_lineage"]["decision_kind"],
+            "evidence_conditioned_refinement",
+        )
+        self.assertEqual(
+            bound["planning_lineage"]["completed_round_ids"],
+            ["round_1"],
+        )
+        self.assertEqual(
+            bound["plan_step"]["planning_lineage"],
+            bound["planning_lineage"],
+        )
+
+    def test_round_three_concern_is_derived_from_round_two_aggregate(self):
+        query = "Where does this policy first expose a weakness?"
+        controller = ClaimFirstRuntimeController(query, target())
+        control = round_plan(
+            1, "performance.completion_time_stability.official"
+        )
+        first_candidate = round_plan(2, "object_position.left_fixed")
+        state = controller.observe(
+            [control, first_candidate],
+            [summary(control, 1.0), summary(first_candidate, 1.0)],
+        )
+        self.assertFalse(state["assessment"]["should_stop"])
+        planner = EvidenceConditionedPlanner()
+
+        bound = controller.propose_and_bind_semantic_step(
+            planner,
+            state,
+            capabilities=open_query_capabilities(),
+            executed_candidate_ids=[
+                control["template_id"],
+                first_candidate["template_id"],
+            ],
+        )
+
+        self.assertEqual(
+            [item["round_id"] for item in planner.histories[0]],
+            ["round_1", "round_2"],
+        )
+        self.assertEqual(
+            planner.histories[0][-1]["outcome"],
+            "success",
+        )
+        self.assertEqual(
+            bound["resolution"]["retrieval_template_id"],
+            "object_instance.base0",
+        )
+        self.assertIn("proposal", bound["plan_step"])
+        self.assertEqual(
+            bound["planning_lineage"]["completed_round_ids"],
+            ["round_1", "round_2"],
+        )
+
+    def test_precomputed_bundle_cannot_pass_current_evidence_lineage_gate(self):
+        query = "Where does this policy first expose a weakness?"
+        controller = ClaimFirstRuntimeController(query, target())
+        control = round_plan(
+            1, "performance.completion_time_stability.official"
+        )
+        state = controller.observe([control], [summary(control, 1.0)])
+        stale_bundle = EvidenceConditionedPlanner().propose(
+            query,
+            capabilities=open_query_capabilities(),
+            evidence_history=[],
+        )
+
+        with self.assertRaisesRegex(
+            ClaimFirstRuntimeError,
+            "does not match the current completed",
+        ):
+            controller.bind_evidence_conditioned_semantic_step(
+                stale_bundle,
+                state,
+                capabilities=open_query_capabilities(),
+                executed_candidate_ids=[control["template_id"]],
+            )
 
     def test_auxiliary_vqa_conflict_does_not_override_official_control_success(self):
         controller = ClaimFirstRuntimeController(
@@ -1014,7 +1188,7 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             ["object_position.left_fixed"],
         )
 
-    def test_exact_aspect_uses_hidden_runtime_order_then_next_variant(self):
+    def test_exact_retrieval_is_only_a_hint_for_typed_proposal(self):
         controller = ClaimFirstRuntimeController(
             "Where does this policy first expose a weakness?",
             target(),
@@ -1032,26 +1206,29 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         )
         self.assertEqual(
             first["resolution"]["resolution"],
-            "exact_aspect_runtime_order",
+            "retrieval_hint_then_reuse_or_generate",
         )
         self.assertTrue(first["resolution"]["hidden"])
         self.assertEqual(
-            first["plan_step"]["template_id"],
+            first["resolution"]["retrieval_template_id"],
             "object_position.left_fixed",
         )
+        self.assertIsNone(first["resolution"]["resolved_template_id"])
+        self.assertNotIn("template_id", first["plan_step"])
+        self.assertIn("proposal", first["plan_step"])
 
-        second = controller.bind_semantic_step(
-            semantic_bundle("object_position"),
-            state,
-            executed_template_ids=[
-                control["template_id"],
-                "object_position.left_fixed",
-            ],
-        )
-        self.assertEqual(
-            second["plan_step"]["template_id"],
-            "object_position.right_fixed",
-        )
+        with self.assertRaisesRegex(
+            ClaimFirstRuntimeError,
+            "dynamic candidate was already executed",
+        ):
+            controller.bind_semantic_step(
+                semantic_bundle("object_position"),
+                state,
+                executed_template_ids=[
+                    control["template_id"],
+                    first["plan_step"]["candidate_id"],
+                ],
+            )
 
     def test_failed_control_stops_before_property_attribution(self):
         controller = ClaimFirstRuntimeController(
@@ -1472,11 +1649,11 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         )
 
         dynamic_step = bound["plan_step"]
-        candidate = dynamic_step["experiment_candidate"]
+        candidate = dynamic_step["proposal"]
         self.assertEqual(bound["schema_version"], 2)
         self.assertEqual(
             bound["resolution"]["resolution"],
-            "dynamic_experiment_candidate",
+            "proposal_reuse_or_generate",
         )
         self.assertNotIn("template_id", dynamic_step)
         self.assertEqual(candidate["base_task"], "place_phone_stand")
@@ -1552,7 +1729,7 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
 
         self.assertEqual(
             bound["resolution"]["resolution"],
-            "dynamic_experiment_candidate",
+            "proposal_reuse_or_generate",
         )
         self.assertEqual(controller.query_contract["schema_version"], 3)
         self.assertFalse(
@@ -1614,9 +1791,9 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         )
         self.assertEqual(
             bound["resolution"]["resolution"],
-            "dynamic_experiment_candidate",
+            "proposal_reuse_or_generate",
         )
-        candidate = bound["plan_step"]["experiment_candidate"]
+        candidate = bound["plan_step"]["proposal"]
         self.assertIsNone(candidate["scene_need"])
         self.assertIsNone(candidate["checker_need"])
         self.assertIsNotNone(candidate["rule_tool_need"])

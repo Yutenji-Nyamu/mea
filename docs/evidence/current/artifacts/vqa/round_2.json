@@ -1,0 +1,173 @@
+{
+  "schema_version": 1,
+  "model_requested": "gpt-4o-2024-11-20",
+  "selection": {
+    "video_path": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301/video.mp4",
+    "frame_count": 91,
+    "fps": 10.0,
+    "selected_frames": [
+      {
+        "frame_id": "initial",
+        "frame_index": 0,
+        "source": "video_boundary"
+      },
+      {
+        "frame_id": "context_1",
+        "frame_index": 30,
+        "source": "uniform_fallback"
+      },
+      {
+        "frame_id": "context_2",
+        "frame_index": 60,
+        "source": "uniform_fallback"
+      },
+      {
+        "frame_id": "final",
+        "frame_index": 90,
+        "source": "video_boundary"
+      }
+    ],
+    "reference_scene": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evidence/initial_head.png",
+    "montage_path": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/execution_vqa/execution_montage.png"
+  },
+  "query": {
+    "schema_version": 1,
+    "profile": "dynamic_v1",
+    "task_name": "grab_roller",
+    "template_id": null,
+    "sub_aspect": "task_execution.non_target_proximity_effect",
+    "tool_metric": "query_derived_metric",
+    "phenomenon_ids": [
+      "roller_visibly_lifted"
+    ],
+    "questions": [
+      {
+        "id": "roller_visibly_lifted",
+        "question_type": "visible_state_change",
+        "target_role": "manipulated_object",
+        "question": "Is the target roller visibly lifted by both robot arms?",
+        "visual_scope": "rollout_change",
+        "numeric_authority": "official_check_success_is_authoritative"
+      }
+    ],
+    "selection_reasons": [
+      "task_owned_fallback:grab_roller"
+    ],
+    "answer_contract": {
+      "required_response_keys": [
+        "phenomena",
+        "confidence",
+        "frame_ids",
+        "numeric_consistency",
+        "conflicts"
+      ],
+      "phenomenon_item_keys": [
+        "id",
+        "observed",
+        "description",
+        "confidence",
+        "frame_ids"
+      ],
+      "observed_type": "boolean_or_null",
+      "numeric_consistency_values": [
+        "consistent",
+        "conflict",
+        "uncertain"
+      ]
+    }
+  },
+  "numeric_tool_results": [
+    {
+      "tool": "generated_check_success",
+      "version": 1,
+      "tool_sha256": "03c152fabc89c773516e92ba5a880951c01904941866fa76147e3b367372045c",
+      "value": true,
+      "unit": null,
+      "evidence_steps": [
+        7821
+      ],
+      "evidence": [
+        {
+          "type": "success_transition",
+          "policy_step": 89,
+          "physics_step": 7821,
+          "simulation_time_seconds": 31.284,
+          "video_frame_index": 89
+        }
+      ],
+      "details": {
+        "latched_eval_success": true,
+        "success_transition_recorded": true,
+        "authority": "llm_generated_python_ast_validated",
+        "module_sha256": "67f9474663d4b45048437b914c5e52a5c5b717cba4bdd5759152576e953eac26",
+        "task_module": "mea.generated_tasks.run_20260730_b44_grab_roller_plan_agent_live13_round_2.task",
+        "generated_checker_success": true,
+        "official_core_predicate_satisfied": true
+      },
+      "passed": true
+    }
+  ],
+  "observation": {
+    "phenomena": [
+      {
+        "id": "roller_visibly_lifted",
+        "observed": true,
+        "description": "The roller is visibly lifted by both robot arms in the final frame.",
+        "confidence": 0.95,
+        "frame_ids": [
+          "final"
+        ]
+      }
+    ],
+    "confidence": 0.95,
+    "frame_ids": [
+      "final"
+    ],
+    "numeric_consistency": "consistent",
+    "conflicts": [],
+    "evidence_conflict": false
+  },
+  "evidence_conflict": false,
+  "provider_metadata": {
+    "id": "chatcmpl-E7BCFD6Esp8Ul4gamfKDqzkwV77jf",
+    "model": "gpt-4o-2024-11-20",
+    "finish_reason": "stop",
+    "usage": {
+      "completion_tokens": 106,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 11,
+        "engine_ttft_ms": 459,
+        "engine_ttlt_ms": 1584,
+        "pre_inference_ms": 217,
+        "service_tbt_ms": 11,
+        "service_ttft_ms": 884,
+        "service_ttlt_ms": 2005,
+        "total_duration_ms": 1796,
+        "user_visible_ttft_ms": 667
+      },
+      "prompt_tokens": 1436,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 1542
+    },
+    "retry_count": 0
+  },
+  "artifacts": {
+    "result": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/execution_vqa/execution_vqa.json",
+    "prompt": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/execution_vqa/execution_vqa_prompt.md",
+    "response": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/execution_vqa/execution_vqa_response.txt",
+    "montage": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/execution_vqa/execution_montage.png",
+    "selection": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/execution_vqa/keyframe_selection.json",
+    "query": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/execution_vqa/execution_vqa_query.json"
+  },
+  "status": "passed",
+  "representative_episode": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301"
+}

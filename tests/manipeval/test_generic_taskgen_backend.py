@@ -16,11 +16,15 @@ from mea.taskgen.generic_backend import (
     GenericTaskGenError,
     GenericTaskGenHooks,
     build_generic_task_subclass_module,
+    discover_generic_robotwin_task_identity,
     generic_task_semantic_key,
     load_generic_robotwin_task_adapter,
     validate_generic_task_methods,
 )
-from mea.taskgen.provider_scene_checker import validate_method_ast
+from mea.taskgen.provider_scene_checker import (
+    run_provider_codegen,
+    validate_method_ast,
+)
 from scripts.manipeval_taskgen import (
     build_preservation_report,
     record_generic_taskgen_generation_failure,
@@ -41,6 +45,70 @@ class _Provider:
         self.last_metadata = {"call": self.calls}
         return json.dumps(response)
 
+
+class ProviderSceneCheckerRepairTests(unittest.TestCase):
+    def test_live_checker_failure_preserves_simulator_validated_scene(self):
+        first_scene = (
+            "def load_actors(self):\n"
+            '    self.target = "stable_scene"\n'
+        )
+        provider = _Provider(
+            [
+                {
+                    "load_actors": first_scene,
+                    "check_success": (
+                        "def check_success(self):\n"
+                        "    return False\n"
+                    ),
+                },
+                {
+                    "load_actors": (
+                        "def load_actors(self):\n"
+                        '    self.target = "changed_scene"\n'
+                    ),
+                    "check_success": (
+                        "def check_success(self):\n"
+                        "    return True\n"
+                    ),
+                },
+            ]
+        )
+        validations = 0
+
+        def validate(methods: Mapping[str, Any]) -> dict[str, Any]:
+            nonlocal validations
+            validations += 1
+            if validations == 1:
+                raise GenericTaskGenError(
+                    "generated checker failed live negative/positive fixtures: "
+                    '{"failed_fixtures": []}'
+                )
+            self.assertEqual(methods["load_actors"], first_scene)
+            return {"valid": True}
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = run_provider_codegen(
+                attempt_root=Path(temp_dir) / "attempts",
+                proposal={"candidate_id": "dynamic.synthetic"},
+                prompt="Generate a method pair.",
+                provider=provider,
+                model="fixture-model",
+                validate=validate,
+                error_type=GenericTaskGenError,
+                max_regenerations=1,
+            )
+            repair_scope = json.loads(
+                (
+                    Path(temp_dir)
+                    / "attempts/attempt_02/repair_scope.json"
+                ).read_text(encoding="utf-8")
+            )
+
+        self.assertEqual(result["methods"]["load_actors"], first_scene)
+        self.assertIn("Copy that method exactly", provider.prompts[1])
+        self.assertIn("PREVIOUS METHOD PAIR", provider.prompts[1])
+        self.assertEqual(repair_scope["scope"], "checker_only")
+        self.assertTrue(repair_scope["provider_scene_output_ignored"])
 
 def _write_cold_task_repo(root: Path) -> None:
     source = root / "envs/cold_unseen_task.py"
@@ -278,6 +346,21 @@ def _adapter() -> GenericRoboTwinTaskAdapter:
 
 
 class GenericTaskGenBackendTests(unittest.TestCase):
+    def test_safe_ast_allows_conventional_discard_loop_target(self) -> None:
+        tree = validate_method_ast(
+            "def load_actors(self):\n"
+            "    for _ in []:\n"
+            "        pass\n",
+            "load_actors",
+            safe_direct_calls=set(),
+            safe_module_calls=set(),
+            safe_method_calls=set(),
+            allowed_private_attributes=set(),
+            error_type=GenericTaskGenError,
+        )
+
+        self.assertIsInstance(tree, ast.Module)
+
     def test_infeasible_uniform_scale_preservation_fails_before_lookup(
         self,
     ) -> None:
@@ -355,6 +438,44 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                     _adapter(),
                     run_id="run_tool_only_must_bypass",
                 )
+
+    def test_runtime_only_change_fails_before_provider_generation(self) -> None:
+        query = "Does lower gripper precision expose a weakness?"
+        intent = build_evaluation_intent(
+            source_query=query,
+            original_concern="task_execution.gripper_precision",
+            hypothesis="Reduced gripper precision may miss the target.",
+            requested_change="Reduce the precision of the gripper.",
+            preserved_conditions=("task identity", "policy checkpoint"),
+            required_observation="Observe which object is lifted.",
+        )
+        candidate = build_experiment_candidate(
+            source_query=query,
+            base_task="cold_unseen_task",
+            semantic_concern="task_execution.gripper_precision",
+            scene_need="Reduce the precision of the gripper.",
+            checker_need="Require only the target to be lifted.",
+            rule_tool_need="Measure target and non-target lift.",
+            evaluation_intent=intent,
+        )
+        provider = _Provider([])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaisesRegex(
+                GenericTaskGenError,
+                "TaskGen cannot implement the requested runtime intervention",
+            ):
+                GenericRoboTwinTaskGenBackend(
+                    Path(temp_dir),
+                    provider,
+                    model="fixture-model",
+                ).materialize(
+                    candidate,
+                    _adapter(),
+                    run_id="run_runtime_change_must_fail",
+                )
+
+        self.assertEqual(provider.calls, 0)
 
     def test_preservation_report_separates_available_authorities(self) -> None:
         report = build_preservation_report(
@@ -434,7 +555,13 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                         "position": [0.1, -0.2, 0.3],
                         "quaternion": [0.0, 1.0, 0.0, 0.0],
                         "contact_points": {},
-                    }
+                    },
+                    {
+                        "id": "new_distractor",
+                        "position": [0.2, -0.2, 0.3],
+                        "quaternion": [1.0, 0.0, 0.0, 0.0],
+                        "contact_points": {},
+                    },
                 ],
             },
         )
@@ -637,7 +764,198 @@ class GenericTaskGenBackendTests(unittest.TestCase):
         self.assertEqual(report["checks"][0]["kind"], "geometry")
         self.assertEqual(
             report["checks"][0]["authority"],
-            "no_simulator_or_ast_geometry_authority",
+            "no_comparable_simulator_collision_geometry",
+        )
+
+    def test_same_seed_collision_geometry_verifies_shape_preservation(
+        self,
+    ) -> None:
+        geometry = [
+            {
+                "geometry_type": "BoxGeometry",
+                "half_lengths": [0.03, 0.03, 0.02],
+                "local_pose": {
+                    "position": [0.0, 0.0, 0.0],
+                    "quaternion": [1.0, 0.0, 0.0, 0.0],
+                },
+            }
+        ]
+        common_actor = {
+            "id": "target",
+            "position": [0.1, -0.2, 0.3],
+            "quaternion": [1.0, 0.0, 0.0, 0.0],
+            "contact_points": {},
+            "collision_geometry": geometry,
+        }
+        report = build_preservation_report(
+            ["target shape and size"],
+            scene_generated=True,
+            checker_generated=False,
+            visual_self_check_enabled=True,
+            visual={"passed": True, "unexpected_changes": []},
+            official_setup={"seed": 23, "tracked_actors": [common_actor]},
+            generated_setup={
+                "seed": 23,
+                "tracked_actors": [
+                    dict(common_actor),
+                    {
+                        "id": "new_distractor",
+                        "collision_geometry": [
+                            {
+                                "geometry_type": "BoxGeometry",
+                                "half_lengths": [0.02, 0.02, 0.02],
+                            }
+                        ],
+                    },
+                ],
+            },
+        )
+
+        self.assertTrue(report["verified"])
+        self.assertEqual(report["status"], "verified")
+        self.assertEqual(
+            report["checks"][0]["authority"],
+            "same_seed_simulator_state:"
+            "tracked_actors.collision_geometry",
+        )
+
+    def test_changed_collision_geometry_fails_shape_preservation(
+        self,
+    ) -> None:
+        official_actor = {
+            "id": "target",
+            "collision_geometry": [
+                {
+                    "geometry_type": "BoxGeometry",
+                    "half_lengths": [0.03, 0.03, 0.02],
+                }
+            ],
+        }
+        generated_actor = {
+            "id": "target",
+            "collision_geometry": [
+                {
+                    "geometry_type": "BoxGeometry",
+                    "half_lengths": [0.04, 0.03, 0.02],
+                }
+            ],
+        }
+        report = build_preservation_report(
+            ["target geometry"],
+            scene_generated=True,
+            checker_generated=False,
+            visual_self_check_enabled=True,
+            visual={"passed": True, "unexpected_changes": []},
+            official_setup={
+                "seed": 29,
+                "tracked_actors": [official_actor],
+            },
+            generated_setup={
+                "seed": 29,
+                "tracked_actors": [generated_actor],
+            },
+        )
+
+        self.assertFalse(report["verified"])
+        self.assertEqual(report["status"], "failed")
+
+    def test_chinese_goal_and_contact_geometry_preservation_is_typed(
+        self,
+    ) -> None:
+        actor = {
+            "id": "bell",
+            "collision_geometry": [
+                {
+                    "geometry_type": "create_actor_asset",
+                    "modelname": "050_bell",
+                    "model_id": 0,
+                    "convex": True,
+                    "is_static": True,
+                    "scale": [0.05, 0.05, 0.05],
+                }
+            ],
+        }
+        report = build_preservation_report(
+            ["任务目标与接触几何语义"],
+            scene_generated=True,
+            checker_generated=False,
+            visual_self_check_enabled=True,
+            visual={"passed": True, "unexpected_changes": []},
+            official_setup={"seed": 31, "tracked_actors": [actor]},
+            generated_setup={"seed": 31, "tracked_actors": [dict(actor)]},
+        )
+
+        self.assertTrue(report["verified"])
+        self.assertEqual(report["status"], "verified")
+        self.assertEqual(
+            report["checks"][0]["kind"],
+            "checker_semantics+geometry",
+        )
+
+    def test_height_preservation_ignores_requested_xy_offset(self) -> None:
+        common = {
+            "id": "bell",
+            "quaternion": [1.0, 0.0, 0.0, 0.0],
+            "contact_points": {},
+            "collision_geometry": [],
+        }
+        report = build_preservation_report(
+            ["height"],
+            scene_generated=True,
+            checker_generated=False,
+            visual_self_check_enabled=True,
+            visual={"passed": True, "unexpected_changes": []},
+            official_setup={
+                "seed": 37,
+                "tracked_actors": [
+                    {**common, "position": [0.0, 0.0, 0.76]}
+                ],
+            },
+            generated_setup={
+                "seed": 37,
+                "tracked_actors": [
+                    {**common, "position": [0.1, 0.0, 0.76]}
+                ],
+            },
+        )
+
+        self.assertTrue(report["verified"])
+        self.assertIn(
+            "position_z",
+            report["checks"][0]["authority"],
+        )
+
+    def test_vertical_axis_position_preservation_compares_only_z(self) -> None:
+        common = {
+            "id": "bell",
+            "quaternion": [1.0, 0.0, 0.0, 0.0],
+            "contact_points": {},
+            "collision_geometry": [],
+        }
+        report = build_preservation_report(
+            ["center position along the vertical axis"],
+            scene_generated=True,
+            checker_generated=False,
+            visual_self_check_enabled=True,
+            visual={"passed": True, "unexpected_changes": []},
+            official_setup={
+                "seed": 41,
+                "tracked_actors": [
+                    {**common, "position": [0.0, 0.0, 0.76]}
+                ],
+            },
+            generated_setup={
+                "seed": 41,
+                "tracked_actors": [
+                    {**common, "position": [0.05, 0.0, 0.76]}
+                ],
+            },
+        )
+
+        self.assertTrue(report["verified"])
+        self.assertEqual(
+            report["checks"][0]["authority"],
+            "same_seed_simulator_state:tracked_actors.position_z",
         )
 
     def test_legacy_visual_color_preservation_still_passes(self) -> None:
@@ -711,12 +1029,39 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                 manifest["failure"]["stage"],
                 "provider_scene_checker_generation",
             )
+            self.assertEqual(
+                manifest["proposal_path"],
+                "generation/proposal.json",
+            )
+            self.assertEqual(
+                manifest["proposal"]["candidate_id"],
+                _candidate()["candidate_id"],
+            )
+            self.assertTrue(
+                (run_dir / "generation/proposal.json").is_file()
+            )
+            self.assertFalse(
+                (
+                    run_dir
+                    / "generation/experiment_candidate.json"
+                ).exists()
+            )
 
     def test_loader_discovers_unknown_task_without_a_core_registry(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             task_name = "runtime_novel_task"
             _write_discoverable_task_repo(root, task_name)
+            identity = discover_generic_robotwin_task_identity(
+                root,
+                task_name,
+            )
+            self.assertEqual(identity["task_name"], task_name)
+            self.assertEqual(
+                identity["official_source"],
+                f"envs/{task_name}.py",
+            )
+            self.assertEqual(identity["task_schema"]["task_name"], task_name)
 
             def fixtures(
                 methods: Mapping[str, str],
@@ -977,6 +1322,60 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                 ),
                 module,
             )
+            scene_only = build_generic_task_subclass_module(
+                methods,
+                official_module=f"envs.{task_name}",
+                official_class=task_name,
+                emit_overrides={
+                    "load_actors": True,
+                    "check_success": False,
+                },
+            )
+            scene_class = next(
+                node
+                for node in ast.parse(scene_only).body
+                if isinstance(node, ast.ClassDef)
+            )
+            self.assertEqual(
+                {
+                    node.name
+                    for node in scene_class.body
+                    if isinstance(node, ast.FunctionDef)
+                },
+                {"load_actors", "mea_official_check_success"},
+            )
+            checker_only = build_generic_task_subclass_module(
+                methods,
+                official_module=f"envs.{task_name}",
+                official_class=task_name,
+                emit_overrides={
+                    "load_actors": False,
+                    "check_success": True,
+                },
+            )
+            checker_class = next(
+                node
+                for node in ast.parse(checker_only).body
+                if isinstance(node, ast.ClassDef)
+            )
+            self.assertEqual(
+                {
+                    node.name
+                    for node in checker_class.body
+                    if isinstance(node, ast.FunctionDef)
+                },
+                {"check_success", "mea_official_check_success"},
+            )
+            with self.assertRaisesRegex(
+                GenericTaskGenError,
+                "emit_overrides",
+            ):
+                build_generic_task_subclass_module(
+                    methods,
+                    official_module=f"envs.{task_name}",
+                    official_class=task_name,
+                    emit_overrides={"load_actors": True},
+                )
             with self.assertRaisesRegex(
                 GenericTaskGenError, "forbidden AST node Import"
             ):
@@ -1290,6 +1689,7 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                 attempt_summary["attempts"][0]["recovery_action"],
                 "regenerate_candidate",
             )
+            self.assertEqual(attempt_summary["max_regenerations"], 1)
             prompt = provider.prompts[0]
             self.assertIn("cold_unseen_task", prompt)
             self.assertIn("TASK TELEMETRY/EXECUTION SCHEMA", prompt)
@@ -1299,6 +1699,15 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             self.assertNotIn("aspect_id", prompt)
             self.assertIn("increasing size by 50% uses 1.5", prompt)
             self.assertIn("reducing size by 50% (or to 50%) uses 0.5", prompt)
+            self.assertIn(
+                "tracked automatically even when their pose or instance is "
+                "replaced",
+                prompt,
+            )
+            self.assertIn(
+                "Assign it only when adding an entirely new actor",
+                prompt,
+            )
 
     def test_partial_generation_reuses_unrequested_official_method(
         self,
@@ -1446,6 +1855,18 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                     )
                     module_source = str(observed["module_source"])
                     self.assertNotIn("IGNORED_PROVIDER_", module_source)
+                    generated_class = next(
+                        node
+                        for node in ast.parse(module_source).body
+                        if isinstance(node, ast.ClassDef)
+                    )
+                    direct_methods = {
+                        node.name
+                        for node in generated_class.body
+                        if isinstance(node, ast.FunctionDef)
+                    }
+                    self.assertIn(generated, direct_methods)
+                    self.assertNotIn(reused, direct_methods)
                     fixture_methods = observed["fixture_methods"]
                     self.assertNotIn(
                         "IGNORED_PROVIDER_", json.dumps(fixture_methods)

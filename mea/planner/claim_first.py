@@ -1,4 +1,4 @@
-"""Claim-first open-Query planning without a predeclared aspect itinerary.
+"""Plan Agent open-Query planning without a predeclared aspect itinerary.
 
 The existing adaptive planner deliberately selects from trusted executable
 templates.  That is useful for production routing, but it cannot demonstrate
@@ -32,11 +32,23 @@ from mea.planner.semantic_coverage import (
     build_candidate_intent_alignment,
     validate_evaluation_intent,
 )
+from mea.planner.open_task_resolver import (
+    EXPERIMENTAL_SUCCESS_CHECKER_GUIDANCE,
+    query_requires_experimental_checker,
+)
+from mea.planner.proposal_execution import (
+    ProposalExecutionError,
+    validate_plan_agent_proposal_execution,
+)
 from mea.providers.json_response import extract_json_response
 
 
-class ClaimFirstPlanError(ValueError):
+class PlanAgentError(ValueError):
     """Raised when open-Query inputs or a semantic proposal are invalid."""
+
+
+# Compatibility name for callers and historical exception handlers.
+ClaimFirstPlanError = PlanAgentError
 
 
 _CAPABILITY_KEYS = {
@@ -100,6 +112,14 @@ _FORBIDDEN_CAPABILITY_KEYS = {
     "template_ids",
     "fallback_step",
     "navigation_options",
+}
+_PLANNING_LINEAGE_KEYS = {
+    "schema_version",
+    "decision_kind",
+    "evidence_conditioned",
+    "completed_round_ids",
+    "completed_round_count",
+    "input_digest",
 }
 
 
@@ -548,7 +568,92 @@ def open_query_input_digest(
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-class ClaimFirstOpenQueryAgent:
+def build_open_query_planning_lineage(
+    user_query: str,
+    capabilities: Mapping[str, Any],
+    evidence_history: Sequence[Mapping[str, Any]],
+    evaluation_intent: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Describe the exact completed evidence used to author one proposal.
+
+    This is deliberately separate from execution provenance.  Its purpose is
+    to distinguish a Query-only first proposal from a later Fig. 5 refinement
+    that was authored only after the preceding Aggregate/Evidence was read.
+    """
+
+    trusted_evidence = validate_open_query_evidence(evidence_history)
+    digest = open_query_input_digest(
+        user_query,
+        capabilities,
+        trusted_evidence,
+        evaluation_intent,
+    )
+    completed_round_ids = [
+        item["round_id"] for item in trusted_evidence
+    ]
+    evidence_conditioned = bool(completed_round_ids)
+    return {
+        "schema_version": 1,
+        "decision_kind": (
+            "evidence_conditioned_refinement"
+            if evidence_conditioned
+            else "query_initial_candidate"
+        ),
+        "evidence_conditioned": evidence_conditioned,
+        "completed_round_ids": completed_round_ids,
+        "completed_round_count": len(completed_round_ids),
+        "input_digest": digest,
+    }
+
+
+def validate_open_query_proposal_lineage(
+    proposal_bundle: Mapping[str, Any],
+    *,
+    user_query: str,
+    capabilities: Mapping[str, Any],
+    evidence_history: Sequence[Mapping[str, Any]],
+    evaluation_intent: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Fail closed when a proposal was not authored from current evidence.
+
+    A provider response generated before round ``n`` completed must not be
+    relabelled as the decision for round ``n + 1``.  The digest covers the
+    original Query, capability boundary, complete evidence history, and an
+    optional frozen EvaluationIntent.
+    """
+
+    if not isinstance(proposal_bundle, Mapping):
+        raise ClaimFirstPlanError("proposal_bundle must be an object")
+    expected = build_open_query_planning_lineage(
+        user_query,
+        capabilities,
+        evidence_history,
+        evaluation_intent,
+    )
+    actual_digest = proposal_bundle.get("input_digest")
+    if actual_digest != expected["input_digest"]:
+        raise ClaimFirstPlanError(
+            "proposal input_digest does not match the current completed "
+            "Aggregate/Evidence history"
+        )
+    raw_lineage = proposal_bundle.get("planning_lineage")
+    if (
+        not isinstance(raw_lineage, Mapping)
+        or set(raw_lineage) != _PLANNING_LINEAGE_KEYS
+    ):
+        raise ClaimFirstPlanError(
+            "provider proposal must carry complete planning_lineage"
+        )
+    lineage = deepcopy(dict(raw_lineage))
+    if lineage != expected:
+        raise ClaimFirstPlanError(
+            "proposal planning_lineage does not match the current completed "
+            "rounds"
+        )
+    return lineage
+
+
+class PlanAgent:
     """Ask a provider to discover the next sub-aspect from evidence."""
 
     def __init__(self, provider: Any, *, model: str):
@@ -565,6 +670,7 @@ class ClaimFirstOpenQueryAgent:
         evidence_history: Sequence[Mapping[str, Any]],
         evaluation_intent: Mapping[str, Any] | None = None,
     ) -> str:
+        checker_required = query_requires_experimental_checker(user_query)
         example = {
             "schema_version": 2,
             "action": "continue",
@@ -580,8 +686,12 @@ class ClaimFirstOpenQueryAgent:
                 "description": "Scene construction or adaptation needed.",
             },
             "checker_need": {
-                "required": False,
-                "description": None,
+                "required": checker_required,
+                "description": (
+                    "The additional experimental success predicate."
+                    if checker_required
+                    else None
+                ),
             },
             "rule_tool_need": {
                 "required": True,
@@ -605,7 +715,7 @@ Every action=continue proposal must directly implement this frozen intent.
 Do not silently replace it with a nearby diagnostic proxy.  Preserve its
 requested change, preserved conditions, hypothesis, and required observation.
 """
-        return f"""You are the claim-first Plan Agent in ManipEvalAgent.
+        return f"""You are the Plan Agent in ManipEvalAgent.
 Discover a small set of evaluation sub-aspects online.  There is no predeclared
 candidate/template-ID itinerary, success-then-switch script, or fallback route.
 Supported controlled axes and operations may appear in the capability cards;
@@ -621,6 +731,15 @@ a scene or checker merely because a Tool is needed, and do not couple scene
 and checker needs.  A new Tool need may be named even when it is not in an
 existing metric/question list.  Avoid repeating a tested perturbation unless
 ambiguous evidence requires a more observable version.
+The generic RoboTwin TaskGen surface can change only what the advertised
+allowed_change_roots directly implement.  In particular, load_actors can alter
+actors, assets, appearance, scale, pose, clutter, lighting, and other simulator
+scene state; it cannot reduce policy/controller/gripper precision, inject
+action noise or latency, or change policy weights unless an explicit runtime
+intervention root is advertised.  After successful evidence, refine to another
+executable physical scene/checker/tool concern instead of relabelling a scene
+change as an unavailable policy intervention.
+{EXPERIMENTAL_SUCCESS_CHECKER_GUIDANCE}
 
 Use success to probe the most consequential remaining uncertainty; use failure
 to discriminate a causal failure hypothesis; use ambiguous evidence to improve
@@ -692,6 +811,22 @@ Return strict JSON with exactly these fields:
                     extract_json_response(response),
                     has_evidence=bool(trusted_evidence),
                 )
+                try:
+                    proposal = validate_plan_agent_proposal_execution(
+                        proposal,
+                        capabilities=trusted_capabilities,
+                    )
+                except ProposalExecutionError as exc:
+                    raise PlanAgentError(str(exc)) from exc
+                if (
+                    proposal["action"] == "continue"
+                    and query_requires_experimental_checker(query)
+                    and proposal["checker_need"]["required"] is not True
+                ):
+                    raise PlanAgentError(
+                        "the original Query explicitly defines experimental "
+                        "success semantics, so checker_need.required must be true"
+                    )
                 if trusted_intent is not None and proposal["action"] == "continue":
                     scene_need = proposal["scene_need"]
                     checker_need = proposal["checker_need"]
@@ -763,15 +898,17 @@ Return strict JSON with exactly these fields:
                 "provider failed two open-Query proposal attempts: "
                 + " | ".join(self.last_errors)
             )
+        planning_lineage = build_open_query_planning_lineage(
+            query,
+            trusted_capabilities,
+            trusted_evidence,
+            trusted_intent,
+        )
         return {
             "schema_version": 1,
-            "source": "provider_claim_first_open_query",
-            "input_digest": open_query_input_digest(
-                query,
-                trusted_capabilities,
-                trusted_evidence,
-                trusted_intent,
-            ),
+            "source": "provider_plan_agent_open_query",
+            "input_digest": planning_lineage["input_digest"],
+            "planning_lineage": planning_lineage,
             "proposal": proposal,
             "provider": {
                 "model_requested": self.model,
@@ -785,12 +922,20 @@ Return strict JSON with exactly these fields:
         }
 
 
+# Compatibility class name; new callers should use ``PlanAgent``.
+ClaimFirstOpenQueryAgent = PlanAgent
+
+
 __all__ = [
+    "PlanAgent",
+    "PlanAgentError",
     "ClaimFirstOpenQueryAgent",
     "ClaimFirstPlanError",
+    "build_open_query_planning_lineage",
     "open_query_input_digest",
     "project_open_query_capabilities",
     "validate_open_query_capabilities",
     "validate_open_query_evidence",
     "validate_open_query_plan_proposal",
+    "validate_open_query_proposal_lineage",
 ]

@@ -64,9 +64,40 @@ TERMINAL_Z_SPEC = {
     "unit": "m",
     "null_semantics": "null_if_terminal_not_finite",
 }
+TERMINAL_DIFFERENCE_SPEC = {
+    "schema_version": 1,
+    "operation": "terminal_signal_difference",
+    "left_signal": "right_tcp_position",
+    "right_signal": "block_position",
+    "component": "x",
+    "unit": "m",
+    "null_semantics": "null_if_terminal_not_finite",
+}
 
 
 class MetricSpecTests(unittest.TestCase):
+    @staticmethod
+    def _write_terminal_difference_episode(episode: Path) -> None:
+        write_episode(episode, policy_name="ACT", physical_contact=False)
+        trace = dict(np.load(episode / "semantic_trace.npz"))
+        trace["right_tcp_position"] = np.asarray(
+            [
+                [0.10, 0.00, 0.78],
+                [0.18, 0.00, 0.82],
+                [0.25, 0.00, 0.84],
+            ],
+            dtype=np.float32,
+        )
+        trace["block_position"] = np.asarray(
+            [
+                [0.40, 0.05, 0.76],
+                [0.40, 0.05, 0.76],
+                [0.40, 0.05, 0.76],
+            ],
+            dtype=np.float32,
+        )
+        np.savez_compressed(episode / "semantic_trace.npz", **trace)
+
     def test_strict_validation_compilation_and_router(self):
         self.assertEqual(validate_metric_spec(SPEC), SPEC)
         source = compile_metric_spec_source(SPEC)
@@ -105,6 +136,7 @@ class MetricSpecTests(unittest.TestCase):
                 "event_count",
                 "minimum_distance",
                 "terminal_signal_component",
+                "terminal_signal_difference",
                 "time_between_events",
             ],
         )
@@ -558,6 +590,101 @@ class MetricSpecTests(unittest.TestCase):
                     **TERMINAL_Z_SPEC,
                     "null_semantics": "null_if_no_finite_sample",
                 }
+            )
+
+    def test_terminal_signal_difference_preserves_signed_direction(self):
+        normalized = validate_metric_spec(TERMINAL_DIFFERENCE_SPEC)
+        self.assertFalse(normalized["absolute"])
+
+        with tempfile.TemporaryDirectory() as temporary:
+            episode = Path(temporary) / "signed_difference"
+            self._write_terminal_difference_episode(episode)
+            result = evaluate_metric_spec(
+                TERMINAL_DIFFERENCE_SPEC,
+                TrajectoryView(episode),
+            )
+            self.assertAlmostEqual(result["value"], -0.15, places=6)
+            self.assertEqual(result["evidence_steps"], [2])
+            self.assertEqual(
+                result["details"]["reason"],
+                "measured",
+            )
+
+    def test_terminal_signal_difference_supports_absolute_distance(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            episode = Path(temporary) / "absolute_difference"
+            self._write_terminal_difference_episode(episode)
+            result = evaluate_metric_spec(
+                {**TERMINAL_DIFFERENCE_SPEC, "absolute": True},
+                TrajectoryView(episode),
+            )
+            self.assertAlmostEqual(result["value"], 0.15, places=6)
+            self.assertTrue(result["details"]["absolute"])
+
+    def test_terminal_signal_difference_rejects_invalid_contracts(self):
+        with self.assertRaisesRegex(MetricSpecError, "signals must be distinct"):
+            validate_metric_spec(
+                {
+                    **TERMINAL_DIFFERENCE_SPEC,
+                    "right_signal": "right_tcp_position",
+                }
+            )
+        with self.assertRaisesRegex(MetricSpecError, "component=x, y, or z"):
+            validate_metric_spec(
+                {**TERMINAL_DIFFERENCE_SPEC, "component": "heading"}
+            )
+        with self.assertRaisesRegex(MetricSpecError, "absolute must be a boolean"):
+            validate_metric_spec(
+                {**TERMINAL_DIFFERENCE_SPEC, "absolute": 1}
+            )
+        with self.assertRaisesRegex(
+            MetricSpecError, "null_if_terminal_not_finite"
+        ):
+            validate_metric_spec(
+                {
+                    **TERMINAL_DIFFERENCE_SPEC,
+                    "null_semantics": "null_if_no_finite_sample",
+                }
+            )
+
+    def test_terminal_signal_difference_differentially_executes(self):
+        source = compile_metric_spec_source(TERMINAL_DIFFERENCE_SPEC)
+        self.assertTrue(validate_generated_tool(source)["valid"])
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            episode = root / "difference_episode"
+            self._write_terminal_difference_episode(episode)
+            result = execute_metric_spec(
+                task_name="beat_block_hammer",
+                metric="query_terminal_tcp_block_x_difference",
+                question=(
+                    "What was the signed terminal TCP-minus-block "
+                    "x displacement?"
+                ),
+                metric_spec=TERMINAL_DIFFERENCE_SPEC,
+                episode_dirs=[episode],
+                output_dir=root / "terminal_difference",
+                registry_dir=root / "registry",
+            )
+            self.assertEqual(result["route"], "typed_metric_spec_compile")
+            self.assertTrue(result["episodes"][0]["oracle_agreement"])
+            self.assertAlmostEqual(
+                result["episodes"][0]["generated_result"]["value"],
+                -0.15,
+                places=6,
+            )
+            self.assertEqual(
+                result["tool_spec"]["required_signals"],
+                [
+                    "semantic_trace.right_tcp_position",
+                    "semantic_trace.block_position",
+                    "semantic_trace.physics_step",
+                ],
+            )
+            self.assertEqual(
+                result["limitations"][0],
+                "five bounded typed operators only",
             )
 
 

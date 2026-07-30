@@ -4,6 +4,8 @@ import unittest
 from pathlib import Path
 
 from mea.planner.claim_first_initial import (
+    PlanAgentInitialPlanBuilder,
+    PlanAgentInitialPlanError,
     ClaimFirstInitialPlanBuilder,
     ClaimFirstInitialPlanError,
 )
@@ -40,10 +42,20 @@ def target(task_name: str) -> dict:
 
 
 class ClaimFirstInitialPlanTests(unittest.TestCase):
+    def test_plan_agent_builder_is_canonical_with_legacy_aliases(self):
+        self.assertIs(
+            ClaimFirstInitialPlanBuilder,
+            PlanAgentInitialPlanBuilder,
+        )
+        self.assertIs(
+            ClaimFirstInitialPlanError,
+            PlanAgentInitialPlanError,
+        )
+
     def test_builds_neutral_control_without_task_specific_planner(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            manifest = ClaimFirstInitialPlanBuilder(
+            manifest = PlanAgentInitialPlanBuilder(
                 root,
                 target=target("click_bell"),
                 max_rounds=2,
@@ -57,7 +69,7 @@ class ClaimFirstInitialPlanTests(unittest.TestCase):
 
             self.assertEqual(
                 manifest["planner"]["kind"],
-                "claim_first_direct_initial_v1",
+                "plan_agent_direct_initial_v1",
             )
             self.assertFalse(
                 manifest["planner"]["task_specific_planner_used"]
@@ -113,6 +125,10 @@ class ClaimFirstInitialPlanTests(unittest.TestCase):
             self.assertEqual(
                 manifest["plan"]["query_contract"]["control_requirement"],
                 "not_required",
+            )
+            self.assertEqual(
+                manifest["planner"]["proposal_source"],
+                "runtime_plan_agent_proposal_pending",
             )
 
     def test_contract_control_requirement_must_match(self):

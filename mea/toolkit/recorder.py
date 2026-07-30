@@ -65,7 +65,33 @@ def extend_task_schema_with_generated_actors(
         "contact_focus",
     }
     for index, item in enumerate(raw):
-        if not isinstance(item, Mapping) or set(item) != expected:
+        if not isinstance(item, Mapping):
+            raise RecorderError(
+                f"generated tracked actor {index} has invalid fields"
+            )
+        # Existing actors are already tracked by the immutable task schema.
+        # Some generated scene methods redundantly repeat that declaration
+        # while omitting only ``contact_focus``.  Canonicalize exactly that
+        # base-schema no-op; never infer fields for a genuinely new or changed
+        # actor declaration.
+        if set(item) == expected - {"contact_focus"}:
+            matching_base = [
+                actor
+                for actor in actors
+                if actor.get("id") == item["id"]
+                and actor.get("task_attribute") == item["task_attribute"]
+                and actor.get("scene_name") == item["scene_name"]
+                and actor.get("functional_points", [])
+                == item["functional_points"]
+                and actor.get("contact_points", [])
+                == item["contact_points"]
+            ]
+            if len(matching_base) == 1:
+                item = {
+                    **dict(item),
+                    "contact_focus": item["id"] in focus,
+                }
+        if set(item) != expected:
             raise RecorderError(
                 f"generated tracked actor {index} has invalid fields"
             )
@@ -129,6 +155,17 @@ def extend_task_schema_with_generated_actors(
             raise RecorderError(
                 f"generated tracked actor {index} duplicates the base schema"
             )
+        runtime_actor = getattr(task, attribute)
+        get_runtime_name = getattr(runtime_actor, "get_name", None)
+        runtime_name = (
+            get_runtime_name() if callable(get_runtime_name) else None
+        )
+        if runtime_name != scene_name:
+            raise RecorderError(
+                f"generated tracked actor {index} scene_name {scene_name!r} "
+                f"does not match runtime actor name {runtime_name!r}; give "
+                "the new actor a unique name and declare that exact name"
+            )
         if attribute in attributes or scene_name in scene_names:
             raise RecorderError(
                 f"generated tracked actor {index} duplicates the base schema"
@@ -183,6 +220,45 @@ def extend_task_schema_with_generated_actors(
         ids.add(actor_id)
         attributes.add(attribute)
         scene_names.add(scene_name)
+    # Validate the final schema, not only newly appended declarations.  A
+    # generated subclass may redeclare an official actor or may add an
+    # untracked actor with the same SAPIEN name; both cases would otherwise
+    # make contact telemetry ambiguous.
+    for actor_spec in actors:
+        runtime_actor = getattr(task, actor_spec["task_attribute"], None)
+        get_runtime_name = getattr(runtime_actor, "get_name", None)
+        runtime_name = (
+            get_runtime_name() if callable(get_runtime_name) else None
+        )
+        if runtime_name != actor_spec["scene_name"]:
+            raise RecorderError(
+                f"tracked actor {actor_spec['id']!r} scene_name "
+                f"{actor_spec['scene_name']!r} does not match runtime actor "
+                f"name {runtime_name!r}"
+            )
+    scene = getattr(task, "scene", None)
+    get_all_actors = getattr(scene, "get_all_actors", None)
+    if callable(get_all_actors):
+        runtime_name_counts: dict[str, int] = {}
+        for runtime_actor in list(get_all_actors() or []):
+            get_runtime_name = getattr(runtime_actor, "get_name", None)
+            runtime_name = (
+                get_runtime_name() if callable(get_runtime_name) else None
+            )
+            if isinstance(runtime_name, str) and runtime_name:
+                runtime_name_counts[runtime_name] = (
+                    runtime_name_counts.get(runtime_name, 0) + 1
+                )
+        ambiguous = sorted(
+            actor_spec["scene_name"]
+            for actor_spec in actors
+            if runtime_name_counts.get(actor_spec["scene_name"], 0) != 1
+        )
+        if ambiguous:
+            raise RecorderError(
+                "tracked actor runtime names must occur exactly once in the "
+                "scene: " + ", ".join(ambiguous)
+            )
     try:
         return validate_task_schema(
             result,

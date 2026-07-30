@@ -24,6 +24,28 @@ def evidence(candidate_id, outcome, *, score=None, diagnosis=None):
 
 
 class QuerySufficiencyTruthTableTests(unittest.TestCase):
+    def test_chinese_failure_seeking_query_is_existential(self) -> None:
+        contract = build_query_sufficiency_contract(
+            "这个策略最先会被哪一种有界场景变化暴露弱点？",
+            candidate_universe=["candidate"],
+            round_budget=1,
+            candidate_universe_closed=False,
+        )
+
+        self.assertEqual(contract["claim_type"], "existential")
+        self.assertEqual(contract["existential_witness_outcome"], "fail")
+
+    def test_chinese_exists_success_query_requires_pass_witness(self) -> None:
+        contract = build_query_sufficiency_contract(
+            "是否存在一种有界场景变化，策略仍能成功完成任务？",
+            candidate_universe=["candidate"],
+            round_budget=1,
+            candidate_universe_closed=False,
+        )
+
+        self.assertEqual(contract["claim_type"], "existential")
+        self.assertEqual(contract["existential_witness_outcome"], "pass")
+
     CANDIDATES = ["left", "right"]
 
     def contract(self, claim_type, **kwargs):

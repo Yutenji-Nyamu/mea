@@ -9,7 +9,9 @@ from mea.planner.experiment_candidate import build_experiment_candidate
 from mea.planner.open_world_session import (
     OpenWorldPlanSession,
     OpenWorldSessionError,
+    build_open_world_evaluation_target,
 )
+from mea.planner.policy_task_binding import build_policy_task_binding
 from mea.planner.query_contract import build_query_sufficiency_contract
 
 
@@ -41,10 +43,11 @@ def _ready_official_only_catalog(root: Path) -> dict:
 def _control_round(session: OpenWorldPlanSession) -> dict:
     return {
         "round_id": "round_1",
-        "task_name": session.target["task_name"],
-        "template_id": session.target["control_template_id"],
+        "task_name": session.task_name,
+        "task_module": session.binding["task_module"],
+        "template_id": session.control_template_id,
         "execution": {
-            "checkpoint_id": session.target["checkpoint"]["checkpoint_id"],
+            "checkpoint_id": session.checkpoint["checkpoint_id"],
             "num_episodes": 1,
             "seeds": [1001],
         },
@@ -68,12 +71,10 @@ def _initial_plan(
 ) -> dict:
     return {
         "schema_version": 1,
-        "task_name": session.target["task_name"],
-        "policy": deepcopy(session.target["policy"]),
-        "checkpoint": deepcopy(session.target["checkpoint"]),
-        # The legacy official planner reports its catalog cap.  The open-world
-        # session canonically expands it to its independently frozen budget.
-        "max_rounds": session.target["catalog_max_rounds"],
+        "task_name": session.task_name,
+        "policy": deepcopy(session.policy),
+        "checkpoint": deepcopy(session.checkpoint),
+        "max_rounds": session.target["max_rounds"],
         "evaluation_goal": "find a post-release stability weakness",
         "rounds": [_control_round(session)],
         "round_decisions": [],
@@ -95,10 +96,12 @@ class OpenWorldPlanSessionTests(unittest.TestCase):
             candidate_universe_closed=False,
             existential_witness_outcome="fail",
         )
-        self.session = OpenWorldPlanSession.from_catalog(
-            self.catalog,
-            "adjust_bottle",
-            max_rounds=3,
+        self.session = OpenWorldPlanSession.from_target(
+            build_open_world_evaluation_target(
+                self.catalog,
+                "adjust_bottle",
+                max_rounds=3,
+            ),
             query_contract=self.contract,
         )
         self.plan = _initial_plan(self.session, self.contract)
@@ -107,8 +110,23 @@ class OpenWorldPlanSessionTests(unittest.TestCase):
         self.temp.cleanup()
 
     def test_official_only_catalog_does_not_limit_runtime_round_budget(self):
-        self.assertEqual(self.session.target["catalog_max_rounds"], 1)
         self.assertEqual(self.session.target["max_rounds"], 3)
+        self.assertEqual(
+            set(self.session.target),
+            {
+                "schema_version",
+                "binding_mode",
+                "policy_task_binding",
+                "max_rounds",
+            },
+        )
+        self.assertTrue(
+            {
+                "planner_kind",
+                "task_profile",
+                "aspects",
+            }.isdisjoint(self.session.target)
+        )
         normalized = self.session.normalize_plan(self.plan)
         self.assertEqual(normalized["max_rounds"], 3)
         self.assertEqual(
@@ -123,14 +141,43 @@ class OpenWorldPlanSessionTests(unittest.TestCase):
             control_round=_control_round(self.session),
             query_contract=self.contract,
         )
-        normalized = direct.normalize_plan(self.plan)
+        direct_plan = deepcopy(self.plan)
+        direct_plan["max_rounds"] = self.session.target["max_rounds"]
+        normalized = direct.normalize_plan(direct_plan)
 
         self.assertIsNone(direct.catalog)
         self.assertEqual(normalized["task_name"], "adjust_bottle")
         self.assertEqual(
             normalized["checkpoint"],
-            self.session.target["checkpoint"],
+            self.session.checkpoint,
         )
+
+    def test_runtime_binding_does_not_require_retrieval_registration(self):
+        task_name = "runtime_schema_task"
+        target = {
+            "schema_version": 3,
+            "binding_mode": "single_task_single_checkpoint_open_world",
+            "policy_task_binding": build_policy_task_binding(
+                task_name=task_name,
+                task_family="runtime_discovered",
+                policy={"name": "ACT", "language_conditioned": False},
+                checkpoint={
+                    "checkpoint_id": f"act-{task_name}/demo_clean-50",
+                    "checkpoint_setting": "demo_clean",
+                    "expert_data_num": 50,
+                    "ready": True,
+                },
+            ),
+            "max_rounds": 2,
+        }
+        session = OpenWorldPlanSession.from_target(target)
+
+        self.assertEqual(session.task_name, task_name)
+        self.assertEqual(
+            session.control_template_id,
+            "task_execution.official_baseline",
+        )
+        self.assertEqual(session.retrieval_aspects, [])
 
     def test_control_round_is_frozen_after_first_normalization(self):
         self.session.normalize_plan(self.plan)
@@ -140,6 +187,17 @@ class OpenWorldPlanSessionTests(unittest.TestCase):
             OpenWorldSessionError, "rewrite the frozen official control"
         ):
             self.session.normalize_plan(changed)
+
+        changed_module = deepcopy(self.plan)
+        changed_module["rounds"][0]["task_module"] = "envs.other_task"
+        with self.assertRaisesRegex(
+            OpenWorldSessionError, "cannot change bound task_module"
+        ):
+            OpenWorldPlanSession.from_target(
+                self.session.target,
+                control_round=changed_module["rounds"][0],
+                query_contract=self.contract,
+            )
 
     def test_runtime_candidate_needs_no_catalog_aspect_or_template(self):
         candidate = _candidate()
@@ -151,6 +209,14 @@ class OpenWorldPlanSessionTests(unittest.TestCase):
             "experiment_candidate": candidate,
             "rationale": "The control passed; inspect post-release wobble.",
             "answered_query": False,
+            "planning_lineage": {
+                "schema_version": 1,
+                "decision_kind": "evidence_conditioned_refinement",
+                "evidence_conditioned": True,
+                "completed_round_ids": ["round_1"],
+                "completed_round_count": 1,
+                "input_digest": "a" * 64,
+            },
         }
         generated_round = {
             "round_id": "round_2",
@@ -159,9 +225,7 @@ class OpenWorldPlanSessionTests(unittest.TestCase):
             "experiment_candidate": candidate,
             "task_module": "mea.generated.adjust_bottle_post_release_wobble",
             "execution": {
-                "checkpoint_id": self.session.target["checkpoint"][
-                    "checkpoint_id"
-                ],
+                "checkpoint_id": self.session.checkpoint["checkpoint_id"],
                 "num_episodes": 1,
                 "seeds": [1002],
             },
@@ -187,7 +251,103 @@ class OpenWorldPlanSessionTests(unittest.TestCase):
         self.assertEqual(
             decision["decision_reason"], "provider_authored_open_world_step"
         )
-        self.assertEqual(options["session_kind"], "open_world_claim_first")
+        self.assertEqual(
+            decision["planning_lineage"]["completed_round_ids"],
+            ["round_1"],
+        )
+        self.assertEqual(options["session_kind"], "plan_agent_session")
+
+    def test_refinement_lineage_cannot_omit_latest_completed_round(self):
+        candidate = _candidate()
+        step = {
+            "schema_version": 2,
+            "action": "propose",
+            "candidate_id": candidate["candidate_id"],
+            "execution_mode": "reuse_or_generate",
+            "experiment_candidate": candidate,
+            "rationale": "Inspect post-release wobble.",
+            "answered_query": False,
+            "planning_lineage": {
+                "schema_version": 1,
+                "decision_kind": "evidence_conditioned_refinement",
+                "evidence_conditioned": True,
+                "completed_round_ids": [],
+                "completed_round_count": 0,
+                "input_digest": "a" * 64,
+            },
+        }
+
+        with self.assertRaisesRegex(
+            OpenWorldSessionError,
+            "must name every completed round",
+        ):
+            self.session.apply_plan_step(
+                self.plan,
+                [{"round_id": "round_1"}],
+                step,
+                materialized_round={
+                    "round_id": "round_2",
+                    "candidate_id": candidate["candidate_id"],
+                    "experiment_candidate": candidate,
+                },
+                source="provider_claim_first_open_query",
+            )
+
+    def test_continuing_step_requires_lineage(self):
+        candidate = _candidate()
+        with self.assertRaisesRegex(
+            OpenWorldSessionError,
+            "requires planning_lineage",
+        ):
+            self.session.apply_plan_step(
+                self.plan,
+                [{"round_id": "round_1"}],
+                {
+                    "schema_version": 2,
+                    "action": "propose",
+                    "candidate_id": candidate["candidate_id"],
+                    "experiment_candidate": candidate,
+                    "rationale": "Unbound continuing proposal.",
+                    "answered_query": False,
+                },
+                materialized_round={
+                    "round_id": "round_2",
+                    "candidate_id": candidate["candidate_id"],
+                    "experiment_candidate": candidate,
+                },
+            )
+
+    def test_pre_evidence_lineage_rejected_after_an_observation(self):
+        candidate = _candidate()
+        with self.assertRaisesRegex(
+            OpenWorldSessionError,
+            "valid only before any round evidence exists",
+        ):
+            self.session.apply_plan_step(
+                self.plan,
+                [{"round_id": "round_1"}],
+                {
+                    "schema_version": 2,
+                    "action": "propose",
+                    "candidate_id": candidate["candidate_id"],
+                    "experiment_candidate": candidate,
+                    "rationale": "Stale query-only proposal.",
+                    "answered_query": False,
+                    "planning_lineage": {
+                        "schema_version": 1,
+                        "decision_kind": "pre_evidence_query_candidate",
+                        "evidence_conditioned": False,
+                        "completed_round_ids": [],
+                        "completed_round_count": 0,
+                        "input_digest": "0" * 64,
+                    },
+                },
+                materialized_round={
+                    "round_id": "round_2",
+                    "candidate_id": candidate["candidate_id"],
+                    "experiment_candidate": candidate,
+                },
+            )
 
     def test_contract_can_start_with_tool_only_round_without_control(self):
         contract = build_query_sufficiency_contract(
@@ -198,17 +358,19 @@ class OpenWorldPlanSessionTests(unittest.TestCase):
             candidate_universe_closed=False,
             control_requirement="not_required",
         )
-        session = OpenWorldPlanSession.from_catalog(
-            self.catalog,
-            "adjust_bottle",
-            max_rounds=2,
+        session = OpenWorldPlanSession.from_target(
+            build_open_world_evaluation_target(
+                self.catalog,
+                "adjust_bottle",
+                max_rounds=2,
+            ),
             query_contract=contract,
         )
         plan = {
             "schema_version": 1,
-            "task_name": session.target["task_name"],
-            "policy": deepcopy(session.target["policy"]),
-            "checkpoint": deepcopy(session.target["checkpoint"]),
+            "task_name": session.task_name,
+            "policy": deepcopy(session.policy),
+            "checkpoint": deepcopy(session.checkpoint),
             "max_rounds": session.target["max_rounds"],
             "evaluation_goal": "diagnose post-release motion",
             "rounds": [],
@@ -234,9 +396,7 @@ class OpenWorldPlanSessionTests(unittest.TestCase):
             "candidate_id": candidate["candidate_id"],
             "experiment_candidate": candidate,
             "execution": {
-                "checkpoint_id": session.target["checkpoint"][
-                    "checkpoint_id"
-                ],
+                "checkpoint_id": session.checkpoint["checkpoint_id"],
                 "num_episodes": 1,
                 "seeds": [1001],
             },
@@ -252,6 +412,14 @@ class OpenWorldPlanSessionTests(unittest.TestCase):
                 "experiment_candidate": candidate,
                 "rationale": "The Query only needs trajectory telemetry.",
                 "answered_query": False,
+                "planning_lineage": {
+                    "schema_version": 1,
+                    "decision_kind": "pre_evidence_query_candidate",
+                    "evidence_conditioned": False,
+                    "completed_round_ids": [],
+                    "completed_round_count": 0,
+                    "input_digest": "0" * 64,
+                },
             },
             materialized_round=generated_round,
         )
@@ -282,6 +450,14 @@ class OpenWorldPlanSessionTests(unittest.TestCase):
                     "experiment_candidate": candidate,
                     "rationale": "invalid task switch",
                     "answered_query": False,
+                    "planning_lineage": {
+                        "schema_version": 1,
+                        "decision_kind": "evidence_conditioned_refinement",
+                        "evidence_conditioned": True,
+                        "completed_round_ids": ["round_1"],
+                        "completed_round_count": 1,
+                        "input_digest": "a" * 64,
+                    },
                 },
                 materialized_round={
                     "round_id": "round_2",
@@ -303,6 +479,14 @@ class OpenWorldPlanSessionTests(unittest.TestCase):
                     "experiment_candidate": valid_candidate,
                     "rationale": "invalid checkpoint switch",
                     "answered_query": False,
+                    "planning_lineage": {
+                        "schema_version": 1,
+                        "decision_kind": "evidence_conditioned_refinement",
+                        "evidence_conditioned": True,
+                        "completed_round_ids": ["round_1"],
+                        "completed_round_count": 1,
+                        "input_digest": "a" * 64,
+                    },
                 },
                 materialized_round={
                     "round_id": "round_2",
@@ -399,10 +583,12 @@ class OpenWorldPlanSessionTests(unittest.TestCase):
             claim_type="universal",
             candidate_universe_closed=False,
         )
-        session = OpenWorldPlanSession.from_catalog(
-            self.catalog,
-            "adjust_bottle",
-            max_rounds=3,
+        session = OpenWorldPlanSession.from_target(
+            build_open_world_evaluation_target(
+                self.catalog,
+                "adjust_bottle",
+                max_rounds=3,
+            ),
             query_contract=universal,
         )
         plan = _initial_plan(session, universal)
@@ -436,7 +622,7 @@ class OpenWorldPlanSessionTests(unittest.TestCase):
             snapshot["control_round"]["template_id"],
             "task_execution.official_baseline",
         )
-        self.assertEqual(snapshot["experiment_candidates"], [])
+        self.assertEqual(snapshot["proposals"], [])
         self.assertTrue(
             snapshot["query_assessment"]["candidate_discovery_required"]
         )

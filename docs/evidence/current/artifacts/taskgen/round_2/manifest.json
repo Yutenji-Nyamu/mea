@@ -1,0 +1,1408 @@
+{
+  "schema_version": 1,
+  "run_id": "run_20260730_b44_grab_roller_plan_agent_live13_round_2",
+  "status": "completed",
+  "created_at": "2026-07-30T10:52:46.834345+08:00",
+  "user_request": "只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。\nScene need: Place a non-target roller with identical appearance closer to the robot than the target roller. Preserve unchanged: task identity; policy checkpoint.\nChecker need: A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters. Numeric Rule Tool needed to report the final height difference between the target and non-target rollers. Hypothesis: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
+  "task_name": "grab_roller",
+  "task_module": "mea.generated_tasks.run_20260730_b44_grab_roller_plan_agent_live13_round_2.task",
+  "mode": "generic_provider_scene_checker_codegen",
+  "generation_kind": "generic_provider_scene_checker_codegen",
+  "base_commit": "5fb9ae910d1ec1bd96e0f50bfab6becbd437942a",
+  "protected_hashes_before": {
+    "envs/beat_block_hammer.py": "90269f15f9ce274fb5bcad703c47b0b552ff5a2f0a3ff62d12dbe9a553018014",
+    "policy/ACT/eval.sh": "65fa39ced68bae149dec3d0194d044cbefc7ea48870803fe94889211435f4b4d",
+    "script/eval_policy.py": "b7138c259c790d2013ede0edfdb138a56ddc11bf664abd3baa57f19fa8933c2e"
+  },
+  "overlay": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/overlay.yml",
+  "telemetry_profile": "balanced_v1",
+  "static_validation": {
+    "provider_scene_checker": {
+      "valid": true,
+      "ast_policy": "generic_official_api_ast_v1:8c98bc539cd3c6f8",
+      "model_written_python": true,
+      "restricted_success_spec_compiler_used": false,
+      "checker_fixture_count": 2,
+      "checker_fixture_pass_count": 2
+    }
+  },
+  "scene_validation": {
+    "task_name": "grab_roller",
+    "task_module": "mea.generated_task_attempts.run_20260730_b44_grab_roller_plan_agent_live13_round_2.attempt_01.candidate_task",
+    "seed": 100301,
+    "setup_success": true,
+    "render_success": true,
+    "expert_requested": true,
+    "telemetry_requested": false,
+    "eval_mode": false,
+    "execution_receipt_requested": false,
+    "task_schema": {
+      "schema_version": 1,
+      "task_name": "grab_roller",
+      "task_family": "dual_arm_lift",
+      "trusted_tool_profile": "generic_success",
+      "tracked_actor_ids": [
+        "roller",
+        "non_target_roller"
+      ],
+      "semantic_field_names": [
+        "roller_position",
+        "roller_left_contact_position",
+        "roller_right_contact_position",
+        "left_tcp_position",
+        "right_tcp_position",
+        "non_target_roller_position"
+      ]
+    },
+    "domain_randomization": {
+      "cluttered_table": false,
+      "clean_background_rate": 1.0,
+      "cluttered_object_count": 0,
+      "cluttered_objects": [],
+      "authority": "simulator_task_info:cluttered_table_info",
+      "random_background": false,
+      "wall_texture": null,
+      "table_texture": null,
+      "texture_split": null,
+      "background_authority": "simulator_task_info:texture_info",
+      "random_light": false,
+      "crazy_random_light_rate": 0.0,
+      "crazy_random_light": false,
+      "direction_light_count": 1,
+      "point_light_count": 2,
+      "direction_light_colors": [
+        [
+          0.5,
+          0.5,
+          0.5
+        ]
+      ],
+      "point_light_colors": [
+        [
+          1.0,
+          1.0,
+          1.0
+        ],
+        [
+          1.0,
+          1.0,
+          1.0
+        ]
+      ],
+      "lighting_authority": "simulator_task_attributes:random_light,crazy_random_light_rate,crazy_random_light;simulator_light_components:get_color"
+    },
+    "actors": [
+      {
+        "name": "102_roller",
+        "position": [
+          -0.07744024693965912,
+          -0.06961455196142197,
+          0.7416645884513855
+        ],
+        "quaternion": [
+          0.19325308501720428,
+          0.19415003061294556,
+          0.6815027594566345,
+          0.678611159324646
+        ]
+      },
+      {
+        "name": "non_target_roller",
+        "position": [
+          -0.01590118370950222,
+          -0.30600106716156006,
+          0.7416644096374512
+        ],
+        "quaternion": [
+          -0.0025369867216795683,
+          -0.0024714116007089615,
+          0.7080894708633423,
+          0.7061140537261963
+        ]
+      },
+      {
+        "name": "ground",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "quaternion": [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "name": "wall",
+        "position": [
+          0.0,
+          1.0,
+          1.5
+        ],
+        "quaternion": [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "name": "table",
+        "position": [
+          0.0,
+          0.0,
+          0.7400000095367432
+        ],
+        "quaternion": [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    ],
+    "tracked_actors": [
+      {
+        "id": "roller",
+        "task_attribute": "roller",
+        "scene_name": "102_roller",
+        "position": [
+          -0.07744024693965912,
+          -0.06961455196142197,
+          0.7416645884513855
+        ],
+        "quaternion": [
+          0.19325308501720428,
+          0.19415003061294556,
+          0.6815027594566345,
+          0.678611159324646
+        ],
+        "collision_geometry": [
+          {
+            "geometry_type": "create_actor_asset",
+            "modelname": "102_roller",
+            "model_id": 2,
+            "collision_asset": "assets/objects/102_roller/collision/base2.glb",
+            "convex": true,
+            "is_static": false,
+            "scale": [
+              0.13,
+              0.1,
+              0.1
+            ],
+            "extents": [
+              1.9311913944412211,
+              0.32168825746682084,
+              0.3103910043535411
+            ],
+            "center": [
+              2.118178000711387e-05,
+              0.11274457106981156,
+              0.0013336256808618475
+            ]
+          }
+        ],
+        "functional_points": {},
+        "contact_points": {
+          "0": {
+            "position": [
+              -0.1517805872741177,
+              -0.020864043415604293,
+              0.7551978901411976
+            ],
+            "raw": [
+              -0.1517805872741177,
+              -0.020864043415604293,
+              0.7551978901411976,
+              0.19325304918059488,
+              0.1941500115981655,
+              0.6815027148591383,
+              0.6786111416845878
+            ]
+          },
+          "1": {
+            "position": [
+              -0.0025015978186608973,
+              -0.11628481144405739,
+              0.7541296693073063
+            ],
+            "raw": [
+              -0.0025015978186608973,
+              -0.11628481144405739,
+              0.7541296693073063,
+              0.681502714859138,
+              0.6786111416845875,
+              -0.19325304918059483,
+              -0.19415001159816556
+            ]
+          }
+        }
+      },
+      {
+        "id": "non_target_roller",
+        "task_attribute": "non_target_roller",
+        "scene_name": "non_target_roller",
+        "position": [
+          -0.01590118370950222,
+          -0.30600106716156006,
+          0.7416644096374512
+        ],
+        "quaternion": [
+          -0.0025369867216795683,
+          -0.0024714116007089615,
+          0.7080894708633423,
+          0.7061140537261963
+        ],
+        "collision_geometry": [
+          {
+            "geometry_type": "create_actor_asset",
+            "modelname": "102_roller",
+            "model_id": 2,
+            "collision_asset": "assets/objects/102_roller/collision/base2.glb",
+            "convex": true,
+            "is_static": false,
+            "scale": [
+              0.13,
+              0.1,
+              0.1
+            ],
+            "extents": [
+              1.9311913944412211,
+              0.32168825746682084,
+              0.3103910043535411
+            ],
+            "center": [
+              2.118178000711387e-05,
+              0.11274457106981156,
+              0.0013336256808618475
+            ]
+          }
+        ],
+        "functional_points": {},
+        "contact_points": {}
+      }
+    ],
+    "task_attributes": {},
+    "image": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_task_attempts/run_20260730_b44_grab_roller_plan_agent_live13_round_2/attempt_01/expert_head.png",
+    "rule_check": {
+      "all_tracked_actor_attributes_present": true,
+      "tracked_actor_runtime_names_match": true,
+      "declared_scene_names_unique": true,
+      "finite_tracked_actor_state": true,
+      "official_check_success_callable": true,
+      "passed": true,
+      "tracked_actor_ids": [
+        "roller",
+        "non_target_roller"
+      ],
+      "declared_scene_names": [
+        "102_roller",
+        "non_target_roller"
+      ]
+    },
+    "initial_check_success": false,
+    "expert_terminal_tracked_actors": [
+      {
+        "id": "roller",
+        "task_attribute": "roller",
+        "scene_name": "102_roller",
+        "position": [
+          -0.07542768120765686,
+          -0.06579278409481049,
+          0.8486258387565613
+        ],
+        "quaternion": [
+          0.23063327372074127,
+          0.14059339463710785,
+          0.5060070753097534,
+          0.8191452622413635
+        ],
+        "collision_geometry": [
+          {
+            "geometry_type": "create_actor_asset",
+            "modelname": "102_roller",
+            "model_id": 2,
+            "collision_asset": "assets/objects/102_roller/collision/base2.glb",
+            "convex": true,
+            "is_static": false,
+            "scale": [
+              0.13,
+              0.1,
+              0.1
+            ],
+            "extents": [
+              1.9311913944412211,
+              0.32168825746682084,
+              0.3103910043535411
+            ],
+            "center": [
+              2.118178000711387e-05,
+              0.11274457106981156,
+              0.0013336256808618475
+            ]
+          }
+        ],
+        "functional_points": {},
+        "contact_points": {
+          "0": {
+            "position": [
+              -0.15349728103784954,
+              -0.02304685246424426,
+              0.8614387606092341
+            ],
+            "raw": [
+              -0.15349728103784954,
+              -0.02304685246424426,
+              0.8614387606092341,
+              0.23063322536623454,
+              0.14059337213345158,
+              0.5060070150031183,
+              0.8191451152493965
+            ]
+          },
+          "1": {
+            "position": [
+              -0.0030739231916283166,
+              -0.11664732867862541,
+              0.8599413420594647
+            ],
+            "raw": [
+              -0.0030739231916283166,
+              -0.11664732867862541,
+              0.8599413420594647,
+              0.5060070150031182,
+              0.8191451152493963,
+              -0.23063322536623443,
+              -0.14059337213345166
+            ]
+          }
+        }
+      },
+      {
+        "id": "non_target_roller",
+        "task_attribute": "non_target_roller",
+        "scene_name": "non_target_roller",
+        "position": [
+          -0.01590118370950222,
+          -0.30600106716156006,
+          0.7416644096374512
+        ],
+        "quaternion": [
+          -0.0025369867216795683,
+          -0.0024714116007089615,
+          0.7080894708633423,
+          0.7061140537261963
+        ],
+        "collision_geometry": [
+          {
+            "geometry_type": "create_actor_asset",
+            "modelname": "102_roller",
+            "model_id": 2,
+            "collision_asset": "assets/objects/102_roller/collision/base2.glb",
+            "convex": true,
+            "is_static": false,
+            "scale": [
+              0.13,
+              0.1,
+              0.1
+            ],
+            "extents": [
+              1.9311913944412211,
+              0.32168825746682084,
+              0.3103910043535411
+            ],
+            "center": [
+              2.118178000711387e-05,
+              0.11274457106981156,
+              0.0013336256808618475
+            ]
+          }
+        ],
+        "functional_points": {},
+        "contact_points": {}
+      }
+    ],
+    "expert_terminal_actors": [
+      {
+        "name": "102_roller",
+        "position": [
+          -0.07542768120765686,
+          -0.06579278409481049,
+          0.8486258387565613
+        ],
+        "quaternion": [
+          0.23063327372074127,
+          0.14059339463710785,
+          0.5060070753097534,
+          0.8191452622413635
+        ]
+      },
+      {
+        "name": "non_target_roller",
+        "position": [
+          -0.01590118370950222,
+          -0.30600106716156006,
+          0.7416644096374512
+        ],
+        "quaternion": [
+          -0.0025369867216795683,
+          -0.0024714116007089615,
+          0.7080894708633423,
+          0.7061140537261963
+        ]
+      },
+      {
+        "name": "ground",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "quaternion": [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "name": "wall",
+        "position": [
+          0.0,
+          1.0,
+          1.5
+        ],
+        "quaternion": [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "name": "table",
+        "position": [
+          0.0,
+          0.0,
+          0.7400000095367432
+        ],
+        "quaternion": [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    ],
+    "expert_terminal_task_attributes": {},
+    "expert": {
+      "plan_success": true,
+      "check_success": true,
+      "official_check_success": true,
+      "official_core_predicate_satisfied": true,
+      "official_success_authority": "mea_official_check_success",
+      "passed": true,
+      "attempts_used": 1
+    },
+    "expert_attempts": [
+      {
+        "attempt_index": 0,
+        "returncode": 0,
+        "expert": {
+          "plan_success": true,
+          "check_success": true,
+          "official_check_success": true,
+          "official_core_predicate_satisfied": true,
+          "official_success_authority": "mea_official_check_success",
+          "passed": true,
+          "attempts_used": 1
+        }
+      }
+    ],
+    "returncode": 0,
+    "setup_fixture": {
+      "task_name": "grab_roller",
+      "task_module": "mea.generated_task_attempts.run_20260730_b44_grab_roller_plan_agent_live13_round_2.attempt_01.candidate_task",
+      "seed": 100301,
+      "setup_success": true,
+      "render_success": true,
+      "expert_requested": false,
+      "telemetry_requested": false,
+      "eval_mode": false,
+      "execution_receipt_requested": false,
+      "task_schema": {
+        "schema_version": 1,
+        "task_name": "grab_roller",
+        "task_family": "dual_arm_lift",
+        "trusted_tool_profile": "generic_success",
+        "tracked_actor_ids": [
+          "roller",
+          "non_target_roller"
+        ],
+        "semantic_field_names": [
+          "roller_position",
+          "roller_left_contact_position",
+          "roller_right_contact_position",
+          "left_tcp_position",
+          "right_tcp_position",
+          "non_target_roller_position"
+        ]
+      },
+      "domain_randomization": {
+        "cluttered_table": false,
+        "clean_background_rate": 1.0,
+        "cluttered_object_count": 0,
+        "cluttered_objects": [],
+        "authority": "simulator_task_info:cluttered_table_info",
+        "random_background": false,
+        "wall_texture": null,
+        "table_texture": null,
+        "texture_split": null,
+        "background_authority": "simulator_task_info:texture_info",
+        "random_light": false,
+        "crazy_random_light_rate": 0.0,
+        "crazy_random_light": false,
+        "direction_light_count": 1,
+        "point_light_count": 2,
+        "direction_light_colors": [
+          [
+            0.5,
+            0.5,
+            0.5
+          ]
+        ],
+        "point_light_colors": [
+          [
+            1.0,
+            1.0,
+            1.0
+          ],
+          [
+            1.0,
+            1.0,
+            1.0
+          ]
+        ],
+        "lighting_authority": "simulator_task_attributes:random_light,crazy_random_light_rate,crazy_random_light;simulator_light_components:get_color"
+      },
+      "actors": [
+        {
+          "name": "102_roller",
+          "position": [
+            -0.07744024693965912,
+            -0.06961455196142197,
+            0.7416645884513855
+          ],
+          "quaternion": [
+            0.19325308501720428,
+            0.19415003061294556,
+            0.6815027594566345,
+            0.678611159324646
+          ]
+        },
+        {
+          "name": "non_target_roller",
+          "position": [
+            -0.01590118370950222,
+            -0.30600106716156006,
+            0.7416644096374512
+          ],
+          "quaternion": [
+            -0.0025369867216795683,
+            -0.0024714116007089615,
+            0.7080894708633423,
+            0.7061140537261963
+          ]
+        },
+        {
+          "name": "ground",
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "wall",
+          "position": [
+            0.0,
+            1.0,
+            1.5
+          ],
+          "quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "table",
+          "position": [
+            0.0,
+            0.0,
+            0.7400000095367432
+          ],
+          "quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "tracked_actors": [
+        {
+          "id": "roller",
+          "task_attribute": "roller",
+          "scene_name": "102_roller",
+          "position": [
+            -0.07744024693965912,
+            -0.06961455196142197,
+            0.7416645884513855
+          ],
+          "quaternion": [
+            0.19325308501720428,
+            0.19415003061294556,
+            0.6815027594566345,
+            0.678611159324646
+          ],
+          "collision_geometry": [
+            {
+              "geometry_type": "create_actor_asset",
+              "modelname": "102_roller",
+              "model_id": 2,
+              "collision_asset": "assets/objects/102_roller/collision/base2.glb",
+              "convex": true,
+              "is_static": false,
+              "scale": [
+                0.13,
+                0.1,
+                0.1
+              ],
+              "extents": [
+                1.9311913944412211,
+                0.32168825746682084,
+                0.3103910043535411
+              ],
+              "center": [
+                2.118178000711387e-05,
+                0.11274457106981156,
+                0.0013336256808618475
+              ]
+            }
+          ],
+          "functional_points": {},
+          "contact_points": {
+            "0": {
+              "position": [
+                -0.1517805872741177,
+                -0.020864043415604293,
+                0.7551978901411976
+              ],
+              "raw": [
+                -0.1517805872741177,
+                -0.020864043415604293,
+                0.7551978901411976,
+                0.19325304918059488,
+                0.1941500115981655,
+                0.6815027148591383,
+                0.6786111416845878
+              ]
+            },
+            "1": {
+              "position": [
+                -0.0025015978186608973,
+                -0.11628481144405739,
+                0.7541296693073063
+              ],
+              "raw": [
+                -0.0025015978186608973,
+                -0.11628481144405739,
+                0.7541296693073063,
+                0.681502714859138,
+                0.6786111416845875,
+                -0.19325304918059483,
+                -0.19415001159816556
+              ]
+            }
+          }
+        },
+        {
+          "id": "non_target_roller",
+          "task_attribute": "non_target_roller",
+          "scene_name": "non_target_roller",
+          "position": [
+            -0.01590118370950222,
+            -0.30600106716156006,
+            0.7416644096374512
+          ],
+          "quaternion": [
+            -0.0025369867216795683,
+            -0.0024714116007089615,
+            0.7080894708633423,
+            0.7061140537261963
+          ],
+          "collision_geometry": [
+            {
+              "geometry_type": "create_actor_asset",
+              "modelname": "102_roller",
+              "model_id": 2,
+              "collision_asset": "assets/objects/102_roller/collision/base2.glb",
+              "convex": true,
+              "is_static": false,
+              "scale": [
+                0.13,
+                0.1,
+                0.1
+              ],
+              "extents": [
+                1.9311913944412211,
+                0.32168825746682084,
+                0.3103910043535411
+              ],
+              "center": [
+                2.118178000711387e-05,
+                0.11274457106981156,
+                0.0013336256808618475
+              ]
+            }
+          ],
+          "functional_points": {},
+          "contact_points": {}
+        }
+      ],
+      "task_attributes": {},
+      "image": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_task_attempts/run_20260730_b44_grab_roller_plan_agent_live13_round_2/attempt_01/setup_head.png",
+      "rule_check": {
+        "all_tracked_actor_attributes_present": true,
+        "tracked_actor_runtime_names_match": true,
+        "declared_scene_names_unique": true,
+        "finite_tracked_actor_state": true,
+        "official_check_success_callable": true,
+        "passed": true,
+        "tracked_actor_ids": [
+          "roller",
+          "non_target_roller"
+        ],
+        "declared_scene_names": [
+          "102_roller",
+          "non_target_roller"
+        ]
+      },
+      "initial_check_success": false,
+      "returncode": 0
+    },
+    "generic_preflight": {
+      "schema_version": 1,
+      "render_passed": true,
+      "expert_passed": true,
+      "scene_change_passed": true,
+      "scene_change": {
+        "schema_version": 1,
+        "passed": true,
+        "expected_state": "changed",
+        "authority": "same_seed_official_vs_generated_simulator_state_and_render",
+        "changed_components": [
+          "actors",
+          "tracked_actors"
+        ],
+        "render_changed": true,
+        "official_render_sha256": "cb6a9521c8fed7ac734d947f26b9191f8d4ef656a3b4eee86949b931d7c4521c",
+        "generated_render_sha256": "e03ba756afc093f38a4242c22395ab00a73f9febb3372f92ef45f228a84c94f8",
+        "scene_need": {
+          "description": "Place a non-target roller with identical appearance closer to the robot than the target roller. Preserve unchanged: task identity; policy checkpoint.",
+          "kind": "adapt",
+          "reuse_first": true
+        },
+        "semantic_scope": "observable_scene_difference; exact natural-language entailment remains a limitation"
+      },
+      "vision_validation": {
+        "schema_version": 1,
+        "render_usable": true,
+        "key_task_actors_visible": true,
+        "requested_change_assessment": "consistent",
+        "visual_physical_plausibility": "plausible",
+        "unexpected_changes": [],
+        "diagnosis": "The generated scene is visible and physically plausible.",
+        "repair_instructions": [],
+        "confidence": 0.8,
+        "scene_change_authority_available": true,
+        "passed": true,
+        "model_requested": "gpt-4o-2024-11-20",
+        "provider_metadata": {
+          "id": "chatcmpl-E7BAxrE6xkWcJOb8uMUKPxKBlUmxK",
+          "model": "gpt-4o-2024-11-20",
+          "finish_reason": "stop",
+          "usage": {
+            "completion_tokens": 94,
+            "completion_tokens_details": {
+              "accepted_prediction_tokens": 0,
+              "audio_tokens": 0,
+              "reasoning_tokens": 0,
+              "rejected_prediction_tokens": 0
+            },
+            "latency_checkpoint": {
+              "engine_tbt_ms": 17,
+              "engine_ttft_ms": 464,
+              "engine_ttlt_ms": 2057,
+              "pre_inference_ms": 116,
+              "service_tbt_ms": 17,
+              "service_ttft_ms": 1569,
+              "service_ttlt_ms": 3159,
+              "total_duration_ms": 3050,
+              "user_visible_ttft_ms": 1453
+            },
+            "prompt_tokens": 843,
+            "prompt_tokens_details": {
+              "audio_tokens": 0,
+              "cached_tokens": 0
+            },
+            "total_tokens": 937
+          },
+          "retry_count": 0
+        },
+        "comparison_image": "official_vs_generated.png"
+      },
+      "preserved_conditions_verified": true,
+      "preserved_conditions": [
+        "task identity",
+        "policy checkpoint"
+      ],
+      "preservation_status": "verified",
+      "preservation_checks": [
+        {
+          "condition": "task identity",
+          "kind": "frozen_runtime_binding",
+          "verified": true,
+          "authority": "frozen_task_policy_seed_and_action_binding"
+        },
+        {
+          "condition": "policy checkpoint",
+          "kind": "frozen_runtime_binding",
+          "verified": true,
+          "authority": "frozen_task_policy_seed_and_action_binding"
+        }
+      ],
+      "preservation_authority": "per_condition_authority",
+      "checker_fixtures": [
+        {
+          "fixture_id": "simulator_initial_negative",
+          "expected": false,
+          "observed": false,
+          "passed": true,
+          "authority": "fresh_simulator_state_before_action"
+        },
+        {
+          "fixture_id": "official_expert_terminal_positive",
+          "expected": true,
+          "observed": true,
+          "passed": true,
+          "authority": "official_expert_terminal_state"
+        }
+      ],
+      "initial_actor_z_m": {
+        "roller": 0.741665,
+        "non_target_roller": 0.741664
+      },
+      "expert_terminal_actor_z_m": {
+        "roller": 0.848626,
+        "non_target_roller": 0.741664
+      },
+      "official_setup_scene": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/validation/official_setup_preflight.json",
+      "official_setup_image": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evidence/official_initial_head.png",
+      "setup_scene": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/validation/setup_preflight.json",
+      "expert_scene": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/validation/expert_preflight.json",
+      "setup_image": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evidence/initial_head.png",
+      "expert_image": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evidence/expert_head.png",
+      "visual_comparison_image": "mea/generated_task_attempts/run_20260730_b44_grab_roller_plan_agent_live13_round_2/attempt_01/visual/official_vs_generated.png",
+      "visual_prompt": "mea/generated_task_attempts/run_20260730_b44_grab_roller_plan_agent_live13_round_2/attempt_01/visual/vision_prompt.md",
+      "visual_response": "mea/generated_task_attempts/run_20260730_b44_grab_roller_plan_agent_live13_round_2/attempt_01/visual/vision_response.txt",
+      "visual_result": "mea/generated_task_attempts/run_20260730_b44_grab_roller_plan_agent_live13_round_2/attempt_01/visual/vision.json"
+    }
+  },
+  "vision_validation": {
+    "schema_version": 1,
+    "render_usable": true,
+    "key_task_actors_visible": true,
+    "requested_change_assessment": "consistent",
+    "visual_physical_plausibility": "plausible",
+    "unexpected_changes": [],
+    "diagnosis": "The generated scene is visible and physically plausible.",
+    "repair_instructions": [],
+    "confidence": 0.8,
+    "scene_change_authority_available": true,
+    "passed": true,
+    "model_requested": "gpt-4o-2024-11-20",
+    "provider_metadata": {
+      "id": "chatcmpl-E7BAxrE6xkWcJOb8uMUKPxKBlUmxK",
+      "model": "gpt-4o-2024-11-20",
+      "finish_reason": "stop",
+      "usage": {
+        "completion_tokens": 94,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": 0
+        },
+        "latency_checkpoint": {
+          "engine_tbt_ms": 17,
+          "engine_ttft_ms": 464,
+          "engine_ttlt_ms": 2057,
+          "pre_inference_ms": 116,
+          "service_tbt_ms": 17,
+          "service_ttft_ms": 1569,
+          "service_ttlt_ms": 3159,
+          "total_duration_ms": 3050,
+          "user_visible_ttft_ms": 1453
+        },
+        "prompt_tokens": 843,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0
+        },
+        "total_tokens": 937
+      },
+      "retry_count": 0
+    },
+    "comparison_image": "official_vs_generated.png",
+    "status": "passed",
+    "attempt_count": 1,
+    "repairs_triggered_by_visual_failure": 0,
+    "attempts": [
+      {
+        "attempt": "attempt_01",
+        "status": "passed",
+        "passed": true,
+        "diagnosis": "The generated scene is visible and physically plausible.",
+        "repair_instructions": []
+      }
+    ],
+    "artifacts": {
+      "comparison_image": "evidence/scene_comparison.png",
+      "prompt": "validation/vision_prompt.md",
+      "response": "validation/vision_response.txt",
+      "result": "validation/vision.json"
+    }
+  },
+  "provider": {
+    "model_requested": "gpt-4o-2024-11-20",
+    "called": true,
+    "local_regeneration_count": 0,
+    "provider_call_count": 1,
+    "vision_provider_call_count": 1
+  },
+  "taskgen_ablation_switches": {
+    "rag": true,
+    "readme_agent": true,
+    "visual_self_check": true
+  },
+  "taskgen_prompt_components": {
+    "core_contract": true,
+    "rag_context": true,
+    "readme_agent_context": true,
+    "visual_self_check": true
+  },
+  "proposal": {
+    "schema_version": 2,
+    "candidate_id": "dynamic.grab.roller.task.execution.non.target.proximity.effect.when.a.non.target.roller.with.the.same.appearance.as.the.target.roller.is.placed.closer.to.the.robot.than.the.target.roller.the.policy.will.still.successfully.achieve.the.target.roller.s.final.height.of.at.least.0.8.meters.while.keeping.the.non.target.roller.s.final.height.below.0.8.meters.5800b2471f80",
+    "source_query": "只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。",
+    "base_task": "grab_roller",
+    "semantic_concern": "task_execution.non_target_proximity_effect: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
+    "scene_need": {
+      "description": "Place a non-target roller with identical appearance closer to the robot than the target roller. Preserve unchanged: task identity; policy checkpoint.",
+      "kind": "adapt",
+      "reuse_first": true
+    },
+    "checker_need": {
+      "description": "A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters. Numeric Rule Tool needed to report the final height difference between the target and non-target rollers. Hypothesis: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
+      "kind": "generate",
+      "reuse_first": true
+    },
+    "rule_tool_need": {
+      "description": "A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters. Numeric Rule Tool needed to report the final height difference between the target and non-target rollers. Hypothesis: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
+      "kind": "measure",
+      "reuse_first": true
+    },
+    "vqa_tool_need": null,
+    "tool_need": {
+      "description": "A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters. Numeric Rule Tool needed to report the final height difference between the target and non-target rollers. Hypothesis: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
+      "kind": "measure",
+      "reuse_first": true
+    },
+    "evaluation_intent": {
+      "hypothesis": "When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
+      "intent_id": "intent.51984254800abf8c",
+      "original_concern": "task_execution.non_target_proximity_effect",
+      "preserved_conditions": [
+        "task identity",
+        "policy checkpoint"
+      ],
+      "requested_change": "Place a non-target roller with identical appearance closer to the robot than the target roller.",
+      "required_observation": "A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters. Numeric Rule Tool needed to report the final height difference between the target and non-target rollers.",
+      "schema_version": 1,
+      "source_query": "只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。"
+    },
+    "intent_alignment": {
+      "schema_version": 1,
+      "relationship": "direct",
+      "rationale": "Candidate preserves the requested change, hypothesis, and observation semantics.",
+      "matched_intent_fields": [
+        "requested_change",
+        "preserved_conditions",
+        "hypothesis",
+        "required_observation"
+      ],
+      "unmatched_intent_fields": []
+    }
+  },
+  "proposal_path": "generation/proposal.json",
+  "implementation_trace": {
+    "schema_version": 1,
+    "intent_id": "intent.51984254800abf8c",
+    "candidate_id": "dynamic.grab.roller.task.execution.non.target.proximity.effect.when.a.non.target.roller.with.the.same.appearance.as.the.target.roller.is.placed.closer.to.the.robot.than.the.target.roller.the.policy.will.still.successfully.achieve.the.target.roller.s.final.height.of.at.least.0.8.meters.while.keeping.the.non.target.roller.s.final.height.below.0.8.meters.5800b2471f80",
+    "stage": "taskgen",
+    "relationship": "direct",
+    "rationale": "Candidate preserves the requested change, hypothesis, and observation semantics.",
+    "covered_intent_fields": [
+      "requested_change",
+      "preserved_conditions",
+      "hypothesis"
+    ],
+    "uncovered_intent_fields": [],
+    "pending_intent_fields": [
+      "required_observation"
+    ],
+    "coverage_status": "partial",
+    "repair_required": false,
+    "validation_evidence": {
+      "scene_change_passed": true,
+      "checker_fixtures_passed": true,
+      "visual_diagnosis_passed": true,
+      "preserved_conditions_verified": true,
+      "tool_evaluation_passed": null
+    }
+  },
+  "implementation_trace_path": "validation/implementation_trace.json",
+  "checker_contract": {
+    "outcome_label": "generated_check_success",
+    "act_runtime_eligible": true,
+    "preserved": false,
+    "official_equivalent": false,
+    "semantic_scope": "query_derived_experimental_predicate",
+    "metric": "generated_check_success",
+    "authority": "llm_generated_python_ast_validated",
+    "official_success": false,
+    "fixture_count": 2,
+    "fixture_pass_count": 2
+  },
+  "candidate_module_sha256": "67f9474663d4b45048437b914c5e52a5c5b717cba4bdd5759152576e953eac26",
+  "candidate_manifest": "candidate_manifest.json",
+  "generic_taskgen_resolution": "generic_taskgen_resolution.json",
+  "task_generation_acceptance": {
+    "status": "accepted",
+    "scope": "generic_live_fixture_render_expert_before_policy",
+    "act_rollouts_started_before_acceptance": 0,
+    "checker_fixture_count": 2,
+    "scene_change_passed": true,
+    "scene_change_authority": "same_seed_official_vs_generated_simulator_state_and_render",
+    "visual_self_check_required": true,
+    "visual_self_check_passed": true,
+    "preservation_status": "verified",
+    "preserved_conditions_verified": true
+  },
+  "task_artifact_summary": {
+    "scene_origin": "provider_generated_code",
+    "success_origin": "provider_generated_python",
+    "success_semantics_preserved": false,
+    "success_official_equivalent": false,
+    "success_compiler_eligible": false,
+    "success_act_eligible": true,
+    "success_execution_scope": "provider_generated_checker",
+    "success_outcome_label": "generated_check_success"
+  },
+  "artifact_registry": {
+    "kind": "task",
+    "semantic_key": {
+      "adapter_contract": {
+        "asset_dependencies": [
+          {
+            "path": "description/objects_description/102_roller/base0.json",
+            "sha256": "70d032760ec6d0c161d036a0a7dceb6e74d5283b154bf6bc1acff8a03eceaab8"
+          },
+          {
+            "path": "description/objects_description/102_roller/base1.json",
+            "sha256": "c73730c36d420a692126fb89117080829d50134548a2cfa6a4aa586233f3d0ea"
+          },
+          {
+            "path": "description/objects_description/102_roller/base2.json",
+            "sha256": "cab5e8cec78767df7563713595ee1f55bc5ac6d8a73e80b81f63049dc5e2f72b"
+          }
+        ],
+        "ast_policy": "generic_official_api_ast_v1:8c98bc539cd3c6f8",
+        "documentation_dependencies": [
+          {
+            "path": "description/task_instruction/grab_roller.json",
+            "sha256": "8913870868d6a7549e80241272e840279157fb421fca0de25f2754be29552d73"
+          }
+        ],
+        "generation_hook_contract": {
+          "expert_preflight": true,
+          "local_regeneration_limit": 1,
+          "methods": [
+            "load_actors",
+            "check_success"
+          ],
+          "render_preflight": true,
+          "semantic_validation": "task_schema_contract_v2",
+          "static_and_fixture_validation": true
+        },
+        "official_class": "grab_roller",
+        "official_source": "envs/grab_roller.py",
+        "official_source_sha256": "f0e1864199605acf59cf8982dded05129d873bb3934f200e47abafd918d41c89",
+        "prompt_constraints_sha256": "cc6480335efbe9b6e7cb8fd07c1249e0ca32cb5b48224389ad9afe7af15e16ce",
+        "task_schema": {
+          "action_dimension": 14,
+          "contact_focus_actor_ids": [
+            "roller"
+          ],
+          "physics_timestep_seconds": 0.004,
+          "schema_version": 1,
+          "semantic_fields": [
+            {
+              "actor_id": "roller",
+              "name": "roller_position",
+              "source": "actor_position"
+            },
+            {
+              "actor_id": "roller",
+              "name": "roller_left_contact_position",
+              "point_id": 0,
+              "source": "actor_contact_position"
+            },
+            {
+              "actor_id": "roller",
+              "name": "roller_right_contact_position",
+              "point_id": 1,
+              "source": "actor_contact_position"
+            },
+            {
+              "name": "left_tcp_position",
+              "side": "left",
+              "source": "robot_tcp_position"
+            },
+            {
+              "name": "right_tcp_position",
+              "side": "right",
+              "source": "robot_tcp_position"
+            }
+          ],
+          "semantic_roles": {
+            "left_target_contact_position": "roller_left_contact_position",
+            "left_tcp_position": "left_tcp_position",
+            "manipulated_object_position": "roller_position",
+            "right_target_contact_position": "roller_right_contact_position",
+            "right_tcp_position": "right_tcp_position"
+          },
+          "success_contract": {
+            "minimum_height_m": 0.8,
+            "requires_left_gripper_closed": true,
+            "requires_right_gripper_closed": true,
+            "target_actor_id": "roller",
+            "type": "official_check_success"
+          },
+          "task_family": "dual_arm_lift",
+          "task_name": "grab_roller",
+          "tracked_actors": [
+            {
+              "contact_points": [
+                0,
+                1
+              ],
+              "functional_points": [],
+              "id": "roller",
+              "scene_name": "102_roller",
+              "task_attribute": "roller"
+            }
+          ],
+          "trusted_tool_profile": "generic_success"
+        },
+        "taskgen_readme_sha256": "d86918d5bd8d0692e25172ddb2b09f3244accbb6ed4794156e008ed8b00336a0"
+      },
+      "base_task": "grab_roller",
+      "checker_need": {
+        "description": "A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters. Numeric Rule Tool needed to report the final height difference between the target and non-target rollers. Hypothesis: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
+        "kind": "generate",
+        "reuse_first": true
+      },
+      "scene_need": {
+        "description": "Place a non-target roller with identical appearance closer to the robot than the target roller. Preserve unchanged: task identity; policy checkpoint.",
+        "kind": "adapt",
+        "reuse_first": true
+      },
+      "schema_version": 1,
+      "semantic_concern": "task_execution.non_target_proximity_effect: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters."
+    },
+    "artifact_path": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/manifest.json",
+    "reuse_count": 0,
+    "index_path": "mea/artifacts/index.json"
+  },
+  "requested_execution_backend": "expert_gate+act",
+  "position_samples": {
+    "status": "not_applicable",
+    "reason": "generic TaskGen validates its Query-derived scene through live fixtures rather than a task-specific position contract",
+    "passed": true,
+    "samples": [],
+    "metrics": {}
+  },
+  "act_evaluation": {
+    "command": [
+      "env",
+      "PYTHON_BIN=/root/autodl-tmp/conda/envs/RoboTwin/bin/python",
+      "bash",
+      "policy/ACT/eval_mea.sh",
+      "grab_roller",
+      "demo_clean",
+      "demo_clean",
+      "50",
+      "0",
+      "0",
+      "1",
+      "mea.generated_tasks.run_20260730_b44_grab_roller_plan_agent_live13_round_2.task",
+      "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/overlay.yml",
+      "100301",
+      "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act",
+      "balanced_v1"
+    ],
+    "started_at": "2026-07-30T10:52:46.858129+08:00",
+    "finished_at": "2026-07-30T10:53:58.230204+08:00",
+    "returncode": 0,
+    "task_name": "grab_roller",
+    "task_config": "demo_clean",
+    "checkpoint_setting": "demo_clean",
+    "expert_data_num": 50,
+    "policy_seed": 0,
+    "num_episodes": 1,
+    "actual_seeds": [
+      100301
+    ],
+    "checkpoint": {
+      "directory": "policy/ACT/act_ckpt/act-grab_roller/demo_clean-50",
+      "required_files": [
+        "policy/ACT/act_ckpt/act-grab_roller/demo_clean-50/policy_last.ckpt",
+        "policy/ACT/act_ckpt/act-grab_roller/demo_clean-50/dataset_stats.pkl"
+      ],
+      "preflight_passed": true
+    },
+    "execution_receipt": null,
+    "source_eval_dir": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/eval_result/grab_roller/ACT/demo_clean/demo_clean/2026-07-30 10:52:52",
+    "copied_artifacts": [
+      "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/episode0.mp4",
+      "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/_result.txt"
+    ],
+    "copied_video_count": 1,
+    "telemetry_root": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act",
+    "telemetry_episode_count": 1,
+    "video_associations": [
+      {
+        "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301",
+        "video": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/act/episode_000_seed_100301/video.mp4",
+        "episode_index": 0
+      }
+    ],
+    "episode_index_alignment": {
+      "passed": true,
+      "video_indices": [
+        0
+      ],
+      "telemetry_indices": [
+        0
+      ],
+      "issues": []
+    },
+    "previous_attempt_archive": null,
+    "passed": true
+  },
+  "backend_seed_alignment": {
+    "status": "not_applicable",
+    "passed": true,
+    "reason": "paired expert/ACT execution was not requested",
+    "expert_seeds": [],
+    "act_seeds": [
+      100301
+    ]
+  },
+  "failure": null,
+  "execution_backends": [
+    "expert",
+    "ACT"
+  ],
+  "pre_policy_gates": [
+    "expert_solvability",
+    "controlled_variation_samples"
+  ],
+  "trusted_tool_evaluation": {
+    "artifact": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/evaluation/telemetry/tool_results.json",
+    "episode_count": 1,
+    "outcome_metric": "generated_check_success",
+    "outcome_authority": "llm_generated_python_ast_validated",
+    "outcome_binding": {
+      "metric": "generated_check_success",
+      "authority": "llm_generated_python_ast_validated",
+      "module_sha256": "67f9474663d4b45048437b914c5e52a5c5b717cba4bdd5759152576e953eac26",
+      "task_module": "mea.generated_tasks.run_20260730_b44_grab_roller_plan_agent_live13_round_2.task"
+    },
+    "tool_retrieval": {
+      "route": "bound_llm_generated_checker",
+      "generated_new_tool": false
+    },
+    "episodes": [
+      {
+        "episode_dir": "act/episode_000_seed_100301",
+        "policy_name": "ACT",
+        "seed": 100301,
+        "success": true,
+        "tool_results": [
+          {
+            "tool": "generated_check_success",
+            "version": 1,
+            "tool_sha256": "03c152fabc89c773516e92ba5a880951c01904941866fa76147e3b367372045c",
+            "value": true,
+            "unit": null,
+            "evidence_steps": [
+              7821
+            ],
+            "evidence": [
+              {
+                "type": "success_transition",
+                "policy_step": 89,
+                "physics_step": 7821,
+                "simulation_time_seconds": 31.284,
+                "video_frame_index": 89
+              }
+            ],
+            "details": {
+              "latched_eval_success": true,
+              "success_transition_recorded": true,
+              "authority": "llm_generated_python_ast_validated",
+              "module_sha256": "67f9474663d4b45048437b914c5e52a5c5b717cba4bdd5759152576e953eac26",
+              "task_module": "mea.generated_tasks.run_20260730_b44_grab_roller_plan_agent_live13_round_2.task",
+              "generated_checker_success": true,
+              "official_core_predicate_satisfied": true
+            },
+            "passed": true
+          }
+        ]
+      }
+    ]
+  }
+}

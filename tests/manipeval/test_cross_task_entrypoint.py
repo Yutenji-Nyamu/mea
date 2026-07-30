@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 from mea.planner import (
     BoundTaskPlanSession,
-    FreeConcernAgent,
+    PlanAgentQueryInterpreter,
     OfficialTaskPlanAgent,
     build_act_catalog,
     discover_robotwin_task_inventory,
@@ -19,10 +19,10 @@ from mea.planner import (
 )
 from mea.taskgen import create_official_task_run
 from scripts.manipeval_agent import (
-    bind_ready_task_after_free_concern,
+    bind_ready_task_after_query_interpretation,
     build_compact_flagship_acceptance,
     build_evidence_bundle,
-    build_bound_claim_first_handoff,
+    build_bound_plan_agent_handoff,
     build_pending_task_binding_policy_card,
     build_taskgen_command,
     concern_candidate_domain_is_executable,
@@ -32,10 +32,12 @@ from scripts.manipeval_agent import (
     normalize_outcome_semantics,
     persist_query_contract,
     summarize_round,
-    supports_claim_first_runtime,
     taskgen_ast_gate_passed,
 )
 from scripts.manipeval_taskgen import (
+    _checker_fixture_failure_diagnosis,
+    _expert_terminal_authority_failure,
+    _tracked_actor_heights,
     run_act,
     run_official_expert_episodes,
     run_probe,
@@ -48,7 +50,13 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 def make_schema_repo(root: Path) -> None:
     (root / "envs").mkdir(parents=True)
     (root / "envs/click_bell.py").write_text(
-        "class click_bell:\n    pass\n", encoding="utf-8"
+        "class click_bell:\n"
+        "    def load_actors(self):\n"
+        "        return None\n"
+        "\n"
+        "    def check_success(self):\n"
+        "        return False\n",
+        encoding="utf-8",
     )
     schema_dir = root / "mea/toolkit/schemas"
     schema_dir.mkdir(parents=True)
@@ -339,7 +347,7 @@ class CrossTaskEntrypointTests(unittest.TestCase):
                 "answer_scope": "bounded_experimental_query_semantics",
             },
             free_concern_bundle={
-                "source": "provider_catalog_free_concern",
+                "source": "provider_plan_agent_query_interpretation",
                 "provider": {
                     "called": True,
                     "attempt_count": 1,
@@ -365,6 +373,7 @@ class CrossTaskEntrypointTests(unittest.TestCase):
         self.assertTrue(acceptance["accepted"])
         self.assertEqual(acceptance["act_rollouts"], 2)
         self.assertTrue(acceptance["history_replay_disabled"])
+        self.assertTrue(acceptance["online_query_interpretation"])
         self.assertTrue(acceptance["same_bundle_bound_checker_reuse"])
         self.assertFalse(
             acceptance["cross_query_registry_reuse_established"]
@@ -399,7 +408,7 @@ class CrossTaskEntrypointTests(unittest.TestCase):
                 "answer_scope": "bounded_experimental_query_semantics",
             },
             free_concern_bundle={
-                "source": "provider_catalog_free_concern",
+                "source": "provider_plan_agent_query_interpretation",
                 "provider": {
                     "called": True,
                     "attempt_count": 1,
@@ -512,7 +521,7 @@ class CrossTaskEntrypointTests(unittest.TestCase):
                 "answer_scope": "bounded_experimental_query_semantics",
             },
             free_concern_bundle={
-                "source": "provider_catalog_free_concern",
+                "source": "provider_plan_agent_query_interpretation",
                 "provider": {
                     "called": True,
                     "attempt_count": 1,
@@ -624,7 +633,7 @@ class CrossTaskEntrypointTests(unittest.TestCase):
                 "answer_scope": "official_equivalent",
             },
             free_concern_bundle={
-                "source": "provider_catalog_free_concern",
+                "source": "provider_plan_agent_query_interpretation",
                 "provider": {
                     "called": True,
                     "attempt_count": 1,
@@ -650,43 +659,6 @@ class CrossTaskEntrypointTests(unittest.TestCase):
         self.assertFalse(acceptance["singleton_query_candidate"])
         self.assertTrue(acceptance["query_candidates_bound"])
         self.assertEqual(acceptance["act_rollouts"], 3)
-
-    def test_claim_first_runtime_requires_only_checkpoint_bound_control(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            schema_dir = root / "mea/toolkit/schemas"
-            schema_dir.mkdir(parents=True)
-            for task_name in (
-                "beat_block_hammer",
-                "click_bell",
-                "adjust_bottle",
-                "grab_roller",
-            ):
-                shutil.copy2(
-                    REPO_ROOT / f"mea/toolkit/schemas/{task_name}.json",
-                    schema_dir / f"{task_name}.json",
-                )
-                checkpoint_dir = (
-                    root
-                    / "policy/ACT/act_ckpt"
-                    / f"act-{task_name}/demo_clean-50"
-                )
-                checkpoint_dir.mkdir(parents=True, exist_ok=True)
-                (checkpoint_dir / "dataset_stats.pkl").write_bytes(b"stats")
-                (checkpoint_dir / "policy_last.ckpt").write_bytes(b"checkpoint")
-            catalog = build_act_catalog(root)
-            self.assertTrue(
-                supports_claim_first_runtime(catalog, "beat_block_hammer")
-            )
-            self.assertTrue(
-                supports_claim_first_runtime(catalog, "click_bell")
-            )
-            self.assertTrue(
-                supports_claim_first_runtime(catalog, "adjust_bottle")
-            )
-            self.assertTrue(
-                supports_claim_first_runtime(catalog, "grab_roller")
-            )
 
     def test_auto_route_rejects_task_module_override_before_provider_setup(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -734,7 +706,7 @@ class CrossTaskEntrypointTests(unittest.TestCase):
             root = Path(temporary)
             concern_bundle = {
                 "schema_version": 1,
-                "source": "provider_catalog_free_concern",
+                "source": "provider_plan_agent_query_interpretation",
                 "concern": {"sub_aspect": "novel.concern"},
                 "provider": {"called": True},
             }
@@ -759,7 +731,9 @@ class CrossTaskEntrypointTests(unittest.TestCase):
             run_dir = root / "mea/evaluation_runs/eval_open_task_mismatch"
             self.assertEqual(manifest["status"], "unsupported")
             self.assertEqual(manifest["route"]["reason_code"], "policy_task_mismatch")
-            self.assertTrue((run_dir / "plan/free_concern.json").is_file())
+            self.assertTrue(
+                (run_dir / "plan/query_interpretation.json").is_file()
+            )
             self.assertTrue(
                 (run_dir / "plan/open_task_resolution.json").is_file()
             )
@@ -817,7 +791,7 @@ class CrossTaskEntrypointTests(unittest.TestCase):
                 catalog, "click_bell"
             ).planning_context(root)["policy_card"]
             provider = self.FrozenConcernProvider(frozen_concern)
-            concern_bundle = FreeConcernAgent(
+            concern_bundle = PlanAgentQueryInterpreter(
                 provider,
                 model="fixture",
                 max_attempts=1,
@@ -832,7 +806,7 @@ class CrossTaskEntrypointTests(unittest.TestCase):
                 inventory=inventory,
                 can_generate_new_task=False,
             )
-            route_result, routed = build_bound_claim_first_handoff(
+            route_result, routed = build_bound_plan_agent_handoff(
                 catalog,
                 task_name="click_bell",
                 user_request=query,
@@ -871,7 +845,7 @@ class CrossTaskEntrypointTests(unittest.TestCase):
             "measurement_need": "Measure final bottle orientation and success.",
         }
         provider = self.FrozenConcernProvider(frozen_concern)
-        concern_agent = FreeConcernAgent(
+        concern_agent = PlanAgentQueryInterpreter(
             provider,
             model="fixture",
             max_attempts=1,
@@ -896,7 +870,7 @@ class CrossTaskEntrypointTests(unittest.TestCase):
                 "capability_aspects": ["object_position"],
             },
         ]
-        binding = bind_ready_task_after_free_concern(
+        binding = bind_ready_task_after_query_interpretation(
             bundle["concern"],
             inventory=inventory,
             ready_task_names=["adjust_bottle", "click_bell"],
@@ -909,7 +883,7 @@ class CrossTaskEntrypointTests(unittest.TestCase):
         self.assertNotIn("adjust_bottle", concern_agent.last_prompt)
         self.assertNotIn("click_bell", concern_agent.last_prompt)
 
-    def test_task_underspecified_unbound_query_uses_declared_default(self):
+    def test_task_underspecified_unbound_query_does_not_bind_default(self):
         concern = {
             "schema_version": 1,
             "source_query": "Where does this policy first expose a weakness?",
@@ -937,19 +911,20 @@ class CrossTaskEntrypointTests(unittest.TestCase):
                 "capability_aspects": ["object_position"],
             },
         ]
-        binding = bind_ready_task_after_free_concern(
+        binding = bind_ready_task_after_query_interpretation(
             concern,
             inventory=inventory,
             ready_task_names=["beat_block_hammer", "click_bell"],
             default_task_name="beat_block_hammer",
         )
 
-        self.assertTrue(binding["fallback_used"])
+        self.assertFalse(binding["fallback_used"])
+        self.assertEqual(binding["binding_status"], "ambiguous")
         self.assertEqual(
             binding["reason_code"],
-            "task_underspecified_cli_default_after_free_concern",
+            "task_underspecified_no_checkpoint_binding",
         )
-        self.assertEqual(binding["selected_task_name"], "beat_block_hammer")
+        self.assertIsNone(binding["selected_task_name"])
 
     def test_broad_domain_does_not_require_preselected_template(self):
         broad = {
@@ -1012,6 +987,17 @@ class CrossTaskEntrypointTests(unittest.TestCase):
     def test_bound_claim_first_plan_only_is_providerless_control_plan(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
+            env_dir = root / "envs"
+            env_dir.mkdir(parents=True)
+            (env_dir / "click_bell.py").write_text(
+                "class click_bell:\n"
+                "    def load_actors(self):\n"
+                "        return None\n"
+                "\n"
+                "    def check_success(self):\n"
+                "        return False\n",
+                encoding="utf-8",
+            )
             schema_dir = root / "mea/toolkit/schemas"
             schema_dir.mkdir(parents=True)
             shutil.copy2(
@@ -1035,7 +1021,7 @@ class CrossTaskEntrypointTests(unittest.TestCase):
                     "--request",
                     "Where does this policy first expose a weakness?",
                     "--open-query-planner",
-                    "claim_first_v1",
+                    "plan_agent_v1",
                     "--bound-task-name",
                     "click_bell",
                     "--generated-rounds",
@@ -1068,16 +1054,84 @@ class CrossTaskEntrypointTests(unittest.TestCase):
             )
             self.assertEqual(
                 manifest["planner"]["public_planner"],
-                "ClaimFirstOpenQueryAgent",
+                "PlanAgent",
             )
             self.assertEqual(
                 manifest["planner"]["kind"],
-                "claim_first_direct_initial_v1",
+                "plan_agent_direct_initial_v1",
             )
             self.assertFalse(
                 manifest["planner"]["task_specific_planner_used"]
             )
             self.assertFalse(manifest["planner"]["provider_called"])
+
+    def test_bound_claim_first_accepts_runtime_task_outside_catalog(self):
+        task_name = "novel_runtime_task"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            env_dir = root / "envs"
+            env_dir.mkdir(parents=True)
+            (env_dir / f"{task_name}.py").write_text(
+                f"class {task_name}:\n"
+                "    def load_actors(self):\n"
+                "        return None\n"
+                "\n"
+                "    def check_success(self):\n"
+                "        return False\n",
+                encoding="utf-8",
+            )
+            schema_dir = root / "mea/toolkit/schemas"
+            schema_dir.mkdir(parents=True)
+            schema = json.loads(
+                (
+                    REPO_ROOT / "mea/toolkit/schemas/adjust_bottle.json"
+                ).read_text(encoding="utf-8")
+            )
+            schema["task_name"] = task_name
+            (schema_dir / f"{task_name}.json").write_text(
+                json.dumps(schema),
+                encoding="utf-8",
+            )
+            checkpoint_dir = (
+                root
+                / "policy/ACT/act_ckpt"
+                / f"act-{task_name}/demo_clean-50"
+            )
+            checkpoint_dir.mkdir(parents=True)
+            (checkpoint_dir / "policy_last.ckpt").write_bytes(b"checkpoint")
+            (checkpoint_dir / "dataset_stats.pkl").write_bytes(b"stats")
+            environment = dict(os.environ)
+            environment.pop("UIUI_API_KEY", None)
+            process = subprocess.run(
+                [
+                    sys.executable,
+                    str(REPO_ROOT / "scripts/manipeval_agent.py"),
+                    "--repo-root",
+                    str(root),
+                    "--request",
+                    "Where does this policy first expose a weakness?",
+                    "--bound-task-name",
+                    task_name,
+                    "--evaluation-id",
+                    "eval_runtime_task_outside_catalog",
+                    "--plan-only",
+                    "--no-history",
+                ],
+                cwd=REPO_ROOT,
+                env=environment,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertEqual(process.returncode, 0, process.stderr)
+            plan = json.loads(process.stdout)
+            self.assertEqual(plan["task_name"], task_name)
+            self.assertEqual(
+                plan["rounds"][0]["template_id"],
+                "task_execution.official_baseline",
+            )
 
     def test_official_task_run_records_no_codegen(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -1647,6 +1701,131 @@ class CrossTaskEntrypointTests(unittest.TestCase):
             command = invoked.call_args.args[0]
             flag_index = command.index("--execution-receipt")
             self.assertEqual(command[flag_index + 1], str(receipt))
+
+    def test_probe_failure_surfaces_simulator_validation_diagnosis(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            run_dir = root / "mea/generated_tasks/run_failed_probe"
+            (run_dir / "validation").mkdir(parents=True)
+            manifest = {
+                "task_name": "click_bell",
+                "task_module": "generated.click_bell",
+            }
+
+            def fail_with_diagnosis(command, **_kwargs):
+                output = Path(command[command.index("--output") + 1])
+                output.write_text(
+                    json.dumps(
+                        {
+                            "error": {
+                                "type": "RecorderError",
+                                "message": "runtime actor identity mismatch",
+                            }
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                return 1
+
+            with patch(
+                "scripts.manipeval_taskgen.run_command",
+                side_effect=fail_with_diagnosis,
+            ):
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "RecorderError: runtime actor identity mismatch",
+                ):
+                    run_probe(
+                        root,
+                        run_dir,
+                        manifest,
+                        seed=7,
+                        expert=False,
+                    )
+
+    def test_checker_repair_uses_simulator_heights_not_only_returncode(self):
+        setup = {
+            "tracked_actors": [
+                {"id": "target", "position": [0.0, 0.0, 0.741]},
+                {"id": "distractor", "position": [0.1, 0.0, 0.742]},
+            ]
+        }
+        expert = {
+            "tracked_actors": [
+                {"id": "target", "position": [0.0, 0.0, 0.741]},
+                {"id": "distractor", "position": [0.1, 0.0, 0.742]},
+            ],
+            "expert_terminal_tracked_actors": [
+                {"id": "target", "position": [0.0, 0.0, 0.831]},
+                {"id": "distractor", "position": [0.1, 0.0, 0.743]},
+            ]
+        }
+        fixtures = [
+            {
+                "fixture_id": "simulator_initial_negative",
+                "expected": False,
+                "observed": False,
+                "passed": True,
+            },
+            {
+                "fixture_id": "official_expert_terminal_positive",
+                "expected": True,
+                "observed": False,
+                "passed": False,
+            },
+        ]
+
+        self.assertEqual(
+            _tracked_actor_heights(setup),
+            {"target": 0.741, "distractor": 0.742},
+        )
+        diagnosis = _checker_fixture_failure_diagnosis(
+            fixtures,
+            setup=setup,
+            expert=expert,
+            success_contract={
+                "target_actor_id": "target",
+                "minimum_height_m": 0.8,
+            },
+        )
+        self.assertIn("official_expert_terminal_positive", diagnosis)
+        self.assertIn('"target": 0.831', diagnosis)
+        self.assertIn('"distractor": 0.743', diagnosis)
+        self.assertIn('"minimum_height_m": 0.8', diagnosis)
+        self.assertNotIn("repair_rule", diagnosis)
+
+    def test_expert_terminal_authority_separates_scene_failure_from_checker_repair(
+        self,
+    ):
+        terminal_state = {
+            "tracked_actors": [
+                {"id": "roller", "position": [0.0, 0.0, 0.741]},
+            ],
+            "expert_terminal_tracked_actors": [
+                {"id": "roller", "position": [0.0, 0.0, 0.781]},
+            ],
+            "expert": {
+                "plan_success": True,
+                "check_success": False,
+                "official_core_predicate_satisfied": False,
+            },
+        }
+        failure = _expert_terminal_authority_failure(terminal_state)
+        self.assertEqual(
+            failure["reason"],
+            "official_success_false_after_expert_plan",
+        )
+        self.assertEqual(
+            failure["expert_terminal_actor_z_m"],
+            {"roller": 0.781},
+        )
+        self.assertEqual(
+            failure["repair_scope"],
+            "scene_or_expert_plan_not_checker_only",
+        )
+
+        terminal_state["expert"]["official_core_predicate_satisfied"] = True
+        self.assertIsNone(_expert_terminal_authority_failure(terminal_state))
 
     def test_act_wrapper_receives_telemetry_profile_as_twelfth_argument(self):
         with tempfile.TemporaryDirectory() as temporary:

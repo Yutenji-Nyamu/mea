@@ -508,6 +508,7 @@ def create_actor(
         model_id=0,
         scale_override=None,
         scale_multiplier=None,
+        runtime_name=None,
 ) -> Actor:
     if scale_override is not None and scale_multiplier is not None:
         raise ValueError(
@@ -531,6 +532,11 @@ def create_actor(
                 "scale_override must contain three positive finite values"
             )
         scale_override = override.tolist()
+    if runtime_name is not None and (
+        not isinstance(runtime_name, str) or not runtime_name.strip()
+    ):
+        raise ValueError("runtime_name must be a non-empty string")
+    entity_name = modelname if runtime_name is None else runtime_name
     scene, pose = preprocess(scene, pose)
     modeldir = Path("assets/objects") / modelname
 
@@ -571,6 +577,18 @@ def create_actor(
         if model_data is not None:
             model_data = dict(model_data)
             model_data["scale"] = list(scale_override)
+    if isinstance(model_data, dict):
+        model_data = dict(model_data)
+        stored_model_id = (
+            model_id.item() if hasattr(model_id, "item") else model_id
+        )
+        model_data["_mea_asset_identity"] = {
+            "modelname": modelname,
+            "model_id": stored_model_id,
+            "collision_asset": collision_file.as_posix(),
+            "convex": bool(convex),
+            "is_static": bool(is_static),
+        }
 
     builder = scene.create_actor_builder()
     if is_static:
@@ -587,8 +605,8 @@ def create_actor(
         )
 
     builder.add_visual_from_file(filename=str(visual_file), scale=scale)
-    mesh = builder.build(name=modelname)
-    mesh.set_name(modelname)
+    mesh = builder.build(name=entity_name)
+    mesh.set_name(entity_name)
     mesh.set_pose(pose)
     return Actor(mesh, model_data)
 

@@ -133,6 +133,26 @@ class SemanticCoverageTests(unittest.TestCase):
             ],
         )
 
+    def test_ensuring_remain_unchanged_clause_is_normalized(self):
+        intent = evaluation_intent_from_free_concern(
+            {
+                "schema_version": 1,
+                "source_query": "Can the policy avoid a distractor?",
+                "sub_aspect": "target selection",
+                "hypothesis": "The policy lifts only the target.",
+                "requested_variation": (
+                    "Add a distractor roller, ensuring the center position, "
+                    "material, and scene layout remain unchanged."
+                ),
+                "measurement_need": "Measure target and distractor lift.",
+            }
+        )
+
+        self.assertEqual(
+            intent["preserved_conditions"],
+            ["the center position", "material", "scene layout"],
+        )
+
     def test_source_query_preservation_survives_provider_omission(self):
         intent = evaluation_intent_from_free_concern(
             {
@@ -351,6 +371,49 @@ class SemanticCoverageTests(unittest.TestCase):
         self.assertIn("hypothesis", trace["covered_intent_fields"])
         self.assertEqual(
             trace["pending_intent_fields"], ["required_observation"]
+        )
+
+    def test_shift_with_other_layout_unchanged_is_a_scene_change(self):
+        intent = build_evaluation_intent(
+            source_query="Which bounded variation exposes a weakness?",
+            original_concern="target position robustness",
+            hypothesis="A shifted bell causes a policy failure.",
+            requested_change=(
+                "Shift the bell 10 cm left while keeping the overall scene "
+                "layout unchanged."
+            ),
+            preserved_conditions=["the overall scene layout"],
+            required_observation="Observe official success after the shift.",
+        )
+        scene_need = {
+            "kind": "adapt",
+            "description": (
+                "Shift the bell 10 cm left while keeping the overall scene "
+                "layout unchanged. Preserve unchanged: the overall scene "
+                "layout."
+            ),
+            "reuse_first": True,
+        }
+
+        alignment = build_candidate_intent_alignment(
+            intent,
+            semantic_concern=(
+                "target position robustness: a shifted bell causes a policy "
+                "failure"
+            ),
+            scene_need=scene_need,
+            checker_need=None,
+            rule_tool_need={
+                "kind": "measure",
+                "description": "Observe official success after the shift.",
+                "reuse_first": True,
+            },
+        )
+
+        self.assertEqual(alignment["relationship"], "direct")
+        self.assertNotIn(
+            "requested_change",
+            alignment["unmatched_intent_fields"],
         )
 
     def test_checker_only_taskgen_keeps_unrequested_scene_coverage(self):

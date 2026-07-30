@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "decision": "retrieve_and_adapt",
+  "reason_code": "nearest_training_task",
+  "query_interpretation": {
+    "source_query": "只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。",
+    "schema_version": 1,
+    "hypothesis": "The policy can successfully achieve the goal when a distractor roller with identical appearance is placed closer to the robot than the target roller.",
+    "sub_aspect": "Effect of proximity of a distractor roller with identical appearance on task success.",
+    "requested_variation": "Introduce a distractor roller with identical appearance to the target roller, positioned closer to the robot than the target roller. Preserve the center position, material, and appearance of the target roller, as well as the scene layout, camera viewpoint, and task instruction.",
+    "measurement_need": "Observe the final heights of both the target roller and the distractor roller, and compute their height difference.",
+    "task_intent": "Manipulate the target roller to achieve a final height of at least 0.8 meters while ensuring the distractor roller's final height remains below 0.8 meters."
+  },
+  "policy_scope": {
+    "schema_version": 1,
+    "policy_name": "ACT",
+    "checkpoint_id": "act-grab_roller/demo_clean-50",
+    "single_task_checkpoint": true,
+    "training_tasks": [
+      "grab_roller"
+    ],
+    "language_conditioned": false,
+    "supports_unseen_tasks": false
+  },
+  "selected_base_task": {
+    "task_name": "grab_roller",
+    "score": 0.290985,
+    "execution_status": "capability_registered",
+    "capability_aspects": [
+      "task_execution.official_baseline"
+    ]
+  },
+  "ranked_candidates": [
+    {
+      "task_name": "grab_roller",
+      "score": 0.290985,
+      "execution_status": "capability_registered",
+      "capability_aspects": [
+        "task_execution.official_baseline"
+      ]
+    },
+    {
+      "task_name": "click_bell",
+      "score": 0.027028,
+      "execution_status": "capability_registered",
+      "capability_aspects": [
+        "object_position",
+        "object_instance",
+        "robustness.distractor_avoidance",
+        "robustness.scene_clutter",
+        "scene_background_texture",
+        "scene_lighting",
+        "performance.completion_time_stability",
+        "task_execution.official_baseline"
+      ]
+    },
+    {
+      "task_name": "adjust_bottle",
+      "score": 0.0,
+      "execution_status": "capability_registered",
+      "capability_aspects": [
+        "task_execution.official_baseline"
+      ]
+    }
+  ],
+  "resolution_contract": {
+    "concern_created_before_inventory": true,
+    "catalog_role": "execution_capability_inventory_only",
+    "retrieval_field": "QueryInterpretation.task_intent",
+    "semantic_threshold": 0.2,
+    "semantic_near_tie_margin": 0.03,
+    "plausible_candidate_names": [
+      "grab_roller"
+    ],
+    "preserve_base_task_semantics": true
+  },
+  "checkpoint_binding": {
+    "schema_version": 1,
+    "selected_task_name": "grab_roller",
+    "reason_code": "explicit_bound_task",
+    "fallback_used": false,
+    "catalog_visible_to_concern_model": false,
+    "retrieval_field": "explicit_policy_binding",
+    "semantic_threshold": 0.2,
+    "ranked_ready_tasks": []
+  }
+}

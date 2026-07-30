@@ -28,7 +28,7 @@ from mea.taskgen.production_acceptance import (
     require_task_artifact_act_runtime_eligible,
 )
 from scripts.manipeval_taskgen import (
-    create_bbh_distractor_taskgen_run,
+    create_provider_scene_checker_taskgen_run,
     evaluate_run_telemetry,
     prepare_planner_capability_binding,
     run_visual_self_reflection,
@@ -622,7 +622,7 @@ def check_success(self):
                 "self.hammer.get_name(), self.distractor.get_name()))\n"
             )
             provider = _SequenceProvider([invalid, valid])
-            manifest = create_bbh_distractor_taskgen_run(
+            manifest = create_provider_scene_checker_taskgen_run(
                 root,
                 user_request="Can ACT avoid a look-alike distractor?",
                 provider=provider,
@@ -737,7 +737,7 @@ def check_success(self):
                     default_bbh_distractor_proposal()
                 )
             )
-            manifest = create_bbh_distractor_taskgen_run(
+            manifest = create_provider_scene_checker_taskgen_run(
                 root,
                 user_request="Can ACT avoid a look-alike distractor?",
                 provider=provider,
@@ -796,7 +796,7 @@ def check_success(self):
                 default_bbh_distractor_proposal()
             )
             provider = _VisualRepairProvider(methods)
-            manifest = create_bbh_distractor_taskgen_run(
+            manifest = create_provider_scene_checker_taskgen_run(
                 root,
                 user_request="Where does ACT confuse the target and distractor?",
                 provider=provider,

@@ -30,6 +30,7 @@ from mea.providers import OpenAICompatibleProvider
 from mea.proposals import ProposalError, validate_task_proposal
 from mea.toolkit import evaluate_telemetry_root
 from mea.toolkit import aggregate_tool_executions
+from mea.toolkit.schema import load_task_schema
 from mea.taskgen import (
     BBHDistractorTaskGenError,
     ClickBellTaskGenError,
@@ -64,6 +65,11 @@ from mea.taskgen import (
 from mea.taskgen.artifact_index import (
     GenericTaskArtifactIndex,
     materialize_reused_generic_task,
+)
+from mea.taskgen.act_runtime import (
+    archive_previous_act_attempt,
+    newest_eval_dir,
+    run_act as run_act_runtime,
 )
 from mea.taskgen.generic_backend import (
     GenericRoboTwinTaskGenBackend,
@@ -148,6 +154,11 @@ _FROZEN_PRESERVATION_TERMS = (
     "language instruction",
     "robot state",
     "timing",
+    "策略检查点",
+    "随机种子",
+    "动作接口",
+    "机器人配置",
+    "任务指令",
 )
 _VISUAL_PRESERVATION_TERMS = (
     "appearance",
@@ -163,6 +174,16 @@ _VISUAL_PRESERVATION_TERMS = (
     "layout",
     "interaction target",
     "target identity",
+    "外观",
+    "颜色",
+    "材质",
+    "纹理",
+    "光照",
+    "背景",
+    "环境",
+    "相机",
+    "布局",
+    "目标身份",
 )
 _SIMULATOR_STATE_PRESERVATION_TERMS = (
     "spatial",
@@ -178,6 +199,17 @@ _SIMULATOR_STATE_PRESERVATION_TERMS = (
     "placement",
     "location",
     "orientation",
+    "height",
+    "z coordinate",
+    "空间",
+    "接触点",
+    "接触位置",
+    "中心",
+    "世界位置",
+    "位姿",
+    "位置",
+    "姿态",
+    "高度",
 )
 _GEOMETRY_PRESERVATION_TERMS = (
     "geometry",
@@ -185,6 +217,11 @@ _GEOMETRY_PRESERVATION_TERMS = (
     "size",
     "scale",
     "dimension",
+    "几何",
+    "形状",
+    "大小",
+    "尺寸",
+    "比例",
 )
 _CHECKER_PRESERVATION_TERMS = (
     "success semantics",
@@ -197,6 +234,12 @@ _CHECKER_PRESERVATION_TERMS = (
     "task semantics",
     "goal semantics",
     "outcome semantics",
+    "成功语义",
+    "成功判据",
+    "成功标准",
+    "任务目标",
+    "任务语义",
+    "目标语义",
 )
 
 
@@ -233,6 +276,8 @@ def _same_seed_tracked_actor_state(
             actor_id = actor.get("id")
             if not isinstance(actor_id, str) or not actor_id:
                 return None
+            if actor_id in result:
+                return None
             result[actor_id] = actor
         return result
 
@@ -242,7 +287,7 @@ def _same_seed_tracked_actor_state(
         official_actors is None
         or generated_actors is None
         or not official_actors
-        or official_actors.keys() != generated_actors.keys()
+        or not set(official_actors).issubset(generated_actors)
     ):
         return None, "no_comparable_tracked_actor_state"
 
@@ -254,6 +299,19 @@ def _same_seed_tracked_actor_state(
         r"|\bcontact[\s-]+point\b",
         "",
         lowered,
+    )
+    requires_vertical_axis = any(
+        marker in lowered
+        for marker in (
+            "vertical axis",
+            "vertical coordinate",
+            "z-axis",
+            "z axis",
+            "z-coordinate",
+            "垂直轴",
+            "竖直轴",
+            "z轴",
+        )
     )
     requires_actor_position = (
         any(
@@ -277,6 +335,17 @@ def _same_seed_tracked_actor_state(
     requires_orientation = (
         "orientation" in lowered or "pose" in lowered
     )
+    requires_height = (
+        "height" in lowered
+        or "z coordinate" in lowered
+        or "高度" in lowered
+        or requires_vertical_axis
+    )
+    if requires_vertical_axis:
+        # "Position along the vertical axis" constrains only z.  Treating it
+        # as full xyz preservation would reject the horizontal perturbation
+        # that the same Proposal explicitly requests.
+        requires_actor_position = False
     component_results: list[bool | None] = []
     components: list[str] = []
 
@@ -314,7 +383,10 @@ def _same_seed_tracked_actor_state(
             field not in actor
             for actor in (
                 *official_actors.values(),
-                *generated_actors.values(),
+                *(
+                    generated_actors[actor_id]
+                    for actor_id in official_actors
+                ),
             )
         ):
             component_results.append(None)
@@ -326,6 +398,30 @@ def _same_seed_tracked_actor_state(
                 for actor_id in official_actors
             )
         )
+    if requires_height and not requires_actor_position:
+        components.append("position_z")
+        positions = [
+            (
+                official_actors[actor_id].get("position"),
+                generated_actors[actor_id].get("position"),
+            )
+            for actor_id in official_actors
+        ]
+        if any(
+            not isinstance(official, list)
+            or not isinstance(generated, list)
+            or len(official) < 3
+            or len(generated) < 3
+            for official, generated in positions
+        ):
+            component_results.append(None)
+        else:
+            component_results.append(
+                all(
+                    official[2] == generated[2]
+                    for official, generated in positions
+                )
+            )
 
     if not component_results:
         return None, "no_comparable_tracked_actor_state"
@@ -340,6 +436,68 @@ def _same_seed_tracked_actor_state(
         verified,
         "same_seed_simulator_state:tracked_actors."
         + "+".join(components),
+    )
+
+
+def _same_seed_tracked_actor_geometry(
+    official_setup: Mapping[str, Any] | None,
+    generated_setup: Mapping[str, Any] | None,
+) -> tuple[bool | None, str]:
+    """Compare collision dimensions/scales from simulator probes, never RGB."""
+
+    if not isinstance(official_setup, Mapping) or not isinstance(
+        generated_setup, Mapping
+    ):
+        return None, "no_same_seed_simulator_geometry_authority"
+    if (
+        official_setup.get("seed") is None
+        or official_setup.get("seed") != generated_setup.get("seed")
+    ):
+        return None, "no_same_seed_simulator_geometry_authority"
+
+    def geometry_by_id(
+        setup: Mapping[str, Any],
+    ) -> dict[str, Any] | None:
+        actors = setup.get("tracked_actors")
+        if not isinstance(actors, list):
+            return None
+        result: dict[str, Any] = {}
+        for actor in actors:
+            if not isinstance(actor, Mapping):
+                return None
+            actor_id = actor.get("id")
+            geometry = actor.get("collision_geometry")
+            if (
+                not isinstance(actor_id, str)
+                or not actor_id
+                or not isinstance(geometry, list)
+            ):
+                return None
+            if actor_id in result:
+                return None
+            result[actor_id] = geometry
+        return result
+
+    official_geometry = geometry_by_id(official_setup)
+    generated_geometry = geometry_by_id(generated_setup)
+    if (
+        not official_geometry
+        or not generated_geometry
+        or not set(official_geometry).issubset(generated_geometry)
+        or any(not value for value in official_geometry.values())
+        or any(
+            not generated_geometry[actor_id]
+            for actor_id in official_geometry
+        )
+    ):
+        return None, "no_comparable_simulator_collision_geometry"
+    return (
+        all(
+            official_geometry[actor_id]
+            == generated_geometry[actor_id]
+            for actor_id in official_geometry
+        ),
+        "same_seed_simulator_state:tracked_actors.collision_geometry",
     )
 
 
@@ -411,10 +569,14 @@ def build_preservation_report(
                     component_results.append(True)
                     authorities.append("exact_official_load_actors_reuse")
                 else:
-                    component_results.append(None)
-                    authorities.append(
-                        "no_simulator_or_ast_geometry_authority"
+                    geometry_verified, geometry_authority = (
+                        _same_seed_tracked_actor_geometry(
+                            official_setup,
+                            generated_setup,
+                        )
                     )
+                    component_results.append(geometry_verified)
+                    authorities.append(geometry_authority)
             if has_visual_term:
                 kinds.append("visual")
                 if not scene_generated:
@@ -828,20 +990,6 @@ def create_provider_scene_checker_taskgen_run(
     )
     write_json(run_dir / "manifest.json", manifest)
     return manifest
-
-
-def create_bbh_distractor_taskgen_run(
-    repo_root: Path,
-    **kwargs: Any,
-) -> dict[str, Any]:
-    """Compatibility entry for callers that explicitly require the BBH dialect."""
-
-    proposal = kwargs.get("task_proposal")
-    if not isinstance(proposal, Mapping) or proposal.get("task_name") != "beat_block_hammer":
-        raise BBHDistractorTaskGenError(
-            "BBH provider scene+checker requires a beat_block_hammer TaskProposal"
-        )
-    return create_provider_scene_checker_taskgen_run(repo_root, **kwargs)
 
 
 def materialize_reviewed_task_run(
@@ -1370,8 +1518,121 @@ def run_probe(
     scene["returncode"] = returncode
     write_json(scene_json, scene)
     if raise_on_failure and returncode != 0:
-        raise RuntimeError(f"setup/expert probe 失败，returncode={returncode}")
+        error = scene.get("error")
+        detail = ""
+        if isinstance(error, Mapping):
+            error_type = str(error.get("type") or "probe_error")
+            error_message = str(error.get("message") or "").strip()
+            detail = (
+                f": {error_type}: {error_message}"
+                if error_message
+                else f": {error_type}"
+            )
+        raise RuntimeError(
+            f"setup/expert probe failed, returncode={returncode}{detail}"
+        )
     return scene
+
+
+def _tracked_actor_heights(scene: Mapping[str, Any]) -> dict[str, float]:
+    """Return compact simulator-authoritative actor heights for repair feedback."""
+
+    heights: dict[str, float] = {}
+    terminal_actors = scene.get("expert_terminal_tracked_actors")
+    tracked_actors = (
+        terminal_actors
+        if isinstance(terminal_actors, list)
+        else scene.get("tracked_actors")
+    )
+    for actor in tracked_actors or []:
+        if not isinstance(actor, Mapping):
+            continue
+        actor_id = str(actor.get("id") or "").strip()
+        position = actor.get("position")
+        if (
+            not actor_id
+            or not isinstance(position, list)
+            or len(position) < 3
+            or isinstance(position[2], bool)
+            or not isinstance(position[2], (int, float))
+        ):
+            continue
+        heights[actor_id] = round(float(position[2]), 6)
+    return heights
+
+
+def _expert_terminal_authority_failure(
+    expert: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    """Separate an unsolved expert scene from a generated-checker mismatch."""
+
+    outcome = expert.get("expert")
+    if not isinstance(outcome, Mapping):
+        return None
+    plan_success = outcome.get("plan_success")
+    official_success = outcome.get("official_core_predicate_satisfied")
+    if not isinstance(official_success, bool):
+        official_success = outcome.get("official_check_success")
+    if plan_success is False:
+        reason = "expert_plan_unsuccessful"
+    elif official_success is False:
+        reason = "official_success_false_after_expert_plan"
+    else:
+        return None
+    return {
+        "reason": reason,
+        "plan_success": plan_success,
+        "generated_checker_success": outcome.get("check_success"),
+        "official_core_predicate_satisfied": official_success,
+        "expert_terminal_actor_z_m": _tracked_actor_heights(expert),
+        "repair_scope": "scene_or_expert_plan_not_checker_only",
+    }
+
+
+def _checker_fixture_failure_diagnosis(
+    fixtures: list[dict[str, Any]],
+    *,
+    setup: Mapping[str, Any],
+    expert: Mapping[str, Any],
+    success_contract: Mapping[str, Any] | None = None,
+) -> str:
+    """Give one bounded regeneration concrete semantic evidence, not a return code."""
+
+    failed = [
+        {
+            "fixture_id": item["fixture_id"],
+            "expected": item["expected"],
+            "observed": item["observed"],
+        }
+        for item in fixtures
+        if not item["passed"]
+    ]
+    initial_heights = _tracked_actor_heights(setup)
+    terminal_heights = _tracked_actor_heights(expert)
+    contract = dict(success_contract or {})
+    target_actor_id = str(contract.get("target_actor_id") or "").strip()
+    minimum_height = contract.get("minimum_height_m")
+    lift_boundary = (
+        float(minimum_height)
+        if not isinstance(minimum_height, bool)
+        and isinstance(minimum_height, (int, float))
+        and math.isfinite(float(minimum_height))
+        else None
+    )
+    evidence: dict[str, Any] = {
+        "failed_fixtures": failed,
+        "initial_actor_z_m": initial_heights,
+        "expert_terminal_actor_z_m": terminal_heights,
+    }
+    if lift_boundary is not None:
+        evidence["official_lift_contract"] = {
+            "target_actor_id": target_actor_id or None,
+            "minimum_height_m": lift_boundary,
+        }
+    return (
+        "generated checker failed live negative/positive fixtures: "
+        + json.dumps(evidence, ensure_ascii=False, sort_keys=True)
+    )
 
 
 def create_generic_provider_taskgen_run(
@@ -1410,6 +1671,10 @@ def create_generic_provider_taskgen_run(
     request = str(user_request).strip()
     if not request:
         raise GenericTaskGenError("user_request must be non-empty")
+    official_task_schema = load_task_schema(
+        repo_root,
+        candidate["base_task"],
+    )
     accepted_preflight: dict[str, Any] = {}
     visual_attempts: list[dict[str, Any]] = []
     visual_self_check_enabled = bool(
@@ -1559,7 +1824,20 @@ def create_generic_provider_taskgen_run(
             log_path=attempt_dir / "expert_preflight.log",
             max_expert_attempts=3,
             telemetry_profile=telemetry_profile,
+            raise_on_failure=False,
         )
+        expert_returncode = expert.get("returncode")
+        if expert_returncode not in {None, 0, 2}:
+            error = expert.get("error")
+            detail = (
+                json.dumps(error, ensure_ascii=False, sort_keys=True)
+                if isinstance(error, Mapping)
+                else "no structured simulator diagnosis"
+            )
+            raise GenericTaskGenError(
+                "official expert probe execution failed before checker "
+                f"validation: returncode={expert_returncode}; {detail}"
+            )
         fixtures = [
             {
                 "fixture_id": "simulator_initial_negative",
@@ -1580,6 +1858,17 @@ def create_generic_provider_taskgen_run(
                 "authority": "official_expert_terminal_state",
             },
         ]
+        terminal_authority_failure = _expert_terminal_authority_failure(expert)
+        if terminal_authority_failure is not None:
+            raise GenericTaskGenError(
+                "generated scene/expert failed official terminal-state "
+                "authority: "
+                + json.dumps(
+                    terminal_authority_failure,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
+            )
         scene_change = scene_change_report(
             official_setup,
             setup,
@@ -1667,6 +1956,8 @@ def create_generic_provider_taskgen_run(
             "preservation_checks": preservation_report["checks"],
             "preservation_authority": "per_condition_authority",
             "checker_fixtures": fixtures,
+            "initial_actor_z_m": _tracked_actor_heights(setup),
+            "expert_terminal_actor_z_m": _tracked_actor_heights(expert),
             "official_setup_scene": str(
                 (
                     attempt_dir / "official_setup_preflight.json"
@@ -1700,7 +1991,14 @@ def create_generic_provider_taskgen_run(
                 ).replace("\\", "/")
         if not all(item["passed"] for item in fixtures):
             raise GenericTaskGenError(
-                "generated checker failed live negative/positive fixtures"
+                _checker_fixture_failure_diagnosis(
+                    fixtures,
+                    setup=setup,
+                    expert=expert,
+                    success_contract=official_task_schema.get(
+                        "success_contract"
+                    ),
+                )
             )
         if not scene_change["passed"]:
             raise GenericTaskGenError(
@@ -1760,7 +2058,17 @@ def create_generic_provider_taskgen_run(
             "also assign self.mea_telemetry_tracked_actors to a list of dicts "
             "with exactly id, task_attribute, scene_name, functional_points, "
             "contact_points, and contact_focus; task_attribute must name the "
-            "public self attribute holding that actor. Do not redeclare an "
+            "public self attribute holding that actor, and contact_focus must "
+            "be a boolean. Actors already listed in the TASK "
+            "TELEMETRY/EXECUTION SCHEMA remain tracked automatically when "
+            "their pose or instance is replaced: do not assign "
+            "mea_telemetry_tracked_actors merely to repeat them. Include only "
+            "entirely new actors in that list. Every new actor must "
+            "have a unique simulator/contact identity distinct from every "
+            "base actor: pass a unique runtime_name to create_actor when the "
+            "asset modelname is reused, and declare that exact runtime "
+            "get_name() value as scene_name. The asset "
+            "modelname is not a unique runtime identity. Do not redeclare an "
             "actor already present in the TASK TELEMETRY/EXECUTION SCHEMA; "
             "that schema remains valid when the generated scene replaces the "
             "same public actor attribute and scene name. "
@@ -1801,7 +2109,7 @@ def create_generic_provider_taskgen_run(
         moves = {
             "proposal_prompt.md": "generation/code_prompt.md",
             "provider_response.txt": "generation/provider_response.txt",
-            "proposal.json": "generation/experiment_candidate.json",
+            "proposal.json": "generation/proposal.json",
             "checker_fixtures.json": "validation/checker_fixtures.json",
             "provider_attempts.json": "generation/provider_attempts.json",
         }
@@ -2123,8 +2431,8 @@ def create_generic_provider_taskgen_run(
         "taskgen_prompt_components": candidate_manifest[
             "codegen_provenance"
         ]["prompt_components"],
-        "experiment_candidate": candidate,
-        "experiment_candidate_path": "generation/experiment_candidate.json",
+        "proposal": candidate,
+        "proposal_path": "generation/proposal.json",
         "implementation_trace": implementation_trace,
         "implementation_trace_path": (
             "validation/implementation_trace.json"
@@ -2229,7 +2537,7 @@ def record_generic_taskgen_generation_failure(
         (run_dir / child).mkdir(parents=True, exist_ok=True)
     write_json(run_dir / "request.json", {"user_request": user_request})
     write_json(
-        run_dir / "generation/experiment_candidate.json",
+        run_dir / "generation/proposal.json",
         candidate,
     )
     attempt_source = (
@@ -2272,10 +2580,8 @@ def record_generic_taskgen_generation_failure(
             "model_requested": model,
             "called": True,
         },
-        "experiment_candidate": candidate,
-        "experiment_candidate_path": (
-            "generation/experiment_candidate.json"
-        ),
+        "proposal": candidate,
+        "proposal_path": "generation/proposal.json",
         "task_generation_attempts": attempt_artifact,
         "failure": {
             "stage": "provider_scene_checker_generation",
@@ -3320,14 +3626,6 @@ def validate_click_bell_scene_contract(
     }
 
 
-def validate_click_bell_scene_position(
-    scene: dict[str, Any], spec: dict[str, Any]
-) -> dict[str, Any]:
-    """Backward-compatible view of the fixed-position contract."""
-
-    return validate_click_bell_scene_contract(scene, spec)["position"]
-
-
 def run_visual_self_reflection(
     repo_root: Path,
     run_dir: Path,
@@ -3609,46 +3907,6 @@ def run_visual_self_reflection(
     return summary, final_scene, final_vision
 
 
-def newest_eval_dir(
-    repo_root: Path,
-    before: set[Path],
-    *,
-    task_name: str = "beat_block_hammer",
-    task_config: str = "demo_clean",
-    checkpoint_setting: str = "demo_clean",
-) -> Path | None:
-    eval_root = (
-        repo_root / "eval_result" / task_name / "ACT" / task_config / checkpoint_setting
-    )
-    after = (
-        {path for path in eval_root.glob("*") if path.is_dir()}
-        if eval_root.exists()
-        else set()
-    )
-    created = after - before
-    return max(created, key=lambda path: path.stat().st_mtime) if created else None
-
-
-def archive_previous_act_attempt(run_dir: Path) -> Path | None:
-    """Preserve stale retry artifacts without mixing them into a new result."""
-
-    evaluation_dir = run_dir / "evaluation"
-    candidates = [
-        *evaluation_dir.glob("episode*.mp4"),
-        *(evaluation_dir / name for name in ("_result.txt", "act.json", "act.log")),
-        evaluation_dir / "telemetry/act",
-    ]
-    existing = [path for path in candidates if path.exists()]
-    if not existing:
-        return None
-    stamp = datetime.now().astimezone().strftime("%Y%m%d_%H%M%S_%f")
-    archive_dir = evaluation_dir / "previous_act_attempts" / stamp
-    archive_dir.mkdir(parents=True, exist_ok=False)
-    for path in existing:
-        shutil.move(str(path), archive_dir / path.name)
-    return archive_dir
-
-
 def run_act(
     repo_root: Path,
     run_dir: Path,
@@ -3660,223 +3918,21 @@ def run_act(
     telemetry_profile: str = "balanced_v1",
     execution_receipt: Path | None = None,
 ) -> dict[str, Any]:
-    """Run a task-specific ACT checkpoint and attach videos to telemetry."""
+    """Compatibility wrapper around the TaskGen ACT runtime boundary."""
 
-    task_name = str(manifest["task_name"])
-    task_config = str(manifest.get("task_config") or "demo_clean")
-    checkpoint_setting = str(manifest.get("checkpoint_setting") or "demo_clean")
-    expert_data_num = int(manifest.get("expert_data_num") or 50)
-    policy_seed = int(manifest.get("policy_seed") or 0)
-    checkpoint_dir = (
-        repo_root
-        / "policy/ACT/act_ckpt"
-        / f"act-{task_name}"
-        / f"{checkpoint_setting}-{expert_data_num}"
-    )
-    required_checkpoint_files = [
-        checkpoint_dir / "policy_last.ckpt",
-        checkpoint_dir / "dataset_stats.pkl",
-    ]
-    missing_checkpoint_files = [
-        path for path in required_checkpoint_files if not path.is_file()
-    ]
-    if missing_checkpoint_files:
-        missing = ", ".join(
-            str(path.relative_to(repo_root)) for path in missing_checkpoint_files
-        )
-        raise RuntimeError(
-            f"ACT checkpoint preflight failed for {task_name}: {missing}. "
-            "Download it on the server with "
-            f"`python scripts/download_act_checkpoint.py {task_name}`; "
-            "do not relay routine checkpoints through a local workstation."
-        )
-
-    previous_attempt = archive_previous_act_attempt(run_dir)
-    telemetry_root = run_dir / "evaluation/telemetry/act"
-    eval_root = (
-        repo_root / "eval_result" / task_name / "ACT" / task_config / checkpoint_setting
-    )
-    before = (
-        {path for path in eval_root.glob("*") if path.is_dir()}
-        if eval_root.exists()
-        else set()
-    )
-    command = [
-        "env",
-        f"PYTHON_BIN={sys.executable}",
-        "bash",
-        "policy/ACT/eval_mea.sh",
-        task_name,
-        task_config,
-        checkpoint_setting,
-        str(expert_data_num),
-        str(policy_seed),
-        str(gpu),
-        str(num_episodes),
-        manifest["task_module"],
-        str(run_dir / "overlay.yml"),
-        str(seed),
-        str(telemetry_root),
-        telemetry_profile,
-    ]
-    if execution_receipt is not None:
-        if num_episodes != 1:
-            raise RuntimeError(
-                "execution receipt ACT runs require num_episodes=1"
-            )
-        # Positions 13-15 remain the existing optional seed/result/output
-        # arguments. Empty placeholders preserve the legacy shell contract.
-        command.extend(["", "", "", str(execution_receipt)])
-    started = datetime.now().astimezone().isoformat()
-    returncode = run_command(
-        command,
-        cwd=repo_root,
-        log_path=run_dir / "evaluation/act.log",
-    )
-    source_dir = newest_eval_dir(
+    return run_act_runtime(
         repo_root,
-        before,
-        task_name=task_name,
-        task_config=task_config,
-        checkpoint_setting=checkpoint_setting,
+        run_dir,
+        manifest,
+        seed=seed,
+        gpu=gpu,
+        num_episodes=num_episodes,
+        telemetry_profile=telemetry_profile,
+        execution_receipt=execution_receipt,
+        command_runner=run_command,
+        json_writer=write_json,
+        python_executable=sys.executable,
     )
-    copied = []
-    result_file_copied = False
-    if source_dir:
-        sources = sorted(source_dir.glob("episode*.mp4"))
-        result_file = source_dir / "_result.txt"
-        if result_file.is_file():
-            sources.append(result_file)
-        for source in sources:
-            if source.is_file():
-                destination = run_dir / "evaluation" / source.name
-                shutil.copy2(source, destination)
-                copied.append(str(destination.relative_to(repo_root)))
-                if source.name == "_result.txt":
-                    result_file_copied = True
-
-    copied_video_paths = list((run_dir / "evaluation").glob("episode*.mp4"))
-    telemetry_episode_paths = list(
-        metadata.parent for metadata in telemetry_root.glob("episode_*/episode.json")
-    )
-    index_issues: list[str] = []
-    video_by_index: dict[int, Path] = {}
-    telemetry_by_index: dict[int, Path] = {}
-    for video in copied_video_paths:
-        match = re.fullmatch(r"episode(\d+)\.mp4", video.name)
-        if match is None:
-            index_issues.append(f"unrecognized ACT video name: {video.name}")
-            continue
-        episode_index = int(match.group(1))
-        if episode_index in video_by_index:
-            index_issues.append(f"duplicate ACT video index: {episode_index}")
-            continue
-        if video.stat().st_size <= 0:
-            index_issues.append(f"empty ACT video: {video.name}")
-        video_by_index[episode_index] = video
-    for episode_dir in telemetry_episode_paths:
-        match = re.match(r"episode_(\d+)(?:_|$)", episode_dir.name)
-        if match is None:
-            index_issues.append(
-                f"unrecognized ACT telemetry directory: {episode_dir.name}"
-            )
-            continue
-        episode_index = int(match.group(1))
-        if episode_index in telemetry_by_index:
-            index_issues.append(f"duplicate ACT telemetry index: {episode_index}")
-            continue
-        telemetry_by_index[episode_index] = episode_dir
-    video_indices = set(video_by_index)
-    telemetry_indices = set(telemetry_by_index)
-    if video_indices != telemetry_indices:
-        index_issues.append(
-            "ACT video/telemetry indices differ: "
-            f"videos={sorted(video_indices)}, telemetry={sorted(telemetry_indices)}"
-        )
-    paired_indices = sorted(video_indices & telemetry_indices)
-    copied_videos = [video_by_index[index] for index in sorted(video_indices)]
-    telemetry_episodes = [
-        telemetry_by_index[index] for index in sorted(telemetry_indices)
-    ]
-    video_associations = []
-    actual_seeds: list[int] = []
-    for episode_index in paired_indices:
-        episode_dir = telemetry_by_index[episode_index]
-        video = video_by_index[episode_index]
-        destination = episode_dir / "video.mp4"
-        shutil.copy2(video, destination)
-        metadata_path = episode_dir / "episode.json"
-        if metadata_path.is_file():
-            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-            if metadata.get("seed") is not None:
-                actual_seeds.append(int(metadata["seed"]))
-            metadata.setdefault("artifacts", {})["video"] = "video.mp4"
-            metadata["video_alignment"] = {
-                "policy_frame_rate_hz": 10,
-                "frame_semantics": "pre-action; contact in policy step k lies between adjacent frames",
-            }
-            write_json(metadata_path, metadata)
-        video_associations.append(
-            {
-                "episode_dir": str(episode_dir.relative_to(repo_root)),
-                "video": str(destination.relative_to(repo_root)),
-                "episode_index": episode_index,
-            }
-        )
-
-    result = {
-        "command": command,
-        "started_at": started,
-        "finished_at": datetime.now().astimezone().isoformat(),
-        "returncode": returncode,
-        "task_name": task_name,
-        "task_config": task_config,
-        "checkpoint_setting": checkpoint_setting,
-        "expert_data_num": expert_data_num,
-        "policy_seed": policy_seed,
-        "num_episodes": num_episodes,
-        "actual_seeds": actual_seeds,
-        "checkpoint": {
-            "directory": str(checkpoint_dir.relative_to(repo_root)),
-            "required_files": [
-                str(path.relative_to(repo_root)) for path in required_checkpoint_files
-            ],
-            "preflight_passed": True,
-        },
-        "execution_receipt": (
-            str(execution_receipt) if execution_receipt is not None else None
-        ),
-        "source_eval_dir": str(source_dir) if source_dir else None,
-        "copied_artifacts": copied,
-        "copied_video_count": len(copied_videos),
-        "telemetry_root": str(telemetry_root.relative_to(repo_root)),
-        "telemetry_episode_count": len(telemetry_episodes),
-        "video_associations": video_associations,
-        "episode_index_alignment": {
-            "passed": not index_issues,
-            "video_indices": sorted(video_indices),
-            "telemetry_indices": sorted(telemetry_indices),
-            "issues": index_issues,
-        },
-        "previous_attempt_archive": (
-            str(previous_attempt.relative_to(repo_root))
-            if previous_attempt is not None
-            else None
-        ),
-        "passed": (
-            returncode == 0
-            and source_dir is not None
-            and result_file_copied
-            and not index_issues
-            and len(copied_videos) == num_episodes
-            and len(telemetry_episodes) == num_episodes
-            and len(actual_seeds) == num_episodes
-        ),
-    }
-    write_json(run_dir / "evaluation/act.json", result)
-    if not result["passed"]:
-        raise RuntimeError(f"ACT {num_episodes}-episode 未通过: {result}")
-    return result
 
 
 def evaluate_run_telemetry(
@@ -4111,11 +4167,16 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--experiment-candidate-json",
+        "--proposal-json",
         help=(
-            "Runtime open-world ExperimentCandidate. It contains no catalog "
-            "template/aspect and is consumed by generic scene+checker TaskGen."
+            "Plan Agent Proposal. It contains no catalog template/aspect and "
+            "is consumed by generic scene+checker TaskGen."
         ),
+    )
+    parser.add_argument(
+        "--experiment-candidate-json",
+        dest="legacy_experiment_candidate_json",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--reviewed-task-registry",
@@ -4239,36 +4300,44 @@ def main() -> None:
             )
         except (json.JSONDecodeError, ProposalError) as exc:
             raise SystemExit(f"invalid --task-proposal-json: {exc}") from exc
+    if (
+        args.proposal_json is not None
+        and args.legacy_experiment_candidate_json is not None
+    ):
+        raise SystemExit(
+            "--proposal-json and the legacy candidate option are mutually exclusive"
+        )
+    raw_proposal_json = (
+        args.proposal_json
+        if args.proposal_json is not None
+        else args.legacy_experiment_candidate_json
+    )
     experiment_candidate: dict[str, Any] | None = None
-    if args.experiment_candidate_json is not None:
+    if raw_proposal_json is not None:
         if args.resume_run:
             raise SystemExit(
-                "--experiment-candidate-json cannot be used with --resume-run"
+                "--proposal-json cannot be used with --resume-run"
             )
         if args.mode != "generic_provider_scene_checker_codegen":
             raise SystemExit(
-                "--experiment-candidate-json requires generic provider mode"
+                "--proposal-json requires generic provider mode"
             )
         if task_proposal is not None:
             raise SystemExit(
-                "ExperimentCandidate and legacy TaskProposal are mutually exclusive"
+                "Plan Agent Proposal and legacy TaskProposal are mutually exclusive"
             )
         try:
             experiment_candidate = validate_experiment_candidate(
-                json.loads(args.experiment_candidate_json)
+                json.loads(raw_proposal_json)
             )
         except (json.JSONDecodeError, ExperimentCandidateError) as exc:
-            raise SystemExit(
-                f"invalid --experiment-candidate-json: {exc}"
-            ) from exc
+            raise SystemExit(f"invalid --proposal-json: {exc}") from exc
         if experiment_candidate["base_task"] != args.task_name:
             raise SystemExit(
-                "ExperimentCandidate.base_task differs from --task-name"
+                "Proposal.base_task differs from --task-name"
             )
     elif args.mode == "generic_provider_scene_checker_codegen":
-        raise SystemExit(
-            "generic provider mode requires --experiment-candidate-json"
-        )
+        raise SystemExit("generic provider mode requires --proposal-json")
     reviewed_task_registry = (
         args.reviewed_task_registry.expanduser().resolve()
         if args.reviewed_task_registry is not None
@@ -4498,7 +4567,7 @@ def main() -> None:
             ):
                 raise SystemExit(
                     "generic scene+checker codegen requires a provider, "
-                    "ExperimentCandidate, and explicit --run-id"
+                    "Proposal, and explicit --run-id"
                 )
             try:
                 manifest = create_generic_provider_taskgen_run(

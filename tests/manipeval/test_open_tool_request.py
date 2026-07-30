@@ -70,6 +70,28 @@ def _terminal(task_name: str = "adjust_bottle"):
     }
 
 
+def _terminal_difference(task_name: str = "adjust_bottle"):
+    return {
+        "schema_version": 2,
+        "task_name": task_name,
+        "metric": "terminal_bottle_to_right_tcp_height_difference",
+        "question": (
+            "What was the absolute terminal height difference between the "
+            "bottle functional position and right TCP position?"
+        ),
+        "metric_spec": {
+            "schema_version": 1,
+            "operation": "terminal_signal_difference",
+            "left_signal": "bottle_functional_position",
+            "right_signal": "right_tcp_position",
+            "component": "z",
+            "absolute": True,
+            "unit": "m",
+            "null_semantics": "null_if_terminal_not_finite",
+        },
+    }
+
+
 class OpenToolRequestTest(unittest.TestCase):
     def test_novel_metric_requires_typed_spec(self):
         with self.assertRaisesRegex(OpenToolRequestError, "typed MetricSpec"):
@@ -170,6 +192,139 @@ class OpenToolRequestTest(unittest.TestCase):
             bundle["context"]["typed_operator_contracts"],
         )
         self.assertIn("final/terminal", agent.last_prompt)
+
+    def test_agent_exposes_and_accepts_terminal_signal_difference(self):
+        root = Path(__file__).resolve().parents[2]
+        provider = _Provider(_terminal_difference())
+        agent = OpenToolRequestAgent(root, provider, model="fixture-model")
+        need = (
+            "Measure the final absolute height difference between bottle "
+            "functional position and right TCP position."
+        )
+
+        bundle = agent.propose(
+            source_query="How far apart are the object and gripper at the end?",
+            semantic_concern="terminal relative object state",
+            tool_need=need,
+            task_name="adjust_bottle",
+        )
+
+        self.assertEqual(
+            bundle["tool_request"]["metric_spec"]["operation"],
+            "terminal_signal_difference",
+        )
+        self.assertIn(
+            "terminal_signal_difference",
+            bundle["context"]["typed_operator_contracts"],
+        )
+        self.assertIn("terminal two-signal difference", agent.last_prompt)
+
+    def test_lift_height_difference_aligns_operation_signals_and_component(self):
+        need = (
+            "Measure the lift height difference between the target and "
+            "non-target rollers."
+        )
+        available = {
+            "roller_position",
+            "distractor_position",
+            "left_tcp_position",
+            "right_tcp_position",
+        }
+
+        component_request = _terminal("grab_roller")
+        component_request["metric"] = "terminal_roller_height"
+        component_request["question"] = "What was the terminal roller height?"
+        component_request["metric_spec"]["signal"] = "roller_position"
+        with self.assertRaisesRegex(
+            OpenToolRequestError, "requires terminal_signal_difference"
+        ):
+            validate_open_tool_request(
+                component_request,
+                task_name="grab_roller",
+                available_signal_names=available,
+                measurement_need=need,
+            )
+
+        difference_request = _terminal_difference("grab_roller")
+        difference_request["metric"] = "terminal_roller_height_difference"
+        difference_request["question"] = (
+            "What was the achieved lift height difference between the rollers?"
+        )
+        difference_request["metric_spec"].update(
+            {
+                "left_signal": "roller_position",
+                "right_signal": "distractor_position",
+                "absolute": False,
+            }
+        )
+        validated = validate_open_tool_request(
+            difference_request,
+            task_name="grab_roller",
+            available_signal_names=available,
+            measurement_need=need,
+        )
+        self.assertEqual(
+            validated["metric_spec"]["operation"],
+            "terminal_signal_difference",
+        )
+        self.assertEqual(validated["metric_spec"]["component"], "z")
+
+        wrong_signal = json.loads(json.dumps(difference_request))
+        wrong_signal["metric_spec"][
+            "right_signal"
+        ] = "unadvertised_non_target_position"
+        with self.assertRaisesRegex(
+            OpenToolRequestError, "unavailable telemetry signals"
+        ):
+            validate_open_tool_request(
+                wrong_signal,
+                task_name="grab_roller",
+                available_signal_names=available,
+                measurement_need=need,
+            )
+
+        wrong_component = json.loads(json.dumps(difference_request))
+        wrong_component["metric_spec"]["component"] = "x"
+        with self.assertRaisesRegex(
+            OpenToolRequestError, "component does not match"
+        ):
+            validate_open_tool_request(
+                wrong_component,
+                task_name="grab_roller",
+                available_signal_names=available,
+                measurement_need=need,
+            )
+
+    def test_second_query_exact_generated_difference_request_remains_valid(self):
+        root = Path(__file__).resolve().parents[2]
+        request = _terminal_difference()
+        provider = _Provider(request)
+        agent = OpenToolRequestAgent(root, provider, model="fixture-model")
+        registration = {
+            "registration_id": "runlocal_terminal_difference",
+            "request": request,
+            "validation": {"scope": "evaluation_local", "status": "validated"},
+        }
+
+        bundle = agent.propose(
+            source_query=(
+                "At the terminal state, compare object and gripper heights."
+            ),
+            semantic_concern="terminal relative object state",
+            tool_need=(
+                "At the terminal state, reuse the absolute height difference "
+                "between bottle functional position and right TCP position."
+            ),
+            task_name="adjust_bottle",
+            reusable_tool_requests=[registration],
+        )
+
+        self.assertEqual(bundle["tool_request"], request)
+        self.assertEqual(provider.calls, 1)
+        self.assertEqual(
+            bundle["context"]["validated_generated_tools"],
+            [registration],
+        )
 
     def test_terminal_semantic_need_rejects_event_metric_and_wrong_component(self):
         available = {

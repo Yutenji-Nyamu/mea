@@ -9,6 +9,7 @@ import numpy as np
 
 from mea.toolkit import (
     EpisodeRecorder,
+    RecorderError,
     TOOL_CATALOG,
     TrajectoryView,
     TrustedToolRetriever,
@@ -56,7 +57,10 @@ class ToolkitTests(unittest.TestCase):
             "semantic_roles": {},
         }
         task = SimpleNamespace(
-            distractor=object(),
+            bottle=SimpleNamespace(get_name=lambda: "001_bottle"),
+            distractor=SimpleNamespace(
+                get_name=lambda: "generated_distractor"
+            ),
             mea_telemetry_tracked_actors=[
                 {
                     "id": "distractor",
@@ -92,6 +96,52 @@ class ToolkitTests(unittest.TestCase):
             extended["contact_focus_actor_ids"],
         )
 
+    def test_generated_actor_runtime_name_must_match_declared_name(self):
+        schema = {
+            "schema_version": 1,
+            "task_name": "adjust_bottle",
+            "physics_timestep_seconds": 0.004,
+            "action_dimension": 14,
+            "tracked_actors": [
+                {
+                    "id": "bottle",
+                    "task_attribute": "bottle",
+                    "scene_name": "001_bottle",
+                    "functional_points": [0],
+                    "contact_points": [],
+                }
+            ],
+            "contact_focus_actor_ids": ["bottle"],
+            "semantic_fields": [
+                {
+                    "name": "bottle_position",
+                    "source": "actor_position",
+                    "actor_id": "bottle",
+                }
+            ],
+            "semantic_roles": {},
+        }
+        task = SimpleNamespace(
+            bottle=SimpleNamespace(get_name=lambda: "001_bottle"),
+            distractor=SimpleNamespace(get_name=lambda: "001_bottle"),
+            mea_telemetry_tracked_actors=[
+                {
+                    "id": "distractor",
+                    "task_attribute": "distractor",
+                    "scene_name": "unique_distractor",
+                    "functional_points": [],
+                    "contact_points": [],
+                    "contact_focus": False,
+                }
+            ],
+        )
+
+        with self.assertRaisesRegex(
+            RecorderError,
+            "does not match runtime actor name",
+        ):
+            extend_task_schema_with_generated_actors(schema, task)
+
     def test_exact_generated_actor_redeclaration_is_idempotent(self):
         schema = {
             "schema_version": 1,
@@ -118,7 +168,7 @@ class ToolkitTests(unittest.TestCase):
             "semantic_roles": {},
         }
         task = SimpleNamespace(
-            bell=object(),
+            bell=SimpleNamespace(get_name=lambda: "050_bell"),
             mea_telemetry_tracked_actors=[
                 {
                     **schema["tracked_actors"][0],
@@ -130,6 +180,157 @@ class ToolkitTests(unittest.TestCase):
         extended = extend_task_schema_with_generated_actors(schema, task)
 
         self.assertEqual(extended, schema)
+
+    def test_base_actor_redeclaration_without_contact_focus_is_canonical_noop(
+        self,
+    ):
+        schema = {
+            "schema_version": 1,
+            "task_name": "click_bell",
+            "physics_timestep_seconds": 0.004,
+            "action_dimension": 14,
+            "tracked_actors": [
+                {
+                    "id": "bell",
+                    "task_attribute": "bell",
+                    "scene_name": "050_bell",
+                    "functional_points": [],
+                    "contact_points": [0],
+                }
+            ],
+            "contact_focus_actor_ids": ["bell"],
+            "semantic_fields": [
+                {
+                    "name": "bell_position",
+                    "source": "actor_position",
+                    "actor_id": "bell",
+                }
+            ],
+            "semantic_roles": {},
+        }
+        task = SimpleNamespace(
+            bell=SimpleNamespace(get_name=lambda: "050_bell"),
+            mea_telemetry_tracked_actors=[
+                {
+                    **schema["tracked_actors"][0],
+                }
+            ],
+        )
+
+        extended = extend_task_schema_with_generated_actors(schema, task)
+
+        self.assertEqual(extended, schema)
+
+    def test_missing_contact_focus_is_not_inferred_for_new_actor(self):
+        schema = {
+            "schema_version": 1,
+            "task_name": "click_bell",
+            "physics_timestep_seconds": 0.004,
+            "action_dimension": 14,
+            "tracked_actors": [
+                {
+                    "id": "bell",
+                    "task_attribute": "bell",
+                    "scene_name": "050_bell",
+                    "functional_points": [],
+                    "contact_points": [0],
+                }
+            ],
+            "contact_focus_actor_ids": ["bell"],
+            "semantic_fields": [],
+            "semantic_roles": {},
+        }
+        task = SimpleNamespace(
+            bell=SimpleNamespace(get_name=lambda: "050_bell"),
+            distractor=SimpleNamespace(get_name=lambda: "bell_distractor"),
+            mea_telemetry_tracked_actors=[
+                {
+                    "id": "distractor",
+                    "task_attribute": "distractor",
+                    "scene_name": "bell_distractor",
+                    "functional_points": [],
+                    "contact_points": [],
+                }
+            ],
+        )
+
+        with self.assertRaisesRegex(RecorderError, "invalid fields"):
+            extend_task_schema_with_generated_actors(schema, task)
+
+    def test_exact_redeclaration_cannot_hide_runtime_actor_rename(self):
+        schema = {
+            "schema_version": 1,
+            "task_name": "click_bell",
+            "physics_timestep_seconds": 0.004,
+            "action_dimension": 14,
+            "tracked_actors": [
+                {
+                    "id": "bell",
+                    "task_attribute": "bell",
+                    "scene_name": "050_bell",
+                    "functional_points": [],
+                    "contact_points": [0],
+                }
+            ],
+            "contact_focus_actor_ids": ["bell"],
+            "semantic_fields": [],
+            "semantic_roles": {},
+        }
+        task = SimpleNamespace(
+            bell=SimpleNamespace(get_name=lambda: "renamed_bell"),
+            mea_telemetry_tracked_actors=[
+                {
+                    **schema["tracked_actors"][0],
+                    "contact_focus": True,
+                }
+            ],
+        )
+
+        with self.assertRaisesRegex(RecorderError, "tracked actor 'bell'"):
+            extend_task_schema_with_generated_actors(schema, task)
+
+    def test_untracked_duplicate_runtime_name_is_rejected(self):
+        target = SimpleNamespace(get_name=lambda: "050_bell")
+        duplicate = SimpleNamespace(get_name=lambda: "050_bell")
+        distractor = SimpleNamespace(get_name=lambda: "bell_distractor")
+        schema = {
+            "schema_version": 1,
+            "task_name": "click_bell",
+            "physics_timestep_seconds": 0.004,
+            "action_dimension": 14,
+            "tracked_actors": [
+                {
+                    "id": "bell",
+                    "task_attribute": "bell",
+                    "scene_name": "050_bell",
+                    "functional_points": [],
+                    "contact_points": [0],
+                }
+            ],
+            "contact_focus_actor_ids": ["bell"],
+            "semantic_fields": [],
+            "semantic_roles": {},
+        }
+        task = SimpleNamespace(
+            bell=target,
+            distractor=distractor,
+            scene=SimpleNamespace(
+                get_all_actors=lambda: [target, duplicate, distractor]
+            ),
+            mea_telemetry_tracked_actors=[
+                {
+                    "id": "distractor",
+                    "task_attribute": "distractor",
+                    "scene_name": "bell_distractor",
+                    "functional_points": [],
+                    "contact_points": [],
+                    "contact_focus": False,
+                }
+            ],
+        )
+
+        with self.assertRaisesRegex(RecorderError, "exactly once"):
+            extend_task_schema_with_generated_actors(schema, task)
 
     @staticmethod
     def _write_episode(episode_dir):

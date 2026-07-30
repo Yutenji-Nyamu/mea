@@ -175,6 +175,16 @@ def tool_generation_context(
                 "unit": "m",
                 "null_semantics": "null_if_terminal_not_finite",
             },
+            "terminal_signal_difference": {
+                "schema_version": 1,
+                "operation": "terminal_signal_difference",
+                "left_signal": "<advertised_semantic_field_name>",
+                "right_signal": "<different_advertised_semantic_field_name>",
+                "component": "<x_or_y_or_z>",
+                "absolute": False,
+                "unit": "m",
+                "null_semantics": "null_if_terminal_not_finite",
+            },
         },
         "outcome_semantics": (
             "generated_checker_experimental"
@@ -253,17 +263,18 @@ def validate_open_tool_request(
         except MetricSpecError as exc:
             raise OpenToolRequestError(str(exc)) from exc
         operation = metric_spec["operation"]
-        if (
-            operation in {"minimum_distance", "terminal_signal_component"}
-            and available_signal_names is not None
-        ):
+        if available_signal_names is not None and operation in {
+            "minimum_distance",
+            "terminal_signal_component",
+            "terminal_signal_difference",
+        }:
             requested_signals = (
-                {
+                {str(metric_spec["signal"])}
+                if operation == "terminal_signal_component"
+                else {
                     str(metric_spec["left_signal"]),
                     str(metric_spec["right_signal"]),
                 }
-                if operation == "minimum_distance"
-                else {str(metric_spec["signal"])}
             )
             missing = sorted(requested_signals - available_signal_names)
             if missing:
@@ -362,11 +373,11 @@ def _validate_terminal_signal_alignment(
     measurement_need: str,
     available_signal_names: set[str],
 ) -> None:
-    """Prevent an event metric from evading an explicit terminal field need.
+    """Bind explicit terminal component/difference needs to advertised fields.
 
     This is deliberately schema-driven: task names and semantic roles are not
-    enumerated.  It activates only when the need contains a terminal cue, an
-    x/y/z component cue, and enough words to identify one advertised signal.
+    enumerated. It activates only when the need contains a terminal cue, an
+    x/y/z component cue, and enough words to identify advertised signals.
     """
 
     need = measurement_need.casefold()
@@ -393,7 +404,75 @@ def _validate_terminal_signal_alignment(
         for component, cues in component_cues.items()
         if any(cue in padded_need for cue in cues)
     }
-    if not terminal_requested or not requested_components:
+    # In manipulation evaluation, an unqualified "lift height difference"
+    # asks for the achieved end-state separation of two lifted objects. This
+    # is the generic terminal interpretation unless the need names another
+    # temporal reduction.
+    lift_height_difference_requested = any(
+        cue in padded_need
+        for cue in (
+            " lift height difference ",
+            " lift-height difference ",
+        )
+    )
+    if (
+        not (terminal_requested or lift_height_difference_requested)
+        or not requested_components
+    ):
+        return
+
+    difference_requested = any(
+        cue in padded_need
+        for cue in (
+            " difference ",
+            " delta ",
+            " minus ",
+            " relative to ",
+            " compared to ",
+            " compared with ",
+            " versus ",
+            " vs ",
+            " height gap ",
+            " vertical gap ",
+            " z gap ",
+        )
+    )
+    if difference_requested:
+        if not isinstance(metric_spec, Mapping):
+            raise OpenToolRequestError(
+                "an explicit terminal two-signal difference need requires a "
+                "schema_version=2 terminal_signal_difference contract; an "
+                "unrelated schema_version=1 Tool reuse is not aligned"
+            )
+        if metric_spec.get("operation") != "terminal_signal_difference":
+            raise OpenToolRequestError(
+                "an explicit terminal two-signal difference need requires "
+                "terminal_signal_difference rather than a component, event, "
+                "or distance metric"
+            )
+        requested_component = metric_spec.get("component")
+        if requested_component not in requested_components:
+            raise OpenToolRequestError(
+                "terminal_signal_difference component does not match the "
+                f"explicit measurement need: {sorted(requested_components)}"
+            )
+        absolute_difference_requested = any(
+            cue in padded_need
+            for cue in (
+                " absolute difference ",
+                " absolute height difference ",
+                " difference magnitude ",
+                " unsigned difference ",
+            )
+        )
+        if (
+            absolute_difference_requested
+            and metric_spec.get("absolute") is not True
+        ):
+            raise OpenToolRequestError(
+                "terminal_signal_difference must set absolute=true for an "
+                "explicit absolute-difference measurement need"
+            )
         return
 
     need_words = _normalized_words(need)
@@ -408,6 +487,7 @@ def _validate_terminal_signal_alignment(
             scored.append((score, signal))
     if not scored:
         return
+
     best_score = max(score for score, _signal in scored)
     matched_signals = {
         signal for score, signal in scored if score == best_score
@@ -519,7 +599,14 @@ class OpenToolRequestAgent:
             "MEASUREMENT NEED explicitly asks "
             "for a final/terminal x, y, z, height, or absolute component of an "
             "advertised semantic field, use terminal_signal_component with "
-            "that exact signal and component; an event metric is not aligned. "
+            "that exact signal and component. When it asks for the final or "
+            "terminal difference, delta, or relative height/component between "
+            "two advertised semantic fields, use terminal_signal_difference "
+            "with those exact left/right signals and component. Do not replace "
+            "a terminal two-signal difference with minimum_distance or a "
+            "single terminal_signal_component. Treat an unqualified lift "
+            "height difference between two objects as their terminal z "
+            "difference; an event metric is not aligned. "
             "Return strict JSON only.\n\n"
             f"ORIGINAL QUERY:\n{source_query}\n\n"
             f"SEMANTIC CONCERN:\n{semantic_concern}\n\n"

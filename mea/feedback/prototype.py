@@ -1,4 +1,4 @@
-"""Evidence-grounded feedback generation and unified report rendering."""
+"""Evidence-grounded Plan Agent final-answer generation and report rendering."""
 
 from __future__ import annotations
 
@@ -16,8 +16,8 @@ from .answer_scope import (
 )
 
 
-class FeedbackAgentError(RuntimeError):
-    """Raised when final feedback violates the structured output contract."""
+class PlanAgentFinalSummaryError(RuntimeError):
+    """Raised when the Plan Agent final summary violates its output contract."""
 
 
 FALSE_POLICY_SUCCESS_PATTERNS = (
@@ -108,13 +108,13 @@ def _claims_policy_success(text: str) -> bool:
 
 def _require_text(value: Any, field: str) -> str:
     if not isinstance(value, str) or not value.strip():
-        raise FeedbackAgentError(f"{field} 必须是非空字符串")
+        raise PlanAgentFinalSummaryError(f"{field} 必须是非空字符串")
     return value.strip()
 
 
 def _require_text_list(value: Any, field: str) -> list[str]:
     if not isinstance(value, list) or not value:
-        raise FeedbackAgentError(f"{field} 必须是非空字符串 list")
+        raise PlanAgentFinalSummaryError(f"{field} 必须是非空字符串 list")
     return [_require_text(item, f"{field}[]") for item in value]
 
 
@@ -123,7 +123,7 @@ def validate_feedback(
     evidence: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if not isinstance(value, dict):
-        raise FeedbackAgentError("Feedback 必须是 JSON object")
+        raise PlanAgentFinalSummaryError("Plan Agent answer 必须是 JSON object")
     feedback = {
         "answer": _require_text(value.get("answer"), "answer"),
         "evaluation_scope": _require_text(
@@ -141,7 +141,7 @@ def validate_feedback(
             [feedback["answer"], *feedback["findings"]]
         )
         if _claims_policy_success(conclusion_text):
-            raise FeedbackAgentError(
+            raise PlanAgentFinalSummaryError(
                 "answer/findings 声称任务成功，但 evidence 中 policy_success <= 0"
             )
     return feedback
@@ -165,7 +165,7 @@ def apply_deterministic_consistency_guard(
         )
         if _claims_policy_success(conclusion_text):
             feedback["answer"] = (
-                "场景生成和评估流水线通过，但 ACT policy 在本次 episode "
+                "场景生成和评估流水线通过，但被评估策略在本次 episode "
                 f"未完成任务（policy_success={float(policy_success):.1f}）。"
             )
             feedback["findings"] = [
@@ -177,7 +177,7 @@ def apply_deterministic_consistency_guard(
                 [
                     "场景生成、视觉对齐和评估流水线已完成。",
                     (
-                        "ACT policy 在本次 episode 未完成任务，"
+                        "被评估策略在本次 episode 未完成任务，"
                         f"policy_success={float(policy_success):.1f}。"
                     ),
                 ]
@@ -202,20 +202,12 @@ def _feedback_prompt(repo_root: Path, evidence: dict[str, Any]) -> str:
         encoding="utf-8"
     )
     answer_scope = build_answer_scope(evidence)
-    return f"""你是 MEA 的最终 Feedback Agent。请基于证据回答用户，不要补充未经测试的结论。
+    return f"""你是 MEA Plan Agent 的最终总结阶段。请基于证据回答原始 Query，不要补充未经测试的结论。
 
 EVIDENCE INTERPRETATION CONTRACT:
-1. `observations.aggregate` 是 deterministic Aggregate Toolkit 已经计算好的结果。
-   直接引用其中 count/rate/mean/median/min/max/stddev 与 quality；禁止从 episode、
-   ToolResult 或若干 JSON 自行做数学运算。
-2. `policy_under_evaluation` 与 `expert_validation` 是不同 cohort，禁止合并。
-3. simulator numeric Tool 是距离、接触、时间、冲量、成功等数值事实的权威来源。
-   Execution VQA 只补充颜色、可见抬起、可见位移等视觉现象，不能覆盖数值 Tool。
-4. 若 Execution VQA 含 `evidence_conflict=true`，明确报告冲突和对应 frame，保留
-   simulator Tool 结论，并建议复查或追加测试；不要替视觉或数值一方消除冲突。
-5. `history_retrieval` 只用于保持 planning decomposition 一致。历史 policy outcome
+1. `history_retrieval` 只用于保持 planning decomposition 一致。历史 policy outcome
    不是本次 evaluation evidence，禁止与本次 Aggregate 合并或据此声称本次成功。
-6. `ANSWER SCOPE` 是 deterministic validator 从证据投影的硬边界。回答必须与其
+2. `ANSWER SCOPE` 是 deterministic validator 从证据投影的硬边界。回答必须与其
    N/seeds、未测试候选、unsupported capability、冲突和停止原因一致。
 
 AGENT RULES:
@@ -232,17 +224,17 @@ ANSWER SCOPE:
   "answer": "面向用户的简洁回答",
   "evaluation_scope": "本次实际测试范围",
   "findings": ["证据支持的发现"],
-  "limitations": ["一个 episode 等限制"],
+  "limitations": ["本次证据范围的限制"],
   "recommended_next_step": "下一项最有价值的评估"
 }}
 """
 
 
-def feedback_markdown(feedback: dict[str, Any]) -> str:
+def answer_markdown(feedback: dict[str, Any]) -> str:
     findings = "\n".join(f"- {item}" for item in feedback["findings"])
     limitations = "\n".join(f"- {item}" for item in feedback["limitations"])
     return (
-        "# Evaluation Feedback\n\n"
+        "# Plan Agent answer\n\n"
         f"{feedback['answer']}\n\n"
         "## Evaluation scope\n\n"
         f"{feedback['evaluation_scope']}\n\n"
@@ -255,8 +247,8 @@ def feedback_markdown(feedback: dict[str, Any]) -> str:
     )
 
 
-class FeedbackAgent:
-    """Summarize a completed evaluation using a separate LLM call."""
+class PlanAgentFinalSummary:
+    """Answer the original Query from the completed evidence bundle."""
 
     def __init__(self, repo_root: str | Path, provider: Any, *, model: str):
         self.repo_root = Path(repo_root).expanduser().resolve()
@@ -293,7 +285,10 @@ complete the task.
             response = self.provider.text(
                 attempt_prompt,
                 model=self.model,
-                system="Use only the evidence and return strict Feedback JSON.",
+                system=(
+                    "You are the Plan Agent final-summary stage. Use only the "
+                    "evidence and return strict answer JSON."
+                ),
                 max_tokens=1200,
                 temperature=0.0,
             )
@@ -311,14 +306,14 @@ complete the task.
                     evidence,
                 )
                 break
-            except FeedbackAgentError as exc:
+            except PlanAgentFinalSummaryError as exc:
                 validation_errors.append(str(exc))
         deterministic_correction = False
         if feedback is None:
             policy_success = _authoritative_policy_success(evidence)
             if last_structured_feedback is None or policy_success is None:
-                raise FeedbackAgentError(
-                    "Feedback 两次响应均未通过，且没有可校正的 structured output: "
+                raise PlanAgentFinalSummaryError(
+                    "Plan Agent final summary 两次响应均未通过，且没有可校正的 structured output: "
                     f"{validation_errors}"
                 )
             feedback = apply_deterministic_consistency_guard(
@@ -346,7 +341,7 @@ complete the task.
             "aggregate_status": (
                 aggregate.get("status") if aggregate is not None else None
             ),
-            "episode_math_by_feedback_agent": False,
+            "episode_math_by_plan_agent_summary": False,
             "numeric_simulator_tools_authoritative": True,
             "execution_vqa_is_visual_only": True,
             "evidence_conflict": _has_execution_vqa_conflict(evidence),
@@ -357,14 +352,21 @@ complete the task.
         answer_scope = build_answer_scope(evidence)
         feedback = project_answer_scope(feedback, answer_scope)
         validate_answer_scope_projection(feedback, answer_scope)
-        (output_dir / "feedback.json").write_text(
+        (output_dir / "answer.json").write_text(
             json.dumps(feedback, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
-        (output_dir / "feedback.md").write_text(
-            feedback_markdown(feedback), encoding="utf-8"
+        (output_dir / "answer.md").write_text(
+            answer_markdown(feedback), encoding="utf-8"
         )
         return feedback
+
+
+# Historical import compatibility. New writers and production callers use the
+# paper-aligned Plan Agent final-summary terminology.
+FeedbackAgent = PlanAgentFinalSummary
+FeedbackAgentError = PlanAgentFinalSummaryError
+feedback_markdown = answer_markdown
 
 
 def render_evaluation_report(
@@ -378,7 +380,7 @@ def render_evaluation_report(
 
     aggregate = _deterministic_aggregate(evidence)
     aggregate_markdown = (
-        "以下数值直接来自 deterministic Aggregate Toolkit；Feedback Agent "
+        "以下数值直接来自 deterministic Aggregate Toolkit；Plan Agent summary "
         "没有重新计算 episode 统计量。\n\n"
         "```json\n"
         + json.dumps(aggregate, ensure_ascii=False, indent=2)
@@ -631,7 +633,7 @@ def render_evaluation_report(
 
 {execution_vqa_markdown}
 
-## Feedback Agent answer
+## Plan Agent answer
 
 {feedback['answer']}
 
@@ -710,7 +712,7 @@ def render_evaluation_report(
 
 {execution_vqa_markdown}
 
-## Feedback Agent answer
+## Plan Agent answer
 
 {feedback['answer']}
 

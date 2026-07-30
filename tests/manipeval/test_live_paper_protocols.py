@@ -5,7 +5,7 @@ import unittest
 from copy import deepcopy
 from pathlib import Path
 
-from mea.live_paper_protocols import (
+from experiments.paper.live_protocols import (
     EFFICIENCY_PROTOCOL,
     RANKING_PROTOCOL,
     TABLE3_CONDITIONS,

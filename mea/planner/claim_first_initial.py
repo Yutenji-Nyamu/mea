@@ -1,4 +1,4 @@
-"""Direct initial-plan construction for the production ClaimFirst runtime.
+"""Direct initial-plan construction for the production Plan Agent runtime.
 
 This module deliberately does not import ``CatalogPlanAgent`` or any
 task-specific planner.  The caller has already frozen a task/checkpoint target;
@@ -19,6 +19,10 @@ from typing import Any, Mapping
 from mea.toolgen import official_success_tool_request
 
 from .claim_first_runtime import control_template_id
+from .policy_task_binding import (
+    PolicyTaskBindingError,
+    policy_task_binding_from_target,
+)
 from .query_contract import validate_query_sufficiency_contract
 
 
@@ -27,26 +31,48 @@ _CONTROL_GATES = ("render", "rule")
 _POST_EXECUTION_GATES = ("toolkit", "planned_tool", "aggregate")
 
 
-class ClaimFirstInitialPlanError(ValueError):
-    """Raised when a direct ClaimFirst initial plan cannot be constructed."""
+class PlanAgentInitialPlanError(ValueError):
+    """Raised when a direct Plan Agent initial plan cannot be constructed."""
+
+
+# Compatibility name for existing callers and historical exception handlers.
+ClaimFirstInitialPlanError = PlanAgentInitialPlanError
 
 
 def _text(value: Any, *, field: str) -> str:
     if not isinstance(value, str) or not value.strip():
-        raise ClaimFirstInitialPlanError(f"{field} must be a non-empty string")
+        raise PlanAgentInitialPlanError(f"{field} must be a non-empty string")
     return value.strip()
 
 
 def _positive_int(value: Any, *, field: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
-        raise ClaimFirstInitialPlanError(f"{field} must be a positive integer")
+        raise PlanAgentInitialPlanError(f"{field} must be a positive integer")
     return value
 
 
 def _mapping(value: Any, *, field: str) -> dict[str, Any]:
     if not isinstance(value, Mapping):
-        raise ClaimFirstInitialPlanError(f"{field} must be an object")
+        raise PlanAgentInitialPlanError(f"{field} must be an object")
     return deepcopy(dict(value))
+
+
+def _target_binding(target: Mapping[str, Any]) -> dict[str, Any]:
+    """Read the production binding while preserving old fixture compatibility."""
+
+    if "policy_task_binding" in target:
+        try:
+            return policy_task_binding_from_target(target)
+        except (PolicyTaskBindingError, TypeError) as exc:
+            raise PlanAgentInitialPlanError(str(exc)) from exc
+    return {
+        "task_name": _text(target.get("task_name"), field="target.task_name"),
+        "task_module": f"envs.{target.get('task_name')}",
+        "policy": _mapping(target.get("policy"), field="target.policy"),
+        "checkpoint": _mapping(
+            target.get("checkpoint"), field="target.checkpoint"
+        ),
+    }
 
 
 def _git_head(repo_root: Path) -> str | None:
@@ -69,7 +95,7 @@ def _write_json(path: Path, value: Any) -> None:
     )
 
 
-def build_claim_first_execution_binding(
+def build_plan_agent_execution_binding(
     *,
     start_seed: int,
     num_episodes: int,
@@ -79,13 +105,13 @@ def build_claim_first_execution_binding(
 
     seed = start_seed
     if isinstance(seed, bool) or not isinstance(seed, int) or seed < 0:
-        raise ClaimFirstInitialPlanError(
+        raise PlanAgentInitialPlanError(
             "start_seed must be a non-negative integer"
         )
     count = _positive_int(num_episodes, field="num_episodes")
     backend = _text(execution_backend, field="execution_backend").casefold()
     if backend not in _EXECUTION_BACKENDS:
-        raise ClaimFirstInitialPlanError(
+        raise PlanAgentInitialPlanError(
             "execution_backend must be one of expert, act, both"
         )
     seeds = [seed + index for index in range(count)]
@@ -103,7 +129,7 @@ def build_claim_first_execution_binding(
     }
 
 
-def build_claim_first_control_round(
+def build_plan_agent_control_round(
     target: Mapping[str, Any],
     user_request: str,
     *,
@@ -114,14 +140,18 @@ def build_claim_first_control_round(
     """Build one unchanged official control without a task-specific planner."""
 
     bound_target = _mapping(target, field="target")
-    task_name = _text(bound_target.get("task_name"), field="target.task_name")
+    binding = _target_binding(bound_target)
+    task_name = binding["task_name"]
     query = _text(user_request, field="user_request")
     execution = _mapping(execution_binding, field="execution_binding")
-    module = (
-        _text(task_module, field="task_module")
-        if task_module is not None
-        else f"envs.{task_name}"
-    )
+    module = binding["task_module"]
+    if (
+        task_module is not None
+        and _text(task_module, field="task_module") != module
+    ):
+        raise PlanAgentInitialPlanError(
+            "official control task_module differs from PolicyTaskBinding"
+        )
     return {
         "round_id": "round_1",
         "template_id": control_template_id(bound_target),
@@ -149,10 +179,10 @@ def build_claim_first_control_round(
     }
 
 
-class ClaimFirstInitialPlanBuilder:
-    """Persist a ClaimFirst initial manifest directly from a frozen target."""
+class PlanAgentInitialPlanBuilder:
+    """Persist a Plan Agent initial manifest directly from a frozen target."""
 
-    planner_kind = "claim_first_direct_initial_v1"
+    planner_kind = "plan_agent_direct_initial_v1"
 
     def __init__(
         self,
@@ -168,19 +198,26 @@ class ClaimFirstInitialPlanBuilder:
     ):
         self.repo_root = Path(repo_root).expanduser().resolve()
         self.target = _mapping(target, field="target")
-        self.task_name = _text(
-            self.target.get("task_name"), field="target.task_name"
-        )
-        self.policy = _mapping(self.target.get("policy"), field="target.policy")
+        binding = _target_binding(self.target)
+        self.task_name = binding["task_name"]
+        self.policy = _mapping(binding.get("policy"), field="binding.policy")
         self.checkpoint = _mapping(
-            self.target.get("checkpoint"), field="target.checkpoint"
+            binding.get("checkpoint"), field="binding.checkpoint"
         )
         self.max_rounds = _positive_int(max_rounds, field="max_rounds")
-        self.task_module = task_module
+        if (
+            task_module is not None
+            and _text(task_module, field="task_module")
+            != binding["task_module"]
+        ):
+            raise PlanAgentInitialPlanError(
+                "task_module differs from the frozen PolicyTaskBinding"
+            )
+        self.task_module = binding["task_module"]
         self.telemetry_profile = _text(
             telemetry_profile, field="telemetry_profile"
         )
-        self.execution_binding = build_claim_first_execution_binding(
+        self.execution_binding = build_plan_agent_execution_binding(
             start_seed=start_seed,
             num_episodes=num_episodes,
             execution_backend=execution_backend,
@@ -203,19 +240,19 @@ class ClaimFirstInitialPlanBuilder:
         """Create the initial manifest without catalog/task-specific planning.
 
         A no-control plan intentionally starts with an empty round list.  The
-        caller should materialize its already discovered ``ExperimentCandidate``
+        caller should materialize its already discovered typed Proposal
         with ``manifest["initial_execution_binding"]`` and then normalize it
-        through ``OpenWorldPlanSession``.
+        through ``PlanAgentExecutionSession``.
         """
 
         query = _text(user_request, field="user_request")
         resolved_id = _text(evaluation_id, field="evaluation_id")
         if re.fullmatch(r"eval_[A-Za-z0-9_]+", resolved_id) is None:
-            raise ClaimFirstInitialPlanError(
+            raise PlanAgentInitialPlanError(
                 "evaluation_id must begin with 'eval_'"
             )
         if not isinstance(control_required, bool):
-            raise ClaimFirstInitialPlanError("control_required must be bool")
+            raise PlanAgentInitialPlanError("control_required must be bool")
         contract = (
             validate_query_sufficiency_contract(query_contract)
             if query_contract is not None
@@ -226,24 +263,24 @@ class ClaimFirstInitialPlanBuilder:
                 contract["control_requirement"] == "required"
             )
             if contract_requires_control != control_required:
-                raise ClaimFirstInitialPlanError(
+                raise PlanAgentInitialPlanError(
                     "control_required conflicts with QueryContract"
                 )
             required_rounds = int(contract["round_budget"]) + int(
                 control_required
             )
             if required_rounds > self.max_rounds:
-                raise ClaimFirstInitialPlanError(
-                    "QueryContract exceeds the initial ClaimFirst round budget"
+                raise PlanAgentInitialPlanError(
+                    "QueryContract exceeds the initial Plan Agent round budget"
                 )
         elif control_required and self.max_rounds < 2:
-            raise ClaimFirstInitialPlanError(
-                "control-required ClaimFirst plan needs one candidate round"
+            raise PlanAgentInitialPlanError(
+                "control-required Plan Agent plan needs one candidate round"
             )
 
         evaluation_dir = self.repo_root / "mea/evaluation_runs" / resolved_id
         if evaluation_dir.exists():
-            raise ClaimFirstInitialPlanError(
+            raise PlanAgentInitialPlanError(
                 f"evaluation directory already exists: {evaluation_dir}"
             )
         for child in ("plan", "execution", "summary"):
@@ -271,7 +308,7 @@ class ClaimFirstInitialPlanBuilder:
         }
         rounds = (
             [
-                build_claim_first_control_round(
+                build_plan_agent_control_round(
                     self.target,
                     query,
                     execution_binding=self.execution_binding,
@@ -321,7 +358,7 @@ class ClaimFirstInitialPlanBuilder:
                 "proposal_source": (
                     "runtime_query_contract_control"
                     if control_required
-                    else "runtime_free_concern_candidate_pending"
+                    else "runtime_plan_agent_proposal_pending"
                 ),
                 "task_specific_planner_used": False,
             },
@@ -341,7 +378,18 @@ class ClaimFirstInitialPlanBuilder:
         return manifest
 
 
+# Compatibility class name; new callers should use
+# ``PlanAgentInitialPlanBuilder``.
+ClaimFirstInitialPlanBuilder = PlanAgentInitialPlanBuilder
+build_claim_first_control_round = build_plan_agent_control_round
+build_claim_first_execution_binding = build_plan_agent_execution_binding
+
+
 __all__ = [
+    "PlanAgentInitialPlanBuilder",
+    "PlanAgentInitialPlanError",
+    "build_plan_agent_control_round",
+    "build_plan_agent_execution_binding",
     "ClaimFirstInitialPlanBuilder",
     "ClaimFirstInitialPlanError",
     "build_claim_first_control_round",

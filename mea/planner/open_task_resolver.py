@@ -1,9 +1,10 @@
 """Query-first task retrieval for open manipulation evaluation.
 
-The Plan Agent should discover a semantic concern before it sees executable
+The Plan Agent should interpret the Query and propose a semantic sub-aspect
+before it sees executable
 task/aspect choices.  This module keeps that ordering explicit:
 
-1. validate a provider-authored ``FreeConcern``;
+1. validate a provider-authored initial sub-aspect proposal;
 2. discover the public RoboTwin task library from official environment and
    instruction files;
 3. retrieve the nearest base task using only the concern's task semantics;
@@ -22,6 +23,12 @@ from collections import Counter
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping, Sequence
+
+from mea.toolkit.schema import (
+    TaskSchemaError,
+    load_task_schema,
+    task_schema_path,
+)
 
 
 class OpenTaskResolutionError(ValueError):
@@ -75,6 +82,22 @@ _STOPWORDS = {
     "using",
     "with",
 }
+_EXPLICIT_SUCCESS_SEMANTICS = re.compile(
+    r"(?:define|defined|definition)\s+(?:of\s+)?success"
+    r"|success\s+(?:means|requires|iff|if\s+and\s+only\s+if)"
+    r"|(?:successful?\s+(?:sample|episode)|成功样本).{0,40}"
+    r"(?:where|in\s+which|such\s+that|使|其中|要求|必须)"
+    r"|check_success"
+    r"|(?:把|将)?成功(?:条件)?定义为"
+    r"|以.{1,80}为成功(?:条件)?",
+    re.IGNORECASE,
+)
+EXPERIMENTAL_SUCCESS_CHECKER_GUIDANCE = (
+    "If a Query calls an episode successful only when the official goal and "
+    "any additional experimental condition both hold, request checker_need. A numeric "
+    "difference Tool reports magnitude but cannot supply that pass/fail "
+    "predicate."
+)
 
 
 def _text(value: Any, field: str) -> str:
@@ -193,6 +216,30 @@ def _split_free_concern_response(
     )
 
 
+def _validate_query_required_needs(
+    user_query: str,
+    needs: Mapping[str, Any] | None,
+) -> None:
+    """Reject a Proposal that drops explicit success semantics from the Query."""
+
+    if _EXPLICIT_SUCCESS_SEMANTICS.search(user_query) is None:
+        return
+    checker = needs.get("checker_need") if isinstance(needs, Mapping) else None
+    if not isinstance(checker, Mapping) or checker.get("required") is not True:
+        raise OpenTaskResolutionError(
+            "the original Query explicitly defines experimental success "
+            "semantics, so checker_need.required must be true"
+        )
+
+
+def query_requires_experimental_checker(user_query: str) -> bool:
+    """Return whether the Query explicitly defines non-official success."""
+
+    return _EXPLICIT_SUCCESS_SEMANTICS.search(
+        _text(user_query, "user_query")
+    ) is not None
+
+
 def _extract_json_response(response: Any) -> dict[str, Any]:
     source = str(response).strip()
     start = source.find("{")
@@ -218,6 +265,7 @@ def build_free_concern_prompt(user_query: str, policy_card: Mapping[str, Any]) -
 
     query = _text(user_query, "user_query")
     scope = policy_task_scope_from_card(policy_card)
+    checker_required = query_requires_experimental_checker(query)
     example = {
         "schema_version": 1,
         "source_query": query,
@@ -231,8 +279,12 @@ def build_free_concern_prompt(user_query: str, policy_card: Mapping[str, Any]) -
             "description": "the scene change needed to realize requested_variation",
         },
         "checker_need": {
-            "required": False,
-            "description": None,
+            "required": checker_required,
+            "description": (
+                "the additional experimental success predicate"
+                if checker_required
+                else None
+            ),
         },
         "rule_tool_need": {
             "required": True,
@@ -251,7 +303,7 @@ def build_free_concern_prompt(user_query: str, policy_card: Mapping[str, Any]) -
         "training_tasks": scope["training_tasks"],
         "language_conditioned": scope["language_conditioned"],
     }
-    return f"""You are the open-Query concern stage of ManipEvalAgent.
+    return f"""You are the Plan Agent in ManipEvalAgent.
 Read the original Query and first discover the single most informative
 sub-aspect and falsifiable hypothesis.  Describe the manipulation semantics
 needed for that test in concise English in task_intent, even when the Query is
@@ -268,6 +320,11 @@ do not use catch-all phrases such as "all other conditions unchanged".
 Use concrete, verifiable invariant names such as center position, color or
 material, scene layout, camera viewpoint, task instruction, policy checkpoint,
 or official success semantics.
+The requested change and preserved conditions must be jointly realizable:
+never request a size/shape/pose/contact change while also declaring that same
+quantity invariant. Prefer a bounded experiment whose invariants can be checked
+from simulator state, checker fixtures, or exact method reuse; RGB is only
+authority for visibly decidable appearance and plausibility.
 
 Independently declare the work needed to execute this first experiment.
 Request a scene only when requested_variation changes the simulator scene;
@@ -275,6 +332,7 @@ request a checker only when the Query needs success semantics beyond the
 official task; request a Rule Tool for numeric or symbolic evidence; request a
 VQA Tool only for a visual judgment.  A Tool-only Query must not invent a scene
 or checker.  Every Tool need must retrieve before generating.
+{EXPERIMENTAL_SUCCESS_CHECKER_GUIDANCE}
 
 ORIGINAL QUERY:
 {query}
@@ -310,8 +368,8 @@ def validate_free_concern(
     return result
 
 
-class FreeConcernAgent:
-    """Create the pre-retrieval concern without exposing task candidates."""
+class PlanAgentQueryInterpreter:
+    """Create the Plan Agent's initial proposal without exposing task candidates."""
 
     def __init__(self, provider: Any, *, model: str, max_attempts: int = 2):
         self.provider = provider
@@ -348,7 +406,7 @@ class FreeConcernAgent:
                 response = self.provider.text(
                     attempt_prompt,
                     model=self.model,
-                    system="Return only strict FreeConcern JSON.",
+                    system="Return only strict InitialSubAspectProposal JSON.",
                     max_tokens=700,
                     temperature=0.0,
                 )
@@ -356,6 +414,10 @@ class FreeConcernAgent:
                 concern, experiment_needs = _split_free_concern_response(
                     _extract_json_response(response),
                     expected_query=user_query,
+                )
+                _validate_query_required_needs(
+                    user_query,
+                    experiment_needs,
                 )
                 break
             except Exception as exc:
@@ -367,7 +429,7 @@ class FreeConcernAgent:
             )
         return {
             "schema_version": 1,
-            "source": "provider_catalog_free_concern",
+            "source": "provider_plan_agent_query_interpretation",
             "concern": concern,
             "experiment_needs": experiment_needs,
             "provider": {
@@ -536,15 +598,26 @@ def discover_robotwin_task_inventory(
     repo_root: str | Path,
     *,
     capability_catalog: Mapping[str, Any] | None = None,
+    schema_backed_only: bool = False,
 ) -> list[dict[str, Any]]:
-    """Discover official task bases without turning them into a concern menu."""
+    """Discover official task bases without turning them into a concern menu.
+
+    The default preserves the public 50-task discovery behavior.  Runtime
+    callers may request ``schema_backed_only`` so every returned task already
+    has the validated telemetry/execution schema required by generic TaskGen.
+    Capability catalog membership only enriches the returned retrieval hints.
+    """
 
     root = Path(repo_root).expanduser().resolve()
+    if not isinstance(schema_backed_only, bool):
+        raise OpenTaskResolutionError("schema_backed_only must be bool")
     env_root = root / "envs"
     instruction_root = root / "description" / "task_instruction"
     capabilities = _capability_index(capability_catalog)
     entries: list[dict[str, Any]] = []
-    if not env_root.is_dir() or not instruction_root.is_dir():
+    if not env_root.is_dir() or (
+        not schema_backed_only and not instruction_root.is_dir()
+    ):
         raise OpenTaskResolutionError(
             "RoboTwin envs and description/task_instruction directories are required"
         )
@@ -553,27 +626,53 @@ def discover_robotwin_task_inventory(
         if task_name.startswith("_"):
             continue
         instruction_path = instruction_root / f"{task_name}.json"
-        if not instruction_path.is_file():
-            continue
-        try:
-            instruction = json.loads(instruction_path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-            raise OpenTaskResolutionError(
-                f"invalid official task instruction: {task_name}"
-            ) from exc
-        if not isinstance(instruction, Mapping):
-            raise OpenTaskResolutionError(
-                f"official task instruction must be an object: {task_name}"
+        schema: Mapping[str, Any] | None = None
+        if schema_backed_only:
+            schema_path = task_schema_path(root, task_name)
+            if not schema_path.is_file():
+                continue
+            try:
+                schema = load_task_schema(root, task_name)
+            except TaskSchemaError as exc:
+                raise OpenTaskResolutionError(
+                    f"invalid runtime TaskSchema: {task_name}: {exc}"
+                ) from exc
+        if instruction_path.is_file():
+            try:
+                instruction = json.loads(
+                    instruction_path.read_text(encoding="utf-8")
+                )
+            except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+                raise OpenTaskResolutionError(
+                    f"invalid official task instruction: {task_name}"
+                ) from exc
+            if not isinstance(instruction, Mapping):
+                raise OpenTaskResolutionError(
+                    f"official task instruction must be an object: {task_name}"
+                )
+            description = _text(
+                instruction.get("full_description"),
+                f"{task_name}.full_description",
             )
+        elif schema_backed_only:
+            family = (
+                str(schema.get("task_family")).strip()
+                if isinstance(schema, Mapping)
+                and isinstance(schema.get("task_family"), str)
+                else "manipulation"
+            )
+            description = (
+                f"RoboTwin {family} task "
+                f"{task_name.replace('_', ' ')}."
+            )
+        else:
+            continue
         aspects = capabilities.get(task_name, [])
         entries.append(
             {
                 "schema_version": 1,
                 "task_name": task_name,
-                "description": _text(
-                    instruction.get("full_description"),
-                    f"{task_name}.full_description",
-                ),
+                "description": description,
                 "execution_status": (
                     "capability_registered" if aspects else "official_base_only"
                 ),
@@ -583,6 +682,20 @@ def discover_robotwin_task_inventory(
     if not entries:
         raise OpenTaskResolutionError("no official RoboTwin tasks were discovered")
     return validate_task_inventory(entries)
+
+
+def discover_robotwin_runtime_task_inventory(
+    repo_root: str | Path,
+    *,
+    capability_catalog: Mapping[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """Discover every source/schema-backed task eligible for runtime binding."""
+
+    return discover_robotwin_task_inventory(
+        repo_root,
+        capability_catalog=capability_catalog,
+        schema_backed_only=True,
+    )
 
 
 def _tokens(value: str) -> list[str]:
@@ -745,14 +858,14 @@ def resolve_open_task(
         "schema_version": 1,
         "decision": decision,
         "reason_code": reason_code,
-        "free_concern": trusted_concern,
+        "query_interpretation": trusted_concern,
         "policy_scope": scope,
         "selected_base_task": deepcopy(selected),
         "ranked_candidates": deepcopy(ranked),
         "resolution_contract": {
             "concern_created_before_inventory": True,
             "catalog_role": "execution_capability_inventory_only",
-            "retrieval_field": "FreeConcern.task_intent",
+            "retrieval_field": "QueryInterpretation.task_intent",
             "semantic_threshold": float(semantic_threshold),
             "semantic_near_tie_margin": float(near_tie_margin),
             "plausible_candidate_names": [
@@ -763,12 +876,20 @@ def resolve_open_task(
     }
 
 
+# Compatibility class name for historical callers and immutable artifacts.
+FreeConcernAgent = PlanAgentQueryInterpreter
+
+
 __all__ = [
+    "PlanAgentQueryInterpreter",
+    "EXPERIMENTAL_SUCCESS_CHECKER_GUIDANCE",
     "FreeConcernAgent",
     "OpenTaskResolutionError",
     "build_free_concern_prompt",
+    "discover_robotwin_runtime_task_inventory",
     "discover_robotwin_task_inventory",
     "policy_task_scope_from_card",
+    "query_requires_experimental_checker",
     "rank_official_tasks",
     "resolve_open_task",
     "validate_free_concern",

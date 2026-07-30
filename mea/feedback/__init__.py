@@ -1,7 +1,9 @@
-"""Evidence-grounded user feedback for completed MEA evaluations."""
+"""Evidence-grounded final answers for completed MEA evaluations."""
 
 from .prototype import (
     apply_deterministic_consistency_guard,
+    PlanAgentFinalSummary,
+    PlanAgentFinalSummaryError,
     FeedbackAgent,
     FeedbackAgentError,
     render_evaluation_report,
@@ -18,6 +20,8 @@ from .answer_scope import (
 
 __all__ = [
     "apply_deterministic_consistency_guard",
+    "PlanAgentFinalSummary",
+    "PlanAgentFinalSummaryError",
     "FeedbackAgent",
     "FeedbackAgentError",
     "render_evaluation_report",

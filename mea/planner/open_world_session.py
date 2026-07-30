@@ -1,10 +1,10 @@
-"""Open-world, single-checkpoint planning session.
+"""Plan Agent execution session for one bound policy checkpoint.
 
 The legacy :class:`BoundTaskPlanSession` is intentionally a finite catalog
-protocol.  This module is the production ClaimFirst counterpart: the catalog
-retrieves one ACT-ready base task and its official control, while later rounds
-carry Query-derived :class:`ExperimentCandidate` objects rather than requiring
-an aspect or template registration.
+protocol.  This module is the production Plan Agent execution boundary: runtime
+binding retrieves one policy-ready base task and its official control, while
+later rounds carry Query-derived Proposals rather than requiring an aspect or
+template registration.
 
 The session freezes task, policy, checkpoint, and total rollout budget.  Its
 QueryContract decides whether an official control round is required.  It does
@@ -19,7 +19,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from mea.capability_adapter import resolve_task_adapter
+from mea.capability_adapter import resolve_task_retrieval_index
 
 from .catalog import catalog_task, validate_act_catalog
 from .context import build_planning_context
@@ -33,6 +33,11 @@ from .query_contract import (
     extend_query_candidate_universe,
     validate_query_sufficiency_contract,
 )
+from .policy_task_binding import (
+    PolicyTaskBindingError,
+    build_policy_task_binding,
+    policy_task_binding_from_target,
+)
 
 
 class OpenWorldSessionError(ValueError):
@@ -42,16 +47,8 @@ class OpenWorldSessionError(ValueError):
 _TARGET_KEYS = {
     "schema_version",
     "binding_mode",
-    "task_name",
-    "task_family",
-    "task_profile",
-    "planner_kind",
-    "policy",
-    "checkpoint",
+    "policy_task_binding",
     "max_rounds",
-    "catalog_max_rounds",
-    "control_template_id",
-    "aspects",
 }
 
 
@@ -67,6 +64,106 @@ def _positive_int(value: Any, field: str) -> int:
     return value
 
 
+def _decision_planning_lineage(
+    step: Mapping[str, Any],
+    observation_history: Iterable[Mapping[str, Any]],
+) -> dict[str, Any] | None:
+    """Validate round ordering for an auditable Plan Agent decision."""
+
+    raw = step.get("planning_lineage")
+    if raw is None:
+        if step.get("action") in {"propose", "refine"}:
+            raise OpenWorldSessionError(
+                "continuing open-world PlanStepProposal requires "
+                "planning_lineage"
+            )
+        return None
+    if not isinstance(raw, Mapping):
+        raise OpenWorldSessionError(
+            "PlanStepProposal.planning_lineage must be an object"
+        )
+    lineage = deepcopy(dict(raw))
+    required = {
+        "schema_version",
+        "decision_kind",
+        "evidence_conditioned",
+        "completed_round_ids",
+        "completed_round_count",
+        "input_digest",
+    }
+    if set(lineage) != required or lineage.get("schema_version") != 1:
+        raise OpenWorldSessionError(
+            "PlanStepProposal.planning_lineage has an invalid schema"
+        )
+    raw_ids = lineage.get("completed_round_ids")
+    if not isinstance(raw_ids, list) or any(
+        not isinstance(item, str) or not item.strip() for item in raw_ids
+    ):
+        raise OpenWorldSessionError(
+            "planning_lineage.completed_round_ids must contain round ids"
+        )
+    observations = list(observation_history)
+    observed_ids = [
+        _text(item.get("round_id"), "observation_history[].round_id")
+        for item in observations
+        if isinstance(item, Mapping)
+    ]
+    if len(observed_ids) != len(observations):
+        raise OpenWorldSessionError(
+            "observation history items must be objects"
+        )
+    if lineage.get("completed_round_count") != len(raw_ids):
+        raise OpenWorldSessionError(
+            "planning_lineage completed-round count is inconsistent"
+        )
+    decision_kind = lineage.get("decision_kind")
+    if decision_kind == "evidence_conditioned_refinement":
+        if lineage.get("evidence_conditioned") is not True:
+            raise OpenWorldSessionError(
+                "evidence-conditioned refinement must set "
+                "evidence_conditioned=true"
+            )
+        if raw_ids != observed_ids or not raw_ids:
+            raise OpenWorldSessionError(
+                "evidence-conditioned refinement must name every completed "
+                "round in order"
+            )
+        digest = lineage.get("input_digest")
+        if (
+            not isinstance(digest, str)
+            or len(digest) != 64
+            or any(character not in "0123456789abcdef" for character in digest)
+        ):
+            raise OpenWorldSessionError(
+                "evidence-conditioned refinement needs a sha256 input digest"
+            )
+    elif decision_kind == "query_initial_candidate":
+        if (
+            lineage.get("evidence_conditioned") is not False
+            or raw_ids
+            or observed_ids
+        ):
+            raise OpenWorldSessionError(
+                "query-initial planning is valid only before any round "
+                "evidence exists"
+            )
+    elif decision_kind == "pre_evidence_query_candidate":
+        if (
+            lineage.get("evidence_conditioned") is not False
+            or raw_ids
+            or observed_ids
+        ):
+            raise OpenWorldSessionError(
+                "pre-evidence planning is valid only before any round "
+                "evidence exists"
+            )
+    else:
+        raise OpenWorldSessionError(
+            "planning_lineage.decision_kind is not recognized"
+        )
+    return lineage
+
+
 def _catalog_templates(task: Mapping[str, Any]) -> set[str]:
     return {
         str(template_id)
@@ -76,41 +173,72 @@ def _catalog_templates(task: Mapping[str, Any]) -> set[str]:
     }
 
 
+def _retrieval_aspects(task_name: str) -> list[dict[str, Any]]:
+    """Project legacy capability contracts into non-authoritative hints."""
+
+    retrieval_index = resolve_task_retrieval_index(
+        task_name,
+        allow_unregistered=True,
+    )
+    grouped: dict[str, dict[str, Any]] = {}
+    for contract in retrieval_index["entries"]:
+        aspect = contract["aspect"]
+        aspect_id = str(aspect["aspect_id"])
+        entry = grouped.setdefault(
+            aspect_id,
+            {
+                "aspect_id": aspect_id,
+                "description": (
+                    "Retrieval hint for "
+                    f"{aspect['semantic_scope']} / {aspect['target_role']}."
+                ),
+                "template_ids": [],
+            },
+        )
+        entry["template_ids"].append(str(contract["template_id"]))
+    return [deepcopy(grouped[key]) for key in sorted(grouped)]
+
+
 def build_open_world_evaluation_target(
     catalog: Mapping[str, Any],
     task_name: str,
     *,
     max_rounds: int,
+    task_module: str | None = None,
 ) -> dict[str, Any]:
-    """Freeze one ACT task/checkpoint while allowing a larger runtime budget."""
+    """Freeze only the policy/task execution boundary and runtime budget.
+
+    The catalog is a compatibility discovery input here.  Planner kinds,
+    profiles, catalog round caps, aspects, and templates are intentionally not
+    copied into the production target.
+    """
 
     trusted_catalog = validate_act_catalog(catalog)
     task = catalog_task(trusted_catalog, _text(task_name, "task_name"))
     budget = _positive_int(max_rounds, "max_rounds")
-    adapter = resolve_task_adapter(task["task_name"])
+    retrieval_index = resolve_task_retrieval_index(
+        task["task_name"],
+        allow_unregistered=True,
+    )
     control_template = _text(
-        adapter.get("control_template_id"),
-        "TaskAdapter.control_template_id",
+        retrieval_index.get("control_template_id"),
+        "TaskRetrievalIndex.control_template_id",
     )
     if control_template not in _catalog_templates(task):
         raise OpenWorldSessionError(
             "the TaskAdapter control template is absent from the retrieval catalog"
         )
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "binding_mode": "single_task_single_checkpoint_open_world",
-        "task_name": task["task_name"],
-        "task_family": task["task_family"],
-        "task_profile": task["task_profile"],
-        # Retained only so the trusted planning context can retrieve existing
-        # artifacts.  It does not select the production planner.
-        "planner_kind": task["planner_kind"],
-        "policy": deepcopy(trusted_catalog["policy"]),
-        "checkpoint": deepcopy(task["checkpoint"]),
+        "policy_task_binding": build_policy_task_binding(
+            task_name=task["task_name"],
+            task_family=task["task_family"],
+            policy=trusted_catalog["policy"],
+            checkpoint=task["checkpoint"],
+            task_module=task_module,
+        ),
         "max_rounds": budget,
-        "catalog_max_rounds": int(task["max_rounds"]),
-        "control_template_id": control_template,
-        "aspects": deepcopy(task["aspects"]),
     }
 
 
@@ -120,65 +248,45 @@ def validate_open_world_evaluation_target(
 ) -> dict[str, Any]:
     """Validate a frozen runtime target.
 
-    The production ClaimFirst path validates the already bound target directly;
-    the catalog is only needed by the compatibility constructor that still
-    performs task/checkpoint discovery.  Runtime candidates are never admitted
-    by catalog membership.
+    The production Plan Agent path validates the bound target directly;
+    the catalog is only needed while task/checkpoint discovery builds the
+    frozen target. Runtime candidates are never admitted by catalog membership.
     """
 
-    if not isinstance(value, Mapping) or set(value) != _TARGET_KEYS:
+    if not isinstance(value, Mapping):
+        raise OpenWorldSessionError(
+            "OpenWorldEvaluationTarget must be an object"
+        )
+    raw = deepcopy(dict(value))
+    if set(raw) != _TARGET_KEYS:
         raise OpenWorldSessionError(
             f"OpenWorldEvaluationTarget fields must be exactly {sorted(_TARGET_KEYS)}"
         )
-    target = deepcopy(dict(value))
-    if target.get("schema_version") != 2:
+    target = raw
+    if target.get("schema_version") != 3:
         raise OpenWorldSessionError(
-            "OpenWorldEvaluationTarget.schema_version must be 2"
+            "OpenWorldEvaluationTarget.schema_version must be 3"
         )
     if target.get("binding_mode") != "single_task_single_checkpoint_open_world":
         raise OpenWorldSessionError(
             "OpenWorldEvaluationTarget.binding_mode is invalid"
         )
-    task_name = _text(target.get("task_name"), "target.task_name")
-    for field in ("task_family", "task_profile", "planner_kind"):
-        target[field] = _text(target.get(field), f"target.{field}")
+    try:
+        binding = policy_task_binding_from_target(target)
+    except (PolicyTaskBindingError, TypeError) as exc:
+        raise OpenWorldSessionError(str(exc)) from exc
+    task_name = binding["task_name"]
+    target["policy_task_binding"] = binding
     target["max_rounds"] = _positive_int(
         target.get("max_rounds"), "target.max_rounds"
     )
-    target["catalog_max_rounds"] = _positive_int(
-        target.get("catalog_max_rounds"), "target.catalog_max_rounds"
-    )
-    if not isinstance(target.get("policy"), Mapping):
-        raise OpenWorldSessionError("target.policy must be an object")
-    if not isinstance(target.get("checkpoint"), Mapping):
-        raise OpenWorldSessionError("target.checkpoint must be an object")
-    target["policy"] = deepcopy(dict(target["policy"]))
-    target["checkpoint"] = deepcopy(dict(target["checkpoint"]))
-    if target["checkpoint"].get("ready") is not True:
-        raise OpenWorldSessionError("target.checkpoint must be ready")
-    adapter = resolve_task_adapter(task_name)
-    control_template = _text(
-        target.get("control_template_id"), "target.control_template_id"
-    )
-    if control_template != adapter["control_template_id"]:
-        raise OpenWorldSessionError(
-            "target control template differs from the TaskAdapter"
-        )
-    aspects = target.get("aspects")
-    if not isinstance(aspects, list) or not aspects:
-        raise OpenWorldSessionError("target.aspects must be a non-empty list")
-    available_templates = _catalog_templates({"aspects": aspects})
-    if control_template not in available_templates:
-        raise OpenWorldSessionError(
-            "target aspects must retain the official control retrieval entry"
-        )
-    target["aspects"] = deepcopy(aspects)
     if catalog is None:
         return target
     expected = build_open_world_evaluation_target(
         catalog,
         task_name,
         max_rounds=target["max_rounds"],
+        task_module=binding["task_module"],
     )
     if target != expected:
         raise OpenWorldSessionError(
@@ -187,8 +295,8 @@ def validate_open_world_evaluation_target(
     return target
 
 
-class OpenWorldPlanSession:
-    """ClaimFirst session with runtime candidates and a frozen ACT binding."""
+class PlanAgentExecutionSession:
+    """Plan Agent session with runtime Proposals and a frozen policy binding."""
 
     def __init__(
         self,
@@ -204,6 +312,15 @@ class OpenWorldPlanSession:
         self.target = validate_open_world_evaluation_target(
             target, self.catalog
         )
+        self.binding = policy_task_binding_from_target(self.target)
+        self.task_name = self.binding["task_name"]
+        self.policy = self.binding["policy"]
+        self.checkpoint = self.binding["checkpoint"]
+        self.control_template_id = resolve_task_retrieval_index(
+            self.task_name,
+            allow_unregistered=True,
+        )["control_template_id"]
+        self.retrieval_aspects = _retrieval_aspects(self.task_name)
         self._control_round: dict[str, Any] | None = None
         self._query_contract: dict[str, Any] | None = None
         if query_contract is not None:
@@ -216,32 +333,13 @@ class OpenWorldPlanSession:
             self._control_round = self._validate_control_round(control_round)
 
     @classmethod
-    def from_catalog(
-        cls,
-        catalog: Mapping[str, Any],
-        task_name: str,
-        *,
-        max_rounds: int,
-        control_round: Mapping[str, Any] | None = None,
-        query_contract: Mapping[str, Any] | None = None,
-    ) -> "OpenWorldPlanSession":
-        return cls(
-            catalog,
-            build_open_world_evaluation_target(
-                catalog, task_name, max_rounds=max_rounds
-            ),
-            control_round=control_round,
-            query_contract=query_contract,
-        )
-
-    @classmethod
     def from_target(
         cls,
         target: Mapping[str, Any],
         *,
         control_round: Mapping[str, Any] | None = None,
         query_contract: Mapping[str, Any] | None = None,
-    ) -> "OpenWorldPlanSession":
+    ) -> "PlanAgentExecutionSession":
         """Start from an already frozen runtime binding.
 
         This is the production constructor.  It keeps task/checkpoint discovery
@@ -261,13 +359,12 @@ class OpenWorldPlanSession:
         value: Mapping[str, Any],
         *,
         location: str,
-        allow_legacy_max_rounds: bool = False,
     ) -> None:
         expected = {
-            "task_name": self.target["task_name"],
-            "policy": self.target["policy"],
-            "checkpoint": self.target["checkpoint"],
-            "checkpoint_id": self.target["checkpoint"].get("checkpoint_id"),
+            "task_name": self.task_name,
+            "policy": self.policy,
+            "checkpoint": self.checkpoint,
+            "checkpoint_id": self.checkpoint.get("checkpoint_id"),
         }
         for field, trusted in expected.items():
             if field in value and value[field] != trusted:
@@ -278,10 +375,7 @@ class OpenWorldPlanSession:
             supplied = _positive_int(
                 value["max_rounds"], f"{location}.max_rounds"
             )
-            allowed = {self.target["max_rounds"]}
-            if allow_legacy_max_rounds:
-                allowed.add(self.target["catalog_max_rounds"])
-            if supplied not in allowed:
+            if supplied != self.target["max_rounds"]:
                 raise OpenWorldSessionError(
                     f"{location} cannot change bound max_rounds"
                 )
@@ -292,9 +386,7 @@ class OpenWorldPlanSession:
         if not isinstance(round_plan, Mapping):
             raise OpenWorldSessionError("control round must be an object")
         control = deepcopy(dict(round_plan))
-        self._validate_optional_binding(
-            control, location="control_round", allow_legacy_max_rounds=True
-        )
+        self._validate_optional_binding(control, location="control_round")
         execution = control.get("execution")
         if isinstance(execution, Mapping):
             self._validate_optional_binding(
@@ -302,15 +394,25 @@ class OpenWorldPlanSession:
             )
         if (
             _text(control.get("template_id"), "control_round.template_id")
-            != self.target["control_template_id"]
+            != self.control_template_id
         ):
             raise OpenWorldSessionError(
                 "the first round must use the frozen official control template"
             )
-        _text(control.get("round_id"), "control_round.round_id")
-        if control.get("experiment_candidate") is not None:
+        if (
+            "task_module" in control
+            and control.get("task_module") != self.binding["task_module"]
+        ):
             raise OpenWorldSessionError(
-                "the official control round cannot carry an ExperimentCandidate"
+                "control_round cannot change bound task_module"
+            )
+        _text(control.get("round_id"), "control_round.round_id")
+        if (
+            control.get("proposal") is not None
+            or control.get("experiment_candidate") is not None
+        ):
+            raise OpenWorldSessionError(
+                "the official control round cannot carry a Proposal"
             )
         return control
 
@@ -399,23 +501,26 @@ class OpenWorldPlanSession:
                 execution, location=f"{location}.execution"
             )
         try:
+            raw_proposal = round_plan.get("proposal")
+            if raw_proposal is None:
+                raw_proposal = round_plan.get("experiment_candidate")
             candidate = validate_experiment_candidate(
-                round_plan.get("experiment_candidate")
+                raw_proposal
             )
         except (ExperimentCandidateError, TypeError) as exc:
             raise OpenWorldSessionError(
-                f"{location} needs a valid ExperimentCandidate: {exc}"
+                f"{location} needs a valid Proposal: {exc}"
             ) from exc
-        if candidate["base_task"] != self.target["task_name"]:
+        if candidate["base_task"] != self.task_name:
             raise OpenWorldSessionError(
-                f"{location} ExperimentCandidate cannot switch the base task"
+                f"{location} Proposal cannot switch the base task"
             )
         round_candidate_id = round_plan.get(
             "candidate_id", candidate["candidate_id"]
         )
         if round_candidate_id != candidate["candidate_id"]:
             raise OpenWorldSessionError(
-                f"{location}.candidate_id conflicts with ExperimentCandidate"
+                f"{location}.candidate_id conflicts with Proposal"
             )
         if round_plan.get("template_id") not in {None, ""}:
             raise OpenWorldSessionError(
@@ -428,13 +533,11 @@ class OpenWorldPlanSession:
         if not isinstance(plan, Mapping):
             raise OpenWorldSessionError("plan must be an object")
         normalized = deepcopy(dict(plan))
-        self._validate_optional_binding(
-            normalized, location="plan", allow_legacy_max_rounds=True
-        )
+        self._validate_optional_binding(normalized, location="plan")
         task_name = str(
-            normalized.get("task_name") or self.target["task_name"]
+            normalized.get("task_name") or self.task_name
         )
-        if task_name != self.target["task_name"]:
+        if task_name != self.task_name:
             raise OpenWorldSessionError("plan cannot switch the bound task")
         contract_value = normalized.get("query_contract")
         contract = (
@@ -490,9 +593,10 @@ class OpenWorldPlanSession:
                 )
             round_ids.add(round_id)
             enriched = deepcopy(dict(raw_round))
-            enriched["task_name"] = self.target["task_name"]
+            enriched.pop("experiment_candidate", None)
+            enriched["task_name"] = self.task_name
             enriched["candidate_id"] = candidate_id
-            enriched["experiment_candidate"] = candidate
+            enriched["proposal"] = candidate
             normalized_rounds.append(enriched)
             candidates.append(candidate)
             candidate_ids.append(candidate_id)
@@ -520,15 +624,14 @@ class OpenWorldPlanSession:
                     ) from exc
             self._query_contract = self._validate_query_contract(contract)
 
-        normalized["task_name"] = self.target["task_name"]
-        normalized["policy"] = deepcopy(self.target["policy"])
-        normalized["checkpoint"] = deepcopy(self.target["checkpoint"])
-        normalized["checkpoint_id"] = self.target["checkpoint"].get(
-            "checkpoint_id"
-        )
+        normalized["task_name"] = self.task_name
+        normalized["policy"] = deepcopy(self.policy)
+        normalized["checkpoint"] = deepcopy(self.checkpoint)
+        normalized["checkpoint_id"] = self.checkpoint.get("checkpoint_id")
         normalized["max_rounds"] = self.target["max_rounds"]
         normalized["rounds"] = normalized_rounds
-        normalized["experiment_candidates"] = candidates
+        normalized.pop("experiment_candidates", None)
+        normalized["proposals"] = candidates
         normalized["requested_candidate_ids"] = candidate_ids
         if contract is not None:
             normalized["query_contract"] = deepcopy(contract)
@@ -543,7 +646,7 @@ class OpenWorldPlanSession:
         """Return trusted retrieval context for the frozen base task.
 
         The returned adapter templates are retrieval hints.  Open-world round
-        authorization is owned by ``ExperimentCandidate`` validation here, not
+        authorization is owned by typed Proposal validation here, not
         by membership in that template list.
         """
 
@@ -616,6 +719,10 @@ class OpenWorldPlanSession:
             raise OpenWorldSessionError(
                 "PlanStepProposal.action must be propose, refine, or stop"
             )
+        planning_lineage = _decision_planning_lineage(
+            step,
+            observation_history,
+        )
         if query_contract is not None:
             current["query_contract"] = self._validate_query_contract(
                 query_contract
@@ -662,14 +769,17 @@ class OpenWorldPlanSession:
                     "open-world round budget is exhausted"
                 )
             try:
+                raw_proposal = step.get("proposal")
+                if raw_proposal is None:
+                    raw_proposal = step.get("experiment_candidate")
                 candidate = validate_experiment_candidate(
-                    step.get("experiment_candidate")
+                    raw_proposal
                 )
             except (ExperimentCandidateError, TypeError) as exc:
                 raise OpenWorldSessionError(
-                    f"continuing PlanStepProposal needs ExperimentCandidate: {exc}"
+                    f"continuing PlanStepProposal needs Proposal: {exc}"
                 ) from exc
-            if candidate["base_task"] != self.target["task_name"]:
+            if candidate["base_task"] != self.task_name:
                 raise OpenWorldSessionError(
                     "PlanStepProposal cannot switch the base task"
                 )
@@ -678,7 +788,7 @@ class OpenWorldPlanSession:
                 != candidate["candidate_id"]
             ):
                 raise OpenWorldSessionError(
-                    "PlanStepProposal candidate_id conflicts with ExperimentCandidate"
+                    "PlanStepProposal candidate_id conflicts with Proposal"
                 )
             if candidate["candidate_id"] in current[
                 "requested_candidate_ids"
@@ -691,13 +801,14 @@ class OpenWorldPlanSession:
                     "continuing PlanStepProposal needs a materialized round"
                 )
             next_round = deepcopy(dict(materialized_round))
-            next_round.setdefault("experiment_candidate", candidate)
+            next_round.pop("experiment_candidate", None)
+            next_round.setdefault("proposal", candidate)
             next_round.setdefault("candidate_id", candidate["candidate_id"])
             self._candidate_from_round(
                 next_round, location="PlanStepProposal.materialized_round"
             )
             if (
-                next_round["experiment_candidate"] != candidate
+                next_round["proposal"] != candidate
                 or next_round["candidate_id"] != candidate["candidate_id"]
             ):
                 raise OpenWorldSessionError(
@@ -735,6 +846,7 @@ class OpenWorldPlanSession:
             ),
             "answered_query": bool(step.get("answered_query", False)),
             "plan_step_source": str(source),
+            "planning_lineage": deepcopy(planning_lineage),
             "plan_step_proposal": step,
             "round_budget_before_decision": (
                 self.target["max_rounds"] - len(current["rounds"])
@@ -751,7 +863,7 @@ class OpenWorldPlanSession:
         )
         return self._normalize_plan(updated), decision, {
             "schema_version": 1,
-            "session_kind": "open_world_claim_first",
+            "session_kind": "plan_agent_session",
             "query_assessment": deepcopy(assessment),
             "round_budget_remaining": max(
                 self.target["max_rounds"] - len(current["rounds"]), 0
@@ -805,8 +917,8 @@ class OpenWorldPlanSession:
                 if control_required and normalized["rounds"]
                 else None
             ),
-            "experiment_candidates": deepcopy(
-                normalized["experiment_candidates"]
+            "proposals": deepcopy(
+                normalized["proposals"]
             ),
             "planning_state": normalized.get("planning_state"),
             "round_budget": normalized["max_rounds"],
@@ -820,7 +932,11 @@ class OpenWorldPlanSession:
         }
 
 
+OpenWorldPlanSession = PlanAgentExecutionSession
+
+
 __all__ = [
+    "PlanAgentExecutionSession",
     "OpenWorldPlanSession",
     "OpenWorldSessionError",
     "build_open_world_evaluation_target",

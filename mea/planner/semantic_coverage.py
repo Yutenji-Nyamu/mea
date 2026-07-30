@@ -79,8 +79,9 @@ _NO_SCENE_CHANGE = re.compile(
 )
 _EXPLICIT_SCENE_CHANGE = re.compile(
     r"\b(?:add|enlarge|increase|move|recolor|reduce|remove|replace|resize|"
-    r"rotate|scale|shrink|swap)\w*\b"
-    r"|(?:增加|增大|放大|移动|换色|重着色|减小|缩小|移除|替换|旋转|缩放)",
+    r"rotate|scale|shift|shrink|swap|translate|offset|reposition)\w*\b"
+    r"|(?:增加|增大|放大|移动|偏移|重新定位|换色|重着色|减小|缩小|"
+    r"移除|替换|旋转|缩放)",
     re.IGNORECASE,
 )
 _STOPWORDS = {
@@ -175,20 +176,20 @@ def build_evaluation_intent(
     )
 
 
-def evaluation_intent_from_free_concern(
+def evaluation_intent_from_query_interpretation(
     concern: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Build an intent from the provider-authored catalog-free concern."""
+    """Build an intent from the provider-authored Query interpretation."""
 
     if not isinstance(concern, Mapping):
-        raise SemanticCoverageError("free concern must be an object")
+        raise SemanticCoverageError("query interpretation must be an object")
     source_query = _text(
         concern.get("source_query"),
-        "free_concern.source_query",
+        "query_interpretation.source_query",
     )
     requested_variation = _text(
         concern.get("requested_variation"),
-        "free_concern.requested_variation",
+        "query_interpretation.requested_variation",
     )
     preserved_conditions = list(
         dict.fromkeys(
@@ -233,6 +234,12 @@ def _extract_preserved_conditions(requested_change: str) -> list[str]:
         ),
         re.compile(
             r"\bwhile\s+(.+?)\s+"
+            r"(?:remain(?:s)?|stay(?:s)?|is|are)\s+"
+            r"(?:fixed|unchanged|constant)\b",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"\b(?:ensuring|ensure|so\s+that)\s+(.+?)\s+"
             r"(?:remain(?:s)?|stay(?:s)?|is|are)\s+"
             r"(?:fixed|unchanged|constant)\b",
             re.IGNORECASE,
@@ -910,12 +917,18 @@ def advance_implementation_trace_with_tool(
     return validate_implementation_trace(advanced)
 
 
+evaluation_intent_from_free_concern = (
+    evaluation_intent_from_query_interpretation
+)
+
+
 __all__ = [
     "SemanticCoverageError",
     "advance_implementation_trace_with_tool",
     "build_candidate_intent_alignment",
     "build_evaluation_intent",
     "build_implementation_trace",
+    "evaluation_intent_from_query_interpretation",
     "evaluation_intent_from_free_concern",
     "validate_evaluation_intent",
     "validate_implementation_trace",
