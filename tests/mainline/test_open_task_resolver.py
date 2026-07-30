@@ -408,7 +408,7 @@ class QueryInterpretationTests(unittest.TestCase):
             **concern("test clearance during the trajectory"),
             "source_query": query,
         }
-        shared_description = "Measure the minimum gripper clearance."
+        scalar_description = "Measure trajectory deviation as one scalar."
         copied = {
             **value,
             "scene_need": {
@@ -417,11 +417,14 @@ class QueryInterpretationTests(unittest.TestCase):
             },
             "checker_need": {
                 "required": True,
-                "description": shared_description,
+                "description": (
+                    "Pass only if the official goal succeeds and trajectory "
+                    "smoothness remains within an acceptable threshold."
+                ),
             },
             "rule_tool_need": {
                 "required": True,
-                "description": shared_description,
+                "description": scalar_description,
                 "reuse_first": True,
             },
             "vqa_tool_need": {
@@ -449,7 +452,7 @@ class QueryInterpretationTests(unittest.TestCase):
 
         self.assertEqual(result["provider"]["attempt_count"], 2)
         self.assertIn(
-            "rather than duplicate rule_tool_need",
+            "rather than duplicate or threshold a derived rule_tool_need",
             provider.prompts[1],
         )
 

@@ -97,6 +97,13 @@ _EXPLICIT_SCALAR_OBSERVATION = re.compile(
     r"\b(?:scalar|numeric|distance|magnitude|continuous value)\b",
     re.IGNORECASE,
 )
+_TRAJECTORY_DERIVED_CHECKER = re.compile(
+    r"\b(?:trajectory|path|motion)\b.{0,80}"
+    r"\b(?:smooth|deviation|jerk|oscillat|clearance|distance|length|threshold)\b"
+    r"|\b(?:smooth|deviation|jerk|oscillat|clearance|path length)\b.{0,80}"
+    r"\b(?:trajectory|path|motion)\b",
+    re.IGNORECASE,
+)
 EXPERIMENTAL_SUCCESS_CHECKER_GUIDANCE = (
     "If a Query calls an episode successful only when the official goal and "
     "any additional experimental condition both hold, request checker_need. A numeric "
@@ -109,7 +116,10 @@ EXPERIMENTAL_SUCCESS_CHECKER_GUIDANCE = (
     "AND distractor remains uncontacted', while rule_tool_need describes the "
     "scalar or boolean observation used to diagnose it. Never copy a raw "
     "numeric measurement into checker_need as though it were a pass/fail "
-    "predicate."
+    "predicate. check_success is evaluated from simulator state, not from a "
+    "whole-trajectory derived metric: smoothness, deviation, jerk, path length, "
+    "or trajectory clearance belongs in rule_tool_need, never behind an "
+    "invented checker helper."
 )
 
 
@@ -294,13 +304,18 @@ def _validate_query_required_needs(
         if (
             isinstance(checker_description, str)
             and isinstance(rule_description, str)
-            and checker_description.strip().casefold()
-            == rule_description.strip().casefold()
+            and (
+                checker_description.strip().casefold()
+                == rule_description.strip().casefold()
+                or _TRAJECTORY_DERIVED_CHECKER.search(checker_description)
+                is not None
+            )
         ):
             raise OpenTaskResolutionError(
                 "the Query separately requests a scalar observation, so "
-                "checker_need must state a boolean success predicate rather "
-                "than duplicate rule_tool_need"
+                "checker_need must state a simulator-state boolean success "
+                "predicate rather than duplicate or threshold a derived "
+                "rule_tool_need"
             )
 
 

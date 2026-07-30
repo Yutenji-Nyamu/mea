@@ -1774,6 +1774,10 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             )
             self.assertIn("self.scene.get_contacts()", prompt)
             self.assertIn("do not invent a helper", prompt)
+            self.assertIn(
+                "check_success cannot read the completed trajectory",
+                prompt,
+            )
 
     def test_partial_generation_reuses_unrequested_official_method(
         self,

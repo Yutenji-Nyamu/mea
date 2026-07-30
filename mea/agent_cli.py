@@ -182,7 +182,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model-profile",
         choices=available_model_profiles(),
-        default="legacy",
+        default="balanced",
         help=(
             "Named per-stage model defaults. Individual --*-model arguments "
             "override the selected profile."
