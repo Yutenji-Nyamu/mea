@@ -2,26 +2,26 @@
   "schema_version": 1,
   "source": "provider_plan_agent_query_interpretation",
   "concern": {
-    "source_query": "只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。",
+    "source_query": "这个ACT策略在grab_roller任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？",
+    "requested_variation": "Shift the roller center laterally by a fixed, reachable offset toward the workspace boundary. Preserve the roller's color, material, size, shape, orientation, tabletop scene layout, camera viewpoint, task instruction, policy checkpoint, and official success semantics.",
+    "sub_aspect": "Robustness to a bounded lateral shift of the roller within the reachable workspace",
     "schema_version": 1,
-    "hypothesis": "The policy can successfully achieve the goal when a distractor roller with identical appearance is placed closer to the robot than the target roller.",
-    "sub_aspect": "Effect of proximity of a distractor roller with identical appearance on task success.",
-    "requested_variation": "Introduce a distractor roller with identical appearance to the target roller, positioned closer to the robot than the target roller. Preserve the center position, material, and appearance of the target roller, as well as the scene layout, camera viewpoint, and task instruction.",
-    "measurement_need": "Observe the final heights of both the target roller and the distractor roller, and compute their height difference.",
-    "task_intent": "Manipulate the target roller to achieve a final height of at least 0.8 meters while ensuring the distractor roller's final height remains below 0.8 meters."
+    "measurement_need": "Compare official grab_roller success between the nominal roller center position and the laterally shifted position, while verifying that the shifted center remains inside the reachable workspace.",
+    "hypothesis": "The ACT policy will show a lower official-task success rate when the roller is shifted laterally toward the workspace boundary than at its nominal center position, despite the roller remaining reachable.",
+    "task_intent": "Grasp the roller and achieve the official grab_roller task goal."
   },
   "experiment_needs": {
     "scene_need": {
       "required": true,
-      "description": "Add a distractor roller with identical appearance to the target roller, positioned closer to the robot than the target roller."
+      "description": "Generate an otherwise identical grab_roller scene with the roller center moved laterally by a fixed reachable offset toward the workspace boundary; preserve roller color, material, size, shape, orientation, tabletop layout, camera viewpoint, task instruction, policy checkpoint, and official success semantics."
     },
     "checker_need": {
-      "required": true,
-      "description": "Evaluate whether the target roller's final height is at least 0.8 meters and the distractor roller's final height is below 0.8 meters."
+      "required": false,
+      "description": null
     },
     "rule_tool_need": {
       "required": true,
-      "description": "Compute the numeric difference between the final heights of the target roller and the distractor roller.",
+      "description": "Compute the roller center displacement from the nominal scene and verify its distance to the workspace boundary and reachable-workspace margin.",
       "reuse_first": true
     },
     "vqa_tool_need": {
@@ -31,41 +31,66 @@
     }
   },
   "provider": {
-    "model_requested": "gpt-4o-2024-11-20",
+    "model_requested": "gpt-5.6-luna",
     "called": true,
-    "attempt_count": 2,
-    "errors": [
-      "OpenTaskResolutionError: the original Query explicitly defines experimental success semantics, so checker_need.required must be true"
-    ],
+    "attempt_count": 1,
+    "errors": [],
     "last_metadata": {
-      "id": "chatcmpl-E7B6hCM1LYujWqhijGHpX7CzYlJcR",
-      "model": "gpt-4o-2024-11-20",
+      "id": "chatcmpl-202607300549529594936248268d9d6tDtFdEkP",
+      "model": "gpt-5.6-luna",
       "finish_reason": "stop",
       "usage": {
-        "completion_tokens": 468,
-        "completion_tokens_details": {
-          "accepted_prediction_tokens": 0,
-          "audio_tokens": 0,
-          "reasoning_tokens": 0,
-          "rejected_prediction_tokens": 0
+        "prompt_tokens": 770,
+        "completion_tokens": 805,
+        "total_tokens": 1575,
+        "billing_usage": {
+          "source": "oai_responses",
+          "semantic": "openai",
+          "openai_usage": {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 1575,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "text_tokens": 0,
+              "audio_tokens": 0,
+              "image_tokens": 0
+            },
+            "completion_tokens_details": {
+              "text_tokens": 0,
+              "audio_tokens": 0,
+              "image_tokens": 0,
+              "reasoning_tokens": 0
+            },
+            "input_tokens": 770,
+            "output_tokens": 805,
+            "input_tokens_details": {
+              "cached_tokens": 0,
+              "text_tokens": 0,
+              "audio_tokens": 0,
+              "image_tokens": 0
+            },
+            "claude_cache_creation_5_m_tokens": 0,
+            "claude_cache_creation_1_h_tokens": 0
+          }
         },
-        "latency_checkpoint": {
-          "engine_tbt_ms": 6,
-          "engine_ttft_ms": 146,
-          "engine_ttlt_ms": 2747,
-          "pre_inference_ms": 115,
-          "service_tbt_ms": 6,
-          "service_ttft_ms": 462,
-          "service_ttlt_ms": 3058,
-          "total_duration_ms": 2951,
-          "user_visible_ttft_ms": 347
-        },
-        "prompt_tokens": 952,
         "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 0,
           "audio_tokens": 0,
-          "cached_tokens": 0
+          "image_tokens": 0
         },
-        "total_tokens": 1420
+        "completion_tokens_details": {
+          "text_tokens": 0,
+          "audio_tokens": 0,
+          "image_tokens": 0,
+          "reasoning_tokens": 0
+        },
+        "input_tokens": 770,
+        "output_tokens": 805,
+        "input_tokens_details": null,
+        "claude_cache_creation_5_m_tokens": 0,
+        "claude_cache_creation_1_h_tokens": 0
       },
       "retry_count": 0
     }

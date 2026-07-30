@@ -62,6 +62,7 @@ from .query_contract import (
     build_query_sufficiency_contract,
     extend_query_candidate_universe,
     infer_claim_type,
+    query_is_official_only,
     validate_query_sufficiency_contract,
 )
 
@@ -278,7 +279,11 @@ def build_dynamic_experiment_candidate(
         ),
         rule_tool_need=(
             {
-                "kind": "measure",
+                "kind": (
+                    "reuse"
+                    if query_is_official_only(user_query)
+                    else "measure"
+                ),
                 "description": observation_description,
                 "reuse_first": True,
             }

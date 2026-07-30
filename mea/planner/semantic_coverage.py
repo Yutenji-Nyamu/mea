@@ -73,15 +73,16 @@ _TOKEN = re.compile(r"[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff]+")
 _NO_SCENE_CHANGE = re.compile(
     r"\b(?:keep|reuse|use)\b.{0,40}\b(?:official|unchanged)\b"
     r"|\b(?:official|scene|appearance)\b.{0,40}\bunchanged\b"
+    r"|\bno\b.{0,40}\b(?:scene|appearance)\b.{0,20}\bvariation\b"
     r"|保持.{0,24}(?:官方场景|场景|外观).{0,12}不变"
-    r"|复用官方场景",
+    r"|复用官方场景|不(?:生成|使用|需要).{0,12}(?:场景)?变体",
     re.IGNORECASE,
 )
 _EXPLICIT_SCENE_CHANGE = re.compile(
     r"\b(?:add|enlarge|increase|move|recolor|reduce|remove|replace|resize|"
     r"rotate|scale|shift|shrink|swap|translate|offset|reposition)\w*\b"
     r"|(?:增加|增大|放大|移动|偏移|重新定位|换色|重着色|减小|缩小|"
-    r"移除|替换|旋转|缩放)",
+    r"移除|替换|旋转|缩放|调整(?:为|到)|设(?:置)?为|改为|变为)",
     re.IGNORECASE,
 )
 _STOPWORDS = {

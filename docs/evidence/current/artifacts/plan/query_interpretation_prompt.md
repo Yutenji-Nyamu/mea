@@ -27,10 +27,10 @@ request a checker only when the Query needs success semantics beyond the
 official task; request a Rule Tool for numeric or symbolic evidence; request a
 VQA Tool only for a visual judgment.  A Tool-only Query must not invent a scene
 or checker.  Every Tool need must retrieve before generating.
-If a Query calls an episode successful only when the official goal and a new actor condition both hold, request checker_need. A numeric difference Tool reports magnitude but cannot supply that pass/fail predicate.
+If a Query calls an episode successful only when the official goal and any additional experimental condition both hold, request checker_need. A numeric difference Tool reports magnitude but cannot supply that pass/fail predicate.
 
 ORIGINAL QUERY:
-只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。
+这个ACT策略在grab_roller任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？
 
 EVALUATED POLICY SCOPE (metadata, not a concern menu):
 {
@@ -45,7 +45,7 @@ EVALUATED POLICY SCOPE (metadata, not a concern menu):
 Return strict JSON with exactly these fields:
 {
   "schema_version": 1,
-  "source_query": "只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。",
+  "source_query": "这个ACT策略在grab_roller任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？",
   "sub_aspect": "a precise concern discovered from the Query",
   "hypothesis": "one falsifiable policy-behavior hypothesis",
   "task_intent": "invariant base manipulation action and goal in English",

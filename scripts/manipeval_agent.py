@@ -1354,7 +1354,10 @@ def materialize_open_world_round(
     rule_tool_need = normalized["rule_tool_need"]
     vqa_tool_need = normalized["vqa_tool_need"]
     taskgen_requested = scene_need is not None or checker_need is not None
-    toolgen_requested = rule_tool_need is not None
+    rule_tool_requested = rule_tool_need is not None
+    toolgen_requested = bool(
+        rule_tool_need is not None and rule_tool_need.get("kind") != "reuse"
+    )
     vqa_tool_requested = vqa_tool_need is not None
     route = (
         "generic_provider_scene_checker_codegen"
@@ -1370,13 +1373,19 @@ def materialize_open_world_round(
         "schema_version": 1,
         "task_name": str(normalized["base_task"]),
         "metric": outcome_metric,
-        "question": "Fallback only: did the task success predicate pass?",
+        "question": (
+            "Did the rollout satisfy the official RoboTwin success check?"
+            if outcome_metric == "official_check_success"
+            else "Did the rollout satisfy the generated success predicate?"
+        ),
     }
     tool_bundle = {
         "schema_version": 1,
         "source": (
             "deferred_until_executed_telemetry_schema"
             if toolgen_requested
+            else "official_checker_reuse"
+            if rule_tool_requested
             else "vqa_only_no_rule_tool_requested"
             if vqa_tool_requested
             else "task_checker_evidence_no_new_tool_requested"
@@ -1397,7 +1406,7 @@ def materialize_open_world_round(
         if taskgen_requested
         else ["render", "act", "toolkit"]
     )
-    if toolgen_requested:
+    if rule_tool_requested:
         execution["gates"].append("planned_tool")
     if vqa_tool_requested:
         execution["gates"].append("dynamic_vqa")
@@ -1439,7 +1448,7 @@ def materialize_open_world_round(
         "execution": execution,
         "observations": (
             ["scene_alignment", "expert_solvable", "trusted_tools"]
-            + (["planned_tool"] if toolgen_requested else [])
+            + (["planned_tool"] if rule_tool_requested else [])
             + (["dynamic_vqa"] if vqa_tool_requested else [])
             + ["aggregate"]
         ),
@@ -1482,7 +1491,7 @@ def materialize_open_world_round(
                 ),
             },
             "rule_tool": {
-                "requested": rule_tool_need is not None,
+                "requested": rule_tool_requested,
                 "description": (
                     str(rule_tool_need["description"])
                     if rule_tool_need is not None
@@ -1490,12 +1499,14 @@ def materialize_open_world_round(
                 ),
                 "route": (
                     "after_executed_telemetry_schema"
-                    if rule_tool_need is not None
+                    if toolgen_requested
+                    else "trusted_official_checker_reuse"
+                    if rule_tool_requested
                     else "task_checker_evidence"
                 ),
                 "status": (
                     "pending"
-                    if rule_tool_need is not None
+                    if rule_tool_requested
                     else "not_requested"
                 ),
             },
@@ -2067,6 +2078,21 @@ def _same_telemetry_episode(
     )
 
 
+def _round_requests_execution_vqa(
+    round_plan: Mapping[str, Any] | None,
+) -> bool:
+    """Keep legacy VQA behavior unless the Proposal explicitly omits it."""
+
+    semantic_needs = (round_plan or {}).get("semantic_need_execution")
+    if not isinstance(semantic_needs, Mapping):
+        return True
+    vqa_need = semantic_needs.get("vqa_tool")
+    return not (
+        isinstance(vqa_need, Mapping)
+        and vqa_need.get("requested") is False
+    )
+
+
 def run_round_execution_vqa(
     *,
     repo_root: Path,
@@ -2512,6 +2538,7 @@ def summarize_round(
             for item in scene.get("expert_batch", {}).get("episodes", [])
             if item.get("seed") is not None
         ]
+    vqa_explicitly_omitted = not _round_requests_execution_vqa(round_plan)
     gate_status = {
         "variant_spec": (
             (child_manifest.get("capability_contract_validation") or {}).get(
@@ -2543,7 +2570,7 @@ def summarize_round(
             and (
                 execution_vqa.get("status") == "passed"
                 or (
-                    not uses_act
+                    (not uses_act or vqa_explicitly_omitted)
                     and execution_vqa.get("status") == "skipped"
                 )
             )
@@ -3051,7 +3078,21 @@ def execute_round(
         tool_evaluation,
         execution_dir / "aggregate_result.json",
     )
-    if semantic_ready:
+    if not _round_requests_execution_vqa(round_plan):
+        execution_vqa = {
+            "schema_version": 1,
+            "status": "skipped",
+            "reason": (
+                "The Proposal did not request a VQA Tool; visual evidence "
+                "was not required for this round."
+            ),
+            "evidence_conflict": False,
+        }
+        write_json(
+            execution_dir / "execution_vqa_skipped.json",
+            execution_vqa,
+        )
+    elif semantic_ready:
         execution_vqa = run_round_execution_vqa(
             repo_root=repo_root,
             child_manifest=child_manifest,

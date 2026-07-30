@@ -2,19 +2,20 @@
   "schema_version": 1,
   "status": "passed",
   "source_count": 2,
-  "episode_result_count": 2,
+  "episode_result_count": 3,
   "unique_episode_count": 2,
   "metric_ids": [
-    "generated_check_success",
-    "query_derived_metric"
+    "official_check_success",
+    "query_left_tcp_to_roller_left_contact_min_distance",
+    "time_to_success"
   ],
   "input_issue_count": 0,
   "input_issues": [],
   "metrics": [
     {
-      "metric": "generated_check_success",
+      "metric": "official_check_success",
       "tools": [
-        "generated_check_success"
+        "official_check_success"
       ],
       "unit": null,
       "value_kind": "boolean",
@@ -45,6 +46,14 @@
                 "denominator": 1,
                 "numerator": 0,
                 "value": 0.0
+              },
+              "success_count": {
+                "value": 1
+              },
+              "success_rate": {
+                "denominator": 1,
+                "numerator": 1,
+                "value": 1.0
               },
               "true_count": {
                 "value": 1
@@ -96,9 +105,9 @@
       ]
     },
     {
-      "metric": "query_derived_metric",
+      "metric": "query_left_tcp_to_roller_left_contact_min_distance",
       "tools": [
-        "query_derived_metric"
+        "query_left_tcp_to_roller_left_contact_min_distance"
       ],
       "unit": "m",
       "value_kind": "numeric",
@@ -123,22 +132,71 @@
             },
             "statistics": {
               "max": {
-                "value": 0.05838477611541748
+                "value": 0.02206086926162243
               },
               "mean": {
-                "value": 0.05838477611541748
+                "value": 0.02206086926162243
               },
               "median": {
-                "value": 0.05838477611541748
+                "value": 0.02206086926162243
               },
               "min": {
-                "value": 0.05838477611541748
+                "value": 0.02206086926162243
               },
               "population_stddev": {
                 "value": 0.0
               }
             },
             "unit": "m",
+            "value_kind": "numeric"
+          }
+        }
+      ]
+    },
+    {
+      "metric": "time_to_success",
+      "tools": [
+        "time_to_success"
+      ],
+      "unit": "s",
+      "value_kind": "numeric",
+      "cohorts": [
+        {
+          "role": "policy_under_evaluation",
+          "policy_names": [
+            "ACT"
+          ],
+          "summary": {
+            "episode_result_count": 1,
+            "quality": {
+              "invalid": {
+                "value": 0
+              },
+              "missing": {
+                "value": 0
+              },
+              "valid": {
+                "value": 1
+              }
+            },
+            "statistics": {
+              "max": {
+                "value": 30.72
+              },
+              "mean": {
+                "value": 30.72
+              },
+              "median": {
+                "value": 30.72
+              },
+              "min": {
+                "value": 30.72
+              },
+              "population_stddev": {
+                "value": 0.0
+              }
+            },
+            "unit": "s",
             "value_kind": "numeric"
           }
         }

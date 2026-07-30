@@ -3,17 +3,20 @@ The image shows the same-seed official scene on the left and the generated
 Query-derived scene on the right.
 
 SEMANTIC CONCERN:
-task_execution.non_target_proximity_effect: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.
+object_geometry.graspable_scale_reduction: 将roller的整体几何尺度在保持其初始位姿和材质不变的情况下缩小15%后，ACT的双夹爪接触或抬升高度将失败，导致官方抓取成功率低于未扰动基线。
 
 REQUESTED SCENE NEED:
-Place a non-target roller with identical appearance closer to the robot than the target roller. Preserve unchanged: task identity; policy checkpoint.
+仅将roller的统一物体尺度设为原始尺度的0.85，保持位置、姿态、外观、光照、杂物和任务场景其他状态不变。 Preserve unchanged: task identity; policy checkpoint; roller初始位置和姿态; roller外观与材质; lighting and clutter.
 
 CHECKER NEED (context only; RGB cannot validate success logic):
-A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters. Numeric Rule Tool needed to report the final height difference between the target and non-target rollers. Hypothesis: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.
+No change requested; preserve the official implementation.
 
 DECLARED CONDITIONS TO PRESERVE:
 - task identity
 - policy checkpoint
+- roller初始位置和姿态
+- roller外观与材质
+- lighting and clutter
 
 Judge only visible facts: render usability, whether key task actors are visible,
 whether the requested visible change is consistent or contradicted, obvious

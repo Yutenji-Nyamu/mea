@@ -122,6 +122,39 @@ class OpenWorldAgentIntegrationTest(unittest.TestCase):
             round_plan["proposal"]["checker_need"]
         )
 
+    def test_official_only_rule_reuse_does_not_defer_provider_toolgen(self):
+        candidate = build_experiment_candidate(
+            source_query="Can it solve only the official task?",
+            base_task="click_bell",
+            semantic_concern="official task completion",
+            rule_tool_need={
+                "kind": "reuse",
+                "description": "Reuse official check_success().",
+                "reuse_first": True,
+            },
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            round_plan, bundle = materialize_open_world_round(
+                REPO_ROOT,
+                Path(temporary),
+                round_number=1,
+                candidate=candidate,
+                control_execution={
+                    "backend": "act",
+                    "seeds": [100000],
+                    "num_episodes": 1,
+                    "gates": [],
+                },
+            )
+
+        self.assertFalse(round_plan["open_tool_request_deferred"])
+        self.assertEqual(bundle["source"], "official_checker_reuse")
+        self.assertEqual(
+            round_plan["semantic_need_execution"]["rule_tool"]["route"],
+            "trusted_official_checker_reuse",
+        )
+        self.assertIn("planned_tool", round_plan["observations"])
+
     def test_vqa_only_round_keeps_rule_tool_unrequested(self):
         candidate = build_experiment_candidate(
             source_query="Does the bottle visibly wobble after release?",

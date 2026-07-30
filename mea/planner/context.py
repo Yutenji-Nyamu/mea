@@ -39,6 +39,8 @@ _POLICY_KEYS = {
     "expert_data_num",
     "language_conditioned",
     "single_task_checkpoint",
+    "training_tasks",
+    "supports_unseen_tasks",
     "task_name",
     "action_dimension",
     "checkpoint_ready",
@@ -316,6 +318,11 @@ def _build_planning_context(
         "single_task_checkpoint": (
             checkpoint.get("task_scope", task_name) == task_name
         ),
+        # PlanningContext is already bound to one executable base task.  For
+        # a shared checkpoint this is the relevant member of its declared
+        # training scope, not a claim of unseen-task support.
+        "training_tasks": [task_name],
+        "supports_unseen_tasks": False,
         "task_name": task_name,
         "action_dimension": action_dimension,
         "checkpoint_ready": checkpoint.get("ready"),

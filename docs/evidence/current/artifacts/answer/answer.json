@@ -1,19 +1,22 @@
 {
-  "answer": "是的，存在一个成功样本。",
-  "evaluation_scope": "本次测试范围包括2个样本，种子为[100301]，测试了候选项'dynamic.grab.roller.task.execution.non.target.proximity.effect.when.a.non.target.roller.with.the.same.appearance.as.the.target.roller.is.placed.closer.to.the.robot.than.the.target.roller.the.policy.will.still.successfully.achieve.the.target.roller.s.final.height.of.at.least.0.8.meters.while.keeping.the.non.target.roller.s.final.height.below.0.8.meters.5800b2471f80'。",
+  "answer": "目前无法确定 ACT 最先在哪种物体属性或场景变化上暴露弱点。基线、roller 缩小至原尺度 0.85、以及缩小至 0.70 的测试均通过官方成功检查；因此在本次已测试范围内尚未观察到任务失败，结论为不确定。",
+  "evaluation_scope": "grab_roller 任务、ACT 策略、官方等价成功检查；共 3 个策略 episode，唯一种子为 [100401]：未扰动基线 1 次、0.85 尺度候选 1 次、0.70 尺度候选 1 次。0.85 候选记录左 TCP 到左接触点最小距离 0.02206086926162243 m，0.70 候选记录右 TCP 到右接触点最小距离 0.04654303938150406 m；这些距离仅为观测值，未定义通过或失败阈值。",
   "findings": [
-    "目标滚筒的最终高度不低于0.8米，非目标滚筒的最终高度低于0.8米。",
-    "目标滚筒与非目标滚筒的最终高度差为0.0584米。"
+    "未扰动基线官方成功率为 1/1。",
+    "roller 缩小至原尺度 0.85 的候选官方成功率为 1/1，未显示任务失败。",
+    "roller 缩小至原尺度 0.70 的候选官方成功率为 1/1，未显示任务失败。",
+    "执行流水线完成且没有报告证据冲突，但查询充分性契约未满足，因此不能据此认定存在已验证的最早弱点。"
   ],
   "limitations": [
-    "证据包含2个样本，种子为[100301]。",
-    "本次评估基于有限域的查询充分性协议，不能作为统计泛化的保证。",
-    "至少一个候选项的结论基于生成的检查器，不能视为官方基准的成功结果。",
-    "生成的检查器尚未被认证为与官方核心谓词等效，其结论应视为实验性。",
-    "Evidence contains N=2 policy episodes at seeds [100301].",
-    "The run stopped because the finite query-sufficiency contract was satisfied; this is not a statistical generalization guarantee."
+    "本次仅有 N=3 个策略 episode，且全部使用种子 [100401]，不是广泛泛化评估。",
+    "评估在预算耗尽前未满足查询充分性契约，结论为 inconclusive。",
+    "两个 Query-derived 候选的原始意图字段均未覆盖，包括 requested_change、preserved_conditions、hypothesis 和 required_observation；因此不能把这些结果当作完整实现原始扰动意图的决定性证据。",
+    "候选空间未封闭，不能推出穷尽性、最坏情况或一般化结论。",
+    "Evidence contains N=3 policy episodes at seeds [100401].",
+    "Tested Query-derived candidate contract requirements remain uncovered: ['intent.7d4cb852954896a8:requested_change', 'intent.7d4cb852954896a8:preserved_conditions', 'intent.7d4cb852954896a8:hypothesis', 'intent.7d4cb852954896a8:required_observation', 'intent.4660c0a7908d4c45:requested_change', 'intent.4660c0a7908d4c45:preserved_conditions', 'intent.4660c0a7908d4c45:hypothesis', 'intent.4660c0a7908d4c45:required_observation'].",
+    "The run stopped because its round budget was exhausted before the query-sufficiency contract was satisfied."
   ],
-  "recommended_next_step": "若需更广泛的结论，建议增加样本数量并进行多种场景的测试。",
+  "recommended_next_step": "在明确绑定并验证完整 0.85 与 0.70 尺度扰动、保持条件及双侧接触观测后，使用多个新种子进行更细的尺度递减扫描，直到官方成功检查首次失败；再将首次失败尺度与基线比较，以定位最早弱点。",
   "consistency_validation": {
     "passed": true,
     "attempts_used": 1,
@@ -30,74 +33,112 @@
     "evidence_conflict": false
   },
   "provider_metadata": {
-    "id": "chatcmpl-E7BCKp1ruYALpuUyTHWa7aNTiisyA",
-    "model": "gpt-4o-2024-11-20",
+    "id": "chatcmpl-202607300601417406098998268d9d6gBzNGzfh",
+    "model": "gpt-5.6-luna",
     "finish_reason": "stop",
     "usage": {
-      "prompt_tokens": 38355,
-      "completion_tokens": 346,
-      "total_tokens": 38701,
+      "prompt_tokens": 53274,
+      "completion_tokens": 784,
+      "total_tokens": 54058,
+      "billing_usage": {
+        "source": "oai_responses",
+        "semantic": "openai",
+        "openai_usage": {
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "total_tokens": 54058,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "text_tokens": 0,
+            "audio_tokens": 0,
+            "image_tokens": 0
+          },
+          "completion_tokens_details": {
+            "text_tokens": 0,
+            "audio_tokens": 0,
+            "image_tokens": 0,
+            "reasoning_tokens": 0
+          },
+          "input_tokens": 53274,
+          "output_tokens": 784,
+          "input_tokens_details": {
+            "cached_tokens": 0,
+            "text_tokens": 0,
+            "audio_tokens": 0,
+            "image_tokens": 0
+          },
+          "claude_cache_creation_5_m_tokens": 0,
+          "claude_cache_creation_1_h_tokens": 0
+        }
+      },
       "prompt_tokens_details": {
         "cached_tokens": 0,
-        "audio_tokens": 0
+        "text_tokens": 0,
+        "audio_tokens": 0,
+        "image_tokens": 0
       },
       "completion_tokens_details": {
-        "reasoning_tokens": 0,
+        "text_tokens": 0,
         "audio_tokens": 0,
-        "accepted_prediction_tokens": 0,
-        "rejected_prediction_tokens": 0
+        "image_tokens": 0,
+        "reasoning_tokens": 0
       },
-      "latency_checkpoint": {
-        "engine_tbt_ms": 6,
-        "engine_ttft_ms": 2790,
-        "engine_ttlt_ms": 4906,
-        "pre_inference_ms": 303,
-        "service_tbt_ms": 6,
-        "service_ttft_ms": 4308,
-        "service_ttlt_ms": 6414,
-        "total_duration_ms": 6120,
-        "user_visible_ttft_ms": 4005
-      }
+      "input_tokens": 53274,
+      "output_tokens": 784,
+      "input_tokens_details": null,
+      "claude_cache_creation_5_m_tokens": 0,
+      "claude_cache_creation_1_h_tokens": 0
     },
     "retry_count": 0
   },
   "answer_scope": {
     "schema_version": 1,
-    "sample_count": 2,
+    "sample_count": 3,
     "seeds": [
-      100301
+      100401
     ],
     "tested_candidate_ids": [
-      "dynamic.grab.roller.task.execution.non.target.proximity.effect.when.a.non.target.roller.with.the.same.appearance.as.the.target.roller.is.placed.closer.to.the.robot.than.the.target.roller.the.policy.will.still.successfully.achieve.the.target.roller.s.final.height.of.at.least.0.8.meters.while.keeping.the.non.target.roller.s.final.height.below.0.8.meters.5800b2471f80"
+      "dynamic.grab.roller.object.geometry.graspable.scale.reduction.roller.15.act.5e696fb1d45c",
+      "dynamic.grab.roller.object.geometry.graspable.scale.strong.reduction.roller.0.70.act.0.85.22.5c860bd23c57"
     ],
     "untested_candidate_ids": [],
     "original_intent_ids": [
-      "intent.51984254800abf8c"
+      "intent.7d4cb852954896a8",
+      "intent.4660c0a7908d4c45"
     ],
-    "covered_original_intent_fields": [
-      "intent.51984254800abf8c:requested_change",
-      "intent.51984254800abf8c:preserved_conditions",
-      "intent.51984254800abf8c:hypothesis",
-      "intent.51984254800abf8c:required_observation"
+    "covered_original_intent_fields": [],
+    "uncovered_original_intent_fields": [
+      "intent.7d4cb852954896a8:requested_change",
+      "intent.7d4cb852954896a8:preserved_conditions",
+      "intent.7d4cb852954896a8:hypothesis",
+      "intent.7d4cb852954896a8:required_observation",
+      "intent.4660c0a7908d4c45:requested_change",
+      "intent.4660c0a7908d4c45:preserved_conditions",
+      "intent.4660c0a7908d4c45:hypothesis",
+      "intent.4660c0a7908d4c45:required_observation"
     ],
-    "uncovered_original_intent_fields": [],
     "unsupported_capabilities": [],
     "evidence_conflict": false,
-    "termination": "evidence_sufficient",
-    "claim_verdict": "supported",
+    "termination": "budget_exhausted",
+    "claim_verdict": "inconclusive",
     "required_limitations": [
       {
         "code": "sample_count_and_seeds",
-        "text": "Evidence contains N=2 policy episodes at seeds [100301]."
+        "text": "Evidence contains N=3 policy episodes at seeds [100401]."
       },
       {
-        "code": "termination_evidence_sufficient",
-        "text": "The run stopped because the finite query-sufficiency contract was satisfied; this is not a statistical generalization guarantee."
+        "code": "original_intent_uncovered",
+        "text": "Tested Query-derived candidate contract requirements remain uncovered: ['intent.7d4cb852954896a8:requested_change', 'intent.7d4cb852954896a8:preserved_conditions', 'intent.7d4cb852954896a8:hypothesis', 'intent.7d4cb852954896a8:required_observation', 'intent.4660c0a7908d4c45:requested_change', 'intent.4660c0a7908d4c45:preserved_conditions', 'intent.4660c0a7908d4c45:hypothesis', 'intent.4660c0a7908d4c45:required_observation']."
+      },
+      {
+        "code": "termination_budget_exhausted",
+        "text": "The run stopped because its round budget was exhausted before the query-sufficiency contract was satisfied."
       }
     ]
   },
   "limitation_codes": [
     "sample_count_and_seeds",
-    "termination_evidence_sufficient"
+    "original_intent_uncovered",
+    "termination_budget_exhausted"
   ]
 }

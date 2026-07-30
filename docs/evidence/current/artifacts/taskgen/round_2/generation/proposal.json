@@ -1,51 +1,51 @@
 {
   "base_task": "grab_roller",
-  "candidate_id": "dynamic.grab.roller.task.execution.non.target.proximity.effect.when.a.non.target.roller.with.the.same.appearance.as.the.target.roller.is.placed.closer.to.the.robot.than.the.target.roller.the.policy.will.still.successfully.achieve.the.target.roller.s.final.height.of.at.least.0.8.meters.while.keeping.the.non.target.roller.s.final.height.below.0.8.meters.5800b2471f80",
-  "checker_need": {
-    "description": "A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters. Numeric Rule Tool needed to report the final height difference between the target and non-target rollers. Hypothesis: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
-    "kind": "generate",
-    "reuse_first": true
-  },
+  "candidate_id": "dynamic.grab.roller.object.geometry.graspable.scale.reduction.roller.15.act.5e696fb1d45c",
+  "checker_need": null,
   "evaluation_intent": {
-    "hypothesis": "When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
-    "intent_id": "intent.51984254800abf8c",
-    "original_concern": "task_execution.non_target_proximity_effect",
+    "hypothesis": "将roller的整体几何尺度在保持其初始位姿和材质不变的情况下缩小15%后，ACT的双夹爪接触或抬升高度将失败，导致官方抓取成功率低于未扰动基线。",
+    "intent_id": "intent.7d4cb852954896a8",
+    "original_concern": "object_geometry.graspable_scale_reduction",
     "preserved_conditions": [
       "task identity",
-      "policy checkpoint"
+      "policy checkpoint",
+      "roller初始位置和姿态",
+      "roller外观与材质",
+      "lighting and clutter"
     ],
-    "requested_change": "Place a non-target roller with identical appearance closer to the robot than the target roller.",
-    "required_observation": "A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters. Numeric Rule Tool needed to report the final height difference between the target and non-target rollers.",
+    "requested_change": "仅将roller的统一物体尺度设为原始尺度的0.85，保持位置、姿态、外观、光照、杂物和任务场景其他状态不变。",
+    "required_observation": "复用或生成数值Rule Tool，记录roller峰值高度、双夹爪闭合状态以及左右TCP到对应接触位置的最小距离，用于区分接触对齐失败与抬升失败。",
     "schema_version": 1,
-    "source_query": "只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。"
+    "source_query": "这个ACT策略在grab_roller任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？"
   },
   "intent_alignment": {
     "matched_intent_fields": [
-      "requested_change",
       "preserved_conditions",
       "hypothesis",
       "required_observation"
     ],
-    "rationale": "Candidate preserves the requested change, hypothesis, and observation semantics.",
-    "relationship": "direct",
+    "rationale": "Candidate is a nearby diagnostic, not a direct implementation of candidate-contract fields: ['requested_change'].",
+    "relationship": "diagnostic_proxy",
     "schema_version": 1,
-    "unmatched_intent_fields": []
+    "unmatched_intent_fields": [
+      "requested_change"
+    ]
   },
   "rule_tool_need": {
-    "description": "A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters. Numeric Rule Tool needed to report the final height difference between the target and non-target rollers. Hypothesis: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
+    "description": "复用或生成数值Rule Tool，记录roller峰值高度、双夹爪闭合状态以及左右TCP到对应接触位置的最小距离，用于区分接触对齐失败与抬升失败。 Hypothesis: 将roller的整体几何尺度在保持其初始位姿和材质不变的情况下缩小15%后，ACT的双夹爪接触或抬升高度将失败，导致官方抓取成功率低于未扰动基线。",
     "kind": "measure",
     "reuse_first": true
   },
   "scene_need": {
-    "description": "Place a non-target roller with identical appearance closer to the robot than the target roller. Preserve unchanged: task identity; policy checkpoint.",
+    "description": "仅将roller的统一物体尺度设为原始尺度的0.85，保持位置、姿态、外观、光照、杂物和任务场景其他状态不变。 Preserve unchanged: task identity; policy checkpoint; roller初始位置和姿态; roller外观与材质; lighting and clutter.",
     "kind": "adapt",
     "reuse_first": true
   },
   "schema_version": 2,
-  "semantic_concern": "task_execution.non_target_proximity_effect: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
-  "source_query": "只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。",
+  "semantic_concern": "object_geometry.graspable_scale_reduction: 将roller的整体几何尺度在保持其初始位姿和材质不变的情况下缩小15%后，ACT的双夹爪接触或抬升高度将失败，导致官方抓取成功率低于未扰动基线。",
+  "source_query": "这个ACT策略在grab_roller任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？",
   "tool_need": {
-    "description": "A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters. Numeric Rule Tool needed to report the final height difference between the target and non-target rollers. Hypothesis: When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
+    "description": "复用或生成数值Rule Tool，记录roller峰值高度、双夹爪闭合状态以及左右TCP到对应接触位置的最小距离，用于区分接触对齐失败与抬升失败。 Hypothesis: 将roller的整体几何尺度在保持其初始位姿和材质不变的情况下缩小15%后，ACT的双夹爪接触或抬升高度将失败，导致官方抓取成功率低于未扰动基线。",
     "kind": "measure",
     "reuse_first": true
   },

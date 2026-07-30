@@ -22,21 +22,26 @@ action noise or latency, or change policy weights unless an explicit runtime
 intervention root is advertised.  After successful evidence, refine to another
 executable physical scene/checker/tool concern instead of relabelling a scene
 change as an unavailable policy intervention.
-If the original Query explicitly defines success semantics beyond the official
-task, every action=continue Proposal must request a checker; a Rule Tool cannot
-silently replace that success predicate.
-If a Query calls an episode successful only when the official goal and a new actor condition both hold, request checker_need. A numeric difference Tool reports magnitude but cannot supply that pass/fail predicate.
+If a Query calls an episode successful only when the official goal and any additional experimental condition both hold, request checker_need. A numeric difference Tool reports magnitude but cannot supply that pass/fail predicate.
 
 Use success to probe the most consequential remaining uncertainty; use failure
 to discriminate a causal failure hypothesis; use ambiguous evidence to improve
-observability or isolate the confound.  Stop only when the completed evidence
-already answers the original Query.  For action=stop set sub_aspect and
+observability or isolate the confound.  When completed evidence is non-empty,
+the rationale must cite a concrete observed outcome or limitation and explain
+why it changed the priority of this sub-aspect.  Do not present a candidate
+that was already frozen before seeing that evidence as evidence-conditioned
+refinement.  For a broad robustness Query, for example, a successful control
+can justify selecting the highest-risk supported perturbation, while a failed
+control should redirect to baseline reliability or failure diagnosis.
+
+Stop only when the completed evidence already answers the original Query.  For
+action=stop set sub_aspect and
 requested_perturbation to null, all four needs to
 required=false/description=null, and express the evidence-supported conclusion
 in hypothesis.
 
 ORIGINAL QUERY:
-只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。
+这个ACT策略在grab_roller任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？
 
 
 POLICY AND SIMULATOR CAPABILITIES:
@@ -126,7 +131,7 @@ COMPLETED ROUND EVIDENCE (chronological; empty means first proposal):
     "schema_version": 1,
     "round_id": "round_1",
     "tested_sub_aspect": "task_execution.official_baseline",
-    "tested_hypothesis": "只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。",
+    "tested_hypothesis": "这个ACT策略在grab_roller任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？",
     "tested_perturbation": "unchanged official-scene control",
     "outcome": "success",
     "evidence_summary": "EvidencePacket strength=sufficient; policy_success_rate=1.0; Rule metric=official_check_success; outcome_metric=official_check_success; outcome_authority=official_check_success; outcome_semantics=official_only; VQA status=passed; planned_tool_measurements=[{\"metric\": \"official_check_success\", \"null_reason\": null, \"passed\": true, \"provider_called\": false, \"route\": \"reuse\", \"unit\": null, \"value\": true}].",

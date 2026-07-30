@@ -4,6 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from mea.planner.query_contract import infer_control_requirement
+
 
 MODULE_PATH = (
     Path(__file__).resolve().parents[2]
@@ -204,6 +206,83 @@ class QueryInterpretationTests(unittest.TestCase):
             result["experiment_needs"]["checker_need"]["description"]
         )
         self.assertIn("A Tool-only Query must not invent", provider.prompts[0])
+
+    def test_official_only_query_requests_explicit_official_rule_reuse(self):
+        value = {
+            **concern("click the bell's top center"),
+            "source_query": "Can it complete only the official task?",
+            "requested_variation": "reuse the unchanged official scene",
+            "measurement_need": "use official check_success()",
+        }
+        empty_needs = {
+            field: {
+                "required": False,
+                "description": None,
+                **(
+                    {"reuse_first": True}
+                    if field in {"rule_tool_need", "vqa_tool_need"}
+                    else {}
+                ),
+            }
+            for field in resolver._EXPERIMENT_NEED_FIELDS
+        }
+        provider = self.Provider([json.dumps({**value, **empty_needs})])
+
+        result = resolver.PlanAgentQueryInterpreter(
+            provider,
+            model="fixture",
+        ).propose(value["source_query"], policy_card=single_task_policy())
+
+        needs = result["experiment_needs"]
+        self.assertFalse(needs["scene_need"]["required"])
+        self.assertFalse(needs["checker_need"]["required"])
+        self.assertTrue(needs["rule_tool_need"]["required"])
+        self.assertIn(
+            "official check_success()",
+            needs["rule_tool_need"]["description"],
+        )
+        self.assertEqual(
+            result["concern"]["measurement_need"],
+            "Observe the official check_success() boolean result.",
+        )
+        self.assertFalse(needs["vqa_tool_need"]["required"])
+        self.assertIn("official-task-only Query", provider.prompts[0])
+        self.assertEqual(
+            infer_control_requirement(value["source_query"]),
+            "not_required",
+        )
+        self.assertEqual(
+            infer_control_requirement(
+                "Can this ACT policy complete only the official click_bell task?"
+            ),
+            "not_required",
+        )
+
+    def test_non_official_query_cannot_drop_all_evidence_needs(self):
+        value = concern("click the bell's top center")
+        empty_needs = {
+            field: {
+                "required": False,
+                "description": None,
+                **(
+                    {"reuse_first": True}
+                    if field in {"rule_tool_need", "vqa_tool_need"}
+                    else {}
+                ),
+            }
+            for field in resolver._EXPERIMENT_NEED_FIELDS
+        }
+        provider = self.Provider([json.dumps({**value, **empty_needs})])
+
+        with self.assertRaisesRegex(
+            resolver.OpenTaskResolutionError,
+            "at least one explicit evidence need",
+        ):
+            resolver.PlanAgentQueryInterpreter(
+                provider,
+                model="fixture",
+                max_attempts=1,
+            ).propose(value["source_query"], policy_card=single_task_policy())
 
     def test_explicit_success_definition_retries_until_checker_is_requested(self):
         query = (

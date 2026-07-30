@@ -350,6 +350,49 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             second["intent_alignment"]["relationship"], "direct"
         )
 
+    def test_quantified_chinese_scene_delta_is_not_mistaken_for_unchanged(self):
+        query = "这个策略最先会在哪种物体变化上暴露弱点？"
+        requested_change = (
+            "仅将roller的统一物体尺度设为原始尺度的0.85，"
+            "保持位置、姿态、外观、光照和杂物不变。"
+        )
+        intent = build_evaluation_intent(
+            source_query=query,
+            original_concern="object_geometry.graspable_scale_reduction",
+            hypothesis="缩小roller可能导致抓取失败。",
+            requested_change=requested_change,
+            preserved_conditions=["task identity", "policy checkpoint"],
+            required_observation="记录官方成功和TCP到接触位置的最小距离。",
+        )
+        bundle = semantic_bundle(
+            "object_geometry.graspable_scale_reduction"
+        )
+        bundle["proposal"]["hypothesis"] = intent["hypothesis"]
+        bundle["proposal"]["requested_perturbation"] = {
+            "description": requested_change,
+            "controlled_changes": ["roller scale: 1.0 -> 0.85"],
+            "preserve": list(intent["preserved_conditions"]),
+        }
+        bundle["proposal"]["task_need"]["description"] = requested_change
+        bundle["proposal"]["tool_need"]["description"] = intent[
+            "required_observation"
+        ]
+
+        candidate = build_dynamic_experiment_candidate(
+            user_query=query,
+            task_name="grab_roller",
+            proposal=bundle["proposal"],
+            evaluation_intent=intent,
+        )
+
+        self.assertEqual(
+            candidate["intent_alignment"]["relationship"], "direct"
+        )
+        self.assertNotIn(
+            "requested_change",
+            candidate["intent_alignment"]["unmatched_intent_fields"],
+        )
+
     def test_generic_official_tasks_have_claim_first_control_anchors(self):
         for task_name in (
             "adjust_bottle",

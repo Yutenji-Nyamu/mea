@@ -1,7 +1,0 @@
-{
-  "valid": true,
-  "episode_count": 1,
-  "deterministic": true,
-  "oracle_agreement": true,
-  "artifacts_unchanged": true
-}

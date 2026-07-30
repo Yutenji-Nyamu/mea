@@ -1,7 +1,7 @@
 {
   "task_name": "grab_roller",
-  "task_module": "mea.generated_task_attempts.run_20260730_b44_grab_roller_plan_agent_live13_round_2.attempt_01.candidate_task",
-  "seed": 100301,
+  "task_module": "mea.generated_task_attempts.run_20260730_batch31_grab_roller_broad_live_v3_round_2.attempt_01.candidate_task",
+  "seed": 100401,
   "setup_success": true,
   "render_success": true,
   "expert_requested": false,
@@ -14,16 +14,14 @@
     "task_family": "dual_arm_lift",
     "trusted_tool_profile": "generic_success",
     "tracked_actor_ids": [
-      "roller",
-      "non_target_roller"
+      "roller"
     ],
     "semantic_field_names": [
       "roller_position",
       "roller_left_contact_position",
       "roller_right_contact_position",
       "left_tcp_position",
-      "right_tcp_position",
-      "non_target_roller_position"
+      "right_tcp_position"
     ]
   },
   "domain_randomization": {
@@ -67,29 +65,15 @@
     {
       "name": "102_roller",
       "position": [
-        -0.07744024693965912,
-        -0.06961455196142197,
-        0.7416645884513855
+        0.05030272901058197,
+        -0.18493017554283142,
+        0.7414147257804871
       ],
       "quaternion": [
-        0.19325308501720428,
-        0.19415003061294556,
-        0.6815027594566345,
-        0.678611159324646
-      ]
-    },
-    {
-      "name": "non_target_roller",
-      "position": [
-        -0.01590118370950222,
-        -0.30600106716156006,
-        0.7416644096374512
-      ],
-      "quaternion": [
-        -0.0025369867216795683,
-        -0.0024714116007089615,
-        0.7080894708633423,
-        0.7061140537261963
+        0.043953947722911835,
+        0.04423937946557999,
+        0.7074307799339294,
+        0.7040260434150696
       ]
     },
     {
@@ -141,15 +125,15 @@
       "task_attribute": "roller",
       "scene_name": "102_roller",
       "position": [
-        -0.07744024693965912,
-        -0.06961455196142197,
-        0.7416645884513855
+        0.05030272901058197,
+        -0.18493017554283142,
+        0.7414147257804871
       ],
       "quaternion": [
-        0.19325308501720428,
-        0.19415003061294556,
-        0.6815027594566345,
-        0.678611159324646
+        0.043953947722911835,
+        0.04423937946557999,
+        0.7074307799339294,
+        0.7040260434150696
       ],
       "collision_geometry": [
         {
@@ -160,9 +144,9 @@
           "convex": true,
           "is_static": false,
           "scale": [
-            0.13,
-            0.1,
-            0.1
+            0.1105,
+            0.085,
+            0.085
           ],
           "extents": [
             1.9311913944412211,
@@ -180,84 +164,41 @@
       "contact_points": {
         "0": {
           "position": [
-            -0.1517805872741177,
-            -0.020864043415604293,
-            0.7551978901411976
+            -0.02440942661129597,
+            -0.1736120194796683,
+            0.7529171886970965
           ],
           "raw": [
-            -0.1517805872741177,
-            -0.020864043415604293,
-            0.7551978901411976,
-            0.19325304918059488,
-            0.1941500115981655,
-            0.6815027148591383,
-            0.6786111416845878
+            -0.02440942661129597,
+            -0.1736120194796683,
+            0.7529171886970965,
+            0.043953943091754606,
+            0.04423937572134287,
+            0.707430757284332,
+            0.7040260308899021
           ]
         },
         "1": {
           "position": [
-            -0.0025015978186608973,
-            -0.11628481144405739,
-            0.7541296693073063
+            0.12474131762493708,
+            -0.19441706440519937,
+            0.7520099102522697
           ],
           "raw": [
-            -0.0025015978186608973,
-            -0.11628481144405739,
-            0.7541296693073063,
-            0.681502714859138,
-            0.6786111416845875,
-            -0.19325304918059483,
-            -0.19415001159816556
+            0.12474131762493708,
+            -0.19441706440519937,
+            0.7520099102522697,
+            0.707430757284332,
+            0.7040260308899023,
+            -0.0439539430917546,
+            -0.04423937572134286
           ]
         }
       }
-    },
-    {
-      "id": "non_target_roller",
-      "task_attribute": "non_target_roller",
-      "scene_name": "non_target_roller",
-      "position": [
-        -0.01590118370950222,
-        -0.30600106716156006,
-        0.7416644096374512
-      ],
-      "quaternion": [
-        -0.0025369867216795683,
-        -0.0024714116007089615,
-        0.7080894708633423,
-        0.7061140537261963
-      ],
-      "collision_geometry": [
-        {
-          "geometry_type": "create_actor_asset",
-          "modelname": "102_roller",
-          "model_id": 2,
-          "collision_asset": "assets/objects/102_roller/collision/base2.glb",
-          "convex": true,
-          "is_static": false,
-          "scale": [
-            0.13,
-            0.1,
-            0.1
-          ],
-          "extents": [
-            1.9311913944412211,
-            0.32168825746682084,
-            0.3103910043535411
-          ],
-          "center": [
-            2.118178000711387e-05,
-            0.11274457106981156,
-            0.0013336256808618475
-          ]
-        }
-      ],
-      "functional_points": {},
-      "contact_points": {}
     }
   ],
   "task_attributes": {},
-  "image": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_task_attempts/run_20260730_b44_grab_roller_plan_agent_live13_round_2/attempt_01/setup_head.png",
+  "image": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_task_attempts/run_20260730_batch31_grab_roller_broad_live_v3_round_2/attempt_01/setup_head.png",
   "rule_check": {
     "all_tracked_actor_attributes_present": true,
     "tracked_actor_runtime_names_match": true,
@@ -266,12 +207,10 @@
     "official_check_success_callable": true,
     "passed": true,
     "tracked_actor_ids": [
-      "roller",
-      "non_target_roller"
+      "roller"
     ],
     "declared_scene_names": [
-      "102_roller",
-      "non_target_roller"
+      "102_roller"
     ]
   },
   "initial_check_success": false,

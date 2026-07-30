@@ -1,15 +1,15 @@
-# MEA method evidence: eval_20260730_b44_grab_roller_plan_agent_live13
+# MEA method evidence: eval_20260730_batch31_grab_roller_broad_live_v3
 
 > Compact, movable view of one real method run. Complete raw telemetry and Aggregate payloads remain in the server evaluation directory.
 
 ## 1. Query and execution scope
 
-> 只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。
+> 这个ACT策略在grab_roller任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？
 
 - Task: `grab_roller`
 - Policy: `ACT`
 - Checkpoint: `act-grab_roller/demo_clean-50`
-- Round budget / episodes: `2` / `[1, 1]`
+- Round budget / episodes: `3` / `[1, 1, 1]`
 
 ## 2. Paper-level data flow
 
@@ -27,10 +27,10 @@ flowchart LR
 
 ## 3. Plan Agent trace
 
-- Goal: answer_open_query_with_evidence: 只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。
+- Goal: answer_open_query_with_evidence: 这个ACT策略在grab_roller任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？
 - Initial round: `round_1`
-- Final planning state: `stopped_after_round_2_evidence_sufficient`
-- Query interpretation trace: [prompt](artifacts/plan/query_interpretation_prompt.md) / [response 1](artifacts/plan/query_interpretation_response_1.txt) / [response 2](artifacts/plan/query_interpretation_response_2.txt)
+- Final planning state: `stopped_after_round_3_budget_exhausted`
+- Query interpretation trace: [prompt](artifacts/plan/query_interpretation_prompt.md) / [response 1](artifacts/plan/query_interpretation_response_1.txt)
 
 ## 4.1. `round_1` — task_execution.official_baseline
 
@@ -48,7 +48,7 @@ flowchart LR
 
 ### Rollout
 
-- Backend/seeds: `ACT` / `[100301]`
+- Backend/seeds: `ACT` / `[100401]`
 - Pipeline/policy success: `True` / `1.0`
 
 [Open policy video](assets/round_1_act.mp4)
@@ -58,7 +58,7 @@ flowchart LR
 ### Tool / VQA
 
 - Tool: `reuse` → `official_check_success`
-- Values: [{"role": "policy_under_evaluation", "policy_name": "ACT", "seed": 100301, "value": true, "unit": null, "passed": true}]
+- Values: [{"role": "policy_under_evaluation", "policy_name": "ACT", "seed": 100401, "value": true, "unit": null, "passed": true}]
 - VQA status: `passed`; conflict: `False`
 
 ![round_1 VQA keyframes](assets/round_1_vqa_montage.png)
@@ -66,9 +66,9 @@ flowchart LR
 ### Aggregate -> next decision
 
 - Aggregate: {"status": "passed", "source_count": 1, "episode_result_count": 2, "unique_episode_count": 1, "metric_ids": ["official_check_success", "time_to_success"], "input_issue_count": 0}
-- Decision: {"action": "continue", "transition": "switch_concern", "decision_reason": "provider_authored_open_world_step", "observation_summary": "This test isolates the effect of the non-target roller's proximity on the policy's ability to achieve the success conditions defined in the Query. It directly addresses the Query's core uncertainty by introducing a controlled perturbation to the scene.", "answered_query": false, "evidence_sufficient": null, "claim_verdict": null, "stop_reason": null}
+- Decision: {"action": "continue", "transition": "switch_concern", "decision_reason": "provider_authored_open_world_step", "observation_summary": "官方未扰动场景已成功，说明当前失败不太可能来自基本任务流程；但仅一轮成功不能回答哪种物体或场景变化最先暴露弱点。尺度缩小直接降低双臂抓取的几何容错，且是load_actors明确支持的物体属性变化，比改变不可用的策略噪声或控制精度更可执行。该单因素扰动可用峰值高度和TCP接触距离诊断失败机制，同时保留官方checker以判断任务是否仍成功。", "answered_query": false, "evidence_sufficient": null, "claim_verdict": null, "stop_reason": null}
 
-## 4.2. `round_2` — task_execution.non_target_proximity_effect
+## 4.2. `round_2` — object_geometry.graspable_scale_reduction
 
 ### Plan → TaskGen
 
@@ -85,7 +85,7 @@ flowchart LR
 
 ### Rollout
 
-- Backend/seeds: `ACT` / `[100301]`
+- Backend/seeds: `ACT` / `[100401]`
 - Pipeline/policy success: `True` / `1.0`
 
 [Open policy video](assets/round_2_act.mp4)
@@ -94,8 +94,8 @@ flowchart LR
 
 ### Tool / VQA
 
-- Tool: `typed_metric_spec_compile` → `query_derived_metric`
-- Values: [{"role": "policy_under_evaluation", "policy_name": "ACT", "seed": 100301, "value": 0.05838477611541748, "unit": "m", "passed": null}]
+- Tool: `provider_python_codegen` → `query_left_tcp_to_roller_left_contact_min_distance`
+- Values: [{"role": "policy_under_evaluation", "policy_name": "ACT", "seed": 100401, "value": 0.02206086926162243, "unit": "m", "passed": null}]
 - [Open generated/reused Tool source](code/round_2_tool.py)
 - VQA status: `passed`; conflict: `False`
 
@@ -103,22 +103,68 @@ flowchart LR
 
 ### Aggregate -> next decision
 
-- Aggregate: {"status": "passed", "source_count": 2, "episode_result_count": 2, "unique_episode_count": 2, "metric_ids": ["generated_check_success", "query_derived_metric"], "input_issue_count": 0}
-- Decision: {"action": "stop", "transition": "stop", "decision_reason": "plan_agent_evidence_sufficiency", "observation_summary": "A definitive pass candidate witnesses the existential claim.", "answered_query": true, "evidence_sufficient": true, "claim_verdict": "supported", "stop_reason": "evidence_sufficient"}
+- Aggregate: {"status": "passed", "source_count": 2, "episode_result_count": 3, "unique_episode_count": 2, "metric_ids": ["official_check_success", "query_left_tcp_to_roller_left_contact_min_distance", "time_to_success"], "input_issue_count": 0}
+- Decision: {"action": "continue", "transition": "switch_concern", "decision_reason": "provider_authored_open_world_step", "observation_summary": "基线未扰动场景成功率为1.0，但0.85尺度测试仍成功且仅获得单侧22.1毫米距离观测，证据被标记为ambiguous并提示原始意图不完整，无法判断尺度变化是否接近失效边界。因此在保持其他因素不变的前提下，将同一可执行物体属性进一步缩小到0.70是对该不确定性的更具判别力的可观测版本；同时补充双侧距离，避免单侧观测掩盖双臂抓取瓶颈。", "answered_query": false, "evidence_sufficient": null, "claim_verdict": null, "stop_reason": null}
+
+## 4.3. `round_3` — object_geometry.graspable_scale_strong_reduction
+
+### Plan → TaskGen
+
+- Task: `grab_roller`
+- Route/materialization: `generic_provider_scene_checker_codegen` / `generic_provider_scene_checker_codegen`
+- Gates: {"generation_attempts": 1, "checker_fixtures": "2/2", "vision_passed": true, "expert_passed": true}
+- Proposal: [proposal.json](artifacts/taskgen/round_3/generation/proposal.json)
+- Provider trace: [prompt](artifacts/taskgen/round_3/generation/code_prompt.md) / [response](artifacts/taskgen/round_3/generation/provider_response.txt)
+- Task artifact: [round_3_task.py](code/round_3_task.py)
+
+### Render / scene check
+
+![round_3 initial scene](assets/round_3_scene.png)
+
+### Rollout
+
+- Backend/seeds: `ACT` / `[100401]`
+- Pipeline/policy success: `True` / `1.0`
+
+[Open policy video](assets/round_3_act.mp4)
+
+<video src="assets/round_3_act.mp4" controls width="720"></video>
+
+### Tool / VQA
+
+- Tool: `provider_python_codegen` → `query_right_tcp_to_roller_right_contact_min_distance`
+- Values: [{"role": "policy_under_evaluation", "policy_name": "ACT", "seed": 100401, "value": 0.04654303938150406, "unit": "m", "passed": null}]
+- [Open generated/reused Tool source](code/round_3_tool.py)
+- VQA status: `passed`; conflict: `False`
+
+![round_3 VQA keyframes](assets/round_3_vqa_montage.png)
+
+### Aggregate -> next decision
+
+- Aggregate: {"status": "passed", "source_count": 2, "episode_result_count": 3, "unique_episode_count": 2, "metric_ids": ["official_check_success", "query_right_tcp_to_roller_right_contact_min_distance", "time_to_success"], "input_issue_count": 0}
+- Decision: {"action": "stop", "transition": "stop", "decision_reason": "plan_agent_evidence_sufficiency", "observation_summary": "The bounded rollout budget ended before the query sufficiency contract was satisfied.", "answered_query": false, "evidence_sufficient": false, "claim_verdict": "inconclusive", "stop_reason": "budget_exhausted"}
 
 ## 5. Final answer to the original Query
 
-> 是的，存在一个成功样本。
+> 目前无法确定 ACT 最先在哪种物体属性或场景变化上暴露弱点。基线、roller 缩小至原尺度 0.85、以及缩小至 0.70 的测试均通过官方成功检查；因此在本次已测试范围内尚未观察到任务失败，结论为不确定。
 
-- Finding: 目标滚筒的最终高度不低于0.8米，非目标滚筒的最终高度低于0.8米。
-- Finding: 目标滚筒与非目标滚筒的最终高度差为0.0584米。
-- Next: 若需更广泛的结论，建议增加样本数量并进行多种场景的测试。
-- Limitation: 证据包含2个样本，种子为[100301]。
-- Limitation: 本次评估基于有限域的查询充分性协议，不能作为统计泛化的保证。
-- Limitation: 至少一个候选项的结论基于生成的检查器，不能视为官方基准的成功结果。
-- Limitation: 生成的检查器尚未被认证为与官方核心谓词等效，其结论应视为实验性。
-- Limitation: Evidence contains N=2 policy episodes at seeds [100301].
-- Limitation: The run stopped because the finite query-sufficiency contract was satisfied; this is not a statistical generalization guarantee.
+- Finding: 未扰动基线官方成功率为 1/1。
+- Finding: roller 缩小至原尺度 0.85 的候选官方成功率为 1/1，未显示任务失败。
+- Finding: roller 缩小至原尺度 0.70 的候选官方成功率为 1/1，未显示任务失败。
+- Finding: 执行流水线完成且没有报告证据冲突，但查询充分性契约未满足，因此不能据此认定存在已验证的最早弱点。
+- Next: 在明确绑定并验证完整 0.85 与 0.70 尺度扰动、保持条件及双侧接触观测后，使用多个新种子进行更细的尺度递减扫描，直到官方成功检查首次失败；再将首次失败尺度与基线比较，以定位最早弱点。
+- Limitation: 本次仅有 N=3 个策略 episode，且全部使用种子 [100401]，不是广泛泛化评估。
+- Limitation: 评估在预算耗尽前未满足查询充分性契约，结论为 inconclusive。
+- Limitation: 两个 Query-derived 候选的原始意图字段均未覆盖，包括 requested_change、preserved_conditions、hypothesis 和 required_observation；因此不能把这些结果当作完整实现原始扰动意图的决定性证据。
+- Limitation: 候选空间未封闭，不能推出穷尽性、最坏情况或一般化结论。
+- Limitation: Evidence contains N=3 policy episodes at seeds [100401].
+- Limitation: Tested Query-derived candidate contract requirements remain uncovered: ['intent.7d4cb852954896a8:requested_change', 'intent.7d4cb852954896a8:preserved_conditions', 'intent.7d4cb852954896a8:hypothesis', 'intent.7d4cb852954896a8:required_observation', 'intent.4660c0a7908d4c45:requested_change', 'intent.4660c0a7908d4c45:preserved_conditions', 'intent.4660c0a7908d4c45:hypothesis', 'intent.4660c0a7908d4c45:required_observation'].
+- Limitation: The run stopped because its round budget was exhausted before the query-sufficiency contract was satisfied.
+
+### Post-run 0-ACT semantic alignment re-audit
+
+{"act_rollouts_started": 0, "mutates_source_evaluation": false, "rounds": [{"round_id": "round_2", "original_relationship": "diagnostic_proxy", "recomputed_relationship": "direct", "recomputed_coverage": "partial", "pending_intent_fields": ["preserved_conditions", "required_observation"]}, {"round_id": "round_3", "original_relationship": "diagnostic_proxy", "recomputed_relationship": "direct", "recomputed_coverage": "partial", "pending_intent_fields": ["preserved_conditions", "required_observation"]}], "conclusion": "The quantified scale assignments are direct scene changes rather than unchanged-scene proxies. Required-observation and preservation coverage remain pending: each round executed one scalar Rule Tool, and the original preservation conditions lack complete simulator or visual authority."}
+The source evaluation and Answer remain immutable; this cached recomputation adds no policy-performance evidence.
 ## 6. Boundaries
 
 - Policy results and pipeline status are reported separately.
@@ -130,9 +176,4 @@ flowchart LR
 
 - [Compact machine summary](run_summary.json)
 - [Published-file inventory with bytes and SHA-256](evidence_bundle_manifest.json)
-- Complete raw source remains server-side at `mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13`.
-
-### Completed-round Tool reuse audit
-
-{"repair_id": "live14_provider_python_toolgen_v1", "act_rollouts_started": 0, "first_query_route": "provider_python_codegen", "first_query_measurements": [{"tool": "query_derived_metric", "version": 1, "generated": true, "tool_sha256": "60522ca8d1bc2f57a1f9de6dc01509196cff49ca67dfbd986a4d7f1a350ad96d", "value": 0.05838477611541748, "unit": "m", "passed": null, "evidence_steps": [7821], "details": {"operation": "terminal_signal_difference", "reason": "measured"}}], "exact_reuse_route": "run_local_reuse", "exact_reuse_provider_called": false, "aggregate_status": "not_recomputed"}
-This audit reuses completed policy telemetry and starts no simulator or policy rollout. It proves exact run-local reuse, not independent cross-evaluation reuse.
+- Complete raw source remains server-side at `mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3`.

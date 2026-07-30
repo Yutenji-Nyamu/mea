@@ -1,4 +1,3 @@
-```json
 {
   "schema_version": 1,
   "render_usable": true,
@@ -6,8 +5,7 @@
   "requested_change_assessment": "consistent",
   "visual_physical_plausibility": "plausible",
   "unexpected_changes": [],
-  "diagnosis": "The generated scene is visible and physically plausible.",
+  "diagnosis": "The generated scene visibly shows the roller uniformly reduced in scale while preserving its apparent position, orientation, appearance, lighting, clutter, and other scene elements.",
   "repair_instructions": [],
-  "confidence": 0.8
+  "confidence": 0.97
 }
-```

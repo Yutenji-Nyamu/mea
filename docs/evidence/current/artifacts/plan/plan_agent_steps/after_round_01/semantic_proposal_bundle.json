@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "source": "provider_plan_agent_open_query",
-  "input_digest": "3088c51604bac3ebf459d9eed8583353efdb6da721c54a943bd6aee4e370c7c1",
+  "input_digest": "1d50472b3684bcd8767ae38abdef89fbf94ac126d7d277ea6ed33f37239d2887",
   "planning_lineage": {
     "schema_version": 1,
     "decision_kind": "evidence_conditioned_refinement",
@@ -10,34 +10,37 @@
       "round_1"
     ],
     "completed_round_count": 1,
-    "input_digest": "3088c51604bac3ebf459d9eed8583353efdb6da721c54a943bd6aee4e370c7c1"
+    "input_digest": "1d50472b3684bcd8767ae38abdef89fbf94ac126d7d277ea6ed33f37239d2887"
   },
   "proposal": {
     "schema_version": 2,
     "action": "continue",
-    "sub_aspect": "task_execution.non_target_proximity_effect",
-    "hypothesis": "When a non-target roller with the same appearance as the target roller is placed closer to the robot than the target roller, the policy will still successfully achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters.",
+    "sub_aspect": "object_geometry.graspable_scale_reduction",
+    "hypothesis": "将roller的整体几何尺度在保持其初始位姿和材质不变的情况下缩小15%后，ACT的双夹爪接触或抬升高度将失败，导致官方抓取成功率低于未扰动基线。",
     "requested_perturbation": {
-      "description": "Place a non-target roller with identical appearance closer to the robot than the target roller.",
+      "description": "仅将roller的统一物体尺度设为原始尺度的0.85，保持位置、姿态、外观、光照、杂物和任务场景其他状态不变。",
       "controlled_changes": [
-        "non-target roller position"
+        "roller的统一几何尺度缩小15%"
       ],
       "preserve": [
         "task identity",
-        "policy checkpoint"
+        "policy checkpoint",
+        "roller初始位置和姿态",
+        "roller外观与材质",
+        "lighting and clutter"
       ]
     },
     "scene_need": {
       "required": true,
-      "description": "Adapt the scene to include a non-target roller with identical appearance placed closer to the robot than the target roller."
+      "description": "通过load_actors对roller施加0.85的统一尺度变化并生成对应场景。"
     },
     "checker_need": {
-      "required": true,
-      "description": "A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters."
+      "required": false,
+      "description": null
     },
     "rule_tool_need": {
       "required": true,
-      "description": "Numeric Rule Tool needed to report the final height difference between the target and non-target rollers.",
+      "description": "复用或生成数值Rule Tool，记录roller峰值高度、双夹爪闭合状态以及左右TCP到对应接触位置的最小距离，用于区分接触对齐失败与抬升失败。",
       "reuse_first": true
     },
     "vqa_tool_need": {
@@ -45,53 +48,78 @@
       "description": null,
       "reuse_first": true
     },
-    "rationale": "This test isolates the effect of the non-target roller's proximity on the policy's ability to achieve the success conditions defined in the Query. It directly addresses the Query's core uncertainty by introducing a controlled perturbation to the scene.",
+    "rationale": "官方未扰动场景已成功，说明当前失败不太可能来自基本任务流程；但仅一轮成功不能回答哪种物体或场景变化最先暴露弱点。尺度缩小直接降低双臂抓取的几何容错，且是load_actors明确支持的物体属性变化，比改变不可用的策略噪声或控制精度更可执行。该单因素扰动可用峰值高度和TCP接触距离诊断失败机制，同时保留官方checker以判断任务是否仍成功。",
     "task_need": {
       "required": true,
-      "description": "Adapt the scene to include a non-target roller with identical appearance placed closer to the robot than the target roller. | A checker is needed to verify the experimental success conditions: the target roller's final height is at least 0.8 meters, and the non-target roller's final height is below 0.8 meters."
+      "description": "通过load_actors对roller施加0.85的统一尺度变化并生成对应场景。"
     },
     "tool_need": {
       "required": true,
-      "description": "Numeric Rule Tool needed to report the final height difference between the target and non-target rollers.",
+      "description": "复用或生成数值Rule Tool，记录roller峰值高度、双夹爪闭合状态以及左右TCP到对应接触位置的最小距离，用于区分接触对齐失败与抬升失败。",
       "reuse_first": true
     }
   },
   "provider": {
-    "model_requested": "gpt-4o-2024-11-20",
+    "model_requested": "gpt-5.6-luna",
     "called": true,
-    "attempt_count": 2,
-    "errors": [
-      "PlanAgentError: the original Query explicitly defines experimental success semantics, so checker_need.required must be true"
-    ],
+    "attempt_count": 1,
+    "errors": [],
     "last_metadata": {
-      "id": "chatcmpl-E7B8iJgHZppYGHNVBPhWA6gBfHbio",
-      "model": "gpt-4o-2024-11-20",
+      "id": "chatcmpl-202607300552107091627968268d9d6W5udWCxh",
+      "model": "gpt-5.6-luna",
       "finish_reason": "stop",
       "usage": {
-        "completion_tokens": 396,
-        "completion_tokens_details": {
-          "accepted_prediction_tokens": 0,
-          "audio_tokens": 0,
-          "reasoning_tokens": 0,
-          "rejected_prediction_tokens": 0
+        "prompt_tokens": 1636,
+        "completion_tokens": 802,
+        "total_tokens": 2438,
+        "billing_usage": {
+          "source": "oai_responses",
+          "semantic": "openai",
+          "openai_usage": {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 2438,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "text_tokens": 0,
+              "audio_tokens": 0,
+              "image_tokens": 0
+            },
+            "completion_tokens_details": {
+              "text_tokens": 0,
+              "audio_tokens": 0,
+              "image_tokens": 0,
+              "reasoning_tokens": 0
+            },
+            "input_tokens": 1636,
+            "output_tokens": 802,
+            "input_tokens_details": {
+              "cached_tokens": 0,
+              "text_tokens": 0,
+              "audio_tokens": 0,
+              "image_tokens": 0
+            },
+            "claude_cache_creation_5_m_tokens": 0,
+            "claude_cache_creation_1_h_tokens": 0
+          }
         },
-        "latency_checkpoint": {
-          "engine_tbt_ms": 8,
-          "engine_ttft_ms": 47,
-          "engine_ttlt_ms": 3222,
-          "pre_inference_ms": 127,
-          "service_tbt_ms": 8,
-          "service_ttft_ms": 378,
-          "service_ttlt_ms": 3547,
-          "total_duration_ms": 3480,
-          "user_visible_ttft_ms": 251
-        },
-        "prompt_tokens": 1762,
         "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 0,
           "audio_tokens": 0,
-          "cached_tokens": 1664
+          "image_tokens": 0
         },
-        "total_tokens": 2158
+        "completion_tokens_details": {
+          "text_tokens": 0,
+          "audio_tokens": 0,
+          "image_tokens": 0,
+          "reasoning_tokens": 0
+        },
+        "input_tokens": 1636,
+        "output_tokens": 802,
+        "input_tokens_details": null,
+        "claude_cache_creation_5_m_tokens": 0,
+        "claude_cache_creation_1_h_tokens": 0
       },
       "retry_count": 0
     }

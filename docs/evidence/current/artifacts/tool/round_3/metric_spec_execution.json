@@ -1,0 +1,183 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "route": "provider_python_codegen",
+  "provider_called": true,
+  "generation": {
+    "successful_attempt": 0,
+    "attempt_count": 1,
+    "failures": [],
+    "model_requested": "gpt-5.6-terra",
+    "provider": {
+      "id": "chatcmpl-202607300601263458568368268d9d6IhK7KTRG",
+      "model": "gpt-5.6-terra",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 2245,
+        "completion_tokens": 238,
+        "total_tokens": 2483,
+        "billing_usage": {
+          "source": "oai_responses",
+          "semantic": "openai",
+          "openai_usage": {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 2483,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "text_tokens": 0,
+              "audio_tokens": 0,
+              "image_tokens": 0
+            },
+            "completion_tokens_details": {
+              "text_tokens": 0,
+              "audio_tokens": 0,
+              "image_tokens": 0,
+              "reasoning_tokens": 0
+            },
+            "input_tokens": 2245,
+            "output_tokens": 238,
+            "input_tokens_details": {
+              "cached_tokens": 0,
+              "text_tokens": 0,
+              "audio_tokens": 0,
+              "image_tokens": 0
+            },
+            "claude_cache_creation_5_m_tokens": 0,
+            "claude_cache_creation_1_h_tokens": 0
+          }
+        },
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 0,
+          "audio_tokens": 0,
+          "image_tokens": 0
+        },
+        "completion_tokens_details": {
+          "text_tokens": 0,
+          "audio_tokens": 0,
+          "image_tokens": 0,
+          "reasoning_tokens": 0
+        },
+        "input_tokens": 2245,
+        "output_tokens": 238,
+        "input_tokens_details": null,
+        "claude_cache_creation_5_m_tokens": 0,
+        "claude_cache_creation_1_h_tokens": 0
+      },
+      "retry_count": 0
+    }
+  },
+  "source_path": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3/execution/round_3/planned_tool/typed_metric_spec/generated_tool.py",
+  "tool_spec": {
+    "schema_version": 1,
+    "task_name": "grab_roller",
+    "metric": "query_right_tcp_to_roller_right_contact_min_distance",
+    "question": "Measure the minimum distance between the right TCP and the corresponding right roller contact point.",
+    "route": "force_codegen",
+    "reference_tool": null,
+    "required_signals": [
+      "semantic_trace.right_tcp_position",
+      "semantic_trace.roller_right_contact_position",
+      "semantic_trace.physics_step"
+    ],
+    "output_contract": {
+      "source": "typed_metric_spec_v1",
+      "metric_spec": {
+        "schema_version": 1,
+        "operation": "minimum_distance",
+        "left_signal": "right_tcp_position",
+        "right_signal": "roller_right_contact_position",
+        "dimensions": [
+          "x",
+          "y",
+          "z"
+        ],
+        "unit": "m",
+        "null_semantics": "null_if_no_finite_sample"
+      },
+      "value_type": "number_or_null",
+      "unit": "m",
+      "passed": null,
+      "evidence": "argmin_physics_step"
+    },
+    "validation_requirements": {
+      "min_episodes": 1,
+      "distinct_reference_values": false,
+      "required_reference_values": []
+    }
+  },
+  "task_code_context_consumed": true,
+  "fixtures": [],
+  "episodes": [
+    {
+      "episode_dir": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260730_batch31_grab_roller_broad_live_v3_round_3/evaluation/telemetry/act/episode_000_seed_100401",
+      "policy_name": "ACT",
+      "seed": 100401,
+      "generated_result": {
+        "tool": "query_right_tcp_to_roller_right_contact_min_distance",
+        "version": 1,
+        "generated": true,
+        "tool_sha256": "bbfa1b7da469aa5773188f576d4bc5e146776d021e7dd290b1704276ddaac3e5",
+        "value": 0.04654303938150406,
+        "unit": "m",
+        "passed": null,
+        "evidence_steps": [
+          6115
+        ],
+        "details": {
+          "operation": "minimum_distance",
+          "reason": "measured"
+        }
+      },
+      "oracle_projection": {
+        "value": 0.04654303805032527,
+        "unit": "m",
+        "passed": null,
+        "evidence_steps": [
+          6115
+        ],
+        "details": {
+          "operation": "minimum_distance",
+          "left_signal": "right_tcp_position",
+          "right_signal": "roller_right_contact_position",
+          "dimensions": [
+            "x",
+            "y",
+            "z"
+          ],
+          "min_index": 6115,
+          "reason": "measured"
+        }
+      },
+      "deterministic": true,
+      "oracle_agreement": true,
+      "artifacts_unchanged": true
+    }
+  ],
+  "registration": {
+    "registration_id": "runlocal_52f840a2f2e6d495dacf",
+    "scope": "run_local",
+    "status": "validated",
+    "tool_id": "query_right_tcp_to_roller_right_contact_min_distance",
+    "version": 1,
+    "target_metric": "query_right_tcp_to_roller_right_contact_min_distance",
+    "contract_sha256": "09a71407fa9f44fbb029fbd3b4cef29fdea0d3266fdfa26f1e8585f6197beddc",
+    "telemetry_schema_sha256": "05c666cb0913233b30cb3ec7fc85ae8c40948313cef0edc12e87aa56efccfdcc",
+    "code_sha256": "bbfa1b7da469aa5773188f576d4bc5e146776d021e7dd290b1704276ddaac3e5",
+    "promotion": {
+      "current_scope": "run_local",
+      "candidate": {
+        "status": "not_requested"
+      },
+      "trusted": {
+        "status": "not_requested"
+      }
+    }
+  },
+  "limitations": [
+    "typed semantic oracle: minimum_distance",
+    "provider-generated Python",
+    "output is checked twice against the trusted interpreter on each live episode; live values need not differ"
+  ]
+}

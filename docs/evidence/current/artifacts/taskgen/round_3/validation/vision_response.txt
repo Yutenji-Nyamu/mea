@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "render_usable": true,
+  "key_task_actors_visible": true,
+  "requested_change_assessment": "consistent",
+  "visual_physical_plausibility": "plausible",
+  "unexpected_changes": [],
+  "diagnosis": "The generated scene is visible and physically plausible. The roller appears uniformly reduced in scale relative to the official scene, while its visible appearance, orientation, lighting, and surrounding scene remain consistent. Exact position, material properties, and task-state preservation are not fully decidable from RGB.",
+  "repair_instructions": [],
+  "confidence": 0.86
+}

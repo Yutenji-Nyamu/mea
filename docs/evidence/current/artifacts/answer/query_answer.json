@@ -1,65 +1,84 @@
 {
   "schema_version": 1,
-  "original_query": "只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。",
-  "answered": true,
-  "answer_scope": "bounded_experimental_query_semantics",
+  "original_query": "这个ACT策略在grab_roller任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？",
+  "answered": false,
+  "answer_scope": "official_equivalent",
   "official_benchmark_answered": false,
-  "stop_reason": "evidence_sufficient",
+  "stop_reason": "budget_exhausted",
   "claim_type": "existential",
-  "claim_verdict": "supported",
-  "answer": "For the finite registered candidate domain, the Query verdict is supported.",
+  "claim_verdict": "inconclusive",
+  "answer": "The bounded evidence does not yet satisfy the truth conditions needed to answer the original Query.",
   "tested_candidate_ids": [
-    "dynamic.grab.roller.task.execution.non.target.proximity.effect.when.a.non.target.roller.with.the.same.appearance.as.the.target.roller.is.placed.closer.to.the.robot.than.the.target.roller.the.policy.will.still.successfully.achieve.the.target.roller.s.final.height.of.at.least.0.8.meters.while.keeping.the.non.target.roller.s.final.height.below.0.8.meters.5800b2471f80"
+    "dynamic.grab.roller.object.geometry.graspable.scale.reduction.roller.15.act.5e696fb1d45c",
+    "dynamic.grab.roller.object.geometry.graspable.scale.strong.reduction.roller.0.70.act.0.85.22.5c860bd23c57"
   ],
   "untested_candidate_ids": [],
   "limitations": [
     "This is a finite-domain stopping prototype, not a statistical generalization guarantee.",
     "The candidate universe is open; exhaustive, no-counterexample, and worst-case conclusions are not licensed.",
     "This answer is limited to the bound task, checkpoint, variants, and recorded seeds.",
-    "A finite-domain N-small result is not a broad generalization guarantee.",
-    "At least one candidate verdict uses generated_check_success; it must not be interpreted as official benchmark success.",
-    "At least one generated checker has not been certified as official-equivalent; its verdict must be treated as experimental."
+    "A finite-domain N-small result is not a broad generalization guarantee."
   ],
   "evidence_refs": [
     {
       "kind": "child_manifest",
-      "path": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_1/manifest.json"
+      "path": "mea/generated_tasks/run_20260730_batch31_grab_roller_broad_live_v3_round_1/manifest.json"
     },
     {
       "kind": "evidence_aggregate",
-      "path": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_1/evidence_aggregate.json"
+      "path": "mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3/execution/round_1/evidence_aggregate.json"
     },
     {
       "kind": "round_aggregate",
-      "path": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_1/aggregate_result.json"
+      "path": "mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3/execution/round_1/aggregate_result.json"
     },
     {
       "kind": "tool_execution",
-      "path": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_1/planned_tool/tool_execution.json"
+      "path": "mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3/execution/round_1/planned_tool/tool_execution.json"
     },
     {
       "kind": "execution_vqa_result",
-      "path": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_1/execution_vqa/execution_vqa.json"
+      "path": "mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3/execution/round_1/execution_vqa/execution_vqa.json"
     },
     {
       "kind": "child_manifest",
-      "path": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_2/manifest.json"
+      "path": "mea/generated_tasks/run_20260730_batch31_grab_roller_broad_live_v3_round_2/manifest.json"
     },
     {
       "kind": "evidence_aggregate",
-      "path": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/evidence_aggregate.json"
+      "path": "mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3/execution/round_2/evidence_aggregate.json"
     },
     {
       "kind": "round_aggregate",
-      "path": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/aggregate_result.json"
+      "path": "mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3/execution/round_2/aggregate_result.json"
     },
     {
       "kind": "tool_execution",
-      "path": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/planned_tool/tool_execution.json"
+      "path": "mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3/execution/round_2/planned_tool/tool_execution.json"
     },
     {
       "kind": "execution_vqa_result",
-      "path": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_2/execution_vqa/execution_vqa.json"
+      "path": "mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3/execution/round_2/execution_vqa/execution_vqa.json"
+    },
+    {
+      "kind": "child_manifest",
+      "path": "mea/generated_tasks/run_20260730_batch31_grab_roller_broad_live_v3_round_3/manifest.json"
+    },
+    {
+      "kind": "evidence_aggregate",
+      "path": "mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3/execution/round_3/evidence_aggregate.json"
+    },
+    {
+      "kind": "round_aggregate",
+      "path": "mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3/execution/round_3/aggregate_result.json"
+    },
+    {
+      "kind": "tool_execution",
+      "path": "mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3/execution/round_3/planned_tool/tool_execution.json"
+    },
+    {
+      "kind": "execution_vqa_result",
+      "path": "mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3/execution/round_3/execution_vqa/execution_vqa.json"
     }
   ],
   "evaluation_outcomes": [
@@ -83,36 +102,40 @@
       }
     },
     {
-      "metric": "generated_check_success",
-      "authority": "llm_generated_python_ast_validated",
-      "binding": {
-        "metric": "generated_check_success",
-        "authority": "llm_generated_python_ast_validated",
-        "module_sha256": "67f9474663d4b45048437b914c5e52a5c5b717cba4bdd5759152576e953eac26",
-        "task_module": "mea.generated_tasks.run_20260730_b44_grab_roller_plan_agent_live13_round_2.task"
-      },
+      "metric": "official_check_success",
+      "authority": "official_check_success_reused",
+      "binding": null,
       "value": 1.0,
-      "official_equivalent": false,
-      "execution_scope": "provider_generated_checker",
+      "official_equivalent": true,
+      "execution_scope": "official_equivalent",
       "outcome_semantics": {
         "schema_version": 1,
-        "status": "expected_semantic_extension",
+        "status": "official_only",
         "evidence_conflict": false,
-        "official_equivalent": false,
-        "outcome_authority": "llm_generated_python_ast_validated",
-        "episodes": [
-          {
-            "seed": 100301,
-            "generated_checker_success": true,
-            "official_success": null,
-            "official_core_predicate_satisfied": true,
-            "official_equivalent": false,
-            "status": "expected_semantic_extension",
-            "reason": "generated_checker_adds_constraints_beyond_official_core"
-          }
-        ],
+        "official_equivalent": true,
+        "outcome_authority": "official_check_success_reused",
+        "episodes": [],
         "reason_codes": [
-          "generated_checker_adds_constraints_beyond_official_core"
+          "official_outcome_has_no_generated_checker"
+        ]
+      }
+    },
+    {
+      "metric": "official_check_success",
+      "authority": "official_check_success_reused",
+      "binding": null,
+      "value": 1.0,
+      "official_equivalent": true,
+      "execution_scope": "official_equivalent",
+      "outcome_semantics": {
+        "schema_version": 1,
+        "status": "official_only",
+        "evidence_conflict": false,
+        "official_equivalent": true,
+        "outcome_authority": "official_check_success_reused",
+        "episodes": [],
+        "reason_codes": [
+          "official_outcome_has_no_generated_checker"
         ]
       }
     }
@@ -131,23 +154,24 @@
     },
     {
       "schema_version": 1,
-      "status": "expected_semantic_extension",
+      "status": "official_only",
       "evidence_conflict": false,
-      "official_equivalent": false,
-      "outcome_authority": "llm_generated_python_ast_validated",
-      "episodes": [
-        {
-          "seed": 100301,
-          "generated_checker_success": true,
-          "official_success": null,
-          "official_core_predicate_satisfied": true,
-          "official_equivalent": false,
-          "status": "expected_semantic_extension",
-          "reason": "generated_checker_adds_constraints_beyond_official_core"
-        }
-      ],
+      "official_equivalent": true,
+      "outcome_authority": "official_check_success_reused",
+      "episodes": [],
       "reason_codes": [
-        "generated_checker_adds_constraints_beyond_official_core"
+        "official_outcome_has_no_generated_checker"
+      ]
+    },
+    {
+      "schema_version": 1,
+      "status": "official_only",
+      "evidence_conflict": false,
+      "official_equivalent": true,
+      "outcome_authority": "official_check_success_reused",
+      "episodes": [],
+      "reason_codes": [
+        "official_outcome_has_no_generated_checker"
       ]
     }
   ],

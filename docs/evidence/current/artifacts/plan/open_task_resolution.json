@@ -3,13 +3,13 @@
   "decision": "retrieve_and_adapt",
   "reason_code": "nearest_training_task",
   "query_interpretation": {
-    "source_query": "只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。",
+    "source_query": "这个ACT策略在grab_roller任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？",
+    "requested_variation": "Shift the roller center laterally by a fixed, reachable offset toward the workspace boundary. Preserve the roller's color, material, size, shape, orientation, tabletop scene layout, camera viewpoint, task instruction, policy checkpoint, and official success semantics.",
+    "sub_aspect": "Robustness to a bounded lateral shift of the roller within the reachable workspace",
     "schema_version": 1,
-    "hypothesis": "The policy can successfully achieve the goal when a distractor roller with identical appearance is placed closer to the robot than the target roller.",
-    "sub_aspect": "Effect of proximity of a distractor roller with identical appearance on task success.",
-    "requested_variation": "Introduce a distractor roller with identical appearance to the target roller, positioned closer to the robot than the target roller. Preserve the center position, material, and appearance of the target roller, as well as the scene layout, camera viewpoint, and task instruction.",
-    "measurement_need": "Observe the final heights of both the target roller and the distractor roller, and compute their height difference.",
-    "task_intent": "Manipulate the target roller to achieve a final height of at least 0.8 meters while ensuring the distractor roller's final height remains below 0.8 meters."
+    "measurement_need": "Compare official grab_roller success between the nominal roller center position and the laterally shifted position, while verifying that the shifted center remains inside the reachable workspace.",
+    "hypothesis": "The ACT policy will show a lower official-task success rate when the roller is shifted laterally toward the workspace boundary than at its nominal center position, despite the roller remaining reachable.",
+    "task_intent": "Grasp the roller and achieve the official grab_roller task goal."
   },
   "policy_scope": {
     "schema_version": 1,
@@ -24,7 +24,7 @@
   },
   "selected_base_task": {
     "task_name": "grab_roller",
-    "score": 0.290985,
+    "score": 0.715794,
     "execution_status": "capability_registered",
     "capability_aspects": [
       "task_execution.official_baseline"
@@ -33,24 +33,23 @@
   "ranked_candidates": [
     {
       "task_name": "grab_roller",
-      "score": 0.290985,
+      "score": 0.715794,
       "execution_status": "capability_registered",
       "capability_aspects": [
         "task_execution.official_baseline"
       ]
     },
     {
-      "task_name": "click_bell",
-      "score": 0.027028,
+      "task_name": "beat_block_hammer",
+      "score": 0.035355,
       "execution_status": "capability_registered",
       "capability_aspects": [
+        "object_appearance.color",
         "object_position",
-        "object_instance",
+        "performance.pickup_to_contact_timing",
+        "object_scale",
+        "safety.hammer_left_camera_contact",
         "robustness.distractor_avoidance",
-        "robustness.scene_clutter",
-        "scene_background_texture",
-        "scene_lighting",
-        "performance.completion_time_stability",
         "task_execution.official_baseline"
       ]
     },

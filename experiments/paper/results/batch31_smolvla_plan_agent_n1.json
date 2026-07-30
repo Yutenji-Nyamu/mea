@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "evaluation_id": "eval_20260730_batch31_click_bell_smolvla_n1",
+  "date": "2026-07-30",
+  "execution": {
+    "server": "AutoDL/SeetaCloud",
+    "task": "click_bell",
+    "seed": 1000,
+    "policy_backend": "smolvla",
+    "checkpoint": "lerobot/smolvla_robotwin",
+    "checkpoint_revision": "967623a0f38c7e1236c66b3893c830398d793ff7",
+    "actions": 49,
+    "rollout_wall_seconds": 41.02,
+    "policy_server_load_seconds": 20.21,
+    "policy_chunk_count": 1,
+    "policy_chunk_inference_seconds": [
+      0.58
+    ],
+    "policy_server_peak_cuda_allocated_gib": 1.27
+  },
+  "online_result": {
+    "official_check_success": true,
+    "policy_success": 1.0,
+    "tool_route": "reuse",
+    "tool_metric": "official_check_success",
+    "aggregate_status": "passed",
+    "source_pipeline_passed": false,
+    "source_status": "completed_with_pipeline_failure",
+    "failure": "The Proposal did not request VQA, but the old orchestration still ran Execution VQA and looked for an ACT-style frame path."
+  },
+  "zero_rollout_projection": {
+    "repair_id": "batch31_smolvla_unrequested_vqa_projection_v2",
+    "act_rollouts_started": 0,
+    "source_evaluation_immutable": true,
+    "execution_vqa_status": "skipped",
+    "recomputed_pipeline_passed": true,
+    "aggregate_status": "passed",
+    "exact_reuse_kind": "trusted_catalog",
+    "planner_stop_reason": "budget_exhausted",
+    "planner_claim_verdict": "inconclusive",
+    "planner_evidence_sufficient": false
+  },
+  "code_resolution": {
+    "rule": "Run Execution VQA for legacy rounds or when the Proposal requests it; skip it when semantic_need_execution.vqa_tool.requested is explicitly false.",
+    "new_policy_rollout_required": false
+  },
+  "provenance": {
+    "source_commit": "721e676f48c57498a8cc7b2fc2e14cbab22715a6",
+    "availability": "server_only_not_git_tracked",
+    "source_evaluation_root": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/evaluation_runs/eval_20260730_batch31_click_bell_smolvla_n1",
+    "source_manifest": {
+      "path": "manifest.json",
+      "sha256": "1ec4a2f92e870340b057d52cc5ff78e08113d669b6dd9612c84ce49143ac1e9c"
+    },
+    "rollout_result": {
+      "path": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/native_smolvla_75478b6da939/evaluation/result.json",
+      "sha256": "4d27593fd01d1108655f5588cf187850a1e6f53d2d046c4583e92a03444dca28"
+    },
+    "agent_log": {
+      "path": "/root/autodl-tmp/tmp/mea-smolvla-robotwin/eval_20260730_batch31_click_bell_smolvla_n1/agent.log",
+      "sha256": "be6f4047672a74bc12ece331ba31ed314e948d7f7689ec46cb331dfe5255c41f"
+    },
+    "policy_server_log": {
+      "path": "/root/autodl-tmp/tmp/mea-smolvla-robotwin/eval_20260730_batch31_click_bell_smolvla_n1/policy_server.log",
+      "sha256": "fc8314cb8de69a2cd1732deedb09dd592d4b88f1c81351fd1e62357890aee8a8"
+    },
+    "policy_server_ready": {
+      "path": "/root/autodl-tmp/tmp/mea-smolvla-robotwin/eval_20260730_batch31_click_bell_smolvla_n1/server.ready.json",
+      "sha256": "a52e2e172b3bc939333057468d62f05fddf38418852394dc143227cf3ab6120d"
+    },
+    "append_only_projection": {
+      "path": "repairs/batch31_smolvla_unrequested_vqa_projection_v2/result.json",
+      "sha256": "561a34c7b2516a9a1ffc7f6f9df98b873f8230cd5b950c4eb809ca178e0782b7",
+      "provenance_sha256": "e117e0fd31c8c81725c11d6e9952910ff47c3d221fc9fa56cbd9310f96dedd34"
+    }
+  },
+  "claim_scope": "This validates the schema-backed SmolVLA production adapter and shared post-rollout method path after an append-only zero-rollout projection. It is not a clean original online pipeline pass, a policy success-rate estimate, or a 50-task result."
+}

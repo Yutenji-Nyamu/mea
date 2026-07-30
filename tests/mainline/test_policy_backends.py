@@ -5,11 +5,13 @@ import pytest
 
 from mea.method_runtime import (
     BackendBindingRequest,
+    CandidateRequest,
     MaterializedCandidate,
     RolloutRequest,
 )
 from mea.planner.context import build_planning_context
 from mea.planner.experiment_candidate import build_experiment_candidate
+from mea.planner.open_task_resolver import policy_task_scope_from_card
 from mea.planner.policy_task_binding import (
     PolicyTaskBindingError,
     build_policy_task_binding,
@@ -136,6 +138,29 @@ def test_method_backend_allows_schema_less_official_control(tmp_path):
     assert candidate.validation == {"route": "official_control"}
     assert candidate.task_contract["task_module"] == "envs.alpha_task"
 
+    official_query = build_experiment_candidate(
+        source_query="Can it solve only the official task?",
+        base_task="alpha_task",
+        semantic_concern="official task completion",
+        rule_tool_need={
+            "kind": "reuse",
+            "description": "Reuse official check_success().",
+            "reuse_first": True,
+        },
+    )
+    materialized = backend.materialize_candidate(
+        binding,
+        CandidateRequest(
+            candidate_id=official_query["candidate_id"],
+            source_query=official_query["source_query"],
+            proposal_bundle=official_query,
+            seed=1,
+            output_dir=tmp_path / "official_query",
+        ),
+    )
+    assert materialized.validation["route"] == "official_task_tool_only"
+    assert materialized.metadata["official_task_reused"] is True
+
 
 def test_policy_backend_rejects_a_mismatched_rollout_hook():
     with pytest.raises(PolicyTaskBindingError, match="policy backend"):
@@ -176,6 +201,10 @@ def test_schema_less_smolvla_context_exposes_official_only_boundary(
 
     assert context["policy_card"]["policy_name"] == "SmolVLA"
     assert context["policy_card"]["single_task_checkpoint"] is False
+    assert policy_task_scope_from_card(context["policy_card"])[
+        "training_tasks"
+    ] == ["alpha_task"]
+    assert context["policy_card"]["supports_unseen_tasks"] is False
     assert context["policy_card"]["expert_data_num"] is None
     assert "expert_data_num" in context["policy_card"]["unknown_metadata"]
     assert context["simulator_card"]["tracked_actors"] == []

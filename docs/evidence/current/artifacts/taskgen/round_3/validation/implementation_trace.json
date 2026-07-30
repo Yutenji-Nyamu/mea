@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "intent_id": "intent.4660c0a7908d4c45",
+  "candidate_id": "dynamic.grab.roller.object.geometry.graspable.scale.strong.reduction.roller.0.70.act.0.85.22.5c860bd23c57",
+  "stage": "taskgen",
+  "relationship": "diagnostic_proxy",
+  "rationale": "Candidate is a nearby diagnostic, not a direct implementation of candidate-contract fields: ['requested_change'].",
+  "covered_intent_fields": [],
+  "uncovered_intent_fields": [
+    "requested_change",
+    "preserved_conditions",
+    "hypothesis",
+    "required_observation"
+  ],
+  "pending_intent_fields": [],
+  "coverage_status": "not_covered",
+  "repair_required": false,
+  "validation_evidence": {
+    "scene_change_passed": true,
+    "checker_fixtures_passed": true,
+    "visual_diagnosis_passed": true,
+    "preserved_conditions_verified": null,
+    "tool_evaluation_passed": null
+  }
+}

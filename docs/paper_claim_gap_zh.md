@@ -12,34 +12,37 @@ session。代码和不可变历史 artifact 中的 `ClaimFirst`、`FreeConcern`�
 
 当前方法主证据是
 [current evidence](evidence/current/README.md) 对应的
-`eval_20260730_b44_grab_roller_plan_agent_live13`。Query 未提供
-aspect/template，但已经限定一个可证伪场景和实验成功语义；round 1 仅执行 official
-control。Plan Agent 在 control 通过后才 materialize 这个 Query-derived Proposal，并由同一
-Proposal 生成新 scene 与新 `check_success()`、生成高度差 Rule Tool、完成
-render/VLM/expert、第二次 ACT、Aggregate、充分性停止与最终 Answer。实验 checker
-和 official core 均为真；目标/非目标终态高度为 `0.80005/0.74166 m`，新 Tool
-测得 `0.05838 m`。随后以已完成 telemetry 做 0-ACT 审计：首次请求由 GPT
-编写 Python Rule Tool，经过一次基于真实失败的局部修复后通过 AST、双次执行、
-独立 MetricSpec oracle 与 artifact 不变性检查；第二个 Query 精确走
-`run_local_reuse` 且未调用 provider。
+`eval_20260730_batch31_grab_roller_broad_live_v3`。Query 只问 ACT 在
+`grab_roller` 的哪种可执行物体属性或场景变化上最先暴露弱点，没有给
+aspect/template。round 1 official 成功后，Plan Agent 自选物体尺度，将 roller
+缩至 `0.85`；该轮仍成功且左侧 TCP 最小距离为 `0.02206 m`。这份不充分 evidence
+使下一轮把同一 sub-aspect 细化为 `0.70`，并补测右侧 TCP 最小距离
+`0.04654 m`。两轮均由通用 TaskGen 生成 scene/task subclass，并复用 official
+checker binding，经过 render、VLM、expert 后各执行一次 ACT；新 Python Rule Tool
+在原 live round 得到非空值并进入 Aggregate。Execution VQA 是旧编排自动运行的
+辅助观察；两个 Proposal 均未请求 VQA Tool，不能作为 Query-conditioned VQA
+materialization 证据。
 
-这次运行也留下了有价值的模型失败：Query interpretation 与下一步 Plan Agent
-首答都漏掉 checker；精简的失败提示和现有一次语义反馈使第二答修正，而不是新增任务
-方言。它证明的是单 task、单 seed、有限 existential Query 的完整方法闭环，不是统计
-泛化或跨 Query registry reuse。
+三轮均为同一 seed `[100401]` 且官方成功，最终因预算耗尽而不是证据充分停止；
+Answer 因此保持 `inconclusive`，没有虚构“最早弱点”。0-ACT 语义重审修正了中文
+“尺度设为/调整为”被误判为 unchanged scene 的词法错误：两个 Proposal 均为
+direct alignment；但 execution coverage 仍为 partial，`preserved_conditions` 缺
+完整 simulator authority，`required_observation` 也未完整覆盖（左右距离来自不同
+scale，且没有测完全部 requested signals）。原 Answer 与原始运行保持不可变，重审
+只作为附加审计。
 
 ## 方法 claim
 
 | 论文 claim | 当前项目证据 | 判断 |
 | --- | --- | --- |
-| Fig. 2/5：开放 Query 驱动，Plan Agent 自主提出 sub-aspect | 生产入口由 `PlanAgentInitialPlanBuilder` 直接建立首轮计划，不调用 catalog/task-specific planner。live13 未给 aspect/template，但 Query 已完整描述唯一候选；系统将其解释并 materialize 为 `non_target_proximity_effect` | **Query-derived Proposal 正例完成，自主发现未完成**。尚未证明 broad Query 下连续发现多个未知 sub-aspect |
-| 上一轮 evidence 决定下一轮，并在充分时停止 | live13 的 round 1 official evidence 只负责 control gate 和 lineage；它没有决定测试方向。round 2 checker pass 后 existential contract 以 `evidence_sufficient` 停止 | **evidence-gated continuation/stop 完成**。`eval_20260726_batch23_open_query_live_n1_v5` 另有 scale→distractor refinement，但两种能力尚未在同一旗舰合一 |
-| Fig. 3：Proposal → retrieve/generate scene + `check_success()` → rollout | live13 在原本 official-only 的 `grab_roller` 上通过通用 backend 同时生成 scene/checker；2/2 simulator fixtures、render、VLM、expert 通过后直接裁决 ACT，且未新增任务名分支 | **一个完整冷启动正例完成**。生成 checker 明确标为 experimental，不冒充 official benchmark success |
+| Fig. 2/5：开放 Query 驱动，Plan Agent 自主提出 sub-aspect | 生产入口由 `PlanAgentInitialPlanBuilder` 直接建立首轮计划，不调用 catalog/task-specific planner。batch31 broad Query 未给候选；official evidence 后 Plan Agent 自选 scale，并依据 0.85 evidence 细化到 0.70 | **小范围 evidence-conditioned sub-aspect refinement 已真实完成**。仍只有一个 task/seed 和一条尺度方向，尚未证明跨多类 concern 的自主搜索 |
+| 上一轮 evidence 决定下一轮，并在充分时停止 | batch31 证明 evidence 改变下一 Proposal，但三轮均成功后因 `budget_exhausted` 停止；旧 live13 证明有限 existential contract 可因 `evidence_sufficient` 停止，但候选已由 Query 限定 | **“动态细化”和“充分停止”分别有正例，尚未在同一 broad flagship 合一** |
+| Fig. 3：Proposal → retrieve/generate scene + `check_success()` → rollout | batch31 在 `grab_roller` 上两次使用同一通用 backend 生成 scene/task subclass，并用 official checker wrapper 裁决 ACT；两个 Proposal 的 `checker_need` 均为空，且没有任务名专属分支 | **通用 scene generation 已有多轮正例，本次没有新增 checker codegen 证据**。早期实验 checker 案例仍单独成立；本次 preservation 与 observation coverage 都不完整 |
 | 首帧视觉诊断，失败时局部重生成 | 通用 TaskGen 已运行真实 VLM visual diagnosis，并只允许一次局部 repair；preservation 仍由 simulator state、collision geometry、AST/checker fixture 与 frozen binding 独立裁决 | **职责边界已完成**。最新旗舰没有触发 repair，因此尚缺“视觉发现问题→一次修复→通过”的在线正例；视觉不能替代数值 authority |
-| Fig. 4：ToolGen retrieve/generate/validate/register/reuse | live13 的原运行以 typed MetricSpec 得到 `0.05838 m` 并进入 Aggregate/Plan Agent；Batch30 又在同一真实 telemetry 上完成 provider-written Python Tool、AST/确定性/oracle/artifact gate、run-local 注册及第二 Query exact reuse | **开放 Python 实现生成已有 0-ACT 在线正例**。语义需求仍先落入五个 typed operator；尚缺同一 live flagship 内生成与跨 evaluation reviewed reuse |
-| rollout → Rule/VQA → Aggregate → Plan Agent session → Answer | live13 的单一命令生成 Query、逐轮 prompt/decision、TaskGen 代码、render、ACT video/telemetry、Tool/VQA、Aggregate 和受限 Answer | **RoboTwin 小范围基本完成** |
+| Fig. 4：ToolGen retrieve/generate/validate/register/reuse | batch31 两个 live round 均由 provider 生成 Python Rule Tool、取得非空 TCP 距离并进入 Aggregate；Batch30 另有 AST/确定性/oracle/artifact gate 与第二 Query `run_local_reuse`。验证器也支持 caller 提供独立 oracle/fixtures 的 `derived_observable`，无 oracle 时生产默认不广告 | **live 生成与测量已完成，精确复用仍是分离的 0-ACT 案例**。尚缺同一旗舰和跨 evaluation reviewed reuse |
+| rollout → Rule/VQA → Aggregate → Plan Agent session → Answer | batch31 的单一命令保存 Query、逐轮 prompt/decision、两份 TaskGen 代码、render、三次 ACT video/telemetry、Rule Tool、辅助 Execution VQA、Aggregate 和受限 Answer；两个 Proposal 均未请求 VQA | **RoboTwin 小范围基本完成**。Execution VQA 不能误记为 Query 诱发的新 Tool |
 | 回答原 Query 并显式约束确定性 | `AnswerScope` 强制记录 N、唯一 seeds、候选域、冲突、stop reason 与限制；live13 正确表述 2 个 episode 只有一个 seed `[100301]` | **当前完成度高**。输出明确不是统计泛化保证 |
-| RoboTwin/LIBERO 使用同一外层方法语义 | `MethodRuntime`、`QueryContract` 与 policy-task binding 已抽成共享接口；SmolVLA 已通过 `MethodRuntime/RoboTwinMethodBackend` 在新任务 `turn_switch` 执行 official control，LIBERO 仍进入独立 backend chain | **原生 official-control 边界已通，完整外层 loop 未统一**。生产 Plan Agent CLI 仍使用 ACT child pipeline；SmolVLA 尚无 semantic telemetry bridge |
+| RoboTwin/LIBERO 使用同一外层方法语义 | `MethodRuntime`、`QueryContract` 与 policy-task binding 已抽成共享接口。生产 Plan Agent CLI 已用 `--policy-backend smolvla` 在 schema-backed `click_bell` 完成一次 N=1 official rollout，并写出 Rule/Aggregate；该 episode 的 official check 为 true。原在线 pipeline 因未请求 VQA 却被执行而失败，修复后只做了 append-only 0-rollout 投影并得到 pipeline pass；Planner 仍以 `budget_exhausted`、`inconclusive` 结束。LIBERO 仍进入独立 backend chain | **只证明 live backend/post-rollout mechanism 与事后投影，不是 clean online acceptance**。generic scene/checker 与请求型 VQA 尚未接入 SmolVLA；跨 simulator 外层 loop 未统一 |
 
 ## 实验 claim
 
@@ -56,21 +59,23 @@ render/VLM/expert、第二次 ACT、Aggregate、充分性停止与最终 Answer�
 
 ## 当前最重要的 gap
 
-1. **把 broad Query refinement 与完整生成闭环合到同一运行。**
-   `eval_20260726_batch23_open_query_live_n1_v5` 证明多轮 concern
-   转向，live13 证明通用 scene+checker+Tool 冷启动；下一步应由 broad Query 和第一轮
-   evidence 自主决定第二轮候选，而不是由 Query 先限定唯一场景。
-2. **统一已知与未知 concern 的 materialization。** retrieval index 外 concern 已走
-   `Proposal → GenericRoboTwinTaskGenBackend`；但命中旧 template 时仍可能进入
-   `BoundedProposalAgent` 与 BBH/ClickBell dialect。下一步应先做语义 artifact exact
-   retrieval，miss 后统一走 generic backend，使 task-specific dialect 只留在
-   `experiments/paper/`。
-3. **继续放开 Tool 的语义发明。** provider 已真正编写 Python 实现，但 MetricSpec
-   需求仍限于五个 typed operator；下一步应允许模型提出新的、可独立验证的 observable，
-   同时补第二个 evaluation 的 reviewed exact reuse。
-4. **把共享 `MethodRuntime` 变成生产 Plan Agent 的原生执行边界。** SmolVLA official
-   control 已原生执行，但完整 production round 仍在 ACT child pipeline；应补 backend
-   selector 与 semantic telemetry bridge，逐阶段迁移而不是再加一套编排。
+1. **让 broad refinement 因 evidence sufficient 而停。** batch31 已把 broad
+   Query、自主 scale concern、两轮通用 scene generation、official checker reuse
+   与 live Python Tool 合在同一数据流，但仍因预算停止。下一次应冻结可满足的有限
+   Query contract，让 evidence 决定继续、换 concern 或充分停止，而不是再增加接口。
+2. **让 Proposal 的 preservation 与 required observation 可被真实 authority 裁决。**
+   batch31 的尺度变化经重审已是 direct alignment，但模型写入了当前 simulator/VLM
+   无法完整验证的保持条件，而且两轮没有覆盖各自声明的全部 observation。Prompt 应只
+   声明可观测的条件；否则先生成对应 state/geometry Tool，不能把“未发现变化”当作
+   已保持，也不能把跨不同 scale 的左右单侧测量合成同一候选的 bilateral evidence。
+3. **把开放 Tool 变成可验证的生产能力。** `derived_observable` 已能在
+   caller-owned oracle 下生成、验证和注册；下一步提供独立 oracle/fixture broker，
+   只在该能力存在时广告 v2，并在同一 live run 证明非空 metric、影响下一轮和第二
+   Query exact reuse。
+4. **补齐 SmolVLA 原生生成候选边界。** 先让 schema-backed official round 在修复后
+   得到一次 clean online acceptance；再把 generic TaskGen scene/checker 与请求型 VQA
+   capability 接到同一 `MethodRuntime`，保持共享 post-rollout orchestration，不增加
+   第二套 mini-chain。
 5. **统一 RoboTwin/LIBERO 的外层 loop。** simulator backend 可以不同，但 route/session、
    RoundExecutor、Aggregate、stop contract 与 Answer 不应重复实现。
 6. **方法稳定后再补实验规模。** 首先做三 seed、非平凡 compare/worst-case 的
@@ -83,6 +88,8 @@ render/VLM/expert、第二次 ACT、Aggregate、充分性停止与最终 Answer�
 - `mea/artifact_retrieval_index.py` 是生产 known-artifact retrieval API；
   `CapabilityAdapter` 只保留旧数据和兼容导出。task identity、schema、checkpoint 与
   official runtime hooks 由 runtime binding 单独验证，不能再把旧五任务成员资格当执行许可。
+  known concern 先做语义 artifact exact retrieval，miss 后统一进入 generic backend；
+  BBH/ClickBell dialect 只作为 paper/compat 迁移源。
 - generic TaskGen 与 ToolGen 各只保留一次共享局部 repair；checker fixture 失败时
   TaskGen 可保持已验证 scene、只重生成 checker，但不能再借另一份预算重试；不恢复中央
   whole-round restart。

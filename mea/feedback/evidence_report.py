@@ -56,6 +56,8 @@ _TOOL_ARTIFACT_ROLES = {
 _FINAL_AUDIT_ARTIFACTS = (
     ("plan/semantic_preservation_audit.json",
      "audit/semantic_preservation_audit.json"),
+    ("audit/semantic_alignment_reaudit.json",
+     "audit/semantic_alignment_reaudit.json"),
     ("audit/final_audit.json", "audit/final_audit.json"),
     ("audit/protocol_audit.json", "audit/protocol_audit.json"),
 )
@@ -1080,6 +1082,39 @@ def write_evidence_report(
         "recommended_next_step": feedback.get("recommended_next_step"),
         "limitations": feedback.get("limitations"),
     }
+    alignment_reaudit = _read_json(
+        evaluation / "audit/semantic_alignment_reaudit.json"
+    )
+    alignment_reaudit_summary = None
+    if alignment_reaudit.get("status") == "completed":
+        alignment_reaudit_summary = {
+            "act_rollouts_started": alignment_reaudit.get(
+                "act_rollouts_started"
+            ),
+            "mutates_source_evaluation": alignment_reaudit.get(
+                "mutates_source_evaluation"
+            ),
+            "rounds": [
+                {
+                    "round_id": item.get("round_id"),
+                    "original_relationship": (
+                        item.get("original_alignment") or {}
+                    ).get("relationship"),
+                    "recomputed_relationship": (
+                        item.get("recomputed_alignment") or {}
+                    ).get("relationship"),
+                    "recomputed_coverage": (
+                        item.get("recomputed_execution_trace") or {}
+                    ).get("coverage_status"),
+                    "pending_intent_fields": (
+                        item.get("recomputed_execution_trace") or {}
+                    ).get("pending_intent_fields"),
+                }
+                for item in alignment_reaudit.get("rounds", [])
+                if isinstance(item, Mapping)
+            ],
+            "conclusion": alignment_reaudit.get("conclusion"),
+        }
     reuse_summary = None
     if repair_result is not None:
         reuse_summary = {
@@ -1120,6 +1155,9 @@ def write_evidence_report(
             "rounds": compact_rounds,
             "final_aggregate": _semantic_aggregate(final_aggregate),
             "answer": final_payload,
+            "post_run_semantic_alignment_reaudit": (
+                alignment_reaudit_summary
+            ),
             "completed_round_reuse": reuse_summary,
         },
         bundle_root / "run_summary.json",
@@ -1139,6 +1177,21 @@ def write_evidence_report(
                 f"- Limitation: {item}"
                 for item in final_payload.get("limitations") or []
             ],
+            *(
+                [
+                    "",
+                    "### Post-run 0-ACT semantic alignment re-audit",
+                    "",
+                    json.dumps(
+                        alignment_reaudit_summary,
+                        ensure_ascii=False,
+                    ),
+                    "The source evaluation and Answer remain immutable; this "
+                    "cached recomputation adds no policy-performance evidence.",
+                ]
+                if alignment_reaudit_summary is not None
+                else []
+            ),
             "## 6. Boundaries",
             "",
             "- Policy results and pipeline status are reported separately.",

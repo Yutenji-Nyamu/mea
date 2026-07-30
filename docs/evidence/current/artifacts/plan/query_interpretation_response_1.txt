@@ -1,15 +1,14 @@
-```json
 {
   "schema_version": 1,
-  "source_query": "只回答这个有界候选：当一个与目标滚筒外观相同、可物理交互的非目标滚筒比目标更靠近机器人时，是否存在一个成功样本？把本候选的实验成功定义为目标滚筒最终高度不低于0.8米且非目标滚筒最终高度低于0.8米；同时报告两者最终高度之差。完成 official control 与这一候选后即可停止。",
-  "sub_aspect": "Effect of proximity of a distractor roller on task success.",
-  "hypothesis": "The policy can successfully manipulate the target roller to a height of at least 0.8 meters while ensuring the distractor roller remains below 0.8 meters, even when the distractor roller is closer to the robot than the target roller.",
-  "task_intent": "Manipulate the target roller to a height of at least 0.8 meters while ensuring the distractor roller remains below 0.8 meters.",
-  "requested_variation": "Introduce a distractor roller with the same appearance as the target roller, positioned closer to the robot than the target roller. Preserve the center position, material, and appearance of the target roller, as well as the scene layout, camera viewpoint, and task instruction.",
-  "measurement_need": "Report the final heights of both the target and distractor rollers, as well as their height difference.",
+  "source_query": "这个ACT策略在grab_roller任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？",
+  "sub_aspect": "Robustness to a bounded lateral shift of the roller within the reachable workspace",
+  "hypothesis": "The ACT policy will show a lower official-task success rate when the roller is shifted laterally toward the workspace boundary than at its nominal center position, despite the roller remaining reachable.",
+  "task_intent": "Grasp the roller and achieve the official grab_roller task goal.",
+  "requested_variation": "Shift the roller center laterally by a fixed, reachable offset toward the workspace boundary. Preserve the roller's color, material, size, shape, orientation, tabletop scene layout, camera viewpoint, task instruction, policy checkpoint, and official success semantics.",
+  "measurement_need": "Compare official grab_roller success between the nominal roller center position and the laterally shifted position, while verifying that the shifted center remains inside the reachable workspace.",
   "scene_need": {
     "required": true,
-    "description": "Add a distractor roller with the same appearance as the target roller, positioned closer to the robot than the target roller."
+    "description": "Generate an otherwise identical grab_roller scene with the roller center moved laterally by a fixed reachable offset toward the workspace boundary; preserve roller color, material, size, shape, orientation, tabletop layout, camera viewpoint, task instruction, policy checkpoint, and official success semantics."
   },
   "checker_need": {
     "required": false,
@@ -17,7 +16,7 @@
   },
   "rule_tool_need": {
     "required": true,
-    "description": "Measure and report the final heights of the target and distractor rollers, and compute their height difference.",
+    "description": "Compute the roller center displacement from the nominal scene and verify its distance to the workspace boundary and reachable-workspace margin.",
     "reuse_first": true
   },
   "vqa_tool_need": {
@@ -26,4 +25,3 @@
     "reuse_first": true
   }
 }
-```

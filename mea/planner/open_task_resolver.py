@@ -29,6 +29,7 @@ from mea.toolkit.schema import (
     load_task_schema,
     task_schema_path,
 )
+from mea.planner.query_contract import query_is_official_only
 
 
 class OpenTaskResolutionError(ValueError):
@@ -177,8 +178,7 @@ def validate_free_concern_experiment_needs(
     }
     if not any(need["required"] for need in result.values()):
         raise OpenTaskResolutionError(
-            "FreeConcern must request at least one scene, checker, Rule Tool, "
-            "or VQA Tool need"
+            "FreeConcern must request at least one explicit evidence need"
         )
     return result
 
@@ -210,6 +210,21 @@ def _split_free_concern_response(
         field: value[field]
         for field in _EXPERIMENT_NEED_FIELDS
     }
+    if query_is_official_only(expected_query):
+        concern["requested_variation"] = (
+            "reuse the unchanged official scene and task"
+        )
+        concern["measurement_need"] = (
+            "Observe the official check_success() boolean result."
+        )
+        needs["rule_tool_need"] = {
+            "required": True,
+            "description": (
+                "Retrieve and reuse the official check_success() result as "
+                "the primary boolean observation."
+            ),
+            "reuse_first": True,
+        }
     return (
         validate_free_concern(concern, expected_query=expected_query),
         validate_free_concern_experiment_needs(needs),
@@ -222,6 +237,28 @@ def _validate_query_required_needs(
 ) -> None:
     """Reject a Proposal that drops explicit success semantics from the Query."""
 
+    if query_is_official_only(user_query):
+        if not isinstance(needs, Mapping):
+            raise OpenTaskResolutionError(
+                "an official-only Query requires explicit official Rule Tool reuse"
+            )
+        rule = needs.get("rule_tool_need")
+        forbidden = (
+            needs.get("scene_need"),
+            needs.get("checker_need"),
+            needs.get("vqa_tool_need"),
+        )
+        if (
+            not isinstance(rule, Mapping)
+            or rule.get("required") is not True
+            or any(
+                isinstance(need, Mapping) and need.get("required") is True
+                for need in forbidden
+            )
+        ):
+            raise OpenTaskResolutionError(
+                "an official-only Query must request only official Rule Tool reuse"
+            )
     if _EXPLICIT_SUCCESS_SEMANTICS.search(user_query) is None:
         return
     checker = needs.get("checker_need") if isinstance(needs, Mapping) else None
@@ -266,17 +303,26 @@ def build_free_concern_prompt(user_query: str, policy_card: Mapping[str, Any]) -
     query = _text(user_query, "user_query")
     scope = policy_task_scope_from_card(policy_card)
     checker_required = query_requires_experimental_checker(query)
+    official_only = query_is_official_only(query)
     example = {
         "schema_version": 1,
         "source_query": query,
         "sub_aspect": "a precise concern discovered from the Query",
         "hypothesis": "one falsifiable policy-behavior hypothesis",
         "task_intent": "invariant base manipulation action and goal in English",
-        "requested_variation": "one bounded diagnostic change",
+        "requested_variation": (
+            "reuse the unchanged official scene and task"
+            if official_only
+            else "one bounded diagnostic change"
+        ),
         "measurement_need": "the observation needed to decide the hypothesis",
         "scene_need": {
-            "required": True,
-            "description": "the scene change needed to realize requested_variation",
+            "required": not official_only,
+            "description": (
+                None
+                if official_only
+                else "the scene change needed to realize requested_variation"
+            ),
         },
         "checker_need": {
             "required": checker_required,
@@ -288,7 +334,12 @@ def build_free_concern_prompt(user_query: str, policy_card: Mapping[str, Any]) -
         },
         "rule_tool_need": {
             "required": True,
-            "description": "the numeric or symbolic evidence needed",
+            "description": (
+                "retrieve and reuse the official check_success() result as "
+                "one primary boolean observation"
+                if official_only
+                else "one primary numeric or symbolic observation needed"
+            ),
             "reuse_first": True,
         },
         "vqa_tool_need": {
@@ -331,7 +382,11 @@ Request a scene only when requested_variation changes the simulator scene;
 request a checker only when the Query needs success semantics beyond the
 official task; request a Rule Tool for numeric or symbolic evidence; request a
 VQA Tool only for a visual judgment.  A Tool-only Query must not invent a scene
-or checker.  Every Tool need must retrieve before generating.
+or checker.  An official-task-only Query must request Rule Tool reuse of the
+official check_success() result while leaving scene, checker, and VQA needs
+false.  Each Rule/VQA need must name one primary scalar or boolean observation;
+leave independent measurements for an evidence-conditioned later round.
+Every Tool need must retrieve before generating.
 {EXPERIMENTAL_SUCCESS_CHECKER_GUIDANCE}
 
 ORIGINAL QUERY:

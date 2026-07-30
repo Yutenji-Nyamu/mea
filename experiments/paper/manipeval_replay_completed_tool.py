@@ -69,6 +69,127 @@ def _relative(path: Path, root: Path) -> str:
         return str(resolved)
 
 
+def _tool_execution_sha256(execution: Mapping[str, Any]) -> str | None:
+    """Return one internally consistent Tool code hash."""
+
+    declared: list[Any] = []
+    source = execution.get("source")
+    if isinstance(source, Mapping) and source.get("tool_sha256") is not None:
+        declared.append(source.get("tool_sha256"))
+    episodes = execution.get("episodes")
+    if isinstance(episodes, list):
+        for episode in episodes:
+            result = (
+                episode.get("result")
+                if isinstance(episode, Mapping)
+                else None
+            )
+            if isinstance(result, Mapping) and result.get("tool_sha256") is not None:
+                declared.append(result.get("tool_sha256"))
+    if not declared or any(
+        not isinstance(value, str)
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+        for value in declared
+    ):
+        return None
+    hashes = set(declared)
+    return hashes.pop() if len(hashes) == 1 else None
+
+
+def _route_matches_request(
+    execution: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> bool:
+    decision = execution.get("route_decision")
+    return bool(
+        isinstance(decision, Mapping)
+        and decision.get("status") == "resolved"
+        and decision.get("resolved_route") == execution.get("route")
+        and decision.get("task_name") == request.get("task_name")
+        and decision.get("metric") == request.get("metric")
+    )
+
+
+def _exact_reuse_kind(
+    first: Mapping[str, Any],
+    replay: Mapping[str, Any],
+) -> str | None:
+    first_request = first.get("tool_request")
+    replay_request = replay.get("tool_request")
+    first_validation = first.get("validation")
+    replay_validation = replay.get("validation")
+    if not (
+        first.get("status") == replay.get("status") == "passed"
+        and isinstance(first_request, Mapping)
+        and isinstance(replay_request, Mapping)
+        and isinstance(first_validation, Mapping)
+        and isinstance(replay_validation, Mapping)
+        and dict(first_request) == dict(replay_request)
+        and replay_validation.get("provider_called") is False
+        and _route_matches_request(first, first_request)
+        and _route_matches_request(replay, replay_request)
+    ):
+        return None
+    first_source = first.get("source")
+    replay_source = replay.get("source")
+    if not isinstance(first_source, Mapping) or not isinstance(
+        replay_source, Mapping
+    ):
+        return None
+    first_tool = first_source.get("tool")
+    replay_tool = replay_source.get("tool")
+    first_hash = _tool_execution_sha256(first)
+    replay_hash = _tool_execution_sha256(replay)
+
+    if replay.get("route") == "run_local_reuse":
+        first_registration = first_source.get("registration_id")
+        replay_registration = replay_source.get("registration_id")
+        if not (
+            first.get("route")
+            in {
+                "force_codegen",
+                "provider_python_codegen",
+                "typed_metric_spec_compile",
+            }
+            and first_source.get("scope") == "run_local_generated"
+            and replay_source.get("scope") == "run_local_registry"
+            and isinstance(first_registration, str)
+            and bool(first_registration.strip())
+            and first_registration == replay_registration
+            and isinstance(first_tool, str)
+            and bool(first_tool.strip())
+            and first_tool == replay_tool
+            and first_hash is not None
+            and first_hash == replay_hash
+        ):
+            return None
+        return "run_local_registry"
+
+    first_route = first.get("route_decision")
+    replay_route = replay.get("route_decision")
+    if not isinstance(first_route, Mapping) or not isinstance(
+        replay_route, Mapping
+    ):
+        return None
+    if not (
+        first.get("route") == replay.get("route") == "reuse"
+        and first_source.get("scope")
+        == replay_source.get("scope")
+        == "trusted_catalog"
+        and isinstance(first_tool, str)
+        and bool(first_tool.strip())
+        and first_tool == replay_tool
+        and first_hash is not None
+        and first_hash == replay_hash
+        and first_route.get("exact_match") is True
+        and replay_route.get("exact_match") is True
+        and first_validation.get("provider_called") is False
+    ):
+        return None
+    return "trusted_catalog"
+
+
 def _source_context(
     repo_root: Path,
     evaluation_id: str,
@@ -349,9 +470,11 @@ def replay_completed_round_tool(
             model=model,
             run_local_registry_dir=registry,
         )
-        if replay.get("route") != "run_local_reuse":
+        exact_reuse_kind = _exact_reuse_kind(first, replay)
+        if exact_reuse_kind is None:
             raise CompletedToolReplayError(
-                "second identical Query did not resolve via run_local_reuse"
+                "second identical Query did not resolve to the same validated "
+                "run-local or trusted-catalog Tool"
             )
         aggregate = aggregate_round_results(
             repaired_plan,
@@ -449,6 +572,7 @@ def replay_completed_round_tool(
                 for item in first.get("episodes", [])
             ],
             "exact_reuse_route": replay.get("route"),
+            "exact_reuse_kind": exact_reuse_kind,
             "exact_reuse_provider_called": (
                 replay.get("validation", {}).get("provider_called")
             ),

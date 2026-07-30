@@ -92,10 +92,20 @@ _CONTROL_REQUIRED_QUERY = re.compile(
     r"|泛化|鲁棒|属性|外观|姿态|位置|实例|变体|扰动|比较|对比|最差",
     re.IGNORECASE,
 )
+_OFFICIAL_ONLY_QUERY = re.compile(
+    r"\b(?:official (?:scene|task)(?: only)?|"
+    r"only (?:the )?official (?:scene|task)|baseline only)\b"
+    r"|\bonly\s+(?:the\s+)?official"
+    r"(?:\s+[a-z0-9_.-]+){1,3}\s+task\b"
+    r"|只(?:验证|测试)官方|仅(?:验证|测试)官方|"
+    r"只用官方(?:场景|任务)|仅用官方(?:场景|任务)",
+    re.IGNORECASE,
+)
 _CONTROL_FREE_QUERY = re.compile(
     r"\b(?:trajectory|telemetry|motion|jerk|oscillat|wobbl|smooth|"
     r"velocity|acceleration|pre[- ]?contact|before contact)\w*\b"
-    r"|轨迹|遥测|运动|抖动|急动|平滑|速度|加速度|接触前",
+    r"|轨迹|遥测|运动|抖动|急动|平滑|速度|加速度|接触前"
+    r"|官方(?:场景|任务)(?:能否|是否)",
     re.IGNORECASE,
 )
 
@@ -235,6 +245,8 @@ def infer_control_requirement(
     """
 
     query_text = _text(user_query, "user_query")
+    if _OFFICIAL_ONLY_QUERY.search(query_text):
+        return "not_required"
     if _CONTROL_REQUIRED_QUERY.search(query_text):
         return "required"
     if _CONTROL_FREE_QUERY.search(query_text):
@@ -258,6 +270,12 @@ def infer_control_requirement(
     if _CONTROL_FREE_QUERY.search(text):
         return "not_required"
     return "required"
+
+
+def query_is_official_only(user_query: str) -> bool:
+    """Return whether the Query explicitly limits evaluation to the official task."""
+
+    return _OFFICIAL_ONLY_QUERY.search(_text(user_query, "user_query")) is not None
 
 
 def build_query_sufficiency_contract(
@@ -1022,5 +1040,6 @@ __all__ = [
     "extend_query_candidate_universe",
     "infer_claim_type",
     "infer_control_requirement",
+    "query_is_official_only",
     "validate_query_sufficiency_contract",
 ]

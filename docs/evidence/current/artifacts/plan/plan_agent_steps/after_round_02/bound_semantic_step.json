@@ -1,0 +1,248 @@
+{
+  "schema_version": 2,
+  "semantic_proposal_bundle": {
+    "schema_version": 1,
+    "source": "provider_plan_agent_open_query",
+    "input_digest": "a3e1abbfd97cd05e3e08fcfb621f69cf93e20e1a36e30a0eb132a3a4b1551a60",
+    "planning_lineage": {
+      "schema_version": 1,
+      "decision_kind": "evidence_conditioned_refinement",
+      "evidence_conditioned": true,
+      "completed_round_ids": [
+        "round_1",
+        "round_2"
+      ],
+      "completed_round_count": 2,
+      "input_digest": "a3e1abbfd97cd05e3e08fcfb621f69cf93e20e1a36e30a0eb132a3a4b1551a60"
+    },
+    "proposal": {
+      "schema_version": 2,
+      "action": "continue",
+      "sub_aspect": "object_geometry.graspable_scale_strong_reduction",
+      "hypothesis": "将roller统一尺度进一步降至原始尺度的0.70后，ACT的双侧抓取几何余量会明显下降，并导致官方抬升成功率低于未扰动基线；若仍成功，则说明0.85尺度测试中的22毫米左侧接触距离并未揭示当前最早弱点。",
+      "requested_perturbation": {
+        "description": "仅将roller的统一物体尺度设为原始尺度的0.70，保持其初始位置、姿态、外观、材质、光照、杂物及其他场景状态不变。",
+        "controlled_changes": [
+          "roller统一物体尺度从原始值降至0.70"
+        ],
+        "preserve": [
+          "task identity",
+          "policy checkpoint",
+          "roller初始位置和姿态",
+          "roller外观与材质",
+          "lighting",
+          "clutter",
+          "其他任务场景状态"
+        ]
+      },
+      "scene_need": {
+        "required": true,
+        "description": "通过load_actors生成或适配场景，仅修改roller的统一尺度为原始尺度的0.70。"
+      },
+      "checker_need": {
+        "required": false,
+        "description": null
+      },
+      "rule_tool_need": {
+        "required": true,
+        "description": "测量双侧TCP到对应roller接触点的最小距离，并关联官方抬升成功结果，以判断强尺度缩小是否造成可观测的双侧抓取几何余量下降。",
+        "reuse_first": true
+      },
+      "vqa_tool_need": {
+        "required": false,
+        "description": null,
+        "reuse_first": true
+      },
+      "rationale": "基线未扰动场景成功率为1.0，但0.85尺度测试仍成功且仅获得单侧22.1毫米距离观测，证据被标记为ambiguous并提示原始意图不完整，无法判断尺度变化是否接近失效边界。因此在保持其他因素不变的前提下，将同一可执行物体属性进一步缩小到0.70是对该不确定性的更具判别力的可观测版本；同时补充双侧距离，避免单侧观测掩盖双臂抓取瓶颈。",
+      "task_need": {
+        "required": true,
+        "description": "通过load_actors生成或适配场景，仅修改roller的统一尺度为原始尺度的0.70。"
+      },
+      "tool_need": {
+        "required": true,
+        "description": "测量双侧TCP到对应roller接触点的最小距离，并关联官方抬升成功结果，以判断强尺度缩小是否造成可观测的双侧抓取几何余量下降。",
+        "reuse_first": true
+      }
+    },
+    "provider": {
+      "model_requested": "gpt-5.6-luna",
+      "called": true,
+      "attempt_count": 1,
+      "errors": [],
+      "last_metadata": {
+        "id": "resp_0bf91de13c5222cb016a6ae795145c81949b76c7910ba3a7fc",
+        "model": "gpt-5.6-luna",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 2016,
+          "completion_tokens": 892,
+          "total_tokens": 2908,
+          "completion_tokens_details": {
+            "reasoning_tokens": 329
+          }
+        },
+        "retry_count": 0
+      }
+    }
+  },
+  "semantic_needs": {
+    "scene_need": {
+      "required": true,
+      "description": "仅将roller的统一物体尺度设为原始尺度的0.70，保持其初始位置、姿态、外观、材质、光照、杂物及其他场景状态不变。 Preserve unchanged: task identity; policy checkpoint; roller初始位置和姿态; roller外观与材质; lighting; clutter; 其他任务场景状态."
+    },
+    "checker_need": {
+      "required": false,
+      "description": null
+    },
+    "rule_tool_need": {
+      "required": true,
+      "description": "测量双侧TCP到对应roller接触点的最小距离，并关联官方抬升成功结果，以判断强尺度缩小是否造成可观测的双侧抓取几何余量下降。 Hypothesis: 将roller统一尺度进一步降至原始尺度的0.70后，ACT的双侧抓取几何余量会明显下降，并导致官方抬升成功率低于未扰动基线；若仍成功，则说明0.85尺度测试中的22毫米左侧接触距离并未揭示当前最早弱点。",
+      "reuse_first": true
+    },
+    "vqa_tool_need": {
+      "required": false,
+      "description": null,
+      "reuse_first": true
+    },
+    "task_need": {
+      "required": true,
+      "description": "通过load_actors生成或适配场景，仅修改roller的统一尺度为原始尺度的0.70。"
+    },
+    "tool_need": {
+      "required": true,
+      "description": "测量双侧TCP到对应roller接触点的最小距离，并关联官方抬升成功结果，以判断强尺度缩小是否造成可观测的双侧抓取几何余量下降。",
+      "reuse_first": true
+    }
+  },
+  "resolution": {
+    "schema_version": 1,
+    "semantic_sub_aspect": "object_geometry.graspable_scale_strong_reduction",
+    "resolved_aspect_id": null,
+    "resolved_template_id": null,
+    "resolved_candidate_id": "dynamic.grab.roller.object.geometry.graspable.scale.strong.reduction.roller.0.70.act.0.85.22.5c860bd23c57",
+    "resolution": "proposal_reuse_or_generate",
+    "hidden": false,
+    "matched_tokens": [],
+    "catalog_was_model_visible": false,
+    "catalog_resolution_error": "no unexecuted non-control template remains in the bound task",
+    "retrieval_aspect_id": null,
+    "retrieval_template_id": null,
+    "retrieval_resolution": null
+  },
+  "query_contract": {
+    "schema_version": 3,
+    "claim_type": "existential",
+    "candidate_universe": [
+      "dynamic.grab.roller.object.geometry.graspable.scale.reduction.roller.15.act.5e696fb1d45c",
+      "dynamic.grab.roller.object.geometry.graspable.scale.strong.reduction.roller.0.70.act.0.85.22.5c860bd23c57"
+    ],
+    "required_coverage": {
+      "candidate_ids": [
+        "dynamic.grab.roller.object.geometry.graspable.scale.reduction.roller.15.act.5e696fb1d45c",
+        "dynamic.grab.roller.object.geometry.graspable.scale.strong.reduction.roller.0.70.act.0.85.22.5c860bd23c57"
+      ],
+      "minimum_evaluated": 2,
+      "minimum_per_group": null
+    },
+    "round_budget": 2,
+    "comparison_groups": null,
+    "candidate_universe_closed": false,
+    "existential_witness_outcome": "fail",
+    "control_requirement": "required"
+  },
+  "plan_step": {
+    "schema_version": 2,
+    "action": "propose",
+    "aspect_id": "object_geometry.graspable_scale_strong_reduction",
+    "candidate_id": "dynamic.grab.roller.object.geometry.graspable.scale.strong.reduction.roller.0.70.act.0.85.22.5c860bd23c57",
+    "execution_mode": "reuse_or_generate",
+    "proposal": {
+      "schema_version": 2,
+      "candidate_id": "dynamic.grab.roller.object.geometry.graspable.scale.strong.reduction.roller.0.70.act.0.85.22.5c860bd23c57",
+      "source_query": "这个ACT策略在grab_roller任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？",
+      "base_task": "grab_roller",
+      "semantic_concern": "object_geometry.graspable_scale_strong_reduction: 将roller统一尺度进一步降至原始尺度的0.70后，ACT的双侧抓取几何余量会明显下降，并导致官方抬升成功率低于未扰动基线；若仍成功，则说明0.85尺度测试中的22毫米左侧接触距离并未揭示当前最早弱点。",
+      "scene_need": {
+        "kind": "adapt",
+        "description": "仅将roller的统一物体尺度设为原始尺度的0.70，保持其初始位置、姿态、外观、材质、光照、杂物及其他场景状态不变。 Preserve unchanged: task identity; policy checkpoint; roller初始位置和姿态; roller外观与材质; lighting; clutter; 其他任务场景状态.",
+        "reuse_first": true
+      },
+      "checker_need": null,
+      "rule_tool_need": {
+        "kind": "measure",
+        "description": "测量双侧TCP到对应roller接触点的最小距离，并关联官方抬升成功结果，以判断强尺度缩小是否造成可观测的双侧抓取几何余量下降。 Hypothesis: 将roller统一尺度进一步降至原始尺度的0.70后，ACT的双侧抓取几何余量会明显下降，并导致官方抬升成功率低于未扰动基线；若仍成功，则说明0.85尺度测试中的22毫米左侧接触距离并未揭示当前最早弱点。",
+        "reuse_first": true
+      },
+      "vqa_tool_need": null,
+      "tool_need": {
+        "kind": "measure",
+        "description": "测量双侧TCP到对应roller接触点的最小距离，并关联官方抬升成功结果，以判断强尺度缩小是否造成可观测的双侧抓取几何余量下降。 Hypothesis: 将roller统一尺度进一步降至原始尺度的0.70后，ACT的双侧抓取几何余量会明显下降，并导致官方抬升成功率低于未扰动基线；若仍成功，则说明0.85尺度测试中的22毫米左侧接触距离并未揭示当前最早弱点。",
+        "reuse_first": true
+      },
+      "evaluation_intent": {
+        "schema_version": 1,
+        "intent_id": "intent.4660c0a7908d4c45",
+        "source_query": "这个ACT策略在grab_roller任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？",
+        "original_concern": "object_geometry.graspable_scale_strong_reduction",
+        "hypothesis": "将roller统一尺度进一步降至原始尺度的0.70后，ACT的双侧抓取几何余量会明显下降，并导致官方抬升成功率低于未扰动基线；若仍成功，则说明0.85尺度测试中的22毫米左侧接触距离并未揭示当前最早弱点。",
+        "requested_change": "仅将roller的统一物体尺度设为原始尺度的0.70，保持其初始位置、姿态、外观、材质、光照、杂物及其他场景状态不变。",
+        "preserved_conditions": [
+          "task identity",
+          "policy checkpoint",
+          "roller初始位置和姿态",
+          "roller外观与材质",
+          "lighting",
+          "clutter",
+          "其他任务场景状态"
+        ],
+        "required_observation": "测量双侧TCP到对应roller接触点的最小距离，并关联官方抬升成功结果，以判断强尺度缩小是否造成可观测的双侧抓取几何余量下降。"
+      },
+      "intent_alignment": {
+        "schema_version": 1,
+        "relationship": "diagnostic_proxy",
+        "rationale": "Candidate is a nearby diagnostic, not a direct implementation of candidate-contract fields: ['requested_change'].",
+        "matched_intent_fields": [
+          "preserved_conditions",
+          "hypothesis",
+          "required_observation"
+        ],
+        "unmatched_intent_fields": [
+          "requested_change"
+        ]
+      }
+    },
+    "rationale": "基线未扰动场景成功率为1.0，但0.85尺度测试仍成功且仅获得单侧22.1毫米距离观测，证据被标记为ambiguous并提示原始意图不完整，无法判断尺度变化是否接近失效边界。因此在保持其他因素不变的前提下，将同一可执行物体属性进一步缩小到0.70是对该不确定性的更具判别力的可观测版本；同时补充双侧距离，避免单侧观测掩盖双臂抓取瓶颈。",
+    "answered_query": false,
+    "planning_lineage": {
+      "schema_version": 1,
+      "decision_kind": "evidence_conditioned_refinement",
+      "evidence_conditioned": true,
+      "completed_round_ids": [
+        "round_1",
+        "round_2"
+      ],
+      "completed_round_count": 2,
+      "input_digest": "a3e1abbfd97cd05e3e08fcfb621f69cf93e20e1a36e30a0eb132a3a4b1551a60"
+    }
+  },
+  "planning_lineage": {
+    "schema_version": 1,
+    "decision_kind": "evidence_conditioned_refinement",
+    "evidence_conditioned": true,
+    "completed_round_ids": [
+      "round_1",
+      "round_2"
+    ],
+    "completed_round_count": 2,
+    "input_digest": "a3e1abbfd97cd05e3e08fcfb621f69cf93e20e1a36e30a0eb132a3a4b1551a60"
+  },
+  "execution_binding": {
+    "schema_version": 2,
+    "candidate_id": "dynamic.grab.roller.object.geometry.graspable.scale.strong.reduction.roller.0.70.act.0.85.22.5c860bd23c57",
+    "materialization_path": "plan/proposal_materialization/round_03",
+    "taskgen_route": "generic_provider_scene_checker_codegen",
+    "toolgen_route": "deferred_until_executed_telemetry_schema",
+    "catalog_template_used": false,
+    "retrieval_template_hint": null
+  }
+}

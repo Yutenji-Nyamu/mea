@@ -1,26 +1,25 @@
 {
   "schema_version": 1,
-  "intent_id": "intent.51984254800abf8c",
-  "candidate_id": "dynamic.grab.roller.task.execution.non.target.proximity.effect.when.a.non.target.roller.with.the.same.appearance.as.the.target.roller.is.placed.closer.to.the.robot.than.the.target.roller.the.policy.will.still.successfully.achieve.the.target.roller.s.final.height.of.at.least.0.8.meters.while.keeping.the.non.target.roller.s.final.height.below.0.8.meters.5800b2471f80",
+  "intent_id": "intent.7d4cb852954896a8",
+  "candidate_id": "dynamic.grab.roller.object.geometry.graspable.scale.reduction.roller.15.act.5e696fb1d45c",
   "stage": "taskgen",
-  "relationship": "direct",
-  "rationale": "Candidate preserves the requested change, hypothesis, and observation semantics.",
-  "covered_intent_fields": [
+  "relationship": "diagnostic_proxy",
+  "rationale": "Candidate is a nearby diagnostic, not a direct implementation of candidate-contract fields: ['requested_change'].",
+  "covered_intent_fields": [],
+  "uncovered_intent_fields": [
     "requested_change",
     "preserved_conditions",
-    "hypothesis"
-  ],
-  "uncovered_intent_fields": [],
-  "pending_intent_fields": [
+    "hypothesis",
     "required_observation"
   ],
-  "coverage_status": "partial",
+  "pending_intent_fields": [],
+  "coverage_status": "not_covered",
   "repair_required": false,
   "validation_evidence": {
     "scene_change_passed": true,
     "checker_fixtures_passed": true,
     "visual_diagnosis_passed": true,
-    "preserved_conditions_verified": true,
+    "preserved_conditions_verified": null,
     "tool_evaluation_passed": null
   }
 }

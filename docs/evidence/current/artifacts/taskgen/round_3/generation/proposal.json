@@ -1,0 +1,55 @@
+{
+  "base_task": "grab_roller",
+  "candidate_id": "dynamic.grab.roller.object.geometry.graspable.scale.strong.reduction.roller.0.70.act.0.85.22.5c860bd23c57",
+  "checker_need": null,
+  "evaluation_intent": {
+    "hypothesis": "将roller统一尺度进一步降至原始尺度的0.70后，ACT的双侧抓取几何余量会明显下降，并导致官方抬升成功率低于未扰动基线；若仍成功，则说明0.85尺度测试中的22毫米左侧接触距离并未揭示当前最早弱点。",
+    "intent_id": "intent.4660c0a7908d4c45",
+    "original_concern": "object_geometry.graspable_scale_strong_reduction",
+    "preserved_conditions": [
+      "task identity",
+      "policy checkpoint",
+      "roller初始位置和姿态",
+      "roller外观与材质",
+      "lighting",
+      "clutter",
+      "其他任务场景状态"
+    ],
+    "requested_change": "仅将roller的统一物体尺度设为原始尺度的0.70，保持其初始位置、姿态、外观、材质、光照、杂物及其他场景状态不变。",
+    "required_observation": "测量双侧TCP到对应roller接触点的最小距离，并关联官方抬升成功结果，以判断强尺度缩小是否造成可观测的双侧抓取几何余量下降。",
+    "schema_version": 1,
+    "source_query": "这个ACT策略在grab_roller任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？"
+  },
+  "intent_alignment": {
+    "matched_intent_fields": [
+      "preserved_conditions",
+      "hypothesis",
+      "required_observation"
+    ],
+    "rationale": "Candidate is a nearby diagnostic, not a direct implementation of candidate-contract fields: ['requested_change'].",
+    "relationship": "diagnostic_proxy",
+    "schema_version": 1,
+    "unmatched_intent_fields": [
+      "requested_change"
+    ]
+  },
+  "rule_tool_need": {
+    "description": "测量双侧TCP到对应roller接触点的最小距离，并关联官方抬升成功结果，以判断强尺度缩小是否造成可观测的双侧抓取几何余量下降。 Hypothesis: 将roller统一尺度进一步降至原始尺度的0.70后，ACT的双侧抓取几何余量会明显下降，并导致官方抬升成功率低于未扰动基线；若仍成功，则说明0.85尺度测试中的22毫米左侧接触距离并未揭示当前最早弱点。",
+    "kind": "measure",
+    "reuse_first": true
+  },
+  "scene_need": {
+    "description": "仅将roller的统一物体尺度设为原始尺度的0.70，保持其初始位置、姿态、外观、材质、光照、杂物及其他场景状态不变。 Preserve unchanged: task identity; policy checkpoint; roller初始位置和姿态; roller外观与材质; lighting; clutter; 其他任务场景状态.",
+    "kind": "adapt",
+    "reuse_first": true
+  },
+  "schema_version": 2,
+  "semantic_concern": "object_geometry.graspable_scale_strong_reduction: 将roller统一尺度进一步降至原始尺度的0.70后，ACT的双侧抓取几何余量会明显下降，并导致官方抬升成功率低于未扰动基线；若仍成功，则说明0.85尺度测试中的22毫米左侧接触距离并未揭示当前最早弱点。",
+  "source_query": "这个ACT策略在grab_roller任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？",
+  "tool_need": {
+    "description": "测量双侧TCP到对应roller接触点的最小距离，并关联官方抬升成功结果，以判断强尺度缩小是否造成可观测的双侧抓取几何余量下降。 Hypothesis: 将roller统一尺度进一步降至原始尺度的0.70后，ACT的双侧抓取几何余量会明显下降，并导致官方抬升成功率低于未扰动基线；若仍成功，则说明0.85尺度测试中的22毫米左侧接触距离并未揭示当前最早弱点。",
+    "kind": "measure",
+    "reuse_first": true
+  },
+  "vqa_tool_need": null
+}

@@ -282,6 +282,12 @@ class MultiRoundRuntimeTests(unittest.TestCase):
             **ROUND_2,
             "sub_aspect": "object_position",
             "tool_request": contact_tool_request(),
+            "semantic_need_execution": {
+                "vqa_tool": {
+                    "requested": False,
+                    "status": "not_requested",
+                }
+            },
         }
         child_manifest = {
             "run_id": "run_test_round_2",
@@ -326,7 +332,7 @@ class MultiRoundRuntimeTests(unittest.TestCase):
                         "status": "passed",
                         "evidence_conflict": False,
                     },
-                ),
+                ) as execution_vqa,
             ):
                 (
                     returned_manifest,
@@ -352,6 +358,17 @@ class MultiRoundRuntimeTests(unittest.TestCase):
             self.assertEqual(returned_child, child_dir)
             self.assertEqual(returned_tool, tool_evaluation)
             self.assertTrue(summary["pipeline_passed"])
+            self.assertEqual(
+                summary["observations"]["execution_vqa"]["status"],
+                "skipped",
+            )
+            self.assertTrue(
+                (
+                    evaluation_dir
+                    / "execution/round_2/execution_vqa_skipped.json"
+                ).is_file()
+            )
+            execution_vqa.assert_not_called()
             self.assertEqual(
                 summary["observations"]["planned_tool"]["route"], "reuse"
             )
@@ -533,7 +550,7 @@ class MultiRoundRuntimeTests(unittest.TestCase):
                         "status": "passed",
                         "evidence_conflict": False,
                     },
-                ),
+                ) as execution_vqa,
             ):
                 (
                     _,
@@ -557,6 +574,7 @@ class MultiRoundRuntimeTests(unittest.TestCase):
 
             self.assertEqual(returncode, 0)
             duplicate_toolgen.assert_not_called()
+            execution_vqa.assert_called_once()
             self.assertEqual(
                 tool_evaluation["route"], "bound_child_trusted_checker"
             )

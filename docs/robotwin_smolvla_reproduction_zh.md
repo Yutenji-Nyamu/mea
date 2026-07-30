@@ -29,6 +29,15 @@ Batch30 又在未手写 task adapter 的 `click_alarmclock` 与 `turn_switch` �
 `MethodRuntime/RoboTwinMethodBackend`，证明共享 official-control 边界，但仍无
 semantic telemetry，不能进入完整 Tool/Aggregate loop。
 
+Batch31 又通过生产 `manipeval_agent.py --policy-backend smolvla` 在 schema-backed
+`click_bell` 完成一次 N=1 online rollout：单个 episode 的 official check 为 true，
+Rule Tool 与 Aggregate 均写出。原 bundle 因“Proposal 未请求 VQA、旧编排却仍执行
+VQA”而失败；代码修复后，在不改写 source evaluation 的前提下做 append-only
+0-rollout 投影并得到 pipeline pass，但 Planner 仍以 `budget_exhausted`、
+`inconclusive` 结束。因此这只是 live backend + post-run mechanism 验证，不是 clean
+online acceptance 或成功率估计。紧凑结果见
+[`batch31_smolvla_plan_agent_n1.json`](../experiments/paper/results/batch31_smolvla_plan_agent_n1.json)。
+
 上游资料：
 
 - [LeRobot RoboTwin 文档](https://huggingface.co/docs/lerobot/main/robotwin)
@@ -193,6 +202,7 @@ task 启动新的 `--max-clients 1 --seed ...` server；顺序 batch 必须冻�
 | `No module named envs` | 脚本路径不含 RoboTwin root | 设置 `PYTHONPATH=/root/autodl-tmp/RoboTwin` |
 | `numpy._core.numeric` | 跨 NumPy 版本 pickle ndarray | 使用仓库 bytes/list 协议 |
 | simulator 侧 `No module named sapien` | 错用 Python 3.12 policy 环境运行 official task | policy server 用 `mea-libero`；MethodRuntime/simulator 用 `mea-robotwin-smolvla` |
+| TCP connect 探针后 server 退出或不再接 Agent | `--max-clients 1` 的唯一 client 被探针占用 | 只读取 ready-file、核对其中 PID，并用 `ss` 查看 LISTEN；不要建立 socket 连接 |
 | client 退出后 server 等待 | `max-clients` 尚未满足 | 终止该 server，用新 port/ready-file 重启未完成项 |
 | simulator control 失败 | 真实 policy outcome | 记录失败并短路深入链，不把它当系统错误 |
 
@@ -204,20 +214,31 @@ task 启动新的 `--max-clients 1 --seed ...` server；顺序 batch 必须冻�
 SmolVLA 适合作为共享多任务 policy backend：
 
 ```text
-Query → Plan Agent → runtime task binding → SmolVLA rollout
-      → TaskGen/ToolGen as needed → Aggregate → next sub-aspect / Answer
+Query → Plan Agent → runtime task binding → official candidate → SmolVLA rollout
+      → schema-backed Rule Tool / Aggregate → next sub-aspect / Answer
+      ↘ generated scene/checker or requested VQA → structured unsupported（当前）
 ```
 
-所有可解析 RoboTwin task 均可先做 official control。只有 telemetry/schema
-可用时才运行对应 Rule Tool；只有生成 scene/checker 的验证 gate 通过时才进入
-完整 TaskGen 闭环。不要为每个任务增加手写 allowlist、Planner 分支或测试文件。
+所有可解析 RoboTwin task 均可先尝试 unchanged official control；只有
+TaskSchema/telemetry 可用时才进入 Rule Tool 与 Aggregate。generated scene/checker
+和请求型 VQA 当前在 SmolVLA backend 明确 unsupported。不要为每个任务增加手写
+allowlist、Planner 分支或测试文件。
 
-共享 runner 已可由 `MethodRuntime` 调用同一 observation/action 合同；生产
-`manipeval_agent.py` 的完整 Plan Agent round 仍走 ACT child pipeline。接入 SmolVLA
-还需 backend selector 与 semantic telemetry bridge。4/5 pilot 和两个新增失败都不能
-外推为 50-task 性能或公平 policy ranking。
+生产 `manipeval_agent.py` 已支持 `--policy-backend smolvla`：它先建立共享 runtime
+task binding，再通过 `MethodRuntime/RoboTwinMethodBackend` 执行 SmolVLA official
+round。具有 `TaskSchema` 的任务会记录 semantic telemetry，并回到同一 Rule Tool、
+Aggregate、Plan Agent 与 Answer 编排；无 schema 的任务只保存 official success、
+视频和明确限制。
+
+SmolVLA 原生路径尚未接通 generic TaskGen 生成的 scene/checker，也不能执行 Proposal
+请求的新 VQA capability；这些请求必须写为 structured unsupported，不能静默退回
+ACT。4/5 pilot、两个新增失败和一次 click_bell post-run projection 都不能外推为 50-task
+性能或公平 policy ranking。
 
 ## 9. 回滚
 
-本批状态只位于第 2 节四个 `/root/autodl-tmp/...` 路径。删除前必须再次解析并核对
-绝对路径；不得删除或修改原 RoboTwin、ACT、DP3、LIBERO 环境或 MEA 工作树。
+第 2 节列出的是依赖位置，不等于本批独占资源。`mea-libero` 是共享环境，禁止作为
+本功能回滚目标；checkpoint、metadata 与 `mea-robotwin-smolvla` 仅在确认没有生产
+或复现实验 caller 后按精确路径清理；临时 ready/log 必须先复制所需 provenance。
+仓库接入只能用 Git 回滚，evaluation run 单独保留；不得连带删除原 RoboTwin、ACT、
+DP3、LIBERO 环境或 MEA 工作树。

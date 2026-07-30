@@ -2,10 +2,12 @@
 
 An ``ExperimentCandidate`` is the semantic hand-off between planning and the
 TaskGen, ToolGen, and VQA stages.  It deliberately carries no catalog template
-identifier.  Each materialization need is optional and typed, so a
+identifier.  Each materialization need is independently optional and typed, so a
 trajectory-only Query can request a Rule Tool without inventing a new scene,
-checker, or VQA Tool.  Legacy ``tool_need`` candidates remain accepted and are
-normalized to the independent Rule/VQA representation.
+checker, or VQA Tool, while an official-task-only Query explicitly requests
+reuse of the simulator's success predicate.  Legacy ``tool_need``
+candidates remain accepted and are normalized to the independent Rule/VQA
+representation.
 """
 
 from __future__ import annotations
@@ -226,20 +228,19 @@ def validate_experiment_candidate(value: Mapping[str, Any]) -> dict[str, Any]:
             vqa_tool_need = None
     candidate["rule_tool_need"] = rule_tool_need
     candidate["vqa_tool_need"] = vqa_tool_need
-
     if not any(
-        candidate[field] is not None
-        for field in (
-            "scene_need",
-            "checker_need",
-            "rule_tool_need",
-            "vqa_tool_need",
+        need is not None
+        for need in (
+            candidate["scene_need"],
+            candidate["checker_need"],
+            rule_tool_need,
+            vqa_tool_need,
         )
     ):
         raise ExperimentCandidateError(
-            "ExperimentCandidate must request at least one scene, checker, "
-            "Rule Tool, or VQA Tool need"
+            "ExperimentCandidate must request at least one typed need"
         )
+
     # This alias is intentionally lossy when both Tool types are requested.
     # Production runtime code must consume the two canonical fields.
     candidate["tool_need"] = deepcopy(
@@ -334,16 +335,6 @@ def build_experiment_candidate(
             vqa_tool = {**legacy_tool, "kind": "vqa"}
         else:
             rule_tool = legacy_tool
-    if (
-        scene is None
-        and checker is None
-        and rule_tool is None
-        and vqa_tool is None
-    ):
-        raise ExperimentCandidateError(
-            "ExperimentCandidate must request at least one scene, checker, "
-            "Rule Tool, or VQA Tool need"
-        )
     normalized_intent: dict[str, Any] | None = None
     if evaluation_intent is not None:
         try:

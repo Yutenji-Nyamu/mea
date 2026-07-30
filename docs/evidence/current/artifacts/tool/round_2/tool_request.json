@@ -1,16 +1,19 @@
 {
   "schema_version": 2,
   "task_name": "grab_roller",
-  "metric": "query_derived_metric",
-  "question": "Does the policy achieve the target roller's final height of at least 0.8 meters while keeping the non-target roller's final height below 0.8 meters, and what is the final height difference between the two rollers?",
+  "metric": "query_left_tcp_to_roller_left_contact_min_distance",
+  "question": "What was the minimum 3D distance between the left TCP and the roller's left contact position?",
   "metric_spec": {
     "schema_version": 1,
-    "operation": "terminal_signal_difference",
-    "left_signal": "roller_position",
-    "right_signal": "non_target_roller_position",
-    "component": "z",
+    "operation": "minimum_distance",
+    "left_signal": "left_tcp_position",
+    "right_signal": "roller_left_contact_position",
+    "dimensions": [
+      "x",
+      "y",
+      "z"
+    ],
     "unit": "m",
-    "null_semantics": "null_if_terminal_not_finite",
-    "absolute": false
+    "null_semantics": "null_if_no_finite_sample"
   }
 }

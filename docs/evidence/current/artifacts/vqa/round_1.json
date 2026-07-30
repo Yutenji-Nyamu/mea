@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "model_requested": "gpt-4o-2024-11-20",
+  "model_requested": "gpt-5.6-luna",
   "selection": {
-    "video_path": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_1/evaluation/telemetry/act/episode_000_seed_100301/video.mp4",
+    "video_path": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260730_batch31_grab_roller_broad_live_v3_round_1/evaluation/telemetry/act/episode_000_seed_100401/video.mp4",
     "frame_count": 90,
     "fps": 10.0,
     "selected_frames": [
@@ -27,8 +27,8 @@
         "source": "video_boundary"
       }
     ],
-    "reference_scene": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_1/evidence/initial_head.png",
-    "montage_path": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_1/execution_vqa/execution_montage.png"
+    "reference_scene": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260730_batch31_grab_roller_broad_live_v3_round_1/evidence/initial_head.png",
+    "montage_path": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3/execution/round_1/execution_vqa/execution_montage.png"
   },
   "query": {
     "schema_version": 1,
@@ -85,14 +85,14 @@
       "value": true,
       "unit": null,
       "evidence_steps": [
-        7810
+        7577
       ],
       "evidence": [
         {
           "type": "success_transition",
           "policy_step": 88,
-          "physics_step": 7810,
-          "simulation_time_seconds": 31.240000000000002,
+          "physics_step": 7577,
+          "simulation_time_seconds": 30.308,
           "video_frame_index": 88
         }
       ],
@@ -106,22 +106,22 @@
       "tool": "time_to_success",
       "version": 1,
       "tool_sha256": "15b7e9522b6d4d018755674f6cf959233d80315bddeda7db0f49e039341b7104",
-      "value": 31.240000000000002,
+      "value": 30.308,
       "unit": "s",
       "evidence_steps": [
-        7810
+        7577
       ],
       "evidence": [
         {
           "type": "success_transition",
           "policy_step": 88,
-          "physics_step": 7810,
-          "simulation_time_seconds": 31.240000000000002,
+          "physics_step": 7577,
+          "simulation_time_seconds": 30.308,
           "video_frame_index": 88
         }
       ],
       "details": {
-        "physics_step": 7810
+        "physics_step": 7577
       }
     }
   ],
@@ -130,16 +130,20 @@
       {
         "id": "roller_visibly_lifted",
         "observed": true,
-        "description": "The roller is visibly lifted by both robot arms.",
-        "confidence": 1.0,
+        "description": "The roller is visibly elevated and held horizontally by both robot arms in the success frames.",
+        "confidence": 0.98,
         "frame_ids": [
-          "success_after"
+          "success_before",
+          "success_after",
+          "final"
         ]
       }
     ],
-    "confidence": 1.0,
+    "confidence": 0.98,
     "frame_ids": [
-      "success_after"
+      "success_before",
+      "success_after",
+      "final"
     ],
     "numeric_consistency": "consistent",
     "conflicts": [],
@@ -147,45 +151,31 @@
   },
   "evidence_conflict": false,
   "provider_metadata": {
-    "id": "chatcmpl-E7B8av5u8Vd2NleRa1HsPDPr0gzXv",
-    "model": "gpt-4o-2024-11-20",
+    "id": "chatcmpl-f8f3f83e-80c8-4085-b258-2ced51418f03",
+    "model": "gpt-5.6-luna",
     "finish_reason": "stop",
     "usage": {
-      "prompt_tokens": 1509,
-      "completion_tokens": 104,
-      "total_tokens": 1613,
+      "prompt_tokens": 2922,
+      "completion_tokens": 206,
+      "total_tokens": 3128,
       "prompt_tokens_details": {
-        "cached_tokens": 1408,
-        "audio_tokens": 0
+        "cached_tokens": 0,
+        "cache_write_tokens": 0
       },
       "completion_tokens_details": {
-        "reasoning_tokens": 0,
-        "audio_tokens": 0,
-        "accepted_prediction_tokens": 0,
-        "rejected_prediction_tokens": 0
-      },
-      "latency_checkpoint": {
-        "engine_tbt_ms": 14,
-        "engine_ttft_ms": 671,
-        "engine_ttlt_ms": 2094,
-        "pre_inference_ms": 322,
-        "service_tbt_ms": 14,
-        "service_ttft_ms": 1215,
-        "service_ttlt_ms": 2635,
-        "total_duration_ms": 2320,
-        "user_visible_ttft_ms": 893
+        "reasoning_tokens": 80
       }
     },
     "retry_count": 0
   },
   "artifacts": {
-    "result": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_1/execution_vqa/execution_vqa.json",
-    "prompt": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_1/execution_vqa/execution_vqa_prompt.md",
-    "response": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_1/execution_vqa/execution_vqa_response.txt",
-    "montage": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_1/execution_vqa/execution_montage.png",
-    "selection": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_1/execution_vqa/keyframe_selection.json",
-    "query": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_1/execution_vqa/execution_vqa_query.json"
+    "result": "mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3/execution/round_1/execution_vqa/execution_vqa.json",
+    "prompt": "mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3/execution/round_1/execution_vqa/execution_vqa_prompt.md",
+    "response": "mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3/execution/round_1/execution_vqa/execution_vqa_response.txt",
+    "montage": "mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3/execution/round_1/execution_vqa/execution_montage.png",
+    "selection": "mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3/execution/round_1/execution_vqa/keyframe_selection.json",
+    "query": "mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3/execution/round_1/execution_vqa/execution_vqa_query.json"
   },
   "status": "passed",
-  "representative_episode": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_1/evaluation/telemetry/act/episode_000_seed_100301"
+  "representative_episode": "mea/generated_tasks/run_20260730_batch31_grab_roller_broad_live_v3_round_1/evaluation/telemetry/act/episode_000_seed_100401"
 }

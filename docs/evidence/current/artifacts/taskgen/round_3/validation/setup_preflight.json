@@ -1,0 +1,218 @@
+{
+  "task_name": "grab_roller",
+  "task_module": "mea.generated_task_attempts.run_20260730_batch31_grab_roller_broad_live_v3_round_3.attempt_01.candidate_task",
+  "seed": 100401,
+  "setup_success": true,
+  "render_success": true,
+  "expert_requested": false,
+  "telemetry_requested": false,
+  "eval_mode": false,
+  "execution_receipt_requested": false,
+  "task_schema": {
+    "schema_version": 1,
+    "task_name": "grab_roller",
+    "task_family": "dual_arm_lift",
+    "trusted_tool_profile": "generic_success",
+    "tracked_actor_ids": [
+      "roller"
+    ],
+    "semantic_field_names": [
+      "roller_position",
+      "roller_left_contact_position",
+      "roller_right_contact_position",
+      "left_tcp_position",
+      "right_tcp_position"
+    ]
+  },
+  "domain_randomization": {
+    "cluttered_table": false,
+    "clean_background_rate": 1.0,
+    "cluttered_object_count": 0,
+    "cluttered_objects": [],
+    "authority": "simulator_task_info:cluttered_table_info",
+    "random_background": false,
+    "wall_texture": null,
+    "table_texture": null,
+    "texture_split": null,
+    "background_authority": "simulator_task_info:texture_info",
+    "random_light": false,
+    "crazy_random_light_rate": 0.0,
+    "crazy_random_light": false,
+    "direction_light_count": 1,
+    "point_light_count": 2,
+    "direction_light_colors": [
+      [
+        0.5,
+        0.5,
+        0.5
+      ]
+    ],
+    "point_light_colors": [
+      [
+        1.0,
+        1.0,
+        1.0
+      ],
+      [
+        1.0,
+        1.0,
+        1.0
+      ]
+    ],
+    "lighting_authority": "simulator_task_attributes:random_light,crazy_random_light_rate,crazy_random_light;simulator_light_components:get_color"
+  },
+  "actors": [
+    {
+      "name": "102_roller",
+      "position": [
+        0.05030278488993645,
+        -0.18492914736270905,
+        0.7411661744117737
+      ],
+      "quaternion": [
+        0.04390309378504753,
+        0.044289715588092804,
+        0.7083011269569397,
+        0.7031503915786743
+      ]
+    },
+    {
+      "name": "ground",
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "quaternion": [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name": "wall",
+      "position": [
+        0.0,
+        1.0,
+        1.5
+      ],
+      "quaternion": [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name": "table",
+      "position": [
+        0.0,
+        0.0,
+        0.7400000095367432
+      ],
+      "quaternion": [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "tracked_actors": [
+    {
+      "id": "roller",
+      "task_attribute": "roller",
+      "scene_name": "102_roller",
+      "position": [
+        0.05030278488993645,
+        -0.18492914736270905,
+        0.7411661744117737
+      ],
+      "quaternion": [
+        0.04390309378504753,
+        0.044289715588092804,
+        0.7083011269569397,
+        0.7031503915786743
+      ],
+      "collision_geometry": [
+        {
+          "geometry_type": "create_actor_asset",
+          "modelname": "102_roller",
+          "model_id": 2,
+          "collision_asset": "assets/objects/102_roller/collision/base2.glb",
+          "convex": true,
+          "is_static": false,
+          "scale": [
+            0.091,
+            0.06999999999999999,
+            0.06999999999999999
+          ],
+          "extents": [
+            1.9311913944412211,
+            0.32168825746682084,
+            0.3103910043535411
+          ],
+          "center": [
+            2.118178000711387e-05,
+            0.11274457106981156,
+            0.0013336256808618475
+          ]
+        }
+      ],
+      "functional_points": {},
+      "contact_points": {
+        "0": {
+          "position": [
+            -0.011222064154100785,
+            -0.17558508395778066,
+            0.7506341369129457
+          ],
+          "raw": [
+            -0.011222064154100785,
+            -0.17558508395778066,
+            0.7506341369129457,
+            0.04390309064887285,
+            0.044289717091434186,
+            0.7083011285645258,
+            0.70315037571323
+          ]
+        },
+        "1": {
+          "position": [
+            0.11160774384464783,
+            -0.1927204273672916,
+            0.7498925821934834
+          ],
+          "raw": [
+            0.11160774384464783,
+            -0.1927204273672916,
+            0.7498925821934834,
+            0.708301128564526,
+            0.7031503757132299,
+            -0.0439030906488731,
+            -0.0442897170914342
+          ]
+        }
+      }
+    }
+  ],
+  "task_attributes": {},
+  "image": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_task_attempts/run_20260730_batch31_grab_roller_broad_live_v3_round_3/attempt_01/setup_head.png",
+  "rule_check": {
+    "all_tracked_actor_attributes_present": true,
+    "tracked_actor_runtime_names_match": true,
+    "declared_scene_names_unique": true,
+    "finite_tracked_actor_state": true,
+    "official_check_success_callable": true,
+    "passed": true,
+    "tracked_actor_ids": [
+      "roller"
+    ],
+    "declared_scene_names": [
+      "102_roller"
+    ]
+  },
+  "initial_check_success": false,
+  "returncode": 0
+}

@@ -7,6 +7,7 @@ from unittest.mock import patch
 from experiments.paper.manipeval_replay_completed_tool import (
     CompletedToolReplayError,
     _evolved_query_contract,
+    _exact_reuse_kind,
     _source_context,
     replay_completed_round_tool,
 )
@@ -17,7 +18,118 @@ def write_json(path: Path, value: object) -> None:
     path.write_text(json.dumps(value) + "\n", encoding="utf-8")
 
 
+def run_local_execution_pair() -> tuple[dict, dict]:
+    request = {
+        "schema_version": 1,
+        "task_name": "adjust_bottle",
+        "metric": "query_smoothness",
+        "question": "Was motion smooth?",
+    }
+    registration_id = "runlocal_1234567890abcdef"
+    code_sha256 = "c" * 64
+    first = {
+        "status": "passed",
+        "route": "provider_python_codegen",
+        "tool_request": request,
+        "source": {
+            "scope": "run_local_generated",
+            "tool": request["metric"],
+            "registration_id": registration_id,
+        },
+        "route_decision": {
+            "status": "resolved",
+            "resolved_route": "provider_python_codegen",
+            "task_name": request["task_name"],
+            "metric": request["metric"],
+        },
+        "validation": {"provider_called": True},
+        "episodes": [
+            {
+                "result": {
+                    "tool": request["metric"],
+                    "tool_sha256": code_sha256,
+                    "value": 0.25,
+                }
+            }
+        ],
+        "artifacts": {"tool_execution": "first/tool_execution.json"},
+    }
+    replay = json.loads(json.dumps(first))
+    replay.update(
+        {
+            "route": "run_local_reuse",
+            "source": {
+                "scope": "run_local_registry",
+                "tool": request["metric"],
+                "registration_id": registration_id,
+                "tool_sha256": code_sha256,
+            },
+            "route_decision": {
+                "status": "resolved",
+                "resolved_route": "run_local_reuse",
+                "task_name": request["task_name"],
+                "metric": request["metric"],
+            },
+            "validation": {"provider_called": False},
+            "artifacts": {
+                "tool_execution": "second/tool_execution.json"
+            },
+        }
+    )
+    return first, replay
+
+
 class CompletedToolReplayTests(unittest.TestCase):
+    def test_trusted_catalog_identity_is_exact_reuse(self):
+        request = {
+            "schema_version": 1,
+            "task_name": "grab_roller",
+            "metric": "official_check_success",
+            "question": "Did the official success predicate pass?",
+        }
+        first = {
+            "status": "passed",
+            "route": "reuse",
+            "tool_request": request,
+            "source": {
+                "scope": "trusted_catalog",
+                "tool": "official_check_success",
+                "tool_sha256": "a" * 64,
+            },
+            "route_decision": {
+                "status": "resolved",
+                "resolved_route": "reuse",
+                "task_name": request["task_name"],
+                "metric": request["metric"],
+                "exact_match": True,
+            },
+            "validation": {"provider_called": False},
+        }
+        replay = json.loads(json.dumps(first))
+
+        self.assertEqual(
+            _exact_reuse_kind(first, replay),
+            "trusted_catalog",
+        )
+        replay["tool_request"]["metric"] = "different_metric"
+        self.assertIsNone(_exact_reuse_kind(first, replay))
+        replay = json.loads(json.dumps(first))
+        replay["source"].pop("tool_sha256")
+        self.assertIsNone(_exact_reuse_kind(first, replay))
+
+    def test_run_local_identity_must_be_stable_and_provider_free(self):
+        first, replay = run_local_execution_pair()
+        self.assertEqual(
+            _exact_reuse_kind(first, replay),
+            "run_local_registry",
+        )
+
+        replay["source"]["registration_id"] = "runlocal_different"
+        self.assertIsNone(_exact_reuse_kind(first, replay))
+        _, replay = run_local_execution_pair()
+        replay["validation"]["provider_called"] = True
+        self.assertIsNone(_exact_reuse_kind(first, replay))
+
     def test_replay_uses_contract_that_admitted_dynamic_round(self):
         initial = {
             "schema_version": 3,
@@ -125,20 +237,7 @@ class CompletedToolReplayTests(unittest.TestCase):
             evaluation, request_bundle = self.make_source(root)
             source_summary = evaluation / "summary/round_1.json"
             original = source_summary.read_bytes()
-            first = {
-                "status": "passed",
-                "route": "typed_metric_spec_compile",
-                "validation": {"provider_called": False},
-                "episodes": [{"result": {"value": 0.25}}],
-                "artifacts": {"tool_execution": "first/tool_execution.json"},
-            }
-            second = {
-                "status": "passed",
-                "route": "run_local_reuse",
-                "validation": {"provider_called": False},
-                "episodes": [{"result": {"value": 0.25}}],
-                "artifacts": {"tool_execution": "second/tool_execution.json"},
-            }
+            first, second = run_local_execution_pair()
             repaired_summary = {
                 "round_id": "round_1",
                 "pipeline_passed": True,
@@ -297,20 +396,7 @@ class CompletedToolReplayTests(unittest.TestCase):
                     "result": replacement_vqa,
                 },
             )
-            first = {
-                "status": "passed",
-                "route": "typed_metric_spec_compile",
-                "validation": {"provider_called": False},
-                "episodes": [{"result": {"value": 0.25}}],
-                "artifacts": {"tool_execution": "first/tool_execution.json"},
-            }
-            second = {
-                "status": "passed",
-                "route": "run_local_reuse",
-                "validation": {"provider_called": False},
-                "episodes": [{"result": {"value": 0.25}}],
-                "artifacts": {"tool_execution": "second/tool_execution.json"},
-            }
+            first, second = run_local_execution_pair()
             with (
                 patch(
                     "experiments.paper.manipeval_replay_completed_tool."

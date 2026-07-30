@@ -677,8 +677,11 @@ class PlanAgent:
             "sub_aspect": "semantic.sub_aspect_discovered_now",
             "hypothesis": "A falsifiable statement this one round will test.",
             "requested_perturbation": {
-                "description": "One bounded, diagnostic perturbation.",
-                "controlled_changes": ["the single factor intentionally changed"],
+                "description": (
+                    "Set one advertised factor from its baseline to one "
+                    "bounded diagnostic value."
+                ),
+                "controlled_changes": ["factor: baseline -> diagnostic value"],
                 "preserve": ["task identity", "policy checkpoint"],
             },
             "scene_need": {
@@ -731,6 +734,15 @@ a scene or checker merely because a Tool is needed, and do not couple scene
 and checker needs.  A new Tool need may be named even when it is not in an
 existing metric/question list.  Avoid repeating a tested perturbation unless
 ambiguous evidence requires a more observable version.
+Each Rule/VQA need must name one primary scalar or boolean observation for this
+round.  Leave independent measurements for a later evidence-conditioned round
+instead of bundling them into one Tool request.
+State the intentional delta in requested_perturbation.description and
+controlled_changes with an explicit operation and concrete value or direction;
+put unchanged conditions only in preserve.  When scene_need.required is true,
+repeat that same explicit delta in scene_need.description.  Preserve only the
+isolation-critical factors supported by an advertised simulator, frozen-binding,
+or visual authority; do not claim that every unspecified state is unchanged.
 The generic RoboTwin TaskGen surface can change only what the advertised
 allowed_change_roots directly implement.  In particular, load_actors can alter
 actors, assets, appearance, scale, pose, clutter, lighting, and other simulator

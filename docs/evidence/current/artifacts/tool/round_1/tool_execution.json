@@ -29,9 +29,9 @@
   },
   "episodes": [
     {
-      "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_1/evaluation/telemetry/act/episode_000_seed_100301",
+      "episode_dir": "mea/generated_tasks/run_20260730_batch31_grab_roller_broad_live_v3_round_1/evaluation/telemetry/act/episode_000_seed_100401",
       "policy_name": "ACT",
-      "seed": 100301,
+      "seed": 100401,
       "role": "policy_under_evaluation",
       "result": {
         "tool": "official_check_success",
@@ -39,7 +39,7 @@
         "unit": null,
         "passed": true,
         "evidence_steps": [
-          7810
+          7577
         ],
         "details": {
           "latched_eval_success": true,
@@ -56,12 +56,12 @@
     "required_reference_values_observed": true
   },
   "artifacts": {
-    "tool_spec": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_1/planned_tool/tool_spec.json",
-    "resolved_tool_spec": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_1/planned_tool/resolved_tool_spec.json",
-    "tool_execution": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_1/planned_tool/tool_execution.json",
-    "tool_request": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_1/planned_tool/tool_request.json",
-    "catalog_snapshot": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_1/planned_tool/catalog_snapshot.json",
-    "route_decision": "mea/evaluation_runs/eval_20260730_b44_grab_roller_plan_agent_live13/execution/round_1/planned_tool/route_decision.json"
+    "tool_spec": "mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3/execution/round_1/planned_tool/tool_spec.json",
+    "resolved_tool_spec": "mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3/execution/round_1/planned_tool/resolved_tool_spec.json",
+    "tool_execution": "mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3/execution/round_1/planned_tool/tool_execution.json",
+    "tool_request": "mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3/execution/round_1/planned_tool/tool_request.json",
+    "catalog_snapshot": "mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3/execution/round_1/planned_tool/catalog_snapshot.json",
+    "route_decision": "mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3/execution/round_1/planned_tool/route_decision.json"
   },
   "requested_route": "auto",
   "tool_request": {
@@ -83,7 +83,7 @@
     "reference_tool": "official_check_success",
     "provider_required": false,
     "reason": "exact metric identifier matched a Trusted Tool",
-    "catalog_snapshot_sha256": "81566074a5d92dbe64d25d988e9d42594549a53a8149370802349d7018d94a26",
+    "catalog_snapshot_sha256": "f8e0ab1df719237948c3ec37a2989d4e058a123dec03875f69a694ca9f501b6d",
     "provider_called": false
   }
 }

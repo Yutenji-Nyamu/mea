@@ -131,16 +131,16 @@
             },
             "statistics": {
               "max": {
-                "value": 31.240000000000002
+                "value": 30.308
               },
               "mean": {
-                "value": 31.240000000000002
+                "value": 30.308
               },
               "median": {
-                "value": 31.240000000000002
+                "value": 30.308
               },
               "min": {
-                "value": 31.240000000000002
+                "value": 30.308
               },
               "population_stddev": {
                 "value": 0.0

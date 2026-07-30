@@ -23,9 +23,9 @@
     {
       "role": "policy_under_evaluation",
       "policy_name": "ACT",
-      "seed": 100301,
+      "seed": 100401,
       "oracle_value": true,
-      "episode_dir": "mea/generated_tasks/run_20260730_b44_grab_roller_plan_agent_live13_round_1/evaluation/telemetry/act/episode_000_seed_100301"
+      "episode_dir": "mea/generated_tasks/run_20260730_batch31_grab_roller_broad_live_v3_round_1/evaluation/telemetry/act/episode_000_seed_100401"
     }
   ],
   "requested_route": "auto",
@@ -42,7 +42,7 @@
     "reference_tool": "official_check_success",
     "provider_required": false,
     "reason": "exact metric identifier matched a Trusted Tool",
-    "catalog_snapshot_sha256": "81566074a5d92dbe64d25d988e9d42594549a53a8149370802349d7018d94a26",
+    "catalog_snapshot_sha256": "f8e0ab1df719237948c3ec37a2989d4e058a123dec03875f69a694ca9f501b6d",
     "provider_called": false
   }
 }

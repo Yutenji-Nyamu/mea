@@ -1,102 +1,18 @@
 {
   "schema_version": 1,
   "status": "passed",
-  "source_count": 3,
-  "episode_result_count": 4,
-  "unique_episode_count": 3,
+  "source_count": 5,
+  "episode_result_count": 8,
+  "unique_episode_count": 5,
   "metric_ids": [
-    "generated_check_success",
     "official_check_success",
-    "query_derived_metric",
+    "query_left_tcp_to_roller_left_contact_min_distance",
+    "query_right_tcp_to_roller_right_contact_min_distance",
     "time_to_success"
   ],
   "input_issue_count": 0,
   "input_issues": [],
   "metrics": [
-    {
-      "metric": "generated_check_success",
-      "tools": [
-        "generated_check_success"
-      ],
-      "unit": null,
-      "value_kind": "boolean",
-      "cohorts": [
-        {
-          "role": "policy_under_evaluation",
-          "policy_names": [
-            "ACT"
-          ],
-          "summary": {
-            "episode_result_count": 1,
-            "quality": {
-              "invalid": {
-                "value": 0
-              },
-              "missing": {
-                "value": 0
-              },
-              "valid": {
-                "value": 1
-              }
-            },
-            "statistics": {
-              "false_count": {
-                "value": 0
-              },
-              "false_rate": {
-                "denominator": 1,
-                "numerator": 0,
-                "value": 0.0
-              },
-              "true_count": {
-                "value": 1
-              },
-              "true_rate": {
-                "denominator": 1,
-                "numerator": 1,
-                "value": 1.0
-              }
-            },
-            "unit": null,
-            "value_kind": "boolean"
-          },
-          "passed_summary": {
-            "episode_result_count": 1,
-            "quality": {
-              "invalid": {
-                "value": 0
-              },
-              "missing": {
-                "value": 0
-              },
-              "valid": {
-                "value": 1
-              }
-            },
-            "statistics": {
-              "false_count": {
-                "value": 0
-              },
-              "false_rate": {
-                "denominator": 1,
-                "numerator": 0,
-                "value": 0.0
-              },
-              "true_count": {
-                "value": 1
-              },
-              "true_rate": {
-                "denominator": 1,
-                "numerator": 1,
-                "value": 1.0
-              }
-            },
-            "unit": null,
-            "value_kind": "boolean"
-          }
-        }
-      ]
-    },
     {
       "metric": "official_check_success",
       "tools": [
@@ -111,7 +27,7 @@
             "ACT"
           ],
           "summary": {
-            "episode_result_count": 1,
+            "episode_result_count": 3,
             "quality": {
               "invalid": {
                 "value": 0
@@ -120,7 +36,7 @@
                 "value": 0
               },
               "valid": {
-                "value": 1
+                "value": 3
               }
             },
             "statistics": {
@@ -128,24 +44,24 @@
                 "value": 0
               },
               "false_rate": {
-                "denominator": 1,
+                "denominator": 3,
                 "numerator": 0,
                 "value": 0.0
               },
               "success_count": {
-                "value": 1
+                "value": 3
               },
               "success_rate": {
-                "denominator": 1,
-                "numerator": 1,
+                "denominator": 3,
+                "numerator": 3,
                 "value": 1.0
               },
               "true_count": {
-                "value": 1
+                "value": 3
               },
               "true_rate": {
-                "denominator": 1,
-                "numerator": 1,
+                "denominator": 3,
+                "numerator": 3,
                 "value": 1.0
               }
             },
@@ -153,7 +69,7 @@
             "value_kind": "boolean"
           },
           "passed_summary": {
-            "episode_result_count": 1,
+            "episode_result_count": 3,
             "quality": {
               "invalid": {
                 "value": 0
@@ -162,7 +78,7 @@
                 "value": 0
               },
               "valid": {
-                "value": 1
+                "value": 3
               }
             },
             "statistics": {
@@ -170,16 +86,16 @@
                 "value": 0
               },
               "false_rate": {
-                "denominator": 1,
+                "denominator": 3,
                 "numerator": 0,
                 "value": 0.0
               },
               "true_count": {
-                "value": 1
+                "value": 3
               },
               "true_rate": {
-                "denominator": 1,
-                "numerator": 1,
+                "denominator": 3,
+                "numerator": 3,
                 "value": 1.0
               }
             },
@@ -190,9 +106,9 @@
       ]
     },
     {
-      "metric": "query_derived_metric",
+      "metric": "query_left_tcp_to_roller_left_contact_min_distance",
       "tools": [
-        "query_derived_metric"
+        "query_left_tcp_to_roller_left_contact_min_distance"
       ],
       "unit": "m",
       "value_kind": "numeric",
@@ -217,16 +133,65 @@
             },
             "statistics": {
               "max": {
-                "value": 0.05838477611541748
+                "value": 0.02206086926162243
               },
               "mean": {
-                "value": 0.05838477611541748
+                "value": 0.02206086926162243
               },
               "median": {
-                "value": 0.05838477611541748
+                "value": 0.02206086926162243
               },
               "min": {
-                "value": 0.05838477611541748
+                "value": 0.02206086926162243
+              },
+              "population_stddev": {
+                "value": 0.0
+              }
+            },
+            "unit": "m",
+            "value_kind": "numeric"
+          }
+        }
+      ]
+    },
+    {
+      "metric": "query_right_tcp_to_roller_right_contact_min_distance",
+      "tools": [
+        "query_right_tcp_to_roller_right_contact_min_distance"
+      ],
+      "unit": "m",
+      "value_kind": "numeric",
+      "cohorts": [
+        {
+          "role": "policy_under_evaluation",
+          "policy_names": [
+            "ACT"
+          ],
+          "summary": {
+            "episode_result_count": 1,
+            "quality": {
+              "invalid": {
+                "value": 0
+              },
+              "missing": {
+                "value": 0
+              },
+              "valid": {
+                "value": 1
+              }
+            },
+            "statistics": {
+              "max": {
+                "value": 0.04654303938150406
+              },
+              "mean": {
+                "value": 0.04654303938150406
+              },
+              "median": {
+                "value": 0.04654303938150406
+              },
+              "min": {
+                "value": 0.04654303938150406
               },
               "population_stddev": {
                 "value": 0.0
@@ -252,7 +217,7 @@
             "ACT"
           ],
           "summary": {
-            "episode_result_count": 1,
+            "episode_result_count": 3,
             "quality": {
               "invalid": {
                 "value": 0
@@ -261,24 +226,24 @@
                 "value": 0
               },
               "valid": {
-                "value": 1
+                "value": 3
               }
             },
             "statistics": {
               "max": {
-                "value": 31.240000000000002
+                "value": 31.576
               },
               "mean": {
-                "value": 31.240000000000002
+                "value": 30.868
               },
               "median": {
-                "value": 31.240000000000002
+                "value": 30.72
               },
               "min": {
-                "value": 31.240000000000002
+                "value": 30.308
               },
               "population_stddev": {
-                "value": 0.0
+                "value": 0.5281312968066436
               }
             },
             "unit": "s",
