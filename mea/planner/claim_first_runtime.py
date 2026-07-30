@@ -236,25 +236,24 @@ def build_dynamic_experiment_candidate(
         if evaluation_intent is not None
         else proposal_intent
     )
-    preserved = (
-        "; ".join(intent["preserved_conditions"])
-        if intent["preserved_conditions"]
-        else ""
-    )
-    exact_change = intent["requested_change"]
     exact_hypothesis = intent["hypothesis"]
-    exact_observation = intent["required_observation"]
     semantic_concern = (
         f"{intent['original_concern']}: {exact_hypothesis}"
     )
-    scene_description = exact_change
-    if preserved:
-        scene_description += f" Preserve unchanged: {preserved}."
-    observation_description = (
-        f"{exact_observation} Hypothesis: {exact_hypothesis}"
-        if exact_observation
-        else exact_hypothesis
+    scene_description = (
+        str(scene_need["description"]).strip()
+        if scene_need["required"]
+        else ""
     )
+    missing_preserved = [
+        condition
+        for condition in intent["preserved_conditions"]
+        if condition.casefold() not in scene_description.casefold()
+    ]
+    if missing_preserved:
+        scene_description += (
+            " Preserve unchanged: " + "; ".join(missing_preserved) + "."
+        )
     return build_experiment_candidate(
         source_query=_nonempty_text(user_query, "user_query"),
         base_task=_nonempty_text(task_name, "task_name"),
@@ -271,7 +270,7 @@ def build_dynamic_experiment_candidate(
         checker_need=(
             {
                 "kind": "generate",
-                "description": observation_description,
+                "description": str(checker_need["description"]).strip(),
                 "reuse_first": True,
             }
             if checker_need["required"]
@@ -284,7 +283,7 @@ def build_dynamic_experiment_candidate(
                     if query_is_official_only(user_query)
                     else "measure"
                 ),
-                "description": observation_description,
+                "description": str(rule_tool_need["description"]).strip(),
                 "reuse_first": True,
             }
             if rule_tool_need["required"]
@@ -293,7 +292,7 @@ def build_dynamic_experiment_candidate(
         vqa_tool_need=(
             {
                 "kind": "vqa",
-                "description": observation_description,
+                "description": str(vqa_tool_need["description"]).strip(),
                 "reuse_first": True,
             }
             if vqa_tool_need["required"]

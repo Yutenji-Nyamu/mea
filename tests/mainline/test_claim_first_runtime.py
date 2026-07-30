@@ -522,7 +522,10 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         )
 
     def test_no_control_query_can_freeze_first_typed_candidate(self):
-        query = "Find one bounded object change that exposes a weakness."
+        query = (
+            "Find one bounded object change that exposes a weakness and define "
+            "one additional success condition."
+        )
         concern = {
             "schema_version": 1,
             "source_query": query,
@@ -559,8 +562,11 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
                     "description": concern["requested_variation"],
                 },
                 "checker_need": {
-                    "required": False,
-                    "description": None,
+                    "required": True,
+                    "description": (
+                        "Pass only if official success holds and the bell "
+                        "remains inside the workspace."
+                    ),
                 },
                 "rule_tool_need": {
                     "required": True,
@@ -587,8 +593,19 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             "provider_plan_agent_direct_materialization",
         )
         self.assertIn("50%", candidate["scene_need"]["description"])
-        self.assertIsNone(candidate["checker_need"])
+        self.assertIn(
+            "Pass only if official success",
+            candidate["checker_need"]["description"],
+        )
         self.assertIsNotNone(candidate["rule_tool_need"])
+        self.assertIn(
+            "Measure success and click-position error",
+            candidate["rule_tool_need"]["description"],
+        )
+        self.assertNotEqual(
+            candidate["checker_need"]["description"],
+            candidate["rule_tool_need"]["description"],
+        )
         self.assertEqual(
             candidate["intent_alignment"]["relationship"],
             "direct",
