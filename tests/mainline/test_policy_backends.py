@@ -1,3 +1,4 @@
+import hashlib
 import json
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -7,8 +8,11 @@ import pytest
 from mea.method_runtime import (
     BackendBindingRequest,
     CandidateRequest,
+    EvidenceRequest,
     MaterializedCandidate,
+    RolloutObservation,
     RolloutRequest,
+    build_round_evidence,
 )
 from mea.planner.context import build_planning_context
 from mea.planner.experiment_candidate import build_experiment_candidate
@@ -23,8 +27,10 @@ from mea.planner.runtime_task_binding import (
     build_smolvla_policy_spec,
 )
 from mea.robotwin.native_agent_round import (
+    NativeAgentRoundError,
     _build_native_run_id,
     _execute_robotwin_method_round,
+    _project_trusted_checker_outcome,
     execute_act_method_round,
     execute_smolvla_method_round,
 )
@@ -34,9 +40,12 @@ from mea.robotwin.runtime import RoboTwinMethodBackend
 from mea.robotwin.smolvla_rollout import (
     SmolVLARolloutError,
     SmolVLARobotwinRolloutRunner,
+    _checker_outcome_snapshot,
+    _persist_telemetry_outcome_semantics,
     _require_generated_task_simulator_source,
     run_smolvla_robotwin_episode,
 )
+from mea.round_evidence import aggregate_sources
 
 
 def _write_official_task(root, task_name: str, description: str) -> None:
@@ -44,6 +53,8 @@ def _write_official_task(root, task_name: str, description: str) -> None:
     env.parent.mkdir(parents=True, exist_ok=True)
     env.write_text(
         f"class {task_name}:\n"
+        "    def load_actors(self):\n"
+        "        self.target = create_actor(modelname='target')\n\n"
         "    def check_success(self):\n"
         "        return False\n",
         encoding="utf-8",
@@ -59,6 +70,34 @@ def _write_official_task(root, task_name: str, description: str) -> None:
         json.dumps({"full_description": description}),
         encoding="utf-8",
     )
+
+
+def _task_context_probe(root, task_name: str) -> dict:
+    source = root / "envs" / f"{task_name}.py"
+    return {
+        "schema_version": 1,
+        "task_name": task_name,
+        "official_source": f"envs/{task_name}.py",
+        "official_source_sha256": hashlib.sha256(
+            source.read_bytes()
+        ).hexdigest(),
+        "setup_success": True,
+        "official_check_success_callable": True,
+        "physics_timestep_seconds": 0.004,
+        "action_dimension": 14,
+        "actors": [
+            {
+                "task_attribute": "target",
+                "scene_name": "target",
+            }
+        ],
+        "observables": {
+            "simulation_clock": True,
+            "policy_action": True,
+            "robot_tcp": {"left": True, "right": True},
+            "contact_events": True,
+        },
+    }
 
 
 def test_native_generated_task_run_id_is_stable_and_importable():
@@ -143,13 +182,20 @@ def test_method_backend_allows_schema_less_official_control(tmp_path):
     backend = RoboTwinMethodBackend(
         repo_root=tmp_path,
         rollout_runner=lambda **_: {},
+        task_context_probe_runner=lambda **_: _task_context_probe(
+            tmp_path, "alpha_task"
+        ),
     )
 
     binding = backend.bind_task(
         BackendBindingRequest(
             task_reference={
                 "task_name": "alpha_task",
-                "policy": {"name": "SmolVLA", "backend": "smolvla"},
+                "policy": {
+                    "name": "SmolVLA",
+                    "backend": "smolvla",
+                    "action_dimension": 14,
+                },
             }
         )
     )
@@ -184,6 +230,8 @@ def test_method_backend_allows_schema_less_official_control(tmp_path):
     )
     assert materialized.validation["route"] == "official_task_tool_only"
     assert materialized.metadata["official_task_reused"] is True
+    assert materialized.metadata["task_context_bound_before_rollout"] is True
+    assert materialized.task_contract["task_schema_available"] is True
 
 
 def test_policy_backend_rejects_a_mismatched_rollout_hook():
@@ -238,7 +286,7 @@ def test_schema_less_smolvla_context_exposes_official_only_boundary(
     }
 
 
-def test_schema_less_smolvla_records_scene_generation_as_unsupported(
+def test_schema_less_smolvla_delegates_task_context_to_taskgen(
     tmp_path,
 ):
     _write_official_task(tmp_path, "alpha_task", "move the alpha object")
@@ -260,33 +308,34 @@ def test_schema_less_smolvla_records_scene_generation_as_unsupported(
         scene_need="Move the target to a new tested pose.",
     )
 
-    result = execute_smolvla_method_round(
-        repo_root=tmp_path,
-        evaluation_dir=tmp_path / "evaluation",
-        evaluation_id="eval",
-        round_plan={
-            "round_id": "round_1",
-            "template_id": None,
-            "candidate_id": candidate["candidate_id"],
-            "proposal": candidate,
-            "sub_aspect": "trajectory",
-            "task_instruction": query,
-            "task_name": "alpha_task",
-            "route": "official",
-            "execution": {"backend": "act", "seeds": [1], "num_episodes": 1},
-        },
-        runtime_target=target,
-        telemetry_profile="balanced_v1",
-        policy_server_port=18771,
-        generated_task_materializer=lambda *args, **kwargs: {},
-    )
-
-    assert result["unsupported"] is True
-    assert result["child_manifest"]["status"] == "unsupported"
-    assert (
-        result["child_manifest"]["unsupported_capability"]["reason_code"]
-        == "task_context_insufficient_for_taskgen"
-    )
+    with pytest.raises(
+        NativeAgentRoundError,
+        match="requires provider, text model, and vision model",
+    ):
+        execute_smolvla_method_round(
+            repo_root=tmp_path,
+            evaluation_dir=tmp_path / "evaluation",
+            evaluation_id="eval",
+            round_plan={
+                "round_id": "round_1",
+                "template_id": None,
+                "candidate_id": candidate["candidate_id"],
+                "proposal": candidate,
+                "sub_aspect": "trajectory",
+                "task_instruction": query,
+                "task_name": "alpha_task",
+                "route": "official",
+                "execution": {
+                    "backend": "act",
+                    "seeds": [1],
+                    "num_episodes": 1,
+                },
+            },
+            runtime_target=target,
+            telemetry_profile="balanced_v1",
+            policy_server_port=18771,
+            generated_task_materializer=lambda *args, **kwargs: {},
+        )
 
 
 def test_act_native_envelope_delegates_to_shared_method_round(tmp_path):
@@ -441,6 +490,10 @@ def test_smolvla_runner_enables_telemetry_only_for_schema_backed_candidate(
 
     assert rollout.call_args.kwargs["repo_root"] == tmp_path.resolve()
     assert rollout.call_args.kwargs["telemetry_profile"] == "balanced_v1"
+    assert (
+        rollout.call_args.kwargs["outcome_metric"]
+        == "official_check_success"
+    )
 
 
 def test_generated_smolvla_task_requires_taskgen_simulator_source(tmp_path):
@@ -488,3 +541,121 @@ def test_smolvla_initializes_simulator_before_policy_connection(tmp_path):
         )
 
     client.assert_not_called()
+
+
+def test_smolvla_separates_generated_official_and_latched_outcomes(
+    tmp_path,
+):
+    task = SimpleNamespace(
+        eval_success=True,
+        check_success=lambda: False,
+        mea_official_check_success=lambda: True,
+    )
+
+    outcomes = _checker_outcome_snapshot(
+        task,
+        active_checker_metric="generated_check_success",
+    )
+    persisted = _persist_telemetry_outcome_semantics(
+        tmp_path,
+        {"success": True, "task_name": "alpha_task"},
+        outcomes,
+    )
+
+    assert outcomes == {
+        "active_checker_metric": "generated_check_success",
+        "active_checker_success": True,
+        "active_checker_final_predicate": False,
+        "generated_checker_success": True,
+        "official_check_success": True,
+        "official_core_predicate_satisfied": True,
+        "episode_latched_success": True,
+    }
+    assert persisted["generated_checker_success"] is True
+    assert json.loads(
+        (tmp_path / "episode.json").read_text(encoding="utf-8")
+    ) == persisted
+    scene_only = _checker_outcome_snapshot(
+        task,
+        active_checker_metric="official_check_success",
+    )
+    assert scene_only["generated_checker_success"] is None
+    assert scene_only["active_checker_metric"] == "official_check_success"
+
+
+def test_native_method_evidence_uses_trusted_generated_checker_result():
+    rollout = RolloutObservation(
+        benchmark="robotwin",
+        round_id="round_1",
+        candidate_id="generated_candidate",
+        seed=17,
+        success=False,
+        episode={
+            "active_checker_metric": "generated_check_success",
+            "generated_checker_success": True,
+            "official_check_success": False,
+            "official_core_predicate_satisfied": False,
+            "episode_latched_success": True,
+        },
+        native_episode={},
+    )
+    trusted = {
+        "status": "passed",
+        "outcome_metric": "generated_check_success",
+        "outcome_authority": "llm_generated_python_ast_validated",
+        "episodes": [
+            {
+                "role": "policy_under_evaluation",
+                "tool_results": [
+                    {
+                        "tool": "generated_check_success",
+                        "value": True,
+                        "passed": True,
+                        "details": {
+                            "generated_checker_success": True,
+                            "official_core_predicate_satisfied": False,
+                        },
+                    }
+                ],
+            }
+        ],
+    }
+
+    projected, result = _project_trusted_checker_outcome(
+        rollout,
+        trusted,
+        expected_metric="generated_check_success",
+        policy_backend="smolvla",
+    )
+
+    assert projected.success is True
+    assert result["value"] is True
+    assert projected.episode["official_check_success"] is False
+    assert projected.metadata["trusted_checker"] == {
+        "metric": "generated_check_success",
+        "authority": "llm_generated_python_ast_validated",
+        "value": True,
+    }
+    evidence = build_round_evidence(
+        projected,
+        EvidenceRequest(
+            sub_aspect="trajectory robustness",
+            hypothesis="The generated checker is satisfied.",
+            perturbation="generated scene",
+            summary="Trusted generated checker passed.",
+        ),
+    )
+    sources = aggregate_sources(
+        {
+            "round_id": "round_1",
+            "sub_aspect": "trajectory robustness",
+        },
+        {"trusted_tool_evaluation": trusted},
+        None,
+    )
+    assert evidence.outcome == "success"
+    assert sources[0]["episodes"][0]["tool_results"][0] is not None
+    assert (
+        sources[0]["episodes"][0]["tool_results"][0]["value"]
+        is projected.success
+    )

@@ -361,6 +361,67 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             "unchanged official-scene control",
         )
 
+    def test_plan_agent_session_owns_frozen_execution_transport(self):
+        task_name = "runtime_schema_task"
+        query = "Is there some generated condition that exposes a failure?"
+        runtime_target = {
+            "schema_version": 3,
+            "binding_mode": "single_task_single_checkpoint_open_world",
+            "policy_task_binding": build_policy_task_binding(
+                task_name=task_name,
+                task_family="runtime_discovered",
+                policy={"name": "ACT", "language_conditioned": False},
+                checkpoint={
+                    "checkpoint_id": f"act-{task_name}/demo_clean-50",
+                    "checkpoint_setting": "demo_clean",
+                    "expert_data_num": 50,
+                    "ready": True,
+                },
+            ),
+            "max_rounds": 2,
+        }
+        contract = build_query_sufficiency_contract(
+            query,
+            candidate_universe=[],
+            round_budget=1,
+            claim_type="existential",
+            candidate_universe_closed=False,
+            existential_witness_outcome="fail",
+        )
+        control = round_plan(1, "task_execution.official_baseline")
+        control["task_name"] = task_name
+        control["task_module"] = f"envs.{task_name}"
+        control["task_proposal"]["changes"] = {}
+        session = PlanAgentSession(
+            query,
+            runtime_target,
+            query_contract=contract,
+            control_round=control,
+        )
+        binding = session.execution_binding
+        plan = {
+            "schema_version": 1,
+            "task_name": task_name,
+            "policy": binding["policy"],
+            "checkpoint": binding["checkpoint"],
+            "max_rounds": 2,
+            "evaluation_goal": query,
+            "rounds": [control],
+            "round_decisions": [],
+            "planning_state": "awaiting_round_1_observation",
+            "query_contract": contract,
+        }
+
+        normalized = session.normalize_plan(plan)
+        snapshot = session.snapshot(query, normalized)
+
+        self.assertEqual(normalized["task_name"], task_name)
+        self.assertEqual(snapshot["target"], runtime_target)
+        self.assertEqual(
+            session.execution_binding["task_name"],
+            snapshot["target"]["policy_task_binding"]["task_name"],
+        )
+
     def test_each_dynamic_candidate_keeps_its_own_preservation_contract(
         self,
     ):

@@ -326,6 +326,10 @@ class ClaimFirstOpenQueryTest(unittest.TestCase):
         self.assertIn("candidate/template-ID itinerary", prompt)
         self.assertIn("backend primitives", prompt)
         self.assertIn("not an operation menu", prompt)
+        self.assertIn(
+            "official core predicate as a required conjunct", prompt
+        )
+        self.assertIn("bracket the next", prompt)
         self.assertNotIn("There is no candidate\naspect list", prompt)
 
     def test_capabilities_reject_predeclared_navigation(self):

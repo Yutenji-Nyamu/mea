@@ -202,8 +202,8 @@ def route_tool_request(
         registry = f"typed_metric_spec_v{metric_spec['schema_version']}"
         reference_tool = None
         reason = (
-            "caller-oracle-backed semantic contract can drive exact reuse or "
-            "provider Python generation with differential gates"
+            "a derived semantic contract can drive exact reuse or provider "
+            "Python generation with semantic-review/runtime gates"
             if derived
             else "validated typed MetricSpec can be compiled and "
             "differentially gated"

@@ -403,7 +403,17 @@ def register_run_local_tool(
             ),
             "oracle_kind": generation_registration.get("oracle_kind"),
             "determinism_required": True,
-            "oracle_agreement_required": True,
+            "oracle_agreement_required": generation_registration.get(
+                "oracle_agreement_required",
+                True,
+            ),
+            "semantic_review_required": generation_registration.get(
+                "semantic_review_required",
+                False,
+            ),
+            "semantic_review": deepcopy(
+                generation_manifest.get("semantic_review")
+            ),
         },
         "promotion": {
             "current_scope": "run_local",

@@ -263,6 +263,14 @@ class MetricSpecTests(unittest.TestCase):
             self.assertEqual(result["route"], "typed_metric_spec_compile")
             self.assertFalse(result["validation"]["provider_called"])
             self.assertTrue(result["validation"]["task_code_context_consumed"])
+            self.assertTrue(result["validation"]["validation_gates_passed"])
+            self.assertFalse(
+                result["validation"]["independent_numeric_oracle"]
+            )
+            self.assertTrue(result["validation"]["oracle_agreement"])
+            self.assertNotIn(
+                "differential_gates_passed", result["validation"]
+            )
             self.assertEqual(
                 [item["result"]["value"] for item in result["episodes"]],
                 [0, 1],

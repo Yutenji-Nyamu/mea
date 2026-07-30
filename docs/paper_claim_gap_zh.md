@@ -16,7 +16,7 @@ task/seed，最终因预算停止，不能证明广泛泛化或 evidence-suffici
 
 此后生产 `RoundExecutor` 已同时接入 ACT 与 SmolVLA，SmolVLA 也进入通用 TaskGen；
 最新 `eval_20260730_native_smolvla_broad_live_v5` 从不含 aspect/template 的 Query
-生成了 distractor scene、实验 checker 与独立 trajectory Tool need，且 TaskGen 首次
+生成了 distractor scene、实验 checker 与单独声明的 trajectory Tool need，且 TaskGen 首次
 生成通过 static、render/VLM 和 expert gate。随后原生 rollout 初始化误解析到外部
 upstream RoboTwin，而非 TaskGen 验证所用的 MEA RoboTwin fork；policy server 虽收到
 连接，但 `request_count=0`，没有 observation、policy inference 或 episode。当前代码已
@@ -51,12 +51,16 @@ upstream RoboTwin，而非 TaskGen 验证所用的 MEA RoboTwin fork；policy se
 ## 当前方法优先级
 
 1. **完成一个 backend-neutral clean flagship。** broad Query 不给 aspect/template；
-   Plan Agent 自选可实现 concern；按需生成 scene、实验 checker 与独立 scalar Tool；
+   Plan Agent 自选可实现 concern；按需生成 scene、实验 checker 与单独声明的 scalar Tool；
    通过 TaskGen gate 后执行一次轻量 policy rollout；live Tool 非空并进入 Aggregate。
 2. **让 evidence 同时决定 refinement 与停止。** 下一 Proposal 必须在上一轮 completed
    evidence 后产生；Plan Agent 主动提出 stop，QueryContract 只验证，不替它决策。
-3. **在同一方法链证明 Tool reuse。** 新 Tool 影响下一轮后，由第二 Query exact reuse；
-   无独立 oracle 时诚实返回 unsupported，不回退到相近 MetricSpec。
+3. **在同一方法链证明 Tool reuse。** 新 Tool 影响下一轮后，由第二 Query exact reuse。
+   对没有 caller-supplied independent numeric oracle 的 derived observable，ToolGen 使用
+   separate development-agent semantic review，再执行 declared-signal AST、determinism、
+   finite/unit、evidence-step 与 artifact-immutability runtime gates；产物必须显式记录
+   `independent_numeric_oracle=false`、`oracle_agreement=null`，且只能作为诊断量，不能
+   拥有 success/reward authority。存在独立 numeric oracle 时才报告其 agreement。
 4. **统一 LIBERO 外层 loop。** simulator backend 可以不同，QueryContract、Plan Agent
    session、RoundExecutor、Aggregate、stop 与 Answer 不应重复实现。
 5. **方法稳定后再扩大实验。** 首先做小型三 seed dense/adaptive 保真；独立人工

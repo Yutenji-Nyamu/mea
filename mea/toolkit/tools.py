@@ -551,6 +551,14 @@ def generated_check_success(trajectory: TrajectoryView) -> dict[str, Any]:
             "generated_checker_success": (
                 final_success
             ),
+            # ``mea_official_check_success`` executes the untouched official
+            # predicate on the generated scene.  Preserve both the explicit
+            # core label and the common outcome field so downstream semantic
+            # comparison does not incorrectly report official success as
+            # missing.
+            "official_success": (
+                official_core if isinstance(official_core, bool) else None
+            ),
             "official_core_predicate_satisfied": (
                 official_core if isinstance(official_core, bool) else None
             ),

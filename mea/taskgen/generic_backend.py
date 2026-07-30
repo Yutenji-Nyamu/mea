@@ -34,7 +34,10 @@ from mea.planner.semantic_coverage import (
     SemanticCoverageError,
     build_implementation_trace,
 )
-from mea.toolkit.schema import TaskSchemaError, load_task_schema
+from mea.robotwin_task_context import (
+    RoboTwinTaskContextError,
+    resolve_robotwin_task_context,
+)
 
 from .provider_scene_checker import (
     TextProvider,
@@ -141,6 +144,7 @@ class GenericRoboTwinTaskAdapter:
     documentation_paths: tuple[str, ...]
     asset_paths: tuple[str, ...]
     hooks: GenericTaskGenHooks
+    task_context: Mapping[str, Any] | None = None
 
 
 def _attribute_parts(node: ast.AST) -> tuple[str, ...] | None:
@@ -695,12 +699,16 @@ def _discover_asset_descriptions(
     *,
     source_path: Path,
     class_name: str,
-    task_schema: Mapping[str, Any],
+    task_schema: Mapping[str, Any] | None,
 ) -> tuple[str, ...]:
     model_names = _model_names_from_source(
         source_path, class_name=class_name
     )
-    for actor in task_schema.get("tracked_actors", []):
+    for actor in (
+        task_schema.get("tracked_actors", [])
+        if isinstance(task_schema, Mapping)
+        else []
+    ):
         if isinstance(actor, Mapping):
             scene_name = actor.get("scene_name")
             if isinstance(scene_name, str) and scene_name:
@@ -720,14 +728,15 @@ def _discover_asset_descriptions(
 def discover_generic_robotwin_task_identity(
     repo_root: str | Path,
     task_name: str,
+    *,
+    runtime_probe: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Discover one executable RoboTwin base without a task-name registry.
 
     This hook-free identity is the authority boundary shared by routing and
-    TaskGen.  A task is discoverable only when its official source declares
-    the expected class and its repository-owned TaskSchema validates.  Known
-    capability entries may later enrich retrieval, but are not membership
-    requirements here.
+    TaskGen.  Official source makes the task discoverable.  A reviewed
+    TaskSchema accelerates TaskGen; when absent, one fresh runtime probe may
+    provide the actor/telemetry authority instead.
     """
 
     if not isinstance(task_name, str) or not _TASK_NAME.fullmatch(task_name):
@@ -739,17 +748,21 @@ def discover_generic_robotwin_task_identity(
     )
     _official_class(source_path, class_name=task_name)
     try:
-        schema = load_task_schema(root, task_name)
-    except TaskSchemaError as exc:
-        raise GenericTaskGenError(
-            f"task toolkit schema is unavailable: {exc}"
-        ) from exc
+        task_context = resolve_robotwin_task_context(
+            root,
+            task_name,
+            runtime_probe=runtime_probe,
+        )
+    except RoboTwinTaskContextError as exc:
+        raise GenericTaskGenError(str(exc)) from exc
+    schema = task_context.task_schema
     return {
         "schema_version": 1,
         "task_name": task_name,
         "official_source": relative_source,
         "official_class": task_name,
-        "task_schema": deepcopy(schema),
+        "task_schema": deepcopy(schema) if schema is not None else None,
+        "task_context": task_context.to_dict(),
         "documentation_paths": list(
             _discover_task_documents(root, task_name=task_name)
         ),
@@ -773,8 +786,9 @@ def load_generic_robotwin_task_adapter(
     resolve_metric: ResolveMetric,
     resolve_checker_contract: ResolveCheckerContract,
     prompt_constraints: str = "",
+    runtime_probe: Mapping[str, Any] | None = None,
 ) -> GenericRoboTwinTaskAdapter:
-    """Discover a thin adapter for any source/schema-backed RoboTwin task.
+    """Discover a thin adapter for any source/context-backed RoboTwin task.
 
     The factory has no task-name, concern, template, or metric registry.
     Semantic fixtures and simulator preflight remain explicit injected hooks;
@@ -798,12 +812,22 @@ def load_generic_robotwin_task_adapter(
             "metric and checker contract resolvers must be callable"
         )
     root = Path(repo_root).expanduser().resolve()
-    identity = discover_generic_robotwin_task_identity(root, task_name)
+    identity = discover_generic_robotwin_task_identity(
+        root,
+        task_name,
+        runtime_probe=runtime_probe,
+    )
     relative_source = str(identity["official_source"])
     source_path = _resolve_repo_file(
         root, relative_source, label="official task source"
     )
-    schema = deepcopy(identity["task_schema"])
+    raw_schema = identity["task_schema"]
+    if not isinstance(raw_schema, Mapping):
+        raise GenericTaskGenError(
+            "TaskContext has no simulator-authoritative actor/telemetry "
+            "schema; run one official reset context probe before TaskGen"
+        )
+    schema = deepcopy(dict(raw_schema))
     readme = root / "mea/taskgen/README.Agent.md"
     if not readme.is_file():
         raise GenericTaskGenError(
@@ -879,6 +903,7 @@ def load_generic_robotwin_task_adapter(
         documentation_paths=tuple(identity["documentation_paths"]),
         asset_paths=tuple(identity["asset_paths"]),
         hooks=hooks,
+        task_context=deepcopy(identity["task_context"]),
     )
 
 
@@ -970,6 +995,16 @@ def _normalize_adapter(
             adapter.official_class, field="adapter.official_class"
         ),
         "task_schema": deepcopy(dict(adapter.task_schema)),
+        "task_context": (
+            deepcopy(dict(adapter.task_context))
+            if isinstance(adapter.task_context, Mapping)
+            else {
+                "schema_version": 1,
+                "task_name": adapter.task_name,
+                "taskgen_ready": True,
+                "schema_origin": "legacy_adapter_contract",
+            }
+        ),
         "documentation_paths": list(documentation_paths),
         "asset_paths": list(asset_paths),
         "generation_hook_contract": {
@@ -1130,6 +1165,13 @@ def _read_generation_context(
             sort_keys=True,
             indent=2,
         ),
+        "TASK CONTEXT AUTHORITY:\n"
+        + json.dumps(
+            adapter["task_context"],
+            ensure_ascii=False,
+            sort_keys=True,
+            indent=2,
+        ),
     ]
     for relative in adapter["documentation_paths"]:
         path = _resolve_repo_file(
@@ -1222,6 +1264,11 @@ def _core_prompt(
         "derived Rule metric such as trajectory deviation, smoothness, jerk, "
         "path length, or minimum clearance. Leave that scalar observation to "
         "ToolGen and never invent calculate_* or measure_* helper methods. "
+        "When checker_need composes the official task goal with an additional "
+        "experimental condition, call self.mea_official_check_success() "
+        "directly and use its result as a required conjunct; do not copy or "
+        "reimplement the official predicate. This preserves the official core "
+        "without claiming that the extended checker is official-equivalent. "
         "For a simulator-verifiable robot-contact condition, inspect "
         "self.scene.get_contacts(). A SAPIEN PhysxContact exposes bodies, not "
         "actor0/actor1; each body.entity is the scene entity, while a "

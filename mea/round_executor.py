@@ -20,7 +20,12 @@ from typing import Any, Callable, Mapping
 
 from mea.planner import build_evidence_aggregate
 from mea.proposals import tool_request_from_proposal
-from mea.toolgen import route_tool_request
+from mea.round_evidence import aggregate_round_results
+from mea.round_tools import (
+    materialize_open_world_tool_request,
+    reuse_bound_child_checker_tool,
+)
+from mea.toolgen import execute_tool_request, route_tool_request
 
 
 def _write_json(path: Path, value: Any) -> None:
@@ -34,16 +39,24 @@ def _write_json(path: Path, value: Any) -> None:
 def _round_requests_execution_vqa(
     round_plan: Mapping[str, Any] | None,
 ) -> bool:
-    """Keep legacy VQA behavior unless the Proposal explicitly omits it."""
+    """Run execution VQA only when the round contract explicitly requests it."""
 
-    semantic_needs = (round_plan or {}).get("semantic_need_execution")
-    if not isinstance(semantic_needs, Mapping):
-        return True
-    vqa_need = semantic_needs.get("vqa_tool")
-    return not (
-        isinstance(vqa_need, Mapping)
-        and vqa_need.get("requested") is False
+    plan = round_plan or {}
+    semantic_needs = plan.get("semantic_need_execution")
+    vqa_need = (
+        semantic_needs.get("vqa_tool")
+        if isinstance(semantic_needs, Mapping)
+        else None
     )
+    if isinstance(vqa_need, Mapping) and vqa_need.get("requested") is True:
+        return True
+    observations = plan.get("observations")
+    if isinstance(observations, list) and any(
+        item in {"execution_vqa", "dynamic_vqa"} for item in observations
+    ):
+        return True
+    phenomenon_ids = plan.get("vqa_phenomenon_ids")
+    return isinstance(phenomenon_ids, list) and bool(phenomenon_ids)
 
 
 @dataclass(frozen=True)
@@ -59,10 +72,6 @@ class RoundExecutionServices:
     update_manifest: Callable[..., Mapping[str, Any]]
     build_taskgen_command: Callable[..., tuple[list[str], str]]
     run_logged: Callable[..., int]
-    materialize_open_world_tool_request: Callable[..., Mapping[str, Any]]
-    reuse_bound_child_checker_tool: Callable[..., Mapping[str, Any] | None]
-    execute_tool_request: Callable[..., Mapping[str, Any]]
-    aggregate_round_results: Callable[..., Mapping[str, Any]]
     run_round_execution_vqa: Callable[..., Mapping[str, Any]]
     summarize_round: Callable[..., dict[str, Any]]
     native_policy_rounds: Mapping[str, Callable[..., Mapping[str, Any]]]
@@ -102,19 +111,6 @@ class RoundExecutionResult:
     round_summary: dict[str, Any]
     tool_evaluation: dict[str, Any]
     returncode: int
-
-    def as_legacy_tuple(
-        self,
-    ) -> tuple[dict[str, Any], Path, dict[str, Any], dict[str, Any], int]:
-        """Preserve the historical import contract during caller migration."""
-
-        return (
-            self.child_manifest,
-            self.child_dir,
-            self.round_summary,
-            self.tool_evaluation,
-            self.returncode,
-        )
 
 
 class RoundExecutor:
@@ -247,7 +243,7 @@ class RoundExecutor:
             round_plan=round_plan,
             tool_evaluation=tool_evaluation,
         )
-        aggregate_result = services.aggregate_round_results(
+        aggregate_result = aggregate_round_results(
             round_plan,
             child_manifest,
             tool_evaluation,
@@ -331,7 +327,7 @@ class RoundExecutor:
                     request.reviewed_tool_registry
                 )
             if round_plan.get("open_tool_request_deferred") is True:
-                tool_bundle = services.materialize_open_world_tool_request(
+                tool_bundle = materialize_open_world_tool_request(
                     request.repo_root,
                     execution_dir,
                     round_plan=round_plan,
@@ -433,14 +429,14 @@ class RoundExecutor:
             if round_plan.get("task_proposal") is not None:
                 tool_kwargs["task_proposal"] = round_plan["task_proposal"]
             planned_tool_dir = execution_dir / "planned_tool"
-            tool_evaluation = services.reuse_bound_child_checker_tool(
+            tool_evaluation = reuse_bound_child_checker_tool(
                 request.repo_root,
                 child_manifest,
                 planned_tool_dir,
                 proposed_request,
             )
             if tool_evaluation is None:
-                tool_evaluation = services.execute_tool_request(
+                tool_evaluation = execute_tool_request(
                     request.repo_root,
                     child_dir,
                     planned_tool_dir,

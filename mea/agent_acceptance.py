@@ -47,7 +47,7 @@ def build_compact_flagship_acceptance(
 ) -> dict[str, Any]:
     """Project a strict, scoped acceptance for one online 2-3 round run."""
 
-    act_rollouts = 0
+    policy_rollouts = 0
     round_routes: list[str] = []
     semantics_statuses: list[str] = []
     runtime_candidate_ids: list[str] = []
@@ -80,10 +80,12 @@ def build_compact_flagship_acceptance(
                 implementation_trace.get("relationship") == "direct"
                 and implementation_trace.get("coverage_status") == "complete"
             )
-        if observations.get("execution_backend") in {"ACT", "ACT+expert"}:
-            actual_seeds = observations.get("actual_seeds")
-            if isinstance(actual_seeds, list):
-                act_rollouts += len(actual_seeds)
+        actual_seeds = observations.get("actual_seeds")
+        if (
+            isinstance(actual_seeds, list)
+            and observations.get("execution_backend") != "expert"
+        ):
+            policy_rollouts += len(actual_seeds)
         semantics = observations.get("outcome_semantics")
         if isinstance(semantics, Mapping) and isinstance(
             semantics.get("status"), str
@@ -293,7 +295,6 @@ def build_compact_flagship_acceptance(
     no_outcome_conflict = "conflict" not in semantics_statuses
     candidate_semantics_scoped = bool(
         len(semantics_statuses) >= 2
-        and semantics_statuses[0] in {"official_only", "equivalent_agreement"}
         and all(
             status
             in {
@@ -301,14 +302,25 @@ def build_compact_flagship_acceptance(
                 "expected_semantic_extension",
                 "equivalent_agreement",
             }
-            for status in semantics_statuses[1:]
+            for status in semantics_statuses
         )
     )
-    control_then_candidates = bool(
+    control_requirement = query_contract.get("control_requirement")
+    # Historical contracts omitted the field and always used an official
+    # control.  New production contracts state ``not_required`` explicitly.
+    control_required = control_requirement != "not_required"
+    method_round_sequence = bool(
         2 <= len(round_routes) <= 3
-        and round_routes[0] == "official"
-        and all(route != "official" for route in round_routes[1:])
-        and act_rollouts == len(round_routes)
+        and policy_rollouts == len(round_routes)
+        and any(route != "official" for route in round_routes)
+        and (
+            (
+                round_routes[0] == "official"
+                and all(route != "official" for route in round_routes[1:])
+            )
+            if control_required
+            else all(route != "official" for route in round_routes)
+        )
     )
     answer_scope = answer.get("answer_scope")
     answer_semantics_scoped = bool(
@@ -342,7 +354,7 @@ def build_compact_flagship_acceptance(
         and history_disabled
         and runtime_bound_route
         and global_router_provider_calls == 0
-        and control_then_candidates
+        and method_round_sequence
         and evidence_sufficient
         and no_outcome_conflict
         and candidate_semantics_scoped
@@ -384,9 +396,14 @@ def build_compact_flagship_acceptance(
         "query_candidates_bound": query_candidates_bound,
         "runtime_bound_route": runtime_bound_route,
         "global_router_provider_calls": global_router_provider_calls,
-        "act_rollouts": act_rollouts,
+        # Retained as a compatibility projection for historical readers.
+        "act_rollouts": policy_rollouts,
         "required_act_rollouts": 2,
         "accepted_act_rollout_range": [2, 3],
+        "policy_rollouts": policy_rollouts,
+        "accepted_policy_rollout_range": [2, 3],
+        "control_requirement": control_requirement,
+        "control_requirement_satisfied": method_round_sequence,
         "round_routes": round_routes,
         "stop_reason": answer.get("stop_reason") or assessment.get("stop_reason"),
         "evidence_sufficient": evidence_sufficient,

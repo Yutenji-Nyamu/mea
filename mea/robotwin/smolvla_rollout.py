@@ -161,6 +161,78 @@ def _encode_observation(
     return images, state
 
 
+def _checker_outcome_snapshot(
+    task: Any,
+    *,
+    active_checker_metric: str,
+) -> dict[str, Any]:
+    """Separate the active checker, untouched official core, and episode latch."""
+
+    if active_checker_metric not in {
+        "official_check_success",
+        "generated_check_success",
+    }:
+        raise SmolVLARolloutError(
+            f"unsupported active checker metric: {active_checker_metric!r}"
+        )
+    active_checker_final = bool(task.check_success())
+    episode_latched_success = bool(getattr(task, "eval_success", False))
+    active_checker_success = bool(
+        episode_latched_success or active_checker_final
+    )
+    official_core_checker = getattr(
+        task,
+        "mea_official_check_success",
+        None,
+    )
+    generated_checker_active = (
+        active_checker_metric == "generated_check_success"
+    )
+    if generated_checker_active and not callable(official_core_checker):
+        raise SmolVLARolloutError(
+            "generated checker lacks untouched official-core authority"
+        )
+    official_core = bool(
+        official_core_checker()
+        if callable(official_core_checker)
+        else active_checker_final
+    )
+    return {
+        "active_checker_metric": active_checker_metric,
+        "active_checker_success": active_checker_success,
+        "active_checker_final_predicate": active_checker_final,
+        "generated_checker_success": (
+            active_checker_success if generated_checker_active else None
+        ),
+        "official_check_success": (
+            official_core
+            if generated_checker_active
+            else active_checker_success
+        ),
+        "official_core_predicate_satisfied": official_core,
+        "episode_latched_success": episode_latched_success,
+    }
+
+
+def _persist_telemetry_outcome_semantics(
+    episode_dir: Path,
+    recorder_metadata: Mapping[str, Any],
+    outcomes: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Make the recorder episode expose the same checker semantics as rollout."""
+
+    metadata = dict(recorder_metadata)
+    metadata.update(dict(outcomes))
+    if outcomes.get("generated_checker_success") is None:
+        metadata.pop("generated_checker_success", None)
+    episode_path = episode_dir / "episode.json"
+    episode_path.write_text(
+        json.dumps(metadata, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return metadata
+
+
 def _require_generated_task_simulator_source(
     *,
     task_module: str,
@@ -202,6 +274,8 @@ def run_smolvla_robotwin_episode(
     policy_instruction: str | None = None,
     repo_root: str | Path | None = None,
     telemetry_profile: str | None = None,
+    task_schema: Mapping[str, Any] | None = None,
+    outcome_metric: str = "official_check_success",
 ) -> dict[str, Any]:
     """Execute one importable RoboTwin task module with SmolVLA.
 
@@ -274,6 +348,7 @@ def run_smolvla_robotwin_episode(
                 checkpoint_setting="shared_official",
                 telemetry_profile_id=telemetry_profile,
                 visual_capture_profile_id="event_keyframes_v1",
+                task_schema=task_schema,
             )
             task._mea_recorder = recorder
             try:
@@ -338,8 +413,11 @@ def run_smolvla_robotwin_episode(
                 video_frames.append(chunk_images["head_camera"])
                 observed_states.append(chunk_state.tolist())
 
-            final_checker = bool(task.check_success())
-            success = bool(task.eval_success or final_checker)
+            checker_outcomes = _checker_outcome_snapshot(
+                task,
+                active_checker_metric=outcome_metric,
+            )
+            success = bool(checker_outcomes["active_checker_success"])
             final_images, final_state = _encode_observation(observation)
             iio.imwrite(
                 destination / "final_head.png",
@@ -358,6 +436,11 @@ def run_smolvla_robotwin_episode(
                     task,
                     success=success,
                 )
+                recorder_metadata = _persist_telemetry_outcome_semantics(
+                    telemetry_episode_dir,
+                    recorder_metadata,
+                    checker_outcomes,
+                )
                 recorder = None
             result = {
                 "schema_version": 1,
@@ -372,8 +455,12 @@ def run_smolvla_robotwin_episode(
                 "chunk_count": chunk_count,
                 "chunk_latencies_seconds": chunk_latencies,
                 "success": success,
-                "eval_success": bool(task.eval_success),
-                "official_check_success": final_checker,
+                # Compatibility alias retained for old result readers.  New
+                # evidence uses the three explicit checker channels below.
+                "eval_success": checker_outcomes[
+                    "episode_latched_success"
+                ],
+                **checker_outcomes,
                 "initial_state": initial_state.tolist(),
                 "final_state": final_state.tolist(),
                 "chunk_boundary_states": observed_states,
@@ -497,6 +584,24 @@ class SmolVLARobotwinRolloutRunner:
         semantic_telemetry = bool(
             candidate.task_contract.get("task_schema_available")
         )
+        runtime_schema = candidate.task_contract.get("task_schema")
+        if semantic_telemetry and runtime_schema is not None and not isinstance(
+            runtime_schema,
+            Mapping,
+        ):
+            raise SmolVLARolloutError(
+                "candidate task_schema must be an object"
+            )
+        artifact_summary = manifest.get("task_artifact_summary")
+        artifact_summary = (
+            artifact_summary
+            if isinstance(artifact_summary, Mapping)
+            else {}
+        )
+        outcome_metric = str(
+            artifact_summary.get("success_outcome_label")
+            or "official_check_success"
+        )
         return run_smolvla_robotwin_episode(
             task_name=task_name,
             task_module=task_module,
@@ -510,6 +615,13 @@ class SmolVLARobotwinRolloutRunner:
             telemetry_profile=(
                 self.telemetry_profile if semantic_telemetry else None
             ),
+            task_schema=(
+                runtime_schema
+                if semantic_telemetry
+                and isinstance(runtime_schema, Mapping)
+                else None
+            ),
+            outcome_metric=outcome_metric,
         )
 
 

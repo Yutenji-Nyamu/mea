@@ -72,13 +72,13 @@ from mea.planner import (
     AdaptivePlanStepAgent,
     advance_implementation_trace_with_tool,
     BoundTaskPlanSession,
-    PlanAgentExecutionSession,
     PlanAgent,
     PlanAgentInitialPlanBuilder,
     PlanAgentQueryInterpreter,
     PlanAgentSession,
     GlobalQueryRouter,
     build_evidence_aggregate,
+    build_planning_context,
     build_implementation_trace,
     build_dynamic_experiment_candidate,
     build_initial_semantic_proposal_bundle,
@@ -135,20 +135,22 @@ from mea.round_executor import (
     RoundExecutionServices,
     RoundExecutor,
 )
+from mea.round_evidence import (
+    aggregate_evaluation_results,
+    compact_tool_evaluation,
+)
+from mea.round_tools import executed_runtime_task_schema
 from mea.robotwin.native_agent_round import (
     execute_act_method_round,
     execute_smolvla_method_round,
 )
 from mea.taskgen.runtime import create_generic_provider_taskgen_run
 from mea.toolgen import (
-    OpenToolRequestAgent,
     build_tool_artifact_context,
-    compatible_reviewed_tool_requests,
-    compatible_run_local_tool_requests,
-    execute_tool_request,
     route_tool_request,
 )
-from mea.toolkit import aggregate_tool_executions
+
+
 def write_json(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
@@ -1562,168 +1564,6 @@ def materialize_open_world_round(
     return round_plan, tool_bundle
 
 
-def _executed_runtime_task_schema(
-    child_dir: Path,
-    *,
-    task_name: str,
-) -> dict[str, Any]:
-    schema_paths = sorted(
-        (child_dir / "evaluation/telemetry").glob(
-            "act/episode_*/schema.json"
-        )
-    )
-    if not schema_paths:
-        raise RuntimeError(
-            "open ToolGen requires an executed ACT telemetry schema"
-        )
-    schemas = [
-        json.loads(path.read_text(encoding="utf-8"))
-        for path in schema_paths
-    ]
-    canonical = {
-        json.dumps(
-            schema,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        )
-        for schema in schemas
-    }
-    if len(canonical) != 1:
-        raise RuntimeError(
-            "executed ACT episodes expose inconsistent telemetry schemas"
-        )
-    schema = schemas[0]
-    if schema.get("task_name") != task_name:
-        raise RuntimeError(
-            "executed telemetry schema changed the bound task"
-        )
-    return schema
-
-
-def materialize_open_world_tool_request(
-    repo_root: Path,
-    execution_dir: Path,
-    *,
-    round_plan: Mapping[str, Any],
-    child_dir: Path,
-    provider: Any,
-    toolgen_model: str,
-    reviewed_tool_registry: Path | None = None,
-) -> dict[str, Any]:
-    """Run ToolGen after TaskGen/ACT using the schema actually recorded."""
-
-    candidate = round_plan.get("proposal") or round_plan.get(
-        "experiment_candidate"
-    )
-    if not isinstance(candidate, Mapping):
-        raise RuntimeError(
-            "deferred open ToolGen requires a typed Proposal"
-        )
-    candidate = validate_experiment_candidate(candidate)
-    rule_tool_need = candidate["rule_tool_need"]
-    if rule_tool_need is None:
-        raise RuntimeError(
-            "deferred open Rule ToolGen requires rule_tool_need"
-        )
-    runtime_schema = _executed_runtime_task_schema(
-        child_dir,
-        task_name=str(candidate["base_task"]),
-    )
-    episode_dirs = [
-        path.parent
-        for path in sorted(
-            (child_dir / "evaluation/telemetry").glob(
-                "act/episode_*/schema.json"
-            )
-        )
-    ]
-    run_local_registry = execution_dir.parent.parent / "tool_registry"
-    reusable_tool_requests = compatible_run_local_tool_requests(
-        run_local_registry,
-        task_name=str(candidate["base_task"]),
-        episode_dirs=episode_dirs,
-    )
-    if reviewed_tool_registry is not None:
-        reusable_tool_requests.extend(
-            compatible_reviewed_tool_requests(
-                reviewed_tool_registry,
-                task_name=str(candidate["base_task"]),
-                episode_dirs=episode_dirs,
-            )
-        )
-    child_manifest_path = child_dir / "manifest.json"
-    child_manifest = json.loads(
-        child_manifest_path.read_text(encoding="utf-8")
-    )
-    trusted = child_manifest.get("trusted_tool_evaluation") or {}
-    already_measured_metrics = {
-        str(result["tool"])
-        for episode in trusted.get("episodes", [])
-        if isinstance(episode, Mapping)
-        for result in (
-            episode.get("tool_results")
-            if isinstance(episode.get("tool_results"), list)
-            else [episode.get("result")]
-        )
-        if isinstance(result, Mapping)
-        and isinstance(result.get("tool"), str)
-        and str(result["tool"]).strip()
-    }
-    outcome_metric = trusted.get("outcome_metric")
-    if isinstance(outcome_metric, str) and outcome_metric.strip():
-        already_measured_metrics.add(outcome_metric.strip())
-    tool_agent = OpenToolRequestAgent(
-        repo_root,
-        provider,
-        model=toolgen_model,
-    )
-    bundle = tool_agent.propose(
-        source_query=str(candidate["source_query"]),
-        semantic_concern=str(candidate["semantic_concern"]),
-        tool_need=str(rule_tool_need["description"]),
-        task_name=str(candidate["base_task"]),
-        generated_checker_semantics=bool(
-            candidate["checker_need"] is not None
-        ),
-        runtime_schema=runtime_schema,
-        reusable_tool_requests=reusable_tool_requests,
-        forbidden_metric_ids=already_measured_metrics,
-        proposal=candidate,
-        task_artifact_summary=(
-            child_manifest.get("task_artifact_summary")
-            if isinstance(
-                child_manifest.get("task_artifact_summary"),
-                Mapping,
-            )
-            else None
-        ),
-        derived_observable_oracle_broker=(
-            child_manifest.get("derived_observable_oracle_broker")
-            if isinstance(
-                child_manifest.get("derived_observable_oracle_broker"),
-                Mapping,
-            )
-            else None
-        ),
-        allow_unsupported=True,
-    )
-    artifact_dir = execution_dir / "open_tool_request"
-    write_json(artifact_dir / "runtime_schema.json", runtime_schema)
-    write_json(artifact_dir / "tool_request_bundle.json", bundle)
-    if tool_agent.last_prompt is not None:
-        (artifact_dir / "prompt.md").write_text(
-            tool_agent.last_prompt,
-            encoding="utf-8",
-        )
-    for index, response in enumerate(tool_agent.last_responses, start=1):
-        (artifact_dir / f"response_{index}.txt").write_text(
-            response + "\n",
-            encoding="utf-8",
-        )
-    return bundle
-
-
 def run_logged(command: list[str], *, cwd: Path, log_path: Path) -> int:
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with log_path.open("w", encoding="utf-8") as log:
@@ -1752,281 +1592,6 @@ def read_policy_success(result_path: Path) -> float | None:
         except ValueError:
             continue
     return None
-
-
-def reuse_bound_child_checker_tool(
-    repo_root: Path,
-    child_manifest: dict[str, Any],
-    output_dir: Path,
-    tool_request: dict[str, Any],
-) -> dict[str, Any] | None:
-    """Expose an already-bound provider checker as the planned Tool evidence.
-
-    A provider-written task checker is executed by the simulator and projected
-    into ``trusted_tool_evaluation`` before the parent round starts ToolGen.
-    When the route-free ToolProposal asks for that exact same metric, generating
-    or routing a second Tool would duplicate one policy episode and can fail on
-    an intentionally run-bound metric.  Typed MetricSpec requests remain on the
-    normal ToolGen path because equal names alone do not prove equal semantics.
-    """
-
-    trusted = child_manifest.get("trusted_tool_evaluation")
-    if (
-        child_manifest.get("generation_kind")
-        not in {
-            "provider_scene_checker_codegen",
-            "generic_provider_scene_checker_codegen",
-        }
-        or not isinstance(trusted, Mapping)
-        or tool_request.get("schema_version") != 1
-        or "metric_spec" in tool_request
-        or trusted.get("outcome_metric") != tool_request.get("metric")
-        or trusted.get("outcome_authority")
-        != "llm_generated_python_ast_validated"
-        or not isinstance(trusted.get("tool_retrieval"), Mapping)
-        or trusted["tool_retrieval"].get("route")
-        != "bound_llm_generated_checker"
-    ):
-        return None
-
-    metric = str(tool_request["metric"])
-    episodes = trusted.get("episodes")
-    binding = trusted.get("outcome_binding")
-    source_artifact = trusted.get("artifact")
-    if (
-        tool_request.get("task_name") != child_manifest.get("task_name")
-        or not isinstance(binding, Mapping)
-        or binding.get("metric") != metric
-        or binding.get("authority") != "llm_generated_python_ast_validated"
-        or binding.get("task_module") != child_manifest.get("task_module")
-        or binding.get("module_sha256")
-        != child_manifest.get("candidate_module_sha256")
-        or not isinstance(source_artifact, str)
-        or not source_artifact.strip()
-        or not isinstance(episodes, list)
-        or not episodes
-        or trusted.get("episode_count") != len(episodes)
-    ):
-        raise RuntimeError(
-            "provider checker metric matched the ToolProposal but its trusted "
-            "execution binding is incomplete"
-        )
-    for episode in episodes:
-        if not isinstance(episode, Mapping):
-            raise RuntimeError("provider checker Tool episode must be an object")
-        results = _episode_tool_results(episode)
-        if len(results) != 1:
-            raise RuntimeError(
-                "provider checker Tool episode must contain exactly one result"
-            )
-        result = results[0]
-        details = result.get("details")
-        if (
-            result.get("tool") != metric
-            or not isinstance(result.get("value"), bool)
-            or not isinstance(result.get("passed"), bool)
-            or result.get("passed") != result.get("value")
-            or episode.get("role") != "policy_under_evaluation"
-            or not isinstance(details, Mapping)
-            or details.get("authority") != "llm_generated_python_ast_validated"
-            or details.get("task_module") != child_manifest.get("task_module")
-            or details.get("module_sha256") != binding.get("module_sha256")
-        ):
-            raise RuntimeError(
-                "provider checker ToolResult does not match its task/module authority"
-            )
-
-    output_dir.mkdir(parents=True, exist_ok=False)
-    tool_execution_path = output_dir / "tool_execution.json"
-    request_path = output_dir / "tool_request.json"
-    route_path = output_dir / "route_decision.json"
-    route_decision = {
-        "schema_version": 1,
-        "status": "resolved",
-        "matching_policy": "exact_bound_child_metric",
-        "requested_route": "auto",
-        "resolved_route": "bound_child_trusted_checker",
-        "task_name": tool_request.get("task_name"),
-        "metric": metric,
-        "exact_match": True,
-        "matched_registry": "child_task_checker",
-        "reference_tool": metric,
-        "provider_required": False,
-        "provider_called": False,
-        "reason": (
-            "the executed provider-written task checker already produced this "
-            "exact metric for the same bound ACT episode"
-        ),
-    }
-    def relative(path: Path) -> str:
-        return path.relative_to(repo_root).as_posix()
-
-    evaluation = {
-        "schema_version": 1,
-        "status": "passed",
-        "requested_route": "auto",
-        "route": "bound_child_trusted_checker",
-        "reference_tool": metric,
-        "tool_request": deepcopy(tool_request),
-        "route_decision": route_decision,
-        "source": {
-            "scope": "bound_child_task_checker",
-            "artifact": source_artifact,
-            "aggregate_artifact": trusted.get("aggregate_artifact"),
-            "authority": trusted.get("outcome_authority"),
-        },
-        "episodes": deepcopy(episodes),
-        "validation": {
-            "status": "passed",
-            "provider_called": False,
-            "exact_metric_match": True,
-            "episode_count": len(episodes),
-            "authority": trusted.get("outcome_authority"),
-        },
-        "artifacts": {
-            "tool_request": relative(request_path),
-            "route_decision": relative(route_path),
-            "tool_execution": relative(tool_execution_path),
-            "source_execution": trusted.get("artifact"),
-        },
-    }
-    write_json(request_path, tool_request)
-    write_json(route_path, route_decision)
-    write_json(tool_execution_path, evaluation)
-    return evaluation
-
-
-def compact_tool_evaluation(
-    tool_evaluation: dict[str, Any] | None,
-) -> dict[str, Any] | None:
-    """Keep planned Tool evidence compact while preserving ACT/expert roles."""
-
-    if not tool_evaluation:
-        return None
-    compact_episodes: list[dict[str, Any]] = []
-    for item in tool_evaluation.get("episodes", []):
-        if not isinstance(item, Mapping):
-            continue
-        for result in _episode_tool_results(item):
-            compact_episodes.append(
-                {
-                    "policy_name": item.get("policy_name"),
-                    "seed": item.get("seed"),
-                    "role": item.get("role"),
-                    "metric": (
-                        result.get("tool")
-                        or tool_evaluation.get("reference_tool")
-                    ),
-                    "value": result.get("value"),
-                    "unit": result.get("unit"),
-                    "passed": result.get("passed"),
-                    "evidence_steps": result.get("evidence_steps", []),
-                    "details": result.get("details", {}),
-                }
-            )
-    return {
-        "status": tool_evaluation.get("status"),
-        "requested_route": tool_evaluation.get("requested_route"),
-        "route": tool_evaluation.get("route"),
-        "reference_tool": tool_evaluation.get("reference_tool"),
-        "route_decision": tool_evaluation.get("route_decision", {}),
-        "source": tool_evaluation.get("source", {}),
-        "episodes": compact_episodes,
-        "validation": tool_evaluation.get("validation", {}),
-    }
-
-
-def _aggregate_sources(
-    round_plan: dict[str, Any],
-    child_manifest: dict[str, Any],
-    tool_evaluation: dict[str, Any] | None,
-) -> list[dict[str, Any]]:
-    """Build one de-duplicated set of episode ToolResult sources."""
-
-    context = {
-        "round_id": round_plan["round_id"],
-        "variant": round_plan.get("template_id")
-        or round_plan.get("sub_aspect")
-        or round_plan.get("route"),
-    }
-    sources: list[dict[str, Any]] = []
-    trusted = child_manifest.get("trusted_tool_evaluation") or {}
-    trusted_tools = {
-        result.get("tool")
-        for episode in trusted.get("episodes", [])
-        if isinstance(episode, Mapping)
-        for result in _episode_tool_results(episode)
-        if result.get("tool")
-    }
-    if trusted.get("episodes"):
-        sources.append(
-            {
-                **trusted,
-                "context": {
-                    **context,
-                    "source_artifact": trusted.get("artifact"),
-                },
-            }
-        )
-    if tool_evaluation and tool_evaluation.get("episodes"):
-        request = tool_evaluation.get("tool_request") or tool_evaluation.get(
-            "tool_spec", {}
-        )
-        metric = request.get("metric") if isinstance(request, dict) else None
-        if metric not in trusted_tools:
-            sources.append(
-                {
-                    "tool_execution": tool_evaluation,
-                    "context": {
-                        **context,
-                        "source_artifact": tool_evaluation.get("artifacts", {}).get(
-                            "tool_execution"
-                        ),
-                    },
-                }
-            )
-    return sources
-
-
-def aggregate_round_results(
-    round_plan: dict[str, Any],
-    child_manifest: dict[str, Any],
-    tool_evaluation: dict[str, Any] | None,
-    output_path: Path,
-) -> dict[str, Any]:
-    sources = _aggregate_sources(round_plan, child_manifest, tool_evaluation)
-    if not sources:
-        result = {
-            "schema_version": 1,
-            "status": "skipped",
-            "reason": "no episode ToolResult rows were available",
-            "metrics": [],
-        }
-        write_json(output_path, result)
-        return result
-    return aggregate_tool_executions(sources, output_path=output_path)
-
-
-def aggregate_evaluation_results(
-    round_runs: list[dict[str, Any]], output_path: Path
-) -> dict[str, Any]:
-    sources = [
-        source
-        for item in round_runs
-        for source in _aggregate_sources(
-            item["round_plan"], item["child_manifest"], item["tool_evaluation"]
-        )
-    ]
-    if not sources:
-        result = {
-            "schema_version": 1,
-            "status": "skipped",
-            "reason": "no completed round ToolResult rows were available",
-            "metrics": [],
-        }
-        write_json(output_path, result)
-        return result
-    return aggregate_tool_executions(sources, output_path=output_path)
 
 
 def _execution_vqa_video_contract(
@@ -2212,7 +1777,7 @@ def run_round_execution_vqa(
             raise RuntimeError(
                 "Query-induced VQA generation requires a typed Proposal"
             )
-        runtime_schema = _executed_runtime_task_schema(
+        runtime_schema = executed_runtime_task_schema(
             child_dir,
             task_name=str(candidate["base_task"]),
         )
@@ -2510,9 +2075,13 @@ def normalize_outcome_semantics(
             raw_official = details.get("official_success")
             raw_official_core = details.get("official_core_predicate_satisfied")
             generated = raw_generated if isinstance(raw_generated, bool) else None
-            official = raw_official if isinstance(raw_official, bool) else None
             official_core = (
                 raw_official_core if isinstance(raw_official_core, bool) else None
+            )
+            official = (
+                raw_official
+                if isinstance(raw_official, bool)
+                else official_core
             )
             if generated is None and official is None and official_core is None:
                 continue
@@ -2969,12 +2538,6 @@ def _build_round_executor(*, native_act: bool) -> RoundExecutor:
             update_manifest=update_manifest,
             build_taskgen_command=build_taskgen_command,
             run_logged=run_logged,
-            materialize_open_world_tool_request=(
-                materialize_open_world_tool_request
-            ),
-            reuse_bound_child_checker_tool=reuse_bound_child_checker_tool,
-            execute_tool_request=execute_tool_request,
-            aggregate_round_results=aggregate_round_results,
             run_round_execution_vqa=run_round_execution_vqa,
             summarize_round=summarize_round,
             native_policy_rounds=native_policy_rounds,
@@ -3038,7 +2601,14 @@ def execute_round(
         if policy_backend != "act" or runtime_target is not None
         else _build_round_executor(native_act=False)
     )
-    return executor.execute(request).as_legacy_tuple()
+    result = executor.execute(request)
+    return (
+        result.child_manifest,
+        result.child_dir,
+        result.round_summary,
+        result.tool_evaluation,
+        result.returncode,
+    )
 
 
 def apply_external_hard_round_cap(
@@ -3444,9 +3014,10 @@ def main() -> None:
             )
         global_planning_contexts = (
             {
-                task_name: PlanAgentExecutionSession.from_target(
-                    runtime_claim_first_targets[task_name]
-                ).planning_context(repo_root)
+                task_name: build_planning_context(
+                    repo_root,
+                    runtime_claim_first_targets[task_name],
+                )
                 for task_name in ready_tasks
             }
             if claim_first_mode
@@ -4165,13 +3736,12 @@ def main() -> None:
             initial_candidate_source="online_query_interpretation_no_control",
             initial_toolgen_route=initial_tool_bundle["source"],
         )
-    bound_plan_session: BoundTaskPlanSession | PlanAgentExecutionSession | None = None
-    bound_plan_session_path: str | None = None
+    plan_session: BoundTaskPlanSession | PlanAgentSession | None = None
+    plan_session_path: str | None = None
     evaluation_target: dict[str, Any] | None = None
     planning_context: dict[str, Any] | None = None
     proposal_agent: BoundedProposalAgent | None = None
     adaptive_step_agent: AdaptivePlanStepAgent | None = None
-    claim_first_controller: PlanAgentSession | None = None
     claim_first_agent: PlanAgent | None = None
     claim_first_capabilities: dict[str, Any] | None = None
     if global_catalog is not None:
@@ -4195,19 +3765,29 @@ def main() -> None:
                     raise RuntimeError(
                         "Plan Agent runtime target was not initialized"
                     )
-                bound_plan_session = PlanAgentExecutionSession.from_target(
+                explicit_candidate_aspect_ids = (
+                    resolve_plan_agent_allowed_aspects(
+                        args.bound_requested_aspect_ids
+                    )
+                )
+                plan_session = PlanAgentSession(
+                    args.request,
                     claim_first_initial_target,
+                    query_contract=query_sufficiency_contract,
+                    candidate_aspect_ids=explicit_candidate_aspect_ids,
+                    require_control_anchor=claim_first_control_required,
                     control_round=(
                         plan["rounds"][0]
                         if claim_first_control_required
                         else None
                     ),
-                    query_contract=(
-                        query_sufficiency_contract
-                        if isinstance(query_sufficiency_contract, Mapping)
-                        else None
-                    ),
                 )
+                if frozen_first_open_candidate is not None:
+                    frozen_first_open_candidate = (
+                        plan_session.register_frozen_candidate(
+                            frozen_first_open_candidate
+                        )
+                    )
             else:
                 effective_round_budget = raw_round_budget
                 if args.max_agent_rounds is not None:
@@ -4215,20 +3795,16 @@ def main() -> None:
                         effective_round_budget, int(args.max_agent_rounds)
                     )
                     plan["max_rounds"] = effective_round_budget
-                bound_plan_session = BoundTaskPlanSession.from_catalog(
+                plan_session = BoundTaskPlanSession.from_catalog(
                     global_catalog,
                     args.task_name,
                     max_rounds=effective_round_budget,
                 )
-            plan = bound_plan_session.normalize_plan(plan)
-            planning_context = bound_plan_session.planning_context(repo_root)
+            plan = plan_session.normalize_plan(plan)
+            planning_context = plan_session.planning_context(repo_root)
             write_json(evaluation_dir / "plan/planning_context.json", planning_context)
             if claim_first_mode:
-                explicit_candidate_aspect_ids = (
-                    resolve_plan_agent_allowed_aspects(
-                        args.bound_requested_aspect_ids
-                    )
-                )
+                assert isinstance(plan_session, PlanAgentSession)
                 claim_first_capabilities = project_open_query_capabilities(
                     planning_context,
                     allowed_aspect_ids=explicit_candidate_aspect_ids,
@@ -4239,9 +3815,6 @@ def main() -> None:
                 # domain later seen by the evidence-conditioned Planner. Only
                 # an explicit caller binding narrows reusable capabilities;
                 # generation outside that inventory remains available.
-                resolved_candidate_aspect_ids = (
-                    explicit_candidate_aspect_ids
-                )
                 if (
                     isinstance(free_concern_bundle, Mapping)
                     and isinstance(
@@ -4266,20 +3839,6 @@ def main() -> None:
                             "planner_domain_restricted": False,
                         },
                     )
-                claim_first_controller = PlanAgentSession(
-                    args.request,
-                    bound_plan_session.target,
-                    query_contract=query_sufficiency_contract,
-                    candidate_aspect_ids=resolved_candidate_aspect_ids,
-                    require_control_anchor=claim_first_control_required,
-                    retrieval_aspects=bound_plan_session.retrieval_aspects,
-                )
-                if frozen_first_open_candidate is not None:
-                    frozen_first_open_candidate = (
-                        claim_first_controller.register_frozen_candidate(
-                            frozen_first_open_candidate
-                        )
-                    )
                 if not args.plan_only:
                     assert provider is not None
                     claim_first_agent = PlanAgent(
@@ -4290,19 +3849,19 @@ def main() -> None:
                     evaluation_dir / PLAN_AGENT_CAPABILITIES,
                     claim_first_capabilities,
                 )
-                claim_first_controller.query_contract = persist_query_contract(
+                plan_session.query_contract = persist_query_contract(
                     evaluation_dir,
                     plan,
-                    claim_first_controller.query_contract,
+                    plan_session.query_contract,
                 )
                 manifest.setdefault("planner", {}).update(
                     {
                         "public_planner": "PlanAgent",
                         "control_anchor_owned_by_runtime": (
-                            claim_first_controller.require_control_anchor
+                            plan_session.require_control_anchor
                         ),
                         "control_template_id": (
-                            claim_first_controller.control_template
+                            plan_session.control_template
                         ),
                         "catalog_navigation_was_model_visible": False,
                         "global_router_scope": "task_and_checkpoint_only",
@@ -4351,13 +3910,13 @@ def main() -> None:
                 plan["rounds"][0], proposal_bundle = apply_bounded_round_proposal(
                     proposal_agent=proposal_agent,
                     user_query=args.request,
-                    target=bound_plan_session.target,
+                    target=plan_session.target,
                     planning_context=planning_context,
                     round_plan=first_round,
                     evaluation_dir=evaluation_dir,
                     round_number=1,
                 )
-                plan = bound_plan_session.normalize_plan(plan)
+                plan = plan_session.normalize_plan(plan)
                 manifest.setdefault("planner", {}).update(
                     {
                         "round_1_task_tool_proposal_source": "bounded_model",
@@ -4371,7 +3930,7 @@ def main() -> None:
                     }
                 )
             manifest["plan"] = plan
-            session_snapshot = bound_plan_session.snapshot(args.request, plan)
+            session_snapshot = plan_session.snapshot(args.request, plan)
         except (ValueError, ProposalError, ProposalAgentError) as exc:
             manifest_path = evaluation_dir / "manifest.json"
             if manifest_path.is_file():
@@ -4386,10 +3945,10 @@ def main() -> None:
                     failure={"type": type(exc).__name__, "message": str(exc)},
                 )
             raise RuntimeError(f"bound PlanSession validation failed: {exc}") from exc
-        bound_plan_session_path = "plan/bound_task_session.json"
+        plan_session_path = "plan/bound_task_session.json"
         evaluation_target = session_snapshot["target"]
         write_json(evaluation_dir / "plan/evaluation_plan.json", plan)
-        write_json(evaluation_dir / bound_plan_session_path, session_snapshot)
+        write_json(evaluation_dir / plan_session_path, session_snapshot)
         update_manifest(
             evaluation_dir,
             plan=plan,
@@ -4547,7 +4106,7 @@ def main() -> None:
             else None
         ),
         evaluation_target=evaluation_target,
-        plan_session_path=bound_plan_session_path,
+        plan_session_path=plan_session_path,
     )
 
     frozen_first_candidate_path: str | None = None
@@ -4632,19 +4191,18 @@ def main() -> None:
             )
             executed_rounds += 1
 
-            if claim_first_controller is not None:
+            if isinstance(plan_session, PlanAgentSession):
                 active_failure_stage = (
                     f"plan_agent_evidence_after_round_{executed_rounds}"
                 )
-                claim_first_runtime_state = claim_first_controller.observe(
+                claim_first_runtime_state = plan_session.observe(
                     [item["round_plan"] for item in round_runs],
                     [item["round_summary"] for item in round_runs],
                 )
-                # PlanAgentExecutionSession is only the execution transport
-                # for the Plan Agent. Give it the same normalized candidate
-                # evidence that the authoritative Plan Agent controller just
-                # derived, while leaving the control round outside the Query
-                # candidate domain.
+                # Keep normalized candidate evidence in the same Plan Agent
+                # owner that binds semantic decisions to executable rounds;
+                # the official control remains outside the Query candidate
+                # domain.
                 contract_candidate_ids = {
                     str(item)
                     for item in claim_first_runtime_state["query_contract"].get(
@@ -4725,10 +4283,10 @@ def main() -> None:
                         evaluation_dir / "plan/evaluation_plan.json",
                         plan,
                     )
-                    if bound_plan_session is not None:
+                    if plan_session is not None:
                         write_json(
                             evaluation_dir / "plan/bound_task_session.json",
-                            bound_plan_session.snapshot(
+                            plan_session.snapshot(
                                 args.request,
                                 plan,
                                 [item["round_summary"] for item in round_runs],
@@ -4757,13 +4315,13 @@ def main() -> None:
                 item["round_summary"] for item in round_runs
             ]
             dynamic_step_session = (
-                bound_plan_session is not None
+                plan_session is not None
+                and not isinstance(plan_session, PlanAgentSession)
                 and adaptive_step_agent is not None
                 and planning_context is not None
             )
             claim_first_step_session = (
-                bound_plan_session is not None
-                and claim_first_controller is not None
+                isinstance(plan_session, PlanAgentSession)
                 and claim_first_agent is not None
                 and claim_first_capabilities is not None
                 and claim_first_runtime_state is not None
@@ -4781,7 +4339,7 @@ def main() -> None:
                         executed_rounds=executed_rounds,
                         max_agent_rounds=args.max_agent_rounds,
                         user_request=args.request,
-                        bound_plan_session=bound_plan_session,
+                        bound_plan_session=plan_session,
                     )
                 )
                 break
@@ -4801,7 +4359,7 @@ def main() -> None:
                 # semantic sub-aspect should be tested next.  A pre-control
                 # Query interpretation is routing context, not a frozen experiment.
                 semantic_bundle = (
-                    claim_first_controller.propose_semantic_step(
+                    plan_session.propose_semantic_step(
                         claim_first_agent,
                         claim_first_runtime_state,
                         capabilities=claim_first_capabilities,
@@ -4847,7 +4405,7 @@ def main() -> None:
                             semantic_bundle.get("planning_lineage")
                         ),
                         "query_contract": deepcopy(
-                            claim_first_controller.query_contract
+                            plan_session.query_contract
                         ),
                         "plan_step": {
                             "action": "continue",
@@ -4896,14 +4454,14 @@ def main() -> None:
                             executed_rounds=executed_rounds,
                             max_agent_rounds=args.max_agent_rounds,
                             user_request=args.request,
-                            bound_plan_session=bound_plan_session,
+                            bound_plan_session=plan_session,
                             plan_agent_proposal=raw_plan_agent_proposal,
                             plan_agent_artifact_path=step_artifact_path,
                         )
                     )
                     break
                 bound_semantic_step = (
-                    claim_first_controller.bind_evidence_conditioned_semantic_step(
+                    plan_session.bind_evidence_conditioned_semantic_step(
                         semantic_bundle,
                         claim_first_runtime_state,
                         capabilities=claim_first_capabilities,
@@ -4976,7 +4534,7 @@ def main() -> None:
                     "query_contract"
                 )
                 plan, decision, runtime_directive = (
-                    bound_plan_session.apply_plan_step(
+                    plan_session.apply_plan_step(
                         plan_before_decision,
                         observation_history,
                         plan_step,
@@ -4999,7 +4557,7 @@ def main() -> None:
                     / f"plan/runtime_directive_after_{round_plan['round_id']}.json",
                     {
                         "schema_version": 1,
-                        "owner": type(bound_plan_session).__name__,
+                        "owner": type(plan_session).__name__,
                         "adapter_role": (
                             "plan_agent_stop_validated_by_query_contract"
                             if plan_step["action"] == "stop"
@@ -5060,7 +4618,7 @@ def main() -> None:
                 active_failure_stage = (
                     f"adaptive_decision_after_round_{executed_rounds}"
                 )
-                navigation_options = bound_plan_session.navigation_options(
+                navigation_options = plan_session.navigation_options(
                     plan_before_decision,
                     observation_history,
                     allowed_template_ids=(
@@ -5120,7 +4678,7 @@ def main() -> None:
                             apply_bounded_round_proposal(
                                 proposal_agent=proposal_agent,
                                 user_query=args.request,
-                                target=bound_plan_session.target,
+                                target=plan_session.target,
                                 planning_context=planning_context,
                                 round_plan=materialized_round,
                                 evaluation_dir=evaluation_dir,
@@ -5130,7 +4688,7 @@ def main() -> None:
                 active_failure_stage = (
                     f"plan_transition_after_round_{executed_rounds}"
                 )
-                plan, decision, runtime_directive = bound_plan_session.apply_plan_step(
+                plan, decision, runtime_directive = plan_session.apply_plan_step(
                     plan_before_decision,
                     observation_history,
                     plan_step,
@@ -5155,14 +4713,14 @@ def main() -> None:
                     observation_history=observation_history,
                 )
                 common_adaptive_session = (
-                    bound_plan_session is not None
+                    plan_session is not None
                     and not fixed_click_bell
                     and not legacy_click_bell
                     and candidate_decision.get("action") in {"continue", "stop"}
                 )
                 if common_adaptive_session:
                     plan, decision, runtime_directive = adjudicate_bounded_transition(
-                        plan_session=bound_plan_session,
+                        plan_session=plan_session,
                         user_query=args.request,
                         observation_history=observation_history,
                         current_plan=plan_before_decision,
@@ -5185,10 +4743,10 @@ def main() -> None:
                     )
                 else:
                     plan, decision = candidate_plan, candidate_decision
-            if bound_plan_session is not None:
+            if plan_session is not None:
                 # Persist and execute the exact normalized proposal-bearing plan;
                 # snapshot() alone normalizes only a deep copy for reporting.
-                plan = bound_plan_session.normalize_plan(plan)
+                plan = plan_session.normalize_plan(plan)
                 if decision.get("next_round") is not None:
                     decision["next_round"] = plan["rounds"][-1]
                 write_json(evaluation_dir / "plan/evaluation_plan.json", plan)
@@ -5219,18 +4777,18 @@ def main() -> None:
                     ),
                 )
             if decision["action"] == "stop":
-                if bound_plan_session is not None:
+                if plan_session is not None:
                     write_json(
                         evaluation_dir / "plan/bound_task_session.json",
-                        bound_plan_session.snapshot(
+                        plan_session.snapshot(
                             args.request, plan, observation_history
                         ),
                     )
                 break
-            if bound_plan_session is not None:
+            if plan_session is not None:
                 write_json(
                     evaluation_dir / "plan/bound_task_session.json",
-                    bound_plan_session.snapshot(
+                    plan_session.snapshot(
                         args.request, plan, observation_history
                     ),
                 )
@@ -5319,7 +4877,7 @@ def main() -> None:
                     args.bound_requested_aspect_ids is not None
                 ),
             )
-            if claim_first_controller is not None
+            if isinstance(plan_session, PlanAgentSession)
             else None
         )
         if flagship_acceptance is not None:

@@ -1,10 +1,10 @@
 """Query-induced Tool requests for the open-world evaluation path.
 
-The Plan Agent names an evidence need.  This adapter exposes only the task's
-recorded telemetry schema and executable Tool registry, then asks the provider
-for either exact reuse or a typed semantic oracle.  On a miss, ToolGen writes
-the Python implementation and validates it against that independent oracle.
-No task/aspect template or preferred metric is exposed.
+The Plan Agent names an evidence need.  This adapter exposes only executed
+telemetry and reusable Tools, then asks ToolGen for exact reuse or a typed
+measurement contract.  A registry miss may generate Python that passes
+semantic review plus static and runtime validation.  This measurement path is
+never success or reward authority.
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ class OpenToolRequestError(ValueError):
 
 
 class OpenToolRequestUnsupported(OpenToolRequestError):
-    """Raised when the requested evidence lacks an independent oracle."""
+    """Raised when the runtime exposes no valid measurement path."""
 
     def __init__(self, artifact: Mapping[str, Any]) -> None:
         self.artifact = deepcopy(dict(artifact))
@@ -256,7 +256,7 @@ def tool_generation_context(
             else "official_task_schema"
         ),
         "forbidden_metric_ids": sorted(forbidden),
-        "derived_observable_oracle_available": derived_available,
+        "derived_observable_validation_available": derived_available,
         "tool_registry": tool_registry,
         "validated_generated_tools": reusable,
         "artifact_context": artifact_context,
@@ -274,7 +274,7 @@ def validate_open_tool_request(
     measurement_need: str | None = None,
     derived_observable_oracle_available: bool = False,
 ) -> dict[str, Any]:
-    """Require exact reuse or an oracle-backed Python Tool request."""
+    """Require exact reuse or an executable typed Tool request."""
 
     try:
         request = validate_tool_request(dict(value))
@@ -306,7 +306,7 @@ def validate_open_tool_request(
     }:
         raise OpenToolRequestError(
             "open Tool request must reuse, generate a registered composite "
-            "target, or supply a validated typed semantic oracle"
+            "target, or supply a validated typed measurement contract"
         )
     metric_spec = request.get("metric_spec")
     if available_signal_names is not None and measurement_need:
@@ -331,8 +331,7 @@ def validate_open_tool_request(
             and not derived_observable_oracle_available
         ):
             raise OpenToolRequestError(
-                "derived_observable is unavailable without caller-owned "
-                "fixture episodes and an independent oracle"
+                "derived_observable validation is unavailable"
             )
         if (
             available_signal_names is not None
@@ -709,7 +708,7 @@ class OpenToolRequestAgent:
         context: Mapping[str, Any],
     ) -> str:
         derived_available = bool(
-            context.get("derived_observable_oracle_available")
+            context.get("derived_observable_validation_available")
         )
         output_example = (
             {
@@ -750,8 +749,12 @@ class OpenToolRequestAgent:
         novel_rule = (
             "Otherwise propose a schema_version=2 derived_observable semantic "
             "contract with a precise physical description, unit, and 1-8 "
-            "advertised required_signals. Caller-owned fixtures and an "
-            "independent oracle are available for validation."
+            "advertised required_signals. ToolGen will run a separate "
+            "development-agent semantic review against this contract, "
+            "restrict the implementation to those "
+            "signals, and run deterministic finite-output and artifact-"
+            "immutability checks on recorded telemetry. This is measurement "
+            "evidence only, never success or reward authority."
             if derived_available
             else (
                 "An independent oracle broker is unavailable in this run. "
@@ -939,7 +942,7 @@ class OpenToolRequestAgent:
                     ),
                     measurement_need=tool_need,
                     derived_observable_oracle_available=bool(
-                        context["derived_observable_oracle_available"]
+                        context["derived_observable_validation_available"]
                     ),
                 )
                 break

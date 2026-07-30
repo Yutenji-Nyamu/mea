@@ -196,13 +196,14 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn(
-            "claim_first_controller.propose_semantic_step(",
+            "plan_session.propose_semantic_step(",
             source,
         )
         self.assertIn(
-            "claim_first_controller.bind_evidence_conditioned_semantic_step(",
+            "plan_session.bind_evidence_conditioned_semantic_step(",
             source,
         )
+        self.assertNotIn("claim_first_controller =", source)
         self.assertNotIn("pending_first_semantic_bundle", source)
         self.assertNotIn("use_pending_first", source)
         self.assertIn(
@@ -223,7 +224,7 @@ class ProductionCliBoundaryTests(unittest.TestCase):
         )
         session_start = source.index("if claim_first_step_session:")
         author_decision = source.index(
-            "claim_first_controller.propose_semantic_step(",
+            "plan_session.propose_semantic_step(",
             session_start,
         )
         continue_gate = source.index(
@@ -235,7 +236,7 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             continue_gate,
         )
         bind_continue = source.index(
-            "claim_first_controller.bind_evidence_conditioned_semantic_step(",
+            "plan_session.bind_evidence_conditioned_semantic_step(",
             hard_cap,
         )
         self.assertLess(

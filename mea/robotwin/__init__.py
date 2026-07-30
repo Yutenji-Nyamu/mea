@@ -14,6 +14,12 @@ from .task_identity import (
     discover_robotwin_official_tasks,
     discover_robotwin_task_identity,
 )
+from mea.robotwin_task_context import (
+    RoboTwinTaskContext,
+    RoboTwinTaskContextError,
+    build_runtime_task_context_probe,
+    resolve_robotwin_task_context,
+)
 
 __all__ = [
     "ACTRobotwinRolloutError",
@@ -22,6 +28,10 @@ __all__ = [
     "RoboTwinRolloutRunner",
     "RoboTwinTaskIdentity",
     "RoboTwinTaskIdentityError",
+    "RoboTwinTaskContext",
+    "RoboTwinTaskContextError",
+    "build_runtime_task_context_probe",
     "discover_robotwin_official_tasks",
     "discover_robotwin_task_identity",
+    "resolve_robotwin_task_context",
 ]

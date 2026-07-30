@@ -18,6 +18,7 @@ from mea.robotwin import (
     ACTRobotwinRolloutRunner,
     RoboTwinMethodBackend,
 )
+from mea.robotwin_task_context import resolve_robotwin_task_context
 from mea.taskgen.generic_backend import (
     GenericRoboTwinTaskAdapter,
     GenericRoboTwinTaskGenBackend,
@@ -302,6 +303,123 @@ def test_robotwin_runtime_tool_only_candidate_reuses_official_task(
     assert candidate.validation["route"] == "official_task_tool_only"
     assert observed["manifest"]["task_module"] == "envs.runtime_task"
     assert rollout.episode["precontact_jerk_peak"] == 1.25
+
+
+def test_schema_less_tool_only_candidate_binds_reset_task_context_before_rollout(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "envs/source_only_task.py"
+    source.parent.mkdir(parents=True)
+    source.write_text(
+        "class source_only_task:\n"
+        "    def load_actors(self):\n"
+        "        self.target = create_actor(modelname='target')\n\n"
+        "    def check_success(self):\n"
+        "        return False\n",
+        encoding="utf-8",
+    )
+    order: list[str] = []
+
+    def probe_runner(**kwargs: Any) -> Mapping[str, Any]:
+        order.append("probe")
+        context = resolve_robotwin_task_context(
+            kwargs["repo_root"],
+            kwargs["task_name"],
+        )
+        return {
+            "schema_version": 1,
+            "task_name": kwargs["task_name"],
+            "official_source": context.official_source,
+            "official_source_sha256": context.official_source_sha256,
+            "setup_success": True,
+            "official_check_success_callable": True,
+            "physics_timestep_seconds": 0.004,
+            "action_dimension": kwargs["action_dimension"],
+            "actors": [
+                {
+                    "task_attribute": "target",
+                    "scene_name": "target",
+                }
+            ],
+            "observables": {
+                "simulation_clock": True,
+                "policy_action": True,
+                "robot_tcp": {"left": True, "right": True},
+                "contact_events": True,
+            },
+        }
+
+    def rollout_runner(*, candidate, request, manifest):
+        order.append("rollout")
+        assert candidate.task_contract["task_schema_available"] is True
+        assert candidate.task_contract["task_context"]["schema_origin"] == (
+            "runtime_probe"
+        )
+        assert candidate.task_contract["task_schema"][
+            "telemetry_observables"
+        ]["policy_action"]["dimension"] == 14
+        return {
+            "success": False,
+            "episode": {"trajectory_metric": 0.25},
+        }
+
+    runtime = MethodRuntime(
+        RoboTwinMethodBackend(
+            repo_root=tmp_path,
+            rollout_runner=rollout_runner,
+            task_context_probe_runner=probe_runner,
+        )
+    )
+    query = "Does this policy move abruptly before contact?"
+    proposal = build_experiment_candidate(
+        source_query=query,
+        base_task="source_only_task",
+        semantic_concern="trajectory.precontact_motion",
+        rule_tool_need="Measure pre-contact trajectory motion.",
+        candidate_id="dynamic.source_only.motion",
+    )
+    binding = runtime.bind_task(
+        BackendBindingRequest(
+            task_reference={
+                "task_name": "source_only_task",
+                "policy": {
+                    "name": "SmolVLA",
+                    "backend": "smolvla",
+                    "action_dimension": 14,
+                },
+            }
+        )
+    )
+    materialized = runtime.materialize_candidate(
+        binding,
+        CandidateRequest(
+            candidate_id=proposal["candidate_id"],
+            source_query=query,
+            proposal_bundle=proposal,
+            output_dir=tmp_path / "source_only_round",
+            seed=31,
+        ),
+    )
+    runtime.rollout(
+        materialized,
+        RolloutRequest(
+            round_id="round_01",
+            seed=31,
+            output_dir=tmp_path / "episode",
+        ),
+    )
+
+    assert order == ["probe", "rollout"]
+    assert materialized.validation["route"] == "official_task_tool_only"
+    assert materialized.metadata[
+        "task_context_bound_before_rollout"
+    ] is True
+    context_path = Path(materialized.artifacts["task_context"])
+    assert context_path.is_file()
+    context = json.loads(context_path.read_text(encoding="utf-8"))
+    assert context["telemetry_observables"]["contact_events"][
+        "scope"
+    ] == "declared_contact_focus_actors"
 
 
 def test_runtime_binds_accepted_scene_with_official_checker(

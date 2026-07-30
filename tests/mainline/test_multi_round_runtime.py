@@ -4,11 +4,11 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from mea.round_tools import reuse_bound_child_checker_tool
 from mea.toolgen import contact_tool_request
 from scripts.manipeval_agent import (
     build_taskgen_command,
     execute_round,
-    reuse_bound_child_checker_tool,
     summarize_round,
 )
 from scripts.manipeval_taskgen import collect_position_samples, newest_eval_dir
@@ -381,7 +381,7 @@ class MultiRoundRuntimeTests(unittest.TestCase):
             with (
                 patch("scripts.manipeval_agent.run_logged", return_value=0),
                 patch(
-                    "scripts.manipeval_agent.execute_tool_request",
+                    "mea.round_executor.execute_tool_request",
                     return_value=tool_evaluation,
                 ) as routed_tool,
                 patch(
@@ -460,7 +460,7 @@ class MultiRoundRuntimeTests(unittest.TestCase):
             with (
                 patch("scripts.manipeval_agent.run_logged", return_value=7),
                 patch(
-                    "scripts.manipeval_agent.execute_tool_request"
+                    "mea.round_executor.execute_tool_request"
                 ) as skipped_tool,
             ):
                 (
@@ -600,7 +600,7 @@ class MultiRoundRuntimeTests(unittest.TestCase):
             with (
                 patch("scripts.manipeval_agent.run_logged", return_value=0),
                 patch(
-                    "scripts.manipeval_agent.execute_tool_request"
+                    "mea.round_executor.execute_tool_request"
                 ) as duplicate_toolgen,
                 patch(
                     "scripts.manipeval_agent.run_round_execution_vqa",
@@ -632,7 +632,13 @@ class MultiRoundRuntimeTests(unittest.TestCase):
 
             self.assertEqual(returncode, 0)
             duplicate_toolgen.assert_not_called()
-            execution_vqa.assert_called_once()
+            execution_vqa.assert_not_called()
+            self.assertTrue(
+                (
+                    evaluation_dir
+                    / "execution/round_2/execution_vqa_skipped.json"
+                ).is_file()
+            )
             self.assertEqual(
                 tool_evaluation["route"], "bound_child_trusted_checker"
             )

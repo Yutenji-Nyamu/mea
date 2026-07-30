@@ -2,6 +2,9 @@
 
 - Return complete methods, never patches or prose.
 - Change only fields authorized by the validated Proposal.
+- Use only actors, poses, telemetry, thresholds, and assets declared by the
+  supplied TaskContext/TaskSchema or retrieved official source. If that context
+  is insufficient, do not fabricate the missing field.
 - Preserve actor identity, collision behavior, random-call order, and required
   telemetry names.
 - For a pose change, reuse the official pose construction and alter only the

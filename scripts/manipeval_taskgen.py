@@ -250,6 +250,9 @@ def run_probe(
     telemetry_profile: str = "balanced_v1",
     visual_capture_profile_id: str | None = None,
     execution_receipt: Path | None = None,
+    discover_task_context: bool = False,
+    task_context: Path | None = None,
+    action_dimension: int = 0,
 ) -> dict[str, Any]:
     """Compatibility wrapper with explicit command/JSON runner injection."""
 
@@ -269,6 +272,9 @@ def run_probe(
         telemetry_profile=telemetry_profile,
         visual_capture_profile_id=visual_capture_profile_id,
         execution_receipt=execution_receipt,
+        discover_task_context=discover_task_context,
+        task_context=task_context,
+        action_dimension=action_dimension,
         command_runner=run_command,
         json_writer=write_json,
     )
@@ -285,6 +291,7 @@ def create_generic_provider_taskgen_run(
     run_id: str,
     seed: int,
     telemetry_profile: str = "balanced_v1",
+    action_dimension: int = 0,
     ablation_switches: Mapping[str, bool] | None = None,
 ) -> dict[str, Any]:
     """Compatibility wrapper preserving the script-level probe patch point."""
@@ -299,6 +306,7 @@ def create_generic_provider_taskgen_run(
         run_id=run_id,
         seed=seed,
         telemetry_profile=telemetry_profile,
+        action_dimension=action_dimension,
         ablation_switches=ablation_switches,
         probe_runner=run_probe,
     )

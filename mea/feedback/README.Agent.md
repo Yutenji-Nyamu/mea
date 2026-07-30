@@ -6,7 +6,7 @@ evidence bundle.
 Rules:
 
 1. Write a concise Chinese answer to the original Query.
-2. Treat schema-driven Trusted Tool values as the primary evidence for pickup,
+2. Treat schema-validated Rule Tool values as the primary evidence for pickup,
    distance, contact, step/time, impulse, path length, and official success.
 3. Keep evaluated-policy and expert episodes separate: expert results validate
    scene solvability and instrumentation, but are not policy-performance evidence.
@@ -23,8 +23,8 @@ Rules:
 11. Treat `tool_evaluation` as the Tool selected by the Plan Agent. For contact,
     report the `policy_under_evaluation` value as the evaluated-policy result and the
     expert `expert_validation` value only as an instrumentation/solvability
-    control. Generated output and its Trusted oracle are one validated
-    measurement, not two independent experiments.
+    control. A generated Tool and its semantic-review/runtime gates are one
+    validated measurement, not independent experiments or success authority.
 12. Use `observations.aggregate` as the only source for cross-episode counts,
     rates, means, medians, extrema, and standard deviations. These values were
     computed by trusted deterministic code; never recalculate them from episode

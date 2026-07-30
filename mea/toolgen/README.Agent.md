@@ -1,4 +1,4 @@
-# Offline ToolGen contract
+# ToolGen Rule Tool contract
 
 Generate exactly one complete function:
 
@@ -20,69 +20,47 @@ The function runs after rollout and receives a fresh, read-only-style
 }
 ```
 
-Available trajectory data is declared by the executed task schema. Common
-fields include:
+The active prompt declares the exact `TrajectoryView` surface: available
+`trace` keys and shapes, events, metadata, schema, policy states, and any
+allowlisted helper. Use only that surface. Access recorded arrays as
+`trajectory.trace["field_name"]`; `trajectory.semantic_trace` does not exist.
+`np` is injected when declared, so do not import NumPy.
 
-- `trajectory.trace`: 250 Hz NumPy arrays. Common fields include
-  `physics_step`, `policy_step`, `simulation_time_seconds`, `success`,
-  `left_tcp_position`, and `right_tcp_position`. BBH additionally declares
-  hammer/block pose and functional-point arrays. `click_bell` additionally
-  declares `bell_position` and `bell_contact_position`.
-- `trajectory.events`: contact intervals, success transitions, and errors.
-- `trajectory.hammer_block_contacts()`: hammer-block contact intervals.
-- `trajectory.metadata`: episode identity, seed, policy, success, and counts.
-- `trajectory.schema`: task thresholds, actor identities, and physics timestep.
-  The relevant exact keys are `pickup_height_threshold_m` and
-  `physics_timestep_seconds`; there is no `physics_timestep` key.
-- `trajectory.policy_states`: policy-boundary action/robot/actor CSV rows.
-- `np` is injected; do not import NumPy. Only allowlisted pure numeric
-  attribute chains are accepted.
+Task- and metric-specific recipes do not live in this common contract. They
+must arrive through the current Query's MetricSpec, retrieved target guidance,
+or validated examples. A retrieval miss means implementing the requested
+observable over the declared telemetry, not substituting a familiar task or
+older metric.
 
 Rules:
 
 - Do not import anything or access files, network, processes, environment, or
   Python introspection.
 - Do not mutate trajectory data.
-- Use physical contact only when `physical_contact` is true. A reported contact
-  interval alone is not sufficient.
+- Use physical contact only when the declared contact record says
+  `physical_contact=true`; an interval alone is insufficient.
 - `evidence_steps` contains physics steps, not policy steps or video frames.
 - Convert every returned NumPy scalar to a plain Python `float`, `int`, or
   `bool`; JSON-compatible means no `np.float*`, `np.int*`, or `np.bool*`.
-- A diagnostic MetricSpec without a pass threshold must return `passed=None`;
-  do not import success thresholds from the natural-language Query or checker.
-  For example, a terminal height-difference Tool still returns `passed=None`
-  even when the Query also asks whether two height thresholds were satisfied.
-- Copy the requested operation into `details.operation`.  Use
-  `details.reason="measured"` for a valid measurement and only the null reason
-  named by the prompt when the measurement is unavailable.
+- A diagnostic MetricSpec without a pass threshold returns `passed=None`; do
+  not import success thresholds from the Query, checker, or another Tool.
+- Copy the requested operation into `details.operation`. Use
+  `details.reason="measured"` for a valid measurement and only a null reason
+  allowed by the active prompt when measurement is unavailable.
 - No type annotations, decorators, helper functions, or top-level statements.
 - Prefer simulator values over visual inference.
-- Only access arrays as `trajectory.trace["field_name"]`;
-  `trajectory.semantic_trace` does not exist.
 - Do not call ndarray methods such as `.all()` or `.tolist()`; use the
   allowlisted `np` functions and convert only the final scalar outputs.
-- For a Query-induced typed metric, implement the requested observable in
-  Python. The MetricSpec shown in the prompt is an independent validation
-  oracle; it is not generated source to quote or a preselected Tool ID.
-- A `derived_observable` is a new Query-induced Rule Tool, not a sixth
-  preselected metric. Implement its description over only the declared
-  telemetry signals. Its validation fixtures and independent oracle are
-  caller-owned and are never included as generated source. Do not replace it
-  with the nearest older operator or invent an undeclared signal.
-
-For `pickup_to_first_contact_time`, pickup is the first trace sample whose
-hammer center Z rise from the initial sample is at least
-`schema.pickup_height_threshold_m`; it is not the maximum-height sample and is
-not claimed to be the first stable gripper grasp. Contact must be strict
-physical contact. Return `value=None` when pickup/contact is missing or contact
-precedes pickup, and explain the case in `details.reason`.
-
-For `bell_active_tcp_min_xy_error`, choose the active arm from the initial bell
-X coordinate (negative is left, otherwise right), compute finite XY distances
-to `bell_contact_position`, and return the minimum in metres with
-`passed=None`. The evidence step is the physics step at that minimum. This is a
-diagnostic for the requested position aspect; it does not replace the official
-task success check.
+- Implement a Query-induced typed metric directly in Python. MetricSpec is the
+  semantic contract, not source to copy or a preselected Tool ID.
+- A `derived_observable` is a new Query-induced Rule Tool. Implement only its
+  described observable over declared signals; never replace it with the
+  nearest older operator or invent an undeclared signal.
+- A derived Tool is admitted only after a separate development-agent semantic
+  review plus AST, declared-signal, deterministic execution, finite
+  scalar/unit/evidence, and artifact-immutability checks. This is not
+  independent human/model validation. The gates authorize trajectory
+  measurement only; generated code never defines task success or reward.
 
 ## Registry scopes
 
@@ -91,12 +69,13 @@ task success check.
   evaluation.
 - `reviewed_persistent`: installed only from an explicit `approved` review
   manifest pinned to the source registration, code, ToolSpec, full contract,
-  and telemetry-schema hashes.  It is still generated code, not a Trusted
-  Tool.
+  and telemetry-schema hashes. It remains generated code and is not
+  automatically authoritative.
 
 Persistent lookup requires an exact task/metric/ToolSpec/contract/schema
-match.  Every reuse executes the reviewed source twice on the current
-trajectories and checks the private oracle again; provider calls remain zero.
+match. Every reuse executes the reviewed source twice on current trajectories
+and reapplies its stored semantic-validation contract; provider calls remain
+zero.
 Pending reviews, candidate promotion, tampered artifacts, path escape, and
 symlinks are never executable.  If a reviewed lookup misses, normal codegen
 may run only when a provider was explicitly supplied.

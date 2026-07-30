@@ -11,12 +11,17 @@ hypothesis before seeing any task or artifact inventory. Task retrieval happens
 afterward and only binds the concern to an executable policy checkpoint and the
 closest official base task.
 
-A RoboTwin task is executable when runtime code validates all of:
+A RoboTwin policy binding is executable when runtime code validates:
 
 - the official `envs/<task>.py` source and its `load_actors()` /
   `check_success()` methods;
-- a repository-owned TaskSchema;
 - non-empty policy weights and dataset statistics for that same task.
+
+Scene generation and semantic measurement additionally require a validated
+runtime TaskContext or TaskSchema. Runtime may retrieve or derive that context
+from official source, reset actors, and telemetry; if required fields remain
+unknown, report that need as `unsupported` rather than inventing it. Missing
+semantic context does not by itself prohibit an unchanged official rollout.
 
 CapabilityAdapter/catalog membership is not execution authority. Known
 Task/Tool/VQA entries are retrieval hints only:
@@ -41,6 +46,10 @@ After each completed round:
 2. assess the original Query's truth condition and remaining uncertainty;
 3. stop if the evidence contract is satisfied;
 4. otherwise propose the next most informative semantic concern.
+
+When completed evidence contains a finite scalar, use its observed scale to
+bracket the next intervention or falsifiable threshold. Do not invent a
+far-away numeric boundary unrelated to the measurement.
 
 The next concern may be outside the retrieval inventory. It becomes an
 `ExperimentCandidate` with independent optional needs:
@@ -72,7 +81,7 @@ whole-round automatic restart and policy failure is never silently rerun.
 
 ## Compatibility boundary
 
-Fixed suites, catalog navigation, task-specific BBH/ClickBell planners, and
+Fixed suites, catalog navigation, task-specific planners, and
 registered paper protocols are explicit `experiments/paper/` compatibility
 paths. They must not determine the production Plan Agent candidate domain.
 

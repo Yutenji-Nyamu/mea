@@ -242,7 +242,7 @@ class PlanAgentInitialPlanBuilder:
         A no-control plan intentionally starts with an empty round list.  The
         caller should materialize its already discovered typed Proposal
         with ``manifest["initial_execution_binding"]`` and then normalize it
-        through ``PlanAgentExecutionSession``.
+        through the production ``PlanAgentSession``.
         """
 
         query = _text(user_request, field="user_request")

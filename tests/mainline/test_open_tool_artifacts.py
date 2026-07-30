@@ -96,7 +96,7 @@ class OpenToolArtifactTest(unittest.TestCase):
     def root(self) -> Path:
         return Path(__file__).resolve().parents[2]
 
-    def test_shared_context_carries_method_inputs_and_explicit_oracle_gap(self):
+    def test_shared_context_carries_method_inputs_and_validation_contract(self):
         context = build_tool_artifact_context(
             self.root,
             task_name="adjust_bottle",
@@ -120,11 +120,16 @@ class OpenToolArtifactTest(unittest.TestCase):
         )
         self.assertEqual(
             context["oracle_broker"]["derived_observable"]["status"],
-            "unsupported",
+            "available",
         )
         self.assertEqual(
-            context["oracle_broker"]["derived_observable"]["reason_code"],
-            "independent_oracle_broker_unavailable",
+            context["oracle_broker"]["derived_observable"]["source"],
+            "toolgen_semantic_review_runtime",
+        )
+        self.assertFalse(
+            context["oracle_broker"]["derived_observable"][
+                "validation_contract"
+            ]["success_or_reward_authority"]
         )
 
     def test_shared_context_rejects_proposal_task_mismatch(self):
@@ -175,7 +180,7 @@ class OpenToolArtifactTest(unittest.TestCase):
             context["task_artifact"]["success_official_equivalent"]
         )
 
-    def test_derived_observable_without_broker_is_structured_unsupported(self):
+    def test_derived_observable_without_broker_uses_toolgen_validation(self):
         provider = _Provider(
             {
                 "schema_version": 2,
@@ -205,11 +210,10 @@ class OpenToolArtifactTest(unittest.TestCase):
             allow_unsupported=True,
         )
 
-        self.assertEqual(bundle["status"], "unsupported")
-        self.assertIsNone(bundle["tool_request"])
+        self.assertEqual(bundle["status"], "selected")
         self.assertEqual(
-            bundle["reason_code"],
-            "independent_oracle_broker_unavailable",
+            bundle["tool_request"]["metric_spec"]["operation"],
+            "derived_observable",
         )
         self.assertEqual(provider.calls, 1)
 

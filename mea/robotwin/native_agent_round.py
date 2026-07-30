@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 from copy import deepcopy
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
@@ -167,6 +168,116 @@ def _artifact_exists(value: Any) -> bool:
         return False
 
 
+def _trusted_checker_result(
+    evaluation: Mapping[str, Any],
+    *,
+    expected_metric: str,
+) -> dict[str, Any]:
+    """Return the one policy ToolResult that owns the round outcome."""
+
+    if evaluation.get("status") != "passed":
+        raise NativeAgentRoundError(
+            "trusted checker evaluation did not pass"
+        )
+    if evaluation.get("outcome_metric") != expected_metric:
+        raise NativeAgentRoundError(
+            "trusted checker metric differs from the executed checker"
+        )
+    policy_episodes = [
+        episode
+        for episode in evaluation.get("episodes", [])
+        if isinstance(episode, Mapping)
+        and episode.get("role") == "policy_under_evaluation"
+    ]
+    if len(policy_episodes) != 1:
+        raise NativeAgentRoundError(
+            "trusted checker evaluation requires exactly one policy episode"
+        )
+    results = [
+        result
+        for result in policy_episodes[0].get("tool_results", [])
+        if isinstance(result, Mapping)
+        and result.get("tool") == expected_metric
+    ]
+    if len(results) != 1:
+        raise NativeAgentRoundError(
+            "trusted checker evaluation requires exactly one bound ToolResult"
+        )
+    result = deepcopy(dict(results[0]))
+    if not isinstance(result.get("value"), bool):
+        raise NativeAgentRoundError(
+            "trusted checker ToolResult requires a boolean value"
+        )
+    if result.get("passed") is not result["value"]:
+        raise NativeAgentRoundError(
+            "trusted checker ToolResult passed/value semantics disagree"
+        )
+    return result
+
+
+def _project_trusted_checker_outcome(
+    rollout: Any,
+    evaluation: Mapping[str, Any],
+    *,
+    expected_metric: str,
+    policy_backend: str,
+) -> tuple[Any, dict[str, Any]]:
+    """Project MethodRuntime evidence onto the same result Aggregate consumes."""
+
+    result = _trusted_checker_result(
+        evaluation,
+        expected_metric=expected_metric,
+    )
+    episode = rollout.episode
+    if policy_backend == "smolvla":
+        if episode.get("active_checker_metric") != expected_metric:
+            raise NativeAgentRoundError(
+                "SmolVLA active checker differs from trusted ToolResult"
+            )
+        if not isinstance(
+            episode.get("episode_latched_success"),
+            bool,
+        ):
+            raise NativeAgentRoundError(
+                "SmolVLA result lacks an explicit episode latch"
+            )
+        if expected_metric == "generated_check_success":
+            generated = episode.get("generated_checker_success")
+            official_core = episode.get(
+                "official_core_predicate_satisfied"
+            )
+            details = result.get("details")
+            if (
+                not isinstance(generated, bool)
+                or not isinstance(official_core, bool)
+                or not isinstance(details, Mapping)
+                or details.get("generated_checker_success") is not generated
+                or details.get("official_core_predicate_satisfied")
+                is not official_core
+            ):
+                raise NativeAgentRoundError(
+                    "SmolVLA generated/official checker channels disagree "
+                    "with the trusted ToolResult"
+                )
+        elif episode.get("official_check_success") is not result["value"]:
+            raise NativeAgentRoundError(
+                "SmolVLA official checker differs from trusted ToolResult"
+            )
+    projected = replace(
+        rollout,
+        success=result["value"],
+        metadata={
+            **dict(rollout.metadata),
+            "trusted_checker": {
+                "metric": expected_metric,
+                "authority": evaluation.get("outcome_authority"),
+                "value": result["value"],
+            },
+        },
+    )
+    return projected, result
+
+
 def _execute_robotwin_method_round(
     *,
     policy_backend: str,
@@ -225,9 +336,6 @@ def _execute_robotwin_method_round(
         if isinstance(proposal_value, Mapping)
         else None
     )
-    schema_available = bool(
-        contract["task_schema"].get("available", True)
-    )
     generated_task_required = proposal is not None and (
         proposal["scene_need"] is not None
         or proposal["checker_need"] is not None
@@ -267,27 +375,6 @@ def _execute_robotwin_method_round(
             policy_name=policy_name,
             reason_code=f"{policy_backend}_vqa_not_connected",
             reason=f"The native {policy_name} VQA bridge is not connected.",
-        )
-    if (
-        proposal is not None
-        and generated_task_required
-        and not schema_available
-    ):
-        return _unsupported_round(
-            root=root,
-            evaluation_root=evaluation_root,
-            evaluation_id=evaluation_id,
-            round_plan=round_plan,
-            task_name=contract["task_name"],
-            proposal=proposal,
-            policy_backend=policy_backend,
-            policy_name=policy_name,
-            reason_code="task_context_insufficient_for_taskgen",
-            reason=(
-                "This task has no reviewed TaskSchema. Executed telemetry can "
-                "support Tool-only evaluation, but scene/checker generation "
-                "requires a validated actor/preservation context."
-            ),
         )
     if proposal is None and round_plan.get("route") != "official":
         raise NativeAgentRoundError(
@@ -334,6 +421,9 @@ def _execute_robotwin_method_round(
                 run_id=run_id,
                 seed=seed,
                 telemetry_profile=telemetry_profile,
+                action_dimension=int(
+                    contract["policy"].get("action_dimension", 0) or 0
+                ),
             )
         except GenericTaskGenError as exc:
             record_generic_taskgen_generation_failure(
@@ -436,6 +526,9 @@ def _execute_robotwin_method_round(
     generated_checker = bool(
         proposal is not None and proposal["checker_need"] is not None
     )
+    executed_schema_available = bool(
+        candidate.task_contract.get("task_schema_available")
+    )
     execution_scope = (
         "generated_check_success"
         if generated_checker
@@ -447,34 +540,11 @@ def _execute_robotwin_method_round(
             "The generated checker is experimental, not certified "
             "as official-equivalent.",
         )
-    elif not schema_available:
+    elif not executed_schema_available:
         limitations += (
             "No reviewed TaskSchema; the Task context is limited to official "
             "source identity and executed telemetry.",
         )
-    evidence = runtime.evidence(
-        rollout,
-        EvidenceRequest(
-            sub_aspect=str(round_plan["sub_aspect"]),
-            hypothesis=query,
-            perturbation=(
-                str(proposal["semantic_concern"])
-                if proposal is not None
-                else "unchanged official-scene control"
-            ),
-            summary=(
-                f"{policy_name} completed one RoboTwin rollout; "
-                f"{execution_scope}={rollout.success}."
-            ),
-            limitations=limitations,
-            metadata={
-                "policy_backend": policy_backend,
-                "semantic_telemetry_ready": bool(
-                    rollout.metadata.get("semantic_telemetry_ready")
-                ),
-            },
-        ),
-    )
     semantic_ready = bool(
         rollout.metadata.get("semantic_telemetry_ready")
     )
@@ -502,10 +572,43 @@ def _execute_robotwin_method_round(
             "episodes": [],
         }
     )
+    authoritative_rollout = rollout
+    checker_result: dict[str, Any] | None = None
+    if taskgen_manifest is not None and semantic_ready:
+        authoritative_rollout, checker_result = (
+            _project_trusted_checker_outcome(
+                rollout,
+                trusted_tool_evaluation,
+                expected_metric=execution_scope,
+                policy_backend=policy_backend,
+            )
+        )
+    evidence = runtime.evidence(
+        authoritative_rollout,
+        EvidenceRequest(
+            sub_aspect=str(round_plan["sub_aspect"]),
+            hypothesis=query,
+            perturbation=(
+                str(proposal["semantic_concern"])
+                if proposal is not None
+                else "unchanged official-scene control"
+            ),
+            summary=(
+                f"{policy_name} completed one RoboTwin rollout; "
+                f"{execution_scope}={authoritative_rollout.success}."
+            ),
+            limitations=limitations,
+            metadata={
+                "policy_backend": policy_backend,
+                "semantic_telemetry_ready": semantic_ready,
+                "trusted_checker_result": checker_result,
+            },
+        ),
+    )
     result_path = child_dir / "evaluation" / "_result.txt"
     result_path.parent.mkdir(parents=True, exist_ok=True)
     result_path.write_text(
-        f"{1.0 if rollout.success else 0.0}\n",
+        f"{1.0 if authoritative_rollout.success else 0.0}\n",
         encoding="utf-8",
     )
     scene_validation = (
@@ -551,6 +654,18 @@ def _execute_robotwin_method_round(
             "passed": True,
             "actual_seeds": [seed],
             "policy_name": policy_name,
+            "outcome_metric": execution_scope,
+            "outcome_value": authoritative_rollout.success,
+            "episode_latched_success": (
+                authoritative_rollout.episode.get(
+                    "episode_latched_success"
+                )
+            ),
+            "official_core_predicate_satisfied": (
+                authoritative_rollout.episode.get(
+                    "official_core_predicate_satisfied"
+                )
+            ),
         },
         "task_artifact_summary": task_artifact_summary,
         "trusted_tool_evaluation": trusted_tool_evaluation,
@@ -565,7 +680,7 @@ def _execute_robotwin_method_round(
         "method_runtime": {
             "binding": binding.to_dict(),
             "candidate": candidate.to_dict(),
-            "rollout": rollout.to_dict(),
+            "rollout": authoritative_rollout.to_dict(),
             "evidence": evidence.to_dict(),
         },
     }

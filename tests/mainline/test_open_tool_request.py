@@ -155,7 +155,7 @@ class OpenToolRequestTest(unittest.TestCase):
         self.assertEqual(spec["schema_version"], 2)
         self.assertEqual(spec["operation"], "derived_observable")
         self.assertEqual(spec["required_signals"], ["hammer_position"])
-        self.assertIn("independent oracle are available", agent.last_prompt)
+        self.assertIn("development-agent semantic review", agent.last_prompt)
         self.assertEqual(
             route_tool_request(bundle["tool_request"])["route_decision"][
                 "resolved_route"
@@ -163,21 +163,21 @@ class OpenToolRequestTest(unittest.TestCase):
             "typed_metric_spec_execute",
         )
 
-    def test_derived_observable_is_not_advertised_without_an_oracle(self):
+    def test_derived_observable_is_advertised_with_toolgen_validation(self):
         root = Path(__file__).resolve().parents[2]
         provider = _Provider(_derived())
         agent = OpenToolRequestAgent(root, provider, model="fixture-model")
-        with self.assertRaisesRegex(
-            OpenToolRequestError,
-            "unavailable without caller-owned",
-        ):
-            agent.propose(
-                source_query="Where does the trajectory first become jerky?",
-                semantic_concern="pre-contact motion quality",
-                tool_need="Measure the peak per-step hammer motion.",
-                task_name="beat_block_hammer",
-            )
-        self.assertNotIn(
+        bundle = agent.propose(
+            source_query="Where does the trajectory first become jerky?",
+            semantic_concern="pre-contact motion quality",
+            tool_need="Measure the peak per-step hammer motion.",
+            task_name="beat_block_hammer",
+        )
+        self.assertEqual(
+            bundle["tool_request"]["metric_spec"]["operation"],
+            "derived_observable",
+        )
+        self.assertIn(
             '"operation": "derived_observable"',
             agent.last_prompt,
         )

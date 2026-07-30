@@ -1144,7 +1144,8 @@ def _execute_typed_metric_request(
         decision["matched_registry"] = "query_induced_python_tool"
         decision["reason"] = (
             "registry miss triggered provider Python generation; static, "
-            "determinism, oracle, artifact, and live-telemetry gates passed"
+            "semantic-review/oracle, determinism, artifact, and live-"
+            "telemetry gates passed"
         )
     decision["provider_called"] = bool(raw.get("provider_called"))
     _write_json(destination / "route_decision.json", decision)
@@ -1164,6 +1165,25 @@ def _execute_typed_metric_request(
         or destination / "typed_metric_spec/generated_tool.py"
     ).expanduser().resolve()
     registration = raw.get("registration")
+    validation_rows = [
+        *(raw.get("episodes") or []),
+        *(raw.get("fixtures") or []),
+    ]
+    oracle_agreements = [
+        row.get("oracle_agreement")
+        for row in validation_rows
+        if isinstance(row, dict)
+    ]
+    oracle_agreement = (
+        all(value is True for value in oracle_agreements)
+        if oracle_agreements
+        and all(value is not None for value in oracle_agreements)
+        else None
+    )
+    independent_numeric_oracle = (
+        raw.get("validation_authority")
+        == "caller_supplied_independent_numeric_oracle"
+    )
     execution = {
         "schema_version": 1,
         "status": "passed",
@@ -1197,11 +1217,15 @@ def _execute_typed_metric_request(
             "provider_called": bool(raw.get("provider_called")),
             "typed_metric_spec": True,
             "python_generated_by_model": actual_route == "provider_python_codegen",
+            "authority": raw.get("validation_authority"),
+            "semantic_review": raw.get("semantic_review"),
             "task_code_context_consumed": bool(
                 raw.get("task_code_context_consumed")
             ),
             "episode_count": len(normalized_episodes),
-            "differential_gates_passed": True,
+            "validation_gates_passed": True,
+            "independent_numeric_oracle": independent_numeric_oracle,
+            "oracle_agreement": oracle_agreement,
         },
         "artifacts": {
             "tool_request": _relative(destination / "tool_request.json", repo),

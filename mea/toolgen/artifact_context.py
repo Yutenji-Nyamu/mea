@@ -153,16 +153,23 @@ def _oracle(
         }
 
     return {
-        "status": "unsupported",
-        "reason_code": "independent_oracle_broker_unavailable",
-        "reason": (
-            "A derived observable is unavailable without caller-owned fixture "
-            "episodes and an independent oracle broker."
-        ),
+        "status": "available",
+        "reason_code": None,
+        "reason": None,
         "broker_id": None,
+        "validation_id": "toolgen_semantic_review_runtime_v1",
         "independent": False,
-        "fixture_episode_count": None,
-        "source": "runtime_capability",
+        "fixture_episode_count": 0,
+        "source": "toolgen_semantic_review_runtime",
+        "validation_contract": {
+            "scope": "trajectory_measurement_only",
+            "semantic_review": True,
+            "required_signal_ast_gate": True,
+            "deterministic_execution": True,
+            "finite_scalar_unit_and_evidence_gate": True,
+            "artifact_immutability": True,
+            "success_or_reward_authority": False,
+        },
     }
 
 

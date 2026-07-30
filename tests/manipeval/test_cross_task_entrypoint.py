@@ -547,6 +547,88 @@ class CrossTaskEntrypointTests(unittest.TestCase):
         )
         self.assertTrue(acceptance["singleton_query_candidate"])
 
+    def test_compact_flagship_accepts_query_authorized_no_control_sequence(
+        self,
+    ):
+        candidate_ids = [
+            "dynamic.grab_roller.clearance",
+            "dynamic.grab_roller.clearance.refined",
+        ]
+        round_runs = []
+        for candidate_id in candidate_ids:
+            round_runs.append(
+                {
+                    "round_summary": {
+                        "route": "generic_provider_scene_checker_codegen",
+                        "semantic_need_execution": {
+                            "candidate_id": candidate_id
+                        },
+                        "observations": {
+                            "execution_backend": "ACT",
+                            "actual_seeds": [100401],
+                            "outcome_semantics": {
+                                "status": "expected_semantic_extension"
+                            },
+                            "implementation_trace": {
+                                "candidate_id": candidate_id,
+                                "relationship": "direct",
+                                "coverage_status": "complete",
+                            },
+                        },
+                    }
+                }
+            )
+
+        acceptance = build_compact_flagship_acceptance(
+            round_runs,
+            global_route_result={
+                "global_router_provider_calls": 0,
+                "provider_called": False,
+                "route_source": "runtime_task_checkpoint_binding",
+            },
+            claim_first_runtime_state={
+                "assessment": {
+                    "stop_reason": "evidence_sufficient",
+                    "evidence_sufficient": True,
+                    "observed_candidate_ids": candidate_ids,
+                    "decisive_candidate_ids": [candidate_ids[-1]],
+                },
+                "query_contract": {
+                    "candidate_universe": candidate_ids,
+                    "control_requirement": "not_required",
+                },
+            },
+            claim_first_query_answer={
+                "answered": True,
+                "stop_reason": "evidence_sufficient",
+                "answer_scope": "bounded_experimental_query_semantics",
+            },
+            free_concern_bundle={
+                "source": "provider_plan_agent_query_interpretation",
+                "provider": {
+                    "called": True,
+                    "attempt_count": 1,
+                    "errors": [],
+                },
+            },
+            open_task_resolution={"decision": "retrieve_and_adapt"},
+            concern_candidate_resolution={
+                "decision": "catalog_external",
+                "resolution": "open_world_candidate_discovery_required",
+                "candidate_aspect_ids": None,
+                "selected_template_ids": [],
+                "concern_created_before_catalog": True,
+                "catalog_was_model_visible": False,
+            },
+            history_disabled=True,
+        )
+
+        self.assertTrue(acceptance["accepted"])
+        self.assertEqual(acceptance["policy_rollouts"], 2)
+        self.assertEqual(
+            acceptance["control_requirement"], "not_required"
+        )
+
     def test_compact_flagship_accepts_direct_typed_official_candidate(self):
         candidate_id = "dynamic.click_bell.target_scale"
         refined_candidate_id = "dynamic.click_bell.target_scale.smaller"

@@ -7,6 +7,7 @@ execution and CLI argument handling remain outside this module.
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import math
@@ -28,7 +29,10 @@ from mea.planner.semantic_coverage import (
     SemanticCoverageError,
     build_implementation_trace,
 )
-from mea.toolkit.schema import load_task_schema
+from mea.robotwin_task_context import (
+    RoboTwinTaskContextError,
+    resolve_robotwin_task_context,
+)
 
 from .artifact_index import (
     GenericTaskArtifactIndex,
@@ -44,6 +48,7 @@ from .generic_visual import (
     diagnose_generic_scene_render,
 )
 from .prototype import extract_json_response
+from .provider_scene_checker import validate_provider_run_id
 from .reflection import protected_hashes
 
 
@@ -97,6 +102,10 @@ _VISUAL_PRESERVATION_TERMS = (
     "camera",
     "visible",
     "layout",
+    "table",
+    "support",
+    "floor",
+    "wall",
     "interaction target",
     "target identity",
     "外观",
@@ -165,6 +174,13 @@ _CHECKER_PRESERVATION_TERMS = (
     "任务目标",
     "任务语义",
     "目标语义",
+)
+_OFFICIAL_CORE_CONJUNCT_TERMS = (
+    "official core predicate",
+    "official goal as a required conjunct",
+    "official task goal as a required conjunct",
+    "official goal as a necessary condition",
+    "official task goal as a necessary condition",
 )
 
 _POSITION_ABS_TOLERANCE_M = 1e-5
@@ -476,6 +492,7 @@ def build_preservation_report(
     *,
     scene_generated: bool,
     checker_generated: bool,
+    checker_references_official_core: bool | None = None,
     visual_self_check_enabled: bool,
     visual: Mapping[str, Any],
     official_setup: Mapping[str, Any] | None = None,
@@ -493,9 +510,12 @@ def build_preservation_report(
             verified: bool | None = True
             authority = "exact_official_scene_and_checker_method_reuse"
         else:
+            has_official_core_conjunct_term = any(
+                term in lowered for term in _OFFICIAL_CORE_CONJUNCT_TERMS
+            )
             has_checker_term = any(
                 term in lowered for term in _CHECKER_PRESERVATION_TERMS
-            )
+            ) and not has_official_core_conjunct_term
             has_visual_term = any(
                 term in lowered for term in _VISUAL_PRESERVATION_TERMS
             )
@@ -512,6 +532,24 @@ def build_preservation_report(
             component_results: list[bool | None] = []
             authorities: list[str] = []
             kinds: list[str] = []
+            if has_official_core_conjunct_term:
+                kinds.append("official_core_conjunct")
+                component_results.append(
+                    True
+                    if not checker_generated
+                    else checker_references_official_core
+                )
+                authorities.append(
+                    "exact_official_check_success_reuse"
+                    if not checker_generated
+                    else (
+                        "generated_checker_direct_official_core_reference"
+                        if checker_references_official_core is True
+                        else "generated_checker_missing_official_core_reference"
+                        if checker_references_official_core is False
+                        else "official_core_reference_not_inspected"
+                    )
+                )
             if has_checker_term:
                 kinds.append("checker_semantics")
                 component_results.append(
@@ -610,6 +648,40 @@ def build_preservation_report(
         "verified": verified_all,
         "checks": checks,
     }
+
+
+def _checker_references_official_core(module_source: str) -> bool:
+    """Detect the explicit untouched-official predicate call in a checker.
+
+    This proves only a direct code reference, not semantic equivalence.  The
+    simulator fixtures remain responsible for executable positive/negative
+    evidence, and outcome reporting keeps the generated checker separate.
+    """
+
+    module = ast.parse(module_source)
+    checker = next(
+        (
+            node
+            for node in ast.walk(module)
+            if isinstance(node, ast.FunctionDef)
+            and node.name == "check_success"
+        ),
+        None,
+    )
+    if checker is None:
+        return False
+    return any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "mea_official_check_success"
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "self"
+        and not node.args
+        and not node.keywords
+        for node in ast.walk(checker)
+    )
+
+
 def run_command(command: list[str], *, cwd: Path, log_path: Path) -> int:
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with log_path.open("w", encoding="utf-8") as log:
@@ -656,6 +728,9 @@ def run_probe(
     telemetry_profile: str = "balanced_v1",
     visual_capture_profile_id: str | None = None,
     execution_receipt: Path | None = None,
+    discover_task_context: bool = False,
+    task_context: Path | None = None,
+    action_dimension: int = 0,
     command_runner: CommandRunner | None = None,
     json_writer: JsonWriter | None = None,
 ) -> dict[str, Any]:
@@ -702,6 +777,11 @@ def run_probe(
         command.extend(["--visual-capture-profile", visual_capture_profile_id])
     if execution_receipt is not None:
         command.extend(["--execution-receipt", str(execution_receipt)])
+    if discover_task_context:
+        command.append("--discover-task-context")
+        command.extend(["--action-dimension", str(action_dimension)])
+    if task_context is not None:
+        command.extend(["--task-context", str(task_context)])
 
     attempts: list[dict[str, Any]] = []
     attempt_logs: list[Path] = []
@@ -902,6 +982,7 @@ def create_generic_provider_taskgen_run(
     run_id: str,
     seed: int,
     telemetry_profile: str = "balanced_v1",
+    action_dimension: int = 0,
     ablation_switches: Mapping[str, bool] | None = None,
     probe_runner: ProbeRunner | None = None,
 ) -> dict[str, Any]:
@@ -915,6 +996,10 @@ def create_generic_provider_taskgen_run(
     """
 
     probe_runner = probe_runner or run_probe
+    run_id = validate_provider_run_id(
+        run_id,
+        error_type=GenericTaskGenError,
+    )
     try:
         candidate = validate_experiment_candidate(experiment_candidate)
     except ExperimentCandidateError as exc:
@@ -929,10 +1014,74 @@ def create_generic_provider_taskgen_run(
     request = str(user_request).strip()
     if not request:
         raise GenericTaskGenError("user_request must be non-empty")
-    official_task_schema = load_task_schema(
-        repo_root,
-        candidate["base_task"],
-    )
+    try:
+        task_context = resolve_robotwin_task_context(
+            repo_root,
+            candidate["base_task"],
+        )
+    except RoboTwinTaskContextError as exc:
+        raise GenericTaskGenError(str(exc)) from exc
+    runtime_context_probe: Mapping[str, Any] | None = None
+    task_context_probe_result: Mapping[str, Any] | None = None
+    task_context_path: Path | None = None
+    if task_context.task_schema is None:
+        context_dir = (
+            repo_root
+            / "mea/generated_task_attempts"
+            / f"{run_id}_task_context"
+        )
+        context_dir.mkdir(parents=True, exist_ok=True)
+        context_overlay = context_dir / "overlay.yml"
+        context_overlay.write_text("{}\n", encoding="utf-8")
+        try:
+            task_context_probe_result = probe_runner(
+                repo_root,
+                context_dir,
+                {
+                    "task_name": candidate["base_task"],
+                    "task_module": f"envs.{candidate['base_task']}",
+                },
+                seed=seed,
+                expert=False,
+                scene_json=context_dir / "probe.json",
+                image=context_dir / "initial_head.png",
+                log_path=context_dir / "probe.log",
+                telemetry_profile=telemetry_profile,
+                discover_task_context=True,
+                action_dimension=action_dimension,
+            )
+        except Exception as exc:
+            raise GenericTaskGenError(
+                "official reset could not establish TaskContext authority: "
+                f"{type(exc).__name__}: {exc}"
+            ) from exc
+        if not isinstance(task_context_probe_result, Mapping):
+            raise GenericTaskGenError(
+                "official reset returned an invalid TaskContext result"
+            )
+        raw_probe = task_context_probe_result.get("task_context_probe")
+        if not isinstance(raw_probe, Mapping):
+            raise GenericTaskGenError(
+                "official reset returned no validated TaskContext probe"
+            )
+        runtime_context_probe = deepcopy(dict(raw_probe))
+        try:
+            task_context = resolve_robotwin_task_context(
+                repo_root,
+                candidate["base_task"],
+                runtime_probe=runtime_context_probe,
+            )
+        except RoboTwinTaskContextError as exc:
+            raise GenericTaskGenError(
+                f"runtime TaskContext validation failed: {exc}"
+            ) from exc
+        task_context_path = context_dir / "task_context.json"
+        write_json(task_context_path, task_context.to_dict())
+    if task_context.task_schema is None:
+        raise GenericTaskGenError(
+            "TaskContext lacks simulator-authoritative actor/telemetry fields"
+        )
+    official_task_schema = deepcopy(dict(task_context.task_schema))
     accepted_preflight: dict[str, Any] = {}
     visual_attempts: list[dict[str, Any]] = []
     official_control: dict[str, Any] = {}
@@ -1069,6 +1218,11 @@ def create_generic_provider_taskgen_run(
                 image=official_setup_image,
                 log_path=official_control_dir / "setup.log",
                 telemetry_profile=telemetry_profile,
+                **(
+                    {"task_context": task_context_path}
+                    if task_context_path is not None
+                    else {}
+                ),
             )
             preflight_runtime["simulator_probes"] += 1
         official_setup = official_control["setup"]
@@ -1083,6 +1237,11 @@ def create_generic_provider_taskgen_run(
             image=setup_image,
             log_path=attempt_dir / "setup_preflight.log",
             telemetry_profile=telemetry_profile,
+            **(
+                {"task_context": task_context_path}
+                if task_context_path is not None
+                else {}
+            ),
         )
         preflight_runtime["simulator_probes"] += 1
         expert = probe_runner(
@@ -1097,6 +1256,11 @@ def create_generic_provider_taskgen_run(
             max_expert_attempts=3,
             telemetry_profile=telemetry_profile,
             raise_on_failure=False,
+            **(
+                {"task_context": task_context_path}
+                if task_context_path is not None
+                else {}
+            ),
         )
         preflight_runtime["expert_probes"] += max(
             len(expert.get("expert_attempts") or []), 1
@@ -1141,6 +1305,11 @@ def create_generic_provider_taskgen_run(
                     max_expert_attempts=3,
                     telemetry_profile=telemetry_profile,
                     raise_on_failure=False,
+                    **(
+                        {"task_context": task_context_path}
+                        if task_context_path is not None
+                        else {}
+                    ),
                 )
                 preflight_runtime["expert_probes"] += max(
                     len(
@@ -1257,6 +1426,11 @@ def create_generic_provider_taskgen_run(
             preserved_conditions,
             scene_generated=generated_scene,
             checker_generated=generated_checker,
+            checker_references_official_core=(
+                _checker_references_official_core(_module_source)
+                if generated_checker
+                else None
+            ),
             visual_self_check_enabled=visual_self_check_enabled,
             visual=visual,
             official_setup=official_setup,
@@ -1398,6 +1572,7 @@ def create_generic_provider_taskgen_run(
             "The initial state must not satisfy check_success; the official "
             "expert terminal state must satisfy it."
         ),
+        runtime_probe=runtime_context_probe,
     )
     artifact_index = GenericTaskArtifactIndex(repo_root)
     resolution = GenericRoboTwinTaskGenBackend(
@@ -1428,6 +1603,10 @@ def create_generic_provider_taskgen_run(
     run_dir = repo_root / "mea/generated_tasks" / run_id
     for child in ("generation", "validation", "evidence", "evaluation"):
         (run_dir / child).mkdir(parents=True, exist_ok=True)
+    write_json(
+        run_dir / "validation/task_context.json",
+        task_context.to_dict(),
+    )
     if reused_manifest is None:
         moves = {
             "proposal_prompt.md": "generation/code_prompt.md",
@@ -1601,6 +1780,12 @@ def create_generic_provider_taskgen_run(
             ),
         }
         reused_manifest["implementation_trace"] = implementation_trace
+        reused_manifest["task_context"] = {
+            "path": "validation/task_context.json",
+            "schema_origin": task_context.schema_origin,
+            "taskgen_ready": task_context.taskgen_ready,
+            "runtime_probe_executed": task_context_probe_result is not None,
+        }
         reused_manifest["implementation_trace_path"] = (
             "validation/implementation_trace.json"
             if implementation_trace is not None
@@ -1706,6 +1891,12 @@ def create_generic_provider_taskgen_run(
             "\\", "/"
         ),
         "telemetry_profile": telemetry_profile,
+        "task_context": {
+            "path": "validation/task_context.json",
+            "schema_origin": task_context.schema_origin,
+            "taskgen_ready": task_context.taskgen_ready,
+            "runtime_probe_executed": task_context_probe_result is not None,
+        },
         "static_validation": static_validation,
         "scene_validation": {
             **expert_scene,

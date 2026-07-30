@@ -371,15 +371,58 @@ def run_probe(arguments: argparse.Namespace) -> dict[str, Any]:
         from mea.toolkit import (
             extend_task_schema_with_generated_actors,
             load_task_schema,
+            task_schema_path,
+        )
+        from mea.robotwin_task_context import (
+            build_runtime_task_context_probe,
+            resolve_robotwin_task_context,
         )
 
-        schema = load_task_schema(repo_root, arguments.task_name)
-        result["task_schema"] = {
-            "schema_version": schema["schema_version"],
-            "task_name": schema["task_name"],
-            "task_family": schema.get("task_family"),
-            "trusted_tool_profile": schema.get("trusted_tool_profile"),
-        }
+        task_context_path = getattr(arguments, "task_context", None)
+        discover_task_context = bool(
+            getattr(arguments, "discover_task_context", False)
+        )
+        schema: dict[str, Any] | None
+        if task_context_path is not None:
+            raw_context = json.loads(
+                task_context_path.expanduser().resolve().read_text(
+                    encoding="utf-8"
+                )
+            )
+            if not isinstance(raw_context, Mapping):
+                raise ValueError("task_context must be a JSON object")
+            runtime_probe = raw_context.get("runtime_probe")
+            context = resolve_robotwin_task_context(
+                repo_root,
+                arguments.task_name,
+                runtime_probe=(
+                    runtime_probe
+                    if isinstance(runtime_probe, Mapping)
+                    else None
+                ),
+            )
+            if (
+                raw_context.get("official_source_sha256")
+                != context.official_source_sha256
+                or raw_context.get("task_schema") != context.task_schema
+            ):
+                raise ValueError(
+                    "task_context differs from current source/schema authority"
+                )
+            schema = (
+                dict(context.task_schema)
+                if context.task_schema is not None
+                else None
+            )
+        else:
+            schema_path = task_schema_path(
+                repo_root,
+                arguments.task_name,
+            )
+            if schema_path.is_file() or not discover_task_context:
+                schema = load_task_schema(repo_root, arguments.task_name)
+            else:
+                schema = None
         args = load_task_args(
             repo_root,
             task_name=arguments.task_name,
@@ -428,7 +471,34 @@ def run_probe(arguments: argparse.Namespace) -> dict[str, Any]:
         if execution_receipt is not None:
             validate_imported_task_binding(execution_receipt, task)
         task.setup_demo(now_ep_num=0, seed=arguments.seed, is_test=True, **args)
+        if schema is None:
+            runtime_probe = build_runtime_task_context_probe(
+                task,
+                repo_root=repo_root,
+                task_name=arguments.task_name,
+                action_dimension=int(
+                    getattr(arguments, "action_dimension", 0) or 0
+                ),
+            )
+            context = resolve_robotwin_task_context(
+                repo_root,
+                arguments.task_name,
+                runtime_probe=runtime_probe,
+            )
+            if context.task_schema is None:
+                raise ValueError(
+                    "runtime TaskContext probe produced no telemetry schema"
+                )
+            schema = dict(context.task_schema)
+            result["task_context_probe"] = runtime_probe
+            result["task_context"] = context.to_dict()
         schema = extend_task_schema_with_generated_actors(schema, task)
+        result["task_schema"] = {
+            "schema_version": schema["schema_version"],
+            "task_name": schema["task_name"],
+            "task_family": schema.get("task_family"),
+            "trusted_tool_profile": schema.get("trusted_tool_profile"),
+        }
         result["task_schema"].update(
             {
                 "tracked_actor_ids": [
@@ -558,6 +628,7 @@ def run_probe(arguments: argparse.Namespace) -> dict[str, Any]:
                     arguments, "visual_capture_profile", None
                 ),
                 execution_receipt=execution_receipt,
+                task_schema=schema,
             )
             task._mea_recorder = recorder
             try:
@@ -699,6 +770,25 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--telemetry-dir", type=Path)
     parser.add_argument("--execution-receipt", type=Path)
+    parser.add_argument(
+        "--discover-task-context",
+        action="store_true",
+        help=(
+            "When no reviewed TaskSchema exists, derive a minimal schema from "
+            "official source plus this fresh simulator reset."
+        ),
+    )
+    parser.add_argument(
+        "--task-context",
+        type=Path,
+        help="Run-local validated TaskContext JSON for schema-less tasks.",
+    )
+    parser.add_argument(
+        "--action-dimension",
+        type=int,
+        default=0,
+        help="Policy action dimension recorded in a discovered TaskContext.",
+    )
     parser.add_argument(
         "--telemetry-profile",
         choices=["balanced_v1", "legacy_v1"],

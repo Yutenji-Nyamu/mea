@@ -26,38 +26,43 @@ flowchart LR
 ```
 
 - Round 1 的 control evidence 触发新的尺度 sub-aspect；Round 2 的不充分证据又触发更强尺度与另一侧观测。
-- 两次生成任务均通过 fixture、视觉和 expert gate；最终因预算而非证据充分停止。
+- 两次生成场景均通过 fixture、视觉和 expert gate；它们都复用未改写的 official
+  `check_success()`，最终因预算而非证据充分停止。
 
 ## Round 1 — official baseline
 
 - Proposal：先确认未扰动任务能执行；TaskGen：`official_passthrough`；rollout：成功 `1/1`。
 - Tool：复用 `official_check_success=true`；VQA：`passed`、无冲突；Aggregate：`passed`。
 - Plan decision：证据不足以定位弱点，`continue → switch_concern`，下一轮测试可执行的物体尺度变化。
-- Artifacts: [VariantSpec](data/round_1_variant_spec.json) · [render](assets/round_1_scene.png) · [video](assets/round_1_act.mp4) · [Tool](artifacts/tool/round_1/tool_execution.json) · [VQA](artifacts/vqa/round_1.json) · [Aggregate](artifacts/aggregate/round_1.json) · [decision](artifacts/plan/decisions/after_round_1.json)
+- Artifacts: [VariantSpec](data/round_1_variant_spec.json) · [render](assets/round_1_scene.png) · [video](assets/round_1_act.mp4) · [Tool](artifacts/tool/round_1/tool_execution.json) · [VQA](artifacts/vqa/round_1.json) · [VQA montage](assets/round_1_vqa_montage.png) · [Aggregate](artifacts/aggregate/round_1.json) · [decision](artifacts/plan/decisions/after_round_1.json)
 - Next-step trace: [prompt](artifacts/plan/plan_agent_steps/after_round_01/prompt.md) · [response](artifacts/plan/plan_agent_steps/after_round_01/response_1.txt) · [bound Proposal](artifacts/plan/plan_agent_steps/after_round_01/bound_semantic_step.json)
 
 ![Round 1 render](assets/round_1_scene.png)
 
 ## Round 2 — roller scale `0.85`
 
-- Proposal：缩小可抓取 roller 以降低双臂抓取几何容错；TaskGen：provider 生成 scene/checker，首次生成通过 `2/2` fixtures、visual 和 expert gates。
+- Proposal：缩小可抓取 roller 以降低双臂抓取几何容错；TaskGen：provider 只生成
+  scene；`checker_need=null`，runtime 注入未改写的 official `check_success()`，首次生成
+  通过 `2/2` official-checker fixtures、visual 和 expert gates。
 - Rollout：官方成功 `1/1`；Tool：生成 `query_left_tcp_to_roller_left_contact_min_distance=0.022060869 m`；VQA：`passed`、无冲突；Aggregate：`passed`。
 - Plan decision：单侧距离与成功样本仍不足以定位边界，`continue → switch_concern`，细化到 `0.70` 并补另一侧观测。
 - Generation: [Proposal](artifacts/taskgen/round_2/generation/proposal.json) · [prompt](artifacts/taskgen/round_2/generation/code_prompt.md) · [response](artifacts/taskgen/round_2/generation/provider_response.txt) · [task code](code/round_2_task.py)
-- Validation: [checker fixtures](artifacts/taskgen/round_2/validation/checker_fixtures.json) · [visual result](artifacts/taskgen/round_2/validation/vision.json) · [visual prompt](artifacts/taskgen/round_2/validation/vision_prompt.md) · [expert gate](artifacts/taskgen/round_2/validation/expert_preflight.json)
-- Evidence: [render](assets/round_2_scene.png) · [scene comparison](artifacts/taskgen/round_2/evidence/scene_comparison.png) · [video](assets/round_2_act.mp4) · [Tool code](code/round_2_tool.py) · [Tool result](artifacts/tool/round_2/tool_execution.json) · [VQA](artifacts/vqa/round_2.json) · [Aggregate](artifacts/aggregate/round_2.json) · [decision](artifacts/plan/decisions/after_round_2.json)
+- Validation: [official-checker fixtures](artifacts/taskgen/round_2/validation/checker_fixtures.json) · [visual result](artifacts/taskgen/round_2/validation/vision.json) · [visual prompt](artifacts/taskgen/round_2/validation/vision_prompt.md) · [expert gate](artifacts/taskgen/round_2/validation/expert_preflight.json)
+- Evidence: [render](assets/round_2_scene.png) · [scene comparison](artifacts/taskgen/round_2/evidence/scene_comparison.png) · [video](assets/round_2_act.mp4) · [Tool code](code/round_2_tool.py) · [Tool result](artifacts/tool/round_2/tool_execution.json) · [VQA](artifacts/vqa/round_2.json) · [VQA montage](assets/round_2_vqa_montage.png) · [Aggregate](artifacts/aggregate/round_2.json) · [decision](artifacts/plan/decisions/after_round_2.json)
 - Next-step trace: [prompt](artifacts/plan/plan_agent_steps/after_round_02/prompt.md) · [response](artifacts/plan/plan_agent_steps/after_round_02/response_1.txt) · [bound Proposal](artifacts/plan/plan_agent_steps/after_round_02/bound_semantic_step.json)
 
 ![Round 2 render](assets/round_2_scene.png)
 
 ## Round 3 — roller scale `0.70`
 
-- Proposal：进一步缩小同一物体属性；TaskGen：provider 生成 scene/checker，首次生成通过 `2/2` fixtures、visual 和 expert gates。
+- Proposal：进一步缩小同一物体属性；TaskGen：provider 只生成 scene；
+  `checker_need=null`，runtime 注入未改写的 official `check_success()`，首次生成通过
+  `2/2` official-checker fixtures、visual 和 expert gates。
 - Rollout：官方成功 `1/1`；Tool：生成 `query_right_tcp_to_roller_right_contact_min_distance=0.046543039 m`；VQA：`passed`、无冲突；Aggregate：`passed`。
 - Plan decision：`stop`；QueryContract 判定 `evidence_sufficient=false`、`claim_verdict=inconclusive`、`stop_reason=budget_exhausted`。
 - Generation: [Proposal](artifacts/taskgen/round_3/generation/proposal.json) · [prompt](artifacts/taskgen/round_3/generation/code_prompt.md) · [response](artifacts/taskgen/round_3/generation/provider_response.txt) · [task code](code/round_3_task.py)
-- Validation: [checker fixtures](artifacts/taskgen/round_3/validation/checker_fixtures.json) · [visual result](artifacts/taskgen/round_3/validation/vision.json) · [visual prompt](artifacts/taskgen/round_3/validation/vision_prompt.md) · [expert gate](artifacts/taskgen/round_3/validation/expert_preflight.json)
-- Evidence: [render](assets/round_3_scene.png) · [scene comparison](artifacts/taskgen/round_3/evidence/scene_comparison.png) · [video](assets/round_3_act.mp4) · [Tool code](code/round_3_tool.py) · [Tool result](artifacts/tool/round_3/tool_execution.json) · [VQA](artifacts/vqa/round_3.json) · [Aggregate](artifacts/aggregate/round_3.json) · [decision](artifacts/plan/decisions/after_round_3.json)
+- Validation: [official-checker fixtures](artifacts/taskgen/round_3/validation/checker_fixtures.json) · [visual result](artifacts/taskgen/round_3/validation/vision.json) · [visual prompt](artifacts/taskgen/round_3/validation/vision_prompt.md) · [expert gate](artifacts/taskgen/round_3/validation/expert_preflight.json)
+- Evidence: [render](assets/round_3_scene.png) · [scene comparison](artifacts/taskgen/round_3/evidence/scene_comparison.png) · [video](assets/round_3_act.mp4) · [Tool code](code/round_3_tool.py) · [Tool result](artifacts/tool/round_3/tool_execution.json) · [VQA](artifacts/vqa/round_3.json) · [VQA montage](assets/round_3_vqa_montage.png) · [Aggregate](artifacts/aggregate/round_3.json) · [decision](artifacts/plan/decisions/after_round_3.json)
 
 ![Round 3 render](assets/round_3_scene.png)
 

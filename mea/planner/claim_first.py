@@ -775,6 +775,9 @@ put unchanged conditions only in preserve.  When scene_need.required is true,
 repeat that same explicit delta in scene_need.description.  Preserve only the
 isolation-critical factors supported by an advertised simulator, frozen-binding,
 or visual authority; do not claim that every unspecified state is unchanged.
+When an additional experimental checker must retain the official goal, name
+"official core predicate as a required conjunct" in preserve.  Do not call the
+extended checker "official success semantics" or claim full equivalence.
 TaskGen may retrieve or generate scene and checker code; ToolGen may retrieve
 or generate Rule/VQA Tools.  These artifact primitives do not authorize policy
 or controller intervention: do not reduce gripper precision, inject action
@@ -789,7 +792,10 @@ observability or isolate the confound.  When completed evidence is non-empty,
 the rationale must cite a concrete observed outcome or limitation and explain
 why it changed the priority of this sub-aspect.  Do not present a candidate
 that was already frozen before seeing that evidence as evidence-conditioned
-refinement.  For a broad robustness Query, for example, a successful control
+refinement.  If completed evidence contains a finite scalar, bracket the next
+intervention or falsifiable threshold around that observed scale; do not invent
+a distant numeric boundary unrelated to the measurement.  For a broad
+robustness Query, for example, a successful control
 can justify selecting the highest-risk supported perturbation, while a failed
 control should redirect to baseline reliability or failure diagnosis.
 

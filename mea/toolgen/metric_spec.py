@@ -1,12 +1,15 @@
-"""Typed semantic contracts and oracles for proposal-derived ToolGen metrics.
+"""Typed semantic contracts and validation for proposal-derived Rule Tools.
 
-Legacy MetricSpecs have an independent interpreter.  A derived observable is
-validated by caller-owned fixtures and an oracle instead.  Neither is the
-production implementation of the provider-written Tool.
+Legacy MetricSpecs retain their independent interpreter.  A new derived
+observable is provider-written Python admitted by a separate semantic review,
+declared-signal AST checks, and deterministic read-only execution on real
+telemetry.  It is trajectory measurement only, never success or reward
+authority.  Callers may still supply a stronger independent numeric oracle.
 """
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import math
@@ -17,6 +20,7 @@ from typing import Any, Callable, Iterable, Mapping
 
 import numpy as np
 
+from mea.providers.json_response import extract_json_response
 from mea.toolkit.tools import TrajectoryView
 
 
@@ -482,7 +486,9 @@ def evaluate_metric_spec(
     spec = validate_metric_spec(metric_spec)
     if spec["operation"] == "derived_observable":
         raise MetricSpecError(
-            "derived_observable requires a caller-supplied independent oracle"
+            "derived_observable has no built-in numeric interpreter; use "
+            "ToolGen semantic-review/runtime validation or a caller-supplied "
+            "independent oracle"
         )
     if spec["operation"] == "terminal_signal_difference":
         try:
@@ -1081,11 +1087,13 @@ Write the Python implementation of one Query-induced Rule Tool.  The typed
 MetricSpec below is the semantic contract, not source code to copy.
 For derived_observable, implement the provider-proposed description over only
 its declared telemetry signals; it is not a pre-registered metric operator.
-Caller-supplied fixtures and an independent oracle are intentionally not
-source code to copy.  Implement the observable from the recorded trajectory.
-The result will be checked by an AST allowlist, executed twice on real
-telemetry, compared
-against the independent oracle, and rejected if episode artifacts change.
+Implement the observable from the recorded trajectory.  For a new derived
+observable, a separate semantic reviewer will inspect this complete source
+without changing it.  The result is also restricted to declared signals,
+checked by an AST allowlist, executed twice on real telemetry, validated for a
+finite scalar/null value, the requested unit and trace-bound evidence steps,
+and rejected if episode artifacts change.  This Tool is measurement evidence
+only and must not define task success or reward.
 
 METRIC ID:
 {metric}
@@ -1122,7 +1130,7 @@ def _validate_metric_source(
     trajectories: list[TrajectoryView],
     oracle_evaluator: Callable[[TrajectoryView], Mapping[str, Any]] | None = None,
 ) -> tuple[list[dict[str, Any]], list[Any]]:
-    """Run static, determinism, oracle, and artifact-preservation gates."""
+    """Run static, determinism, semantic, and artifact-preservation gates."""
 
     from mea.toolgen.prototype import (
         ToolGenError,
@@ -1132,8 +1140,12 @@ def _validate_metric_source(
 
     try:
         validate_generated_tool(source_text)
+        if spec["operation"] == "derived_observable":
+            _validate_derived_signal_access(source_text, spec)
     except ToolGenError as exc:
         raise MetricSpecError(f"generated Python failed the static gate: {exc}") from exc
+    except MetricSpecError:
+        raise
     rows: list[dict[str, Any]] = []
     values: list[Any] = []
     for episode, trajectory in zip(episodes, trajectories):
@@ -1149,37 +1161,57 @@ def _validate_metric_source(
             raise MetricSpecError(
                 f"generated Python failed on real telemetry: {exc}"
             ) from exc
-        oracle = (
-            _validate_external_oracle_result(
-                oracle_evaluator(trajectory),
-                spec=spec,
-                trajectory=trajectory,
-            )
-            if oracle_evaluator is not None
-            else evaluate_metric_spec(spec, trajectory)
-        )
         generated = {
             key: first.get(key)
             for key in ("value", "unit", "passed", "evidence_steps", "details")
         }
+        if spec["operation"] == "derived_observable":
+            oracle = (
+                _validate_external_oracle_result(
+                    oracle_evaluator(trajectory),
+                    spec=spec,
+                    trajectory=trajectory,
+                )
+                if oracle_evaluator is not None
+                else _validate_external_oracle_result(
+                    generated,
+                    spec=spec,
+                    trajectory=trajectory,
+                )
+            )
+        else:
+            oracle = evaluate_metric_spec(spec, trajectory)
         deterministic = _canonical(first) == _canonical(second)
-        semantic_differences = _metric_semantic_differences(
-            generated,
-            oracle,
+        semantic_differences = (
+            _metric_semantic_differences(generated, oracle)
+            if oracle_evaluator is not None
+            or spec["operation"] != "derived_observable"
+            else []
         )
-        oracle_agreement = not semantic_differences
+        oracle_agreement = (
+            not semantic_differences
+            if oracle_evaluator is not None
+            or spec["operation"] != "derived_observable"
+            else None
+        )
+        semantic_contract_valid = not semantic_differences
         after = {
             name: _file_sha256(episode / name)
             for name in _CORE_ARTIFACTS
             if (episode / name).is_file()
         }
-        if not deterministic or not oracle_agreement or before != after:
+        if (
+            not deterministic
+            or not semantic_contract_valid
+            or before != after
+        ):
             raise MetricSpecError(
                 "generated Python validation failed: "
                 + _canonical(
                     {
                         "deterministic": deterministic,
                         "oracle_agreement": oracle_agreement,
+                        "semantic_contract_valid": semantic_contract_valid,
                         "artifacts_unchanged": before == after,
                         "semantic_differences": semantic_differences,
                         "expected": _metric_semantic_projection(oracle),
@@ -1197,10 +1229,167 @@ def _validate_metric_source(
                 "oracle_projection": oracle,
                 "deterministic": deterministic,
                 "oracle_agreement": oracle_agreement,
+                "semantic_contract_valid": semantic_contract_valid,
+                "validation_authority": (
+                    "caller_supplied_independent_numeric_oracle"
+                    if oracle_evaluator is not None
+                    else "toolgen_semantic_review_runtime"
+                    if spec["operation"] == "derived_observable"
+                    else "typed_metric_spec_interpreter"
+                ),
                 "artifacts_unchanged": before == after,
             }
         )
     return rows, values
+
+
+_DERIVED_STANDARD_TRACE_KEYS = {
+    "physics_step",
+    "policy_step",
+    "simulation_time_seconds",
+}
+
+
+def _validate_derived_signal_access(
+    source_text: str,
+    spec: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Restrict a derived Tool to its declared trace surface."""
+
+    tree = ast.parse(source_text)
+    parents = {
+        child: parent
+        for parent in ast.walk(tree)
+        for child in ast.iter_child_nodes(parent)
+    }
+    used: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+            if node.value.id == "trajectory":
+                if node.attr != "trace":
+                    raise MetricSpecError(
+                        "derived_observable may access only trajectory.trace"
+                    )
+                parent = parents.get(node)
+                if not (
+                    isinstance(parent, ast.Subscript)
+                    and parent.value is node
+                ):
+                    raise MetricSpecError(
+                        "derived_observable must access trajectory.trace "
+                        "directly with a literal field name"
+                    )
+        if not isinstance(node, ast.Subscript):
+            continue
+        value = node.value
+        if not (
+            isinstance(value, ast.Attribute)
+            and isinstance(value.value, ast.Name)
+            and value.value.id == "trajectory"
+            and value.attr == "trace"
+        ):
+            continue
+        key = node.slice
+        if not isinstance(key, ast.Constant) or not isinstance(key.value, str):
+            raise MetricSpecError(
+                "derived_observable trace access must use a literal field name"
+            )
+        used.add(key.value)
+    declared = set(spec["required_signals"])
+    undeclared = sorted(used - declared - _DERIVED_STANDARD_TRACE_KEYS)
+    missing = sorted(declared - used)
+    if undeclared:
+        raise MetricSpecError(
+            "derived_observable source uses undeclared telemetry signals: "
+            f"{undeclared}"
+        )
+    if missing:
+        raise MetricSpecError(
+            "derived_observable source does not use declared signals: "
+            f"{missing}"
+        )
+    return {
+        "required_signals": sorted(declared),
+        "used_trace_keys": sorted(used),
+    }
+
+
+_SEMANTIC_REVIEW_CHECKS = {
+    "implements_metric_description",
+    "uses_only_declared_signals",
+    "preserves_requested_unit",
+    "returns_diagnostic_not_success",
+}
+
+
+def _validate_semantic_review(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        raise MetricSpecError("ToolGen semantic review must be an object")
+    review = deepcopy(dict(value))
+    if set(review) != {"schema_version", "status", "checks", "reason"}:
+        raise MetricSpecError(
+            "ToolGen semantic review fields must be exactly "
+            "schema_version/status/checks/reason"
+        )
+    checks = review.get("checks")
+    if (
+        review.get("schema_version") != 1
+        or review.get("status") not in {"approved", "rejected"}
+        or not isinstance(checks, Mapping)
+        or set(checks) != _SEMANTIC_REVIEW_CHECKS
+        or any(type(item) is not bool for item in checks.values())
+        or not isinstance(review.get("reason"), str)
+        or not review["reason"].strip()
+    ):
+        raise MetricSpecError("ToolGen semantic review contract is invalid")
+    if review["status"] != "approved" or not all(checks.values()):
+        raise MetricSpecError(
+            "ToolGen semantic reviewer rejected the generated Tool: "
+            + review["reason"].strip()
+        )
+    review["checks"] = dict(checks)
+    review["reason"] = review["reason"].strip()
+    return review
+
+
+def _semantic_review_prompt(
+    *,
+    metric: str,
+    metric_spec: Mapping[str, Any],
+    source_text: str,
+) -> str:
+    return f"""You are ToolGen's separate semantic-review pass.
+Review one generated trajectory-measurement Tool against its MetricSpec.
+You are a development-agent proxy, not an independent human or model.
+Approve only if the code directly implements the description, accesses only
+required_signals plus physics/policy/time indices, preserves the requested
+unit, and returns passed=None rather than defining success or reward.
+Do not rewrite the code and do not infer task success.
+
+METRIC:
+{metric}
+
+METRIC SPEC:
+{json.dumps(metric_spec, ensure_ascii=False, indent=2)}
+
+GENERATED SOURCE:
+```python
+{source_text.rstrip()}
+```
+
+Return strict JSON with exactly:
+{{
+  "schema_version": 1,
+  "status": "approved" or "rejected",
+  "checks": {{
+    "implements_metric_description": true or false,
+    "uses_only_declared_signals": true or false,
+    "preserves_requested_unit": true or false,
+    "returns_diagnostic_not_success": true or false
+  }},
+  "reason": "one concise sentence"
+}}
+"""
 
 
 def _validate_external_oracle_result(
@@ -1382,11 +1571,11 @@ def execute_metric_spec(
             "fixture and live telemetry episode paths must be unique"
         )
     if spec["operation"] == "derived_observable" and (
-        not fixtures or oracle_evaluator is None
+        bool(fixtures) != (oracle_evaluator is not None)
     ):
         raise MetricSpecError(
-            "derived_observable requires caller-supplied fixture episodes "
-            "and an independent oracle"
+            "caller-supplied derived_observable fixtures and numeric oracle "
+            "must be provided together"
         )
     if spec["operation"] != "derived_observable" and (
         fixtures or oracle_evaluator is not None
@@ -1457,6 +1646,23 @@ def execute_metric_spec(
         registry_match = find_run_local_registration(
             registry_dir, tool_spec=tool_spec, episode_dirs=episodes
         )
+    semantic_review: dict[str, Any] | None = None
+    automatic_derived_validation = (
+        spec["operation"] == "derived_observable"
+        and oracle_evaluator is None
+    )
+    if registry_match is not None and automatic_derived_validation:
+        stored_review = (
+            registry_match["registration"]
+            .get("validation", {})
+            .get("semantic_review")
+        )
+        try:
+            semantic_review = _validate_semantic_review(stored_review)
+        except MetricSpecError:
+            # A legacy derived Tool without this review contract is not an
+            # exact match for the new mainline validation authority.
+            registry_match = None
     if registry_match is not None:
         source_path = registry_match["source_path"]
         route = "run_local_reuse"
@@ -1509,6 +1715,37 @@ def execute_metric_spec(
                 (attempt_dir / "generated_tool.py").write_text(
                     candidate, encoding="utf-8"
                 )
+                candidate_review = None
+                if automatic_derived_validation:
+                    validate_generated_tool(candidate)
+                    _validate_derived_signal_access(candidate, spec)
+                    review_prompt = _semantic_review_prompt(
+                        metric=metric,
+                        metric_spec=spec,
+                        source_text=candidate,
+                    )
+                    (attempt_dir / "review_prompt.md").write_text(
+                        review_prompt,
+                        encoding="utf-8",
+                    )
+                    review_response = provider.text(
+                        review_prompt,
+                        model=model.strip(),
+                        system="Return only strict ToolGen semantic-review JSON.",
+                        max_tokens=500,
+                        temperature=0.0,
+                    )
+                    (attempt_dir / "review_response.txt").write_text(
+                        review_response + "\n",
+                        encoding="utf-8",
+                    )
+                    candidate_review = _validate_semantic_review(
+                        extract_json_response(review_response)
+                    )
+                    _write_json(
+                        attempt_dir / "semantic_review.json",
+                        candidate_review,
+                    )
                 (
                     candidate_rows,
                     candidate_fixture_rows,
@@ -1536,13 +1773,18 @@ def execute_metric_spec(
             fixture_rows = candidate_fixture_rows
             values = candidate_values
             successful_attempt = attempt_index
+            semantic_review = candidate_review
             _write_json(
                 attempt_dir / "validation.json",
                 {
                     "valid": True,
                     "episode_count": len(rows),
                     "deterministic": True,
-                    "oracle_agreement": True,
+                    "oracle_agreement": (
+                        True if oracle_evaluator is not None else None
+                    ),
+                    "semantic_contract_valid": True,
+                    "semantic_review": semantic_review,
                     "artifacts_unchanged": True,
                 },
             )
@@ -1561,6 +1803,7 @@ def execute_metric_spec(
             "failures": failures,
             "model_requested": model.strip(),
             "provider": deepcopy(dict(getattr(provider, "last_metadata", {}))),
+            "semantic_review": semantic_review,
         }
     else:
         if spec["operation"] == "derived_observable":
@@ -1595,7 +1838,13 @@ def execute_metric_spec(
                 "tool": metric,
                 "validated_episode_count": len(rows) + len(fixture_rows),
                 "validated_property_scenario_count": len(fixture_rows),
-                "oracle_kind": f"typed_metric_spec_v{spec['schema_version']}",
+                "oracle_kind": (
+                    "toolgen_semantic_review_runtime_v1"
+                    if automatic_derived_validation
+                    else f"typed_metric_spec_v{spec['schema_version']}"
+                ),
+                "oracle_agreement_required": not automatic_derived_validation,
+                "semantic_review_required": automatic_derived_validation,
             },
             generation_manifest={
                 "successful_attempt": (
@@ -1614,6 +1863,7 @@ def execute_metric_spec(
                     _metric_semantic_projection(row["oracle_projection"])
                     for row in fixture_rows
                 ],
+                "semantic_review": semantic_review,
             },
             validation_episodes=[
                 {
@@ -1636,6 +1886,14 @@ def execute_metric_spec(
         "source_path": str(source_path),
         "tool_spec": tool_spec,
         "task_code_context_consumed": context is not None,
+        "validation_authority": (
+            "toolgen_semantic_review_runtime"
+            if automatic_derived_validation
+            else "caller_supplied_independent_numeric_oracle"
+            if spec["operation"] == "derived_observable"
+            else "typed_metric_spec_interpreter"
+        ),
+        "semantic_review": semantic_review,
         "fixtures": fixture_rows,
         "episodes": rows,
         "registration": (
@@ -1655,8 +1913,12 @@ def execute_metric_spec(
                 else "provider-free compatibility compiler"
             ),
             (
-                "output is checked twice against the caller-supplied oracle "
-                "on fixtures and live episodes"
+                "semantic review plus declared-signal, deterministic, finite-"
+                "result, evidence-step, and artifact-immutability gates; no "
+                "success or reward authority"
+                if automatic_derived_validation
+                else "output is checked twice against the caller-supplied "
+                "numeric oracle on fixtures and live episodes"
                 if spec["operation"] == "derived_observable"
                 else "output is checked twice against the trusted "
                 "interpreter on each live episode; live values need not differ"

@@ -24,12 +24,12 @@ evaluation id。具体环境、checkpoint、policy server 和网络问题分别�
 
 ### Backend capability
 
-| Backend | 当前方法入口 | 能力边界 | 推荐用途 |
+| Backend | 稳定入口合同 | 推荐用途 |
 | --- | --- | --- | --- |
-| RoboTwin SmolVLA | 生产 Plan Agent → 通用 TaskGen → `RoundExecutor` | 多任务 official rollout；生成式 live 尚无正验收 | 默认的轻量方法 smoke |
-| RoboTwin ACT | 同一生产主链 | 单任务 checkpoint，已有最完整正 evidence | checkpoint 特定复核 |
-| RoboTwin DP3 | `experiments/paper/` adapter | 仅已有 pilot，不是默认生产 binding | policy 对照实验 |
-| LIBERO SmolVLA | 独立 LIBERO chain | basic adaptation；外层方法 loop 尚未统一 | 环境迁移 smoke |
+| RoboTwin SmolVLA | Plan Agent → 通用 TaskGen → `RoundExecutor`；policy server 与 simulator 隔离 | 默认的轻量、多任务方法 smoke |
+| RoboTwin ACT | 同一生产主链；checkpoint 与 official task 强绑定 | checkpoint 特定复核 |
+| RoboTwin DP3 | `experiments/paper/` adapter，不是默认生产 binding | policy 对照实验 |
+| LIBERO SmolVLA | 当前仍为独立 LIBERO chain，尚未共享完整 Plan Agent 外层 | 环境迁移 smoke |
 
 当 policy 比较不是研究问题时，选择已经验证且成本最低的 backend，当前优先
 RoboTwin SmolVLA；只有论文协议或 checkpoint 特定问题才固定 ACT/DP3。backend 就绪不

@@ -346,11 +346,19 @@ class EpisodeRecorder:
         telemetry_profile_id: str = "balanced_v1",
         visual_capture_profile_id: str | None = None,
         execution_receipt: Mapping[str, Any] | None = None,
+        task_schema: Mapping[str, Any] | None = None,
     ):
         self.repo_root = Path(repo_root).expanduser().resolve()
         self.output_dir = Path(output_dir).expanduser().resolve()
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.schema = load_task_schema(self.repo_root, task_name)
+        self.schema = (
+            validate_task_schema(
+                deepcopy(dict(task_schema)),
+                expected_task_name=task_name,
+            )
+            if task_schema is not None
+            else load_task_schema(self.repo_root, task_name)
+        )
         self.task_name = task_name
         self.seed = int(seed)
         self.episode_index = int(episode_index)

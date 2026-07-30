@@ -6,15 +6,42 @@ from copy import deepcopy
 from pathlib import Path
 
 import mea.round_executor as round_executor_module
+from mea.round_evidence import aggregate_sources
 from mea.round_executor import RoundExecutionResult, RoundExecutor
+from mea.round_tools import (
+    executed_policy_episode_dirs,
+    executed_runtime_task_schema,
+)
 from scripts.manipeval_agent import (
-    _aggregate_sources,
     build_production_round_executor,
     normalize_outcome_semantics,
 )
 
 
 class RoundExecutorBoundaryTests(unittest.TestCase):
+    def test_execution_vqa_is_opt_in(self):
+        required = round_executor_module._round_requests_execution_vqa
+
+        self.assertFalse(required({}))
+        self.assertFalse(
+            required(
+                {
+                    "semantic_need_execution": {
+                        "vqa_tool": {"requested": False}
+                    }
+                }
+            )
+        )
+        self.assertTrue(
+            required(
+                {
+                    "semantic_need_execution": {
+                        "vqa_tool": {"requested": True}
+                    }
+                }
+            )
+        )
+
     def test_production_builder_returns_independent_executor(self):
         executor = build_production_round_executor()
 
@@ -28,7 +55,7 @@ class RoundExecutorBoundaryTests(unittest.TestCase):
             {"act", "smolvla"},
         )
 
-    def test_typed_result_preserves_legacy_tuple_order(self):
+    def test_typed_result_exposes_named_round_outputs(self):
         result = RoundExecutionResult(
             child_manifest={"status": "completed"},
             child_dir=Path("/tmp/child"),
@@ -37,16 +64,65 @@ class RoundExecutorBoundaryTests(unittest.TestCase):
             returncode=0,
         )
 
-        self.assertEqual(
-            result.as_legacy_tuple(),
-            (
-                result.child_manifest,
-                result.child_dir,
-                result.round_summary,
-                result.tool_evaluation,
-                result.returncode,
-            ),
-        )
+        self.assertEqual(result.child_manifest["status"], "completed")
+        self.assertEqual(result.child_dir, Path("/tmp/child"))
+        self.assertTrue(result.round_summary["pipeline_passed"])
+        self.assertEqual(result.tool_evaluation["status"], "passed")
+        self.assertEqual(result.returncode, 0)
+
+    def test_executed_schema_discovery_is_policy_backend_neutral(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            child_dir = Path(temporary) / "child"
+            episode_dir = (
+                child_dir
+                / "evaluation"
+                / "telemetry"
+                / "smolvla"
+                / "episode_000_seed_3"
+            )
+            episode_dir.mkdir(parents=True)
+            schema = {
+                "schema_version": 1,
+                "task_name": "grab_roller",
+                "semantic_fields": [
+                    {
+                        "name": "left_tcp_position",
+                        "source": "robot_tcp_position",
+                        "side": "left",
+                    }
+                ],
+            }
+            (episode_dir / "schema.json").write_text(
+                json.dumps(schema) + "\n",
+                encoding="utf-8",
+            )
+            (child_dir / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "method_runtime": {
+                            "rollout": {
+                                "artifacts": {
+                                    "telemetry_episode": str(episode_dir)
+                                }
+                            }
+                        }
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            self.assertEqual(
+                executed_policy_episode_dirs(child_dir),
+                [episode_dir],
+            )
+            self.assertEqual(
+                executed_runtime_task_schema(
+                    child_dir,
+                    task_name="grab_roller",
+                ),
+                schema,
+            )
 
     def test_distinct_planned_tool_does_not_replace_checker_outcome(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -137,14 +213,19 @@ class RoundExecutorBoundaryTests(unittest.TestCase):
                 persisted["trusted_tool_evaluation"]["outcome_metric"],
                 "generated_check_success",
             )
+            semantics = normalize_outcome_semantics(
+                child_manifest["trusted_tool_evaluation"],
+                {"success_official_equivalent": False},
+            )
             self.assertEqual(
-                normalize_outcome_semantics(
-                    child_manifest["trusted_tool_evaluation"],
-                    {"success_official_equivalent": False},
-                )["status"],
+                semantics["status"],
                 "expected_semantic_extension",
             )
-            sources = _aggregate_sources(
+            self.assertIs(
+                semantics["episodes"][0]["official_success"],
+                True,
+            )
+            sources = aggregate_sources(
                 {
                     "round_id": "round_1",
                     "sub_aspect": "trajectory.quality",

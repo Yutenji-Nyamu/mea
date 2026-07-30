@@ -7,36 +7,16 @@
 所有下载、安装、模型加载和仿真均在 AutoDL/SeetaCloud 服务器完成；Windows
 只保存代码和文档。本文不保存 SSH 密码、provider key 或 Hugging Face token。
 
-## 1. 已验证边界
+## 1. 稳定边界与证据入口
 
 - Checkpoint：`lerobot/smolvla_robotwin`，约 865 MiB。
 - 单卡 RTX 4090 峰值 CUDA allocated 约 1.27 GiB。
 - runner 不设任务 allowlist；`--task` 在 RoboTwin 的 `envs.<task>` 中运行时解析。
-- 五任务 scene seed=1000 的部署 pilot 为 4/5：
 
-| task | official success | actions | wall |
-| --- | ---: | ---: | ---: |
-| beat_block_hammer | true | 234 | 50.857s |
-| click_bell | true | 49 | 35.869s |
-| adjust_bottle | false | 400 | 58.443s |
-| grab_roller | true | 94 | 38.787s |
-| place_phone_stand | true | 134 | 41.256s |
-
-这是 policy adapter 与 rollout 可运行性证据，不是 50-task 成功率，也不是完整
-MEA 方法复现。五任务使用 1+4 两个 policy process；第二组结果依赖固定任务顺序。
-Batch30 又在未手写 task adapter 的 `click_alarmclock` 与 `turn_switch` 各做 N=1；
-两者均执行 400 actions 后 official failure。后者确实经过
-`MethodRuntime/RoboTwinMethodBackend`，证明共享 official-control 边界，但仍无
-semantic telemetry，不能进入完整 Tool/Aggregate loop。
-
-Batch31 又通过生产 `manipeval_agent.py --policy-backend smolvla` 在 schema-backed
-`click_bell` 完成一次 N=1 online rollout：单个 episode 的 official check 为 true，
-Rule Tool 与 Aggregate 均写出。原 bundle 因“Proposal 未请求 VQA、旧编排却仍执行
-VQA”而失败；代码修复后，在不改写 source evaluation 的前提下做 append-only
-0-rollout 投影并得到 pipeline pass，但 Planner 仍以 `budget_exhausted`、
-`inconclusive` 结束。因此这只是 live backend + post-run mechanism 验证，不是 clean
-online acceptance 或成功率估计。紧凑结果见
-[`batch31_smolvla_plan_agent_n1.json`](../experiments/paper/results/batch31_smolvla_plan_agent_n1.json)。
+本 runbook 不复制会随运行改变的成功率、样本数或最新 batch 状态。当前方法证据见
+[当前证据](evidence/current/README.md)，累计结论与缺口见
+[论文 claim 与 gap](paper_claim_gap_zh.md)；历史部署 pilot 与逐命令故障记录见
+[冷归档](../experiments/paper/robotwin_smolvla/history/20260729/README.md)。
 
 上游资料：
 
@@ -233,25 +213,33 @@ Query → Plan Agent → runtime task binding → Proposal
       → Rule/VQA Tool → Aggregate → next sub-aspect / Answer
 ```
 
-所有可解析 RoboTwin task 均可先尝试 unchanged official control；只有
-TaskSchema/telemetry 可用时才进入语义 Rule Tool 与 Aggregate。通用 scene/checker
-TaskGen、请求型 VQA 与 SmolVLA rollout 已接入同一 `RoundExecutor`；不要为每个任务
-增加手写 allowlist、Planner 分支或测试文件。
+所有可解析 RoboTwin task 均可先尝试 unchanged official control。仓库中的
+`TaskSchema` 是人工 reviewed fast path，不是任务准入表：它提供稳定 actor role、
+contact point、success contract 与 richer telemetry。缺少 reviewed `TaskSchema` 时，
+系统先读取 official source，再用一次 fresh simulator reset 生成 run-local
+`TaskContext`；该 probe 只接受 source-bound actor attribute/runtime name、physics
+timestep、action dimension 与 callable official `check_success()`，不会从名字或图像
+猜测 role、contact point 或 success threshold。
+
+runtime-derived `TaskContext` 已有进入 generic TaskGen 的代码入口，但完整
+scene/checker 冷启动尚无服务器 live 验收；当前可声称的能力仅是基于 raw actor
+position 等可验证信号的 Tool-only 诊断。因此在完成服务器 cold-start acceptance
+前，不把这条新代码路径写成跨任务生成式方法证据。
+通用 scene/checker TaskGen、请求型 VQA 与 SmolVLA rollout 已接入同一
+`RoundExecutor`；不要为每个任务增加手写 allowlist、Planner 分支或测试文件。
 
 生产 `manipeval_agent.py` 已支持 `--policy-backend smolvla`：它先建立共享 runtime
 task binding，再通过 `MethodRuntime/RoboTwinMethodBackend` 执行 SmolVLA round。
-具有 `TaskSchema` 的任务会记录 semantic telemetry，并回到同一 Rule/VQA Tool、
-Aggregate、Plan Agent 与 Answer 编排；无 schema 的任务只保存 official success、
-视频和明确限制，不能伪造语义测量。
+具有 reviewed `TaskSchema` 的任务直接记录 semantic telemetry，并回到同一 Rule/VQA
+Tool、Aggregate、Plan Agent 与 Answer 编排。无 reviewed schema 的任务若 runtime
+probe 通过，可缓存本次 run-local `TaskContext` 并测量其明确发布的 raw position
+signals；probe 失败则只保存 official success、视频和限制。无论哪条路径，都不能
+补造未验证的语义 role、contact 或任务阈值。
 
-截至 2026-07-30，组合式 clean live 尚无正例。最新
-`eval_20260730_native_smolvla_broad_live_v5` 的 broad Query 自主产生 distractor
-scene、实验 checker 与 trajectory Tool need；TaskGen 一次生成通过 static、render/VLM
-和 expert gate。rollout 随后因 external-first 路径导入 upstream `envs`，在 simulator
-setup 时报 `runtime_name` 不受支持；server 为 `request_count=0`，所以没有 policy
-inference 或 episode。该路径顺序、source gate 和连接时机已修复，但尚未追加 live。
-此前 seed 1000 official expert 不可用的失败以及 4/5 official pilot，同样不能外推为
-50-task 性能或公平 policy ranking。
+运行结果、未通过阶段和下一项方法验收只在
+[当前证据](evidence/current/README.md)与
+[论文 claim 与 gap](paper_claim_gap_zh.md)维护；本文只定义可重复部署、进程合同与
+故障恢复。
 
 ## 9. 回滚
 

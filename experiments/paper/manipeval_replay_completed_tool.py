@@ -24,9 +24,9 @@ if str(REPO_ROOT) not in sys.path:
 
 from mea.planner import ClaimFirstRuntimeController, build_claim_first_evidence_record
 from mea.providers import OpenAICompatibleProvider
+from mea.round_evidence import aggregate_round_results
 from mea.toolgen import execute_tool_request
 from scripts.manipeval_agent import (
-    aggregate_round_results,
     compact_aggregate_result,
     summarize_round,
 )

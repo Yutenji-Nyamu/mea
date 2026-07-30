@@ -1139,6 +1139,47 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             )
         )
 
+    def test_generated_checker_can_preserve_official_core_conjunct(self) -> None:
+        report = build_preservation_report(
+            ["official core predicate as a required conjunct"],
+            scene_generated=True,
+            checker_generated=True,
+            checker_references_official_core=True,
+            visual_self_check_enabled=True,
+            visual={"passed": True, "unexpected_changes": []},
+        )
+
+        self.assertTrue(report["verified"])
+        self.assertEqual(report["status"], "verified")
+        self.assertEqual(
+            report["checks"][0],
+            {
+                "condition": (
+                    "official core predicate as a required conjunct"
+                ),
+                "kind": "official_core_conjunct",
+                "verified": True,
+                "authority": (
+                    "generated_checker_direct_official_core_reference"
+                ),
+            },
+        )
+
+    def test_generated_checker_cannot_claim_official_core_without_reference(
+        self,
+    ) -> None:
+        report = build_preservation_report(
+            ["official core predicate as a required conjunct"],
+            scene_generated=True,
+            checker_generated=True,
+            checker_references_official_core=False,
+            visual_self_check_enabled=True,
+            visual={"passed": True, "unexpected_changes": []},
+        )
+
+        self.assertFalse(report["verified"])
+        self.assertEqual(report["status"], "failed")
+
     def test_generation_failure_still_writes_child_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

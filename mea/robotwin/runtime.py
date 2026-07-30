@@ -36,6 +36,11 @@ from mea.taskgen.generic_backend import (
     GenericRoboTwinTaskAdapter,
     GenericRoboTwinTaskGenBackend,
 )
+from mea.robotwin_task_context import (
+    RoboTwinTaskContextError,
+    probe_official_robotwin_task_context,
+    resolve_robotwin_task_context,
+)
 
 from .task_identity import (
     RoboTwinTaskIdentity,
@@ -44,6 +49,7 @@ from .task_identity import (
 
 RuntimeTaskIdentity = GenericRoboTwinTaskAdapter | RoboTwinTaskIdentity
 TaskAdapterFactory = Callable[[str], RuntimeTaskIdentity]
+TaskContextProbeRunner = Callable[..., Mapping[str, Any]]
 
 
 class RoboTwinRolloutRunner(Protocol):
@@ -86,6 +92,14 @@ def _json_object(value: Any, field: str) -> dict[str, Any]:
     return deepcopy(dict(value))
 
 
+def _write_json(path: Path, value: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(value, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
 class RoboTwinMethodBackend:
     """Bind generic RoboTwin TaskGen and a policy runner to MethodRuntime."""
 
@@ -98,6 +112,7 @@ class RoboTwinMethodBackend:
         task_adapter_factory: TaskAdapterFactory | None = None,
         taskgen_backend: GenericRoboTwinTaskGenBackend | None = None,
         rollout_runner: RoboTwinRolloutRunner,
+        task_context_probe_runner: TaskContextProbeRunner | None = None,
     ) -> None:
         self.repo_root = Path(repo_root).expanduser().resolve()
         self.task_adapter_factory = task_adapter_factory or (
@@ -108,6 +123,10 @@ class RoboTwinMethodBackend:
         )
         self.taskgen_backend = taskgen_backend
         self.rollout_runner = rollout_runner
+        self.task_context_probe_runner = (
+            task_context_probe_runner
+            or probe_official_robotwin_task_context
+        )
 
     def bind_task(
         self,
@@ -138,6 +157,25 @@ class RoboTwinMethodBackend:
             request.task_reference.get("binding_id")
             or f"{task_name}/{policy_name}"
         ).strip()
+        try:
+            task_context = resolve_robotwin_task_context(
+                self.repo_root,
+                task_name,
+            )
+        except RoboTwinTaskContextError as exc:
+            raise ValueError(
+                f"cannot bind RoboTwin TaskContext: {exc}"
+            ) from exc
+        # A Generic adapter loaded by the production discovery path already
+        # carries this exact context.  Keep hand-constructed test/compat
+        # adapters usable without treating their injected schema as source
+        # authority.
+        adapter_context = (
+            deepcopy(dict(adapter.task_context))
+            if isinstance(adapter, GenericRoboTwinTaskAdapter)
+            and isinstance(adapter.task_context, Mapping)
+            else task_context.to_dict()
+        )
         return BackendTaskBinding(
             benchmark=self.benchmark,
             binding_id=binding_id,
@@ -152,6 +190,7 @@ class RoboTwinMethodBackend:
                     else None
                 ),
                 "task_schema_available": adapter.task_schema is not None,
+                "task_context": adapter_context,
                 "policy": policy_contract,
             },
             native_task=adapter,
@@ -254,6 +293,78 @@ class RoboTwinMethodBackend:
             candidate["scene_need"] is not None
             or candidate["checker_need"] is not None
         )
+        task_context_value = binding.task_contract.get("task_context")
+        execution_schema = binding.task_contract.get("task_schema")
+        task_context_artifact: Path | None = None
+        tool_observation_required = bool(
+            candidate["rule_tool_need"] is not None
+            or candidate["vqa_tool_need"] is not None
+        )
+        if (
+            not taskgen_required
+            and tool_observation_required
+            and not isinstance(execution_schema, Mapping)
+        ):
+            supplied_probe = request.context.get("runtime_task_context_probe")
+            if supplied_probe is not None and not isinstance(
+                supplied_probe, Mapping
+            ):
+                raise ValueError(
+                    "runtime_task_context_probe must be an object"
+                )
+            policy = binding.task_contract.get("policy")
+            action_dimension = (
+                policy.get("action_dimension", 0)
+                if isinstance(policy, Mapping)
+                else 0
+            )
+            if (
+                isinstance(action_dimension, bool)
+                or not isinstance(action_dimension, int)
+                or action_dimension < 1
+            ):
+                raise ValueError(
+                    "schema-less Tool Proposal requires the bound policy "
+                    "action_dimension"
+                )
+            try:
+                runtime_probe = (
+                    deepcopy(dict(supplied_probe))
+                    if isinstance(supplied_probe, Mapping)
+                    else deepcopy(
+                        dict(
+                            self.task_context_probe_runner(
+                                repo_root=self.repo_root,
+                                task_name=adapter.task_name,
+                                seed=request.seed,
+                                action_dimension=action_dimension,
+                            )
+                        )
+                    )
+                )
+                task_context = resolve_robotwin_task_context(
+                    self.repo_root,
+                    adapter.task_name,
+                    runtime_probe=runtime_probe,
+                )
+            except (RoboTwinTaskContextError, TypeError, ValueError) as exc:
+                raise ValueError(
+                    "Tool Proposal could not establish pre-rollout "
+                    f"TaskContext authority: {exc}"
+                ) from exc
+            if task_context.task_schema is None:
+                raise ValueError(
+                    "Tool Proposal pre-rollout TaskContext has no telemetry "
+                    "schema"
+                )
+            task_context_value = task_context.to_dict()
+            execution_schema = deepcopy(dict(task_context.task_schema))
+            task_context_artifact = (
+                request.output_dir.resolve()
+                / "validation"
+                / "task_context.json"
+            )
+            _write_json(task_context_artifact, task_context_value)
         if taskgen_required:
             if not isinstance(adapter, GenericRoboTwinTaskAdapter):
                 raise ValueError(
@@ -303,10 +414,25 @@ class RoboTwinMethodBackend:
                 "task_module": f"envs.{adapter.task_name}",
                 "generation_kind": "official_passthrough",
                 "proposal": candidate,
+                **(
+                    {
+                        "task_context": {
+                            "path": str(task_context_artifact),
+                            "schema_origin": "runtime_probe",
+                        }
+                    }
+                    if task_context_artifact is not None
+                    else {}
+                ),
             }
             artifacts = {
                 "official_source": adapter.official_source,
                 "task_module": manifest["task_module"],
+                **(
+                    {"task_context": str(task_context_artifact)}
+                    if task_context_artifact is not None
+                    else {}
+                ),
             }
             validation = {
                 "route": resolution["route"],
@@ -346,6 +472,20 @@ class RoboTwinMethodBackend:
                 "candidate_id": request.candidate_id,
                 "semantic_concern": candidate["semantic_concern"],
                 "task_module": manifest["task_module"],
+                "task_schema": (
+                    deepcopy(dict(execution_schema))
+                    if isinstance(execution_schema, Mapping)
+                    else None
+                ),
+                "task_schema_available": isinstance(
+                    execution_schema,
+                    Mapping,
+                ),
+                "task_context": (
+                    deepcopy(dict(task_context_value))
+                    if isinstance(task_context_value, Mapping)
+                    else None
+                ),
             },
             native_task=native,
             artifacts={**binding.artifacts, **artifacts},
@@ -354,6 +494,10 @@ class RoboTwinMethodBackend:
                 "official_control": False,
                 "official_task_reused": not taskgen_required,
                 "taskgen_route": resolution["route"],
+                "task_context_bound_before_rollout": isinstance(
+                    execution_schema,
+                    Mapping,
+                ),
             },
         )
 
@@ -513,6 +657,67 @@ class RoboTwinMethodBackend:
                 raise ValueError(
                     f"accepted TaskGen artifact is missing: {artifact}"
                 )
+        execution_schema = binding.task_contract.get("task_schema")
+        task_context_artifact: Path | None = None
+        task_context_value: dict[str, Any] | None = None
+        context_summary = manifest.get("task_context")
+        if isinstance(context_summary, Mapping):
+            context_relative = _required_text(
+                context_summary.get("path"),
+                "TaskGen manifest.task_context.path",
+            )
+            task_context_artifact = (run_dir / context_relative).resolve()
+            try:
+                task_context_artifact.relative_to(run_dir)
+            except ValueError as exc:
+                raise ValueError(
+                    "TaskGen TaskContext artifact escapes its run directory"
+                ) from exc
+            try:
+                task_context_value = json.loads(
+                    task_context_artifact.read_text(encoding="utf-8")
+                )
+            except (OSError, json.JSONDecodeError) as exc:
+                raise ValueError(
+                    "TaskGen TaskContext artifact is invalid"
+                ) from exc
+            if not isinstance(task_context_value, Mapping):
+                raise ValueError(
+                    "TaskGen TaskContext artifact must be an object"
+                )
+            runtime_probe = task_context_value.get("runtime_probe")
+            try:
+                verified_context = resolve_robotwin_task_context(
+                    self.repo_root,
+                    adapter.task_name,
+                    runtime_probe=(
+                        runtime_probe
+                        if isinstance(runtime_probe, Mapping)
+                        else None
+                    ),
+                )
+            except RoboTwinTaskContextError as exc:
+                raise ValueError(
+                    f"TaskGen TaskContext authority is invalid: {exc}"
+                ) from exc
+            if (
+                task_context_value.get("official_source_sha256")
+                != verified_context.official_source_sha256
+                or task_context_value.get("task_schema")
+                != verified_context.task_schema
+                or verified_context.task_schema is None
+            ):
+                raise ValueError(
+                    "TaskGen TaskContext differs from current authority"
+                )
+            execution_schema = deepcopy(
+                dict(verified_context.task_schema)
+            )
+            task_context_value = verified_context.to_dict()
+        if not isinstance(execution_schema, Mapping):
+            raise ValueError(
+                "accepted TaskGen artifact lacks a validated TaskContext"
+            )
 
         resolution = {
             "schema_version": 1,
@@ -543,6 +748,9 @@ class RoboTwinMethodBackend:
                 "candidate_id": request.candidate_id,
                 "semantic_concern": candidate["semantic_concern"],
                 "task_module": task_module,
+                "task_schema": deepcopy(dict(execution_schema)),
+                "task_schema_available": True,
+                "task_context": task_context_value,
             },
             native_task=native,
             artifacts={
@@ -553,6 +761,11 @@ class RoboTwinMethodBackend:
                 "task_source": str(task_source),
                 "candidate_manifest": str(candidate_manifest),
                 "manifest": str(manifest_path),
+                **(
+                    {"task_context": str(task_context_artifact)}
+                    if task_context_artifact is not None
+                    else {}
+                ),
             },
             validation={
                 "route": resolution["route"],
@@ -564,6 +777,7 @@ class RoboTwinMethodBackend:
                     "acceptance": acceptance,
                     "scene_validation": scene_validation,
                     "vision_validation": vision,
+                    "task_context": task_context_value,
                 },
             },
             metadata={
@@ -715,4 +929,5 @@ __all__ = [
     "RoboTwinMethodBackend",
     "RoboTwinRolloutRunner",
     "TaskAdapterFactory",
+    "TaskContextProbeRunner",
 ]

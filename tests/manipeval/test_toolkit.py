@@ -525,6 +525,15 @@ class ToolkitTests(unittest.TestCase):
         )
 
     def test_generated_success_has_a_distinct_runtime_label(self):
+        episode_path = self.episode_dir / "episode.json"
+        episode = json.loads(episode_path.read_text(encoding="utf-8"))
+        episode.update(
+            {
+                "generated_checker_success": True,
+                "official_core_predicate_satisfied": True,
+            }
+        )
+        episode_path.write_text(json.dumps(episode), encoding="utf-8")
         selection = TrustedToolRetriever().select(
             "Evaluate the generated success predicate.",
             task_name="beat_block_hammer",
@@ -558,6 +567,10 @@ class ToolkitTests(unittest.TestCase):
                 "success_spec_sha256"
             ],
             "b" * 64,
+        )
+        self.assertIs(
+            by_name["generated_check_success"]["details"]["official_success"],
+            True,
         )
 
     def test_generated_success_rejects_missing_outcome_binding(self):
