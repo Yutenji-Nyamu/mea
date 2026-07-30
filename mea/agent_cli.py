@@ -135,6 +135,36 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--policy-backend",
+        choices=["act", "smolvla"],
+        default="act",
+        help=(
+            "RoboTwin policy implementation. ACT keeps the existing "
+            "task-specific checkpoint path; SmolVLA uses one shared "
+            "language-conditioned checkpoint through MethodRuntime."
+        ),
+    )
+    parser.add_argument(
+        "--smolvla-checkpoint",
+        type=Path,
+        default=Path(
+            "/root/autodl-tmp/checkpoints/robotwin/smolvla_robotwin"
+        ),
+        help=(
+            "Shared RoboTwin SmolVLA checkpoint. Used only with "
+            "--policy-backend smolvla."
+        ),
+    )
+    parser.add_argument(
+        "--smolvla-port",
+        type=int,
+        default=18771,
+        help=(
+            "Loopback SmolVLA policy-server port. Used only with "
+            "--policy-backend smolvla."
+        ),
+    )
+    parser.add_argument(
         "--start-seed",
         type=int,
         default=None,

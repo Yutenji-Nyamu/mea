@@ -46,6 +46,7 @@ def tool_generation_context(
     runtime_schema: Mapping[str, Any] | None = None,
     reusable_tool_requests: list[Mapping[str, Any]] | None = None,
     forbidden_metric_ids: set[str] | None = None,
+    derived_observable_oracle_available: bool = False,
 ) -> dict[str, Any]:
     """Return the task telemetry and executable Tool surface, without routing."""
 
@@ -60,6 +61,15 @@ def tool_generation_context(
         else load_task_schema(root, task)
     )
     tool_registry = catalog_snapshot()
+    if not derived_observable_oracle_available:
+        typed_registry = tool_registry["typed_metric_spec"]
+        typed_registry["schema_versions"] = [1]
+        typed_registry["operations"] = [
+            operation
+            for operation in typed_registry["operations"]
+            if operation != "derived_observable"
+        ]
+        typed_registry["execution"] = "compile_validate_register"
     forbidden = {
         _text(metric, "forbidden_metric_id")
         for metric in (forbidden_metric_ids or set())
@@ -82,22 +92,33 @@ def tool_generation_context(
             for item in tool_registry["composite_targets"]
             if item["metric"] not in forbidden
         ]
-        unhashed = dict(tool_registry)
-        unhashed.pop("snapshot_sha256", None)
-        tool_registry["snapshot_sha256"] = hashlib.sha256(
-            json.dumps(
-                unhashed,
-                ensure_ascii=False,
-                sort_keys=True,
-                separators=(",", ":"),
-            ).encode("utf-8")
-        ).hexdigest()
-    reusable = [
-        deepcopy(dict(item))
-        for item in (reusable_tool_requests or [])
-        if isinstance(item, Mapping)
-        and item.get("metric") not in forbidden
-    ]
+    unhashed = dict(tool_registry)
+    unhashed.pop("snapshot_sha256", None)
+    tool_registry["snapshot_sha256"] = hashlib.sha256(
+        json.dumps(
+            unhashed,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    reusable = []
+    for item in reusable_tool_requests or []:
+        if not isinstance(item, Mapping):
+            continue
+        reusable_item = deepcopy(dict(item))
+        request = reusable_item.get("request")
+        request = request if isinstance(request, Mapping) else reusable_item
+        metric_spec = request.get("metric_spec")
+        if (
+            not derived_observable_oracle_available
+            and isinstance(metric_spec, Mapping)
+            and metric_spec.get("operation") == "derived_observable"
+        ):
+            continue
+        if request.get("metric") in forbidden:
+            continue
+        reusable.append(reusable_item)
     return {
         "schema_version": 1,
         "task_name": task,
@@ -198,6 +219,9 @@ def tool_generation_context(
             else "official_task_schema"
         ),
         "forbidden_metric_ids": sorted(forbidden),
+        "derived_observable_oracle_available": bool(
+            derived_observable_oracle_available
+        ),
         "tool_registry": tool_registry,
         "validated_generated_tools": reusable,
     }
@@ -212,6 +236,7 @@ def validate_open_tool_request(
     available_actor_ids: set[str] | None = None,
     forbidden_metric_ids: set[str] | None = None,
     measurement_need: str | None = None,
+    derived_observable_oracle_available: bool = False,
 ) -> dict[str, Any]:
     """Require exact reuse or an oracle-backed Python Tool request."""
 
@@ -241,10 +266,11 @@ def validate_open_tool_request(
         "reuse",
         "force_codegen",
         "typed_metric_spec_compile",
+        "typed_metric_spec_execute",
     }:
         raise OpenToolRequestError(
             "open Tool request must reuse, generate a registered composite "
-            "target, or compile a typed MetricSpec"
+            "target, or supply a validated typed semantic oracle"
         )
     metric_spec = request.get("metric_spec")
     if available_signal_names is not None and measurement_need:
@@ -264,7 +290,26 @@ def validate_open_tool_request(
         except MetricSpecError as exc:
             raise OpenToolRequestError(str(exc)) from exc
         operation = metric_spec["operation"]
-        if available_signal_names is not None and operation in {
+        if (
+            operation == "derived_observable"
+            and not derived_observable_oracle_available
+        ):
+            raise OpenToolRequestError(
+                "derived_observable is unavailable without caller-owned "
+                "fixture episodes and an independent oracle"
+            )
+        if (
+            available_signal_names is not None
+            and operation == "derived_observable"
+        ):
+            requested_signals = set(metric_spec["required_signals"])
+            missing = sorted(requested_signals - available_signal_names)
+            if missing:
+                raise OpenToolRequestError(
+                    "derived_observable uses unavailable telemetry signals: "
+                    f"{missing}"
+                )
+        elif available_signal_names is not None and operation in {
             "minimum_distance",
             "terminal_signal_component",
             "terminal_signal_difference",
@@ -560,33 +605,69 @@ class OpenToolRequestAgent:
         tool_need: str,
         context: Mapping[str, Any],
     ) -> str:
-        example = {
-            "schema_version": 2,
-            "task_name": context["task_name"],
-            "metric": "query_derived_metric",
-            "question": "The precise question answered by the metric.",
-            "metric_spec": {
-                "schema_version": 1,
-                "operation": "minimum_distance",
-                "left_signal": "actor_a_position",
-                "right_signal": "actor_b_position",
-                "dimensions": ["x", "y", "z"],
-                "unit": "m",
-                "null_semantics": "null_if_no_finite_sample",
-            },
-        }
+        derived_available = bool(
+            context.get("derived_observable_oracle_available")
+        )
+        output_example = (
+            {
+                "schema_version": 2,
+                "task_name": context["task_name"],
+                "metric": "query_derived_observable",
+                "question": "What was the peak per-step motion of the target?",
+                "metric_spec": {
+                    "schema_version": 2,
+                    "operation": "derived_observable",
+                    "observable_id": "query_derived_observable",
+                    "description": (
+                        "Maximum Euclidean displacement per physics step "
+                        "between consecutive target-position samples."
+                    ),
+                    "required_signals": ["advertised_target_position"],
+                    "unit": "m_per_step",
+                    "null_semantics": "null_if_no_finite_sample",
+                },
+            }
+            if derived_available
+            else {
+                "schema_version": 2,
+                "task_name": context["task_name"],
+                "metric": "query_minimum_distance",
+                "question": "How close did the robot get to the target?",
+                "metric_spec": {
+                    "schema_version": 1,
+                    "operation": "minimum_distance",
+                    "left_signal": "advertised_robot_position",
+                    "right_signal": "advertised_target_position",
+                    "dimensions": ["x", "y", "z"],
+                    "unit": "m",
+                    "null_semantics": "null_if_no_finite_sample",
+                },
+            }
+        )
+        novel_rule = (
+            "Otherwise propose a schema_version=2 derived_observable semantic "
+            "contract with a precise physical description, unit, and 1-8 "
+            "advertised required_signals. Caller-owned fixtures and an "
+            "independent oracle are available for validation."
+            if derived_available
+            else "A caller-owned oracle is unavailable in this run, so do not "
+            "return derived_observable or approximate the need with a "
+            "semantically different metric."
+        )
         return (
             "You are ToolGen in ManipEvalAgent. Derive the smallest executable "
             "measurement needed by the open Query. First inspect both the "
             "trusted static registry and validated_generated_tools. For an "
             "exact static match, return schema_version=1 with its metric id. "
             "For an exact generated match, copy that entry's schema_version=2 "
-            "request and MetricSpec exactly. Otherwise return schema_version=2 "
-            "and the smallest MetricSpec semantic oracle using only the "
-            "advertised typed operator contracts and telemetry names. ToolGen "
-            "will then generate Python rather than compiling this oracle. "
-            "Replace angle-bracket "
-            "placeholders with real advertised names or null. A registered "
+            "request and MetricSpec exactly. For a new measurement, return a "
+            "schema_version=2 request with a schema_version=1 MetricSpec when "
+            "one existing operator exactly expresses the need. "
+            + novel_rule
+            + " Generated Python is checked on fixture and live telemetry "
+            "before exact registration/reuse when that path is available. "
+            "Replace every placeholder signal with a real advertised name. "
+            "A registered "
             "composite target is an exact static match and may be selected by "
             "its schema_version=1 metric id; it will be generated and validated "
             "when no compatible registration exists. A fixed left/right signal "
@@ -616,8 +697,9 @@ class OpenToolRequestAgent:
             f"MEASUREMENT NEED:\n{tool_need}\n\n"
             "TELEMETRY AND TOOL CONTEXT:\n"
             + json.dumps(context, ensure_ascii=False, sort_keys=True, indent=2)
-            + "\n\nOUTPUT SHAPE EXAMPLE (choose fields according to schema version):\n"
-            + json.dumps(example, ensure_ascii=False, indent=2)
+            + "\n\nOUTPUT EXAMPLE "
+            "(replace every advertised_* placeholder):\n"
+            + json.dumps(output_example, ensure_ascii=False, indent=2)
         )
 
     def propose(
@@ -631,6 +713,7 @@ class OpenToolRequestAgent:
         runtime_schema: Mapping[str, Any] | None = None,
         reusable_tool_requests: list[Mapping[str, Any]] | None = None,
         forbidden_metric_ids: set[str] | None = None,
+        derived_observable_oracle_available: bool = False,
     ) -> dict[str, Any]:
         context = tool_generation_context(
             self.repo_root,
@@ -639,6 +722,9 @@ class OpenToolRequestAgent:
             runtime_schema=runtime_schema,
             reusable_tool_requests=reusable_tool_requests,
             forbidden_metric_ids=forbidden_metric_ids,
+            derived_observable_oracle_available=(
+                derived_observable_oracle_available
+            ),
         )
         prompt = self._prompt(
             source_query=_text(source_query, "source_query"),
@@ -702,6 +788,9 @@ class OpenToolRequestAgent:
                         context["forbidden_metric_ids"]
                     ),
                     measurement_need=tool_need,
+                    derived_observable_oracle_available=bool(
+                        context["derived_observable_oracle_available"]
+                    ),
                 )
                 break
             except Exception as exc:

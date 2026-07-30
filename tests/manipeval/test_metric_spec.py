@@ -133,6 +133,7 @@ class MetricSpecTests(unittest.TestCase):
         self.assertEqual(
             routing["catalog_snapshot"]["typed_metric_spec"]["operations"],
             [
+                "derived_observable",
                 "event_count",
                 "minimum_distance",
                 "terminal_signal_component",
@@ -684,7 +685,7 @@ class MetricSpecTests(unittest.TestCase):
             )
             self.assertEqual(
                 result["limitations"][0],
-                "five bounded typed operators only",
+                "typed semantic oracle: terminal_signal_difference",
             )
 
 

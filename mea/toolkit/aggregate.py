@@ -50,7 +50,7 @@ def _stable_key(value: Any) -> tuple[str, str]:
 
 def _role(policy_name: Any) -> str:
     normalized = str(policy_name or "").casefold()
-    if normalized == "act":
+    if normalized in {"act", "smolvla"}:
         return "policy_under_evaluation"
     if normalized == "expert":
         return "expert_validation"

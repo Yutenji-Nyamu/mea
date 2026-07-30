@@ -104,8 +104,10 @@ from mea.planner.query_contract import (
     validate_query_sufficiency_contract,
 )
 from mea.planner.runtime_task_binding import (
+    RuntimePolicySpec,
     RuntimeTaskBindingError,
     build_runtime_open_world_evaluation_target,
+    build_smolvla_policy_spec,
 )
 from mea.proposals import (
     ProposalError,
@@ -180,6 +182,7 @@ def discover_ready_plan_agent_targets(
     task_inventory: list[dict[str, Any]],
     *,
     max_rounds: int,
+    policy_spec: RuntimePolicySpec | None = None,
 ) -> dict[str, Any]:
     """Bind every source/schema/checkpoint-ready task without a task menu.
 
@@ -203,6 +206,7 @@ def discover_ready_plan_agent_targets(
                 repo_root,
                 task_name,
                 max_rounds=max_rounds,
+                policy_spec=policy_spec,
             )
         except RuntimeTaskBindingError as exc:
             excluded.append(
@@ -313,7 +317,9 @@ def build_bound_plan_agent_handoff(
     return route_result, routed
 
 
-def build_pending_task_binding_policy_card() -> dict[str, Any]:
+def build_pending_task_binding_policy_card(
+    policy_spec: RuntimePolicySpec | None = None,
+) -> dict[str, Any]:
     """Describe an unbound checkpoint portfolio without exposing its menu.
 
     Query interpretation must happen before the official task inventory is
@@ -321,14 +327,29 @@ def build_pending_task_binding_policy_card() -> dict[str, Any]:
     the evaluation surface, but contains no executable task or aspect name.
     """
 
+    if policy_spec is None:
+        return {
+            "policy_name": "ACT task-specific checkpoint portfolio",
+            "checkpoint_id": "selected_after_query_interpretation",
+            "single_task_checkpoint": False,
+            "training_tasks": ["withheld_until_semantic_task_retrieval"],
+            "language_conditioned": False,
+            "checkpoint_ready": True,
+            "supports_unseen_tasks": False,
+        }
     return {
-        "policy_name": "ACT task-specific checkpoint portfolio",
-        "checkpoint_id": "selected_after_query_interpretation",
-        "single_task_checkpoint": False,
-        "training_tasks": ["withheld_until_semantic_task_retrieval"],
-        "language_conditioned": False,
+        "policy_name": policy_spec.policy_name,
+        "checkpoint_id": policy_spec.checkpoint_id,
+        "single_task_checkpoint": (
+            policy_spec.task_scope != "robotwin_official_tasks"
+        ),
+        "training_tasks": [policy_spec.task_scope],
+        "language_conditioned": policy_spec.language_conditioned,
         "checkpoint_ready": True,
         "supports_unseen_tasks": False,
+        "official_task_portfolio": (
+            policy_spec.task_scope == "robotwin_official_tasks"
+        ),
     }
 
 
@@ -1997,13 +2018,20 @@ def _policy_episode_for_execution_vqa(
 ) -> tuple[Path, dict[str, Any], list[dict[str, Any]]] | None:
     """Select evidence from the backend that this round actually evaluated."""
 
-    desired_policy = "expert" if execution_backend == "expert" else "act"
     trusted = child_manifest.get("trusted_tool_evaluation") or {}
     candidates = sorted(
         (
             episode
             for episode in trusted.get("episodes", [])
-            if str(episode.get("policy_name", "")).casefold() == desired_policy
+            if (
+                str(episode.get("policy_name", "")).casefold() == "expert"
+                if execution_backend == "expert"
+                else (
+                    episode.get("role") == "policy_under_evaluation"
+                    or str(episode.get("policy_name", "")).casefold()
+                    == "act"
+                )
+            )
         ),
         key=lambda episode: (
             not _execution_vqa_video_contract(
@@ -2761,43 +2789,82 @@ def execute_round(
     reviewed_tool_registry: Path | None = None,
     reviewed_vqa_registry: Path | None = None,
     registration_identity: dict[str, Any] | None = None,
+    policy_backend: str = "act",
+    runtime_target: Mapping[str, Any] | None = None,
+    smolvla_port: int = 18771,
 ) -> tuple[dict[str, Any], Path, dict[str, Any], dict[str, Any], int,]:
     round_id = round_plan["round_id"]
-    command, run_id = build_taskgen_command(
-        repo_root,
-        evaluation_id,
-        round_plan,
-        text_model=text_model,
-        vision_model=vision_model,
-        base_url=base_url,
-        gpu=gpu,
-        max_reflections=max_reflections,
-        telemetry_profile=telemetry_profile,
-        reviewed_task_registry=reviewed_task_registry,
-        registration_identity=registration_identity,
-        run_id_suffix="",
-    )
-    execution_dir = evaluation_dir / "execution" / round_id
-    write_json(
-        execution_dir / "taskgen_command.json",
-        {"command": command, "child_run_id": run_id},
-    )
-    update_manifest(
-        evaluation_dir,
-        status=f"executing_{round_id}",
-        active_child_run_id=run_id,
-    )
-    returncode = run_logged(
-        command,
-        cwd=repo_root,
-        log_path=execution_dir / "taskgen.log",
-    )
-    child_dir = repo_root / "mea/generated_tasks" / run_id
-    child_manifest_path = child_dir / "manifest.json"
+    if policy_backend == "smolvla":
+        if runtime_target is None:
+            raise RuntimeError(
+                "SmolVLA execution requires the bound runtime target"
+            )
+        from mea.robotwin.native_agent_round import (
+            execute_smolvla_method_round,
+        )
+
+        update_manifest(
+            evaluation_dir,
+            status=f"executing_{round_id}",
+            active_child_run_id=None,
+            policy_backend="smolvla",
+        )
+        native = execute_smolvla_method_round(
+            repo_root=repo_root,
+            evaluation_dir=evaluation_dir,
+            evaluation_id=evaluation_id,
+            round_plan=round_plan,
+            runtime_target=runtime_target,
+            telemetry_profile=telemetry_profile,
+            policy_server_port=smolvla_port,
+        )
+        child_manifest = native["child_manifest"]
+        child_dir = native["child_dir"]
+        execution_dir = evaluation_dir / "execution" / round_id
+        child_manifest_path = native["manifest_path"]
+        run_id = child_manifest["run_id"]
+        returncode = 0
+        semantic_ready = native["semantic_telemetry_ready"]
+    elif policy_backend != "act":
+        raise RuntimeError(f"unsupported policy backend: {policy_backend!r}")
+    else:
+        semantic_ready = True
+        native = None
+        command, run_id = build_taskgen_command(
+            repo_root,
+            evaluation_id,
+            round_plan,
+            text_model=text_model,
+            vision_model=vision_model,
+            base_url=base_url,
+            gpu=gpu,
+            max_reflections=max_reflections,
+            telemetry_profile=telemetry_profile,
+            reviewed_task_registry=reviewed_task_registry,
+            registration_identity=registration_identity,
+            run_id_suffix="",
+        )
+        execution_dir = evaluation_dir / "execution" / round_id
+        write_json(
+            execution_dir / "taskgen_command.json",
+            {"command": command, "child_run_id": run_id},
+        )
+        update_manifest(
+            evaluation_dir,
+            status=f"executing_{round_id}",
+            active_child_run_id=run_id,
+        )
+        returncode = run_logged(
+            command,
+            cwd=repo_root,
+            log_path=execution_dir / "taskgen.log",
+        )
+        child_dir = repo_root / "mea/generated_tasks" / run_id
+        child_manifest_path = child_dir / "manifest.json"
     if not child_manifest_path.is_file():
         raise RuntimeError(f"child TaskGen manifest 不存在: {child_manifest_path}")
     child_manifest = json.loads(child_manifest_path.read_text(encoding="utf-8"))
-    if registration_identity is not None and child_manifest.get(
+    if native is None and registration_identity is not None and child_manifest.get(
         "registration_identity"
     ) != registration_identity:
         raise RuntimeError(
@@ -2810,6 +2877,7 @@ def execute_round(
             "returncode": returncode,
             "manifest_path": str(child_manifest_path.relative_to(repo_root)),
             "status": child_manifest.get("status"),
+            "policy_backend": policy_backend,
         },
     )
     if (
@@ -2819,6 +2887,7 @@ def execute_round(
             "completed_without_act",
         }
         and returncode == 0
+        and semantic_ready
     ):
         tool_kwargs: dict[str, Any] = {
             "provider": provider,
@@ -2883,7 +2952,18 @@ def execute_round(
             )
     else:
         skip_reason = (
-            f"child TaskGen exited with code {returncode}"
+            str(
+                (child_manifest.get("unsupported_capability") or {}).get(
+                    "reason"
+                )
+            )
+            if child_manifest.get("status") == "unsupported"
+            else (
+                "TaskSchema unavailable; Rule Tool and VQA evidence were "
+                "not executed."
+            )
+            if not semantic_ready
+            else f"child TaskGen exited with code {returncode}"
             if returncode != 0
             else "child TaskGen pipeline did not complete"
         )
@@ -2912,6 +2992,35 @@ def execute_round(
             "artifacts": {},
         }
         write_json(execution_dir / "planned_tool_skipped.json", tool_evaluation)
+    if (
+        native is not None
+        and semantic_ready
+        and tool_evaluation.get("status") == "passed"
+    ):
+        telemetry_root = child_dir / "evaluation/telemetry"
+        trusted_episodes = []
+        for episode in tool_evaluation.get("episodes", []):
+            normalized_episode = deepcopy(dict(episode))
+            episode_path = Path(str(episode["episode_dir"]))
+            if not episode_path.is_absolute():
+                episode_path = repo_root / episode_path
+            normalized_episode["episode_dir"] = (
+                episode_path.resolve()
+                .relative_to(telemetry_root.resolve())
+                .as_posix()
+            )
+            trusted_episodes.append(normalized_episode)
+        child_manifest["trusted_tool_evaluation"].update(
+            {
+                "status": "passed",
+                "episode_count": len(trusted_episodes),
+                "episodes": trusted_episodes,
+                "artifact": (
+                    tool_evaluation.get("artifacts") or {}
+                ).get("tool_execution"),
+            }
+        )
+        write_json(child_manifest_path, child_manifest)
     semantic_execution = round_plan.get("semantic_need_execution")
     if isinstance(semantic_execution, dict):
         rule_execution = semantic_execution.get("rule_tool")
@@ -2942,17 +3051,32 @@ def execute_round(
         tool_evaluation,
         execution_dir / "aggregate_result.json",
     )
-    execution_vqa = run_round_execution_vqa(
-        repo_root=repo_root,
-        child_manifest=child_manifest,
-        child_dir=child_dir,
-        tool_evaluation=tool_evaluation,
-        execution_dir=execution_dir,
-        provider=provider,
-        model=vision_model,
-        round_plan=round_plan,
-        reviewed_vqa_registry=reviewed_vqa_registry,
-    )
+    if semantic_ready:
+        execution_vqa = run_round_execution_vqa(
+            repo_root=repo_root,
+            child_manifest=child_manifest,
+            child_dir=child_dir,
+            tool_evaluation=tool_evaluation,
+            execution_dir=execution_dir,
+            provider=provider,
+            model=vision_model,
+            round_plan=round_plan,
+            reviewed_vqa_registry=reviewed_vqa_registry,
+        )
+    else:
+        execution_vqa = {
+            "schema_version": 1,
+            "status": "skipped",
+            "reason": (
+                "TaskSchema unavailable or the requested capability is "
+                "unsupported; VQA was not executed."
+            ),
+            "evidence_conflict": False,
+        }
+        write_json(
+            execution_dir / "execution_vqa_skipped.json",
+            execution_vqa,
+        )
     if isinstance(semantic_execution, dict):
         vqa_execution = semantic_execution.get("vqa_tool")
         if (
@@ -2980,7 +3104,7 @@ def execute_round(
     round_summary["execution_artifact_dir"] = str(
         execution_dir.relative_to(repo_root)
     ).replace("\\", "/")
-    if isinstance(
+    if native is None and isinstance(
         round_plan.get("proposal")
         or round_plan.get("experiment_candidate"),
         Mapping,
@@ -3033,6 +3157,32 @@ def execute_round(
                 method_runtime_path.relative_to(repo_root)
             ).replace("\\", "/"),
         }
+    elif native is not None:
+        round_summary["observations"].update(
+            {
+                "execution_backend": "SmolVLA",
+                "policy_backend": "smolvla",
+                "semantic_telemetry_ready": semantic_ready,
+                "method_runtime": {
+                    "status": (
+                        "unsupported"
+                        if native.get("unsupported") is True
+                        else "validated"
+                    ),
+                    "runtime": "MethodRuntime",
+                    "backend": "RoboTwinMethodBackend",
+                    "policy_backend": "smolvla",
+                    "candidate_id": native["candidate_id"],
+                    "outcome": native["evidence_outcome"],
+                    "artifact": str(
+                        native["method_runtime_path"].relative_to(repo_root)
+                    ).replace("\\", "/"),
+                },
+            }
+        )
+        round_summary["observations"]["evidence_aggregate"] = (
+            build_evidence_aggregate(round_plan, round_summary)
+        )
     write_json(
         execution_dir / "evidence_aggregate.json",
         round_summary["observations"]["evidence_aggregate"],
@@ -3080,6 +3230,21 @@ def main() -> None:
             raise SystemExit(str(exc)) from exc
         args.open_query_planner = compat_profile["open_query_planner"]
     claim_first_mode = args.open_query_planner == "plan_agent_v1"
+    if args.policy_backend == "smolvla" and not claim_first_mode:
+        raise SystemExit(
+            "--policy-backend smolvla is available only on the production "
+            "Plan Agent path"
+        )
+    if (
+        args.policy_backend == "smolvla"
+        and args.execution_backend not in {None, "act"}
+    ):
+        raise SystemExit(
+            "SmolVLA evaluates the bound policy only; "
+            "--execution-backend expert/both remains an ACT compatibility path"
+        )
+    if args.smolvla_port < 1 or args.smolvla_port > 65535:
+        raise SystemExit("--smolvla-port must be in [1, 65535]")
     claim_first_bound_plan_only = bool(
         claim_first_mode
         and args.plan_only
@@ -3123,6 +3288,13 @@ def main() -> None:
             "--query-sufficiency-contract requires the production Plan Agent"
         )
     repo_root = args.repo_root.expanduser().resolve()
+    runtime_policy_spec = (
+        build_smolvla_policy_spec(
+            args.smolvla_checkpoint.expanduser().resolve()
+        )
+        if args.policy_backend == "smolvla"
+        else None
+    )
     query_sufficiency_contract: dict[str, Any] | None = None
     if args.query_sufficiency_contract is not None:
         contract_path = args.query_sufficiency_contract.expanduser().resolve()
@@ -3236,6 +3408,7 @@ def main() -> None:
         open_task_inventory = discover_robotwin_runtime_task_inventory(
             repo_root,
             capability_catalog=global_catalog,
+            schema_backed_only=(args.policy_backend == "act"),
         )
         runtime_discovery = discover_ready_plan_agent_targets(
             repo_root,
@@ -3245,6 +3418,7 @@ def main() -> None:
                 if args.max_agent_rounds is not None
                 else max(2, int(args.generated_rounds))
             ),
+            policy_spec=runtime_policy_spec,
         )
         runtime_claim_first_targets = runtime_discovery["targets"]
         runtime_binding_excluded = runtime_discovery["excluded"]
@@ -3252,7 +3426,8 @@ def main() -> None:
         assert args.bound_task_name is not None
         if args.bound_task_name not in ready_tasks:
             raise SystemExit(
-                "bound task has no source/schema/checkpoint runtime binding: "
+                "bound task has no source/checkpoint runtime binding for "
+                f"{args.policy_backend}: "
                 f"{args.bound_task_name!r}"
             )
         args.task_name = args.bound_task_name
@@ -3271,6 +3446,7 @@ def main() -> None:
             open_task_inventory = discover_robotwin_runtime_task_inventory(
                 repo_root,
                 capability_catalog=global_catalog,
+                schema_backed_only=(args.policy_backend == "act"),
             )
             runtime_discovery = discover_ready_plan_agent_targets(
                 repo_root,
@@ -3280,6 +3456,7 @@ def main() -> None:
                     if args.max_agent_rounds is not None
                     else max(2, int(args.generated_rounds))
                 ),
+                policy_spec=runtime_policy_spec,
             )
             runtime_claim_first_targets = runtime_discovery["targets"]
             runtime_binding_excluded = runtime_discovery["excluded"]
@@ -3291,11 +3468,13 @@ def main() -> None:
             ]
         if not ready_tasks:
             raise SystemExit(
-                "no source/schema/checkpoint-ready ACT task is available"
+                "no source/checkpoint-ready task is available for "
+                f"{args.policy_backend}"
             )
         if args.bound_task_name is not None and args.bound_task_name not in ready_tasks:
             raise SystemExit(
-                f"bound task is not ACT-ready: {args.bound_task_name!r}"
+                f"bound task is not {args.policy_backend}-ready: "
+                f"{args.bound_task_name!r}"
             )
         global_planning_contexts = (
             {
@@ -3321,7 +3500,9 @@ def main() -> None:
             concern_policy_card = (
                 global_planning_contexts[initially_bound_task]["policy_card"]
                 if initially_bound_task is not None
-                else build_pending_task_binding_policy_card()
+                else build_pending_task_binding_policy_card(
+                    runtime_policy_spec,
+                )
             )
             free_concern_agent = PlanAgentQueryInterpreter(
                 provider,
@@ -3488,8 +3669,20 @@ def main() -> None:
                 global_history_retrieval = global_history_db.retrieve_similar_global(
                     args.request,
                     allowed_task_names=ready_tasks,
-                    policy_name="ACT",
-                    checkpoint_setting="demo_clean",
+                    policy_name=(
+                        runtime_policy_spec.policy_name
+                        if runtime_policy_spec is not None
+                        else "ACT"
+                    ),
+                    checkpoint_setting=(
+                        str(
+                            runtime_policy_spec.metadata.get(
+                                "checkpoint_setting"
+                            )
+                        )
+                        if runtime_policy_spec is not None
+                        else "demo_clean"
+                    ),
                     limit=args.history_limit,
                     exclude_evaluation_id=args.evaluation_id,
                 )
@@ -3526,7 +3719,10 @@ def main() -> None:
                 "artifact": "plan/open_task_resolution.json",
             }
             global_route_result["runtime_binding_scope"] = {
-                "authority": "official_source_task_schema_act_checkpoint",
+                "authority": (
+                    "official_source_policy_checkpoint_with_optional_schema"
+                ),
+                "policy_backend": args.policy_backend,
                 "catalog_membership_required": False,
                 "ready_task_names": sorted(runtime_claim_first_targets),
                 "excluded_task_names": sorted(
@@ -3685,9 +3881,23 @@ def main() -> None:
                 args.request,
                 task_name=args.task_name,
                 policy_name=(
-                    "ACT" if execution_backend in {"act", "both"} else "expert"
+                    runtime_policy_spec.policy_name
+                    if runtime_policy_spec is not None
+                    else (
+                        "ACT"
+                        if execution_backend in {"act", "both"}
+                        else "expert"
+                    )
                 ),
-                checkpoint_setting="demo_clean",
+                checkpoint_setting=(
+                    str(
+                        runtime_policy_spec.metadata.get(
+                            "checkpoint_setting"
+                        )
+                    )
+                    if runtime_policy_spec is not None
+                    else "demo_clean"
+                ),
                 requested_aspect_ids=(
                     validated_proposal.get("requested_aspect_ids")
                     if validated_proposal is not None
@@ -3872,7 +4082,7 @@ def main() -> None:
                     [initial_open_candidate["candidate_id"]],
                     candidate_universe_closed=False,
                 )
-        if args.task_module is not None:
+        if args.task_module is not None and runtime_policy_spec is None:
             # Retained only for the explicit providerless compatibility
             # spelling. Production auto-route always binds the official
             # ``envs.<task>`` source through runtime authority below.
@@ -3888,6 +4098,7 @@ def main() -> None:
                     repo_root,
                     args.task_name,
                     max_rounds=claim_first_round_budget,
+                    policy_spec=runtime_policy_spec,
                 )
             )
     if claim_first_mode:
@@ -4306,6 +4517,12 @@ def main() -> None:
         generated_rounds=(args.generated_rounds if bounded_click_bell else None),
         telemetry_profile=args.telemetry_profile,
         execution_backend=execution_backend,
+        policy_backend=args.policy_backend,
+        policy_checkpoint_id=(
+            runtime_policy_spec.checkpoint_id
+            if runtime_policy_spec is not None
+            else None
+        ),
         planning_policy=planning_policy,
         open_query_planner=args.open_query_planner,
         query_sufficiency_contract_path=(
@@ -4430,6 +4647,9 @@ def main() -> None:
                 reviewed_tool_registry=reviewed_tool_registry,
                 reviewed_vqa_registry=reviewed_vqa_registry,
                 registration_identity=registration_identity,
+                policy_backend=args.policy_backend,
+                runtime_target=claim_first_initial_target,
+                smolvla_port=args.smolvla_port,
             )
             round_runs.append(
                 {

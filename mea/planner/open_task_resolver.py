@@ -688,13 +688,24 @@ def discover_robotwin_runtime_task_inventory(
     repo_root: str | Path,
     *,
     capability_catalog: Mapping[str, Any] | None = None,
+    schema_backed_only: bool = True,
 ) -> list[dict[str, Any]]:
-    """Discover every source/schema-backed task eligible for runtime binding."""
+    """Discover official tasks eligible for the selected policy runtime.
+
+    ACT keeps the historical schema-backed boundary.  A shared policy may
+    attempt every official task; downstream TaskGen and Rule Tool stages still
+    require a TaskSchema and must gate on that capability separately.
+    """
+
+    if not isinstance(schema_backed_only, bool):
+        raise OpenTaskResolutionError(
+            "schema_backed_only must be boolean"
+        )
 
     return discover_robotwin_task_inventory(
         repo_root,
         capability_catalog=capability_catalog,
-        schema_backed_only=True,
+        schema_backed_only=schema_backed_only,
     )
 
 

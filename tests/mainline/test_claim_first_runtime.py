@@ -420,7 +420,7 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             controller.query_contract["candidate_universe_closed"]
         )
 
-    def test_free_concern_directly_freezes_first_typed_candidate(self):
+    def test_no_control_query_can_freeze_first_typed_candidate(self):
         query = "Find one bounded object change that exposes a weakness."
         concern = {
             "schema_version": 1,
@@ -492,7 +492,11 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             candidate["intent_alignment"]["relationship"],
             "direct",
         )
-        controller = PlanAgentSession(query, target())
+        controller = PlanAgentSession(
+            query,
+            target(),
+            require_control_anchor=False,
+        )
         registered = controller.register_frozen_candidate(candidate)
         self.assertIn(
             registered["candidate_id"],
@@ -501,19 +505,12 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         self.assertFalse(
             controller.query_contract["candidate_universe_closed"]
         )
-        control = round_plan(
-            1,
-            "performance.completion_time_stability.official",
-        )
-        observation = controller.observe(
-            [control],
-            [summary(control, 1.0)],
-        )
+        observation = controller.observe([], [])
         bound = controller.bind_frozen_candidate(
             bundle,
             registered,
             observation,
-            executed_candidate_ids=[control["template_id"]],
+            executed_candidate_ids=[],
         )
         self.assertEqual(
             bound["resolution"]["resolution"],
@@ -1032,6 +1029,17 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
     def test_control_evidence_is_read_before_round_two_concern_is_authored(self):
         query = "Where does this policy first expose a weakness?"
         controller = ClaimFirstRuntimeController(query, target())
+        precontrol_bundle = semantic_bundle("object_instance.base0")
+        precontrol_candidate = build_dynamic_experiment_candidate(
+            user_query=query,
+            task_name="click_bell",
+            proposal=precontrol_bundle["proposal"],
+        )
+        with self.assertRaisesRegex(
+            ClaimFirstRuntimeError,
+            "cannot freeze a pre-evidence candidate",
+        ):
+            controller.register_frozen_candidate(precontrol_candidate)
         control = round_plan(
             1, "performance.completion_time_stability.official"
         )
@@ -1062,6 +1070,10 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         self.assertEqual(
             bound["planning_lineage"]["completed_round_ids"],
             ["round_1"],
+        )
+        self.assertNotEqual(
+            bound["plan_step"]["candidate_id"],
+            precontrol_candidate["candidate_id"],
         )
         self.assertEqual(
             bound["plan_step"]["planning_lineage"],

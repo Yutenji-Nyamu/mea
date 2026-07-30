@@ -245,6 +245,7 @@ def compatible_run_local_tool_requests(
     *,
     task_name: str,
     episode_dirs: Iterable[str | Path],
+    include_derived_observables: bool = False,
 ) -> list[dict[str, Any]]:
     """Advertise exact typed Tools that remain valid for current telemetry."""
 
@@ -276,8 +277,14 @@ def compatible_run_local_tool_requests(
         output_contract = tool_spec.get("output_contract") or {}
         metric_spec = output_contract.get("metric_spec")
         if (
-            output_contract.get("source") != "typed_metric_spec_v1"
+            output_contract.get("source")
+            not in {"typed_metric_spec_v1", "typed_metric_spec_v2"}
             or not isinstance(metric_spec, dict)
+        ):
+            continue
+        if (
+            metric_spec.get("operation") == "derived_observable"
+            and not include_derived_observables
         ):
             continue
         match = find_run_local_registration(

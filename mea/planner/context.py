@@ -181,15 +181,59 @@ def _build_planning_context(
         checkpoint,
         raw_aspects,
     ) = _target_context_sources(trusted_target)
-
-    try:
-        schema = load_task_schema(repo_root, task_name)
-    except Exception as exc:
-        raise PlanningContextError(f"cannot load trusted TaskSchema: {exc}") from exc
-    if schema.get("task_family") != task_family:
-        raise PlanningContextError(
-            "EvaluationTarget task_family differs from the trusted TaskSchema"
-        )
+    production_binding = (
+        policy_task_binding_from_target(trusted_target)
+        if "policy_task_binding" in trusted_target
+        else None
+    )
+    task_schema_available = bool(
+        production_binding is None
+        or production_binding["task_schema"].get("available", True)
+    )
+    if task_schema_available:
+        try:
+            schema = load_task_schema(repo_root, task_name)
+        except Exception as exc:
+            raise PlanningContextError(
+                f"cannot load trusted TaskSchema: {exc}"
+            ) from exc
+        if schema.get("task_family") != task_family:
+            raise PlanningContextError(
+                "EvaluationTarget task_family differs from the trusted "
+                "TaskSchema"
+            )
+    else:
+        action_dimension = policy.get("action_dimension")
+        physics_timestep = policy.get("physics_timestep_seconds")
+        if (
+            isinstance(action_dimension, bool)
+            or not isinstance(action_dimension, int)
+            or action_dimension < 1
+        ):
+            raise PlanningContextError(
+                "schema-less policy binding requires policy.action_dimension"
+            )
+        if (
+            isinstance(physics_timestep, bool)
+            or not isinstance(physics_timestep, (int, float))
+            or float(physics_timestep) <= 0
+        ):
+            raise PlanningContextError(
+                "schema-less policy binding requires a positive "
+                "policy.physics_timestep_seconds"
+            )
+        schema = {
+            "task_family": task_family,
+            "physics_timestep_seconds": float(physics_timestep),
+            "action_dimension": action_dimension,
+            "tracked_actors": [],
+            "probe_task_attributes": [],
+            "semantic_roles": {},
+            "success_contract": {
+                "authority": "official_task_check_success_only",
+                "semantic_telemetry_available": False,
+            },
+        }
 
     retrieval_index = resolve_task_retrieval_index(
         task_name,
@@ -269,18 +313,34 @@ def _build_planning_context(
         ),
         "expert_data_num": checkpoint.get("expert_data_num"),
         "language_conditioned": policy.get("language_conditioned"),
-        "single_task_checkpoint": True,
+        "single_task_checkpoint": (
+            checkpoint.get("task_scope", task_name) == task_name
+        ),
         "task_name": task_name,
         "action_dimension": action_dimension,
         "checkpoint_ready": checkpoint.get("ready"),
-        "unknown_metadata": list(_UNKNOWN_POLICY_METADATA),
+        "unknown_metadata": [
+            *_UNKNOWN_POLICY_METADATA,
+            *(
+                ["expert_data_num"]
+                if checkpoint.get("expert_data_num") is None
+                else []
+            ),
+            *(
+                ["semantic_actor_schema"]
+                if not task_schema_available
+                else []
+            ),
+        ],
     }
-    if (
+    if policy_card["expert_data_num"] is not None and (
         isinstance(policy_card["expert_data_num"], bool)
         or not isinstance(policy_card["expert_data_num"], int)
         or policy_card["expert_data_num"] < 0
     ):
-        raise PlanningContextError("checkpoint.expert_data_num must be non-negative")
+        raise PlanningContextError(
+            "checkpoint.expert_data_num must be null or non-negative"
+        )
     if not isinstance(policy_card["language_conditioned"], bool):
         raise PlanningContextError("policy.language_conditioned must be boolean")
     if policy_card["checkpoint_ready"] is not True:

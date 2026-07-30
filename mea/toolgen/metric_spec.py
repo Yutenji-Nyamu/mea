@@ -1,8 +1,8 @@
-"""Typed semantic oracles for proposal-derived ToolGen metrics.
+"""Typed semantic contracts and oracles for proposal-derived ToolGen metrics.
 
-MetricSpec is the independent oracle used to validate provider-written Python;
-it is not the production implementation of the Tool.  A compiler remains only
-as a provider-free compatibility path for frozen experiments and unit tests.
+Legacy MetricSpecs have an independent interpreter.  A derived observable is
+validated by caller-owned fixtures and an oracle instead.  Neither is the
+production implementation of the provider-written Tool.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ import math
 import re
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Callable, Iterable, Mapping
 
 import numpy as np
 
@@ -71,8 +71,17 @@ _TERMINAL_SIGNAL_DIFFERENCE_REQUIRED_KEYS = {
 _TERMINAL_SIGNAL_DIFFERENCE_KEYS = (
     _TERMINAL_SIGNAL_DIFFERENCE_REQUIRED_KEYS | {"absolute"}
 )
+_DERIVED_OBSERVABLE_KEYS = {
+    "schema_version",
+    "operation",
+    "observable_id",
+    "description",
+    "required_signals",
+    "unit",
+    "null_semantics",
+}
 _EVENT_SELECTOR_KEYS = {"event_type", "actors", "physical_only"}
-_OPERATIONS = {
+_V1_OPERATIONS = {
     "minimum_distance",
     "event_count",
     "time_between_events",
@@ -83,6 +92,7 @@ _EVENT_TYPES = {"contact_interval", "success_transition"}
 _SIGNAL = re.compile(r"^[a-z][a-z0-9_]{1,79}$")
 _METRIC = re.compile(r"^[a-z][a-z0-9_]{2,79}$")
 _ACTOR = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,79}$")
+_UNIT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_/*.^-]{0,31}$")
 _DIMENSION_INDEX = {"x": 0, "y": 1, "z": 2}
 _CORE_ARTIFACTS = (
     "episode.json",
@@ -158,19 +168,78 @@ def _validate_event_selector(value: Any, *, field: str) -> dict[str, Any]:
     return selector
 
 
+def _validate_derived_observable(spec: dict[str, Any]) -> dict[str, Any]:
+    if set(spec) != _DERIVED_OBSERVABLE_KEYS:
+        raise MetricSpecError(
+            "MetricSpec fields for derived_observable must be exactly "
+            f"{sorted(_DERIVED_OBSERVABLE_KEYS)}"
+        )
+    observable_id = spec.get("observable_id")
+    if not isinstance(observable_id, str) or not _METRIC.fullmatch(observable_id):
+        raise MetricSpecError(
+            "derived_observable.observable_id must be lower_snake_case"
+        )
+    description = spec.get("description")
+    if (
+        not isinstance(description, str)
+        or not description.strip()
+        or len(description.strip()) > 240
+    ):
+        raise MetricSpecError(
+            "derived_observable.description must contain 1-240 characters"
+        )
+    raw_signals = spec.get("required_signals")
+    if (
+        not isinstance(raw_signals, list)
+        or not raw_signals
+        or len(raw_signals) > 8
+        or any(
+            not isinstance(signal, str) or not _SIGNAL.fullmatch(signal)
+            for signal in raw_signals
+        )
+        or len(set(raw_signals)) != len(raw_signals)
+    ):
+        raise MetricSpecError(
+            "derived_observable.required_signals must contain 1-8 unique "
+            "safe trace names"
+        )
+    unit = spec.get("unit")
+    if not isinstance(unit, str) or not _UNIT.fullmatch(unit):
+        raise MetricSpecError(
+            "derived_observable.unit must be a compact physical unit"
+        )
+    if spec.get("null_semantics") != "null_if_no_finite_sample":
+        raise MetricSpecError(
+            "derived_observable requires "
+            "null_semantics=null_if_no_finite_sample"
+        )
+    return {
+        **spec,
+        "observable_id": observable_id,
+        "description": description.strip(),
+        "required_signals": list(raw_signals),
+        "unit": unit,
+    }
+
+
 def validate_metric_spec(value: Any) -> dict[str, Any]:
-    """Validate the deliberately tiny, discriminated MetricSpec v1 DSL."""
+    """Validate a legacy metric or a provider-proposed derived observable."""
 
     if not isinstance(value, Mapping):
         raise MetricSpecError("MetricSpec must be an object")
     spec = deepcopy(dict(value))
-    if (
-        type(spec.get("schema_version")) is not int
-        or spec.get("schema_version") != 1
-    ):
-        raise MetricSpecError("MetricSpec.schema_version must be 1")
+    schema_version = spec.get("schema_version")
+    if type(schema_version) is not int or schema_version not in {1, 2}:
+        raise MetricSpecError("MetricSpec.schema_version must be 1 or 2")
     operation = spec.get("operation")
-    if not isinstance(operation, str) or operation not in _OPERATIONS:
+    if schema_version == 2:
+        if operation != "derived_observable":
+            raise MetricSpecError(
+                "MetricSpec schema_version=2 requires "
+                "operation=derived_observable"
+            )
+        return _validate_derived_observable(spec)
+    if not isinstance(operation, str) or operation not in _V1_OPERATIONS:
         raise MetricSpecError(
             "MetricSpec.operation must be event_count, minimum_distance, "
             "terminal_signal_component, terminal_signal_difference, or "
@@ -331,7 +400,19 @@ def metric_spec_tool_spec(
     if not prompt:
         raise MetricSpecError("question must be non-empty")
     spec = validate_metric_spec(metric_spec)
-    if spec["operation"] == "minimum_distance":
+    if spec["operation"] == "derived_observable":
+        if spec["observable_id"] != metric_id:
+            raise MetricSpecError(
+                "derived_observable.observable_id must equal the Tool metric"
+            )
+        required = [
+            f"semantic_trace.{signal}"
+            for signal in spec["required_signals"]
+        ]
+        required = list(dict.fromkeys([*required, "semantic_trace.physics_step"]))
+        value_type = "number_or_null"
+        evidence_kind = "caller_supplied_oracle_evidence_steps"
+    elif spec["operation"] == "minimum_distance":
         required = [
             f"semantic_trace.{spec['left_signal']}",
             f"semantic_trace.{spec['right_signal']}",
@@ -375,7 +456,7 @@ def metric_spec_tool_spec(
         "reference_tool": None,
         "required_signals": required,
         "output_contract": {
-            "source": "typed_metric_spec_v1",
+            "source": f"typed_metric_spec_v{spec['schema_version']}",
             "metric_spec": spec,
             "value_type": value_type,
             "unit": spec["unit"],
@@ -399,6 +480,10 @@ def evaluate_metric_spec(
     """Evaluate the private deterministic oracle for a typed metric."""
 
     spec = validate_metric_spec(metric_spec)
+    if spec["operation"] == "derived_observable":
+        raise MetricSpecError(
+            "derived_observable requires a caller-supplied independent oracle"
+        )
     if spec["operation"] == "terminal_signal_difference":
         try:
             left = np.asarray(
@@ -844,6 +929,11 @@ def compile_metric_spec_source(metric_spec: Mapping[str, Any]) -> str:
     """Compile a MetricSpec to auditable Python accepted by ToolGen's AST gate."""
 
     spec = validate_metric_spec(metric_spec)
+    if spec["operation"] == "derived_observable":
+        raise MetricSpecError(
+            "derived_observable has no compatibility compiler; provide a "
+            "ToolGen provider or an exact validated registry match"
+        )
     if spec["operation"] == "event_count":
         return _compile_event_count_source(spec)
     if spec["operation"] == "time_between_events":
@@ -953,6 +1043,7 @@ def _provider_codegen_prompt(
     operation = str(metric_spec["operation"])
     normal_reason = "measured"
     null_reasons = {
+        "derived_observable": ["no_finite_sample"],
         "minimum_distance": ["no_finite_sample"],
         "terminal_signal_component": ["terminal_not_finite"],
         "terminal_signal_difference": ["terminal_not_finite"],
@@ -987,9 +1078,13 @@ def _provider_codegen_prompt(
     )
     return f"""You are ToolGen in ManipEvalAgent.
 Write the Python implementation of one Query-induced Rule Tool.  The typed
-MetricSpec below is an independent semantic oracle, not source code to copy.
-Implement the same observable from the recorded trajectory.  The result will
-be checked by an AST allowlist, executed twice on real telemetry, compared
+MetricSpec below is the semantic contract, not source code to copy.
+For derived_observable, implement the provider-proposed description over only
+its declared telemetry signals; it is not a pre-registered metric operator.
+Caller-supplied fixtures and an independent oracle are intentionally not
+source code to copy.  Implement the observable from the recorded trajectory.
+The result will be checked by an AST allowlist, executed twice on real
+telemetry, compared
 against the independent oracle, and rejected if episode artifacts change.
 
 METRIC ID:
@@ -1025,6 +1120,7 @@ def _validate_metric_source(
     spec: Mapping[str, Any],
     episodes: list[Path],
     trajectories: list[TrajectoryView],
+    oracle_evaluator: Callable[[TrajectoryView], Mapping[str, Any]] | None = None,
 ) -> tuple[list[dict[str, Any]], list[Any]]:
     """Run static, determinism, oracle, and artifact-preservation gates."""
 
@@ -1053,7 +1149,15 @@ def _validate_metric_source(
             raise MetricSpecError(
                 f"generated Python failed on real telemetry: {exc}"
             ) from exc
-        oracle = evaluate_metric_spec(spec, trajectory)
+        oracle = (
+            _validate_external_oracle_result(
+                oracle_evaluator(trajectory),
+                spec=spec,
+                trajectory=trajectory,
+            )
+            if oracle_evaluator is not None
+            else evaluate_metric_spec(spec, trajectory)
+        )
         generated = {
             key: first.get(key)
             for key in ("value", "unit", "passed", "evidence_steps", "details")
@@ -1097,6 +1201,77 @@ def _validate_metric_source(
             }
         )
     return rows, values
+
+
+def _validate_external_oracle_result(
+    value: Mapping[str, Any],
+    *,
+    spec: Mapping[str, Any],
+    trajectory: TrajectoryView,
+) -> dict[str, Any]:
+    """Normalize the caller-owned oracle without trusting generated Tool code."""
+
+    if not isinstance(value, Mapping):
+        raise MetricSpecError(
+            "derived_observable oracle must return a result object"
+        )
+    result = deepcopy(dict(value))
+    required = {"value", "unit", "passed", "evidence_steps", "details"}
+    if set(result) != required:
+        raise MetricSpecError(
+            "derived_observable oracle result fields must be exactly "
+            f"{sorted(required)}"
+        )
+    measured = result["value"]
+    if (
+        measured is not None
+        and (
+            isinstance(measured, bool)
+            or not isinstance(measured, (int, float))
+            or not math.isfinite(float(measured))
+        )
+    ):
+        raise MetricSpecError(
+            "derived_observable oracle value must be finite numeric or null"
+        )
+    if result["unit"] != spec["unit"] or result["passed"] is not None:
+        raise MetricSpecError(
+            "derived_observable oracle must preserve unit and passed=null"
+        )
+    steps = result["evidence_steps"]
+    physics_steps = {
+        int(item)
+        for item in np.asarray(
+            trajectory.trace["physics_step"],
+            dtype=int,
+        )
+    }
+    if (
+        not isinstance(steps, list)
+        or any(type(item) is not int or item not in physics_steps for item in steps)
+        or steps != sorted(set(steps))
+    ):
+        raise MetricSpecError(
+            "derived_observable oracle evidence_steps must be unique ordered "
+            "physics steps from the fixture or live trajectory"
+        )
+    details = result["details"]
+    if not isinstance(details, Mapping):
+        raise MetricSpecError(
+            "derived_observable oracle details must be an object"
+        )
+    expected_reason = "measured" if measured is not None else "no_finite_sample"
+    if (
+        details.get("operation") != "derived_observable"
+        or details.get("reason") != expected_reason
+    ):
+        raise MetricSpecError(
+            "derived_observable oracle details must declare its operation "
+            "and measured/no_finite_sample reason"
+        )
+    result["value"] = float(measured) if measured is not None else None
+    result["details"] = deepcopy(dict(details))
+    return result
 
 
 def _metric_semantic_projection(payload: Mapping[str, Any]) -> dict[str, Any]:
@@ -1162,6 +1337,8 @@ def execute_metric_spec(
     metric_spec: Mapping[str, Any],
     episode_dirs: Iterable[str | Path],
     output_dir: str | Path,
+    fixture_episode_dirs: Iterable[str | Path] = (),
+    oracle_evaluator: Callable[[TrajectoryView], Mapping[str, Any]] | None = None,
     task_code_context: Mapping[str, Any] | None = None,
     registry_dir: str | Path | None = None,
     provider: Any | None = None,
@@ -1196,25 +1373,54 @@ def execute_metric_spec(
         raise MetricSpecError(
             "MetricSpec validation needs at least one unique telemetry episode"
         )
-    trajectories = [TrajectoryView(path) for path in episodes]
-    for trajectory in trajectories:
+    fixtures = [
+        Path(item).expanduser().resolve()
+        for item in fixture_episode_dirs
+    ]
+    if len(set(fixtures)) != len(fixtures) or set(fixtures).intersection(episodes):
+        raise MetricSpecError(
+            "fixture and live telemetry episode paths must be unique"
+        )
+    if spec["operation"] == "derived_observable" and (
+        not fixtures or oracle_evaluator is None
+    ):
+        raise MetricSpecError(
+            "derived_observable requires caller-supplied fixture episodes "
+            "and an independent oracle"
+        )
+    if spec["operation"] != "derived_observable" and (
+        fixtures or oracle_evaluator is not None
+    ):
+        raise MetricSpecError(
+            "caller-supplied fixtures/oracle are only valid for "
+            "derived_observable"
+        )
+    validation_episodes = [*fixtures, *episodes]
+    validation_trajectories = [
+        TrajectoryView(path) for path in validation_episodes
+    ]
+    trajectories = validation_trajectories[len(fixtures) :]
+    for trajectory in validation_trajectories:
         if (
             trajectory.metadata.get("task_name") != task_name
             or trajectory.schema.get("task_name") != task_name
         ):
             raise MetricSpecError("MetricSpec episode task/schema does not match")
     if spec["operation"] in {
+        "derived_observable",
         "minimum_distance",
         "terminal_signal_component",
         "terminal_signal_difference",
     }:
         required_signals = (
-            {spec["left_signal"], spec["right_signal"]}
+            set(spec["required_signals"])
+            if spec["operation"] == "derived_observable"
+            else {spec["left_signal"], spec["right_signal"]}
             if spec["operation"]
             in {"minimum_distance", "terminal_signal_difference"}
             else {spec["signal"]}
         )
-        for trajectory in trajectories:
+        for trajectory in validation_trajectories:
             missing = sorted(required_signals - set(trajectory.trace))
             if missing:
                 raise MetricSpecError(
@@ -1229,6 +1435,23 @@ def execute_metric_spec(
     if context is not None:
         _write_json(destination / "task_code_context.json", context)
 
+    def validate_source(
+        source_text: str,
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[Any]]:
+        validation_rows, values = _validate_metric_source(
+            source_text=source_text,
+            metric=metric,
+            spec=spec,
+            episodes=validation_episodes,
+            trajectories=validation_trajectories,
+            oracle_evaluator=oracle_evaluator,
+        )
+        return (
+            validation_rows[len(fixtures) :],
+            validation_rows[: len(fixtures)],
+            values,
+        )
+
     registry_match = None
     if registry_dir is not None:
         registry_match = find_run_local_registration(
@@ -1238,12 +1461,8 @@ def execute_metric_spec(
         source_path = registry_match["source_path"]
         route = "run_local_reuse"
         generation: dict[str, Any] | None = None
-        rows, values = _validate_metric_source(
-            source_text=source_path.read_text(encoding="utf-8"),
-            metric=metric,
-            spec=spec,
-            episodes=episodes,
-            trajectories=trajectories,
+        rows, fixture_rows, values = validate_source(
+            source_path.read_text(encoding="utf-8")
         )
     elif provider is not None:
         if not isinstance(model, str) or not model.strip():
@@ -1252,6 +1471,7 @@ def execute_metric_spec(
         attempts_dir.mkdir()
         failures: list[dict[str, Any]] = []
         rows = []
+        fixture_rows = []
         values = []
         source_text: str | None = None
         successful_attempt: int | None = None
@@ -1289,12 +1509,12 @@ def execute_metric_spec(
                 (attempt_dir / "generated_tool.py").write_text(
                     candidate, encoding="utf-8"
                 )
-                candidate_rows, candidate_values = _validate_metric_source(
-                    source_text=candidate,
-                    metric=metric,
-                    spec=spec,
-                    episodes=episodes,
-                    trajectories=trajectories,
+                (
+                    candidate_rows,
+                    candidate_fixture_rows,
+                    candidate_values,
+                ) = validate_source(
+                    candidate
                 )
             except Exception as exc:
                 failure = {
@@ -1313,6 +1533,7 @@ def execute_metric_spec(
                 continue
             source_text = candidate
             rows = candidate_rows
+            fixture_rows = candidate_fixture_rows
             values = candidate_values
             successful_attempt = attempt_index
             _write_json(
@@ -1342,6 +1563,10 @@ def execute_metric_spec(
             "provider": deepcopy(dict(getattr(provider, "last_metadata", {}))),
         }
     else:
+        if spec["operation"] == "derived_observable":
+            raise MetricSpecError(
+                "derived_observable registry miss requires a provider"
+            )
         source_path = destination / "generated_tool.py"
         source_path.write_text(compile_metric_spec_source(spec), encoding="utf-8")
         try:
@@ -1352,12 +1577,8 @@ def execute_metric_spec(
             ) from exc
         route = "typed_metric_spec_compile"
         generation = None
-        rows, values = _validate_metric_source(
-            source_text=source_path.read_text(encoding="utf-8"),
-            metric=metric,
-            spec=spec,
-            episodes=episodes,
-            trajectories=trajectories,
+        rows, fixture_rows, values = validate_source(
+            source_path.read_text(encoding="utf-8")
         )
     finite_values = [float(item) for item in values if isinstance(item, (int, float))]
     if any(not math.isfinite(item) for item in finite_values):
@@ -1372,9 +1593,9 @@ def execute_metric_spec(
             source_path=source_path,
             generation_registration={
                 "tool": metric,
-                "validated_episode_count": len(rows),
-                "validated_property_scenario_count": 0,
-                "oracle_kind": "typed_metric_spec_v1",
+                "validated_episode_count": len(rows) + len(fixture_rows),
+                "validated_property_scenario_count": len(fixture_rows),
+                "oracle_kind": f"typed_metric_spec_v{spec['schema_version']}",
             },
             generation_manifest={
                 "successful_attempt": (
@@ -1389,7 +1610,10 @@ def execute_metric_spec(
                 ),
                 "generator_source_sha256": _file_sha256(source_path),
                 "contract_sha256": hashlib.sha256(_canonical(spec).encode()).hexdigest(),
-                "example_validation": [],
+                "example_validation": [
+                    _metric_semantic_projection(row["oracle_projection"])
+                    for row in fixture_rows
+                ],
             },
             validation_episodes=[
                 {
@@ -1412,12 +1636,17 @@ def execute_metric_spec(
         "source_path": str(source_path),
         "tool_spec": tool_spec,
         "task_code_context_consumed": context is not None,
+        "fixtures": fixture_rows,
         "episodes": rows,
         "registration": (
             public_registration_summary(registration) if registration else None
         ),
         "limitations": [
-            "five bounded typed operators only",
+            (
+                "provider-defined derived observable over declared telemetry"
+                if spec["operation"] == "derived_observable"
+                else f"typed semantic oracle: {spec['operation']}"
+            ),
             (
                 "provider-generated Python"
                 if generation is not None
@@ -1426,7 +1655,10 @@ def execute_metric_spec(
                 else "provider-free compatibility compiler"
             ),
             (
-                "output is checked twice against the trusted "
+                "output is checked twice against the caller-supplied oracle "
+                "on fixtures and live episodes"
+                if spec["operation"] == "derived_observable"
+                else "output is checked twice against the trusted "
                 "interpreter on each live episode; live values need not differ"
             ),
         ],

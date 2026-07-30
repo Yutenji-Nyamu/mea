@@ -9,6 +9,7 @@ from mea.toolgen.open_request import (
     OpenToolRequestError,
     validate_open_tool_request,
 )
+from mea.toolgen.router import route_tool_request
 
 
 class _Provider:
@@ -92,6 +93,27 @@ def _terminal_difference(task_name: str = "adjust_bottle"):
     }
 
 
+def _derived(task_name: str = "beat_block_hammer"):
+    return {
+        "schema_version": 2,
+        "task_name": task_name,
+        "metric": "query_peak_hammer_motion",
+        "question": "What was the peak per-step hammer motion?",
+        "metric_spec": {
+            "schema_version": 2,
+            "operation": "derived_observable",
+            "observable_id": "query_peak_hammer_motion",
+            "description": (
+                "Maximum Euclidean displacement per positive physics step "
+                "between consecutive hammer-position samples."
+            ),
+            "required_signals": ["hammer_position"],
+            "unit": "m_per_step",
+            "null_semantics": "null_if_no_finite_sample",
+        },
+    }
+
+
 class OpenToolRequestTest(unittest.TestCase):
     def test_novel_metric_requires_typed_spec(self):
         with self.assertRaisesRegex(OpenToolRequestError, "typed MetricSpec"):
@@ -115,6 +137,62 @@ class OpenToolRequestTest(unittest.TestCase):
         with self.assertRaisesRegex(OpenToolRequestError, "changed the bound task"):
             validate_open_tool_request(
                 _typed("other_task"), task_name="runtime_task"
+            )
+
+    def test_agent_can_propose_a_new_compositional_observable(self):
+        root = Path(__file__).resolve().parents[2]
+        provider = _Provider(_derived())
+        agent = OpenToolRequestAgent(root, provider, model="fixture-model")
+        bundle = agent.propose(
+            source_query="Where does the trajectory first become jerky?",
+            semantic_concern="pre-contact motion quality",
+            tool_need="Measure the peak per-step hammer motion.",
+            task_name="beat_block_hammer",
+            derived_observable_oracle_available=True,
+        )
+
+        spec = bundle["tool_request"]["metric_spec"]
+        self.assertEqual(spec["schema_version"], 2)
+        self.assertEqual(spec["operation"], "derived_observable")
+        self.assertEqual(spec["required_signals"], ["hammer_position"])
+        self.assertIn("independent oracle are available", agent.last_prompt)
+        self.assertEqual(
+            route_tool_request(bundle["tool_request"])["route_decision"][
+                "resolved_route"
+            ],
+            "typed_metric_spec_execute",
+        )
+
+    def test_derived_observable_is_not_advertised_without_an_oracle(self):
+        root = Path(__file__).resolve().parents[2]
+        provider = _Provider(_derived())
+        agent = OpenToolRequestAgent(root, provider, model="fixture-model")
+        with self.assertRaisesRegex(
+            OpenToolRequestError,
+            "unavailable without caller-owned",
+        ):
+            agent.propose(
+                source_query="Where does the trajectory first become jerky?",
+                semantic_concern="pre-contact motion quality",
+                tool_need="Measure the peak per-step hammer motion.",
+                task_name="beat_block_hammer",
+            )
+        self.assertNotIn(
+            '"operation": "derived_observable"',
+            agent.last_prompt,
+        )
+
+    def test_derived_observable_identity_matches_the_tool_metric(self):
+        request = _derived()
+        request["metric_spec"]["observable_id"] = "different_observable"
+        with self.assertRaisesRegex(
+            OpenToolRequestError,
+            "observable_id must equal the Tool metric",
+        ):
+            validate_open_tool_request(
+                request,
+                task_name="beat_block_hammer",
+                derived_observable_oracle_available=True,
             )
 
     def test_agent_uses_schema_not_task_catalog(self):

@@ -1699,7 +1699,20 @@ class PlanAgentSession:
         self,
         candidate: Mapping[str, Any],
     ) -> dict[str, Any]:
-        """Register a legacy pre-evidence candidate without catalog lookup."""
+        """Register a Query-only first candidate for a no-control session.
+
+        A control-required session must leave its first semantic sub-aspect
+        unfrozen until the control Aggregate has been observed.  Otherwise a
+        Query-interpreter candidate authored before execution could be relabelled
+        as Fig. 5 evidence-conditioned planning after the control merely passes.
+        """
+
+        if self.require_control_anchor:
+            raise ClaimFirstRuntimeError(
+                "control-required Plan Agent cannot freeze a pre-evidence "
+                "candidate; author the next sub-aspect from observed control "
+                "evidence"
+            )
 
         return self._register_dynamic_candidate(
             candidate,
@@ -1806,14 +1819,19 @@ class PlanAgentSession:
         *,
         executed_candidate_ids: Sequence[str],
     ) -> dict[str, Any]:
-        """Authorize a legacy Query-only candidate without claiming refinement.
+        """Authorize a no-control Query-only candidate without claiming refinement.
 
-        The candidate may still be gated by a control for backward
-        compatibility, but its semantic choice predates that evidence.  The
-        returned lineage therefore remains ``pre_evidence`` and must not be
-        counted as Fig. 5 evidence-conditioned sub-aspect selection.
+        Its semantic choice predates rollout evidence.  The returned lineage
+        therefore remains ``pre_evidence`` and must not be counted as Fig. 5
+        evidence-conditioned sub-aspect selection.
         """
 
+        if self.require_control_anchor:
+            raise ClaimFirstRuntimeError(
+                "control-required Plan Agent cannot bind a pre-evidence "
+                "candidate; author the next sub-aspect from observed control "
+                "evidence"
+            )
         assessment = observation.get("assessment")
         if not isinstance(assessment, Mapping):
             raise ClaimFirstRuntimeError(
@@ -2115,6 +2133,11 @@ class PlanAgentSession:
                 capabilities
             )
             history = _current_planning_evidence(observation)
+            if self.require_control_anchor and not history:
+                raise ClaimFirstRuntimeError(
+                    "control-required Plan Agent needs observed control evidence "
+                    "before binding the next sub-aspect"
+                )
             trusted_intent = (
                 validate_evaluation_intent(evaluation_intent)
                 if evaluation_intent is not None
@@ -2171,6 +2194,11 @@ class PlanAgentSession:
                 "cannot propose a property experiment before the control passes"
             )
         history = _current_planning_evidence(observation)
+        if self.require_control_anchor and not history:
+            raise ClaimFirstRuntimeError(
+                "control-required Plan Agent needs observed control evidence "
+                "before authoring the next sub-aspect"
+            )
         try:
             trusted_capabilities = validate_open_query_capabilities(
                 capabilities

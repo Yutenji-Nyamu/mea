@@ -81,6 +81,13 @@ def validate_tool_request(
             result["metric_spec"] = validate_metric_spec(value.get("metric_spec"))
         except MetricSpecError as exc:
             raise ToolRouterError(str(exc)) from exc
+        if (
+            result["metric_spec"]["operation"] == "derived_observable"
+            and result["metric_spec"]["observable_id"] != result["metric"]
+        ):
+            raise ToolRouterError(
+                "derived_observable.observable_id must equal the Tool metric"
+            )
     return result
 
 
@@ -114,15 +121,16 @@ def catalog_snapshot() -> dict[str, Any]:
         ),
         "composite_targets": composite_targets,
         "typed_metric_spec": {
-            "schema_version": 1,
+            "schema_versions": [1, 2],
             "operations": [
+                "derived_observable",
                 "event_count",
                 "minimum_distance",
                 "terminal_signal_component",
                 "terminal_signal_difference",
                 "time_between_events",
             ],
-            "execution": "compile_validate_register",
+            "execution": "retrieve_or_provider_codegen_validate_register",
         },
     }
     return _with_snapshot_hash(snapshot)
@@ -185,10 +193,21 @@ def route_tool_request(
 
     if metric_spec is not None:
         status = "resolved"
-        route = "typed_metric_spec_compile"
-        registry = "typed_metric_spec_v1"
+        derived = metric_spec["schema_version"] == 2
+        route = (
+            "typed_metric_spec_execute"
+            if derived
+            else "typed_metric_spec_compile"
+        )
+        registry = f"typed_metric_spec_v{metric_spec['schema_version']}"
         reference_tool = None
-        reason = "validated typed MetricSpec can be compiled and differentially gated"
+        reason = (
+            "caller-oracle-backed semantic contract can drive exact reuse or "
+            "provider Python generation with differential gates"
+            if derived
+            else "validated typed MetricSpec can be compiled and "
+            "differentially gated"
+        )
     elif trusted_task_supported:
         status = "resolved"
         route = "reuse"

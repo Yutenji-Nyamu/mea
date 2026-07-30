@@ -111,6 +111,9 @@ def build_smolvla_policy_spec(
         metadata={
             "language_input": "task_name_words",
             "action_chunk_size": 50,
+            "action_dimension": 14,
+            "physics_timestep_seconds": 0.004,
+            "checkpoint_setting": "shared_official",
         },
     )
 

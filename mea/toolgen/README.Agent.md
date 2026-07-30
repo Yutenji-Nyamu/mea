@@ -64,6 +64,11 @@ Rules:
 - For a Query-induced typed metric, implement the requested observable in
   Python. The MetricSpec shown in the prompt is an independent validation
   oracle; it is not generated source to quote or a preselected Tool ID.
+- A `derived_observable` is a new Query-induced Rule Tool, not a sixth
+  preselected metric. Implement its description over only the declared
+  telemetry signals. Its validation fixtures and independent oracle are
+  caller-owned and are never included as generated source. Do not replace it
+  with the nearest older operator or invent an undeclared signal.
 
 For `pickup_to_first_contact_time`, pickup is the first trace sample whose
 hammer center Z rise from the initial sample is at least

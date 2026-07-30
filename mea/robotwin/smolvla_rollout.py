@@ -171,6 +171,8 @@ def run_smolvla_robotwin_episode(
     port: int = 18771,
     timeout_seconds: float = 120.0,
     policy_instruction: str | None = None,
+    repo_root: str | Path | None = None,
+    telemetry_profile: str | None = None,
 ) -> dict[str, Any]:
     """Execute one importable RoboTwin task module with SmolVLA.
 
@@ -203,6 +205,10 @@ def run_smolvla_robotwin_episode(
     video_frames: list[Any] = []
     actions_executed = 0
     chunk_count = 0
+    recorder = None
+    recorder_metadata: dict[str, Any] | None = None
+    telemetry_episode_dir: Path | None = None
+    rollout_error: BaseException | None = None
     try:
         with _PolicyClient(host, port, timeout_seconds) as client:
             client.request({"command": "reset"})
@@ -212,6 +218,39 @@ def run_smolvla_robotwin_episode(
                 is_test=True,
                 **_resolved_demo_clean_args(task_name),
             )
+            if telemetry_profile is not None:
+                if repo_root is None:
+                    raise SmolVLARolloutError(
+                        "semantic telemetry requires repo_root"
+                    )
+                from mea.toolkit import EpisodeRecorder
+
+                telemetry_episode_dir = (
+                    destination
+                    / "telemetry"
+                    / "act"
+                    / f"episode_000_seed_{int(seed)}"
+                )
+                recorder = EpisodeRecorder(
+                    repo_root,
+                    telemetry_episode_dir,
+                    task_name=task_name,
+                    seed=int(seed),
+                    episode_index=0,
+                    policy_name="SmolVLA",
+                    task_module=task_module,
+                    task_config="demo_clean",
+                    checkpoint_setting="shared_official",
+                    telemetry_profile_id=telemetry_profile,
+                    visual_capture_profile_id="event_keyframes_v1",
+                )
+                task._mea_recorder = recorder
+                try:
+                    recorder.start(task)
+                except Exception:
+                    task._mea_recorder = None
+                    recorder = None
+                    raise
             observation = task.get_obs()
             initial_images, initial_state = _encode_observation(observation)
             iio.imwrite(
@@ -280,6 +319,13 @@ def run_smolvla_robotwin_episode(
                 video_frames.append(final_images["head_camera"])
             video_path = destination / "episode0.mp4"
             iio.imwrite(video_path, video_frames, fps=5)
+            if recorder is not None:
+                task._mea_recorder = None
+                recorder_metadata = recorder.finish(
+                    task,
+                    success=success,
+                )
+                recorder = None
             result = {
                 "schema_version": 1,
                 "task": task_name,
@@ -300,30 +346,78 @@ def run_smolvla_robotwin_episode(
                 "chunk_boundary_states": observed_states,
                 "actions": actions,
                 "wall_seconds": time.perf_counter() - started,
+                "semantic_telemetry": (
+                    {
+                        "ready": True,
+                        "profile": telemetry_profile,
+                        "episode_dir": str(telemetry_episode_dir),
+                    }
+                    if recorder_metadata is not None
+                    else {
+                        "ready": False,
+                        "profile": None,
+                        "episode_dir": None,
+                    }
+                ),
             }
             result_path = destination / "result.json"
             result_path.write_text(
                 json.dumps(result, indent=2, sort_keys=True) + "\n",
                 encoding="utf-8",
             )
+            artifacts = {
+                "result": str(result_path),
+                "video": str(video_path),
+                "initial_frame": str(destination / "initial_head.png"),
+                "final_frame": str(destination / "final_head.png"),
+            }
+            if telemetry_episode_dir is not None:
+                artifacts["telemetry_episode"] = str(
+                    telemetry_episode_dir
+                )
             return {
                 "success": success,
                 "episode": result,
-                "artifacts": {
-                    "result": str(result_path),
-                    "video": str(video_path),
-                    "initial_frame": str(destination / "initial_head.png"),
-                    "final_frame": str(destination / "final_head.png"),
-                },
+                "artifacts": artifacts,
                 "metadata": {
                     "policy_backend": "smolvla",
                     "policy_transport": "localhost_action_chunks",
-                    "trace_level": "untyped_policy_io",
-                    "semantic_telemetry_ready": False,
+                    "trace_level": (
+                        "task_schema_semantic_telemetry"
+                        if recorder_metadata is not None
+                        else "untyped_policy_io"
+                    ),
+                    "semantic_telemetry_ready": (
+                        recorder_metadata is not None
+                    ),
                     "video_sampling": "action_chunk_boundaries",
                 },
             }
+    except BaseException as exc:
+        rollout_error = exc
+        if recorder is not None:
+            recorder.record_error(exc)
+        raise
     finally:
+        if recorder is not None:
+            task._mea_recorder = None
+            error_payload = (
+                {
+                    "type": type(rollout_error).__name__,
+                    "message": str(rollout_error),
+                }
+                if rollout_error is not None
+                else None
+            )
+            try:
+                recorder.finish(
+                    task,
+                    success=False,
+                    error=error_payload,
+                )
+            except Exception:
+                if rollout_error is None:
+                    raise
         task.close_env(clear_cache=True)
 
 
@@ -336,10 +430,18 @@ class SmolVLARobotwinRolloutRunner:
         host: str = "127.0.0.1",
         port: int = 18771,
         timeout_seconds: float = 120.0,
+        repo_root: str | Path | None = None,
+        telemetry_profile: str = "balanced_v1",
     ) -> None:
         self.host = host
         self.port = int(port)
         self.timeout_seconds = float(timeout_seconds)
+        self.repo_root = (
+            Path(repo_root).expanduser().resolve()
+            if repo_root is not None
+            else None
+        )
+        self.telemetry_profile = str(telemetry_profile)
 
     def __call__(
         self,
@@ -359,6 +461,9 @@ class SmolVLARobotwinRolloutRunner:
             raise SmolVLARolloutError(
                 "rollout manifest requires task_name and task_module"
             )
+        semantic_telemetry = bool(
+            candidate.task_contract.get("task_schema_available")
+        )
         return run_smolvla_robotwin_episode(
             task_name=task_name,
             task_module=task_module,
@@ -368,6 +473,10 @@ class SmolVLARobotwinRolloutRunner:
             port=self.port,
             timeout_seconds=self.timeout_seconds,
             policy_instruction=policy.get("task_instruction"),
+            repo_root=self.repo_root if semantic_telemetry else None,
+            telemetry_profile=(
+                self.telemetry_profile if semantic_telemetry else None
+            ),
         )
 
 

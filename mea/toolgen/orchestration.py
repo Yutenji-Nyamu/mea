@@ -415,7 +415,7 @@ def _relative(path: Path, repo_root: Path) -> str:
 
 def _role(policy_name: Any) -> str:
     normalized = str(policy_name or "").casefold()
-    if normalized == "act":
+    if normalized in {"act", "smolvla"}:
         return "policy_under_evaluation"
     if normalized == "expert":
         return "expert_validation"
@@ -996,6 +996,8 @@ def _execute_typed_metric_request(
     provider: Any | None,
     model: str | None,
     max_attempts: int,
+    fixture_episode_dirs: Iterable[str | Path],
+    oracle_evaluator: Any | None,
 ) -> dict[str, Any]:
     """Generate one ToolProposal metric and gate it on the round's telemetry."""
 
@@ -1118,6 +1120,8 @@ def _execute_typed_metric_request(
             question=request["question"],
             metric_spec=request["metric_spec"],
             episode_dirs=episode_dirs,
+            fixture_episode_dirs=fixture_episode_dirs,
+            oracle_evaluator=oracle_evaluator,
             output_dir=destination / "typed_metric_spec",
             task_code_context=context,
             registry_dir=registry_root,
@@ -1305,6 +1309,8 @@ def execute_tool_request(
     run_local_registry_dir: str | Path | None = None,
     reviewed_registry_dir: str | Path | None = None,
     task_proposal: dict[str, Any] | None = None,
+    fixture_episode_dirs: Iterable[str | Path] = (),
+    oracle_evaluator: Any | None = None,
 ) -> dict[str, Any]:
     """Automatically route and execute one route-free semantic Tool request."""
 
@@ -1346,7 +1352,10 @@ def execute_tool_request(
         if reviewed_registry_dir is not None
         else None
     )
-    if decision["resolved_route"] == "typed_metric_spec_compile":
+    if decision["resolved_route"] in {
+        "typed_metric_spec_compile",
+        "typed_metric_spec_execute",
+    }:
         try:
             return _execute_typed_metric_request(
                 repo,
@@ -1360,6 +1369,8 @@ def execute_tool_request(
                 provider=provider,
                 model=model,
                 max_attempts=max_attempts,
+                fixture_episode_dirs=fixture_episode_dirs,
+                oracle_evaluator=oracle_evaluator,
             )
         except Exception as exc:
             decision["status"] = "execution_failed"

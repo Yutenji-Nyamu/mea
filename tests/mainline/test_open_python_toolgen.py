@@ -4,7 +4,13 @@ from pathlib import Path
 
 import numpy as np
 
-from mea.toolgen import compile_metric_spec_source, execute_metric_spec
+from mea.toolgen import (
+    MetricSpecError,
+    compile_metric_spec_source,
+    compatible_run_local_tool_requests,
+    execute_metric_spec,
+    validate_metric_spec,
+)
 from tests.mainline.test_tool_orchestration import write_episode
 
 
@@ -17,6 +23,45 @@ SPEC = {
     "unit": "m",
     "null_semantics": "null_if_no_finite_sample",
 }
+
+DERIVED_SPEC = {
+    "schema_version": 2,
+    "operation": "derived_observable",
+    "observable_id": "query_peak_hammer_motion",
+    "description": (
+        "Maximum Euclidean displacement per positive physics step between "
+        "consecutive hammer samples."
+    ),
+    "required_signals": ["hammer_position"],
+    "unit": "m_per_step",
+    "null_semantics": "null_if_no_finite_sample",
+}
+
+
+def peak_hammer_motion_oracle(trajectory):
+    positions = np.asarray(trajectory.trace["hammer_position"], dtype=float)
+    physics = np.asarray(trajectory.trace["physics_step"], dtype=int)
+    step_delta = np.diff(physics)
+    motion = np.linalg.norm(np.diff(positions, axis=0), axis=1)
+    finite = np.isfinite(motion) & (step_delta > 0)
+    denominator = np.where(step_delta > 0, step_delta, 1)
+    rate = np.where(finite, motion / denominator, -np.inf)
+    peak_index = int(np.argmax(rate)) if np.any(finite) else None
+    value = float(rate[peak_index]) if peak_index is not None else None
+    return {
+        "value": value,
+        "unit": "m_per_step",
+        "passed": None,
+        "evidence_steps": (
+            [int(physics[peak_index]), int(physics[peak_index + 1])]
+            if peak_index is not None
+            else []
+        ),
+        "details": {
+            "operation": "derived_observable",
+            "reason": "measured" if value is not None else "no_finite_sample",
+        },
+    }
 
 
 class SequencedProvider:
@@ -108,6 +153,138 @@ class OpenPythonToolGenTests(unittest.TestCase):
                 replay["registration"]["registration_id"],
                 generated["registration"]["registration_id"],
             )
+
+    def test_provider_defines_new_derived_observable_then_exactly_reuses_it(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            first = root / "episode_a"
+            second = root / "episode_b"
+            write_episode(first, policy_name="ACT", physical_contact=False)
+            write_episode(second, policy_name="expert", physical_contact=True)
+            valid_source = """def generated_tool(trajectory):
+    positions = np.asarray(trajectory.trace["hammer_position"], dtype=float)
+    physics = np.asarray(trajectory.trace["physics_step"], dtype=int)
+    step_delta = np.diff(physics)
+    motion = np.linalg.norm(np.diff(positions, axis=0), axis=1)
+    finite = np.isfinite(motion) & (step_delta > 0)
+    denominator = np.where(step_delta > 0, step_delta, 1)
+    rate = np.where(finite, motion / denominator, -np.inf)
+    peak_index = int(np.argmax(rate)) if np.any(finite) else None
+    value = float(rate[peak_index]) if peak_index is not None else None
+    steps = (
+        [int(physics[peak_index]), int(physics[peak_index + 1])]
+        if peak_index is not None else []
+    )
+    return {
+        "value": value,
+        "unit": "m_per_step",
+        "passed": None,
+        "evidence_steps": steps,
+        "details": {
+            "operation": "derived_observable",
+            "reason": "measured" if value is not None else "no_finite_sample",
+        },
+    }
+"""
+            provider = SequencedProvider(
+                [
+                    """```python
+def generated_tool(trajectory):
+    return {
+        "value": 0.0,
+        "unit": "m_per_step",
+        "passed": None,
+        "evidence_steps": [],
+        "details": {
+            "operation": "derived_observable",
+            "reason": "measured",
+        },
+    }
+```""",
+                    f"```python\n{valid_source}\n```",
+                ]
+            )
+            registry = root / "registry"
+            generated = execute_metric_spec(
+                task_name="beat_block_hammer",
+                metric="query_peak_hammer_motion",
+                question="Where does pre-contact hammer motion peak?",
+                metric_spec=DERIVED_SPEC,
+                episode_dirs=[first],
+                fixture_episode_dirs=[second],
+                oracle_evaluator=peak_hammer_motion_oracle,
+                output_dir=root / "generated",
+                registry_dir=registry,
+                provider=provider,
+                model="test-model",
+                max_attempts=2,
+            )
+            self.assertEqual(generated["route"], "provider_python_codegen")
+            self.assertEqual(provider.calls, 2)
+            self.assertIn(
+                "not a pre-registered metric operator",
+                provider.prompts[0],
+            )
+            self.assertTrue(
+                generated["episodes"][0]["oracle_agreement"]
+            )
+            self.assertEqual(len(generated["fixtures"]), 1)
+            self.assertEqual(
+                generated["limitations"][0],
+                "provider-defined derived observable over declared telemetry",
+            )
+            self.assertEqual(
+                compatible_run_local_tool_requests(
+                    registry,
+                    task_name="beat_block_hammer",
+                    episode_dirs=[first],
+                ),
+                [],
+            )
+            advertised = compatible_run_local_tool_requests(
+                registry,
+                task_name="beat_block_hammer",
+                episode_dirs=[first],
+                include_derived_observables=True,
+            )
+            self.assertEqual(len(advertised), 1)
+            self.assertEqual(
+                advertised[0]["request"]["metric_spec"],
+                DERIVED_SPEC,
+            )
+
+            replay_provider = SequencedProvider([])
+            replay = execute_metric_spec(
+                task_name="beat_block_hammer",
+                metric="query_peak_hammer_motion",
+                question="Reuse the same peak-motion observable.",
+                metric_spec=DERIVED_SPEC,
+                episode_dirs=[first],
+                fixture_episode_dirs=[second],
+                oracle_evaluator=peak_hammer_motion_oracle,
+                output_dir=root / "replay",
+                registry_dir=registry,
+                provider=replay_provider,
+                model="test-model",
+            )
+            self.assertEqual(replay["route"], "run_local_reuse")
+            self.assertEqual(replay_provider.calls, 0)
+            self.assertEqual(
+                replay["registration"]["registration_id"],
+                generated["registration"]["registration_id"],
+            )
+
+    def test_derived_observable_declares_signals_without_a_known_operator(self):
+        self.assertEqual(
+            validate_metric_spec(DERIVED_SPEC)["operation"],
+            "derived_observable",
+        )
+        invalid = {
+            **DERIVED_SPEC,
+            "required_signals": ["../hammer_position"],
+        }
+        with self.assertRaisesRegex(MetricSpecError, "safe trace names"):
+            validate_metric_spec(invalid)
 
 
 if __name__ == "__main__":
