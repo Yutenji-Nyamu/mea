@@ -12,6 +12,7 @@ from mea.toolgen import (
     execute_tool_request,
     validate_metric_spec,
 )
+from mea.toolgen.prototype import ToolGenError, validate_generated_tool
 from tests.mainline.test_tool_orchestration import write_episode
 
 
@@ -114,6 +115,41 @@ class SequencedProvider:
 
 
 class OpenPythonToolGenTests(unittest.TestCase):
+    def test_bounded_for_loop_is_valid_generated_python(self):
+        report = validate_generated_tool(
+            """def generated_tool(trajectory):
+    total = 0.0
+    evidence_steps = []
+    positions = trajectory.trace["hammer_position"]
+    physics = trajectory.trace["physics_step"]
+    for index in range(positions.shape[0]):
+        value = positions[index]
+        total += float(np.sum(np.abs(value)))
+        evidence_steps.append(int(physics[index]))
+    return {
+        "value": total,
+        "unit": "m",
+        "passed": None,
+        "evidence_steps": evidence_steps,
+        "details": {"operation": "derived_observable", "reason": "measured"},
+    }
+"""
+        )
+        self.assertTrue(report["valid"])
+        with self.assertRaisesRegex(ToolGenError, "TrajectoryView"):
+            validate_generated_tool(
+                """def generated_tool(trajectory):
+    trajectory.events.append({})
+    return {
+        "value": 0.0,
+        "unit": "m",
+        "passed": None,
+        "evidence_steps": [],
+        "details": {"operation": "derived_observable", "reason": "measured"},
+    }
+"""
+            )
+
     def test_orchestration_labels_semantic_review_without_numeric_oracle(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

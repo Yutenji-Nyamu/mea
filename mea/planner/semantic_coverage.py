@@ -315,7 +315,7 @@ def _extract_preserved_conditions(requested_change: str) -> list[str]:
     seen: set[str] = set()
     for clause in clauses:
         parts = re.split(
-            r"\s*,\s*|\s+\b(?:and|or)\b\s+|、|，|和|或",
+            r"\s*[,;]\s*|\s+\b(?:and|or)\b\s+|、|，|；|和|或",
             clause,
         )
         for part in parts:

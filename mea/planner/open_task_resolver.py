@@ -110,7 +110,9 @@ EXPERIMENTAL_SUCCESS_CHECKER_GUIDANCE = (
     "difference Tool reports magnitude but cannot supply that pass/fail "
     "predicate. Mentioning the official goal or official predicate as one "
     "component of a combined condition does not make the Query official-only; "
-    "preserve every additional condition from the original Query. When both "
+    "record that invariant as 'official core predicate as a required "
+    "conjunct', never as full official-success equivalence, and preserve every "
+    "additional condition from the original Query. When both "
     "checker_need and rule_tool_need are required, keep their roles distinct: "
     "checker_need must describe a boolean conjunction such as 'official goal "
     "AND distractor remains uncontacted', while rule_tool_need describes the "
@@ -420,8 +422,12 @@ task conditions must remain unchanged; do not leave preservation implicit and
 do not use catch-all phrases such as "all other conditions unchanged",
 "all other object poses", or "the rest of the scene".
 Use concrete, verifiable invariant names such as center position, color or
-material, scene layout, camera viewpoint, task instruction, policy checkpoint,
-or official success semantics.
+material, scene layout, camera viewpoint, task instruction, or policy
+checkpoint.  Never emit vague preserve entries such as "target
+configuration", "intended goal", or "task semantics".  When a new checker
+adds a condition to the official task goal, write exactly "official core
+predicate as a required conjunct"; do not claim that the extended checker
+preserves full "official success semantics".
 The requested change and preserved conditions must be jointly realizable:
 never request a size/shape/pose/contact change while also declaring that same
 quantity invariant. Prefer a bounded experiment whose invariants can be checked
@@ -431,6 +437,10 @@ At this pre-retrieval stage, workspace and camera bounds are not available.
 Do not invent an absolute perturbation magnitude.  Specify the diagnostic
 direction and let TaskGen choose the smallest measurable change after it
 retrieves the official source and validates the first render.
+If the hypothesis says a metric is larger/smaller than an undisturbed,
+baseline, control, or official scene, that comparison requires a separate
+control rollout.  Otherwise formulate a one-episode hypothesis with an
+observable condition that the generated experiment can decide directly.
 
 Independently declare the work needed to execute this first experiment.
 Request a scene only when requested_variation changes the simulator scene;

@@ -133,6 +133,27 @@ class SemanticCoverageTests(unittest.TestCase):
             ],
         )
 
+    def test_semicolon_separates_preserved_conditions(self):
+        intent = evaluation_intent_from_free_concern(
+            {
+                "source_query": "Test one bounded distractor.",
+                "sub_aspect": "distractor interference",
+                "hypothesis": "The distractor changes the trajectory.",
+                "requested_variation": (
+                    "Add one distractor. Preserve the target center position; "
+                    "official core predicate as a required conjunct."
+                ),
+                "measurement_need": "Measure one trajectory scalar.",
+            }
+        )
+        self.assertEqual(
+            intent["preserved_conditions"],
+            [
+                "the target center position",
+                "official core predicate as a required conjunct",
+            ],
+        )
+
     def test_ensuring_remain_unchanged_clause_is_normalized(self):
         intent = evaluation_intent_from_free_concern(
             {

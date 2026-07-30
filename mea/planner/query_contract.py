@@ -88,7 +88,10 @@ _EXISTENTIAL_WITNESS_OUTCOMES = frozenset({"pass", "fail"})
 _CONTROL_REQUIREMENTS = frozenset({"required", "not_required"})
 _CONTROL_REQUIRED_QUERY = re.compile(
     r"\b(?:generaliz|robust|attribute|appearance|pose|position|instance|"
-    r"variant|perturb|compare|comparison|versus|worst[- ]?case)\w*\b"
+    r"variant|perturb|compare|comparison|versus|baseline|control|"
+    r"undisturbed|reference|worst[- ]?case)\w*\b"
+    r"|\b(?:larger|smaller|longer|shorter|higher|lower|better|worse)\s+than\b"
+    r"|\brelative\s+to\b|\bcompared\s+(?:with|to)\b"
     r"|泛化|鲁棒|属性|外观|姿态|位置|实例|变体|扰动|比较|对比|最差",
     re.IGNORECASE,
 )
@@ -249,8 +252,6 @@ def infer_control_requirement(
         return "not_required"
     if _CONTROL_REQUIRED_QUERY.search(query_text):
         return "required"
-    if _CONTROL_FREE_QUERY.search(query_text):
-        return "not_required"
     parts = [query_text]
     if semantic_context is not None:
         if not isinstance(semantic_context, Mapping):

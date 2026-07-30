@@ -267,6 +267,22 @@ class QueryInterpretationTests(unittest.TestCase):
             )
         )
 
+    def test_semantic_comparison_overrides_trajectory_control_free_wording(self):
+        query = "Find a generated scene that exposes a trajectory weakness."
+        self.assertEqual(
+            infer_control_requirement(
+                query,
+                semantic_context={
+                    "hypothesis": (
+                        "The challenge produces a longer TCP path than the "
+                        "undisturbed scene."
+                    ),
+                    "measurement_need": "Measure TCP trajectory path length.",
+                },
+            ),
+            "required",
+        )
+
     def test_non_official_query_cannot_drop_all_evidence_needs(self):
         value = concern("click the bell's top center")
         empty_needs = {

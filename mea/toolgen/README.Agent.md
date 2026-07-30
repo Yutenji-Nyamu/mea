@@ -48,6 +48,9 @@ Rules:
   `details.reason="measured"` for a valid measurement and only a null reason
   allowed by the active prompt when measurement is unavailable.
 - No type annotations, decorators, helper functions, or top-level statements.
+- Finite `for` loops over recorded arrays, `range`, `zip`, or `enumerate` are
+  allowed; unbounded `while`, async, recursion, imports, and external I/O are
+  not.
 - Prefer simulator values over visual inference.
 - Do not call ndarray methods such as `.all()` or `.tolist()`; use the
   allowlisted `np` functions and convert only the final scalar outputs.

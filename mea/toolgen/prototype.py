@@ -55,6 +55,7 @@ SAFE_BUILTINS = {
     "list": list,
     "max": max,
     "min": min,
+    "range": range,
     "set": set,
     "sorted": sorted,
     "str": str,
@@ -103,7 +104,6 @@ FORBIDDEN_NAMES = {
 }
 
 FORBIDDEN_ATTRIBUTES = {
-    "append",
     "clear",
     "dump",
     "dumps",
@@ -144,7 +144,6 @@ FORBIDDEN_NODES = (
     ast.Await,
     ast.ClassDef,
     ast.Delete,
-    ast.For,
     ast.Global,
     ast.Import,
     ast.ImportFrom,
@@ -181,6 +180,7 @@ ALLOWED_NUMPY_CHAINS = {
 }
 
 ALLOWED_VALUE_ATTRIBUTES = {
+    "append",
     "astype",
     "copy",
     "dtype",
