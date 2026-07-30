@@ -1816,12 +1816,21 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
 
         self.assertTrue(state["assessment"]["evidence_sufficient"])
         self.assertEqual(state["assessment"]["budget_remaining"], 0)
+        proposal_bundle = controller.propose_semantic_step(
+            planner,
+            state,
+            capabilities=open_query_capabilities(),
+        )
+        self.assertEqual(
+            proposal_bundle["proposal"]["action"],
+            "continue",
+        )
         with self.assertRaisesRegex(
             ClaimFirstRuntimeError,
             "after the query contract stopped",
         ):
-            controller.propose_and_bind_semantic_step(
-                planner,
+            controller.bind_evidence_conditioned_semantic_step(
+                proposal_bundle,
                 state,
                 capabilities=open_query_capabilities(),
                 executed_candidate_ids=[

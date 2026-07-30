@@ -3021,6 +3021,122 @@ def execute_round(
     return executor.execute(request).as_legacy_tuple()
 
 
+def apply_external_hard_round_cap(
+    *,
+    evaluation_dir: Path,
+    plan: dict[str, Any],
+    round_runs: list[dict[str, Any]],
+    executed_rounds: int,
+    max_agent_rounds: int,
+    user_request: str,
+    bound_plan_session: Any = None,
+    plan_agent_proposal: Mapping[str, Any] | None = None,
+    plan_agent_artifact_path: str | None = None,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Persist a hard-cap stop after any evidence-backed Agent decision.
+
+    A Plan Agent stop never enters this function.  When the Agent instead
+    proposes another experiment at the cap, keep that Proposal as unexecuted
+    decision evidence and stop before TaskGen/ToolGen materialization.
+    """
+
+    completed = [
+        item["round_plan"].get("candidate_id")
+        or item["round_plan"].get("template_id")
+        for item in round_runs
+    ]
+    requested = [
+        *plan.get("requested_candidate_ids", []),
+        *plan.get("requested_template_ids", []),
+    ]
+    remaining = [
+        candidate_id
+        for candidate_id in dict.fromkeys(requested)
+        if candidate_id not in completed
+    ]
+    agent_decision = None
+    if plan_agent_proposal is not None:
+        agent_decision = {
+            "action": plan_agent_proposal.get("action"),
+            "sub_aspect": plan_agent_proposal.get("sub_aspect"),
+            "authored_from_completed_evidence": True,
+            "artifact_path": plan_agent_artifact_path,
+        }
+    assessment = {
+        "schema_version": 2,
+        "state": "external_hard_round_cap_reached",
+        "required_action": "stop",
+        "completed_rounds": executed_rounds,
+        "max_agent_rounds": max_agent_rounds,
+        "remaining_candidate_ids": remaining,
+        "policy_outcome_not_inferred": True,
+        "plan_agent_decision_before_cap": agent_decision,
+    }
+    decision = {
+        "schema_version": 3,
+        "action": "stop",
+        "transition": "stop",
+        "observation_summary": (
+            f"Completed {executed_rounds} round(s); the task-agnostic hard "
+            "execution cap rejected the Agent's request for another round."
+            if agent_decision is not None
+            else (
+                f"Completed {executed_rounds} round(s); the task-agnostic "
+                "hard execution cap is now exhausted."
+            )
+        ),
+        "decision_reason": "external_max_agent_rounds_budget",
+        "next_aspect_id": None,
+        "next_template_id": None,
+        "remaining_candidate_ids_before_decision": remaining,
+        "round_budget_before_decision": 0,
+        "evidence_assessment": assessment,
+        "plan_agent_decision_before_cap": agent_decision,
+        "next_round": None,
+    }
+    plan.setdefault("round_decisions", []).append(decision)
+    plan["planning_state"] = (
+        f"stopped_after_round_{executed_rounds}_by_hard_cap"
+    )
+    write_json(
+        evaluation_dir / f"plan/evidence_after_round_{executed_rounds}.json",
+        assessment,
+    )
+    write_json(
+        evaluation_dir / f"plan/decision_after_round_{executed_rounds}.json",
+        decision,
+    )
+    write_json(evaluation_dir / "plan/evaluation_plan.json", plan)
+    if bound_plan_session is not None:
+        write_json(
+            evaluation_dir / "plan/bound_task_session.json",
+            bound_plan_session.snapshot(
+                user_request,
+                plan,
+                [item["round_summary"] for item in round_runs],
+            ),
+        )
+    update_manifest(
+        evaluation_dir,
+        status=plan["planning_state"],
+        plan=plan,
+        hard_round_cap_stop={
+            "max_agent_rounds": max_agent_rounds,
+            "executed_rounds": executed_rounds,
+            "decision_path": (
+                f"plan/decision_after_round_{executed_rounds}.json"
+            ),
+            "plan_agent_action_before_cap": (
+                agent_decision["action"]
+                if agent_decision is not None
+                else None
+            ),
+            "plan_agent_artifact_path": plan_agent_artifact_path,
+        },
+    )
+    return plan, decision, assessment
+
+
 def main() -> None:
     args = parse_args()
     if args.benchmark == "libero":
@@ -4615,79 +4731,6 @@ def main() -> None:
                     )
                     break
 
-            if (
-                args.max_agent_rounds is not None
-                and executed_rounds >= args.max_agent_rounds
-            ):
-                completed = [
-                    item["round_plan"].get("template_id") for item in round_runs
-                ]
-                remaining = [
-                    template
-                    for template in plan.get("requested_template_ids", [])
-                    if template not in completed
-                ]
-                assessment = {
-                    "schema_version": 1,
-                    "state": "external_hard_round_cap_reached",
-                    "required_action": "stop",
-                    "completed_rounds": executed_rounds,
-                    "max_agent_rounds": args.max_agent_rounds,
-                    "remaining_template_ids": remaining,
-                    "policy_outcome_not_inferred": True,
-                }
-                decision = {
-                    "schema_version": 2,
-                    "action": "stop",
-                    "observation_summary": (
-                        f"Completed {executed_rounds} round(s); the task-agnostic "
-                        "hard execution cap is now exhausted."
-                    ),
-                    "decision_reason": "external_max_agent_rounds_budget",
-                    "next_template_id": None,
-                    "remaining_template_ids_before_decision": remaining,
-                    "round_budget_before_decision": 0,
-                    "evidence_assessment": assessment,
-                    "next_round": None,
-                }
-                plan.setdefault("round_decisions", []).append(decision)
-                plan["planning_state"] = (
-                    f"stopped_after_round_{executed_rounds}_by_hard_cap"
-                )
-                write_json(
-                    evaluation_dir
-                    / f"plan/evidence_after_round_{executed_rounds}.json",
-                    assessment,
-                )
-                write_json(
-                    evaluation_dir
-                    / f"plan/decision_after_round_{executed_rounds}.json",
-                    decision,
-                )
-                write_json(evaluation_dir / "plan/evaluation_plan.json", plan)
-                if bound_plan_session is not None:
-                    write_json(
-                        evaluation_dir / "plan/bound_task_session.json",
-                        bound_plan_session.snapshot(
-                            args.request,
-                            plan,
-                            [item["round_summary"] for item in round_runs],
-                        ),
-                    )
-                update_manifest(
-                    evaluation_dir,
-                    status=plan["planning_state"],
-                    plan=plan,
-                    hard_round_cap_stop={
-                        "max_agent_rounds": args.max_agent_rounds,
-                        "executed_rounds": executed_rounds,
-                        "decision_path": (
-                            f"plan/decision_after_round_{executed_rounds}.json"
-                        ),
-                    },
-                )
-                break
-
             plan_before_decision = plan
             observation_history = [
                 item["round_summary"] for item in round_runs
@@ -4704,6 +4747,23 @@ def main() -> None:
                 and claim_first_capabilities is not None
                 and claim_first_runtime_state is not None
             )
+            if (
+                args.max_agent_rounds is not None
+                and executed_rounds >= args.max_agent_rounds
+                and not claim_first_step_session
+            ):
+                plan, decision, _cap_assessment = (
+                    apply_external_hard_round_cap(
+                        evaluation_dir=evaluation_dir,
+                        plan=plan,
+                        round_runs=round_runs,
+                        executed_rounds=executed_rounds,
+                        max_agent_rounds=args.max_agent_rounds,
+                        user_request=args.request,
+                        bound_plan_session=bound_plan_session,
+                    )
+                )
+                break
             if claim_first_step_session:
                 active_failure_stage = (
                     f"plan_agent_decision_after_round_{executed_rounds}"
@@ -4719,18 +4779,14 @@ def main() -> None:
                 # latest Aggregate/Evidence first, then ask the Plan Agent which
                 # semantic sub-aspect should be tested next.  A pre-control
                 # Query interpretation is routing context, not a frozen experiment.
-                bound_semantic_step = (
-                    claim_first_controller.propose_and_bind_semantic_step(
+                semantic_bundle = (
+                    claim_first_controller.propose_semantic_step(
                         claim_first_agent,
                         claim_first_runtime_state,
                         capabilities=claim_first_capabilities,
-                        executed_candidate_ids=executed_candidate_ids,
                         evaluation_intent=None,
                     )
                 )
-                semantic_bundle = bound_semantic_step[
-                    "semantic_proposal_bundle"
-                ]
                 step_prompt = claim_first_agent.last_prompt
                 step_responses = list(claim_first_agent.last_responses)
                 step_dir = (
@@ -4752,6 +4808,88 @@ def main() -> None:
                         encoding="utf-8",
                     )
                 write_json(step_dir / "semantic_proposal_bundle.json", semantic_bundle)
+                raw_plan_agent_proposal = semantic_bundle.get("proposal")
+                if not isinstance(raw_plan_agent_proposal, Mapping):
+                    raise RuntimeError(
+                        "Plan Agent decision artifact has no semantic proposal"
+                    )
+                if (
+                    raw_plan_agent_proposal.get("action") != "stop"
+                    and args.max_agent_rounds is not None
+                    and executed_rounds >= args.max_agent_rounds
+                ):
+                    cap_artifact = {
+                        "schema_version": 1,
+                        "status": "continue_rejected_by_external_hard_cap",
+                        "semantic_proposal_bundle": deepcopy(semantic_bundle),
+                        "planning_lineage": deepcopy(
+                            semantic_bundle.get("planning_lineage")
+                        ),
+                        "query_contract": deepcopy(
+                            claim_first_controller.query_contract
+                        ),
+                        "plan_step": {
+                            "action": "continue",
+                            "sub_aspect": raw_plan_agent_proposal.get(
+                                "sub_aspect"
+                            ),
+                            "next_round": None,
+                        },
+                    }
+                    write_json(step_dir / "bound_semantic_step.json", cap_artifact)
+                    step_artifact_path = (
+                        f"{PLAN_AGENT_STEPS.as_posix()}/"
+                        f"after_round_{executed_rounds:02d}/"
+                        "bound_semantic_step.json"
+                    )
+                    update_manifest(
+                        evaluation_dir,
+                        last_plan_agent_step={
+                            "status": (
+                                "continue_rejected_by_external_hard_cap"
+                            ),
+                            "after_round": executed_rounds,
+                            "action": "continue",
+                            "answered_query": False,
+                            "semantic_sub_aspect": (
+                                raw_plan_agent_proposal.get("sub_aspect")
+                            ),
+                            "resolved_template_id": None,
+                            "resolved_candidate_id": None,
+                            "evidence_conditioned": bool(
+                                semantic_bundle.get(
+                                    "planning_lineage", {}
+                                ).get("evidence_conditioned")
+                            ),
+                            "planning_lineage": deepcopy(
+                                semantic_bundle.get("planning_lineage")
+                            ),
+                            "artifact_path": step_artifact_path,
+                        },
+                    )
+                    plan, decision, _cap_assessment = (
+                        apply_external_hard_round_cap(
+                            evaluation_dir=evaluation_dir,
+                            plan=plan,
+                            round_runs=round_runs,
+                            executed_rounds=executed_rounds,
+                            max_agent_rounds=args.max_agent_rounds,
+                            user_request=args.request,
+                            bound_plan_session=bound_plan_session,
+                            plan_agent_proposal=raw_plan_agent_proposal,
+                            plan_agent_artifact_path=step_artifact_path,
+                        )
+                    )
+                    break
+                bound_semantic_step = (
+                    claim_first_controller.bind_evidence_conditioned_semantic_step(
+                        semantic_bundle,
+                        claim_first_runtime_state,
+                        capabilities=claim_first_capabilities,
+                        executed_candidate_ids=executed_candidate_ids,
+                        evaluation_intent=None,
+                    )
+                )
                 write_json(step_dir / "bound_semantic_step.json", bound_semantic_step)
                 plan_step = bound_semantic_step["plan_step"]
                 materialized_round = None

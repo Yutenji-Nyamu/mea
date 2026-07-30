@@ -93,7 +93,7 @@ _CONTROL_REQUIRED_QUERY = re.compile(
     re.IGNORECASE,
 )
 _OFFICIAL_ONLY_QUERY = re.compile(
-    r"\b(?:official (?:scene|task)(?: only)?|"
+    r"\b(?:official (?:scene|task) only|"
     r"only (?:the )?official (?:scene|task)|baseline only)\b"
     r"|\bonly\s+(?:the\s+)?official"
     r"(?:\s+[a-z0-9_.-]+){1,3}\s+task\b"

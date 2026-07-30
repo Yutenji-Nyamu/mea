@@ -69,6 +69,9 @@ class GenericVisualDiagnosisTests(unittest.TestCase):
         self.assertIn(
             "exactly one of: consistent, contradicted", prompt
         )
+        self.assertIn(
+            "exactly one of: plausible, implausible", prompt
+        )
 
     def test_valid_response_passes(self):
         result = validate_generic_visual_response(

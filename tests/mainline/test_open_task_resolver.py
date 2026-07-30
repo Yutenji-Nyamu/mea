@@ -260,6 +260,12 @@ class QueryInterpretationTests(unittest.TestCase):
             ),
             "not_required",
         )
+        self.assertFalse(
+            resolver.query_is_official_only(
+                "Define success as the official goal AND one new condition "
+                "that the official task predicate does not cover."
+            )
+        )
 
     def test_non_official_query_cannot_drop_all_evidence_needs(self):
         value = concern("click the bell's top center")
@@ -353,6 +359,41 @@ class QueryInterpretationTests(unittest.TestCase):
                 "Which concern matters?", policy_card=single_task_policy()
             )
         self.assertEqual(len(provider.prompts), 1)
+
+    def test_agent_never_returns_the_last_invalid_attempt(self):
+        query = (
+            "Define success as the official goal and one additional "
+            "experimental condition."
+        )
+        value = {
+            **concern("test one additional success condition"),
+            "source_query": query,
+        }
+        invalid = {
+            **value,
+            "scene_need": {"required": False, "description": None},
+            "checker_need": {"required": False, "description": None},
+            "rule_tool_need": {
+                "required": True,
+                "description": "Measure the official success boolean.",
+                "reuse_first": True,
+            },
+            "vqa_tool_need": {
+                "required": False,
+                "description": None,
+                "reuse_first": True,
+            },
+        }
+        provider = self.Provider([json.dumps(invalid), json.dumps(invalid)])
+
+        with self.assertRaisesRegex(
+            resolver.OpenTaskResolutionError,
+            "2 FreeConcern attempt",
+        ):
+            resolver.PlanAgentQueryInterpreter(
+                provider,
+                model="fixture",
+            ).propose(query, policy_card=single_task_policy())
 
     def test_historical_free_concern_class_name_remains_readable(self):
         self.assertIs(

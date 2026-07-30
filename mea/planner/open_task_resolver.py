@@ -97,7 +97,9 @@ EXPERIMENTAL_SUCCESS_CHECKER_GUIDANCE = (
     "If a Query calls an episode successful only when the official goal and "
     "any additional experimental condition both hold, request checker_need. A numeric "
     "difference Tool reports magnitude but cannot supply that pass/fail "
-    "predicate."
+    "predicate. Mentioning the official goal or official predicate as one "
+    "component of a combined condition does not make the Query official-only; "
+    "preserve every additional condition from the original Query."
 )
 
 
@@ -480,14 +482,16 @@ class PlanAgentQueryInterpreter:
                     temperature=0.0,
                 )
                 self.last_responses.append(response)
-                concern, experiment_needs = _split_free_concern_response(
+                candidate_concern, candidate_needs = _split_free_concern_response(
                     _extract_json_response(response),
                     expected_query=user_query,
                 )
                 _validate_query_required_needs(
                     user_query,
-                    experiment_needs,
+                    candidate_needs,
                 )
+                concern = candidate_concern
+                experiment_needs = candidate_needs
                 break
             except Exception as exc:
                 self.last_errors.append(f"{type(exc).__name__}: {exc}")

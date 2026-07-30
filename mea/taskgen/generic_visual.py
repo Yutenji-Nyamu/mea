@@ -233,6 +233,8 @@ contacts, predicates, or other facts that RGB cannot establish. Do not infer
 checker correctness or task success from the initial frame.
 requested_change_assessment must be exactly one of: consistent, contradicted,
 not_visually_decidable. Never substitute synonyms such as inconsistent.
+visual_physical_plausibility must be exactly one of: plausible, implausible,
+uncertain. Never substitute synonyms such as realistic or good.
 
 Return strict JSON with exactly these fields:
 {json.dumps(example, ensure_ascii=False, indent=2)}

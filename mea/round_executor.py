@@ -500,49 +500,79 @@ class RoundExecutor:
             and semantic_ready
             and tool_evaluation.get("status") == "passed"
         ):
-            telemetry_root = child_dir / "evaluation/telemetry"
-            trusted_episodes = []
-            for episode in tool_evaluation.get("episodes", []):
-                normalized_episode = deepcopy(dict(episode))
-                episode_path = Path(str(episode["episode_dir"]))
-                telemetry_root_resolved = telemetry_root.resolve()
-                if episode_path.is_absolute():
-                    relative_episode = episode_path.resolve().relative_to(
-                        telemetry_root_resolved
-                    )
-                else:
-                    repo_candidate = (
-                        request.repo_root / episode_path
-                    ).resolve()
-                    if repo_candidate.is_relative_to(
-                        telemetry_root_resolved
-                    ):
-                        relative_episode = repo_candidate.relative_to(
-                            telemetry_root_resolved
-                        )
-                    else:
-                        relative_episode = (
-                            telemetry_root_resolved / episode_path
-                        ).resolve().relative_to(telemetry_root_resolved)
-                normalized_episode["episode_dir"] = (
-                    relative_episode.as_posix()
-                )
-                trusted_episodes.append(normalized_episode)
-            child_manifest["trusted_tool_evaluation"].update(
-                {
-                    "status": "passed",
-                    "episode_count": len(trusted_episodes),
-                    "episodes": trusted_episodes,
-                    "artifact": (
-                        tool_evaluation.get("artifacts") or {}
-                    ).get("tool_execution"),
-                }
-            )
-            _write_json(
-                child_dir / "manifest.json",
-                child_manifest,
+            self._persist_native_planned_tool(
+                repo_root=request.repo_root,
+                child_dir=child_dir,
+                child_manifest=child_manifest,
+                tool_evaluation=tool_evaluation,
             )
         return dict(tool_evaluation)
+
+    @staticmethod
+    def _persist_native_planned_tool(
+        *,
+        repo_root: Path,
+        child_dir: Path,
+        child_manifest: dict[str, Any],
+        tool_evaluation: Mapping[str, Any],
+    ) -> None:
+        """Persist a planned Tool without replacing outcome authority.
+
+        Native TaskGen records the official/generated checker in
+        ``trusted_tool_evaluation`` before the planned Rule Tool runs.  The
+        latter is an additional observation from the same rollout, not a new
+        success predicate.  Keeping it separate preserves checker semantics;
+        the Aggregate still consumes the returned ``tool_evaluation`` directly.
+        """
+
+        telemetry_root = (child_dir / "evaluation/telemetry").resolve()
+        planned_episodes = []
+        for episode in tool_evaluation.get("episodes", []):
+            normalized_episode = deepcopy(dict(episode))
+            episode_path = Path(str(episode["episode_dir"]))
+            if episode_path.is_absolute():
+                relative_episode = episode_path.resolve().relative_to(
+                    telemetry_root
+                )
+            else:
+                repo_candidate = (repo_root / episode_path).resolve()
+                if repo_candidate.is_relative_to(telemetry_root):
+                    relative_episode = repo_candidate.relative_to(
+                        telemetry_root
+                    )
+                else:
+                    relative_episode = (
+                        telemetry_root / episode_path
+                    ).resolve().relative_to(telemetry_root)
+            normalized_episode["episode_dir"] = relative_episode.as_posix()
+            planned_episodes.append(normalized_episode)
+        child_manifest["planned_tool_evaluation"] = {
+            **deepcopy(dict(tool_evaluation)),
+            "episode_count": len(planned_episodes),
+            "episodes": planned_episodes,
+            "artifact": (
+                tool_evaluation.get("artifacts") or {}
+            ).get("tool_execution"),
+        }
+        trusted_outcome = child_manifest.get("trusted_tool_evaluation")
+        if (
+            isinstance(trusted_outcome, dict)
+            and not trusted_outcome.get("episodes")
+        ):
+            # Official native rounds may not have a TaskGen-owned outcome Tool.
+            # Retain the historical representative-episode fallback for VQA,
+            # while never replacing an already recorded checker outcome.
+            trusted_outcome.update(
+                {
+                    "status": "passed",
+                    "episode_count": len(planned_episodes),
+                    "episodes": deepcopy(planned_episodes),
+                    "artifact": child_manifest[
+                        "planned_tool_evaluation"
+                    ]["artifact"],
+                }
+            )
+        _write_json(child_dir / "manifest.json", child_manifest)
 
     @staticmethod
     def _project_tool_state(

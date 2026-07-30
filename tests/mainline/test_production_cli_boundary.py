@@ -213,6 +213,43 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             source,
         )
 
+    def test_plan_agent_decides_before_the_external_hard_cap(self) -> None:
+        source = (REPO_ROOT / "scripts/manipeval_agent.py").read_text(
+            encoding="utf-8"
+        )
+        session_start = source.index("if claim_first_step_session:")
+        author_decision = source.index(
+            "claim_first_controller.propose_semantic_step(",
+            session_start,
+        )
+        continue_gate = source.index(
+            'raw_plan_agent_proposal.get("action") != "stop"',
+            author_decision,
+        )
+        hard_cap = source.index(
+            "apply_external_hard_round_cap(",
+            continue_gate,
+        )
+        bind_continue = source.index(
+            "claim_first_controller.bind_evidence_conditioned_semantic_step(",
+            hard_cap,
+        )
+        self.assertLess(
+            author_decision,
+            continue_gate,
+            "the Agent must author stop/continue before the cap is checked",
+        )
+        self.assertLess(
+            continue_gate,
+            hard_cap,
+            "only an Agent continue decision may enter the hard-cap stop",
+        )
+        self.assertLess(
+            hard_cap,
+            bind_continue,
+            "a capped continue must stop before candidate binding/materialization",
+        )
+
     def test_precontrol_concern_does_not_shrink_planner_domain(self) -> None:
         probe = (
             "import importlib.util,json,pathlib;"

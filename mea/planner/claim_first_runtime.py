@@ -2165,21 +2165,21 @@ class PlanAgentSession:
         )
         return _attach_planning_lineage(bound, lineage)
 
-    def propose_and_bind_semantic_step(
+    def propose_semantic_step(
         self,
         planner: Any,
         observation: Mapping[str, Any],
         *,
         capabilities: Mapping[str, Any],
-        executed_candidate_ids: Sequence[str],
         evaluation_intent: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Read completed evidence, then author and bind exactly one next step.
+        """Read completed evidence, then author one validated next decision.
 
-        Keeping the provider call inside this method makes the temporal order
+        Keeping the provider call inside the session makes the temporal order
         explicit: round evidence is validated first; only then may the Plan
-        Agent choose the next semantic concern.  The resulting digest and
-        round ids are revalidated before candidate materialization.
+        Agent choose stop or a next semantic concern.  Binding a continuing
+        Proposal remains a separate step so an outer execution cap can reject
+        it without pre-empting an evidence-backed stop decision.
         """
 
         assessment = observation.get("assessment")
@@ -2242,12 +2242,41 @@ class PlanAgentSession:
             raise ClaimFirstRuntimeError(
                 "Plan Agent returned no proposal bundle"
             )
+        try:
+            validate_open_query_proposal_lineage(
+                proposal_bundle,
+                user_query=self.user_query,
+                capabilities=trusted_capabilities,
+                evidence_history=history,
+                evaluation_intent=trusted_intent,
+            )
+        except ClaimFirstPlanError as exc:
+            raise ClaimFirstRuntimeError(str(exc)) from exc
+        return deepcopy(dict(proposal_bundle))
+
+    def propose_and_bind_semantic_step(
+        self,
+        planner: Any,
+        observation: Mapping[str, Any],
+        *,
+        capabilities: Mapping[str, Any],
+        executed_candidate_ids: Sequence[str],
+        evaluation_intent: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Author from completed evidence, then bind exactly one next step."""
+
+        proposal_bundle = self.propose_semantic_step(
+            planner,
+            observation,
+            capabilities=capabilities,
+            evaluation_intent=evaluation_intent,
+        )
         return self.bind_evidence_conditioned_semantic_step(
             proposal_bundle,
             observation,
-            capabilities=trusted_capabilities,
+            capabilities=capabilities,
             executed_candidate_ids=executed_candidate_ids,
-            evaluation_intent=trusted_intent,
+            evaluation_intent=evaluation_intent,
         )
 
     def bind_semantic_step(
