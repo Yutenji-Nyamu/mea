@@ -78,11 +78,15 @@ class AnswerScopeTests(unittest.TestCase):
             / "mea/feedback/README.Agent.md"
         ).read_text(encoding="utf-8")
         self.assertIn(
-            "Do not upgrade “one scalar computed from rollout telemetry”",
+            "Do not upgrade “one",
             prompt,
         )
         self.assertIn(
-            "unless the Query explicitly asks for a peak",
+            "scalar computed from rollout telemetry” into a missing trajectory",
+            prompt,
+        )
+        self.assertIn(
+            "explicitly asks for a peak",
             prompt,
         )
 
