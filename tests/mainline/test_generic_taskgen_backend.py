@@ -509,10 +509,14 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             'self.roller.get_contact_point(0, "pose").p',
             guide,
         )
-        self.assertIn("self.robot.left_tcp.get_pose().p", guide)
+        self.assertIn("self.robot.get_left_tcp_pose()[:3]", guide)
         self.assertIn("Do not invent", guide)
         self.assertIn(
             "get_contact_point",
+            _GENERIC_READ_ONLY_METHOD_CALLS,
+        )
+        self.assertIn(
+            "get_left_tcp_pose",
             _GENERIC_READ_ONLY_METHOD_CALLS,
         )
 
@@ -2186,6 +2190,10 @@ class GenericTaskGenBackendTests(unittest.TestCase):
         )
         self.assertIn(
             "runtime-bound to the supplied",
+            provider.review_prompts[1],
+        )
+        self.assertIn(
+            "get_left_tcp_pose()[:3]",
             provider.review_prompts[1],
         )
         self.assertEqual(review["status"], "approved")

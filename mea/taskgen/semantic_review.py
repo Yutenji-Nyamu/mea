@@ -48,6 +48,8 @@ _ROBOTWIN_RUNTIME_API_AUTHORITY = """\
 - `self.robot.left_gripper` and `self.robot.right_gripper` contain gripper
   joints; each joint tuple's `[0].child_link` is the corresponding gripper
   link entity.
+- `self.robot.get_left_tcp_pose()[:3]` and
+  `self.robot.get_right_tcp_pose()[:3]` are the current TCP positions.
 - `self.mea_official_check_success()` is runtime-bound to the supplied
   OFFICIAL CHECK_SUCCESS body.
 These are established read-only RoboTwin runtime APIs. Do not reject their

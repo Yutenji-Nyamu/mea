@@ -120,8 +120,10 @@ _GENERIC_READ_ONLY_METHOD_CALLS = {
     "get_contact_point",
     "get_contacts",
     "get_functional_point",
+    "get_left_tcp_pose",
     "get_links",
     "get_pose",
+    "get_right_tcp_pose",
     "mea_official_check_success",
 }
 
@@ -1403,7 +1405,7 @@ def _semantic_field_access_guide(adapter: Mapping[str, Any]) -> str:
         elif source == "robot_tcp_position":
             side = field.get("side")
             if side in {"left", "right"}:
-                expression = f"self.robot.{side}_tcp.get_pose().p"
+                expression = f"self.robot.get_{side}_tcp_pose()[:3]"
         if expression is not None:
             expressions.append(f"- {name}: `{expression}`")
     if not expressions:
