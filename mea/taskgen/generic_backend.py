@@ -1346,6 +1346,75 @@ def _read_generation_context(
     return "\n\n".join(sections) + "\n"
 
 
+def _semantic_field_access_guide(adapter: Mapping[str, Any]) -> str:
+    """Render exact read-only expressions for TaskSchema semantic fields."""
+
+    schema = adapter.get("task_schema")
+    if not isinstance(schema, Mapping):
+        return ""
+    tracked = schema.get("tracked_actors")
+    actor_attributes: dict[str, str] = {}
+    if isinstance(tracked, list):
+        for item in tracked:
+            if not isinstance(item, Mapping):
+                continue
+            actor_id = item.get("id")
+            task_attribute = item.get("task_attribute")
+            if isinstance(actor_id, str) and isinstance(task_attribute, str):
+                actor_attributes[actor_id] = task_attribute
+    fields = schema.get("semantic_fields")
+    if not isinstance(fields, list):
+        return ""
+    expressions: list[str] = []
+    for field in fields:
+        if not isinstance(field, Mapping):
+            continue
+        name = field.get("name")
+        source = field.get("source")
+        if not isinstance(name, str) or not isinstance(source, str):
+            continue
+        expression: str | None = None
+        if source in {
+            "actor_position",
+            "actor_functional_position",
+            "actor_contact_position",
+        }:
+            actor_id = field.get("actor_id")
+            task_attribute = actor_attributes.get(str(actor_id))
+            if task_attribute is None:
+                continue
+            if source == "actor_position":
+                expression = f"self.{task_attribute}.get_pose().p"
+            else:
+                point_id = field.get("point_id")
+                if isinstance(point_id, bool) or not isinstance(point_id, int):
+                    continue
+                method = (
+                    "get_functional_point"
+                    if source == "actor_functional_position"
+                    else "get_contact_point"
+                )
+                expression = (
+                    f'self.{task_attribute}.{method}({point_id}, "pose").p'
+                )
+        elif source == "robot_tcp_position":
+            side = field.get("side")
+            if side in {"left", "right"}:
+                expression = f"self.robot.{side}_tcp.get_pose().p"
+        if expression is not None:
+            expressions.append(f"- {name}: `{expression}`")
+    if not expressions:
+        return ""
+    return (
+        "\n\nREAD-ONLY CURRENT-STATE FIELD ACCESS:\n"
+        + "\n".join(expressions)
+        + "\nWhen checker_need names one of these semantic fields, use its "
+        "exact expression. Do not invent a similarly named helper such as "
+        "get_contact_position, and do not replace a declared actor point "
+        "identity with an arbitrary PhysX collision point."
+    )
+
+
 def _core_prompt(
     candidate: Mapping[str, Any],
     adapter: Mapping[str, Any],
@@ -1367,6 +1436,7 @@ def _core_prompt(
         + json.dumps(candidate, ensure_ascii=False, sort_keys=True, indent=2)
         + "\n\nTHIN TASK ADAPTER:\n"
         + json.dumps(adapter, ensure_ascii=False, sort_keys=True, indent=2)
+        + _semantic_field_access_guide(adapter)
         + constraint_section
         + "\n\nOUTPUT CONTRACT:\n"
         "Return one strict JSON object with exactly two string fields, "

@@ -16,6 +16,7 @@ from mea.taskgen.generic_backend import (
     GenericTaskGenError,
     GenericTaskGenHooks,
     _candidate_requires_official_core_conjunct,
+    _semantic_field_access_guide,
     build_generic_task_subclass_module,
     discover_generic_robotwin_task_identity,
     generic_task_semantic_key,
@@ -474,6 +475,42 @@ def _adapter() -> GenericRoboTwinTaskAdapter:
 
 
 class GenericTaskGenBackendTests(unittest.TestCase):
+    def test_semantic_field_access_guide_exposes_exact_read_only_apis(
+        self,
+    ) -> None:
+        guide = _semantic_field_access_guide(
+            {
+                "task_schema": {
+                    "tracked_actors": [
+                        {
+                            "id": "roller",
+                            "task_attribute": "roller",
+                        }
+                    ],
+                    "semantic_fields": [
+                        {
+                            "name": "roller_left_contact_position",
+                            "source": "actor_contact_position",
+                            "actor_id": "roller",
+                            "point_id": 0,
+                        },
+                        {
+                            "name": "left_tcp_position",
+                            "source": "robot_tcp_position",
+                            "side": "left",
+                        },
+                    ],
+                }
+            }
+        )
+
+        self.assertIn(
+            'self.roller.get_contact_point(0, "pose").p',
+            guide,
+        )
+        self.assertIn("self.robot.left_tcp.get_pose().p", guide)
+        self.assertIn("Do not invent", guide)
+
     def test_safe_ast_allows_conventional_discard_loop_target(self) -> None:
         tree = validate_method_ast(
             "def load_actors(self):\n"
