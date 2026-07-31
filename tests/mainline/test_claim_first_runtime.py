@@ -367,7 +367,7 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             compact_prompt,
         )
         self.assertIn(
-            'outcome="success" for a terminal checker',
+            '`outcome="success"` for a terminal checker',
             compact_prompt,
         )
 
