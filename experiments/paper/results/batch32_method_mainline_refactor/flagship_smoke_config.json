@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "status": "awaiting_user_approval",
-  "repo_commit": "b75ee8434aaa1500310fb0063388fbfd5daea145",
+  "method_code_commit": "b75ee8434aaa1500310fb0063388fbfd5daea145",
   "query": "Does there exist a newly generated executable scene challenge that exposes a trajectory weakness in this policy? Let the Plan Agent choose the scene change. Define success as completing the official task goal AND satisfying one additional boolean condition read directly from current simulator object/contact state, never from a trajectory-derived threshold. Independently report one scalar metric computed from the rollout trajectory that decides the hypothesis.",
   "benchmark": "robotwin",
   "task_binding": {
@@ -49,7 +49,7 @@
   ],
   "stop_conditions": [
     "SSH or host-key authentication fails.",
-    "The canonical worktree is dirty or differs from repo_commit.",
+    "The canonical worktree is dirty, does not contain method_code_commit, or has later MEA code changes.",
     "The selected port is already listening.",
     "Policy server readiness fails or simulator source differs from the MEA-bound RoboTwin source.",
     "TaskGen compile, semantic fixture, render/VLM, expert, preservation, or checker semantic review fails.",

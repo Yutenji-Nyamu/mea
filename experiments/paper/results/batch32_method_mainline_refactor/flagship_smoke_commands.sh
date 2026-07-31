@@ -12,12 +12,13 @@ log_dir=/root/autodl-tmp/mea-run-logs/batch32_clean_flagship_v1
 ready_file="$log_dir/policy.ready.json"
 port=18783
 seed=100401
-commit=b75ee8434aaa1500310fb0063388fbfd5daea145
+method_commit=b75ee8434aaa1500310fb0063388fbfd5daea145
 query='Does there exist a newly generated executable scene challenge that exposes a trajectory weakness in this policy? Let the Plan Agent choose the scene change. Define success as completing the official task goal AND satisfying one additional boolean condition read directly from current simulator object/contact state, never from a trajectory-derived threshold. Independently report one scalar metric computed from the rollout trajectory that decides the hypothesis.'
 
 cd "$repo"
-test "$(git rev-parse HEAD)" = "$commit"
 test -z "$(git status --short)"
+git merge-base --is-ancestor "$method_commit" HEAD
+git diff --quiet "$method_commit"..HEAD -- mea scripts envs policy
 test ! -e "$repo/mea/evaluation_runs/eval_20260731_batch32_clean_flagship_plan_v1"
 test ! -e "$repo/mea/evaluation_runs/eval_20260731_batch32_clean_flagship_live_v1"
 test -z "$(ss -H -ltn "sport = :$port")"

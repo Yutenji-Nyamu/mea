@@ -130,6 +130,15 @@ mainline: 299 passed, 16 subtests passed in 17.80s
 
 测试位置：AutoDL server。Windows PC 未运行任何项目测试、import 或 compile。
 
+Git 同步：
+
+- 方法 commit：`b75ee8434aaa1500310fb0063388fbfd5daea145`；
+- 首版验证/审批文档 commit：`45fea180c7c66c66bc1f30bf423a91e2cc2faaf3`；
+- GitHub `main` 已通过服务器固定 deploy key 做一次有界 push，并以
+  `git ls-remote` 复核到相同 HEAD；
+- GitHub 网页主站/Raw HTTP 路由当时不稳定，但 API 为 HTTP 200、Git SSH
+  `ls-remote` 与 push 均成功；这不是仓库或认证失败。
+
 ## 5. Formal flagship smoke gate
 
 Resolved 配置与完整命令已经冻结在：
