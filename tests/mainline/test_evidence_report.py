@@ -671,7 +671,7 @@ class EvidenceReportTests(unittest.TestCase):
                 },
             )
             self.assertIn(
-                "not independent cross-evaluation reuse",
+                "not cross-evaluation reuse",
                 destination.read_text(encoding="utf-8"),
             )
             self.assertTrue(
