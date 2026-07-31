@@ -35,7 +35,6 @@ from mea.agent_cli import (
 )
 from mea.agent_acceptance import (
     _episode_tool_results,
-    build_compact_flagship_acceptance,
 )
 from mea.agent_evidence import (
     _round_evidence,
@@ -60,13 +59,16 @@ from mea.history import EvaluationHistoryDB
 from mea.plan_artifacts import (
     INITIAL_SUB_ASPECT_PROPOSAL,
     PLAN_AGENT_CAPABILITIES,
-    PLAN_AGENT_SESSION,
-    PLAN_AGENT_STEPS,
     PROPOSAL_FILENAME,
     PROPOSAL_MATERIALIZATION,
     QUERY_INTERPRETATION,
     QUERY_INTERPRETATION_PROMPT,
     QUERY_INTERPRETATION_RESPONSE_PREFIX,
+)
+from mea.plan_agent_application import (
+    PlanAgentApplication,
+    apply_external_hard_round_cap,
+    update_manifest,
 )
 from mea.planner import (
     AdaptivePlanStepAgent,
@@ -88,7 +90,6 @@ from mea.planner import (
     make_evaluation_id,
     policy_task_binding_from_target,
     project_open_query_capabilities,
-    render_query_answer,
     resolve_concern_candidate_domain,
     resolve_open_task,
     route_to_planner_proposal,
@@ -844,14 +845,6 @@ def adjudicate_bounded_transition(
         candidate_decision=decision,
     )
     return updated, canonical, directive
-
-
-def update_manifest(evaluation_dir: Path, **updates: Any) -> dict[str, Any]:
-    path = evaluation_dir / "manifest.json"
-    manifest = json.loads(path.read_text(encoding="utf-8"))
-    manifest.update(updates)
-    write_json(path, manifest)
-    return manifest
 
 
 def persist_adaptive_step_selection(
@@ -2611,122 +2604,6 @@ def execute_round(
     )
 
 
-def apply_external_hard_round_cap(
-    *,
-    evaluation_dir: Path,
-    plan: dict[str, Any],
-    round_runs: list[dict[str, Any]],
-    executed_rounds: int,
-    max_agent_rounds: int,
-    user_request: str,
-    bound_plan_session: Any = None,
-    plan_agent_proposal: Mapping[str, Any] | None = None,
-    plan_agent_artifact_path: str | None = None,
-) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-    """Persist a hard-cap stop after any evidence-backed Agent decision.
-
-    A Plan Agent stop never enters this function.  When the Agent instead
-    proposes another experiment at the cap, keep that Proposal as unexecuted
-    decision evidence and stop before TaskGen/ToolGen materialization.
-    """
-
-    completed = [
-        item["round_plan"].get("candidate_id")
-        or item["round_plan"].get("template_id")
-        for item in round_runs
-    ]
-    requested = [
-        *plan.get("requested_candidate_ids", []),
-        *plan.get("requested_template_ids", []),
-    ]
-    remaining = [
-        candidate_id
-        for candidate_id in dict.fromkeys(requested)
-        if candidate_id not in completed
-    ]
-    agent_decision = None
-    if plan_agent_proposal is not None:
-        agent_decision = {
-            "action": plan_agent_proposal.get("action"),
-            "sub_aspect": plan_agent_proposal.get("sub_aspect"),
-            "authored_from_completed_evidence": True,
-            "artifact_path": plan_agent_artifact_path,
-        }
-    assessment = {
-        "schema_version": 2,
-        "state": "external_hard_round_cap_reached",
-        "required_action": "stop",
-        "completed_rounds": executed_rounds,
-        "max_agent_rounds": max_agent_rounds,
-        "remaining_candidate_ids": remaining,
-        "policy_outcome_not_inferred": True,
-        "plan_agent_decision_before_cap": agent_decision,
-    }
-    decision = {
-        "schema_version": 3,
-        "action": "stop",
-        "transition": "stop",
-        "observation_summary": (
-            f"Completed {executed_rounds} round(s); the task-agnostic hard "
-            "execution cap rejected the Agent's request for another round."
-            if agent_decision is not None
-            else (
-                f"Completed {executed_rounds} round(s); the task-agnostic "
-                "hard execution cap is now exhausted."
-            )
-        ),
-        "decision_reason": "external_max_agent_rounds_budget",
-        "next_aspect_id": None,
-        "next_template_id": None,
-        "remaining_candidate_ids_before_decision": remaining,
-        "round_budget_before_decision": 0,
-        "evidence_assessment": assessment,
-        "plan_agent_decision_before_cap": agent_decision,
-        "next_round": None,
-    }
-    plan.setdefault("round_decisions", []).append(decision)
-    plan["planning_state"] = (
-        f"stopped_after_round_{executed_rounds}_by_hard_cap"
-    )
-    write_json(
-        evaluation_dir / f"plan/evidence_after_round_{executed_rounds}.json",
-        assessment,
-    )
-    write_json(
-        evaluation_dir / f"plan/decision_after_round_{executed_rounds}.json",
-        decision,
-    )
-    write_json(evaluation_dir / "plan/evaluation_plan.json", plan)
-    if bound_plan_session is not None:
-        write_json(
-            evaluation_dir / "plan/bound_task_session.json",
-            bound_plan_session.snapshot(
-                user_request,
-                plan,
-                [item["round_summary"] for item in round_runs],
-            ),
-        )
-    update_manifest(
-        evaluation_dir,
-        status=plan["planning_state"],
-        plan=plan,
-        hard_round_cap_stop={
-            "max_agent_rounds": max_agent_rounds,
-            "executed_rounds": executed_rounds,
-            "decision_path": (
-                f"plan/decision_after_round_{executed_rounds}.json"
-            ),
-            "plan_agent_action_before_cap": (
-                agent_decision["action"]
-                if agent_decision is not None
-                else None
-            ),
-            "plan_agent_artifact_path": plan_agent_artifact_path,
-        },
-    )
-    return plan, decision, assessment
-
-
 def main() -> None:
     args = parse_args()
     if args.benchmark == "libero":
@@ -4140,10 +4017,58 @@ def main() -> None:
         return
 
     assert provider is not None
+    if isinstance(plan_session, PlanAgentSession):
+        if claim_first_agent is None or claim_first_capabilities is None:
+            raise RuntimeError(
+                "production Plan Agent application was not initialized"
+            )
+        application_result = PlanAgentApplication(
+            repo_root=repo_root,
+            evaluation_dir=evaluation_dir,
+            evaluation_id=evaluation_id,
+            user_request=args.request,
+            plan=plan,
+            session=plan_session,
+            agent=claim_first_agent,
+            capabilities=claim_first_capabilities,
+            provider=provider,
+            round_executor=build_production_round_executor(),
+            models=models,
+            base_url=args.base_url,
+            gpu=args.gpu,
+            max_reflections=args.max_reflections,
+            telemetry_profile=args.telemetry_profile,
+            policy_backend=args.policy_backend,
+            runtime_target=claim_first_initial_target,
+            smolvla_port=args.smolvla_port,
+            materialize_round=materialize_open_world_round,
+            reviewed_task_registry=reviewed_task_registry,
+            reviewed_tool_registry=reviewed_tool_registry,
+            reviewed_vqa_registry=reviewed_vqa_registry,
+            registration_identity=registration_identity,
+            max_agent_rounds=args.max_agent_rounds,
+            global_route_result=global_route_result,
+            free_concern_bundle=free_concern_bundle,
+            open_task_resolution=open_task_resolution,
+            concern_candidate_resolution=concern_candidate_resolution,
+            history_database=history_database,
+            history_retrieval=history_retrieval,
+            history_context_count=len(history_context),
+            history_disabled=bool(args.no_history),
+            cli_candidate_hint_used=(
+                args.bound_requested_aspect_ids is not None
+            ),
+        ).run()
+        print(
+            json.dumps(
+                application_result,
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return
 
     round_runs: list[dict[str, Any]] = []
-    claim_first_runtime_state: dict[str, Any] | None = None
-    claim_first_query_answer: dict[str, Any] | None = None
     round_executor = build_production_round_executor()
     active_failure_stage = "round_execution"
     try:
@@ -4191,145 +4116,18 @@ def main() -> None:
             )
             executed_rounds += 1
 
-            if isinstance(plan_session, PlanAgentSession):
-                active_failure_stage = (
-                    f"plan_agent_evidence_after_round_{executed_rounds}"
-                )
-                claim_first_runtime_state = plan_session.observe(
-                    [item["round_plan"] for item in round_runs],
-                    [item["round_summary"] for item in round_runs],
-                )
-                # Keep normalized candidate evidence in the same Plan Agent
-                # owner that binds semantic decisions to executable rounds;
-                # the official control remains outside the Query candidate
-                # domain.
-                contract_candidate_ids = {
-                    str(item)
-                    for item in claim_first_runtime_state["query_contract"].get(
-                        "candidate_universe", []
-                    )
-                }
-                records_by_round = {
-                    str(record["round_id"]): record
-                    for record in claim_first_runtime_state["records"]
-                }
-                if len(records_by_round) != len(round_runs):
-                    raise RuntimeError(
-                        "Plan Agent records are not one-to-one with completed "
-                        "runtime rounds"
-                    )
-                for completed_run in round_runs:
-                    round_id = str(completed_run["round_plan"]["round_id"])
-                    record = records_by_round.get(round_id)
-                    if record is None:
-                        raise RuntimeError(
-                            "Plan Agent record is missing for completed round "
-                            f"{round_id!r}"
-                        )
-                    if record["candidate_id"] in contract_candidate_ids:
-                        completed_run["round_summary"][
-                            "candidate_evidence"
-                        ] = deepcopy(record["candidate_evidence"])
-                claim_first_dir = evaluation_dir / PLAN_AGENT_SESSION
-                write_json(
-                    claim_first_dir
-                    / f"evidence_after_round_{executed_rounds:02d}.json",
-                    claim_first_runtime_state,
-                )
-                assessment = claim_first_runtime_state["assessment"]
-                if (
-                    assessment["should_stop"]
-                    and assessment.get("evidence_sufficient") is not True
-                ):
-                    claim_first_query_answer = claim_first_runtime_state[
-                        "query_answer"
-                    ]
-                    decision = {
-                        "schema_version": 3,
-                        "action": "stop",
-                        "transition": "stop",
-                        "next_aspect_id": None,
-                        "next_template_id": None,
-                        "observation_summary": assessment["rationale"],
-                        "decision_reason": (
-                            "external_query_contract_stop"
-                        ),
-                        "answered_query": bool(
-                            claim_first_query_answer["answered"]
-                        ),
-                        "plan_step_source": "external_query_contract_stop",
-                        "round_budget_before_decision": assessment[
-                            "budget_remaining"
-                        ],
-                        "evidence_assessment": assessment,
-                        "semantic_stop_step": None,
-                        "next_round": None,
-                    }
-                    plan.setdefault("round_decisions", []).append(decision)
-                    plan["planning_state"] = (
-                        f"stopped_after_round_{executed_rounds}_"
-                        f"{assessment['stop_reason']}"
-                    )
-                    write_json(
-                        evaluation_dir
-                        / f"plan/decision_after_{round_plan['round_id']}.json",
-                        decision,
-                    )
-                    write_json(
-                        claim_first_dir / "query_answer.json",
-                        claim_first_query_answer,
-                    )
-                    write_json(
-                        evaluation_dir / "plan/evaluation_plan.json",
-                        plan,
-                    )
-                    if plan_session is not None:
-                        write_json(
-                            evaluation_dir / "plan/bound_task_session.json",
-                            plan_session.snapshot(
-                                args.request,
-                                plan,
-                                [item["round_summary"] for item in round_runs],
-                            ),
-                        )
-                    update_manifest(
-                        evaluation_dir,
-                        status=plan["planning_state"],
-                        plan=plan,
-                        plan_agent_stop={
-                            "stop_reason": assessment["stop_reason"],
-                            "evidence_sufficient": assessment[
-                                "evidence_sufficient"
-                            ],
-                            "answered_query": claim_first_query_answer["answered"],
-                            "answer_path": (
-                                (PLAN_AGENT_SESSION / "query_answer.json").as_posix()
-                            ),
-                            "plan_agent_stop_proposed": False,
-                        },
-                    )
-                    break
-
             plan_before_decision = plan
             observation_history = [
                 item["round_summary"] for item in round_runs
             ]
             dynamic_step_session = (
                 plan_session is not None
-                and not isinstance(plan_session, PlanAgentSession)
                 and adaptive_step_agent is not None
                 and planning_context is not None
-            )
-            claim_first_step_session = (
-                isinstance(plan_session, PlanAgentSession)
-                and claim_first_agent is not None
-                and claim_first_capabilities is not None
-                and claim_first_runtime_state is not None
             )
             if (
                 args.max_agent_rounds is not None
                 and executed_rounds >= args.max_agent_rounds
-                and not claim_first_step_session
             ):
                 plan, decision, _cap_assessment = (
                     apply_external_hard_round_cap(
@@ -4343,278 +4141,7 @@ def main() -> None:
                     )
                 )
                 break
-            if claim_first_step_session:
-                active_failure_stage = (
-                    f"plan_agent_decision_after_round_{executed_rounds}"
-                )
-                executed_candidate_ids = [
-                    str(
-                        item["round_plan"].get("candidate_id")
-                        or item["round_plan"].get("template_id")
-                    )
-                    for item in round_runs
-                ]
-                # This is the temporal boundary required by Fig. 5: validate the
-                # latest Aggregate/Evidence first, then ask the Plan Agent which
-                # semantic sub-aspect should be tested next.  A pre-control
-                # Query interpretation is routing context, not a frozen experiment.
-                semantic_bundle = (
-                    plan_session.propose_semantic_step(
-                        claim_first_agent,
-                        claim_first_runtime_state,
-                        capabilities=claim_first_capabilities,
-                        evaluation_intent=None,
-                    )
-                )
-                step_prompt = claim_first_agent.last_prompt
-                step_responses = list(claim_first_agent.last_responses)
-                step_dir = (
-                    evaluation_dir
-                    / PLAN_AGENT_STEPS
-                    / f"after_round_{executed_rounds:02d}"
-                )
-                step_dir.mkdir(parents=True, exist_ok=True)
-                (step_dir / "prompt.md").write_text(
-                    step_prompt or "",
-                    encoding="utf-8",
-                )
-                for index, response in enumerate(
-                    step_responses,
-                    start=1,
-                ):
-                    (step_dir / f"response_{index}.txt").write_text(
-                        response + "\n",
-                        encoding="utf-8",
-                    )
-                write_json(step_dir / "semantic_proposal_bundle.json", semantic_bundle)
-                raw_plan_agent_proposal = semantic_bundle.get("proposal")
-                if not isinstance(raw_plan_agent_proposal, Mapping):
-                    raise RuntimeError(
-                        "Plan Agent decision artifact has no semantic proposal"
-                    )
-                if (
-                    raw_plan_agent_proposal.get("action") != "stop"
-                    and args.max_agent_rounds is not None
-                    and executed_rounds >= args.max_agent_rounds
-                ):
-                    cap_artifact = {
-                        "schema_version": 1,
-                        "status": "continue_rejected_by_external_hard_cap",
-                        "semantic_proposal_bundle": deepcopy(semantic_bundle),
-                        "planning_lineage": deepcopy(
-                            semantic_bundle.get("planning_lineage")
-                        ),
-                        "query_contract": deepcopy(
-                            plan_session.query_contract
-                        ),
-                        "plan_step": {
-                            "action": "continue",
-                            "sub_aspect": raw_plan_agent_proposal.get(
-                                "sub_aspect"
-                            ),
-                            "next_round": None,
-                        },
-                    }
-                    write_json(step_dir / "bound_semantic_step.json", cap_artifact)
-                    step_artifact_path = (
-                        f"{PLAN_AGENT_STEPS.as_posix()}/"
-                        f"after_round_{executed_rounds:02d}/"
-                        "bound_semantic_step.json"
-                    )
-                    update_manifest(
-                        evaluation_dir,
-                        last_plan_agent_step={
-                            "status": (
-                                "continue_rejected_by_external_hard_cap"
-                            ),
-                            "after_round": executed_rounds,
-                            "action": "continue",
-                            "answered_query": False,
-                            "semantic_sub_aspect": (
-                                raw_plan_agent_proposal.get("sub_aspect")
-                            ),
-                            "resolved_template_id": None,
-                            "resolved_candidate_id": None,
-                            "evidence_conditioned": bool(
-                                semantic_bundle.get(
-                                    "planning_lineage", {}
-                                ).get("evidence_conditioned")
-                            ),
-                            "planning_lineage": deepcopy(
-                                semantic_bundle.get("planning_lineage")
-                            ),
-                            "artifact_path": step_artifact_path,
-                        },
-                    )
-                    plan, decision, _cap_assessment = (
-                        apply_external_hard_round_cap(
-                            evaluation_dir=evaluation_dir,
-                            plan=plan,
-                            round_runs=round_runs,
-                            executed_rounds=executed_rounds,
-                            max_agent_rounds=args.max_agent_rounds,
-                            user_request=args.request,
-                            bound_plan_session=plan_session,
-                            plan_agent_proposal=raw_plan_agent_proposal,
-                            plan_agent_artifact_path=step_artifact_path,
-                        )
-                    )
-                    break
-                bound_semantic_step = (
-                    plan_session.bind_evidence_conditioned_semantic_step(
-                        semantic_bundle,
-                        claim_first_runtime_state,
-                        capabilities=claim_first_capabilities,
-                        executed_candidate_ids=executed_candidate_ids,
-                        evaluation_intent=None,
-                    )
-                )
-                write_json(step_dir / "bound_semantic_step.json", bound_semantic_step)
-                plan_step = bound_semantic_step["plan_step"]
-                materialized_round = None
-                if plan_step["action"] == "stop":
-                    raw_query_answer = bound_semantic_step.get("query_answer")
-                    if not isinstance(raw_query_answer, Mapping):
-                        raise RuntimeError(
-                            "validated Plan Agent stop has no Query answer"
-                        )
-                    claim_first_query_answer = deepcopy(
-                        dict(raw_query_answer)
-                    )
-                    write_json(
-                        claim_first_dir / "query_answer.json",
-                        claim_first_query_answer,
-                    )
-                else:
-                    dynamic_candidate = (
-                        plan_step.get("proposal")
-                        or plan_step.get("experiment_candidate")
-                    )
-                    if not isinstance(dynamic_candidate, Mapping):
-                        raise RuntimeError(
-                            "Plan Agent must bind every continue decision to a "
-                            "typed Proposal before execution"
-                        )
-                    next_round_number = (
-                        len(plan_before_decision["rounds"]) + 1
-                    )
-                    (
-                        materialized_round,
-                        open_tool_bundle,
-                    ) = materialize_open_world_round(
-                        repo_root,
-                        evaluation_dir=evaluation_dir,
-                        round_number=next_round_number,
-                        candidate=dynamic_candidate,
-                        control_execution=plan_before_decision["rounds"][0][
-                            "execution"
-                        ],
-                        policy_backend=args.policy_backend,
-                    )
-                    bound_semantic_step["execution_binding"] = {
-                        "schema_version": 2,
-                        "candidate_id": dynamic_candidate["candidate_id"],
-                        "materialization_path": (
-                            f"{PROPOSAL_MATERIALIZATION.as_posix()}/"
-                            f"round_{next_round_number:02d}"
-                        ),
-                        "taskgen_route": materialized_round["route"],
-                        "toolgen_route": open_tool_bundle["source"],
-                        "catalog_template_used": False,
-                        "retrieval_template_hint": bound_semantic_step[
-                            "resolution"
-                        ].get("retrieval_template_id"),
-                    }
-                    write_json(
-                        step_dir / "bound_semantic_step.json",
-                        bound_semantic_step,
-                    )
-                apply_kwargs: dict[str, Any] = {}
-                apply_kwargs["query_contract"] = bound_semantic_step.get(
-                    "query_contract"
-                )
-                plan, decision, runtime_directive = (
-                    plan_session.apply_plan_step(
-                        plan_before_decision,
-                        observation_history,
-                        plan_step,
-                        materialized_round=materialized_round,
-                        source=str(
-                            semantic_bundle.get("source")
-                            or "provider_plan_agent_open_query"
-                        ),
-                        **apply_kwargs,
-                    )
-                )
-                decision["semantic_proposal"] = deepcopy(
-                    semantic_bundle["proposal"]
-                )
-                decision["semantic_resolution"] = deepcopy(
-                    bound_semantic_step["resolution"]
-                )
-                write_json(
-                    evaluation_dir
-                    / f"plan/runtime_directive_after_{round_plan['round_id']}.json",
-                    {
-                        "schema_version": 1,
-                        "owner": type(plan_session).__name__,
-                        "adapter_role": (
-                            "plan_agent_stop_validated_by_query_contract"
-                            if plan_step["action"] == "stop"
-                            else
-                            "plan_agent_retrieve_or_generate_and_adjudicate"
-                        ),
-                        **runtime_directive,
-                    },
-                )
-                update_manifest(
-                    evaluation_dir,
-                    last_plan_agent_step={
-                        "status": "transition_applied",
-                        "after_round": executed_rounds,
-                        "action": plan_step["action"],
-                        "answered_query": bool(
-                            plan_step.get("answered_query", False)
-                        ),
-                        "semantic_sub_aspect": (
-                            semantic_bundle["proposal"].get("sub_aspect")
-                        ),
-                        "resolved_template_id": plan_step.get("template_id"),
-                        "resolved_candidate_id": plan_step.get("candidate_id"),
-                        "evidence_conditioned": bool(
-                            bound_semantic_step.get(
-                                "planning_lineage", {}
-                            ).get("evidence_conditioned")
-                        ),
-                        "planning_lineage": deepcopy(
-                            bound_semantic_step.get("planning_lineage")
-                        ),
-                        "artifact_path": (
-                            f"{PLAN_AGENT_STEPS.as_posix()}/"
-                            f"after_round_{executed_rounds:02d}/"
-                            "bound_semantic_step.json"
-                        ),
-                    },
-                )
-                if plan_step["action"] == "stop":
-                    update_manifest(
-                        evaluation_dir,
-                        plan_agent_stop={
-                            "stop_reason": plan_step.get("stop_reason"),
-                            "evidence_sufficient": True,
-                            "answered_query": True,
-                            "answer_path": (
-                                (PLAN_AGENT_SESSION / "query_answer.json").as_posix()
-                            ),
-                            "plan_agent_stop_proposed": True,
-                            "artifact_path": (
-                                f"{PLAN_AGENT_STEPS.as_posix()}/"
-                                f"after_round_{executed_rounds:02d}/"
-                                "bound_semantic_step.json"
-                            ),
-                        },
-                    )
-            elif dynamic_step_session:
+            if dynamic_step_session:
                 active_failure_stage = (
                     f"adaptive_decision_after_round_{executed_rounds}"
                 )
@@ -4818,71 +4345,7 @@ def main() -> None:
             round_runs,
             evaluation_aggregate,
         )
-        if claim_first_runtime_state is not None:
-            if claim_first_query_answer is None:
-                externally_stopped_assessment = {
-                    **claim_first_runtime_state["assessment"],
-                    "should_stop": True,
-                    "stop_reason": "external_hard_round_cap",
-                    "evidence_sufficient": False,
-                    "claim_verdict": "inconclusive",
-                    "rationale": (
-                        "An external execution cap stopped the run before the "
-                        "query-sufficiency contract was satisfied."
-                    ),
-                }
-                claim_first_query_answer = render_query_answer(
-                    args.request,
-                    externally_stopped_assessment,
-                    claim_first_runtime_state["records"],
-                    baseline_valid=bool(
-                        claim_first_runtime_state["control_passed"]
-                    ),
-                )
-                write_json(
-                    evaluation_dir
-                    / PLAN_AGENT_SESSION
-                    / "query_answer.json",
-                    claim_first_query_answer,
-                )
-            evidence["plan_agent_session"] = {
-                "schema_version": 1,
-                "query_contract": claim_first_runtime_state["query_contract"],
-                "assessment": claim_first_runtime_state["assessment"],
-                "query_answer": claim_first_query_answer,
-                "records": claim_first_runtime_state["records"],
-                "artifacts": {
-                    "query_answer": (
-                        f"mea/evaluation_runs/{evaluation_id}/plan/"
-                        "plan_agent_session/query_answer.json"
-                    ),
-                    "latest_evidence": (
-                        f"mea/evaluation_runs/{evaluation_id}/plan/"
-                        "plan_agent_session/"
-                        f"evidence_after_round_{executed_rounds:02d}.json"
-                    ),
-                },
-            }
-        flagship_acceptance = (
-            build_compact_flagship_acceptance(
-                round_runs,
-                global_route_result=global_route_result,
-                claim_first_runtime_state=claim_first_runtime_state,
-                claim_first_query_answer=claim_first_query_answer,
-                free_concern_bundle=free_concern_bundle,
-                open_task_resolution=open_task_resolution,
-                concern_candidate_resolution=concern_candidate_resolution,
-                history_disabled=bool(args.no_history),
-                cli_candidate_hint_used=(
-                    args.bound_requested_aspect_ids is not None
-                ),
-            )
-            if isinstance(plan_session, PlanAgentSession)
-            else None
-        )
-        if flagship_acceptance is not None:
-            summary["flagship_acceptance"] = flagship_acceptance
-            evidence["flagship_acceptance"] = flagship_acceptance
+        flagship_acceptance = None
         write_json(evaluation_dir / "summary/summary.json", summary)
         write_json(evaluation_dir / "summary/evidence_bundle.json", evidence)
         update_manifest(

@@ -1,16 +1,16 @@
-"""Plan Agent execution session for one bound policy checkpoint.
+"""Frozen execution transport for one Plan Agent policy binding.
 
 The legacy :class:`BoundTaskPlanSession` is intentionally a finite catalog
-protocol.  This module is the production Plan Agent execution boundary: runtime
-binding retrieves one policy-ready base task and its official control, while
-later rounds carry Query-derived Proposals rather than requiring an aspect or
-template registration.
+protocol.  The public production owner is :class:`PlanAgentSession`; this
+module only validates and transports its executable plan state after runtime
+binding has selected one policy-ready base task.  Later rounds carry
+Query-derived Proposals rather than requiring an aspect or template
+registration.
 
-The session freezes task, policy, checkpoint, and total rollout budget.  Its
+The transport freezes task, policy, checkpoint, and total rollout budget.  Its
 QueryContract decides whether an official control round is required.  It does
-*not* treat the base task's catalog ``max_rounds`` as a generation limit; an
-official-only task can therefore run bounded runtime-generated experiments
-without changing its checkpoint.
+*not* make semantic Plan Agent decisions and is intentionally absent from the
+package-level public API.
 """
 
 from __future__ import annotations
@@ -295,8 +295,8 @@ def validate_open_world_evaluation_target(
     return target
 
 
-class PlanAgentExecutionSession:
-    """Plan Agent session with runtime Proposals and a frozen policy binding."""
+class _FrozenExecutionTransport:
+    """Internal executable-plan validator for one frozen policy binding."""
 
     def __init__(
         self,
@@ -339,7 +339,7 @@ class PlanAgentExecutionSession:
         *,
         control_round: Mapping[str, Any] | None = None,
         query_contract: Mapping[str, Any] | None = None,
-    ) -> "PlanAgentExecutionSession":
+    ) -> "_FrozenExecutionTransport":
         """Start from an already frozen runtime binding.
 
         This is the production constructor.  It keeps task/checkpoint discovery
@@ -932,12 +932,14 @@ class PlanAgentExecutionSession:
         }
 
 
-OpenWorldPlanSession = PlanAgentExecutionSession
+# Compatibility imports for historical tests and external callers.  Production
+# code owns this transport through ``PlanAgentSession``; these aliases are not
+# re-exported from ``mea.planner``.
+PlanAgentExecutionSession = _FrozenExecutionTransport
+OpenWorldPlanSession = _FrozenExecutionTransport
 
 
 __all__ = [
-    "PlanAgentExecutionSession",
-    "OpenWorldPlanSession",
     "OpenWorldSessionError",
     "build_open_world_evaluation_target",
     "validate_open_world_evaluation_target",

@@ -442,23 +442,10 @@ def test_schema_less_tool_only_candidate_binds_reset_task_context_before_rollout
     ] == "declared_contact_focus_actors"
 
 
-def test_runtime_binds_accepted_scene_with_official_checker(
+def test_method_runtime_owns_accepted_taskgen_materialization(
     tmp_path: Path,
 ) -> None:
     adapter = _adapter(tmp_path)
-    backend = RoboTwinMethodBackend(
-        repo_root=tmp_path,
-        task_adapter_factory=lambda _task_name: adapter,
-        rollout_runner=lambda **_kwargs: {},
-    )
-    binding = backend.bind_task(
-        BackendBindingRequest(
-            task_reference={
-                "task_name": "runtime_task",
-                "policy": {"name": "ACT", "backend": "act"},
-            }
-        )
-    )
     query = "Does a new target appearance preserve task completion?"
     proposal = build_experiment_candidate(
         source_query=query,
@@ -508,19 +495,51 @@ def test_runtime_binds_accepted_scene_with_official_checker(
             "success_official_equivalent": True,
         },
     }
+    observed: dict[str, Any] = {}
 
-    materialized = backend.bind_validated_taskgen_candidate(
-        binding,
-        CandidateRequest(
-            candidate_id=proposal["candidate_id"],
-            source_query=query,
-            proposal_bundle=proposal,
-            output_dir=run_dir,
-            seed=11,
-        ),
-        manifest,
+    def materialize(_root: Path, **kwargs: Any) -> Mapping[str, Any]:
+        observed.update(kwargs)
+        return manifest
+
+    backend = RoboTwinMethodBackend(
+        repo_root=tmp_path,
+        task_adapter_factory=lambda _task_name: adapter,
+        accepted_taskgen_materializer=materialize,
+        taskgen_provider=object(),
+        taskgen_text_model="fixture-text-model",
+        taskgen_vision_model="fixture-vision-model",
+        rollout_runner=lambda **_kwargs: {},
+    )
+    runtime = MethodRuntime(backend)
+    binding = runtime.bind_task(
+        BackendBindingRequest(
+            task_reference={
+                "task_name": "runtime_task",
+                "policy": {"name": "ACT", "backend": "act"},
+            }
+        )
     )
 
+    with patch.object(
+        backend,
+        "bind_validated_taskgen_candidate",
+        side_effect=AssertionError("compat binder is not a production caller"),
+    ):
+        materialized = runtime.materialize_candidate(
+            binding,
+            CandidateRequest(
+                candidate_id=proposal["candidate_id"],
+                source_query=query,
+                proposal_bundle=proposal,
+                output_dir=run_dir,
+                seed=11,
+            ),
+        )
+
+    assert observed["experiment_candidate"] == proposal
+    assert observed["run_id"] == run_dir.name
+    assert observed["model"] == "fixture-text-model"
+    assert observed["vision_model"] == "fixture-vision-model"
     assert materialized.metadata["generated_checker"] is False
     assert materialized.task_contract["task_module"] == (
         "mea.generated_tasks.run_validated_scene.task"

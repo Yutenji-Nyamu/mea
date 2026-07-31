@@ -64,6 +64,12 @@ scene-only request may reuse the official checker. A generated checker defines
 experimental success and must remain distinct from official benchmark success.
 If success combines the official goal with any additional experimental
 condition, request a checker; a numeric Tool alone has no pass/fail authority.
+Request a generated checker only when every added relation is directly
+observable through the advertised current-state API. Do not ask TaskGen to
+infer target contact from gripper closure, simultaneity from sequential events,
+or placement from height. If the exact relation is unavailable, choose a
+scene-only plus Rule/VQA observation experiment or another informative
+sub-aspect instead of knowingly creating an unverifiable checker.
 
 Do not treat a valid policy failure as pipeline failure. Do not turn a few
 successful episodes into a generalization claim. Open candidate universes

@@ -392,6 +392,11 @@ def test_smolvla_native_envelope_accepts_shared_taskgen_and_vqa(tmp_path):
 
 
 def test_native_taskgen_failure_leaves_compact_child_manifest(tmp_path):
+    _write_official_task(
+        tmp_path,
+        "alpha_task",
+        "move the alpha object",
+    )
     candidate = build_experiment_candidate(
         source_query="Generate one shifted scene.",
         base_task="alpha_task",
@@ -400,7 +405,15 @@ def test_native_taskgen_failure_leaves_compact_child_manifest(tmp_path):
     )
     contract = {
         "task_name": "alpha_task",
-        "policy": {"name": "SmolVLA", "backend": "smolvla"},
+        "policy": {
+            "name": "SmolVLA",
+            "backend": "smolvla",
+            "action_dimension": 14,
+        },
+        "checkpoint": {
+            "checkpoint_id": "fixture-smolvla",
+            "checkpoint_path": str(tmp_path / "smolvla"),
+        },
         "task_schema": {"available": True},
     }
 

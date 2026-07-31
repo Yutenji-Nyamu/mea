@@ -49,7 +49,7 @@ from .open_task_resolver import (
     validate_free_concern,
     validate_free_concern_experiment_needs,
 )
-from .open_world_session import PlanAgentExecutionSession
+from .open_world_session import _FrozenExecutionTransport
 from .policy_task_binding import (
     PolicyTaskBindingError,
     policy_task_binding_from_target,
@@ -1670,8 +1670,8 @@ class PlanAgentSession:
                 )
         self.query_contract = contract
         self.dynamic_candidates: dict[str, dict[str, Any]] = {}
-        self._execution_transport = (
-            PlanAgentExecutionSession.from_target(
+        self._frozen_execution = (
+            _FrozenExecutionTransport.from_target(
                 self.target,
                 control_round=control_round,
                 query_contract=self.query_contract,
@@ -1679,14 +1679,14 @@ class PlanAgentSession:
             if "policy_task_binding" in self.target
             else None
         )
-        if self._execution_transport is not None:
-            self.target = deepcopy(self._execution_transport.target)
+        if self._frozen_execution is not None:
+            self.target = deepcopy(self._frozen_execution.target)
 
-    def _require_execution_transport(self) -> PlanAgentExecutionSession:
-        transport = self._execution_transport
+    def _require_frozen_execution(self) -> _FrozenExecutionTransport:
+        transport = self._frozen_execution
         if transport is None:
             raise ClaimFirstRuntimeError(
-                "this legacy Plan Agent fixture has no frozen execution transport"
+                "this legacy Plan Agent fixture has no frozen execution binding"
             )
         return transport
 
@@ -1694,17 +1694,17 @@ class PlanAgentSession:
     def execution_binding(self) -> dict[str, Any]:
         """Return the frozen policy/task binding owned by this session."""
 
-        return deepcopy(self._require_execution_transport().binding)
+        return deepcopy(self._require_frozen_execution().binding)
 
     def normalize_plan(self, plan: Mapping[str, Any]) -> dict[str, Any]:
         """Normalize the executable plan through this session's transport."""
 
-        return self._require_execution_transport().normalize_plan(plan)
+        return self._require_frozen_execution().normalize_plan(plan)
 
     def planning_context(self, repo_root: str | Path) -> dict[str, Any]:
         """Project trusted runtime capabilities for retrieval and generation."""
 
-        return self._require_execution_transport().planning_context(repo_root)
+        return self._require_frozen_execution().planning_context(repo_root)
 
     def apply_plan_step(
         self,
@@ -1723,7 +1723,7 @@ class PlanAgentSession:
             if query_contract is not None
             else self.query_contract
         )
-        result = self._require_execution_transport().apply_plan_step(
+        result = self._require_frozen_execution().apply_plan_step(
             plan,
             observation_history,
             proposal,
@@ -1744,7 +1744,7 @@ class PlanAgentSession:
     ) -> dict[str, Any]:
         """Return one combined semantic/execution session snapshot."""
 
-        return self._require_execution_transport().snapshot(
+        return self._require_frozen_execution().snapshot(
             user_query,
             plan,
             observation_history,

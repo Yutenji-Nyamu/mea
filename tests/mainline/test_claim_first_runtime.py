@@ -328,6 +328,18 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         self.assertIs(ClaimFirstRuntimeController, PlanAgentSession)
         self.assertIs(ClaimFirstRuntimeError, PlanAgentSessionError)
 
+        import mea.planner as planner_api
+        from mea.planner.open_world_session import (
+            OpenWorldPlanSession,
+            PlanAgentExecutionSession,
+            _FrozenExecutionTransport,
+        )
+
+        self.assertIs(OpenWorldPlanSession, _FrozenExecutionTransport)
+        self.assertIs(PlanAgentExecutionSession, _FrozenExecutionTransport)
+        self.assertNotIn("OpenWorldPlanSession", planner_api.__all__)
+        self.assertNotIn("PlanAgentExecutionSession", planner_api.__all__)
+
     def test_unregistered_runtime_task_uses_official_control_anchor(self):
         task_name = "runtime_schema_task"
         runtime_target = {

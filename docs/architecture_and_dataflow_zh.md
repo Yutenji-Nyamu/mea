@@ -47,12 +47,12 @@ Plan Agent 可以提出 catalog 外 concern，但不能越过 backend 的真实�
 
 | 阶段 | 主要位置 | 最小职责 |
 | --- | --- | --- |
-| 入口编排 | `scripts/manipeval_agent.py`、`mea/agent_cli.py` | 解析参数并启动一次 evaluation；不承载论文实验协议 |
+| 入口编排 | `scripts/manipeval_agent.py`、`mea/agent_cli.py`、`mea/plan_agent_application.py` | CLI 解析参数和 binding；Application 原生拥有 round → evidence → next/stop → Answer 生命周期 |
 | Query / binding | `mea/planner/open_task_resolver.py`、`runtime_task_binding.py` | 先解释 Query，再验证 task、policy scope、checkpoint 与 runtime hooks |
-| Plan Agent | `mea/planner/claim_first_initial.py`、`claim_first_runtime.py`、`query_contract.py`、`open_world_session.py` | 建立首轮计划；依据完整 evidence 提出继续/停止；验证停止合同。文件名中的旧术语仅为兼容 |
+| Plan Agent | `mea/planner/claim_first_initial.py`、`claim_first_runtime.py`、`query_contract.py` | `PlanAgentSession` 建立首轮计划并依据完整 evidence 提出继续/停止；`open_world_session.py` 仅保留内部冻结执行运输与历史 reader 兼容 |
 | TaskGen | `mea/taskgen/runtime.py`、`generic_backend.py`、`artifact_index.py` | 按 typed need 精确复用或生成 scene/checker，并完成有界验证与一次 repair |
 | Policy backend | `PolicyTaskBinding` 与对应 runner | 在冻结的 task/checkpoint/seed 下输出 video、telemetry 与 official success |
-| 单轮执行 | `mea/round_executor.py`、`mea/robotwin/runtime.py`、`native_agent_round.py` | 统一 materialize → rollout → Rule/VQA → Aggregate；不做事后 projection 代替真实执行 |
+| 单轮执行 | `mea/round_executor.py`、`mea/robotwin/runtime.py`、`native_agent_round.py` | `MethodRuntime.materialize_candidate()` 是唯一生产 TaskGen materialization owner，随后 rollout → Rule/VQA → Aggregate；冻结 artifact binder 仅供兼容/重放 |
 | ToolGen / VQA | `mea/toolgen/`、`mea/execution_vqa/` | retrieve-first；miss 时按实际 telemetry 或视觉问题生成、验证、注册并运行 |
 | Answer | `mea/toolkit/aggregate.py`、`mea/feedback/` | 汇总证据并生成受限回答 |
 | 实验层 | `experiments/paper/` | fixed/adaptive、消融、ranking、人工/VQA 协议；不得反向成为生产入口 |

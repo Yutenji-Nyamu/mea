@@ -329,6 +329,9 @@ class ClaimFirstOpenQueryTest(unittest.TestCase):
         self.assertIn(
             "official core predicate as a required conjunct", prompt
         )
+        self.assertIn("Gripper closure", prompt)
+        self.assertIn("is not target contact", prompt)
+        self.assertIn("scene-only experiment with a Rule/VQA observation", prompt)
         self.assertIn("bracket the next", prompt)
         self.assertNotIn("There is no candidate\naspect list", prompt)
 

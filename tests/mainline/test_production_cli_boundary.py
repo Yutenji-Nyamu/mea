@@ -42,8 +42,6 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             "is agent_cli.resolve_default_open_query_planner,"
             "'candidate_budget':module.resolve_plan_agent_candidate_budget "
             "is agent_cli.resolve_plan_agent_candidate_budget,"
-            "'flagship_acceptance':module.build_compact_flagship_acceptance "
-            "is agent_acceptance.build_compact_flagship_acceptance,"
             "'episode_results':module._episode_tool_results "
             "is agent_acceptance._episode_tool_results}))"
         )
@@ -54,7 +52,6 @@ class ProductionCliBoundaryTests(unittest.TestCase):
                 "allowed_aspects": True,
                 "planner_default": True,
                 "candidate_budget": True,
-                "flagship_acceptance": True,
                 "episode_results": True,
             },
         )
@@ -192,15 +189,17 @@ class ProductionCliBoundaryTests(unittest.TestCase):
         )
 
     def test_control_path_plans_next_subaspect_after_evidence(self) -> None:
-        source = (REPO_ROOT / "scripts/manipeval_agent.py").read_text(
+        source = (
+            REPO_ROOT / "mea/plan_agent_application.py"
+        ).read_text(
             encoding="utf-8"
         )
         self.assertIn(
-            "plan_session.propose_semantic_step(",
+            "self.session.propose_semantic_step(",
             source,
         )
         self.assertIn(
-            "plan_session.bind_evidence_conditioned_semantic_step(",
+            "self.session.bind_evidence_conditioned_semantic_step(",
             source,
         )
         self.assertNotIn("claim_first_controller =", source)
@@ -219,16 +218,16 @@ class ProductionCliBoundaryTests(unittest.TestCase):
         )
 
     def test_plan_agent_decides_before_the_external_hard_cap(self) -> None:
-        source = (REPO_ROOT / "scripts/manipeval_agent.py").read_text(
+        source = (
+            REPO_ROOT / "mea/plan_agent_application.py"
+        ).read_text(
             encoding="utf-8"
         )
-        session_start = source.index("if claim_first_step_session:")
         author_decision = source.index(
-            "plan_session.propose_semantic_step(",
-            session_start,
+            "self.session.propose_semantic_step(",
         )
         continue_gate = source.index(
-            'raw_plan_agent_proposal.get("action") != "stop"',
+            'raw_proposal.get("action") != "stop"',
             author_decision,
         )
         hard_cap = source.index(
@@ -236,7 +235,7 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             continue_gate,
         )
         bind_continue = source.index(
-            "plan_session.bind_evidence_conditioned_semantic_step(",
+            "self.session.bind_evidence_conditioned_semantic_step(",
             hard_cap,
         )
         self.assertLess(
@@ -253,6 +252,24 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             hard_cap,
             bind_continue,
             "a capped continue must stop before candidate binding/materialization",
+        )
+
+    def test_production_cli_calls_the_extracted_application(self) -> None:
+        source = (REPO_ROOT / "scripts/manipeval_agent.py").read_text(
+            encoding="utf-8"
+        )
+        application = source.index("PlanAgentApplication(")
+        execution = source.index(").run()", application)
+        compat_loop = source.index(
+            "round_runs: list[dict[str, Any]] = []",
+            execution,
+        )
+        self.assertLess(application, execution)
+        self.assertLess(execution, compat_loop)
+        self.assertNotIn(
+            "propose_semantic_step(",
+            source,
+            "the production decision loop must not remain duplicated in the CLI",
         )
 
     def test_precontrol_concern_does_not_shrink_planner_domain(self) -> None:

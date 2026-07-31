@@ -34,9 +34,11 @@ from mea.planner.experiment_candidate import (
     validate_experiment_candidate,
 )
 from mea.taskgen.generic_backend import (
+    GenericTaskGenError,
     GenericRoboTwinTaskAdapter,
     GenericRoboTwinTaskGenBackend,
 )
+from mea.taskgen.runtime import record_generic_taskgen_generation_failure
 from mea.taskgen.semantic_review import (
     CheckerSemanticReviewError,
     validate_checker_semantic_review_binding,
@@ -55,6 +57,7 @@ from .task_identity import (
 RuntimeTaskIdentity = GenericRoboTwinTaskAdapter | RoboTwinTaskIdentity
 TaskAdapterFactory = Callable[[str], RuntimeTaskIdentity]
 TaskContextProbeRunner = Callable[..., Mapping[str, Any]]
+AcceptedTaskGenMaterializer = Callable[..., Mapping[str, Any]]
 
 
 def _validate_taskgen_checker_artifacts(
@@ -177,6 +180,11 @@ class RoboTwinMethodBackend:
         repo_root: str | Path,
         task_adapter_factory: TaskAdapterFactory | None = None,
         taskgen_backend: GenericRoboTwinTaskGenBackend | None = None,
+        accepted_taskgen_materializer: AcceptedTaskGenMaterializer | None = None,
+        taskgen_provider: Any = None,
+        taskgen_text_model: str = "",
+        taskgen_vision_model: str = "",
+        taskgen_telemetry_profile: str = "balanced_v1",
         rollout_runner: RoboTwinRolloutRunner,
         task_context_probe_runner: TaskContextProbeRunner | None = None,
     ) -> None:
@@ -188,6 +196,14 @@ class RoboTwinMethodBackend:
             )
         )
         self.taskgen_backend = taskgen_backend
+        self.accepted_taskgen_materializer = accepted_taskgen_materializer
+        self.taskgen_provider = taskgen_provider
+        self.taskgen_text_model = str(taskgen_text_model or "").strip()
+        self.taskgen_vision_model = str(taskgen_vision_model or "").strip()
+        self.taskgen_telemetry_profile = _required_text(
+            taskgen_telemetry_profile,
+            "taskgen_telemetry_profile",
+        )
         self.rollout_runner = rollout_runner
         self.task_context_probe_runner = (
             task_context_probe_runner
@@ -432,6 +448,60 @@ class RoboTwinMethodBackend:
             )
             _write_json(task_context_artifact, task_context_value)
         if taskgen_required:
+            if self.accepted_taskgen_materializer is not None:
+                if (
+                    self.taskgen_provider is None
+                    or not self.taskgen_text_model
+                    or not self.taskgen_vision_model
+                ):
+                    raise ValueError(
+                        "accepted TaskGen materialization requires provider, "
+                        "text model, and vision model"
+                    )
+                run_id = str(
+                    request.context.get("taskgen_run_id")
+                    or request.output_dir.name
+                )
+                policy = binding.task_contract.get("policy")
+                action_dimension = (
+                    policy.get("action_dimension", 0)
+                    if isinstance(policy, Mapping)
+                    else 0
+                )
+                try:
+                    accepted_manifest = self.accepted_taskgen_materializer(
+                        self.repo_root,
+                        user_request=request.source_query,
+                        provider=self.taskgen_provider,
+                        model=self.taskgen_text_model,
+                        vision_model=self.taskgen_vision_model,
+                        experiment_candidate=candidate,
+                        run_id=run_id,
+                        seed=request.seed,
+                        telemetry_profile=self.taskgen_telemetry_profile,
+                        action_dimension=int(action_dimension or 0),
+                    )
+                except GenericTaskGenError as exc:
+                    record_generic_taskgen_generation_failure(
+                        self.repo_root,
+                        run_id=run_id,
+                        user_request=request.source_query,
+                        experiment_candidate=candidate,
+                        model=self.taskgen_text_model,
+                        telemetry_profile=self.taskgen_telemetry_profile,
+                        error=exc,
+                    )
+                    raise
+                if not isinstance(accepted_manifest, Mapping):
+                    raise ValueError(
+                        "accepted_taskgen_materializer must return a "
+                        "TaskGen manifest"
+                    )
+                return self._bind_validated_taskgen_candidate(
+                    binding,
+                    request,
+                    accepted_manifest,
+                )
             if not isinstance(adapter, GenericRoboTwinTaskAdapter):
                 raise ValueError(
                     "generated scene/checker requires a validated TaskSchema"
@@ -581,13 +651,26 @@ class RoboTwinMethodBackend:
         request: CandidateRequest,
         taskgen_manifest: Mapping[str, Any],
     ) -> MaterializedCandidate:
-        """Bind an accepted TaskGen artifact without invoking generation.
+        """Compatibility entry for an already accepted TaskGen artifact.
 
-        The production TaskGen runtime has already performed code fixtures,
-        render/VLM diagnosis, simulator-state preservation, and an expert
-        terminal probe.  This method verifies that acceptance boundary and
-        projects the existing artifact into MethodRuntime for policy rollout.
+        Production callers use :meth:`materialize_candidate`, which owns both
+        generation and this acceptance boundary.  Paper-protocol replay and
+        focused tests may still bind a frozen artifact through this method.
         """
+
+        return self._bind_validated_taskgen_candidate(
+            binding,
+            request,
+            taskgen_manifest,
+        )
+
+    def _bind_validated_taskgen_candidate(
+        self,
+        binding: BackendTaskBinding,
+        request: CandidateRequest,
+        taskgen_manifest: Mapping[str, Any],
+    ) -> MaterializedCandidate:
+        """Verify all TaskGen gates before exposing a rollout candidate."""
 
         adapter = binding.native_task
         if not isinstance(
@@ -1014,6 +1097,7 @@ class RoboTwinMethodBackend:
 
 
 __all__ = [
+    "AcceptedTaskGenMaterializer",
     "RoboTwinMethodBackend",
     "RoboTwinRolloutRunner",
     "TaskAdapterFactory",

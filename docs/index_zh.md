@@ -10,7 +10,7 @@
 - [RoboTwin / SmolVLA 复现](robotwin_smolvla_reproduction_zh.md)：checkpoint 固定与校验、服务器网络、Python/NumPy 隔离、双进程 IPC、policy adapter 协议和完整回滚边界；这是长期保留、按需读取的 cold reference。
 - [论文 claim 与 gap](paper_claim_gap_zh.md)：论文声称、当前证据和下一步。
 - [开发者参考](developer_reference_zh.md)：扩展任务、生成器和工具时的最小接口。
-- [当前证据](evidence/current/README.md)：最近一次可审计运行的紧凑索引。
+- [当前证据](evidence/current/README.md)：当前接受的可发布运行的紧凑索引。
 - [历史索引](evidence/history.jsonl)：旧运行只保留结论、边界和 revision。
 
 ## 上下文路由
@@ -20,6 +20,7 @@
 - **Warm**：开发者参考、当前证据摘要、与当前模块对应的 `README.Agent.md`。
   `README.Agent.md` 是运行时 prompt 与论文消融组件，不能作为普通文档删除。
 - **Cold**：两份环境安装流水账、`evidence/current/artifacts|assets`、
+  [`2026-07-31 negative supplements`](evidence/supplements/2026-07-31/)、
   `experiments/paper/inputs|results`、vendor policy 文档和 tests。仅在复现、审计、
   消融或定位 caller 时按索引打开；paper 实验层入口见
   [`experiments/paper/README.md`](../experiments/paper/README.md)。

@@ -13,7 +13,7 @@ import json
 from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any, Mapping
 
 from mea.method_runtime import (
     BackendBindingRequest,
@@ -26,6 +26,7 @@ from mea.planner.experiment_candidate import validate_experiment_candidate
 from mea.planner.policy_task_binding import policy_task_binding_from_target
 from mea.robotwin.act_rollout import ACTRobotwinRolloutRunner
 from mea.robotwin.runtime import (
+    AcceptedTaskGenMaterializer,
     RoboTwinMethodBackend,
     RoboTwinRolloutRunner,
 )
@@ -33,15 +34,14 @@ from mea.robotwin.smolvla_rollout import SmolVLARobotwinRolloutRunner
 from mea.taskgen.rollout_evidence import (
     evaluate_generic_task_rollout_telemetry,
 )
-from mea.taskgen.generic_backend import GenericTaskGenError
-from mea.taskgen.runtime import record_generic_taskgen_generation_failure
 
 
 class NativeAgentRoundError(RuntimeError):
     """Raised when a native policy round exceeds its validated capabilities."""
 
 
-GeneratedTaskMaterializer = Callable[..., Mapping[str, Any]]
+# Compatibility name retained for wrapper callers; the backend owns the type.
+GeneratedTaskMaterializer = AcceptedTaskGenMaterializer
 
 
 def _build_native_run_id(
@@ -299,9 +299,10 @@ def _execute_robotwin_method_round(
 ) -> dict[str, Any]:
     """Run one policy candidate through the shared RoboTwin MethodRuntime.
 
-    Scene/checker generation is an injected materializer.  It must return a
-    fully accepted TaskGen manifest; this function binds that existing artifact
-    and never invokes generation through ``RoboTwinMethodBackend``.
+    Scene/checker generation is configured on ``RoboTwinMethodBackend``.
+    ``MethodRuntime.materialize_candidate`` is the single production
+    materialization entry; this function only binds the task, requests the
+    candidate, executes the rollout, and projects evidence.
     """
 
     root = Path(repo_root).expanduser().resolve()
@@ -396,7 +397,6 @@ def _execute_robotwin_method_round(
     )
     child_dir = root / "mea" / "generated_tasks" / run_id
     query = str(round_plan["task_instruction"])
-    taskgen_manifest: dict[str, Any] | None = None
     if generated_task_required:
         assert generated_task_materializer is not None
         if (
@@ -410,37 +410,6 @@ def _execute_robotwin_method_round(
                 "generated TaskGen execution requires provider, text model, "
                 "and vision model"
             )
-        try:
-            materialized = generated_task_materializer(
-                root,
-                user_request=query,
-                provider=provider,
-                model=text_model,
-                vision_model=vision_model,
-                experiment_candidate=proposal,
-                run_id=run_id,
-                seed=seed,
-                telemetry_profile=telemetry_profile,
-                action_dimension=int(
-                    contract["policy"].get("action_dimension", 0) or 0
-                ),
-            )
-        except GenericTaskGenError as exc:
-            record_generic_taskgen_generation_failure(
-                root,
-                run_id=run_id,
-                user_request=query,
-                experiment_candidate=proposal,
-                model=text_model,
-                telemetry_profile=telemetry_profile,
-                error=exc,
-            )
-            raise
-        if not isinstance(materialized, Mapping):
-            raise NativeAgentRoundError(
-                "generated_task_materializer must return a TaskGen manifest"
-            )
-        taskgen_manifest = deepcopy(dict(materialized))
     else:
         child_dir.mkdir(parents=True, exist_ok=True)
     rollout_dir = (
@@ -451,6 +420,11 @@ def _execute_robotwin_method_round(
     backend = RoboTwinMethodBackend(
         repo_root=root,
         rollout_runner=rollout_runner,
+        accepted_taskgen_materializer=generated_task_materializer,
+        taskgen_provider=provider,
+        taskgen_text_model=text_model,
+        taskgen_vision_model=vision_model,
+        taskgen_telemetry_profile=telemetry_profile,
     )
     runtime = MethodRuntime(backend)
     binding = runtime.bind_task(
@@ -472,8 +446,8 @@ def _execute_robotwin_method_round(
             },
         )
     )
-    candidate = (
-        backend.official_candidate(
+    if proposal is None:
+        candidate = backend.official_candidate(
             binding,
             source_query=query,
             candidate_id=str(
@@ -482,35 +456,37 @@ def _execute_robotwin_method_round(
                 or "official_control"
             ),
         )
-        if proposal is None
-        else (
-            backend.bind_validated_taskgen_candidate(
-                binding,
-                CandidateRequest(
-                    candidate_id=proposal["candidate_id"],
-                    source_query=proposal["source_query"],
-                    proposal_bundle=proposal,
-                    output_dir=child_dir,
-                    seed=seed,
-                    context={
-                        "requested_max_reflections": max_reflections,
-                    },
-                ),
-                taskgen_manifest,
-            )
-            if generated_task_required
-            else runtime.materialize_candidate(
-                binding,
-                CandidateRequest(
-                    candidate_id=proposal["candidate_id"],
-                    source_query=proposal["source_query"],
-                    proposal_bundle=proposal,
-                    output_dir=child_dir,
-                    seed=seed,
-                ),
-            )
+    else:
+        candidate = runtime.materialize_candidate(
+            binding,
+            CandidateRequest(
+                candidate_id=proposal["candidate_id"],
+                source_query=proposal["source_query"],
+                proposal_bundle=proposal,
+                output_dir=child_dir,
+                seed=seed,
+                context={
+                    "taskgen_run_id": run_id,
+                    "requested_max_reflections": max_reflections,
+                },
+            ),
         )
-    )
+    taskgen_manifest: dict[str, Any] | None = None
+    if generated_task_required:
+        manifest_path = Path(candidate.artifacts["manifest"])
+        try:
+            materialized_manifest = json.loads(
+                manifest_path.read_text(encoding="utf-8")
+            )
+        except (OSError, json.JSONDecodeError) as exc:
+            raise NativeAgentRoundError(
+                "materialized TaskGen manifest is unavailable"
+            ) from exc
+        if not isinstance(materialized_manifest, Mapping):
+            raise NativeAgentRoundError(
+                "materialized TaskGen manifest must be an object"
+            )
+        taskgen_manifest = deepcopy(dict(materialized_manifest))
     rollout = runtime.rollout(
         candidate,
         RolloutRequest(

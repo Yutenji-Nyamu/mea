@@ -778,6 +778,12 @@ or visual authority; do not claim that every unspecified state is unchanged.
 When an additional experimental checker must retain the official goal, name
 "official core predicate as a required conjunct" in preserve.  Do not call the
 extended checker "official success semantics" or claim full equivalence.
+Request a generated checker only when every added relation is directly
+observable from the advertised current-state simulator API.  Gripper closure
+is not target contact, sequential events are not simultaneous events, and
+height is not placement.  If the exact relation is unavailable, choose a
+scene-only experiment with a Rule/VQA observation, or another informative
+sub-aspect, instead of asking TaskGen to implement a correlated proxy.
 TaskGen may retrieve or generate scene and checker code; ToolGen may retrieve
 or generate Rule/VQA Tools.  These artifact primitives do not authorize policy
 or controller intervention: do not reduce gripper precision, inject action

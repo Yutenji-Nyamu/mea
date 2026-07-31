@@ -131,8 +131,6 @@ from .open_task_resolver import (
     resolve_open_task,
 )
 from .open_world_session import (
-    PlanAgentExecutionSession,
-    OpenWorldPlanSession,
     OpenWorldSessionError,
     build_open_world_evaluation_target,
     validate_open_world_evaluation_target,
@@ -300,8 +298,6 @@ __all__ = [
     "PlanAgentQueryInterpreter",
     "discover_robotwin_task_inventory",
     "resolve_open_task",
-    "OpenWorldPlanSession",
-    "PlanAgentExecutionSession",
     "OpenWorldSessionError",
     "build_open_world_evaluation_target",
     "validate_open_world_evaluation_target",
