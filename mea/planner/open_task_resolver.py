@@ -84,7 +84,8 @@ _STOPWORDS = {
     "with",
 }
 _EXPLICIT_SUCCESS_SEMANTICS = re.compile(
-    r"(?:define|defined|definition)\s+(?:of\s+)?success"
+    r"(?:define|defined|definition)\s+(?:of\s+)?"
+    r"(?:(?:experimental|bounded|additional)\s+){0,2}success"
     r"|success\s+(?:means|requires|iff|if\s+and\s+only\s+if)"
     r"|(?:successful?\s+(?:sample|episode)|成功样本).{0,40}"
     r"(?:where|in\s+which|such\s+that|使|其中|要求|必须)"

@@ -1071,9 +1071,23 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             "status": "passed",
             "route": "run_local_reuse",
             "reference_tool": "precontact_jerk_peak",
+            "tool_request": {
+                "metric_spec": {
+                    "description": (
+                        "Maximum jerk over finite pre-contact trajectory samples."
+                    ),
+                },
+            },
             "route_decision": {
                 "resolved_route": "run_local_reuse",
                 "provider_called": False,
+            },
+            "validation": {
+                "semantic_review": {
+                    "checks": {
+                        "returns_diagnostic_not_success": True,
+                    },
+                },
             },
             "episodes": [
                 {
@@ -1101,6 +1115,10 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
                     "route": "run_local_reuse",
                     "provider_called": False,
                     "null_reason": None,
+                    "description": (
+                        "Maximum jerk over finite pre-contact trajectory samples."
+                    ),
+                    "returns_diagnostic_not_success": True,
                 }
             ],
         )
@@ -1110,6 +1128,10 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         self.assertIn("precontact_jerk_peak", evidence_summary)
         self.assertIn('"value": 0.031', evidence_summary)
         self.assertIn('"provider_called": false', evidence_summary)
+        self.assertIn(
+            "Maximum jerk over finite pre-contact trajectory samples.",
+            evidence_summary,
+        )
         self.assertIn(
             "authoritative_candidate_outcome=success",
             evidence_summary,

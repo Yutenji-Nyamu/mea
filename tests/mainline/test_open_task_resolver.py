@@ -389,6 +389,16 @@ class QueryInterpretationTests(unittest.TestCase):
             provider.prompts[0],
         )
 
+    def test_experimental_success_wording_requires_checker(self):
+        query = (
+            "Define experimental success as the official goal AND both "
+            "terminal TCPs being within 0.025 m of their contact points."
+        )
+
+        self.assertTrue(
+            resolver.query_requires_experimental_checker(query)
+        )
+
     def test_agent_can_be_frozen_to_one_attempt(self):
         provider = self.Provider(["{}"])
         with self.assertRaisesRegex(

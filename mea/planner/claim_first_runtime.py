@@ -1091,6 +1091,21 @@ def _compact_planned_tool_evidence(
         "provider_called",
         validation.get("provider_called"),
     )
+    tool_request = planned.get("tool_request")
+    tool_request = (
+        tool_request if isinstance(tool_request, Mapping) else {}
+    )
+    metric_spec = tool_request.get("metric_spec")
+    metric_spec = metric_spec if isinstance(metric_spec, Mapping) else {}
+    metric_description = str(metric_spec.get("description") or "").strip()
+    semantic_review = validation.get("semantic_review")
+    semantic_review = (
+        semantic_review if isinstance(semantic_review, Mapping) else {}
+    )
+    semantic_checks = semantic_review.get("checks")
+    semantic_checks = (
+        semantic_checks if isinstance(semantic_checks, Mapping) else {}
+    )
     compact: list[dict[str, Any]] = []
     episodes = planned.get("episodes")
     if not isinstance(episodes, list):
@@ -1102,22 +1117,25 @@ def _compact_planned_tool_evidence(
         result = result if isinstance(result, Mapping) else episode
         details = result.get("details")
         details = details if isinstance(details, Mapping) else {}
-        compact.append(
-            {
-                "metric": str(
-                    result.get("tool")
-                    or result.get("metric")
-                    or planned.get("reference_tool")
-                    or ""
-                ),
-                "value": result.get("value"),
-                "unit": result.get("unit"),
-                "passed": result.get("passed"),
-                "route": route,
-                "provider_called": provider_called,
-                "null_reason": details.get("reason"),
-            }
-        )
+        item = {
+            "metric": str(
+                result.get("tool")
+                or result.get("metric")
+                or planned.get("reference_tool")
+                or ""
+            ),
+            "value": result.get("value"),
+            "unit": result.get("unit"),
+            "passed": result.get("passed"),
+            "route": route,
+            "provider_called": provider_called,
+            "null_reason": details.get("reason"),
+        }
+        if metric_description:
+            item["description"] = metric_description
+        if semantic_checks.get("returns_diagnostic_not_success") is True:
+            item["returns_diagnostic_not_success"] = True
+        compact.append(item)
     return compact
 
 
