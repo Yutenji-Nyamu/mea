@@ -174,6 +174,26 @@ class SemanticCoverageTests(unittest.TestCase):
             ["the center position", "material", "scene layout"],
         )
 
+    def test_direct_must_remain_clause_is_normalized(self):
+        intent = evaluation_intent_from_free_concern(
+            {
+                "source_query": "Can a new obstacle expose a weakness?",
+                "sub_aspect": "bounded obstacle robustness",
+                "hypothesis": "The obstacle causes a policy failure.",
+                "requested_variation": (
+                    "Add one distractor near the approach corridor; "
+                    "the task identity and policy checkpoint must remain "
+                    "unchanged."
+                ),
+                "measurement_need": "Measure official and generated success.",
+            }
+        )
+
+        self.assertEqual(
+            intent["preserved_conditions"],
+            ["task identity", "policy checkpoint"],
+        )
+
     def test_source_query_preservation_survives_provider_omission(self):
         intent = evaluation_intent_from_free_concern(
             {

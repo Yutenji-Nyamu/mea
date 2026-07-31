@@ -217,6 +217,11 @@ def _extract_preserved_conditions(requested_change: str) -> list[str]:
     matched_spans: list[tuple[int, int]] = []
     patterns = (
         re.compile(
+            r"(?:^|(?<=[;:.!?]))\s*(?:the\s+)?([^;:.!?]+?)\s+must\s+"
+            r"(?:remain|stay)\s+(?:fixed|unchanged|constant)\b",
+            re.IGNORECASE,
+        ),
+        re.compile(
             r"\bwhile\s+(?:keeping|holding|leaving|maintaining|preserving)"
             r"\s+(.+?)"
             r"(?:\s+(?:fixed|unchanged|constant))?(?=[.!?]|$)",
