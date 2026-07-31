@@ -1694,6 +1694,47 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             self.assertTrue(
                 report["official_core_enforced_as_conjunct"]
             )
+            aliased_conjunct_checker = {
+                **methods,
+                "check_success": (
+                    "def check_success(self):\n"
+                    "    official_success = "
+                    "self.mea_official_check_success()\n"
+                    "    return official_success and "
+                    "self.target is not None\n"
+                ),
+            }
+            report = validate_generic_task_methods(
+                aliased_conjunct_checker,
+                official_source=root / f"envs/{task_name}.py",
+                official_class=task_name,
+                require_official_core_conjunct=True,
+            )
+            self.assertTrue(report["official_core_directly_called"])
+            self.assertTrue(
+                report["official_core_enforced_as_conjunct"]
+            )
+            overwritten_alias_checker = {
+                **methods,
+                "check_success": (
+                    "def check_success(self):\n"
+                    "    official_success = "
+                    "self.mea_official_check_success()\n"
+                    "    official_success = True\n"
+                    "    return official_success and "
+                    "self.target is not None\n"
+                ),
+            }
+            with self.assertRaisesRegex(
+                GenericTaskGenError,
+                "required boolean conjunct",
+            ):
+                validate_generic_task_methods(
+                    overwritten_alias_checker,
+                    official_source=root / f"envs/{task_name}.py",
+                    official_class=task_name,
+                    require_official_core_conjunct=True,
+                )
             guarded_checker = {
                 **methods,
                 "check_success": (

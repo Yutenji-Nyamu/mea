@@ -484,6 +484,39 @@ def _is_direct_official_core_call(node: ast.AST) -> bool:
     )
 
 
+def _official_core_aliases(function: ast.FunctionDef) -> dict[str, int]:
+    """Return single-assignment local aliases of the untouched core call."""
+
+    store_counts: dict[str, int] = {}
+    for node in ast.walk(function):
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+            store_counts[node.id] = store_counts.get(node.id, 0) + 1
+    aliases: dict[str, int] = {}
+    for statement in function.body:
+        if (
+            isinstance(statement, ast.Assign)
+            and len(statement.targets) == 1
+            and isinstance(statement.targets[0], ast.Name)
+            and _is_direct_official_core_call(statement.value)
+            and store_counts.get(statement.targets[0].id) == 1
+        ):
+            aliases[statement.targets[0].id] = statement.lineno
+    return aliases
+
+
+def _is_official_core_conjunct(
+    node: ast.AST,
+    aliases: Mapping[str, int],
+    *,
+    return_lineno: int,
+) -> bool:
+    return _is_direct_official_core_call(node) or (
+        isinstance(node, ast.Name)
+        and isinstance(node.ctx, ast.Load)
+        and aliases.get(node.id, return_lineno) < return_lineno
+    )
+
+
 def _checker_enforces_official_core_conjunct(
     checker: ast.Module,
 ) -> bool:
@@ -492,6 +525,7 @@ def _checker_enforces_official_core_conjunct(
     function = checker.body[0]
     if not isinstance(function, ast.FunctionDef):
         return False
+    aliases = _official_core_aliases(function)
     statements = list(function.body)
     if (
         statements
@@ -527,7 +561,11 @@ def _checker_enforces_official_core_conjunct(
         isinstance(node.value, ast.BoolOp)
         and isinstance(node.value.op, ast.And)
         and any(
-            _is_direct_official_core_call(value)
+            _is_official_core_conjunct(
+                value,
+                aliases,
+                return_lineno=node.lineno,
+            )
             for value in node.value.values
         )
         for node in non_false_returns
