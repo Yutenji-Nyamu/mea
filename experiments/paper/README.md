@@ -32,8 +32,9 @@
 RoboTwin/SmolVLA 的早期独立 adapter 位于
 [`robotwin_smolvla/`](robotwin_smolvla/README.md)；当前共享 runtime backend 为
 [`mea/robotwin/smolvla_rollout.py`](../../mea/robotwin/smolvla_rollout.py)，已通过
-`MethodRuntime` 接入生产 Plan Agent 的 schema-backed official round；generic
-scene/checker 与请求型 VQA capability 尚未接入。
+`MethodRuntime` 接入生产 Plan Agent；v18 已在同一方法链运行 generic
+scene/checker、请求型 Rule Tool 与 VQA。跨任务冷启动仍受 TaskContext/schema 与
+simulator hook 限制。
 逐命令部署流水和早期测试 runner 位于其
 [`history/20260729/`](robotwin_smolvla/history/20260729/README.md)，属于冷归档，
 默认不递归读取。
@@ -91,7 +92,7 @@ scene/checker 与请求型 VQA capability 尚未接入。
 | [`results/batch30_smolvla_native_runtime.json`](results/batch30_smolvla_native_runtime.json) | 50-task manifest、两个新任务 policy failure 与原生 MethodRuntime smoke |
 | [`results/batch31_smolvla_plan_agent_n1.json`](results/batch31_smolvla_plan_agent_n1.json) | click_bell N=1 生产 Plan Agent rollout 的原 pipeline failure 与 0-rollout append-only 重投影 |
 | [`results/batch30_open_python_toolgen_live/`](results/batch30_open_python_toolgen_live/) | 缓存真实 telemetry 上的 provider Python ToolGen、一次 repair 与 exact reuse |
-| [`results/batch32_method_mainline_refactor/`](results/batch32_method_mainline_refactor/implementation_and_presmoke_ledger.md) | Plan Agent application、唯一 TaskGen materialization owner、服务器预测试与待审批 flagship smoke 流水 |
+| [`results/batch32_method_mainline_refactor/`](results/batch32_method_mainline_refactor/implementation_and_run_ledger.md) | Plan Agent application、唯一 TaskGen materialization owner、v18 方法运行与复用审计 |
 
 旧运行的简短结论与边界另见
 [`docs/evidence/history.jsonl`](../../docs/evidence/history.jsonl)。若两处描述冲突，

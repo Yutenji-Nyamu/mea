@@ -1267,9 +1267,10 @@ def write_evidence_report(
                 "### Completed-round Tool reuse audit",
                 "",
                 json.dumps(reuse_summary, ensure_ascii=False),
-                "This audit reuses completed policy telemetry and starts no "
-                "simulator or policy rollout. It proves exact run-local reuse, "
-                "not independent cross-evaluation reuse.",
+                "This independent follow-up Query reuses completed policy "
+                "telemetry and starts no simulator or policy rollout. It "
+                "proves exact reuse within this evaluation's registry, not "
+                "cross-evaluation reuse.",
                 "",
             ]
         )
