@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "evaluation_id": "eval_20260731_native_smolvla_broad_live_v11",
+  "source_server_path": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/evaluation_runs/eval_20260731_native_smolvla_broad_live_v11",
+  "base_commit": "05f970caa250d50b79d22a5e1270564e0383a9ab",
+  "task_name": "grab_roller",
+  "policy_backend": "smolvla",
+  "official_control_episode": {
+    "completed": true,
+    "success_rate": 1.0,
+    "policy_rollouts": 1
+  },
+  "plan_agent_decision": {
+    "action": "continue",
+    "transition": "switch_concern",
+    "decision_kind": "evidence_conditioned_refinement",
+    "completed_round_ids": [
+      "round_1"
+    ],
+    "catalog_was_model_visible": false,
+    "resolved_template_id": null,
+    "semantic_sub_aspect": "trajectory.robustness.lateral_object_offset",
+    "answered_query": false
+  },
+  "status": "failed",
+  "failure": {
+    "stage": "round_2_taskgen_checker_fixture",
+    "type": "GenericTaskGenError",
+    "message": "TaskGen recovery failed after 2 attempt(s)",
+    "diagnosis": "Instantaneous PhysX contact was false in the official-expert terminal state."
+  },
+  "round_2_policy_rollouts": 0,
+  "final_answer_emitted": false
+}

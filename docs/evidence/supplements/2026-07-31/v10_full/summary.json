@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "evaluation_id": "eval_20260730_native_smolvla_broad_live_v10",
+  "source_server_path": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/evaluation_runs/eval_20260730_native_smolvla_broad_live_v10",
+  "base_commit": "9ba4680680b88653ef74ca14885b6ee1876e6702",
+  "task_name": "grab_roller",
+  "policy_backend": "smolvla",
+  "official_control_episode": {
+    "completed": true,
+    "success": true,
+    "policy_rollouts": 1
+  },
+  "plan_agent_after_control": {
+    "evidence_conditioned": true,
+    "action": "continue",
+    "next_need": "generated distractor/clearance scene and checker"
+  },
+  "status": "failed",
+  "failure": {
+    "stage": "round_2_taskgen",
+    "type": "GenericTaskGenError",
+    "message": "TaskGen recovery failed after 2 attempt(s)"
+  },
+  "round_2_policy_rollouts": 0,
+  "final_answer_emitted": false
+}

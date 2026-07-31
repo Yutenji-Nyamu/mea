@@ -33,6 +33,12 @@
   official-expert terminal state. Do not require instantaneous PhysX contact
   when the official terminal state may release contact; use the repair
   evidence's current actor state or another Proposal-consistent predicate.
+- Implement the exact checker relation in the Proposal. Never replace it with
+  a correlated proxy: gripper closure is not target contact, height is not
+  placement, and sequential events are not simultaneous events. If the exact
+  predicate is unavailable from current simulator state or cannot pass the
+  supplied expert fixture, leave the candidate rejected/unsupported rather
+  than weakening its semantics during repair.
 - A generated challenge must preserve at least one feasible official action
   path to every required contact or functional point. A fixed center offset is
   not proof of approach clearance, and `add_prohibit_area()` is not a robot

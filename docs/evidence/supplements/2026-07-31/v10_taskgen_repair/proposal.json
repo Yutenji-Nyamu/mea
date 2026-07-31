@@ -1,0 +1,56 @@
+{
+  "base_task": "grab_roller",
+  "candidate_id": "dynamic.grab.roller.trajectory.robustness.static.distractor.clearance.adding.a.static.distractor.0.08.m.lateral.to.the.nominal.roller.lift.corridor.will.expose.a.trajectory.weakness.the.policy.will.either.fail.the.combined.success.predicate.or.approach.the.distractor.with.a.reduced.minimum.tcp.to.distractor.clearance.while.the.distractor.remains.uncontacted.at.checker.evaluation.b6fafb2cf413",
+  "checker_need": {
+    "description": "Evaluate the boolean conjunction: official goal AND the generated distractor has zero contact with the roller or either gripper at checker evaluation.",
+    "kind": "generate",
+    "reuse_first": true
+  },
+  "evaluation_intent": {
+    "hypothesis": "Adding a static distractor 0.08 m lateral to the nominal roller lift corridor will expose a trajectory weakness: the policy will either fail the combined success predicate or approach the distractor with a reduced minimum TCP-to-distractor clearance, while the distractor remains uncontacted at checker evaluation.",
+    "intent_id": "intent.540b4bce3f574b25",
+    "original_concern": "trajectory_robustness.static_distractor_clearance",
+    "preserved_conditions": [
+      "task identity grab_roller",
+      "policy checkpoint SmolVLA shared_official",
+      "roller geometry and initial state",
+      "official core predicate as a required conjunct",
+      "distractor pose and physical properties fixed for the round"
+    ],
+    "requested_change": "Generate one static, non-target cylindrical distractor and place its center at the roller's initial center position plus 0.08 m in the lateral scene direction and 0.15 m in height.",
+    "required_observation": "Evaluate the boolean conjunction: official goal AND the generated distractor has zero contact with the roller or either gripper at checker evaluation. Report the primary scalar minimum Euclidean distance, over the rollout trajectory, between either gripper TCP and the generated distractor.",
+    "schema_version": 1,
+    "source_query": "Does there exist a newly generated executable scene challenge that exposes a trajectory weakness in this policy? Let the Plan Agent choose the scene change. Define success as completing the official task goal AND satisfying one additional boolean condition read directly from current simulator object/contact state, never from a trajectory-derived threshold. Independently report one scalar metric computed from the rollout trajectory that decides the hypothesis."
+  },
+  "intent_alignment": {
+    "matched_intent_fields": [
+      "requested_change",
+      "preserved_conditions",
+      "hypothesis",
+      "required_observation"
+    ],
+    "rationale": "Candidate preserves the requested change, hypothesis, and observation semantics.",
+    "relationship": "direct",
+    "schema_version": 1,
+    "unmatched_intent_fields": []
+  },
+  "rule_tool_need": {
+    "description": "Report the primary scalar minimum Euclidean distance, over the rollout trajectory, between either gripper TCP and the generated distractor.",
+    "kind": "measure",
+    "reuse_first": true
+  },
+  "scene_need": {
+    "description": "Generate a scene with one static non-target cylindrical distractor added at roller_initial_position + (0.08 m lateral, 0 m longitudinal, 0.15 m vertical), while preserving the roller task setup. Preserve unchanged: task identity grab_roller; policy checkpoint SmolVLA shared_official; roller geometry and initial state; official core predicate as a required conjunct; distractor pose and physical properties fixed for the round.",
+    "kind": "adapt",
+    "reuse_first": true
+  },
+  "schema_version": 2,
+  "semantic_concern": "trajectory_robustness.static_distractor_clearance: Adding a static distractor 0.08 m lateral to the nominal roller lift corridor will expose a trajectory weakness: the policy will either fail the combined success predicate or approach the distractor with a reduced minimum TCP-to-distractor clearance, while the distractor remains uncontacted at checker evaluation.",
+  "source_query": "Does there exist a newly generated executable scene challenge that exposes a trajectory weakness in this policy? Let the Plan Agent choose the scene change. Define success as completing the official task goal AND satisfying one additional boolean condition read directly from current simulator object/contact state, never from a trajectory-derived threshold. Independently report one scalar metric computed from the rollout trajectory that decides the hypothesis.",
+  "tool_need": {
+    "description": "Report the primary scalar minimum Euclidean distance, over the rollout trajectory, between either gripper TCP and the generated distractor.",
+    "kind": "measure",
+    "reuse_first": true
+  },
+  "vqa_tool_need": null
+}

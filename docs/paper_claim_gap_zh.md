@@ -14,24 +14,33 @@ Query 经 official control 后由 Plan Agent 自选 scale concern，再依据 0.
 细化到 0.70；通用 TaskGen、Rule Tool、Aggregate 与受限 Answer 真实运行。它只有一个
 task/seed，最终因预算停止，不能证明广泛泛化或 evidence-sufficient stop。
 
-此后生产 `RoundExecutor` 已同时接入 ACT 与 SmolVLA，SmolVLA 也进入通用 TaskGen；
-最新 `eval_20260730_native_smolvla_broad_live_v5` 从不含 aspect/template 的 Query
-生成了 distractor scene、实验 checker 与单独声明的 trajectory Tool need，且 TaskGen 首次
-生成通过 static、render/VLM 和 expert gate。随后原生 rollout 初始化误解析到外部
-upstream RoboTwin，而非 TaskGen 验证所用的 MEA RoboTwin fork；policy server 虽收到
-连接，但 `request_count=0`，没有 observation、policy inference 或 episode。当前代码已
-强制生产入口 repo-first、校验 simulator source，并把 policy 连接延后到 simulator
-初始化之后，但尚未重跑。因此这仍是负向诊断，不是新的方法正证据。旧运行结论只在
-[`docs/evidence/history.jsonl`](evidence/history.jsonl)保留一行摘要。
+此后生产 `RoundExecutor` 已同时接入 ACT 与 SmolVLA，SmolVLA 也进入通用 TaskGen。
+`eval_20260730_native_smolvla_broad_live_v10` 与
+`eval_20260731_native_smolvla_broad_live_v11` 都已产生真实 official-control policy
+episode，并在该 evidence 之后由 Plan Agent 提出新的 round-2 Proposal；因此 v5
+“没有 observation/episode”的结论已过时。
+
+这两次仍不是 clean flagship 正证据。v10 在 round 2 的 TaskGen 中先遇到非法
+`.extend`，修复后又因全尺寸 distractor 阻断 expert official success 而终止；同一
+Proposal 的零-policy replay 随后通过一次局部 repair 将 distractor 缩至 `0.1`，使模型
+编写的 scene+checker 通过 AST、`2/2` fixtures、render/VLM 和 expert gate。v11 的
+round-2 checker 要求 terminal state 中仍存在瞬时 PhysX contact，首次生成和一次 repair
+均未通过 expert positive fixture；后续零-policy replay 虽改用“夹爪闭合”而通过执行
+gate，但这只是 contact need 的相关代理，语义上不等价，必须拒绝。故当前最重要的缺口
+是 **Proposal-checker 语义忠实性与完整同链闭合**，而不是再证明 transport 可以启动
+rollout。当前代码已新增独立 development-agent checker semantic review，逐项核对
+量词/同时性/对象关系/直接观测，拒绝相关代理，并把批准结果与 Proposal、checker 哈希
+绑定到 registry 和 pre-policy gate；AutoDL 主干回归通过，但尚未形成新的 live 正例。
+历史运行只在 [`docs/evidence/history.jsonl`](evidence/history.jsonl)保留摘要。
 
 ## 方法 claim
 
 | 论文 claim | 当前项目 | 判断 |
 | --- | --- | --- |
-| Fig. 2/5：开放 Query 驱动 Plan Agent 自主提出 sub-aspect | 生产入口不调用 catalog/task-specific planner；现有 live 已从 broad Query 自选并细化 scale concern | **小范围完成**；仍只有单 task/seed 与单 concern 方向 |
-| 上一轮 evidence 决定下一轮，并在充分时停止 | evidence-conditioned refinement 与有限合同的 sufficient stop 各有真实案例 | **尚未在同一 broad flagship 合一** |
-| Fig. 3：Proposal → retrieve/generate scene + `check_success()` → rollout | 通用 scene generation 有多轮正例；最新 SmolVLA scene+checker 已通过完整 TaskGen gate | **组合正例缺失**；原生 rollout 初始化失败，尚无该 artifact 的 policy episode |
-| 首帧视觉诊断与局部重新生成 | VLM、simulator/fixture、render、expert 与一次 repair 已接入 | **机制存在**；缺一次 repair 后通过的 clean live 正例 |
+| Fig. 2/5：开放 Query 驱动 Plan Agent 自主提出 sub-aspect | 生产入口不调用 catalog/task-specific planner；v10/v11 均由 broad Query 的 official-control evidence 触发新 Proposal | **小范围完成**；仍缺同一运行中的后续成功 round 与充分停止 |
+| 上一轮 evidence 决定下一轮，并在充分时停止 | v10/v11 已证明 evidence 后才提出新 sub-aspect；有限合同的 sufficient stop 另有真实案例 | **尚未在同一 broad flagship 合一** |
+| Fig. 3：Proposal → retrieve/generate scene + `check_success()` → rollout | v10 零-policy replay 中，模型编写的 scene+checker 经一次 repair 后通过执行 gate；v11 代理实现促成了独立语义审查与哈希绑定 | **组合正例缺失**；新语义门尚无同一 evaluation 的 live policy episode |
+| 首帧视觉诊断与局部重新生成 | v10 已有一次 repair 后通过 AST、fixture、render/VLM 与 expert gate 的正例 | **组件正例完成**；视觉不能替代 checker 的 simulator-state 语义审计 |
 | Fig. 4：ToolGen retrieve/generate/validate/register/reuse | Python Rule Tool 已在 live 取得非空值；exact reuse 另有 0-rollout 案例 | **部分完成**；“live 值 → 影响下一轮 → 第二 Query exact reuse”尚未同链证明 |
 | rollout → Rule/VQA → Aggregate → Plan Agent → Answer | RoboTwin 小范围已闭环；ACT/SmolVLA 共用 `RoundExecutor` | **RoboTwin 基本完成**；LIBERO 仍是独立外层 chain |
 | 回答原 Query 并约束确定性 | `AnswerScope` 报告 N、seed、未覆盖项、冲突与停止原因 | **完成度较高**；不是统计泛化保证 |
@@ -51,19 +60,24 @@ upstream RoboTwin，而非 TaskGen 验证所用的 MEA RoboTwin fork；policy se
 ## 当前方法优先级
 
 1. **完成一个 backend-neutral clean flagship。** broad Query 不给 aspect/template；
-   Plan Agent 自选可实现 concern；按需生成 scene、实验 checker 与单独声明的 scalar Tool；
-   通过 TaskGen gate 后执行一次轻量 policy rollout；live Tool 非空并进入 Aggregate。
+   Plan Agent 在 completed evidence 后自选可实现 concern；按需生成 scene、实验 checker
+   与单独声明的 scalar Tool；同一 evaluation 中通过 TaskGen gate、执行轻量 rollout，
+   使 live Tool 非空并进入 Aggregate。
 2. **让 evidence 同时决定 refinement 与停止。** 下一 Proposal 必须在上一轮 completed
    evidence 后产生；Plan Agent 主动提出 stop，QueryContract 只验证，不替它决策。
-3. **在同一方法链证明 Tool reuse。** 新 Tool 影响下一轮后，由第二 Query exact reuse。
+3. **用 live TaskGen 验收通用 checker 语义门。** 代码已做到 fixture 与语义审查分责；
+   下一次运行必须证明忠实 checker 被批准、相关代理被拒绝，且批准哈希在 registry 和
+   policy 前保持一致。若 expert terminal state 不支持精确 predicate，应报告
+   unsupported，而不是改写语义。
+4. **在同一方法链证明 Tool reuse。** 新 Tool 影响下一轮后，由第二 Query exact reuse。
    对没有 caller-supplied independent numeric oracle 的 derived observable，ToolGen 使用
    separate development-agent semantic review，再执行 declared-signal AST、determinism、
    finite/unit、evidence-step 与 artifact-immutability runtime gates；产物必须显式记录
    `independent_numeric_oracle=false`、`oracle_agreement=null`，且只能作为诊断量，不能
    拥有 success/reward authority。存在独立 numeric oracle 时才报告其 agreement。
-4. **统一 LIBERO 外层 loop。** simulator backend 可以不同，QueryContract、Plan Agent
+5. **统一 LIBERO 外层 loop。** simulator backend 可以不同，QueryContract、Plan Agent
    session、RoundExecutor、Aggregate、stop 与 Answer 不应重复实现。
-5. **方法稳定后再扩大实验。** 首先做小型三 seed dense/adaptive 保真；独立人工
+6. **方法稳定后再扩大实验。** 首先做小型三 seed dense/adaptive 保真；独立人工
    Plan/VQA、多 policy ranking 和大规模任务后置。
 
 ## 软件工程边界

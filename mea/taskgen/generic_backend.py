@@ -49,6 +49,12 @@ from .provider_scene_checker import (
     validate_provider_run_id,
     write_candidate_artifacts,
 )
+from .semantic_review import (
+    CheckerSemanticReviewError,
+    checker_review_identity,
+    review_generated_checker,
+    validate_checker_semantic_review_binding,
+)
 
 
 class GenericTaskGenError(RuntimeError):
@@ -1141,6 +1147,7 @@ def _normalize_adapter(
             "methods": ["load_actors", "check_success"],
             "static_and_fixture_validation": True,
             "semantic_validation": "task_schema_contract_v2",
+            "checker_semantic_review": "taskgen_checker_semantic_review_v1",
             "render_preflight": True,
             "expert_preflight": True,
             "local_regeneration_limit": 1,
@@ -1214,12 +1221,14 @@ def generic_task_semantic_key(
     ast_policy = _derived_ast_policy(
         official, class_name=normalized_adapter["official_class"]
     )
+    review_identity = checker_review_identity(normalized_candidate)
     return {
         "schema_version": 1,
         "base_task": normalized_candidate["base_task"],
         "semantic_concern": normalized_candidate["semantic_concern"],
         "scene_need": normalized_candidate["scene_need"],
         "checker_need": normalized_candidate["checker_need"],
+        "evaluation_intent": review_identity["evaluation_intent"],
         "adapter_contract": {
             "official_source": normalized_adapter["official_source"],
             "official_source_sha256": hashlib.sha256(
@@ -1394,6 +1403,13 @@ def _core_prompt(
         "derived Rule metric such as trajectory deviation, smoothness, jerk, "
         "path length, or minimum clearance. Leave that scalar observation to "
         "ToolGen and never invent calculate_* or measure_* helper methods. "
+        "Implement every checker_need relation literally. Do not replace an "
+        "exact relation with a correlated proxy: a closed gripper is not "
+        "target contact, height is not placement, and sequential contacts "
+        "are not simultaneous contacts. If the requested predicate is not "
+        "available from current simulator state or is false in the supplied "
+        "expert terminal fixture, let validation reject the candidate rather "
+        "than weakening its meaning. "
         "When checker_need composes the official task goal with an additional "
         "experimental condition, call self.mea_official_check_success() "
         "directly and use its result as a required conjunct; do not copy or "
@@ -1491,6 +1507,26 @@ def _normalize_validation(
         )
     report["scene_sha256"] = text_sha256(methods["load_actors"])
     report["success_sha256"] = text_sha256(methods["check_success"])
+    if candidate.get("checker_need") is not None:
+        try:
+            report["checker_semantic_review"] = (
+                validate_checker_semantic_review_binding(
+                    report.get("checker_semantic_review"),
+                    candidate=candidate,
+                    checker_sha256=report["success_sha256"],
+                )
+            )
+        except CheckerSemanticReviewError as exc:
+            raise GenericTaskGenError(str(exc)) from exc
+        report["checker_semantic_review_required"] = True
+    else:
+        if report.get("checker_semantic_review") is not None:
+            raise GenericTaskGenError(
+                "official checker reuse must not carry a generated-checker "
+                "semantic review"
+            )
+        report["checker_semantic_review"] = None
+        report["checker_semantic_review_required"] = False
     report["checker_fixture_count"] = len(fixtures)
     report["preflight"] = deepcopy(dict(preflight))
     report["scene_alignment"] = {
@@ -1687,6 +1723,7 @@ class GenericRoboTwinTaskGenBackend:
                 for name in ("load_actors", "check_success")
                 if method_provenance[name] == "official_reused"
             ]
+            checker_semantic_review = None
             try:
                 raw_validation = adapter.hooks.validate_methods(
                     typed_methods, normalized_candidate
@@ -1709,6 +1746,36 @@ class GenericRoboTwinTaskGenBackend:
                 (attempt_dir / "candidate_task.py").write_text(
                     module_source, encoding="utf-8"
                 )
+                if normalized_candidate["checker_need"] is not None:
+                    try:
+                        checker_semantic_review = (
+                            review_generated_checker(
+                                provider=self.provider,
+                                model=self.model,
+                                candidate=normalized_candidate,
+                                task_context=normalized_adapter[
+                                    "task_context"
+                                ],
+                                method_provenance=method_provenance,
+                                generated_scene=typed_methods["load_actors"],
+                                official_checker=official_methods[
+                                    "check_success"
+                                ],
+                                generated_checker=typed_methods[
+                                    "check_success"
+                                ],
+                                attempt_dir=attempt_dir,
+                            )
+                        )
+                    except CheckerSemanticReviewError as exc:
+                        raise GenericTaskGenError(
+                            str(exc),
+                            runtime={
+                                "semantic_review_provider_calls": (
+                                    exc.provider_calls
+                                )
+                            },
+                        ) from exc
                 preflight = adapter.hooks.preflight_candidate(
                     attempt_dir, module_source, normalized_candidate
                 )
@@ -1719,17 +1786,35 @@ class GenericRoboTwinTaskGenBackend:
                         "official_reused_methods": (
                             official_reused_methods
                         ),
+                        "checker_semantic_review": (
+                            checker_semantic_review
+                        ),
+                        "semantic_review_provider_calls": (
+                            1 if checker_semantic_review is not None else 0
+                        ),
                     },
                     candidate=normalized_candidate,
                     methods=typed_methods,
                     preflight=preflight,
                 )
-            except GenericTaskGenError:
+            except GenericTaskGenError as exc:
+                if checker_semantic_review is not None:
+                    runtime = dict(exc.runtime)
+                    runtime["semantic_review_provider_calls"] = 1
+                    raise GenericTaskGenError(
+                        str(exc),
+                        runtime=runtime,
+                    ) from exc
                 raise
             except Exception as exc:
                 raise GenericTaskGenError(
                     "generic TaskGen validation hook failed: "
-                    f"{type(exc).__name__}: {exc}"
+                    f"{type(exc).__name__}: {exc}",
+                    runtime=(
+                        {"semantic_review_provider_calls": 1}
+                        if checker_semantic_review is not None
+                        else None
+                    ),
                 ) from exc
             accepted_module["source"] = module_source
             return validation

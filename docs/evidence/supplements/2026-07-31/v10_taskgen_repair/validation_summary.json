@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "run_id": "run_native_smolvla_v10_taskgen_repair_v1",
+  "source_server_path": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_native_smolvla_v10_taskgen_repair_v1",
+  "status": "accepted_before_policy",
+  "policy_rollouts": 0,
+  "provider_model": "gpt-5.6-terra",
+  "provider_calls": 2,
+  "local_regenerations": 1,
+  "model_written_python": true,
+  "restricted_success_spec_compiler_used": false,
+  "checker_fixtures": {
+    "passed": 2,
+    "total": 2,
+    "initial_negative": true,
+    "official_expert_terminal_positive": true
+  },
+  "render_passed": true,
+  "vision_passed": true,
+  "vision_confidence": 0.86,
+  "expert_passed": true,
+  "scene_change_passed": true,
+  "preservation_status": "verified",
+  "boundary": "TaskGen component evidence only; no policy rollout, Aggregate, Plan Agent stop, or Answer"
+}

@@ -1,0 +1,101 @@
+{
+    "schema_version":  1,
+    "purpose":  "compact_method_diagnostics_not_policy_performance",
+    "date":  "2026-07-31",
+    "sources":  [
+                    {
+                        "kind":  "evaluation",
+                        "id":  "eval_20260730_native_smolvla_broad_live_v10",
+                        "server_path":  "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/evaluation_runs/eval_20260730_native_smolvla_broad_live_v10"
+                    },
+                    {
+                        "kind":  "taskgen_replay",
+                        "id":  "run_native_smolvla_v10_taskgen_repair_v1",
+                        "server_path":  "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_native_smolvla_v10_taskgen_repair_v1"
+                    },
+                    {
+                        "kind":  "evaluation",
+                        "id":  "eval_20260731_native_smolvla_broad_live_v11",
+                        "server_path":  "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/evaluation_runs/eval_20260731_native_smolvla_broad_live_v11"
+                    },
+                    {
+                        "kind":  "taskgen_replay_posthoc_rejected",
+                        "id":  "run_native_smolvla_v11_taskgen_repair_v1",
+                        "server_path":  "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_native_smolvla_v11_taskgen_repair_v1"
+                    }
+                ],
+    "artifact_count":  14,
+    "artifacts":  [
+                      {
+                          "path":  "README.md",
+                          "bytes":  812,
+                          "sha256":  "b7005532152ed4ba91225422b5d7fd0a2d46b18ea6c0ee8376dc32b7ee084ddd"
+                      },
+                      {
+                          "path":  "v10_full/summary.json",
+                          "bytes":  869,
+                          "sha256":  "b144ce8f079fa5087be03cd8e8ee2d937e7468febf67243b35112430268b72c8"
+                      },
+                      {
+                          "path":  "v10_taskgen_repair/proposal.json",
+                          "bytes":  4785,
+                          "sha256":  "414103b2fe7bc52e621e15ce3614cf6a4ffbe78427c096cc2f6654cb7894a132"
+                      },
+                      {
+                          "path":  "v10_taskgen_repair/provider_attempts.json",
+                          "bytes":  6442,
+                          "sha256":  "40be34d85af2ef895620426ca58610a8c12f36ada71d4a6ab3de8e79d2992277"
+                      },
+                      {
+                          "path":  "v10_taskgen_repair/scene_comparison.png",
+                          "bytes":  68103,
+                          "sha256":  "7bd0dcb0b6f190f487d7559c138ee932d2dd2d33db317908adaa4d94c4b7e55e"
+                      },
+                      {
+                          "path":  "v10_taskgen_repair/task.py",
+                          "bytes":  2492,
+                          "sha256":  "2c655994d40e5db106a34a4983523cacfcf7f4e8780f94257f4be9c7174b2bfd"
+                      },
+                      {
+                          "path":  "v10_taskgen_repair/validation_summary.json",
+                          "bytes":  878,
+                          "sha256":  "3b2aec1bc5fc8deb231a8100d323ed734142f695822a1f8c2a084fd84d4e10de"
+                      },
+                      {
+                          "path":  "v10_taskgen_repair/vision.json",
+                          "bytes":  1459,
+                          "sha256":  "77064ea102ce1d55bef6c7a2fe452ce35695e8fee8a6c23ba226b3aaca1343b0"
+                      },
+                      {
+                          "path":  "v11_full/request.json",
+                          "bytes":  488,
+                          "sha256":  "54c55f98bf4b663742a6a87932aec7cd6b3352bef0c971f2cac1d334c5b6518b"
+                      },
+                      {
+                          "path":  "v11_full/round_2_proposal.json",
+                          "bytes":  4621,
+                          "sha256":  "27a85cb46ebbc62421be66c5ad357e6b5748d593425269d9c6eed9fc7c3093be"
+                      },
+                      {
+                          "path":  "v11_full/summary.json",
+                          "bytes":  1199,
+                          "sha256":  "ea1a223e54b9e37dc67e6710055e219c5501e6fb51b2b529919a7199ee938d5b"
+                      },
+                      {
+                          "path":  "v11_posthoc_rejected/posthoc_semantic_audit.json",
+                          "bytes":  1105,
+                          "sha256":  "c7c9a83a17808f62607f6db323a8753882136101a3f4db6b587e8d47a2e6b972"
+                      },
+                      {
+                          "path":  "v11_posthoc_rejected/proposal.json",
+                          "bytes":  4621,
+                          "sha256":  "95035deb50b479d71e7cd25c93dabe0836e7785454586cf44e3e0a514c34a964"
+                      },
+                      {
+                          "path":  "v11_posthoc_rejected/task.py",
+                          "bytes":  1366,
+                          "sha256":  "2b01640bf381e91b118e716a0f4aae170a06f3b7e9d1d9519df4562435775b50"
+                      }
+                  ],
+    "manifest_self_excluded_from_artifacts":  true
+}

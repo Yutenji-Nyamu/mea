@@ -2,6 +2,62 @@
   "schema_version": 1,
   "evaluation_id": "eval_20260730_batch31_grab_roller_broad_live_v3",
   "source_evaluation": "mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3",
+  "latest_method_status": {
+    "as_of": "2026-07-31",
+    "accepted_bundle_unchanged": true,
+    "accepted_bundle": "eval_20260730_batch31_grab_roller_broad_live_v3",
+    "native_smolvla_v10": {
+      "evaluation_id": "eval_20260730_native_smolvla_broad_live_v10",
+      "official_control_episode": true,
+      "evidence_conditioned_round_2_proposal": true,
+      "round_2_policy_episode": false,
+      "terminal_stage": "taskgen",
+      "result": "negative_full_chain"
+    },
+    "native_smolvla_v10_taskgen_repair": {
+      "run_id": "run_native_smolvla_v10_taskgen_repair_v1",
+      "policy_rollouts": 0,
+      "local_repairs": 1,
+      "checker_fixtures": "2/2",
+      "vision_passed": true,
+      "expert_passed": true,
+      "result": "positive_taskgen_component_only"
+    },
+    "native_smolvla_v11": {
+      "evaluation_id": "eval_20260731_native_smolvla_broad_live_v11",
+      "official_control_episode": true,
+      "evidence_conditioned_round_2_proposal": true,
+      "round_2_policy_episode": false,
+      "terminal_stage": "taskgen_checker_fixture",
+      "result": "negative_full_chain"
+    },
+    "native_smolvla_v11_taskgen_repair": {
+      "run_id": "run_native_smolvla_v11_taskgen_repair_v1",
+      "policy_rollouts": 0,
+      "runtime_gates_passed": true,
+      "semantic_fidelity_passed": false,
+      "result": "rejected_posthoc_semantic_drift",
+      "reason": "gripper-closed proxy is not equivalent to simultaneous target contact"
+    },
+    "checker_semantic_review_gate": {
+      "status": "implemented_server_regression_passed",
+      "authority": "development_agent_proxy",
+      "checks": [
+        "every_checker_requirement",
+        "quantifiers_and_temporal_relations",
+        "direct_current_simulator_observables",
+        "no_correlated_proxy_substitution"
+      ],
+      "binding": [
+        "proposal_semantics_sha256",
+        "checker_sha256",
+        "registry",
+        "pre_policy"
+      ],
+      "live_acceptance": false
+    },
+    "method_conclusion": "Evidence-conditioned Proposal generation and bounded TaskGen repair have separate live evidence; a semantically faithful all-in-one flagship remains open."
+  },
   "query": "这个ACT策略在grab_roller任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？",
   "target": {
     "binding_mode": "single_task_single_checkpoint_open_world",

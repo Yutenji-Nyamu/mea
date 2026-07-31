@@ -1,0 +1,54 @@
+{
+  "schema_version": 2,
+  "candidate_id": "dynamic.grab.roller.trajectory.robustness.lateral.object.offset.a.newly.generated.scene.with.the.roller.shifted.0.05.m.laterally.from.its.official.baseline.will.expose.a.trajectory.weakness.if.the.policy.completes.the.official.lift.while.the.rollout.s.peak.left.or.right.tcp.to.target.separation.exceeds.the.baseline.trajectory.scale.despite.both.gripper.contact.conditions.being.satisfied.a9a9123ac05d",
+  "source_query": "Does there exist a newly generated executable scene challenge that exposes a trajectory weakness in this policy? Let the Plan Agent choose the scene change. Define success as completing the official task goal AND satisfying one additional boolean condition read directly from current simulator object/contact state, never from a trajectory-derived threshold. Independently report one scalar metric computed from the rollout trajectory that decides the hypothesis.",
+  "base_task": "grab_roller",
+  "semantic_concern": "trajectory.robustness.lateral_object_offset: A newly generated scene with the roller shifted 0.05 m laterally from its official baseline will expose a trajectory weakness if the policy completes the official lift while the rollout's peak left-or-right TCP-to-target separation exceeds the baseline trajectory scale, despite both gripper contact conditions being satisfied.",
+  "scene_need": {
+    "kind": "adapt",
+    "description": "Generate or adapt the executable grab_roller scene by shifting the roller initial position 0.05 m laterally along the scene x-axis from baseline. Preserve unchanged: task identity grab_roller; policy checkpoint lerobot/smolvla_robotwin; physics timestep.",
+    "reuse_first": true
+  },
+  "checker_need": {
+    "kind": "generate",
+    "description": "Require the official core predicate as a required conjunct AND require the roller to be simultaneously in contact with both gripper contact points at the evaluated success state.",
+    "reuse_first": true
+  },
+  "rule_tool_need": {
+    "kind": "measure",
+    "description": "Report one scalar rollout-trajectory observable: the maximum over the episode of the larger Euclidean distance between each TCP and its corresponding roller contact position.",
+    "reuse_first": true
+  },
+  "vqa_tool_need": null,
+  "tool_need": {
+    "kind": "measure",
+    "description": "Report one scalar rollout-trajectory observable: the maximum over the episode of the larger Euclidean distance between each TCP and its corresponding roller contact position.",
+    "reuse_first": true
+  },
+  "evaluation_intent": {
+    "schema_version": 1,
+    "intent_id": "intent.9a8d786ca1f744ca",
+    "source_query": "Does there exist a newly generated executable scene challenge that exposes a trajectory weakness in this policy? Let the Plan Agent choose the scene change. Define success as completing the official task goal AND satisfying one additional boolean condition read directly from current simulator object/contact state, never from a trajectory-derived threshold. Independently report one scalar metric computed from the rollout trajectory that decides the hypothesis.",
+    "original_concern": "trajectory.robustness.lateral_object_offset",
+    "hypothesis": "A newly generated scene with the roller shifted 0.05 m laterally from its official baseline will expose a trajectory weakness if the policy completes the official lift while the rollout's peak left-or-right TCP-to-target separation exceeds the baseline trajectory scale, despite both gripper contact conditions being satisfied.",
+    "requested_change": "Generate the official grab_roller scene with the roller initial position shifted 0.05 m laterally along the scene x-axis from its baseline position.",
+    "preserved_conditions": [
+      "task identity grab_roller",
+      "policy checkpoint lerobot/smolvla_robotwin",
+      "physics timestep"
+    ],
+    "required_observation": "Require the official core predicate as a required conjunct AND require the roller to be simultaneously in contact with both gripper contact points at the evaluated success state. Report one scalar rollout-trajectory observable: the maximum over the episode of the larger Euclidean distance between each TCP and its corresponding roller contact position."
+  },
+  "intent_alignment": {
+    "schema_version": 1,
+    "relationship": "direct",
+    "rationale": "Candidate preserves the requested change, hypothesis, and observation semantics.",
+    "matched_intent_fields": [
+      "requested_change",
+      "preserved_conditions",
+      "hypothesis",
+      "required_observation"
+    ],
+    "unmatched_intent_fields": []
+  }
+}

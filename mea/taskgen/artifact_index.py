@@ -11,6 +11,10 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from mea.artifact_registry import ArtifactRegistry, ArtifactRegistryError
+from mea.taskgen.semantic_review import (
+    CheckerSemanticReviewError,
+    validate_checker_semantic_review_binding,
+)
 
 
 class GenericTaskArtifactError(RuntimeError):
@@ -80,6 +84,28 @@ def _read_generation_proposal(
     )
 
 
+def _checker_review(
+    value: Any,
+    *,
+    proposal: Mapping[str, Any],
+    checker_sha256: Any,
+) -> dict[str, Any] | None:
+    if proposal.get("checker_need") is None:
+        if value is not None:
+            raise GenericTaskArtifactError(
+                "official checker reuse must not carry a semantic review"
+            )
+        return None
+    try:
+        return validate_checker_semantic_review_binding(
+            value,
+            candidate=proposal,
+            checker_sha256=str(checker_sha256 or ""),
+        )
+    except CheckerSemanticReviewError as exc:
+        raise GenericTaskArtifactError(str(exc)) from exc
+
+
 class GenericTaskArtifactIndex:
     """Adapt ArtifactRegistry to GenericRoboTwinTaskGenBackend exact lookup."""
 
@@ -147,7 +173,9 @@ class GenericTaskArtifactIndex:
             raise GenericTaskArtifactError(
                 "indexed generic Task manifest differs from its validation"
             )
-        _read_generation_proposal(manifest_path.parent, manifest)
+        proposal, _ = _read_generation_proposal(
+            manifest_path.parent, manifest
+        )
         task_path = manifest_path.parent / "task.py"
         if (
             not task_path.is_file()
@@ -174,6 +202,23 @@ class GenericTaskArtifactIndex:
         ):
             raise GenericTaskArtifactError(
                 "indexed generic Task candidate manifest differs"
+            )
+        review = _checker_review(
+            candidate_manifest.get("checker_semantic_review"),
+            proposal=proposal,
+            checker_sha256=candidate_manifest.get(
+                "success_method_sha256"
+            ),
+        )
+        acceptance = manifest.get("task_generation_acceptance")
+        if (
+            not isinstance(acceptance, Mapping)
+            or acceptance.get("checker_semantic_review") != review
+            or validation.get("checker_semantic_review") != review
+        ):
+            raise GenericTaskArtifactError(
+                "indexed generic Task semantic review differs from its "
+                "acceptance boundary"
             )
         return {
             "schema_version": 1,
@@ -229,7 +274,7 @@ class GenericTaskArtifactIndex:
                 "generic Task manifest must be inside the repository"
             ) from exc
         manifest = json.loads(path.read_text(encoding="utf-8"))
-        _read_generation_proposal(path.parent, manifest)
+        proposal, _ = _read_generation_proposal(path.parent, manifest)
         task_path = path.parent / "task.py"
         candidate_manifest_path = path.parent / "candidate_manifest.json"
         try:
@@ -259,6 +304,13 @@ class GenericTaskArtifactIndex:
             "task_module": manifest.get("task_module"),
             "checker_fixture_count": len(fixtures),
             "scene_change_passed": preflight.get("scene_change_passed"),
+            "checker_semantic_review": _checker_review(
+                candidate_manifest.get("checker_semantic_review"),
+                proposal=proposal,
+                checker_sha256=candidate_manifest.get(
+                    "success_method_sha256"
+                ),
+            ),
         }
         if (
             not validation["module_sha256"]
@@ -271,6 +323,12 @@ class GenericTaskArtifactIndex:
             or not fixtures
             or any(item.get("passed") is not True for item in fixtures)
             or validation["scene_change_passed"] is not True
+            or (
+                (manifest.get("task_generation_acceptance") or {}).get(
+                    "checker_semantic_review"
+                )
+                != validation["checker_semantic_review"]
+            )
         ):
             raise GenericTaskArtifactError(
                 "generic Task cannot be indexed before all validation passes"

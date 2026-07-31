@@ -1659,6 +1659,20 @@ def create_generic_provider_taskgen_run(
                     f"generic candidate artifact is missing: {source_name}"
                 )
             shutil.move(str(source), str(run_dir / destination_name))
+        for source_name, destination_name in {
+            "checker_semantic_review.json": (
+                "validation/checker_semantic_review.json"
+            ),
+            "checker_semantic_review_prompt.md": (
+                "generation/checker_semantic_review_prompt.md"
+            ),
+            "checker_semantic_review_response.txt": (
+                "generation/checker_semantic_review_response.txt"
+            ),
+        }.items():
+            source = run_dir / source_name
+            if source.is_file():
+                shutil.move(str(source), str(run_dir / destination_name))
         write_json(
             run_dir / "generation/provider_response.json",
             extract_json_response(
@@ -1780,6 +1794,14 @@ def create_generic_provider_taskgen_run(
             implementation_trace,
         )
     if reused_manifest is not None:
+        reused_candidate_manifest = json.loads(
+            (run_dir / "candidate_manifest.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        checker_semantic_review = reused_candidate_manifest.get(
+            "checker_semantic_review"
+        )
         reused_manifest["scene_validation"] = {
             **expert_scene,
             "setup_fixture": setup_scene,
@@ -1815,6 +1837,7 @@ def create_generic_provider_taskgen_run(
             "preserved_conditions_verified": run_local_preflight.get(
                 "preserved_conditions_verified"
             ),
+            "checker_semantic_review": checker_semantic_review,
         }
         reused_manifest["implementation_trace"] = implementation_trace
         reused_manifest["task_context"] = {
@@ -1900,6 +1923,9 @@ def create_generic_provider_taskgen_run(
                 1
                 for item in validation["checker_fixtures"]
                 if item.get("passed") is True
+            ),
+            "checker_semantic_review": validation.get(
+                "checker_semantic_review"
             ),
         }
     }
@@ -2016,6 +2042,9 @@ def create_generic_provider_taskgen_run(
             ),
             "preserved_conditions_verified": accepted_preflight.get(
                 "preserved_conditions_verified"
+            ),
+            "checker_semantic_review": validation.get(
+                "checker_semantic_review"
             ),
         },
         "task_artifact_summary": {

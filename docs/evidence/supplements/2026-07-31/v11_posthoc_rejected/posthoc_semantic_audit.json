@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "run_id": "run_native_smolvla_v11_taskgen_repair_v1",
+  "status": "rejected",
+  "authority": "development_agent_proxy",
+  "proposal_sha256": "95035deb50b479d71e7cd25c93dabe0836e7785454586cf44e3e0a514c34a964",
+  "task_source_sha256": "2b01640bf381e91b118e716a0f4aae170a06f3b7e9d1d9519df4562435775b50",
+  "requested_checker_relation": "official core predicate AND roller simultaneously contacts both gripper contact points",
+  "implemented_additional_relation": "left gripper closed AND right gripper closed",
+  "semantic_fidelity_passed": false,
+  "reason": "Gripper closure is a correlated proxy and does not establish simultaneous roller contact with both corresponding gripper contact points.",
+  "runtime_gate_result": "The code passed the existing AST, initial/expert fixtures, render/VLM, and expert gates, demonstrating that those gates prove executability but not Proposal fidelity.",
+  "registry_action": {
+    "status": "invalidated",
+    "artifact_path": "mea/generated_tasks/run_native_smolvla_v11_taskgen_repair_v1/manifest.json",
+    "raw_run_retained": true
+  }
+}

@@ -1,6 +1,9 @@
 # MEA method evidence: `eval_20260730_batch31_grab_roller_broad_live_v3`
 
-> 当前最新的可发布方法运行；后续 native-runtime 尝试（含 SmolVLA v5）均未产生 policy observation/episode，不替换本证据。完整 raw telemetry 保留在服务器 evaluation 目录。
+> 当前仍以 batch31 作为已接受的可发布方法证据。后续 SmolVLA v10/v11 已产生真实
+> official-control policy episode，并由该 evidence 触发新的 Proposal，但都在 round 2
+> TaskGen 终止，尚未形成更完整的可接受 bundle，因此不替换本证据。完整 raw telemetry
+> 保留在服务器 evaluation 目录。
 
 ## 运行范围
 
@@ -11,6 +14,37 @@
 - Round budget: `3`
 - Final state: `stopped_after_round_3_budget_exhausted`
 - Query interpretation: [prompt](artifacts/plan/query_interpretation_prompt.md) · [response](artifacts/plan/query_interpretation_response_1.txt) · [structured result](artifacts/plan/query_interpretation.json)
+
+## 2026-07-31 最新方法状态
+
+| 运行 | 新增证据 | 边界 |
+| --- | --- | --- |
+| SmolVLA v10 full | official control 成功；Plan Agent 依据 round-1 evidence 提出 distractor/clearance Proposal | round-2 TaskGen 两次均失败；没有第二次 policy rollout |
+| v10 TaskGen replay | 同一 Proposal 经一次局部 repair 后，模型编写的 scene+checker 通过 AST、`2/2` fixtures、render/VLM 与 expert gate | `0` policy rollout；只能证明 TaskGen repair，不是完整方法链 |
+| SmolVLA v11 full | official control 成功；evidence 后提出 lateral-offset scene、双接触 checker 与独立 trajectory Tool need | 瞬时 PhysX contact 在 expert terminal state 为假；repair 后仍失败，没有 round-2 rollout 或 Answer |
+| v11 TaskGen replay | repair 改写后通过执行 gate | “夹爪闭合”只是“双接触”的相关代理；post-hoc 语义审计拒绝该 artifact，不计为正证据 |
+
+因此最新进展是：**evidence-conditioned Proposal 已在原生 SmolVLA 运行中重复出现，且
+TaskGen 一次局部 repair 已有正例；但 Proposal → 语义忠实 checker → rollout → Tool →
+Aggregate → 下一轮/停止 尚未在同一个干净 bundle 中合一。**
+
+最小补充证据：
+
+- v10 full：[精简状态](../supplements/2026-07-31/v10_full/summary.json)
+- v10 TaskGen repair：
+  [Proposal](../supplements/2026-07-31/v10_taskgen_repair/proposal.json) ·
+  [生成代码](../supplements/2026-07-31/v10_taskgen_repair/task.py) ·
+  [两次尝试](../supplements/2026-07-31/v10_taskgen_repair/provider_attempts.json) ·
+  [验证摘要](../supplements/2026-07-31/v10_taskgen_repair/validation_summary.json) ·
+  [场景对比](../supplements/2026-07-31/v10_taskgen_repair/scene_comparison.png)
+- v11 full negative：
+  [Query](../supplements/2026-07-31/v11_full/request.json) ·
+  [Plan Agent/失败摘要](../supplements/2026-07-31/v11_full/summary.json) ·
+  [round-2 Proposal](../supplements/2026-07-31/v11_full/round_2_proposal.json)
+- v11 replay rejection：
+  [Proposal](../supplements/2026-07-31/v11_posthoc_rejected/proposal.json) ·
+  [生成代码](../supplements/2026-07-31/v11_posthoc_rejected/task.py) ·
+  [语义审计](../supplements/2026-07-31/v11_posthoc_rejected/posthoc_semantic_audit.json)
 
 ## 方法数据流
 

@@ -39,9 +39,28 @@ class _Provider:
         self.responses = responses
         self.calls = 0
         self.prompts: list[str] = []
+        self.review_calls = 0
+        self.review_prompts: list[str] = []
         self.last_metadata: dict[str, Any] = {}
 
     def text(self, prompt: str, **_kwargs: Any) -> str:
+        if "TaskGen's separate checker semantic-review pass" in prompt:
+            self.review_calls += 1
+            self.review_prompts.append(prompt)
+            self.last_metadata = {"review_call": self.review_calls}
+            return json.dumps(
+                {
+                    "schema_version": 1,
+                    "status": "approved",
+                    "checks": {
+                        "implements_every_checker_requirement": True,
+                        "preserves_quantifiers_and_temporal_relations": True,
+                        "uses_direct_current_simulator_observables": True,
+                        "does_not_substitute_correlated_proxy": True,
+                    },
+                    "reason": "The fixture checker directly implements its Proposal.",
+                }
+            )
         self.prompts.append(prompt)
         response = self.responses[self.calls]
         self.calls += 1
@@ -1946,9 +1965,10 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             )
 
             self.assertEqual(result["status"], "generated")
-            self.assertEqual(result["provider_call_count"], 2)
+            self.assertEqual(result["provider_call_count"], 4)
             self.assertEqual(result["local_regeneration_count"], 1)
             self.assertEqual(provider.calls, 2)
+            self.assertEqual(provider.review_calls, 2)
             self.assertTrue(result["validation"]["preflight"]["render_passed"])
             self.assertTrue(result["validation"]["preflight"]["expert_passed"])
             run_dir = Path(result["run_dir"])
@@ -2010,6 +2030,219 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                 "check_success cannot read the completed trajectory",
                 prompt,
             )
+
+    def test_semantic_review_rejects_proxy_and_repairs_only_checker(
+        self,
+    ) -> None:
+        class ReviewSequenceProvider:
+            def __init__(self) -> None:
+                self.method_calls = 0
+                self.review_calls = 0
+                self.method_prompts: list[str] = []
+                self.review_prompts: list[str] = []
+                self.last_metadata: dict[str, Any] = {}
+                self.methods = [
+                    {
+                        "load_actors": (
+                            "def load_actors(self):\n"
+                            '    self.target = "generated"\n'
+                        ),
+                        "check_success": (
+                            "def check_success(self):\n"
+                            '    return self.target != ""\n'
+                        ),
+                    },
+                    {
+                        "load_actors": (
+                            "def load_actors(self):\n"
+                            '    self.target = "changed_scene"\n'
+                        ),
+                        "check_success": (
+                            "def check_success(self):\n"
+                            '    return self.target == "generated"\n'
+                        ),
+                    },
+                ]
+                self.reviews = [
+                    {
+                        "schema_version": 1,
+                        "status": "rejected",
+                        "checks": {
+                            "implements_every_checker_requirement": False,
+                            "preserves_quantifiers_and_temporal_relations": False,
+                            "uses_direct_current_simulator_observables": True,
+                            "does_not_substitute_correlated_proxy": False,
+                        },
+                        "reason": (
+                            "A correlated state proxy does not implement the "
+                            "frozen checker relation."
+                        ),
+                    },
+                    {
+                        "schema_version": 1,
+                        "status": "approved",
+                        "checks": {
+                            "implements_every_checker_requirement": True,
+                            "preserves_quantifiers_and_temporal_relations": True,
+                            "uses_direct_current_simulator_observables": True,
+                            "does_not_substitute_correlated_proxy": True,
+                        },
+                        "reason": "The repaired checker implements the relation.",
+                    },
+                ]
+
+            def text(self, prompt: str, **_kwargs: Any) -> str:
+                if "TaskGen's separate checker semantic-review pass" in prompt:
+                    value = self.reviews[self.review_calls]
+                    self.review_calls += 1
+                    self.review_prompts.append(prompt)
+                    self.last_metadata = {
+                        "review_call": self.review_calls
+                    }
+                    return json.dumps(value)
+                value = self.methods[self.method_calls]
+                self.method_calls += 1
+                self.method_prompts.append(prompt)
+                self.last_metadata = {"method_call": self.method_calls}
+                return json.dumps(value)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_cold_task_repo(root)
+            provider = ReviewSequenceProvider()
+            result = GenericRoboTwinTaskGenBackend(
+                root,
+                provider,
+                model="fixture-model",
+            ).materialize(
+                _candidate(),
+                _adapter(),
+                run_id="run_semantic_checker_repair",
+                max_regenerations=1,
+            )
+
+            task_source = (
+                Path(result["run_dir"]) / "task.py"
+            ).read_text(encoding="utf-8")
+            review = result["validation"]["checker_semantic_review"]
+
+        self.assertEqual(provider.method_calls, 2)
+        self.assertEqual(provider.review_calls, 2)
+        self.assertEqual(result["provider_call_count"], 4)
+        self.assertEqual(result["local_regeneration_count"], 1)
+        self.assertIn('self.target = "generated"', task_source)
+        self.assertNotIn("changed_scene", task_source)
+        self.assertIn("correlated proxy", provider.method_prompts[1])
+        self.assertEqual(review["status"], "approved")
+        self.assertEqual(review["authority"], "development_agent_proxy")
+
+    def test_review_call_is_counted_when_preflight_raises(self) -> None:
+        def failing_preflight(
+            _attempt_dir: Path,
+            _module_source: str,
+            _candidate_value: Mapping[str, Any],
+        ) -> Mapping[str, Any]:
+            raise ValueError("fixture preflight failure")
+
+        base = _adapter()
+        adapter = GenericRoboTwinTaskAdapter(
+            task_name=base.task_name,
+            official_source=base.official_source,
+            official_class=base.official_class,
+            task_schema=base.task_schema,
+            documentation_paths=base.documentation_paths,
+            asset_paths=base.asset_paths,
+            hooks=GenericTaskGenHooks(
+                validate_methods=base.hooks.validate_methods,
+                build_module=base.hooks.build_module,
+                preflight_candidate=failing_preflight,
+                resolve_metric=base.hooks.resolve_metric,
+                resolve_checker_contract=(
+                    base.hooks.resolve_checker_contract
+                ),
+                prompt_constraints=base.hooks.prompt_constraints,
+            ),
+        )
+        response = {
+            "load_actors": (
+                "def load_actors(self):\n"
+                '    self.target = "generated"\n'
+            ),
+            "check_success": (
+                "def check_success(self):\n"
+                '    return self.target == "generated"\n'
+            ),
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_cold_task_repo(root)
+            with self.assertRaises(GenericTaskGenError):
+                GenericRoboTwinTaskGenBackend(
+                    root,
+                    _Provider([response, response]),
+                    model="fixture-model",
+                ).materialize(
+                    _candidate(),
+                    adapter,
+                    run_id="run_preflight_exception_count",
+                )
+            summary = json.loads(
+                (
+                    root
+                    / "mea/generated_task_attempts/"
+                    "run_preflight_exception_count/"
+                    "task_generation_attempt_summary.json"
+                ).read_text(encoding="utf-8")
+            )
+
+        self.assertEqual(summary["attempt_count"], 2)
+        self.assertEqual(summary["runtime"]["provider_calls"], 4)
+
+    def test_unavailable_review_is_terminal_not_a_checker_repair(self) -> None:
+        class UnavailableReviewProvider(_Provider):
+            def text(self, prompt: str, **kwargs: Any) -> str:
+                if "TaskGen's separate checker semantic-review pass" in prompt:
+                    self.review_calls += 1
+                    return "not review JSON"
+                return super().text(prompt, **kwargs)
+
+        response = {
+            "load_actors": (
+                "def load_actors(self):\n"
+                '    self.target = "generated"\n'
+            ),
+            "check_success": (
+                "def check_success(self):\n"
+                '    return self.target == "generated"\n'
+            ),
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_cold_task_repo(root)
+            provider = UnavailableReviewProvider([response])
+            with self.assertRaises(GenericTaskGenError):
+                GenericRoboTwinTaskGenBackend(
+                    root,
+                    provider,
+                    model="fixture-model",
+                ).materialize(
+                    _candidate(),
+                    _adapter(),
+                    run_id="run_semantic_review_unavailable",
+                )
+            summary = json.loads(
+                (
+                    root
+                    / "mea/generated_task_attempts/"
+                    "run_semantic_review_unavailable/"
+                    "task_generation_attempt_summary.json"
+                ).read_text(encoding="utf-8")
+            )
+
+        self.assertEqual(summary["attempt_count"], 1)
+        self.assertEqual(summary["runtime"]["provider_calls"], 2)
+        self.assertEqual(provider.calls, 1)
+        self.assertEqual(provider.review_calls, 1)
 
     def test_checker_repair_diagnosis_includes_terminal_xyz_state(self) -> None:
         diagnosis = _checker_fixture_failure_diagnosis(

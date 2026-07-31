@@ -1,0 +1,194 @@
+{
+  "accepted_result": {
+    "provider_metadata": {
+      "finish_reason": "stop",
+      "id": "chatcmpl-E7WU4qUA8TACnCloNiWPoMscD4XZc",
+      "model": "gpt-5.6-terra-2026-07-09",
+      "retry_count": 0,
+      "usage": {
+        "completion_tokens": 2219,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 1574,
+          "rejected_prediction_tokens": 0
+        },
+        "latency_checkpoint": {
+          "engine_tbt_ms": 9,
+          "engine_ttft_ms": 278,
+          "engine_ttlt_ms": 20206,
+          "pre_inference_ms": 90,
+          "service_tbt_ms": 9,
+          "service_ttft_ms": 656,
+          "service_ttlt_ms": 20579,
+          "total_duration_ms": 20497,
+          "user_visible_ttft_ms": 566
+        },
+        "prompt_tokens": 7747,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0
+        },
+        "total_tokens": 9966
+      }
+    },
+    "runtime": {
+      "expert_probes": 1,
+      "provider_calls": 1,
+      "simulator_probes": 1
+    },
+    "status": "accepted"
+  },
+  "attempt_count": 2,
+  "attempts": [
+    {
+      "attempt_index": 1,
+      "failure": {
+        "diagnosis": {
+          "provider_metadata": {
+            "finish_reason": "stop",
+            "id": "chatcmpl-202607310133136192383788268d9d6QqCXwqAh",
+            "model": "gpt-5.6-terra",
+            "retry_count": 0,
+            "usage": {
+              "billing_usage": {
+                "openai_usage": {
+                  "claude_cache_creation_1_h_tokens": 0,
+                  "claude_cache_creation_5_m_tokens": 0,
+                  "completion_tokens": 0,
+                  "completion_tokens_details": {
+                    "audio_tokens": 0,
+                    "image_tokens": 0,
+                    "reasoning_tokens": 0,
+                    "text_tokens": 0
+                  },
+                  "input_tokens": 7580,
+                  "input_tokens_details": {
+                    "audio_tokens": 0,
+                    "cached_tokens": 0,
+                    "image_tokens": 0,
+                    "text_tokens": 0
+                  },
+                  "output_tokens": 1558,
+                  "prompt_tokens": 0,
+                  "prompt_tokens_details": {
+                    "audio_tokens": 0,
+                    "cached_tokens": 0,
+                    "image_tokens": 0,
+                    "text_tokens": 0
+                  },
+                  "total_tokens": 9138
+                },
+                "semantic": "openai",
+                "source": "oai_responses"
+              },
+              "claude_cache_creation_1_h_tokens": 0,
+              "claude_cache_creation_5_m_tokens": 0,
+              "completion_tokens": 1558,
+              "completion_tokens_details": {
+                "audio_tokens": 0,
+                "image_tokens": 0,
+                "reasoning_tokens": 0,
+                "text_tokens": 0
+              },
+              "input_tokens": 7580,
+              "input_tokens_details": null,
+              "output_tokens": 1558,
+              "prompt_tokens": 7580,
+              "prompt_tokens_details": {
+                "audio_tokens": 0,
+                "cached_tokens": 0,
+                "image_tokens": 0,
+                "text_tokens": 0
+              },
+              "total_tokens": 9138
+            }
+          }
+        },
+        "failure_kind": "invalid_candidate",
+        "message": "generated scene/expert failed official terminal-state authority: {\"expert_terminal_actor_z_m\": {\"roller\": 0.741665, \"roller_lift_corridor_distractor\": 0.891}, \"generated_checker_success\": false, \"official_core_predicate_satisfied\": false, \"plan_success\": false, \"reason\": \"expert_plan_unsuccessful\", \"repair_scope\": \"scene_or_expert_plan_not_checker_only\"}",
+        "stage": "scene_codegen",
+        "type": "TaskGenerationStageError"
+      },
+      "finished_at": "2026-07-31T09:37:51.076117+08:00",
+      "recovery_action": "regenerate_candidate",
+      "requested_action": null,
+      "runtime": {
+        "act_rollouts_started": 0,
+        "expert_probes": 4,
+        "provider_calls": 1,
+        "simulator_probes": 2
+      },
+      "started_at": "2026-07-31T09:33:13.174475+08:00",
+      "status": "failed_retryable"
+    },
+    {
+      "attempt_index": 2,
+      "failure": null,
+      "finished_at": "2026-07-31T09:39:44.361569+08:00",
+      "recovery_action": "none",
+      "requested_action": "regenerate_candidate",
+      "result": {
+        "provider_metadata": {
+          "finish_reason": "stop",
+          "id": "chatcmpl-E7WU4qUA8TACnCloNiWPoMscD4XZc",
+          "model": "gpt-5.6-terra-2026-07-09",
+          "retry_count": 0,
+          "usage": {
+            "completion_tokens": 2219,
+            "completion_tokens_details": {
+              "accepted_prediction_tokens": 0,
+              "audio_tokens": 0,
+              "reasoning_tokens": 1574,
+              "rejected_prediction_tokens": 0
+            },
+            "latency_checkpoint": {
+              "engine_tbt_ms": 9,
+              "engine_ttft_ms": 278,
+              "engine_ttlt_ms": 20206,
+              "pre_inference_ms": 90,
+              "service_tbt_ms": 9,
+              "service_ttft_ms": 656,
+              "service_ttlt_ms": 20579,
+              "total_duration_ms": 20497,
+              "user_visible_ttft_ms": 566
+            },
+            "prompt_tokens": 7747,
+            "prompt_tokens_details": {
+              "audio_tokens": 0,
+              "cached_tokens": 0
+            },
+            "total_tokens": 9966
+          }
+        },
+        "runtime": {
+          "expert_probes": 1,
+          "provider_calls": 1,
+          "simulator_probes": 1
+        },
+        "status": "accepted"
+      },
+      "runtime": {
+        "act_rollouts_started": 0,
+        "expert_probes": 1,
+        "provider_calls": 1,
+        "simulator_probes": 1
+      },
+      "started_at": "2026-07-31T09:37:51.077085+08:00",
+      "status": "accepted"
+    }
+  ],
+  "max_regenerations": 1,
+  "policy_retry_allowed": false,
+  "proposal_identity_sha256": "48f3a7ff1761a3e0edf74e11bd9277e17b67ea1d84106f75095300898ed2690f",
+  "recovery_scope": "task_generation_before_policy",
+  "regenerations_used": 1,
+  "runtime": {
+    "act_rollouts_started": 0,
+    "expert_probes": 5,
+    "provider_calls": 2,
+    "simulator_probes": 3
+  },
+  "schema_version": 1,
+  "status": "accepted"
+}

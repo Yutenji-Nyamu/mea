@@ -94,8 +94,8 @@
   "artifacts": [
     {
       "path": "README.md",
-      "bytes": 7877,
-      "sha256": "3f1d013adaa51ebf1896d325c972414558230498a7c3a89b7f2d8da7cddf9523"
+      "bytes": 10305,
+      "sha256": "d583819152edb0e6d34603ee7e4909fa59d7b2f2c893a02ff6e7175f882aa168"
     },
     {
       "path": "artifacts/aggregate/final.json",
@@ -494,8 +494,8 @@
     },
     {
       "path": "run_summary.json",
-      "bytes": 19145,
-      "sha256": "3afa1f31b60c0dab267b99668489fd810005fc36da2ddd362629d1b56c57feb8"
+      "bytes": 21306,
+      "sha256": "0ab11794cafbef1083d2a06e29f44626e35c88f100685ce02cdbe572078742fe"
     }
   ],
   "round_count": 3,

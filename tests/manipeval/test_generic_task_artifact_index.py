@@ -11,6 +11,7 @@ from mea.taskgen.artifact_index import (
     GenericTaskArtifactIndex,
     materialize_reused_generic_task,
 )
+from mea.taskgen.semantic_review import checker_review_identity_sha256
 
 
 def _semantic_key() -> dict:
@@ -50,19 +51,6 @@ class GenericTaskArtifactIndexTests(unittest.TestCase):
                 task_path.read_bytes()
             ).hexdigest()
             (source / "overlay.yml").write_text("{}\n", encoding="utf-8")
-            (source / "candidate_manifest.json").write_text(
-                json.dumps(
-                    {
-                        "run_id": "run_source",
-                        "task_module": (
-                            "mea.generated_tasks.run_source.task"
-                        ),
-                        "module_sha256": module_hash,
-                        "codegen_provenance": {},
-                    }
-                ),
-                encoding="utf-8",
-            )
             candidate = {
                 "schema_version": 1,
                 "candidate_id": "dynamic.adjust.rotate.abc",
@@ -71,8 +59,41 @@ class GenericTaskArtifactIndexTests(unittest.TestCase):
                 "semantic_concern": "object_pose.rotation",
                 "scene_need": "rotate the bottle",
                 "checker_need": "require upright placement",
-                "tool_need": "measure contact",
+                "rule_tool_need": "measure contact",
             }
+            checker_hash = "b" * 64
+            checker_review = {
+                "schema_version": 1,
+                "status": "approved",
+                "checks": {
+                    "implements_every_checker_requirement": True,
+                    "preserves_quantifiers_and_temporal_relations": True,
+                    "uses_direct_current_simulator_observables": True,
+                    "does_not_substitute_correlated_proxy": True,
+                },
+                "reason": "The checker directly implements upright placement.",
+                "authority": "development_agent_proxy",
+                "proposal_semantics_sha256": (
+                    checker_review_identity_sha256(candidate)
+                ),
+                "checker_sha256": checker_hash,
+                "official_checker_sha256": "c" * 64,
+            }
+            (source / "candidate_manifest.json").write_text(
+                json.dumps(
+                    {
+                        "run_id": "run_source",
+                        "task_module": (
+                            "mea.generated_tasks.run_source.task"
+                        ),
+                        "module_sha256": module_hash,
+                        "success_method_sha256": checker_hash,
+                        "checker_semantic_review": checker_review,
+                        "codegen_provenance": {},
+                    }
+                ),
+                encoding="utf-8",
+            )
             # Historical source artifacts remain readable during exact reuse.
             (source / "generation/experiment_candidate.json").write_text(
                 json.dumps(candidate),
@@ -103,6 +124,7 @@ class GenericTaskArtifactIndexTests(unittest.TestCase):
                 "task_generation_acceptance": {
                     "status": "accepted",
                     "act_rollouts_started_before_acceptance": 0,
+                    "checker_semantic_review": checker_review,
                 },
                 "act_evaluation": {
                     "artifact": "evaluation/stale.json",
@@ -141,7 +163,10 @@ class GenericTaskArtifactIndexTests(unittest.TestCase):
                 root,
                 run_id="run_reused",
                 user_request="Measure the same experiment another way.",
-                candidate={**candidate, "tool_need": "measure distance"},
+                candidate={
+                    **candidate,
+                    "rule_tool_need": "measure distance",
+                },
                 resolution=reused_resolution,
             )
 

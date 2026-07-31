@@ -11,6 +11,7 @@ runner.  The backend only preserves the typed hand-off:
 
 from __future__ import annotations
 
+import hashlib
 import json
 from copy import deepcopy
 from dataclasses import dataclass
@@ -36,6 +37,10 @@ from mea.taskgen.generic_backend import (
     GenericRoboTwinTaskAdapter,
     GenericRoboTwinTaskGenBackend,
 )
+from mea.taskgen.semantic_review import (
+    CheckerSemanticReviewError,
+    validate_checker_semantic_review_binding,
+)
 from mea.robotwin_task_context import (
     RoboTwinTaskContextError,
     probe_official_robotwin_task_context,
@@ -50,6 +55,67 @@ from .task_identity import (
 RuntimeTaskIdentity = GenericRoboTwinTaskAdapter | RoboTwinTaskIdentity
 TaskAdapterFactory = Callable[[str], RuntimeTaskIdentity]
 TaskContextProbeRunner = Callable[..., Mapping[str, Any]]
+
+
+def _validate_taskgen_checker_artifacts(
+    *,
+    candidate: Mapping[str, Any],
+    manifest: Mapping[str, Any],
+    candidate_manifest_path: Path,
+    task_source_path: Path,
+) -> dict[str, Any] | None:
+    """Bind an approved checker review to current Proposal and source bytes."""
+
+    try:
+        candidate_manifest = json.loads(
+            candidate_manifest_path.read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(
+            "TaskGen candidate manifest is invalid"
+        ) from exc
+    if not isinstance(candidate_manifest, Mapping):
+        raise ValueError("TaskGen candidate manifest must be an object")
+    if candidate.get("checker_need") is None:
+        if candidate_manifest.get("checker_semantic_review") is not None:
+            raise ValueError(
+                "official checker reuse carries an unexpected semantic review"
+            )
+        return None
+    try:
+        source_sha256 = hashlib.sha256(
+            task_source_path.read_bytes()
+        ).hexdigest()
+    except OSError as exc:
+        raise ValueError("TaskGen task source is unavailable") from exc
+    if source_sha256 != candidate_manifest.get("module_sha256"):
+        raise ValueError(
+            "TaskGen task source differs from its candidate manifest"
+        )
+    try:
+        review = validate_checker_semantic_review_binding(
+            candidate_manifest.get("checker_semantic_review"),
+            candidate=candidate,
+            checker_sha256=str(
+                candidate_manifest.get("success_method_sha256") or ""
+            ),
+        )
+    except CheckerSemanticReviewError as exc:
+        raise ValueError(
+            f"TaskGen checker semantic review is invalid: {exc}"
+        ) from exc
+    if manifest.get("checker_semantic_review") not in (None, review):
+        raise ValueError(
+            "TaskGen manifest checker review differs from candidate manifest"
+        )
+    acceptance = manifest.get("task_generation_acceptance")
+    if isinstance(acceptance, Mapping) and (
+        acceptance.get("checker_semantic_review") != review
+    ):
+        raise ValueError(
+            "TaskGen acceptance checker review differs from source binding"
+        )
+    return review
 
 
 class RoboTwinRolloutRunner(Protocol):
@@ -387,6 +453,14 @@ class RoboTwinMethodBackend:
                 ),
             )
             manifest, artifacts = self._taskgen_rollout_manifest(resolution)
+            _validate_taskgen_checker_artifacts(
+                candidate=candidate,
+                manifest=manifest,
+                candidate_manifest_path=Path(
+                    artifacts["candidate_manifest"]
+                ),
+                task_source_path=Path(artifacts["task_source"]),
+            )
             validation = {
                 "route": resolution["route"],
                 "status": resolution["status"],
@@ -657,6 +731,20 @@ class RoboTwinMethodBackend:
                 raise ValueError(
                     f"accepted TaskGen artifact is missing: {artifact}"
                 )
+        checker_semantic_review = _validate_taskgen_checker_artifacts(
+            candidate=candidate,
+            manifest=manifest,
+            candidate_manifest_path=candidate_manifest,
+            task_source_path=task_source,
+        )
+        if generated_checker and (
+            acceptance.get("checker_semantic_review")
+            != checker_semantic_review
+        ):
+            raise ValueError(
+                "TaskGen checker semantic review was not accepted before "
+                "policy rollout"
+            )
         execution_schema = binding.task_contract.get("task_schema")
         task_context_artifact: Path | None = None
         task_context_value: dict[str, Any] | None = None
