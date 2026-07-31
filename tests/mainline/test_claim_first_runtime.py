@@ -1,6 +1,6 @@
 import unittest
 
-from mea.planner.claim_first import build_open_query_planning_lineage
+from mea.planner.claim_first import PlanAgent, build_open_query_planning_lineage
 from mea.planner.claim_first_runtime import (
     PlanAgentSession,
     PlanAgentSessionError,
@@ -324,6 +324,41 @@ class EvidenceConditionedStopPlanner:
 
 
 class ClaimFirstRuntimeTests(unittest.TestCase):
+    def test_plan_agent_prompt_uses_authoritative_preservation_and_aligned_tool(
+        self,
+    ):
+        prompt = PlanAgent._prompt(
+            "Where does this policy first fail?",
+            open_query_capabilities(),
+            [],
+        )
+        compact_prompt = " ".join(prompt.split())
+
+        self.assertIn("current preservation authority", compact_prompt)
+        self.assertIn(
+            "simulator card are measurement capabilities, not preservation",
+            compact_prompt,
+        )
+        self.assertIn(
+            '"task identity" and "policy checkpoint" as the default preserve set',
+            compact_prompt,
+        )
+        self.assertIn(
+            "actor identity, physics timestep, or object-to-target binding",
+            compact_prompt,
+        )
+        self.assertIn(
+            '"official core predicate as a required conjunct"',
+            compact_prompt,
+        )
+        self.assertIn("terminal-state distance threshold", compact_prompt)
+        self.assertIn("terminal value of that same", compact_prompt)
+        self.assertIn("trajectory peak or maximum", compact_prompt)
+        self.assertIn(
+            "must not use its scale to relax, replace",
+            compact_prompt,
+        )
+
     def test_plan_agent_session_is_canonical_with_legacy_aliases(self):
         self.assertIs(ClaimFirstRuntimeController, PlanAgentSession)
         self.assertIs(ClaimFirstRuntimeError, PlanAgentSessionError)

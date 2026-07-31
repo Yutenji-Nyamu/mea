@@ -118,6 +118,11 @@ EXPERIMENTAL_SUCCESS_CHECKER_GUIDANCE = (
     "AND distractor remains uncontacted', while rule_tool_need describes the "
     "scalar or boolean observation used to diagnose it. Never copy a raw "
     "numeric measurement into checker_need as though it were a pass/fail "
+    "predicate. If the checker applies a terminal-state distance threshold, "
+    "the same-round Rule Tool must report the terminal value of that same "
+    "distance. A trajectory peak or maximum is a separate trajectory weakness, "
+    "not a scalar for setting the terminal threshold; later evidence refinement "
+    "must not use its scale to relax, replace, or calibrate the terminal "
     "predicate. check_success is evaluated from simulator state, not from a "
     "whole-trajectory derived metric: smoothness, deviation, jerk, path length, "
     "or trajectory clearance belongs in rule_tool_need, never behind an "
@@ -421,13 +426,18 @@ When requested_variation changes a scene, explicitly state in that field which
 task conditions must remain unchanged; do not leave preservation implicit and
 do not use catch-all phrases such as "all other conditions unchanged",
 "all other object poses", or "the rest of the scene".
-Use concrete, verifiable invariant names such as center position, color or
-material, scene layout, camera viewpoint, task instruction, or policy
-checkpoint.  Never emit vague preserve entries such as "target
-configuration", "intended goal", or "task semantics".  When a new checker
-adds a condition to the official task goal, write exactly "official core
-predicate as a required conjunct"; do not claim that the extended checker
-preserves full "official success semantics".
+Preservation is an authority claim. At this pre-retrieval stage use only
+"task identity" and "policy checkpoint" as the default invariants. A field
+listed as observable in policy or simulator metadata is a measurement
+capability, not a preservation authority. Add another invariant only after the
+current input names an authority that can compare it, such as exact method
+reuse, same-seed simulator state, a checker fixture, or a visual comparison for
+visible appearance. In particular, do not add actor identity, physics
+timestep, or object-to-target binding without such authority. Never emit vague
+preserve entries such as "target configuration", "intended goal", or "task
+semantics". When a new checker adds a condition to the official task goal,
+write exactly "official core predicate as a required conjunct"; do not claim
+that the extended checker preserves full "official success semantics".
 The requested change and preserved conditions must be jointly realizable:
 never request a size/shape/pose/contact change while also declaring that same
 quantity invariant. Prefer a bounded experiment whose invariants can be checked

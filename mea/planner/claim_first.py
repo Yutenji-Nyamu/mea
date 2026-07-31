@@ -773,11 +773,16 @@ State the intentional delta in requested_perturbation.description and
 controlled_changes with an explicit operation and concrete value or direction;
 put unchanged conditions only in preserve.  When scene_need.required is true,
 repeat that same explicit delta in scene_need.description.  Preserve only the
-isolation-critical factors supported by an advertised simulator, frozen-binding,
-or visual authority; do not claim that every unspecified state is unchanged.
-When an additional experimental checker must retain the official goal, name
-"official core predicate as a required conjunct" in preserve.  Do not call the
-extended checker "official success semantics" or claim full equivalence.
+isolation-critical factors supported by a current preservation authority.
+Fields merely listed as observable in the simulator card are measurement
+capabilities, not preservation authorities.  Use "task identity" and "policy
+checkpoint" as the default preserve set; add another condition only when the
+current input identifies an authority that can compare it.  Do not add actor
+identity, physics timestep, or object-to-target binding merely because those
+fields appear in simulator metadata.  When an additional experimental checker
+must retain the official goal, add exactly "official core predicate as a
+required conjunct" to preserve.  Do not call the extended checker "official
+success semantics" or claim full equivalence.
 Request a generated checker only when every added relation is directly
 observable from the advertised current-state simulator API.  Gripper closure
 is not target contact, sequential events are not simultaneous events, and

@@ -129,12 +129,33 @@ class QueryInterpretationTests(unittest.TestCase):
             concern("grab hammer and hit block")["source_query"],
             single_task_policy(),
         )
+        compact_prompt = " ".join(prompt.split())
         self.assertIn("not available until a later retrieval stage", prompt)
         self.assertIn("invariant base action", prompt)
         self.assertIn("Put distractors", prompt)
         self.assertIn("jointly realizable", prompt)
         self.assertIn("RGB is only", prompt)
         self.assertIn('"all other object poses"', prompt)
+        self.assertIn("Preservation is an authority claim", compact_prompt)
+        self.assertIn(
+            'use only "task identity" and "policy checkpoint"',
+            compact_prompt,
+        )
+        self.assertIn(
+            "observable in policy or simulator metadata is a measurement",
+            compact_prompt,
+        )
+        self.assertIn(
+            "actor identity, physics timestep, or object-to-target binding",
+            compact_prompt,
+        )
+        self.assertIn("terminal-state distance threshold", compact_prompt)
+        self.assertIn("terminal value of that same", compact_prompt)
+        self.assertIn("trajectory peak or maximum", compact_prompt)
+        self.assertIn(
+            "must not use its scale to relax, replace",
+            compact_prompt,
+        )
         self.assertIn("Do not invent an absolute perturbation magnitude", prompt)
         self.assertIn("never add reuse_first to either", prompt)
         self.assertNotIn("open_laptop", prompt)
