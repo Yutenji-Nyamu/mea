@@ -781,7 +781,12 @@ extended checker "official success semantics" or claim full equivalence.
 Request a generated checker only when every added relation is directly
 observable from the advertised current-state simulator API.  Gripper closure
 is not target contact, sequential events are not simultaneous events, and
-height is not placement.  If the exact relation is unavailable, choose a
+height is not placement.  A declared actor contact point is a geometric
+reference, not a PhysX contact-event identity: do not request that "point i is
+physically contacted" unless the runtime explicitly binds collision contacts
+to that point ID.  Prefer a directly observable point/TCP distance condition
+or an entity-pair contact condition with exactly the semantics the API
+supports.  If the exact relation is unavailable, choose a
 scene-only experiment with a Rule/VQA observation, or another informative
 sub-aspect, instead of asking TaskGen to implement a correlated proxy.
 TaskGen may retrieve or generate scene and checker code; ToolGen may retrieve

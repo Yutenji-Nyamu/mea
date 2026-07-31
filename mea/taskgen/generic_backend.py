@@ -117,8 +117,11 @@ _GENERIC_SAFE_MODULE_CALLS = {
     ("np", "sum"),
 }
 _GENERIC_READ_ONLY_METHOD_CALLS = {
+    "get_contact_point",
     "get_contacts",
+    "get_functional_point",
     "get_links",
+    "get_pose",
     "mea_official_check_success",
 }
 

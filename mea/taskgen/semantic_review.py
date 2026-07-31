@@ -48,6 +48,8 @@ _ROBOTWIN_RUNTIME_API_AUTHORITY = """\
 - `self.robot.left_gripper` and `self.robot.right_gripper` contain gripper
   joints; each joint tuple's `[0].child_link` is the corresponding gripper
   link entity.
+- `self.mea_official_check_success()` is runtime-bound to the supplied
+  OFFICIAL CHECK_SUCCESS body.
 These are established read-only RoboTwin runtime APIs. Do not reject their
 use as unsupported; review whether the code uses them with the exact actor,
 side, simultaneity, and object identities required by the Proposal."""

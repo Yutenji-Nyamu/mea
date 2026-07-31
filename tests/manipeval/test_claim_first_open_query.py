@@ -331,6 +331,11 @@ class ClaimFirstOpenQueryTest(unittest.TestCase):
         )
         self.assertIn("Gripper closure", prompt)
         self.assertIn("is not target contact", prompt)
+        self.assertIn(
+            "contact-event identity",
+            prompt,
+        )
+        self.assertIn("point/TCP distance condition", prompt)
         self.assertIn("scene-only experiment with a Rule/VQA observation", prompt)
         self.assertIn("bracket the next", prompt)
         self.assertNotIn("There is no candidate\naspect list", prompt)

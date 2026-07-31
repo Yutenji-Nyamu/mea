@@ -15,6 +15,7 @@ from mea.taskgen.generic_backend import (
     GenericRoboTwinTaskGenBackend,
     GenericTaskGenError,
     GenericTaskGenHooks,
+    _GENERIC_READ_ONLY_METHOD_CALLS,
     _candidate_requires_official_core_conjunct,
     _semantic_field_access_guide,
     build_generic_task_subclass_module,
@@ -510,6 +511,10 @@ class GenericTaskGenBackendTests(unittest.TestCase):
         )
         self.assertIn("self.robot.left_tcp.get_pose().p", guide)
         self.assertIn("Do not invent", guide)
+        self.assertIn(
+            "get_contact_point",
+            _GENERIC_READ_ONLY_METHOD_CALLS,
+        )
 
     def test_safe_ast_allows_conventional_discard_loop_target(self) -> None:
         tree = validate_method_ast(
@@ -2177,6 +2182,10 @@ class GenericTaskGenBackendTests(unittest.TestCase):
         )
         self.assertIn(
             "joint tuple's `[0].child_link`",
+            provider.review_prompts[1],
+        )
+        self.assertIn(
+            "runtime-bound to the supplied",
             provider.review_prompts[1],
         )
         self.assertEqual(review["status"], "approved")
