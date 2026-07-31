@@ -2196,6 +2196,10 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             "get_left_tcp_pose()[:3]",
             provider.review_prompts[1],
         )
+        self.assertIn(
+            'get_contact_point(i, "pose").p',
+            provider.review_prompts[1],
+        )
         self.assertEqual(review["status"], "approved")
         self.assertEqual(review["authority"], "development_agent_proxy")
 

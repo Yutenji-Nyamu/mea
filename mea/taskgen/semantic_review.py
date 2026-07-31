@@ -50,6 +50,9 @@ _ROBOTWIN_RUNTIME_API_AUTHORITY = """\
   link entity.
 - `self.robot.get_left_tcp_pose()[:3]` and
   `self.robot.get_right_tcp_pose()[:3]` are the current TCP positions.
+- For a tracked RoboTwin Actor, `get_contact_point(i, "pose").p` and
+  `get_functional_point(i, "pose").p` return the current TaskSchema point
+  positions.
 - `self.mea_official_check_success()` is runtime-bound to the supplied
   OFFICIAL CHECK_SUCCESS body.
 These are established read-only RoboTwin runtime APIs. Do not reject their
