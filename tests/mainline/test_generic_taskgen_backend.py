@@ -15,6 +15,7 @@ from mea.taskgen.generic_backend import (
     GenericRoboTwinTaskGenBackend,
     GenericTaskGenError,
     GenericTaskGenHooks,
+    _candidate_requires_official_core_conjunct,
     build_generic_task_subclass_module,
     discover_generic_robotwin_task_identity,
     generic_task_semantic_key,
@@ -1624,9 +1625,48 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                 require_official_core_conjunct=True,
             )
             self.assertTrue(report["official_core_directly_called"])
+            self.assertTrue(
+                report["official_core_enforced_as_conjunct"]
+            )
+            guarded_checker = {
+                **methods,
+                "check_success": (
+                    "def check_success(self):\n"
+                    "    if not self.mea_official_check_success():\n"
+                    "        return False\n"
+                    "    return self.target is not None\n"
+                ),
+            }
+            report = validate_generic_task_methods(
+                guarded_checker,
+                official_source=root / f"envs/{task_name}.py",
+                official_class=task_name,
+                require_official_core_conjunct=True,
+            )
+            self.assertTrue(
+                report["official_core_enforced_as_conjunct"]
+            )
+            discarded_call_checker = {
+                **methods,
+                "check_success": (
+                    "def check_success(self):\n"
+                    "    self.mea_official_check_success()\n"
+                    "    return self.target is not None\n"
+                ),
+            }
             with self.assertRaisesRegex(
                 GenericTaskGenError,
-                "must call self.mea_official_check_success",
+                "required boolean conjunct",
+            ):
+                validate_generic_task_methods(
+                    discarded_call_checker,
+                    official_source=root / f"envs/{task_name}.py",
+                    official_class=task_name,
+                    require_official_core_conjunct=True,
+                )
+            with self.assertRaisesRegex(
+                GenericTaskGenError,
+                "required boolean conjunct",
             ):
                 validate_generic_task_methods(
                     methods,
@@ -1634,6 +1674,24 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                     official_class=task_name,
                     require_official_core_conjunct=True,
                 )
+
+    def test_canonical_official_core_phrase_requires_conjunct(self) -> None:
+        self.assertTrue(
+            _candidate_requires_official_core_conjunct(
+                {
+                    "checker_need": {
+                        "kind": "generate",
+                        "description": "Check one extra contact condition.",
+                        "reuse_first": True,
+                    },
+                    "evaluation_intent": {
+                        "preserved_conditions": [
+                            "official core predicate as a required conjunct"
+                        ]
+                    },
+                }
+            )
+        )
 
     def test_pose_property_item_assignment_is_rejected(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]

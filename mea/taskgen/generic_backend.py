@@ -461,6 +461,68 @@ def _derived_ast_policy(
     }
 
 
+def _is_direct_official_core_call(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "self"
+        and node.func.attr == "mea_official_check_success"
+        and not node.args
+        and not node.keywords
+    )
+
+
+def _checker_enforces_official_core_conjunct(
+    checker: ast.Module,
+) -> bool:
+    """Conservatively prove that official failure forces checker failure."""
+
+    function = checker.body[0]
+    if not isinstance(function, ast.FunctionDef):
+        return False
+    statements = list(function.body)
+    if (
+        statements
+        and isinstance(statements[0], ast.Expr)
+        and isinstance(statements[0].value, ast.Constant)
+        and isinstance(statements[0].value.value, str)
+    ):
+        statements = statements[1:]
+    first = statements[0] if statements else None
+    if (
+        isinstance(first, ast.If)
+        and isinstance(first.test, ast.UnaryOp)
+        and isinstance(first.test.op, ast.Not)
+        and _is_direct_official_core_call(first.test.operand)
+        and any(
+            isinstance(child, ast.Return)
+            and isinstance(child.value, ast.Constant)
+            and child.value.value is False
+            for child in first.body
+        )
+    ):
+        return True
+    non_false_returns = [
+        node
+        for node in ast.walk(function)
+        if isinstance(node, ast.Return)
+        and not (
+            isinstance(node.value, ast.Constant)
+            and node.value.value is False
+        )
+    ]
+    return bool(non_false_returns) and all(
+        isinstance(node.value, ast.BoolOp)
+        and isinstance(node.value.op, ast.And)
+        and any(
+            _is_direct_official_core_call(value)
+            for value in node.value.values
+        )
+        for node in non_false_returns
+    )
+
+
 def validate_generic_task_methods(
     methods: Mapping[str, str],
     *,
@@ -503,23 +565,23 @@ def validate_generic_task_methods(
         for name in ("load_actors", "check_success")
     }
     official_core_directly_called = any(
-        isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and isinstance(node.func.value, ast.Name)
-        and node.func.value.id == "self"
-        and node.func.attr == "mea_official_check_success"
-        and not node.args
-        and not node.keywords
+        _is_direct_official_core_call(node)
         for node in ast.walk(parsed["check_success"])
+    )
+    official_core_enforced_as_conjunct = (
+        _checker_enforces_official_core_conjunct(
+            parsed["check_success"]
+        )
     )
     if (
         require_official_core_conjunct
-        and not official_core_directly_called
+        and not official_core_enforced_as_conjunct
     ):
         raise GenericTaskGenError(
-            "generated checker must call "
-            "self.mea_official_check_success() directly when the Proposal "
-            "preserves or composes the official task goal"
+            "generated checker must enforce "
+            "self.mea_official_check_success() as a required boolean "
+            "conjunct when the Proposal preserves or composes the official "
+            "task goal"
         )
     _reject_pose_property_item_assignment(parsed)
     _validate_literal_scale_alignment(
@@ -591,6 +653,9 @@ def validate_generic_task_methods(
             require_official_core_conjunct
         ),
         "official_core_directly_called": official_core_directly_called,
+        "official_core_enforced_as_conjunct": (
+            official_core_enforced_as_conjunct
+        ),
     }
 
 
@@ -825,6 +890,7 @@ def _candidate_requires_official_core_conjunct(
     return any(
         marker in text
         for marker in (
+            "official core predicate",
             "official task goal",
             "official goal",
             "official success",
@@ -1342,13 +1408,18 @@ def _core_prompt(
         "self.robot.left_entity.get_links() and "
         "self.robot.right_entity.get_links(); do not invent a helper such as "
         "self.check_contact unless that exact method appears in the retrieved "
-        "official source. These APIs are read-only and must not mutate "
-        "simulator state. "
+        "official source. Build checker-local entity collections with `+` or "
+        "tuple literals; do not call `.append()` or `.extend()`. These APIs "
+        "are read-only and must not mutate simulator state. "
         "self.mea_telemetry_tracked_actors is the metadata exception. Assign "
         "it only when adding an entirely new actor, include "
         "only new actors, and give every entry exactly id, task_attribute, "
         "scene_name, functional_points, contact_points, and a boolean "
-        "contact_focus. Do not return Markdown, a template id, or an "
+        "contact_focus. When adding a distractor or obstacle, inspect the "
+        "retrieved asset scale/collision geometry and place it initially "
+        "disjoint from the target and the official expert contact path. A "
+        "small center offset is not sufficient when reused asset extents "
+        "overlap. Do not return Markdown, a template id, or an "
         "explanation. When the retrieved API supports scale_multiplier, it "
         "is the final-size/original-size ratio: increasing size by 50% uses "
         "1.5, while reducing size by 50% (or to 50%) uses 0.5."

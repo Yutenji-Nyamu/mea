@@ -37,6 +37,14 @@
 - For robot-contact checks, `PhysxContact` uses `bodies[*].entity`; the
   RoboTwin Robot wrapper has no `get_links()`, so use
   `left_entity.get_links()` plus `right_entity.get_links()`.
+- Keep checker-local collections immutable: build link/entity collections with
+  `+` or tuple literals rather than `.append()`/`.extend()`. Those mutators are
+  outside the generated-checker API contract and can waste the one repair
+  attempt before simulator validation.
+- Before adding an obstacle or distractor, use the retrieved asset scale and
+  collision geometry to keep it initially disjoint from the target and from
+  the official expert contact path. Reusing the target asset at a small center
+  offset is invalid when their collision extents overlap.
 - For lift checkers, derive bounds from TaskSchema or initial actor state:
   near-zero world z does not mean an actor stayed unlifted on raised support.
 - A paper-claim run requires compile/semantic fixtures, render, expert
