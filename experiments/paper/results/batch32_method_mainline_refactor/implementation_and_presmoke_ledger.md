@@ -101,11 +101,43 @@ python -m pytest -q \
 python -m pytest -q tests/mainline
 ```
 
-结果：`PENDING`
+首次聚焦回归：
+
+```text
+123 passed, 1 failed in 4.31s
+```
+
+唯一失败是新增 prompt 文本断言跨源码换行；实际 prompt 已完整包含该语义。处理为对
+`Gripper closure` 与 `is not target contact` 两个稳定片段分别断言，没有修改生产
+prompt 或方法逻辑。
+
+修正后：
+
+```text
+focused: 124 passed in 3.81s
+mainline: 299 passed, 16 subtests passed in 17.80s
+```
+
+服务器日志：
+
+```text
+/root/autodl-tmp/mea-run-logs/batch32_method_mainline_refactor/
+  focused_tests.log
+  focused_tests.status
+  mainline_tests.log
+  mainline_tests.status
+```
+
+测试位置：AutoDL server。Windows PC 未运行任何项目测试、import 或 compile。
 
 ## 5. Formal flagship smoke gate
 
-本节在预测试通过后补齐 resolved command。启动前必须向用户提交并等待确认：
+Resolved 配置与完整命令已经冻结在：
+
+- `flagship_smoke_config.json`
+- `flagship_smoke_commands.sh`
+
+启动前必须向用户提交并等待确认：
 
 - 原始 broad Query；
 - policy/backend、bound task、checkpoint revision；
@@ -114,5 +146,22 @@ python -m pytest -q tests/mainline
 - policy server 与 Agent 完整命令；
 - 输出目录、GPU/时间/provider 预算；
 - 逐阶段监控点和立即停止条件。
+
+预算上限：
+
+- plan-only：0 rollout；
+- live：最多 3 个 SmolVLA episode，每轮 `N=1`；
+- TaskGen/ToolGen：各阶段至多一次局部 repair，无 whole-round restart；
+- checkpoint 已在服务器，新增下载为 0；
+- 预计 GPU 峰值低于 4 GiB，wall time 约 5–20 分钟；
+- provider 调用取决于实际轮数和是否触发 repair，预计约 8–20 次。
+
+Gate 顺序：
+
+1. provider-backed plan-only；
+2. 人工核对 Query 未被 aspect/template itinerary 改写，round 2 未在 evidence 前冻结；
+3. 启动单个 loopback SmolVLA policy server；
+4. live Agent；任一 TaskGen/semantic/source/Tool gate 失败即保留负结果并停止；
+5. 只有同一 bundle 满足 `evidence_sufficient` 才发布为 clean flagship 正证据。
 
 未获得确认前，不启动 provider、policy server、simulator 或 rollout。

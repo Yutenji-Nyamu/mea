@@ -31,6 +31,11 @@ gate，但这只是 contact need 的相关代理，语义上不等价，必须�
 rollout。当前代码已新增独立 development-agent checker semantic review，逐项核对
 量词/同时性/对象关系/直接观测，拒绝相关代理，并把批准结果与 Proposal、checker 哈希
 绑定到 registry 和 pre-policy gate；AutoDL 主干回归通过，但尚未形成新的 live 正例。
+生产结构也已收束为 `PlanAgentApplication` 直接拥有
+round → evidence → next/stop → Answer 生命周期，并让
+`MethodRuntime.materialize_candidate()` 成为唯一生产 TaskGen materialization
+owner；对应 AutoDL 回归为 `124/124` 聚焦测试和 `299/299 + 16 subtests` 默认主干。
+这些是代码级验收，不替代下一次 live flagship。
 历史运行只在 [`docs/evidence/history.jsonl`](evidence/history.jsonl)保留摘要。
 
 ## 方法 claim
@@ -88,5 +93,7 @@ rollout。当前代码已新增独立 development-agent checker semantic review�
   aspect/metric/Planner 菜单。
 - TaskGen、ToolGen 各只保留一次局部 repair；失败不触发中央 whole-round restart。
 - registry caller 迁移完成前不直接删除旧持久层，也不继续增加 façade。
+- `PlanAgentSession` 是唯一公开生产 session；旧 execution session 只保留内部冻结
+  运输和历史 reader 兼容。
 - 动态运行真值只维护在本文与 `docs/evidence/current/`；安装和失败排查放 cold
   runbook，历史结果放 `docs/evidence/history.jsonl`。

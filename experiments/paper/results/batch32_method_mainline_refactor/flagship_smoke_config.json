@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "status": "awaiting_user_approval",
+  "repo_commit": "b75ee8434aaa1500310fb0063388fbfd5daea145",
+  "query": "Does there exist a newly generated executable scene challenge that exposes a trajectory weakness in this policy? Let the Plan Agent choose the scene change. Define success as completing the official task goal AND satisfying one additional boolean condition read directly from current simulator object/contact state, never from a trajectory-derived threshold. Independently report one scalar metric computed from the rollout trajectory that decides the hypothesis.",
+  "benchmark": "robotwin",
+  "task_binding": {
+    "task_name": "grab_roller",
+    "task_module": "envs.grab_roller",
+    "policy_backend": "smolvla",
+    "checkpoint": "/root/autodl-tmp/checkpoints/robotwin/smolvla_robotwin",
+    "checkpoint_bytes": 906712520
+  },
+  "models": {
+    "profile": "balanced",
+    "planner": "gpt-5.6-luna",
+    "taskgen": "gpt-5.6-terra",
+    "toolgen": "gpt-5.6-terra",
+    "vision": "gpt-5.6-luna",
+    "feedback": "gpt-5.6-luna"
+  },
+  "execution": {
+    "seed": 100401,
+    "episodes_per_round": 1,
+    "max_agent_rounds": 3,
+    "max_policy_rollouts": 3,
+    "max_taskgen_repairs_per_generated_round": 1,
+    "max_toolgen_repairs_per_generated_tool": 1,
+    "whole_round_restart": false,
+    "history_enabled": false,
+    "telemetry_profile": "balanced_v1",
+    "smolvla_port": 18783,
+    "gpu": 0
+  },
+  "outputs": {
+    "plan_evaluation_id": "eval_20260731_batch32_clean_flagship_plan_v1",
+    "live_evaluation_id": "eval_20260731_batch32_clean_flagship_live_v1",
+    "log_dir": "/root/autodl-tmp/mea-run-logs/batch32_clean_flagship_v1"
+  },
+  "success_contract": [
+    "The Query contains no aspect ID, template ID, or task-specific planner instruction.",
+    "The official control completes before the evidence-conditioned Proposal is authored.",
+    "The next Proposal cites completed evidence and requests only directly observable checker semantics.",
+    "TaskGen scene/checker gates pass without weakening quantifiers, object relations, or official-core conjunction.",
+    "A SmolVLA episode is produced for the generated candidate.",
+    "A newly required Tool produces a finite live value that enters Aggregate.",
+    "The Plan Agent proposes stop and QueryContract validates it as evidence_sufficient.",
+    "The Answer directly answers the original Query and records N, uncovered candidates, conflicts, and limitations."
+  ],
+  "stop_conditions": [
+    "SSH or host-key authentication fails.",
+    "The canonical worktree is dirty or differs from repo_commit.",
+    "The selected port is already listening.",
+    "Policy server readiness fails or simulator source differs from the MEA-bound RoboTwin source.",
+    "TaskGen compile, semantic fixture, render/VLM, expert, preservation, or checker semantic review fails.",
+    "The Agent reaches a hard cap without evidence_sufficient; preserve as a negative result and do not rerun.",
+    "Tool output is missing/non-finite, or policy/server exits unexpectedly."
+  ]
+}
