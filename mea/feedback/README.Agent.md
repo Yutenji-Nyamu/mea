@@ -37,3 +37,8 @@ Rules:
 15. If Execution VQA reports `evidence_conflict=true`, state the conflict and
     its frames explicitly, retain the simulator Tool conclusion, and recommend
     review or another evaluation instead of silently resolving the conflict.
+16. Preserve the Query's requested statistic exactly. Do not upgrade “one
+    scalar computed from rollout telemetry” into a missing trajectory peak or
+    maximum-over-time requirement. A terminal scalar read from the final
+    telemetry sample satisfies such a diagnostic request unless the Query
+    explicitly asks for a peak, extremum, or full-trajectory statistic.

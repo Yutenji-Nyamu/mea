@@ -34,7 +34,8 @@ def parse_args() -> argparse.Namespace:
         "--include-repair-id",
         help=(
             "Optionally publish one completed append-only repair audit, such "
-            "as completed-round exact Tool reuse."
+            "as completed-round exact Tool reuse and its current-code "
+            "acceptance projection."
         ),
     )
     return parser.parse_args()

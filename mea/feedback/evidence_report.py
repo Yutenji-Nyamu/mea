@@ -1021,6 +1021,7 @@ def write_evidence_report(
         )
 
     repair_result: dict[str, Any] | None = None
+    acceptance_projection: dict[str, Any] | None = None
     if include_repair_id is not None:
         repair_id = _safe_artifact_id(
             include_repair_id,
@@ -1031,6 +1032,31 @@ def write_evidence_report(
         if repair_result.get("status") != "completed":
             raise EvidenceReportError(
                 f"requested repair is not completed: {repair_id}"
+            )
+        acceptance_projection_path = repair_root / "acceptance_projection.json"
+        if acceptance_projection_path.is_file():
+            acceptance_projection = _read_json(
+                acceptance_projection_path,
+                required=True,
+            )
+            if not (
+                acceptance_projection.get("status") == "completed"
+                and acceptance_projection.get("source_summary_path")
+                == "summary/summary.json"
+                and acceptance_projection.get("projection_source")
+                == "current_code_post_run"
+                and isinstance(
+                    acceptance_projection.get("projection"),
+                    Mapping,
+                )
+            ):
+                raise EvidenceReportError(
+                    "repair acceptance projection has invalid provenance"
+                )
+            publish_copy(
+                acceptance_projection_path,
+                semantic_dir
+                / "audit/completed_round_reuse/acceptance_projection.json",
             )
         for source, destination in (
             ("result.json", "result.json"),
@@ -1130,6 +1156,25 @@ def write_evidence_report(
             ),
             "aggregate_status": repair_result.get("aggregate_status"),
         }
+        if acceptance_projection is not None:
+            projection = acceptance_projection["projection"]
+            reuse_summary["acceptance_projection"] = {
+                "status": acceptance_projection.get("status"),
+                "source_summary_path": acceptance_projection.get(
+                    "source_summary_path"
+                ),
+                "projection_source": acceptance_projection.get(
+                    "projection_source"
+                ),
+                "artifact": (
+                    "artifacts/audit/completed_round_reuse/"
+                    "acceptance_projection.json"
+                ),
+                "accepted": projection.get("accepted"),
+                "candidate_execution_accepted": projection.get(
+                    "candidate_execution_accepted"
+                ),
+            }
     final_aggregate = _read_json(
         evaluation / "summary/aggregate_result.json"
     )
@@ -1151,6 +1196,14 @@ def write_evidence_report(
                 "planning_state": plan.get("planning_state"),
                 "round_budget": session.get("round_budget")
                 or plan.get("max_rounds"),
+                "source_flagship_acceptance": summary.get(
+                    "flagship_acceptance"
+                ),
+                "current_acceptance_projection": (
+                    acceptance_projection["projection"]
+                    if acceptance_projection is not None
+                    else summary.get("flagship_acceptance")
+                ),
             },
             "rounds": compact_rounds,
             "final_aggregate": _semantic_aggregate(final_aggregate),

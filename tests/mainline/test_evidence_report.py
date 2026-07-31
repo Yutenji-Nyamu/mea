@@ -576,6 +576,13 @@ class EvidenceReportTests(unittest.TestCase):
                 },
             )
             _write_json(evaluation / "plan/evaluation_plan.json", plan)
+            _write_json(
+                evaluation / "summary/summary.json",
+                {"flagship_acceptance": {"accepted": False}},
+            )
+            source_summary_before = (
+                evaluation / "summary/summary.json"
+            ).read_bytes()
             repair = evaluation / "repairs/reuse_check"
             _write_json(
                 repair / "result.json",
@@ -593,6 +600,19 @@ class EvidenceReportTests(unittest.TestCase):
             _write_json(
                 repair / "repair_provenance.json",
                 {"status": "completed"},
+            )
+            projection = {
+                "accepted": True,
+                "candidate_execution_accepted": True,
+            }
+            _write_json(
+                repair / "acceptance_projection.json",
+                {
+                    "status": "completed",
+                    "source_summary_path": "summary/summary.json",
+                    "projection_source": "current_code_post_run",
+                    "projection": projection,
+                },
             )
             for relative, route in (
                 (
@@ -616,6 +636,40 @@ class EvidenceReportTests(unittest.TestCase):
             )
 
             self.assertEqual(bundle["included_repair_id"], "reuse_check")
+            self.assertEqual(
+                (evaluation / "summary/summary.json").read_bytes(),
+                source_summary_before,
+            )
+            compact = json.loads(
+                (destination.parent / "run_summary.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertFalse(
+                compact["plan"]["source_flagship_acceptance"]["accepted"]
+            )
+            self.assertEqual(
+                compact["plan"]["current_acceptance_projection"],
+                projection,
+            )
+            projection_artifact = (
+                "artifacts/audit/completed_round_reuse/"
+                "acceptance_projection.json"
+            )
+            self.assertEqual(
+                compact["completed_round_reuse"]["acceptance_projection"][
+                    "artifact"
+                ],
+                projection_artifact,
+            )
+            self.assertIn(projection_artifact, bundle["files"])
+            self.assertIn(
+                projection_artifact,
+                {
+                    item["path"]
+                    for item in bundle["artifacts"]
+                },
+            )
             self.assertIn(
                 "not independent cross-evaluation reuse",
                 destination.read_text(encoding="utf-8"),
@@ -627,6 +681,42 @@ class EvidenceReportTests(unittest.TestCase):
                     "exact_reuse_tool_execution.json"
                 ).is_file()
             )
+
+    def test_publish_rejects_invalid_acceptance_projection_provenance(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            evaluation = root / "mea/evaluation_runs/eval_bad_projection"
+            plan = {"rounds": [], "max_rounds": 0}
+            _write_json(
+                evaluation / "manifest.json",
+                {"evaluation_id": "eval_bad_projection", "plan": plan},
+            )
+            _write_json(evaluation / "plan/evaluation_plan.json", plan)
+            repair = evaluation / "repairs/reuse_check"
+            _write_json(
+                repair / "result.json",
+                {"status": "completed"},
+            )
+            _write_json(
+                repair / "acceptance_projection.json",
+                {
+                    "status": "completed",
+                    "source_summary_path": "summary/summary.json",
+                    "projection_source": "stale_code",
+                    "projection": {"accepted": True},
+                },
+            )
+            with self.assertRaisesRegex(
+                EvidenceReportError,
+                "invalid provenance",
+            ):
+                write_evidence_report(
+                    root,
+                    evaluation,
+                    destination=root / "docs/evidence/current/README.md",
+                    publish=True,
+                    include_repair_id="reuse_check",
+                )
 
 
 if __name__ == "__main__":

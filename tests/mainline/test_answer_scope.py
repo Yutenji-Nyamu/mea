@@ -72,6 +72,20 @@ def evidence(stop_reason="budget_exhausted"):
 
 
 class AnswerScopeTests(unittest.TestCase):
+    def test_final_summary_prompt_does_not_invent_stricter_statistics(self):
+        prompt = (
+            Path(__file__).resolve().parents[2]
+            / "mea/feedback/README.Agent.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            "Do not upgrade “one scalar computed from rollout telemetry”",
+            prompt,
+        )
+        self.assertIn(
+            "unless the Query explicitly asks for a peak",
+            prompt,
+        )
+
     def test_projects_all_evidence_required_limitations(self):
         scope = build_answer_scope(evidence())
         self.assertEqual(scope["sample_count"], 1)
