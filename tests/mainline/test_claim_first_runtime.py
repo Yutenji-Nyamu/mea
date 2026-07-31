@@ -1,5 +1,6 @@
 import unittest
 
+from mea.agent_acceptance import _RUNTIME_DISCOVERY_RESOLUTIONS
 from mea.planner.claim_first import PlanAgent, build_open_query_planning_lineage
 from mea.planner.claim_first_runtime import (
     PlanAgentSession,
@@ -324,6 +325,12 @@ class EvidenceConditionedStopPlanner:
 
 
 class ClaimFirstRuntimeTests(unittest.TestCase):
+    def test_acceptance_allows_unregistered_runtime_generation(self):
+        self.assertIn(
+            "generation_required_no_registered_candidate",
+            _RUNTIME_DISCOVERY_RESOLUTIONS,
+        )
+
     def test_plan_agent_prompt_uses_authoritative_preservation_and_aligned_tool(
         self,
     ):

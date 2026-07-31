@@ -5,6 +5,15 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 
+_RUNTIME_DISCOVERY_RESOLUTIONS = frozenset(
+    {
+        "broad_or_ambiguous",
+        "open_world_candidate_discovery_required",
+        "generation_required_no_registered_candidate",
+    }
+)
+
+
 def _episode_tool_results(episode: Mapping[str, Any]) -> list[dict[str, Any]]:
     """Normalize legacy and current episode Tool-result envelopes."""
 
@@ -225,11 +234,7 @@ def build_compact_flagship_acceptance(
         and concern_candidate_resolution.get("decision")
         in {"discover_candidates", "catalog_external"}
         and concern_candidate_resolution.get("resolution")
-        in {
-            "broad_or_ambiguous",
-            "open_world_candidate_discovery_required",
-            "generation_required_no_registered_candidate",
-        }
+        in _RUNTIME_DISCOVERY_RESOLUTIONS
         and concern_candidate_resolution.get("concern_created_before_catalog")
         is True
         and concern_candidate_resolution.get("catalog_was_model_visible")
