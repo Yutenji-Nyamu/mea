@@ -29,6 +29,10 @@
 - When a Proposal requests both scene and checker, generate `load_actors()` and
   `check_success()` together. The checker is experimental and must never be
   relabeled as official success.
+- Every added checker conjunct must be false initially and true in the supplied
+  official-expert terminal state. Do not require instantaneous PhysX contact
+  when the official terminal state may release contact; use the repair
+  evidence's current actor state or another Proposal-consistent predicate.
 - A generated challenge must preserve at least one feasible official action
   path to every required contact or functional point. A fixed center offset is
   not proof of approach clearance, and `add_prohibit_area()` is not a robot

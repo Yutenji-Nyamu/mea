@@ -873,6 +873,41 @@ def _tracked_actor_heights(scene: Mapping[str, Any]) -> dict[str, float]:
     return heights
 
 
+def _tracked_actor_positions(
+    scene: Mapping[str, Any],
+) -> dict[str, list[float]]:
+    """Return compact current or expert-terminal xyz state for repair."""
+
+    positions: dict[str, list[float]] = {}
+    terminal_actors = scene.get("expert_terminal_tracked_actors")
+    tracked_actors = (
+        terminal_actors
+        if isinstance(terminal_actors, list)
+        else scene.get("tracked_actors")
+    )
+    for actor in tracked_actors or []:
+        if not isinstance(actor, Mapping):
+            continue
+        actor_id = str(actor.get("id") or "").strip()
+        position = actor.get("position")
+        if (
+            not actor_id
+            or not isinstance(position, list)
+            or len(position) < 3
+            or any(
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(float(value))
+                for value in position[:3]
+            )
+        ):
+            continue
+        positions[actor_id] = [
+            round(float(value), 6) for value in position[:3]
+        ]
+    return positions
+
+
 def _expert_terminal_authority_failure(
     expert: Mapping[str, Any],
 ) -> dict[str, Any] | None:
@@ -961,6 +996,8 @@ def _checker_fixture_failure_diagnosis(
         "failed_fixtures": failed,
         "initial_actor_z_m": initial_heights,
         "expert_terminal_actor_z_m": terminal_heights,
+        "initial_actor_xyz_m": _tracked_actor_positions(setup),
+        "expert_terminal_actor_xyz_m": _tracked_actor_positions(expert),
     }
     if lift_boundary is not None:
         evidence["official_lift_contract"] = {

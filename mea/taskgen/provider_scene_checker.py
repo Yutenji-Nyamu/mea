@@ -449,7 +449,11 @@ def run_provider_codegen(
                     "same-seed simulator setup and render gates. Copy that "
                     "method exactly and repair only check_success; changing "
                     "the accepted scene would invalidate a checker-local "
-                    "repair.\n\nPREVIOUS METHOD PAIR:\n"
+                    "repair. The repaired checker must differ from the "
+                    "failing checker and make every supplied simulator "
+                    "fixture pass; do not retain an additional conjunct that "
+                    "was false in the official-expert terminal state."
+                    "\n\nPREVIOUS METHOD PAIR:\n"
                     + json.dumps(
                         previous_methods,
                         ensure_ascii=False,

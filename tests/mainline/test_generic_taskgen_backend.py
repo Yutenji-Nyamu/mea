@@ -27,6 +27,7 @@ from mea.taskgen.provider_scene_checker import (
     validate_method_ast,
 )
 from mea.taskgen.runtime import (
+    _checker_fixture_failure_diagnosis,
     _generated_checker_execution_failure,
     build_preservation_report,
     record_generic_taskgen_generation_failure,
@@ -2009,6 +2010,32 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                 "check_success cannot read the completed trajectory",
                 prompt,
             )
+
+    def test_checker_repair_diagnosis_includes_terminal_xyz_state(self) -> None:
+        diagnosis = _checker_fixture_failure_diagnosis(
+            [
+                {
+                    "fixture_id": "official_expert_terminal_positive",
+                    "expected": True,
+                    "observed": False,
+                    "passed": False,
+                }
+            ],
+            setup={
+                "tracked_actors": [
+                    {"id": "target", "position": [0.1, -0.2, 0.74]}
+                ]
+            },
+            expert={
+                "expert_terminal_tracked_actors": [
+                    {"id": "target", "position": [0.12, -0.2, 0.85]}
+                ]
+            },
+        )
+
+        self.assertIn('"initial_actor_xyz_m"', diagnosis)
+        self.assertIn('"expert_terminal_actor_xyz_m"', diagnosis)
+        self.assertIn('"target": [0.12, -0.2, 0.85]', diagnosis)
 
     def test_partial_generation_reuses_unrequested_official_method(
         self,
