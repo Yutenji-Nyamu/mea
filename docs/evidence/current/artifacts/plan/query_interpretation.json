@@ -2,26 +2,26 @@
   "schema_version": 1,
   "source": "provider_plan_agent_query_interpretation",
   "concern": {
-    "source_query": "这个ACT策略在grab_roller任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？",
-    "requested_variation": "Shift the roller center laterally by a fixed, reachable offset toward the workspace boundary. Preserve the roller's color, material, size, shape, orientation, tabletop scene layout, camera viewpoint, task instruction, policy checkpoint, and official success semantics.",
-    "sub_aspect": "Robustness to a bounded lateral shift of the roller within the reachable workspace",
     "schema_version": 1,
-    "measurement_need": "Compare official grab_roller success between the nominal roller center position and the laterally shifted position, while verifying that the shifted center remains inside the reachable workspace.",
-    "hypothesis": "The ACT policy will show a lower official-task success rate when the roller is shifted laterally toward the workspace boundary than at its nominal center position, despite the roller remaining reachable.",
-    "task_intent": "Grasp the roller and achieve the official grab_roller task goal."
+    "sub_aspect": "Terminal TCP alignment after geometric displacement of the manipulated roller",
+    "requested_variation": "Generate an expert-solvable scene that displaces the manipulated roller along one supported diagnostic axis by at least 0.05 m, with TaskGen selecting the smallest measurable exact magnitude and the axis after official-source retrieval; preserve task identity and policy checkpoint.",
+    "task_intent": "Use the robot's TCPs to grasp the roller and achieve the official grab-task goal.",
+    "measurement_need": "The terminal maximum of the two TCP-to-corresponding-roller-contact-point distances, reported as a scalar diagnostic from the rollout trajectory.",
+    "hypothesis": "After a supported single-axis roller displacement of at least 0.05 m, the policy can satisfy the official grab goal while at least one terminal TCP remains more than 0.025 m from its corresponding roller contact point.",
+    "source_query": "Relative to the official grab task, does there exist a newly generated executable scene challenge that exposes a terminal alignment weakness in this policy? After observing official-control evidence, let the Plan Agent choose the most informative supported scene change without an aspect or template from me. To avoid a trivial perturbation, the chosen geometric scene change must displace the manipulated roller by at least 0.05 m while remaining expert-solvable; the Plan Agent chooses the axis and exact magnitude. Define experimental success as the official task goal AND both terminal TCPs being within 0.025 m of their corresponding roller contact points, using only current simulator point positions; do not require episode history, accumulated contact, or a trajectory-derived success threshold. Independently report one scalar metric computed from the rollout trajectory that diagnoses the chosen hypothesis, but treat that scalar strictly as diagnostic evidence and never as the terminal success outcome."
   },
   "experiment_needs": {
     "scene_need": {
       "required": true,
-      "description": "Generate an otherwise identical grab_roller scene with the roller center moved laterally by a fixed reachable offset toward the workspace boundary; preserve roller color, material, size, shape, orientation, tabletop layout, camera viewpoint, task instruction, policy checkpoint, and official success semantics."
+      "description": "Create an expert-solvable scene with the manipulated roller displaced along one supported axis by at least 0.05 m, selecting the smallest measurable exact displacement after official-source retrieval while preserving task identity and policy checkpoint."
     },
     "checker_need": {
-      "required": false,
-      "description": null
+      "required": true,
+      "description": "Require the official core predicate as a required conjunct and require both terminal TCPs to be within 0.025 m of their corresponding roller contact points using current simulator point positions."
     },
     "rule_tool_need": {
       "required": true,
-      "description": "Compute the roller center displacement from the nominal scene and verify its distance to the workspace boundary and reachable-workspace margin.",
+      "description": "Report the terminal maximum TCP-to-corresponding-roller-contact-point distance from the rollout trajectory.",
       "reuse_first": true
     },
     "vqa_tool_need": {
@@ -36,61 +36,19 @@
     "attempt_count": 1,
     "errors": [],
     "last_metadata": {
-      "id": "chatcmpl-202607300549529594936248268d9d6tDtFdEkP",
+      "id": "resp_01c229b3e412f729016a6c5f82381481959fa3fc3424ad8151",
       "model": "gpt-5.6-luna",
       "finish_reason": "stop",
       "usage": {
-        "prompt_tokens": 770,
-        "completion_tokens": 805,
-        "total_tokens": 1575,
-        "billing_usage": {
-          "source": "oai_responses",
-          "semantic": "openai",
-          "openai_usage": {
-            "prompt_tokens": 0,
-            "completion_tokens": 0,
-            "total_tokens": 1575,
-            "prompt_tokens_details": {
-              "cached_tokens": 0,
-              "text_tokens": 0,
-              "audio_tokens": 0,
-              "image_tokens": 0
-            },
-            "completion_tokens_details": {
-              "text_tokens": 0,
-              "audio_tokens": 0,
-              "image_tokens": 0,
-              "reasoning_tokens": 0
-            },
-            "input_tokens": 770,
-            "output_tokens": 805,
-            "input_tokens_details": {
-              "cached_tokens": 0,
-              "text_tokens": 0,
-              "audio_tokens": 0,
-              "image_tokens": 0
-            },
-            "claude_cache_creation_5_m_tokens": 0,
-            "claude_cache_creation_1_h_tokens": 0
-          }
-        },
+        "prompt_tokens": 6802,
+        "completion_tokens": 1414,
+        "total_tokens": 8216,
         "prompt_tokens_details": {
-          "cached_tokens": 0,
-          "text_tokens": 0,
-          "audio_tokens": 0,
-          "image_tokens": 0
+          "cached_tokens": 4608
         },
         "completion_tokens_details": {
-          "text_tokens": 0,
-          "audio_tokens": 0,
-          "image_tokens": 0,
-          "reasoning_tokens": 0
-        },
-        "input_tokens": 770,
-        "output_tokens": 805,
-        "input_tokens_details": null,
-        "claude_cache_creation_5_m_tokens": 0,
-        "claude_cache_creation_1_h_tokens": 0
+          "reasoning_tokens": 839
+        }
       },
       "retry_count": 0
     }

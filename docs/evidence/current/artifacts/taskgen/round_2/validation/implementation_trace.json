@@ -1,25 +1,26 @@
 {
   "schema_version": 1,
-  "intent_id": "intent.7d4cb852954896a8",
-  "candidate_id": "dynamic.grab.roller.object.geometry.graspable.scale.reduction.roller.15.act.5e696fb1d45c",
+  "intent_id": "intent.78fbce792af89034",
+  "candidate_id": "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff",
   "stage": "taskgen",
-  "relationship": "diagnostic_proxy",
-  "rationale": "Candidate is a nearby diagnostic, not a direct implementation of candidate-contract fields: ['requested_change'].",
-  "covered_intent_fields": [],
-  "uncovered_intent_fields": [
+  "relationship": "direct",
+  "rationale": "Candidate preserves the requested change, hypothesis, and observation semantics.",
+  "covered_intent_fields": [
     "requested_change",
     "preserved_conditions",
-    "hypothesis",
+    "hypothesis"
+  ],
+  "uncovered_intent_fields": [],
+  "pending_intent_fields": [
     "required_observation"
   ],
-  "pending_intent_fields": [],
-  "coverage_status": "not_covered",
+  "coverage_status": "partial",
   "repair_required": false,
   "validation_evidence": {
     "scene_change_passed": true,
     "checker_fixtures_passed": true,
     "visual_diagnosis_passed": true,
-    "preserved_conditions_verified": null,
+    "preserved_conditions_verified": true,
     "tool_evaluation_passed": null
   }
 }

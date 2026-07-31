@@ -1,3 +1,4 @@
+```python
 def generated_tool(trajectory):
     left_tcp = trajectory.trace["left_tcp_position"]
     left_contact = trajectory.trace["roller_left_contact_position"]
@@ -46,3 +47,4 @@ def generated_tool(trajectory):
             "reason": "measured",
         },
     }
+```

@@ -4,67 +4,131 @@
   "route": "provider_python_codegen",
   "provider_called": true,
   "generation": {
-    "successful_attempt": 0,
-    "attempt_count": 1,
-    "failures": [],
+    "successful_attempt": 1,
+    "attempt_count": 2,
+    "failures": [
+      {
+        "attempt_index": 0,
+        "type": "MetricSpecError",
+        "message": "ToolGen semantic reviewer rejected the generated Tool: The code searches backward for an earlier finite sample instead of computing exclusively at the terminal sample.",
+        "provider": {
+          "id": "resp_0f6e01462b0e000a016a6c61032ba4819b83d5e906d0e6a096",
+          "model": "gpt-5.6-terra",
+          "finish_reason": "stop",
+          "usage": {
+            "prompt_tokens": 5059,
+            "completion_tokens": 205,
+            "total_tokens": 5264,
+            "prompt_tokens_details": {
+              "cached_tokens": 3840
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 135
+            }
+          },
+          "retry_count": 0
+        }
+      }
+    ],
     "model_requested": "gpt-5.6-terra",
     "provider": {
-      "id": "chatcmpl-E7E2j6Knd7BEriAajvvtCPcXephxX",
-      "model": "gpt-5.6-terra-2026-07-09",
+      "id": "chatcmpl-202607310847121065936728268d9d6T2DrRtfB",
+      "model": "gpt-5.6-terra",
       "finish_reason": "stop",
       "usage": {
-        "completion_tokens": 225,
-        "completion_tokens_details": {
-          "accepted_prediction_tokens": 0,
-          "audio_tokens": 0,
-          "reasoning_tokens": 0,
-          "rejected_prediction_tokens": 0
+        "prompt_tokens": 686,
+        "completion_tokens": 148,
+        "total_tokens": 834,
+        "billing_usage": {
+          "source": "oai_responses",
+          "semantic": "openai",
+          "openai_usage": {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 834,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "text_tokens": 0,
+              "audio_tokens": 0,
+              "image_tokens": 0
+            },
+            "completion_tokens_details": {
+              "text_tokens": 0,
+              "audio_tokens": 0,
+              "image_tokens": 0,
+              "reasoning_tokens": 0
+            },
+            "input_tokens": 686,
+            "output_tokens": 148,
+            "input_tokens_details": {
+              "cached_tokens": 0,
+              "text_tokens": 0,
+              "audio_tokens": 0,
+              "image_tokens": 0
+            },
+            "claude_cache_creation_5_m_tokens": 0,
+            "claude_cache_creation_1_h_tokens": 0
+          }
         },
-        "latency_checkpoint": {
-          "engine_tbt_ms": 6,
-          "engine_ttft_ms": 241,
-          "engine_ttlt_ms": 1549,
-          "pre_inference_ms": 101,
-          "service_tbt_ms": 6,
-          "service_ttft_ms": 891,
-          "service_ttlt_ms": 2216,
-          "total_duration_ms": 2119,
-          "user_visible_ttft_ms": 790
-        },
-        "prompt_tokens": 2251,
         "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 0,
           "audio_tokens": 0,
-          "cached_tokens": 0
+          "image_tokens": 0
         },
-        "total_tokens": 2476
+        "completion_tokens_details": {
+          "text_tokens": 0,
+          "audio_tokens": 0,
+          "image_tokens": 0,
+          "reasoning_tokens": 0
+        },
+        "input_tokens": 686,
+        "output_tokens": 148,
+        "input_tokens_details": null,
+        "claude_cache_creation_5_m_tokens": 0,
+        "claude_cache_creation_1_h_tokens": 0
       },
       "retry_count": 0
+    },
+    "semantic_review": {
+      "schema_version": 1,
+      "status": "approved",
+      "checks": {
+        "implements_metric_description": true,
+        "uses_only_declared_signals": true,
+        "preserves_requested_unit": true,
+        "returns_diagnostic_not_success": true
+      },
+      "reason": "The tool computes the maximum of the two terminal TCP-to-contact Euclidean distances in meters and returns only a diagnostic measurement."
     }
   },
-  "source_path": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3/execution/round_2/planned_tool/typed_metric_spec/generated_tool.py",
+  "source_path": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/evaluation_runs/eval_20260731_batch32_clean_flagship_live_v18/execution/round_2/planned_tool/typed_metric_spec/generated_tool.py",
   "tool_spec": {
     "schema_version": 1,
     "task_name": "grab_roller",
-    "metric": "query_left_tcp_to_roller_left_contact_min_distance",
-    "question": "What was the minimum 3D distance between the left TCP and the roller's left contact position?",
+    "metric": "terminal_max_tcp_contact_distance",
+    "question": "What is the terminal maximum of the left and right TCP distances to their corresponding roller contact points?",
     "route": "force_codegen",
     "reference_tool": null,
     "required_signals": [
       "semantic_trace.left_tcp_position",
       "semantic_trace.roller_left_contact_position",
+      "semantic_trace.right_tcp_position",
+      "semantic_trace.roller_right_contact_position",
       "semantic_trace.physics_step"
     ],
     "output_contract": {
-      "source": "typed_metric_spec_v1",
+      "source": "typed_metric_spec_v2",
       "metric_spec": {
-        "schema_version": 1,
-        "operation": "minimum_distance",
-        "left_signal": "left_tcp_position",
-        "right_signal": "roller_left_contact_position",
-        "dimensions": [
-          "x",
-          "y",
-          "z"
+        "schema_version": 2,
+        "operation": "derived_observable",
+        "observable_id": "terminal_max_tcp_contact_distance",
+        "description": "At the terminal sample, compute the larger Euclidean distance between left TCP and left roller contact, and right TCP and right roller contact.",
+        "required_signals": [
+          "left_tcp_position",
+          "roller_left_contact_position",
+          "right_tcp_position",
+          "roller_right_contact_position"
         ],
         "unit": "m",
         "null_semantics": "null_if_no_finite_sample"
@@ -72,7 +136,7 @@
       "value_type": "number_or_null",
       "unit": "m",
       "passed": null,
-      "evidence": "argmin_physics_step"
+      "evidence": "caller_supplied_oracle_evidence_steps"
     },
     "validation_requirements": {
       "min_episodes": 1,
@@ -81,63 +145,69 @@
     }
   },
   "task_code_context_consumed": true,
+  "validation_authority": "toolgen_semantic_review_runtime",
+  "semantic_review": {
+    "schema_version": 1,
+    "status": "approved",
+    "checks": {
+      "implements_metric_description": true,
+      "uses_only_declared_signals": true,
+      "preserves_requested_unit": true,
+      "returns_diagnostic_not_success": true
+    },
+    "reason": "The tool computes the maximum of the two terminal TCP-to-contact Euclidean distances in meters and returns only a diagnostic measurement."
+  },
   "fixtures": [],
   "episodes": [
     {
-      "episode_dir": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_20260730_batch31_grab_roller_broad_live_v3_round_2/evaluation/telemetry/act/episode_000_seed_100401",
-      "policy_name": "ACT",
+      "episode_dir": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_native_smolvla_eb2c94d8bd06/evaluation/telemetry/act/episode_000_seed_100401",
+      "policy_name": "SmolVLA",
       "seed": 100401,
       "generated_result": {
-        "tool": "query_left_tcp_to_roller_left_contact_min_distance",
+        "tool": "terminal_max_tcp_contact_distance",
         "version": 1,
         "generated": true,
-        "tool_sha256": "631754dc019952e162f214a3537479b5437edcee97b1ea9f87fd8bf452f76e99",
-        "value": 0.02206086926162243,
+        "tool_sha256": "cbd4e475948a9c3deae5f13cea07d49e0f6a3cbfdfc1126103d96aa6fb28d9cd",
+        "value": 0.24384725093841553,
         "unit": "m",
         "passed": null,
         "evidence_steps": [
-          7171
+          38536
         ],
         "details": {
-          "operation": "minimum_distance",
+          "operation": "derived_observable",
           "reason": "measured"
         }
       },
       "oracle_projection": {
-        "value": 0.02206086861602019,
+        "value": 0.24384725093841553,
         "unit": "m",
         "passed": null,
         "evidence_steps": [
-          7171
+          38536
         ],
         "details": {
-          "operation": "minimum_distance",
-          "left_signal": "left_tcp_position",
-          "right_signal": "roller_left_contact_position",
-          "dimensions": [
-            "x",
-            "y",
-            "z"
-          ],
-          "min_index": 7171,
+          "operation": "derived_observable",
           "reason": "measured"
         }
       },
       "deterministic": true,
-      "oracle_agreement": true,
+      "oracle_agreement": null,
+      "semantic_contract_valid": true,
+      "validation_authority": "toolgen_semantic_review_runtime",
       "artifacts_unchanged": true
     }
   ],
   "registration": {
-    "registration_id": "runlocal_72475f2da8775b45ae8b",
+    "registration_id": "runlocal_69223f1181c20689d466",
     "scope": "run_local",
     "status": "validated",
-    "tool_id": "query_left_tcp_to_roller_left_contact_min_distance",
+    "tool_id": "terminal_max_tcp_contact_distance",
     "version": 1,
-    "target_metric": "query_left_tcp_to_roller_left_contact_min_distance",
-    "contract_sha256": "504ddb377d1dbe8e2791e9a5ceefe1ceedee70cd91cd290f90bdcd757777c67e",
-    "telemetry_schema_sha256": "685ce71faf519f8e2f35e8774a703e54aa5d410e5bf8b541903b0decac84a678",
-    "code_sha256": "631754dc019952e162f214a3537479b5437edcee97b1ea9f87fd8bf452f76e99",
+    "target_metric": "terminal_max_tcp_contact_distance",
+    "contract_sha256": "52439d1a9002eb5314116afbf63956316a813e6c256f636af0f6b69d31302f3c",
+    "telemetry_schema_sha256": "4cfe66f4f6f8065d643f16b1f959e76bbd13f6031ec86ab7df356d33fc36f36e",
+    "code_sha256": "cbd4e475948a9c3deae5f13cea07d49e0f6a3cbfdfc1126103d96aa6fb28d9cd",
     "promotion": {
       "current_scope": "run_local",
       "candidate": {
@@ -149,8 +219,8 @@
     }
   },
   "limitations": [
-    "typed semantic oracle: minimum_distance",
+    "provider-defined derived observable over declared telemetry",
     "provider-generated Python",
-    "output is checked twice against the trusted interpreter on each live episode; live values need not differ"
+    "semantic review plus declared-signal, deterministic, finite-result, evidence-step, and artifact-immutability gates; no success or reward authority"
   ]
 }

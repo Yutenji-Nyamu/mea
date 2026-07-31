@@ -1,0 +1,19 @@
+{
+  "valid": true,
+  "episode_count": 1,
+  "deterministic": true,
+  "oracle_agreement": null,
+  "semantic_contract_valid": true,
+  "semantic_review": {
+    "schema_version": 1,
+    "status": "approved",
+    "checks": {
+      "implements_metric_description": true,
+      "uses_only_declared_signals": true,
+      "preserves_requested_unit": true,
+      "returns_diagnostic_not_success": true
+    },
+    "reason": "The tool computes the maximum of the two terminal TCP-to-contact Euclidean distances in meters and returns only a diagnostic measurement."
+  },
+  "artifacts_unchanged": true
+}

@@ -2,8 +2,8 @@
   "schema_version": 2,
   "action": "continue",
   "transition": "switch_concern",
-  "candidate_id": "dynamic.grab.roller.object.geometry.graspable.scale.reduction.roller.15.act.5e696fb1d45c",
-  "observation_summary": "官方未扰动场景已成功，说明当前失败不太可能来自基本任务流程；但仅一轮成功不能回答哪种物体或场景变化最先暴露弱点。尺度缩小直接降低双臂抓取的几何容错，且是load_actors明确支持的物体属性变化，比改变不可用的策略噪声或控制精度更可执行。该单因素扰动可用峰值高度和TCP接触距离诊断失败机制，同时保留官方checker以判断任务是否仍成功。",
+  "candidate_id": "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff",
+  "observation_summary": "The official unchanged-scene control succeeded, so baseline task execution is not the remaining uncertainty. The next most informative test is the smallest permitted geometric displacement, exactly 0.05 m along one supported position axis, while preserving expert solvability. The checker directly tests the requested terminal alignment conjunction, and the separate rollout-peak distance diagnoses transient alignment weakness without replacing the terminal success verdict.",
   "decision_reason": "provider_authored_open_world_step",
   "answered_query": false,
   "plan_step_source": "provider_plan_agent_open_query",
@@ -15,68 +15,73 @@
       "round_1"
     ],
     "completed_round_count": 1,
-    "input_digest": "1d50472b3684bcd8767ae38abdef89fbf94ac126d7d277ea6ed33f37239d2887"
+    "input_digest": "13b8ab7802f883e4f89394e7f66130e43007f58d907cee74a1f0f4bb4dd86063"
   },
   "plan_step_proposal": {
     "schema_version": 2,
     "action": "propose",
-    "aspect_id": "object_geometry.graspable_scale_reduction",
-    "candidate_id": "dynamic.grab.roller.object.geometry.graspable.scale.reduction.roller.15.act.5e696fb1d45c",
+    "aspect_id": "scene_robustness.roller_translation.terminal_tcp_alignment",
+    "candidate_id": "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff",
     "execution_mode": "reuse_or_generate",
     "proposal": {
       "schema_version": 2,
-      "candidate_id": "dynamic.grab.roller.object.geometry.graspable.scale.reduction.roller.15.act.5e696fb1d45c",
-      "source_query": "这个ACT策略在grab_roller任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？",
+      "candidate_id": "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff",
+      "source_query": "Relative to the official grab task, does there exist a newly generated executable scene challenge that exposes a terminal alignment weakness in this policy? After observing official-control evidence, let the Plan Agent choose the most informative supported scene change without an aspect or template from me. To avoid a trivial perturbation, the chosen geometric scene change must displace the manipulated roller by at least 0.05 m while remaining expert-solvable; the Plan Agent chooses the axis and exact magnitude. Define experimental success as the official task goal AND both terminal TCPs being within 0.025 m of their corresponding roller contact points, using only current simulator point positions; do not require episode history, accumulated contact, or a trajectory-derived success threshold. Independently report one scalar metric computed from the rollout trajectory that diagnoses the chosen hypothesis, but treat that scalar strictly as diagnostic evidence and never as the terminal success outcome.",
       "base_task": "grab_roller",
-      "semantic_concern": "object_geometry.graspable_scale_reduction: 将roller的整体几何尺度在保持其初始位姿和材质不变的情况下缩小15%后，ACT的双夹爪接触或抬升高度将失败，导致官方抓取成功率低于未扰动基线。",
+      "semantic_concern": "scene_robustness.roller_translation.terminal_tcp_alignment: Translating the roller by exactly 0.05 m along the world x-axis will expose a terminal TCP alignment weakness, causing the combined experimental checker to fail despite the successful official-control result.",
       "scene_need": {
         "kind": "adapt",
-        "description": "仅将roller的统一物体尺度设为原始尺度的0.85，保持位置、姿态、外观、光照、杂物和任务场景其他状态不变。 Preserve unchanged: task identity; policy checkpoint; roller初始位置和姿态; roller外观与材质; lighting and clutter.",
+        "description": "Generate an executable expert-solvable scene by translating the roller exactly 0.05 m along the world x-axis from its official-scene position. Preserve unchanged: task identity; policy checkpoint; official core predicate as a required conjunct.",
         "reuse_first": true
       },
-      "checker_need": null,
+      "checker_need": {
+        "kind": "generate",
+        "description": "Evaluate the boolean conjunction of the official goal, left TCP distance to the left roller contact point being at most 0.025 m, and right TCP distance to the right roller contact point being at most 0.025 m, using terminal current simulator point positions only.",
+        "reuse_first": true
+      },
       "rule_tool_need": {
         "kind": "measure",
-        "description": "复用或生成数值Rule Tool，记录roller峰值高度、双夹爪闭合状态以及左右TCP到对应接触位置的最小距离，用于区分接触对齐失败与抬升失败。 Hypothesis: 将roller的整体几何尺度在保持其初始位姿和材质不变的情况下缩小15%后，ACT的双夹爪接触或抬升高度将失败，导致官方抓取成功率低于未扰动基线。",
+        "description": "Report the terminal maximum of the left TCP-to-left-contact and right TCP-to-right-contact distances as one scalar.",
         "reuse_first": true
       },
-      "vqa_tool_need": null,
+      "vqa_tool_need": {
+        "kind": "vqa",
+        "description": "Report the peak over the rollout of the larger of the left TCP-to-left-contact and right TCP-to-right-contact distances as one diagnostic trajectory scalar.",
+        "reuse_first": true
+      },
       "tool_need": {
         "kind": "measure",
-        "description": "复用或生成数值Rule Tool，记录roller峰值高度、双夹爪闭合状态以及左右TCP到对应接触位置的最小距离，用于区分接触对齐失败与抬升失败。 Hypothesis: 将roller的整体几何尺度在保持其初始位姿和材质不变的情况下缩小15%后，ACT的双夹爪接触或抬升高度将失败，导致官方抓取成功率低于未扰动基线。",
+        "description": "Report the terminal maximum of the left TCP-to-left-contact and right TCP-to-right-contact distances as one scalar.",
         "reuse_first": true
       },
       "evaluation_intent": {
         "schema_version": 1,
-        "intent_id": "intent.7d4cb852954896a8",
-        "source_query": "这个ACT策略在grab_roller任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？",
-        "original_concern": "object_geometry.graspable_scale_reduction",
-        "hypothesis": "将roller的整体几何尺度在保持其初始位姿和材质不变的情况下缩小15%后，ACT的双夹爪接触或抬升高度将失败，导致官方抓取成功率低于未扰动基线。",
-        "requested_change": "仅将roller的统一物体尺度设为原始尺度的0.85，保持位置、姿态、外观、光照、杂物和任务场景其他状态不变。",
+        "intent_id": "intent.78fbce792af89034",
+        "source_query": "Relative to the official grab task, does there exist a newly generated executable scene challenge that exposes a terminal alignment weakness in this policy? After observing official-control evidence, let the Plan Agent choose the most informative supported scene change without an aspect or template from me. To avoid a trivial perturbation, the chosen geometric scene change must displace the manipulated roller by at least 0.05 m while remaining expert-solvable; the Plan Agent chooses the axis and exact magnitude. Define experimental success as the official task goal AND both terminal TCPs being within 0.025 m of their corresponding roller contact points, using only current simulator point positions; do not require episode history, accumulated contact, or a trajectory-derived success threshold. Independently report one scalar metric computed from the rollout trajectory that diagnoses the chosen hypothesis, but treat that scalar strictly as diagnostic evidence and never as the terminal success outcome.",
+        "original_concern": "scene_robustness.roller_translation.terminal_tcp_alignment",
+        "hypothesis": "Translating the roller by exactly 0.05 m along the world x-axis will expose a terminal TCP alignment weakness, causing the combined experimental checker to fail despite the successful official-control result.",
+        "requested_change": "Translate the manipulated roller exactly 0.05 m along the world x-axis from its official-scene position while retaining an expert-solvable arrangement.",
         "preserved_conditions": [
           "task identity",
           "policy checkpoint",
-          "roller初始位置和姿态",
-          "roller外观与材质",
-          "lighting and clutter"
+          "official core predicate as a required conjunct"
         ],
-        "required_observation": "复用或生成数值Rule Tool，记录roller峰值高度、双夹爪闭合状态以及左右TCP到对应接触位置的最小距离，用于区分接触对齐失败与抬升失败。"
+        "required_observation": "Evaluate the boolean conjunction of the official goal, left TCP distance to the left roller contact point being at most 0.025 m, and right TCP distance to the right roller contact point being at most 0.025 m, using terminal current simulator point positions only. Report the terminal maximum of the left TCP-to-left-contact and right TCP-to-right-contact distances as one scalar. Report the peak over the rollout of the larger of the left TCP-to-left-contact and right TCP-to-right-contact distances as one diagnostic trajectory scalar."
       },
       "intent_alignment": {
         "schema_version": 1,
-        "relationship": "diagnostic_proxy",
-        "rationale": "Candidate is a nearby diagnostic, not a direct implementation of candidate-contract fields: ['requested_change'].",
+        "relationship": "direct",
+        "rationale": "Candidate preserves the requested change, hypothesis, and observation semantics.",
         "matched_intent_fields": [
+          "requested_change",
           "preserved_conditions",
           "hypothesis",
           "required_observation"
         ],
-        "unmatched_intent_fields": [
-          "requested_change"
-        ]
+        "unmatched_intent_fields": []
       }
     },
-    "rationale": "官方未扰动场景已成功，说明当前失败不太可能来自基本任务流程；但仅一轮成功不能回答哪种物体或场景变化最先暴露弱点。尺度缩小直接降低双臂抓取的几何容错，且是load_actors明确支持的物体属性变化，比改变不可用的策略噪声或控制精度更可执行。该单因素扰动可用峰值高度和TCP接触距离诊断失败机制，同时保留官方checker以判断任务是否仍成功。",
+    "rationale": "The official unchanged-scene control succeeded, so baseline task execution is not the remaining uncertainty. The next most informative test is the smallest permitted geometric displacement, exactly 0.05 m along one supported position axis, while preserving expert solvability. The checker directly tests the requested terminal alignment conjunction, and the separate rollout-peak distance diagnoses transient alignment weakness without replacing the terminal success verdict.",
     "answered_query": false,
     "planning_lineage": {
       "schema_version": 1,
@@ -86,7 +91,7 @@
         "round_1"
       ],
       "completed_round_count": 1,
-      "input_digest": "1d50472b3684bcd8767ae38abdef89fbf94ac126d7d277ea6ed33f37239d2887"
+      "input_digest": "13b8ab7802f883e4f89394e7f66130e43007f58d907cee74a1f0f4bb4dd86063"
     }
   },
   "round_budget_before_decision": 2,
@@ -96,11 +101,11 @@
       "schema_version": 3,
       "claim_type": "existential",
       "candidate_universe": [
-        "dynamic.grab.roller.object.geometry.graspable.scale.reduction.roller.15.act.5e696fb1d45c"
+        "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff"
       ],
       "required_coverage": {
         "candidate_ids": [
-          "dynamic.grab.roller.object.geometry.graspable.scale.reduction.roller.15.act.5e696fb1d45c"
+          "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff"
         ],
         "minimum_evaluated": 1,
         "minimum_per_group": null
@@ -125,13 +130,13 @@
     "conflict_candidate_ids": [],
     "unknown_candidate_ids": [],
     "untested_required_candidate_ids": [
-      "dynamic.grab.roller.object.geometry.graspable.scale.reduction.roller.15.act.5e696fb1d45c"
+      "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff"
     ],
     "untested_candidate_ids": [
-      "dynamic.grab.roller.object.geometry.graspable.scale.reduction.roller.15.act.5e696fb1d45c"
+      "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff"
     ],
     "recommended_candidate_ids": [
-      "dynamic.grab.roller.object.geometry.graspable.scale.reduction.roller.15.act.5e696fb1d45c"
+      "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff"
     ],
     "rationale": "The query contract still has unresolved required evidence.",
     "statistics": {
@@ -146,63 +151,68 @@
   "next_round": {
     "round_id": "round_2",
     "template_id": null,
-    "candidate_id": "dynamic.grab.roller.object.geometry.graspable.scale.reduction.roller.15.act.5e696fb1d45c",
+    "candidate_id": "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff",
     "proposal": {
       "schema_version": 2,
-      "candidate_id": "dynamic.grab.roller.object.geometry.graspable.scale.reduction.roller.15.act.5e696fb1d45c",
-      "source_query": "这个ACT策略在grab_roller任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？",
+      "candidate_id": "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff",
+      "source_query": "Relative to the official grab task, does there exist a newly generated executable scene challenge that exposes a terminal alignment weakness in this policy? After observing official-control evidence, let the Plan Agent choose the most informative supported scene change without an aspect or template from me. To avoid a trivial perturbation, the chosen geometric scene change must displace the manipulated roller by at least 0.05 m while remaining expert-solvable; the Plan Agent chooses the axis and exact magnitude. Define experimental success as the official task goal AND both terminal TCPs being within 0.025 m of their corresponding roller contact points, using only current simulator point positions; do not require episode history, accumulated contact, or a trajectory-derived success threshold. Independently report one scalar metric computed from the rollout trajectory that diagnoses the chosen hypothesis, but treat that scalar strictly as diagnostic evidence and never as the terminal success outcome.",
       "base_task": "grab_roller",
-      "semantic_concern": "object_geometry.graspable_scale_reduction: 将roller的整体几何尺度在保持其初始位姿和材质不变的情况下缩小15%后，ACT的双夹爪接触或抬升高度将失败，导致官方抓取成功率低于未扰动基线。",
+      "semantic_concern": "scene_robustness.roller_translation.terminal_tcp_alignment: Translating the roller by exactly 0.05 m along the world x-axis will expose a terminal TCP alignment weakness, causing the combined experimental checker to fail despite the successful official-control result.",
       "scene_need": {
         "kind": "adapt",
-        "description": "仅将roller的统一物体尺度设为原始尺度的0.85，保持位置、姿态、外观、光照、杂物和任务场景其他状态不变。 Preserve unchanged: task identity; policy checkpoint; roller初始位置和姿态; roller外观与材质; lighting and clutter.",
+        "description": "Generate an executable expert-solvable scene by translating the roller exactly 0.05 m along the world x-axis from its official-scene position. Preserve unchanged: task identity; policy checkpoint; official core predicate as a required conjunct.",
         "reuse_first": true
       },
-      "checker_need": null,
+      "checker_need": {
+        "kind": "generate",
+        "description": "Evaluate the boolean conjunction of the official goal, left TCP distance to the left roller contact point being at most 0.025 m, and right TCP distance to the right roller contact point being at most 0.025 m, using terminal current simulator point positions only.",
+        "reuse_first": true
+      },
       "rule_tool_need": {
         "kind": "measure",
-        "description": "复用或生成数值Rule Tool，记录roller峰值高度、双夹爪闭合状态以及左右TCP到对应接触位置的最小距离，用于区分接触对齐失败与抬升失败。 Hypothesis: 将roller的整体几何尺度在保持其初始位姿和材质不变的情况下缩小15%后，ACT的双夹爪接触或抬升高度将失败，导致官方抓取成功率低于未扰动基线。",
+        "description": "Report the terminal maximum of the left TCP-to-left-contact and right TCP-to-right-contact distances as one scalar.",
         "reuse_first": true
       },
-      "vqa_tool_need": null,
+      "vqa_tool_need": {
+        "kind": "vqa",
+        "description": "Report the peak over the rollout of the larger of the left TCP-to-left-contact and right TCP-to-right-contact distances as one diagnostic trajectory scalar.",
+        "reuse_first": true
+      },
       "tool_need": {
         "kind": "measure",
-        "description": "复用或生成数值Rule Tool，记录roller峰值高度、双夹爪闭合状态以及左右TCP到对应接触位置的最小距离，用于区分接触对齐失败与抬升失败。 Hypothesis: 将roller的整体几何尺度在保持其初始位姿和材质不变的情况下缩小15%后，ACT的双夹爪接触或抬升高度将失败，导致官方抓取成功率低于未扰动基线。",
+        "description": "Report the terminal maximum of the left TCP-to-left-contact and right TCP-to-right-contact distances as one scalar.",
         "reuse_first": true
       },
       "evaluation_intent": {
         "schema_version": 1,
-        "intent_id": "intent.7d4cb852954896a8",
-        "source_query": "这个ACT策略在grab_roller任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？",
-        "original_concern": "object_geometry.graspable_scale_reduction",
-        "hypothesis": "将roller的整体几何尺度在保持其初始位姿和材质不变的情况下缩小15%后，ACT的双夹爪接触或抬升高度将失败，导致官方抓取成功率低于未扰动基线。",
-        "requested_change": "仅将roller的统一物体尺度设为原始尺度的0.85，保持位置、姿态、外观、光照、杂物和任务场景其他状态不变。",
+        "intent_id": "intent.78fbce792af89034",
+        "source_query": "Relative to the official grab task, does there exist a newly generated executable scene challenge that exposes a terminal alignment weakness in this policy? After observing official-control evidence, let the Plan Agent choose the most informative supported scene change without an aspect or template from me. To avoid a trivial perturbation, the chosen geometric scene change must displace the manipulated roller by at least 0.05 m while remaining expert-solvable; the Plan Agent chooses the axis and exact magnitude. Define experimental success as the official task goal AND both terminal TCPs being within 0.025 m of their corresponding roller contact points, using only current simulator point positions; do not require episode history, accumulated contact, or a trajectory-derived success threshold. Independently report one scalar metric computed from the rollout trajectory that diagnoses the chosen hypothesis, but treat that scalar strictly as diagnostic evidence and never as the terminal success outcome.",
+        "original_concern": "scene_robustness.roller_translation.terminal_tcp_alignment",
+        "hypothesis": "Translating the roller by exactly 0.05 m along the world x-axis will expose a terminal TCP alignment weakness, causing the combined experimental checker to fail despite the successful official-control result.",
+        "requested_change": "Translate the manipulated roller exactly 0.05 m along the world x-axis from its official-scene position while retaining an expert-solvable arrangement.",
         "preserved_conditions": [
           "task identity",
           "policy checkpoint",
-          "roller初始位置和姿态",
-          "roller外观与材质",
-          "lighting and clutter"
+          "official core predicate as a required conjunct"
         ],
-        "required_observation": "复用或生成数值Rule Tool，记录roller峰值高度、双夹爪闭合状态以及左右TCP到对应接触位置的最小距离，用于区分接触对齐失败与抬升失败。"
+        "required_observation": "Evaluate the boolean conjunction of the official goal, left TCP distance to the left roller contact point being at most 0.025 m, and right TCP distance to the right roller contact point being at most 0.025 m, using terminal current simulator point positions only. Report the terminal maximum of the left TCP-to-left-contact and right TCP-to-right-contact distances as one scalar. Report the peak over the rollout of the larger of the left TCP-to-left-contact and right TCP-to-right-contact distances as one diagnostic trajectory scalar."
       },
       "intent_alignment": {
         "schema_version": 1,
-        "relationship": "diagnostic_proxy",
-        "rationale": "Candidate is a nearby diagnostic, not a direct implementation of candidate-contract fields: ['requested_change'].",
+        "relationship": "direct",
+        "rationale": "Candidate preserves the requested change, hypothesis, and observation semantics.",
         "matched_intent_fields": [
+          "requested_change",
           "preserved_conditions",
           "hypothesis",
           "required_observation"
         ],
-        "unmatched_intent_fields": [
-          "requested_change"
-        ]
+        "unmatched_intent_fields": []
       }
     },
-    "sub_aspect": "object_geometry.graspable_scale_reduction",
+    "sub_aspect": "scene_robustness.roller_translation.terminal_tcp_alignment",
     "rationale": "Materialize only the Query-derived Task or Tool needs; no catalog template authorizes this round.",
-    "task_instruction": "这个ACT策略在grab_roller任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？\nScene need: 仅将roller的统一物体尺度设为原始尺度的0.85，保持位置、姿态、外观、光照、杂物和任务场景其他状态不变。 Preserve unchanged: task identity; policy checkpoint; roller初始位置和姿态; roller外观与材质; lighting and clutter.\nChecker need: reuse the official implementation",
+    "task_instruction": "Relative to the official grab task, does there exist a newly generated executable scene challenge that exposes a terminal alignment weakness in this policy? After observing official-control evidence, let the Plan Agent choose the most informative supported scene change without an aspect or template from me. To avoid a trivial perturbation, the chosen geometric scene change must displace the manipulated roller by at least 0.05 m while remaining expert-solvable; the Plan Agent chooses the axis and exact magnitude. Define experimental success as the official task goal AND both terminal TCPs being within 0.025 m of their corresponding roller contact points, using only current simulator point positions; do not require episode history, accumulated contact, or a trajectory-derived success threshold. Independently report one scalar metric computed from the rollout trajectory that diagnoses the chosen hypothesis, but treat that scalar strictly as diagnostic evidence and never as the terminal success outcome.\nScene need: Generate an executable expert-solvable scene by translating the roller exactly 0.05 m along the world x-axis from its official-scene position. Preserve unchanged: task identity; policy checkpoint; official core predicate as a required conjunct.\nChecker need: Evaluate the boolean conjunction of the official goal, left TCP distance to the left roller contact point being at most 0.025 m, and right TCP distance to the right roller contact point being at most 0.025 m, using terminal current simulator point positions only.",
     "task_name": "grab_roller",
     "task_module": null,
     "telemetry_profile": "balanced_v1",
@@ -219,109 +229,110 @@
         "render",
         "visual_diagnosis",
         "expert",
-        "act",
+        "smolvla",
         "toolkit",
         "planned_tool",
+        "dynamic_vqa",
         "aggregate"
-      ]
+      ],
+      "policy_backend": "smolvla"
     },
     "observations": [
       "scene_alignment",
       "expert_solvable",
       "trusted_tools",
       "planned_tool",
+      "dynamic_vqa",
       "aggregate"
     ],
     "tool_request": {
       "schema_version": 1,
       "task_name": "grab_roller",
-      "metric": "official_check_success",
-      "question": "Fallback only: did the task success predicate pass?"
+      "metric": "generated_check_success",
+      "question": "Did the rollout satisfy the generated success predicate?"
     },
     "open_tool_request_deferred": true,
     "vqa_phenomenon_ids": [],
     "semantic_need_execution": {
       "schema_version": 2,
-      "candidate_id": "dynamic.grab.roller.object.geometry.graspable.scale.reduction.roller.15.act.5e696fb1d45c",
+      "candidate_id": "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff",
       "task": {
         "requested": true,
-        "description": "仅将roller的统一物体尺度设为原始尺度的0.85，保持位置、姿态、外观、光照、杂物和任务场景其他状态不变。 Preserve unchanged: task identity; policy checkpoint; roller初始位置和姿态; roller外观与材质; lighting and clutter.",
+        "description": "Generate an executable expert-solvable scene by translating the roller exactly 0.05 m along the world x-axis from its official-scene position. Preserve unchanged: task identity; policy checkpoint; official core predicate as a required conjunct.",
         "route": "generic_provider_scene_checker_codegen",
         "status": "selected"
       },
       "checker": {
-        "requested": false,
-        "description": null,
-        "route": "official_checker_reuse",
-        "status": "not_requested"
+        "requested": true,
+        "description": "Evaluate the boolean conjunction of the official goal, left TCP distance to the left roller contact point being at most 0.025 m, and right TCP distance to the right roller contact point being at most 0.025 m, using terminal current simulator point positions only.",
+        "route": "provider_written_python",
+        "status": "selected"
       },
       "rule_tool": {
         "requested": true,
-        "description": "复用或生成数值Rule Tool，记录roller峰值高度、双夹爪闭合状态以及左右TCP到对应接触位置的最小距离，用于区分接触对齐失败与抬升失败。 Hypothesis: 将roller的整体几何尺度在保持其初始位姿和材质不变的情况下缩小15%后，ACT的双夹爪接触或抬升高度将失败，导致官方抓取成功率低于未扰动基线。",
+        "description": "Report the terminal maximum of the left TCP-to-left-contact and right TCP-to-right-contact distances as one scalar.",
         "route": "after_executed_telemetry_schema",
         "status": "pending"
       },
       "vqa_tool": {
-        "requested": false,
-        "description": null,
-        "route": "not_requested",
-        "status": "not_requested"
+        "requested": true,
+        "description": "Report the peak over the rollout of the larger of the left TCP-to-left-contact and right TCP-to-right-contact distances as one diagnostic trajectory scalar.",
+        "route": "task_owned_or_generated_question",
+        "status": "pending"
       }
     }
   },
   "semantic_proposal": {
     "schema_version": 2,
     "action": "continue",
-    "sub_aspect": "object_geometry.graspable_scale_reduction",
-    "hypothesis": "将roller的整体几何尺度在保持其初始位姿和材质不变的情况下缩小15%后，ACT的双夹爪接触或抬升高度将失败，导致官方抓取成功率低于未扰动基线。",
+    "sub_aspect": "scene_robustness.roller_translation.terminal_tcp_alignment",
+    "hypothesis": "Translating the roller by exactly 0.05 m along the world x-axis will expose a terminal TCP alignment weakness, causing the combined experimental checker to fail despite the successful official-control result.",
     "requested_perturbation": {
-      "description": "仅将roller的统一物体尺度设为原始尺度的0.85，保持位置、姿态、外观、光照、杂物和任务场景其他状态不变。",
+      "description": "Translate the manipulated roller exactly 0.05 m along the world x-axis from its official-scene position while retaining an expert-solvable arrangement.",
       "controlled_changes": [
-        "roller的统一几何尺度缩小15%"
+        "roller position: official-scene position -> official-scene position plus 0.05 m along world x"
       ],
       "preserve": [
         "task identity",
         "policy checkpoint",
-        "roller初始位置和姿态",
-        "roller外观与材质",
-        "lighting and clutter"
+        "official core predicate as a required conjunct"
       ]
     },
     "scene_need": {
       "required": true,
-      "description": "通过load_actors对roller施加0.85的统一尺度变化并生成对应场景。"
+      "description": "Generate an executable expert-solvable scene by translating the roller exactly 0.05 m along the world x-axis from its official-scene position."
     },
     "checker_need": {
-      "required": false,
-      "description": null
+      "required": true,
+      "description": "Evaluate the boolean conjunction of the official goal, left TCP distance to the left roller contact point being at most 0.025 m, and right TCP distance to the right roller contact point being at most 0.025 m, using terminal current simulator point positions only."
     },
     "rule_tool_need": {
       "required": true,
-      "description": "复用或生成数值Rule Tool，记录roller峰值高度、双夹爪闭合状态以及左右TCP到对应接触位置的最小距离，用于区分接触对齐失败与抬升失败。",
+      "description": "Report the terminal maximum of the left TCP-to-left-contact and right TCP-to-right-contact distances as one scalar.",
       "reuse_first": true
     },
     "vqa_tool_need": {
-      "required": false,
-      "description": null,
+      "required": true,
+      "description": "Report the peak over the rollout of the larger of the left TCP-to-left-contact and right TCP-to-right-contact distances as one diagnostic trajectory scalar.",
       "reuse_first": true
     },
-    "rationale": "官方未扰动场景已成功，说明当前失败不太可能来自基本任务流程；但仅一轮成功不能回答哪种物体或场景变化最先暴露弱点。尺度缩小直接降低双臂抓取的几何容错，且是load_actors明确支持的物体属性变化，比改变不可用的策略噪声或控制精度更可执行。该单因素扰动可用峰值高度和TCP接触距离诊断失败机制，同时保留官方checker以判断任务是否仍成功。",
+    "rationale": "The official unchanged-scene control succeeded, so baseline task execution is not the remaining uncertainty. The next most informative test is the smallest permitted geometric displacement, exactly 0.05 m along one supported position axis, while preserving expert solvability. The checker directly tests the requested terminal alignment conjunction, and the separate rollout-peak distance diagnoses transient alignment weakness without replacing the terminal success verdict.",
     "task_need": {
       "required": true,
-      "description": "通过load_actors对roller施加0.85的统一尺度变化并生成对应场景。"
+      "description": "Generate an executable expert-solvable scene by translating the roller exactly 0.05 m along the world x-axis from its official-scene position. | Evaluate the boolean conjunction of the official goal, left TCP distance to the left roller contact point being at most 0.025 m, and right TCP distance to the right roller contact point being at most 0.025 m, using terminal current simulator point positions only."
     },
     "tool_need": {
       "required": true,
-      "description": "复用或生成数值Rule Tool，记录roller峰值高度、双夹爪闭合状态以及左右TCP到对应接触位置的最小距离，用于区分接触对齐失败与抬升失败。",
+      "description": "Report the terminal maximum of the left TCP-to-left-contact and right TCP-to-right-contact distances as one scalar. | Report the peak over the rollout of the larger of the left TCP-to-left-contact and right TCP-to-right-contact distances as one diagnostic trajectory scalar.",
       "reuse_first": true
     }
   },
   "semantic_resolution": {
     "schema_version": 1,
-    "semantic_sub_aspect": "object_geometry.graspable_scale_reduction",
+    "semantic_sub_aspect": "scene_robustness.roller_translation.terminal_tcp_alignment",
     "resolved_aspect_id": null,
     "resolved_template_id": null,
-    "resolved_candidate_id": "dynamic.grab.roller.object.geometry.graspable.scale.reduction.roller.15.act.5e696fb1d45c",
+    "resolved_candidate_id": "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff",
     "resolution": "proposal_reuse_or_generate",
     "hidden": false,
     "matched_tokens": [],

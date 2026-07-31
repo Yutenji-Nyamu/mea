@@ -5,12 +5,12 @@
   "requested_route": "auto",
   "resolved_route": "provider_python_codegen",
   "task_name": "grab_roller",
-  "metric": "query_left_tcp_to_roller_left_contact_min_distance",
+  "metric": "terminal_max_tcp_contact_distance",
   "exact_match": true,
   "matched_registry": "query_induced_python_tool",
   "reference_tool": null,
   "provider_required": false,
-  "reason": "registry miss triggered provider Python generation; static, determinism, oracle, artifact, and live-telemetry gates passed",
-  "catalog_snapshot_sha256": "f8e0ab1df719237948c3ec37a2989d4e058a123dec03875f69a694ca9f501b6d",
+  "reason": "registry miss triggered provider Python generation; static, semantic-review/oracle, determinism, artifact, and live-telemetry gates passed",
+  "catalog_snapshot_sha256": "47009391b0457d9ee5548f212da3279790a75b3fd58271c93ca2f9dc15730d02",
   "provider_called": true
 }

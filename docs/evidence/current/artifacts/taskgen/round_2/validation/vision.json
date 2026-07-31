@@ -1,22 +1,40 @@
 {
   "comparison_image": "official_vs_generated.png",
-  "confidence": 0.97,
-  "diagnosis": "The generated scene visibly shows the roller uniformly reduced in scale while preserving its apparent position, orientation, appearance, lighting, clutter, and other scene elements.",
+  "confidence": 0.82,
+  "diagnosis": "The generated scene is visible and physically plausible, with the roller visibly translated relative to the official scene. The exact 0.05 m displacement is not visually decidable from RGB alone.",
   "key_task_actors_visible": true,
   "model_requested": "gpt-5.6-luna",
   "passed": true,
   "provider_metadata": {
     "finish_reason": "stop",
-    "id": "resp_0d98040ad47d1b83016a6ae72ce9e48193b699f0c538ceea2e",
-    "model": "gpt-5.6-luna",
+    "id": "chatcmpl-E7d963vwYHJ3kbv6ETlmo1advLLpj",
+    "model": "gpt-5.6-luna-2026-07-09",
     "retry_count": 0,
     "usage": {
-      "completion_tokens": 246,
+      "completion_tokens": 338,
       "completion_tokens_details": {
-        "reasoning_tokens": 130
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 211,
+        "rejected_prediction_tokens": 0
       },
-      "prompt_tokens": 669,
-      "total_tokens": 915
+      "latency_checkpoint": {
+        "engine_tbt_ms": 9,
+        "engine_ttft_ms": 373,
+        "engine_ttlt_ms": 3260,
+        "pre_inference_ms": 91,
+        "service_tbt_ms": 9,
+        "service_ttft_ms": 1003,
+        "service_ttlt_ms": 3884,
+        "total_duration_ms": 3801,
+        "user_visible_ttft_ms": 912
+      },
+      "prompt_tokens": 723,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 1061
     }
   },
   "render_usable": true,

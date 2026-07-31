@@ -1,119 +1,139 @@
-# MEA method evidence: `eval_20260730_batch31_grab_roller_broad_live_v3`
+# MEA method evidence: eval_20260731_batch32_clean_flagship_live_v18
 
-> 当前仍以 batch31 作为已接受的可发布方法证据。后续 SmolVLA v10/v11 已产生真实
-> official-control policy episode，并由该 evidence 触发新的 Proposal，但都在 round 2
-> TaskGen 终止，尚未形成更完整的可接受 bundle，因此不替换本证据。完整 raw telemetry
-> 保留在服务器 evaluation 目录。
+> Compact, movable view of one real method run. Complete raw telemetry and Aggregate payloads remain in the server evaluation directory.
 
-## 运行范围
+## 1. Query and execution scope
 
-- Published commit: `4cb352b8acb62d271bb0718f504eafd7d5e4e229`
-- Query: “这个 ACT 策略在 `grab_roller` 任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？”
-- Policy / task / checkpoint: `ACT` / `grab_roller` / `act-grab_roller/demo_clean-50`
-- Seed / N: `100401` / `N=3` policy episodes（每轮 `N=1`，同一 seed）
-- Round budget: `3`
-- Final state: `stopped_after_round_3_budget_exhausted`
-- Query interpretation: [prompt](artifacts/plan/query_interpretation_prompt.md) · [response](artifacts/plan/query_interpretation_response_1.txt) · [structured result](artifacts/plan/query_interpretation.json)
+> Relative to the official grab task, does there exist a newly generated executable scene challenge that exposes a terminal alignment weakness in this policy? After observing official-control evidence, let the Plan Agent choose the most informative supported scene change without an aspect or template from me. To avoid a trivial perturbation, the chosen geometric scene change must displace the manipulated roller by at least 0.05 m while remaining expert-solvable; the Plan Agent chooses the axis and exact magnitude. Define experimental success as the official task goal AND both terminal TCPs being within 0.025 m of their corresponding roller contact points, using only current simulator point positions; do not require episode history, accumulated contact, or a trajectory-derived success threshold. Independently report one scalar metric computed from the rollout trajectory that diagnoses the chosen hypothesis, but treat that scalar strictly as diagnostic evidence and never as the terminal success outcome.
 
-## 2026-07-31 最新方法状态
+- Task: `grab_roller`
+- Policy: `SmolVLA`
+- Checkpoint: `lerobot/smolvla_robotwin`
+- Round budget / episodes: `3` / `[1, 1]`
 
-| 运行 | 新增证据 | 边界 |
-| --- | --- | --- |
-| SmolVLA v10 full | official control 成功；Plan Agent 依据 round-1 evidence 提出 distractor/clearance Proposal | round-2 TaskGen 两次均失败；没有第二次 policy rollout |
-| v10 TaskGen replay | 同一 Proposal 经一次局部 repair 后，模型编写的 scene+checker 通过 AST、`2/2` fixtures、render/VLM 与 expert gate | `0` policy rollout；只能证明 TaskGen repair，不是完整方法链 |
-| SmolVLA v11 full | official control 成功；evidence 后提出 lateral-offset scene、双接触 checker 与独立 trajectory Tool need | 瞬时 PhysX contact 在 expert terminal state 为假；repair 后仍失败，没有 round-2 rollout 或 Answer |
-| v11 TaskGen replay | repair 改写后通过执行 gate | “夹爪闭合”只是“双接触”的相关代理；post-hoc 语义审计拒绝该 artifact，不计为正证据 |
-
-因此最新进展是：**evidence-conditioned Proposal 已在原生 SmolVLA 运行中重复出现，且
-TaskGen 一次局部 repair 已有正例；但 Proposal → 语义忠实 checker → rollout → Tool →
-Aggregate → 下一轮/停止 尚未在同一个干净 bundle 中合一。**
-
-最小补充证据：
-
-- v10 full：[精简状态](../supplements/2026-07-31/v10_full/summary.json)
-- v10 TaskGen repair：
-  [Proposal](../supplements/2026-07-31/v10_taskgen_repair/proposal.json) ·
-  [生成代码](../supplements/2026-07-31/v10_taskgen_repair/task.py) ·
-  [两次尝试](../supplements/2026-07-31/v10_taskgen_repair/provider_attempts.json) ·
-  [验证摘要](../supplements/2026-07-31/v10_taskgen_repair/validation_summary.json) ·
-  [场景对比](../supplements/2026-07-31/v10_taskgen_repair/scene_comparison.png)
-- v11 full negative：
-  [Query](../supplements/2026-07-31/v11_full/request.json) ·
-  [Plan Agent/失败摘要](../supplements/2026-07-31/v11_full/summary.json) ·
-  [round-2 Proposal](../supplements/2026-07-31/v11_full/round_2_proposal.json)
-- v11 replay rejection：
-  [Proposal](../supplements/2026-07-31/v11_posthoc_rejected/proposal.json) ·
-  [生成代码](../supplements/2026-07-31/v11_posthoc_rejected/task.py) ·
-  [语义审计](../supplements/2026-07-31/v11_posthoc_rejected/posthoc_semantic_audit.json)
-
-## 方法数据流
+## 2. Paper-level data flow
 
 ```mermaid
 flowchart LR
-  Q["Open Query"] --> P["Plan Agent / Proposal"]
-  P --> T["TaskGen / visual check"]
-  T --> R["Policy rollout"]
-  R --> V["Rule Tool + VQA"]
+  Q["Open Query"] --> P["Plan Agent / sub-aspect"]
+  P --> T["TaskGen: reuse or generate"]
+  T --> I["Render / visual reflection"]
+  I --> E["Policy rollout"]
+  E --> V["Rule Tool + dynamic VQA"]
   V --> A["Aggregate"]
   A -->|"evidence"| P
-  A --> F["Answer"]
+  A --> R["Final answer"]
 ```
 
-- Round 1 的 control evidence 触发新的尺度 sub-aspect；Round 2 的不充分证据又触发更强尺度与另一侧观测。
-- 两次生成场景均通过 fixture、视觉和 expert gate；它们都复用未改写的 official
-  `check_success()`，最终因预算而非证据充分停止。
+## 3. Plan Agent trace
 
-## Round 1 — official baseline
+- Goal: answer_open_query_with_evidence: Relative to the official grab task, does there exist a newly generated executable scene challenge that exposes a terminal alignment weakness in this policy? After observing official-control evidence, let the Plan Agent choose the most informative supported scene change without an aspect or template from me. To avoid a trivial perturbation, the chosen geometric scene change must displace the manipulated roller by at least 0.05 m while remaining expert-solvable; the Plan Agent chooses the axis and exact magnitude. Define experimental success as the official task goal AND both terminal TCPs being within 0.025 m of their corresponding roller contact points, using only current simulator point positions; do not require episode history, accumulated contact, or a trajectory-derived success threshold. Independently report one scalar metric computed from the rollout trajectory that diagnoses the chosen hypothesis, but treat that scalar strictly as diagnostic evidence and never as the terminal success outcome.
+- Initial round: `round_1`
+- Final planning state: `stopped_after_round_2`
+- Query interpretation trace: [prompt](artifacts/plan/query_interpretation_prompt.md) / [response 1](artifacts/plan/query_interpretation_response_1.txt)
 
-- Proposal：先确认未扰动任务能执行；TaskGen：`official_passthrough`；rollout：成功 `1/1`。
-- Tool：复用 `official_check_success=true`；VQA：`passed`、无冲突；Aggregate：`passed`。
-- Plan decision：证据不足以定位弱点，`continue → switch_concern`，下一轮测试可执行的物体尺度变化。
-- Artifacts: [VariantSpec](data/round_1_variant_spec.json) · [render](assets/round_1_scene.png) · [video](assets/round_1_act.mp4) · [Tool](artifacts/tool/round_1/tool_execution.json) · [VQA](artifacts/vqa/round_1.json) · [VQA montage](assets/round_1_vqa_montage.png) · [Aggregate](artifacts/aggregate/round_1.json) · [decision](artifacts/plan/decisions/after_round_1.json)
-- Next-step trace: [prompt](artifacts/plan/plan_agent_steps/after_round_01/prompt.md) · [response](artifacts/plan/plan_agent_steps/after_round_01/response_1.txt) · [bound Proposal](artifacts/plan/plan_agent_steps/after_round_01/bound_semantic_step.json)
+## 4.1. `round_1` — task_execution.official_baseline
 
-![Round 1 render](assets/round_1_scene.png)
+### Plan → TaskGen
 
-## Round 2 — roller scale `0.85`
+- Task: `grab_roller`
+- Route/materialization: `official` / `official_passthrough`
+- Gates: {"generation_attempts": null, "checker_fixtures": null, "vision_passed": null, "expert_passed": null}
+- Generated/reused source: N/A (artifact was not present)
 
-- Proposal：缩小可抓取 roller 以降低双臂抓取几何容错；TaskGen：provider 只生成
-  scene；`checker_need=null`，runtime 注入未改写的 official `check_success()`，首次生成
-  通过 `2/2` official-checker fixtures、visual 和 expert gates。
-- Rollout：官方成功 `1/1`；Tool：生成 `query_left_tcp_to_roller_left_contact_min_distance=0.022060869 m`；VQA：`passed`、无冲突；Aggregate：`passed`。
-- Plan decision：单侧距离与成功样本仍不足以定位边界，`continue → switch_concern`，细化到 `0.70` 并补另一侧观测。
-- Generation: [Proposal](artifacts/taskgen/round_2/generation/proposal.json) · [prompt](artifacts/taskgen/round_2/generation/code_prompt.md) · [response](artifacts/taskgen/round_2/generation/provider_response.txt) · [task code](code/round_2_task.py)
-- Validation: [official-checker fixtures](artifacts/taskgen/round_2/validation/checker_fixtures.json) · [visual result](artifacts/taskgen/round_2/validation/vision.json) · [visual prompt](artifacts/taskgen/round_2/validation/vision_prompt.md) · [expert gate](artifacts/taskgen/round_2/validation/expert_preflight.json)
-- Evidence: [render](assets/round_2_scene.png) · [scene comparison](artifacts/taskgen/round_2/evidence/scene_comparison.png) · [video](assets/round_2_act.mp4) · [Tool code](code/round_2_tool.py) · [Tool result](artifacts/tool/round_2/tool_execution.json) · [VQA](artifacts/vqa/round_2.json) · [VQA montage](assets/round_2_vqa_montage.png) · [Aggregate](artifacts/aggregate/round_2.json) · [decision](artifacts/plan/decisions/after_round_2.json)
-- Next-step trace: [prompt](artifacts/plan/plan_agent_steps/after_round_02/prompt.md) · [response](artifacts/plan/plan_agent_steps/after_round_02/response_1.txt) · [bound Proposal](artifacts/plan/plan_agent_steps/after_round_02/bound_semantic_step.json)
+### Render / scene check
 
-![Round 2 render](assets/round_2_scene.png)
+N/A - no real scene image was found.
 
-## Round 3 — roller scale `0.70`
+### Rollout
 
-- Proposal：进一步缩小同一物体属性；TaskGen：provider 只生成 scene；
-  `checker_need=null`，runtime 注入未改写的 official `check_success()`，首次生成通过
-  `2/2` official-checker fixtures、visual 和 expert gates。
-- Rollout：官方成功 `1/1`；Tool：生成 `query_right_tcp_to_roller_right_contact_min_distance=0.046543039 m`；VQA：`passed`、无冲突；Aggregate：`passed`。
-- Plan decision：`stop`；QueryContract 判定 `evidence_sufficient=false`、`claim_verdict=inconclusive`、`stop_reason=budget_exhausted`。
-- Generation: [Proposal](artifacts/taskgen/round_3/generation/proposal.json) · [prompt](artifacts/taskgen/round_3/generation/code_prompt.md) · [response](artifacts/taskgen/round_3/generation/provider_response.txt) · [task code](code/round_3_task.py)
-- Validation: [official-checker fixtures](artifacts/taskgen/round_3/validation/checker_fixtures.json) · [visual result](artifacts/taskgen/round_3/validation/vision.json) · [visual prompt](artifacts/taskgen/round_3/validation/vision_prompt.md) · [expert gate](artifacts/taskgen/round_3/validation/expert_preflight.json)
-- Evidence: [render](assets/round_3_scene.png) · [scene comparison](artifacts/taskgen/round_3/evidence/scene_comparison.png) · [video](assets/round_3_act.mp4) · [Tool code](code/round_3_tool.py) · [Tool result](artifacts/tool/round_3/tool_execution.json) · [VQA](artifacts/vqa/round_3.json) · [VQA montage](assets/round_3_vqa_montage.png) · [Aggregate](artifacts/aggregate/round_3.json) · [decision](artifacts/plan/decisions/after_round_3.json)
+- Backend/seeds: `SmolVLA` / `[100401]`
+- Pipeline/policy success: `True` / `1.0`
 
-![Round 3 render](assets/round_3_scene.png)
+[Open policy video](assets/round_1_act.mp4)
 
-## 最终 Answer
+<video src="assets/round_1_act.mp4" controls width="720"></video>
 
-> 目前无法确定 ACT 最先在哪种物体属性或场景变化上暴露弱点。基线、roller 缩小至原尺度 `0.85`、以及缩小至 `0.70` 的测试均通过官方成功检查；因此在本次已测试范围内尚未观察到任务失败，结论为不确定。
+### Tool / VQA
 
-- Stop/verdict: `budget_exhausted` / `inconclusive`；不是 evidence-sufficient stop。
-- Findings: 三轮均 `1/1` 通过；执行链无证据冲突；没有观测到“最早弱点”。
-- Limitation: 仅 `N=3` 且使用同一 seed；候选空间未封闭，不能推出最坏情况或一般化结论。
-- Limitation: 两个 Query-derived candidate 的 preservation 与 required-observation 覆盖仍不完整，不能将结果视为原始扰动意图的决定性证据。
-- Next: 完整验证尺度扰动与双侧观测后，以多个新 seed 做更细尺度扫描，再用首次失败尺度回答 Query。
-- Answer artifacts: [answer](artifacts/answer/answer.json) · [query answer](artifacts/answer/query_answer.json) · [final Aggregate](artifacts/aggregate/final.json) · [semantic re-audit](artifacts/audit/semantic_alignment_reaudit.json)
+- Tool: `reuse` → `official_check_success`
+- Values: [{"role": "policy_under_evaluation", "policy_name": "SmolVLA", "seed": 100401, "value": true, "unit": null, "passed": true}]
+- VQA status: `None`; conflict: `None`
 
-## 证据边界
+### Aggregate -> next decision
 
-- Policy 成功与 pipeline gate 分开报告；expert gate 只验证可解性/仪器链，不代表被评策略性能。
-- 每轮 `N=1` 只证明方法接线；post-run re-audit 使用缓存证据、启动 `0` 个新 rollout，不增加性能证据。
-- 本 README 只做人工可读索引；字段真值见 [run_summary.json](run_summary.json)，文件完整性见 [evidence_bundle_manifest.json](evidence_bundle_manifest.json)。
-- Raw source: server `mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3`。
+- Aggregate: {"status": "passed", "source_count": 1, "episode_result_count": 1, "unique_episode_count": 1, "metric_ids": ["official_check_success"], "input_issue_count": 0}
+- Decision: {"action": "continue", "transition": "switch_concern", "decision_reason": "provider_authored_open_world_step", "observation_summary": "The official unchanged-scene control succeeded, so baseline task execution is not the remaining uncertainty. The next most informative test is the smallest permitted geometric displacement, exactly 0.05 m along one supported position axis, while preserving expert solvability. The checker directly tests the requested terminal alignment conjunction, and the separate rollout-peak distance diagnoses transient alignment weakness without replacing the terminal success verdict.", "answered_query": false, "evidence_sufficient": null, "claim_verdict": null, "stop_reason": null}
+
+## 4.2. `round_2` — scene_robustness.roller_translation.terminal_tcp_alignment
+
+### Plan → TaskGen
+
+- Task: `grab_roller`
+- Route/materialization: `generic_provider_scene_checker_codegen` / `generic_provider_scene_checker_codegen`
+- Gates: {"generation_attempts": 2, "checker_fixtures": "2/2", "vision_passed": true, "expert_passed": true}
+- Proposal: [proposal.json](artifacts/taskgen/round_2/generation/proposal.json)
+- Provider trace: [prompt](artifacts/taskgen/round_2/generation/code_prompt.md) / [response](artifacts/taskgen/round_2/generation/provider_response.txt)
+- Task artifact: [round_2_task.py](code/round_2_task.py)
+
+### Render / scene check
+
+![round_2 initial scene](assets/round_2_scene.png)
+
+### Rollout
+
+- Backend/seeds: `SmolVLA` / `[100401]`
+- Pipeline/policy success: `True` / `0.0`
+
+[Open policy video](assets/round_2_act.mp4)
+
+<video src="assets/round_2_act.mp4" controls width="720"></video>
+
+### Tool / VQA
+
+- Tool: `provider_python_codegen` → `terminal_max_tcp_contact_distance`
+- Values: [{"role": "policy_under_evaluation", "policy_name": "SmolVLA", "seed": 100401, "value": 0.24384725093841553, "unit": "m", "passed": null}]
+- [Open generated/reused Tool source](code/round_2_tool.py)
+- VQA status: `passed`; conflict: `False`
+
+![round_2 VQA keyframes](assets/round_2_vqa_montage.png)
+
+### Aggregate -> next decision
+
+- Aggregate: {"status": "passed", "source_count": 2, "episode_result_count": 2, "unique_episode_count": 2, "metric_ids": ["generated_check_success", "terminal_max_tcp_contact_distance"], "input_issue_count": 0}
+- Decision: {"action": "stop", "transition": "stop", "decision_reason": "provider_authored_open_world_step", "observation_summary": "The official-scene control succeeded, while the bounded 0.05 m roller translation produced a sufficient experimental failure under the required official-goal-and-terminal-alignment predicate. This answers the existence question; the trajectory-independent terminal diagnostic also showed a 0.24384725093841553 m maximum TCP-to-contact distance.", "answered_query": true, "evidence_sufficient": null, "claim_verdict": null, "stop_reason": null}
+
+## 5. Final answer to the original Query
+
+> 是。在 grab_roller 任务中，Plan Agent 选择将 roller 沿世界 x 轴平移 0.05 m，并验证该场景可由专家解决。官方未改变场景控制成功；但在平移场景中，SmolVLA 未完成由官方目标与两个 terminal TCP-接触点距离均不超过 0.025 m 组成的实验谓词。因此，在本次有限实验范围内发现了 terminal alignment weakness。
+
+- Finding: 官方未改变场景中，官方检查成功率为 1/1。
+- Finding: 0.05 m 世界 x 轴 roller 平移场景通过了场景生成、执行、专家可解性及工具验证。
+- Finding: 平移场景中，官方核心谓词仍满足，但组合实验检查失败，策略成功率为 0/1；因此策略未完成该实验任务。
+- Finding: terminal 最大 TCP-to-contact 距离为 0.24384725093841553 m，明显超过 0.025 m 阈值。
+- Finding: 执行 VQA 无证据冲突，并在 final 帧定性观察到左 TCP 看起来比右 TCP 更远离对应接触点；该观察仅为支持性视觉证据。
+- Next: 在保持同一官方谓词和 terminal 0.025 m 阈值的前提下，使用至少多个新的独立种子重复该 0.05 m 世界 x 轴平移场景，并从 rollout telemetry 明确输出轨迹峰值 TCP-to-contact 距离，分别与 terminal 距离及官方检查结果对照。
+- Limitation: 结论仅适用于本次任务、checkpoint、0.05 m 世界 x 轴平移候选及种子 100401。
+- Limitation: N=2 且只有一个唯一种子 [100401]，不是统计泛化保证。
+- Limitation: 候选域开放，未测试其他场景变化，不能推出穷尽性、最坏情况或普遍鲁棒性结论。
+- Limitation: generated_check_success 不是官方 benchmark success；本次失败表示有界实验谓词失败，而非官方检查失败。
+- Limitation: 证据中未提供所要求的轨迹峰值标量的数值；0.24384725093841553 m 是 terminal 诊断值，不能改写为轨迹峰值。
+- Limitation: Evidence contains N=2 policy episodes at seeds [100401].
+- Limitation: The run stopped because the finite query-sufficiency contract was satisfied; this is not a statistical generalization guarantee.
+## 6. Boundaries
+
+- Policy results and pipeline status are reported separately.
+- Expert evidence, when present, is a solvability/instrumentation gate, not evaluated-policy performance.
+- Few-shot N=1 rounds demonstrate method wiring, not benchmark-level generalization.
+- Missing artifacts are shown as N/A; this report never substitutes proxy images or invented values.
+
+## 7. Artifact index
+
+- [Compact machine summary](run_summary.json)
+- [Published-file inventory with bytes and SHA-256](evidence_bundle_manifest.json)
+- Complete raw source remains server-side at `mea/evaluation_runs/eval_20260731_batch32_clean_flagship_live_v18`.
+
+### Completed-round Tool reuse audit
+
+{"repair_id": "independent_query_tool_reuse_v1", "act_rollouts_started": 0, "first_query_route": "provider_python_codegen", "first_query_measurements": [0.24384725093841553], "exact_reuse_route": "run_local_reuse", "exact_reuse_provider_called": false, "aggregate_status": "source_round_passed_not_recomputed", "acceptance_projection": {"status": "completed", "source_summary_path": "summary/summary.json", "projection_source": "current_code_post_run", "artifact": "artifacts/audit/completed_round_reuse/acceptance_projection.json", "accepted": true, "candidate_execution_accepted": true}}
+This audit reuses completed policy telemetry and starts no simulator or policy rollout. It proves exact run-local reuse, not independent cross-evaluation reuse.

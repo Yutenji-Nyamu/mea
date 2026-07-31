@@ -2,11 +2,10 @@
   "schema_version": 1,
   "status": "passed",
   "source_count": 1,
-  "episode_result_count": 2,
+  "episode_result_count": 1,
   "unique_episode_count": 1,
   "metric_ids": [
-    "official_check_success",
-    "time_to_success"
+    "official_check_success"
   ],
   "input_issue_count": 0,
   "input_issues": [],
@@ -22,7 +21,7 @@
         {
           "role": "policy_under_evaluation",
           "policy_names": [
-            "ACT"
+            "SmolVLA"
           ],
           "summary": {
             "episode_result_count": 1,
@@ -99,55 +98,6 @@
             },
             "unit": null,
             "value_kind": "boolean"
-          }
-        }
-      ]
-    },
-    {
-      "metric": "time_to_success",
-      "tools": [
-        "time_to_success"
-      ],
-      "unit": "s",
-      "value_kind": "numeric",
-      "cohorts": [
-        {
-          "role": "policy_under_evaluation",
-          "policy_names": [
-            "ACT"
-          ],
-          "summary": {
-            "episode_result_count": 1,
-            "quality": {
-              "invalid": {
-                "value": 0
-              },
-              "missing": {
-                "value": 0
-              },
-              "valid": {
-                "value": 1
-              }
-            },
-            "statistics": {
-              "max": {
-                "value": 30.308
-              },
-              "mean": {
-                "value": 30.308
-              },
-              "median": {
-                "value": 30.308
-              },
-              "min": {
-                "value": 30.308
-              },
-              "population_stddev": {
-                "value": 0.0
-              }
-            },
-            "unit": "s",
-            "value_kind": "numeric"
           }
         }
       ]

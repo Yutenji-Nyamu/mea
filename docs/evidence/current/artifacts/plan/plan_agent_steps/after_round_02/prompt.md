@@ -1,10 +1,11 @@
 You are the Plan Agent in ManipEvalAgent.
 Discover a small set of evaluation sub-aspects online.  There is no predeclared
 candidate/template-ID itinerary, success-then-switch script, or fallback route.
-Supported controlled axes and operations may appear in the capability cards;
-they are execution boundaries, not a prescribed test order.  Choose only the
-single most informative next experiment for the original Query, using the
-policy/simulator capabilities and completed evidence below.
+The capability card exposes only backend primitives such as scene/checker
+generation, telemetry, Rule/VQA Tools, and artifact retrieval.  It is an
+execution boundary, not an operation menu or prescribed test order.  Choose
+only the single most informative next experiment for the original Query, using
+the policy/simulator capabilities and completed evidence below.
 
 For action=continue, invent a precise semantic sub_aspect identifier and one
 falsifiable hypothesis.  Request a bounded perturbation supported by the
@@ -14,15 +15,44 @@ a scene or checker merely because a Tool is needed, and do not couple scene
 and checker needs.  A new Tool need may be named even when it is not in an
 existing metric/question list.  Avoid repeating a tested perturbation unless
 ambiguous evidence requires a more observable version.
-The generic RoboTwin TaskGen surface can change only what the advertised
-allowed_change_roots directly implement.  In particular, load_actors can alter
-actors, assets, appearance, scale, pose, clutter, lighting, and other simulator
-scene state; it cannot reduce policy/controller/gripper precision, inject
-action noise or latency, or change policy weights unless an explicit runtime
-intervention root is advertised.  After successful evidence, refine to another
-executable physical scene/checker/tool concern instead of relabelling a scene
+Each Rule/VQA need must name one primary scalar or boolean observation for this
+round.  Leave independent measurements for a later evidence-conditioned round
+instead of bundling them into one Tool request.
+For both rule_tool_need and vqa_tool_need, reuse_first MUST always be true,
+including when required=false: retrieve-first is the ToolGen method contract,
+not a choice to bypass reuse.
+State the intentional delta in requested_perturbation.description and
+controlled_changes with an explicit operation and concrete value or direction;
+put unchanged conditions only in preserve.  When scene_need.required is true,
+repeat that same explicit delta in scene_need.description.  Preserve only the
+isolation-critical factors supported by a current preservation authority.
+Fields merely listed as observable in the simulator card are measurement
+capabilities, not preservation authorities.  Use "task identity" and "policy
+checkpoint" as the default preserve set; add another condition only when the
+current input identifies an authority that can compare it.  Do not add actor
+identity, physics timestep, or object-to-target binding merely because those
+fields appear in simulator metadata.  When an additional experimental checker
+must retain the official goal, add exactly "official core predicate as a
+required conjunct" to preserve.  Do not call the extended checker "official
+success semantics" or claim full equivalence.
+Request a generated checker only when every added relation is directly
+observable from the advertised current-state simulator API.  Gripper closure
+is not target contact, sequential events are not simultaneous events, and
+height is not placement.  A declared actor contact point is a geometric
+reference, not a PhysX contact-event identity: do not request that "point i is
+physically contacted" unless the runtime explicitly binds collision contacts
+to that point ID.  Prefer a directly observable point/TCP distance condition
+or an entity-pair contact condition with exactly the semantics the API
+supports.  If the exact relation is unavailable, choose a
+scene-only experiment with a Rule/VQA observation, or another informative
+sub-aspect, instead of asking TaskGen to implement a correlated proxy.
+TaskGen may retrieve or generate scene and checker code; ToolGen may retrieve
+or generate Rule/VQA Tools.  These artifact primitives do not authorize policy
+or controller intervention: do not reduce gripper precision, inject action
+noise or latency, or change policy weights.  After successful evidence, refine
+to another executable scene/checker/tool concern instead of relabelling a scene
 change as an unavailable policy intervention.
-If a Query calls an episode successful only when the official goal and any additional experimental condition both hold, request checker_need. A numeric difference Tool reports magnitude but cannot supply that pass/fail predicate.
+If a Query calls an episode successful only when the official goal and any additional experimental condition both hold, request checker_need. A numeric difference Tool reports magnitude but cannot supply that pass/fail predicate. Mentioning the official goal or official predicate as one component of a combined condition does not make the Query official-only; record that invariant as 'official core predicate as a required conjunct', never as full official-success equivalence, and preserve every additional condition from the original Query. When both checker_need and rule_tool_need are required, keep their roles distinct: checker_need must describe a boolean conjunction such as 'official goal AND distractor remains uncontacted', while rule_tool_need describes the scalar or boolean observation used to diagnose it. Never copy a raw numeric measurement into checker_need as though it were a pass/fail predicate. If the checker applies a terminal-state distance threshold, the same-round Rule Tool must report the terminal value of that same distance. A trajectory peak or maximum is a separate trajectory weakness, not a scalar for setting the terminal threshold; later evidence refinement must not use its scale to relax, replace, or calibrate the terminal predicate. check_success is evaluated from simulator state, not from a whole-trajectory derived metric: smoothness, deviation, jerk, path length, or trajectory clearance belongs in rule_tool_need, never behind an invented checker helper.
 
 Use success to probe the most consequential remaining uncertainty; use failure
 to discriminate a causal failure hypothesis; use ambiguous evidence to improve
@@ -30,9 +60,23 @@ observability or isolate the confound.  When completed evidence is non-empty,
 the rationale must cite a concrete observed outcome or limitation and explain
 why it changed the priority of this sub-aspect.  Do not present a candidate
 that was already frozen before seeing that evidence as evidence-conditioned
-refinement.  For a broad robustness Query, for example, a successful control
+refinement.  If completed evidence contains a finite scalar, bracket the next
+intervention or falsifiable threshold around that observed scale; do not invent
+a distant numeric boundary unrelated to the measurement.  For a broad
+robustness Query, for example, a successful control
 can justify selecting the highest-risk supported perturbation, while a failed
 control should redirect to baseline reliability or failure diagnosis.
+
+Interpret completed evidence by its declared role.  The top-level `outcome`
+is the authoritative verdict for the tested hypothesis.  A
+`diagnostic_tool_measurements` value is supporting diagnosis only and never
+rewrites that verdict.  Preserve the Tool's temporal semantics exactly:
+`peak`/`maximum over the rollout` is not a terminal/current-state value.
+Failure example: if `outcome="success"` for a terminal checker while a
+trajectory-peak distance is large, do not call that a terminal failure or a
+failing existential witness.  The correct next step may diagnose the large
+transient or choose a stronger scene challenge, but it must retain the
+successful terminal-checker result.
 
 Stop only when the completed evidence already answers the original Query.  For
 action=stop set sub_aspect and
@@ -41,27 +85,32 @@ required=false/description=null, and express the evidence-supported conclusion
 in hypothesis.
 
 ORIGINAL QUERY:
-这个ACT策略在grab_roller任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？
+Relative to the official grab task, does there exist a newly generated executable scene challenge that exposes a terminal alignment weakness in this policy? After observing official-control evidence, let the Plan Agent choose the most informative supported scene change without an aspect or template from me. To avoid a trivial perturbation, the chosen geometric scene change must displace the manipulated roller by at least 0.05 m while remaining expert-solvable; the Plan Agent chooses the axis and exact magnitude. Define experimental success as the official task goal AND both terminal TCPs being within 0.025 m of their corresponding roller contact points, using only current simulator point positions; do not require episode history, accumulated contact, or a trajectory-derived success threshold. Independently report one scalar metric computed from the rollout trajectory that diagnoses the chosen hypothesis, but treat that scalar strictly as diagnostic evidence and never as the terminal success outcome.
 
 
 POLICY AND SIMULATOR CAPABILITIES:
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "policy_card": {
     "schema_version": 1,
-    "policy_name": "ACT",
-    "checkpoint_id": "act-grab_roller/demo_clean-50",
-    "checkpoint_setting": "demo_clean",
-    "expert_data_num": 50,
-    "language_conditioned": false,
-    "single_task_checkpoint": true,
+    "policy_name": "SmolVLA",
+    "checkpoint_id": "lerobot/smolvla_robotwin",
+    "checkpoint_setting": "shared_official",
+    "expert_data_num": null,
+    "language_conditioned": true,
+    "single_task_checkpoint": false,
+    "training_tasks": [
+      "grab_roller"
+    ],
+    "supports_unseen_tasks": false,
     "task_name": "grab_roller",
     "action_dimension": 14,
     "checkpoint_ready": true,
     "unknown_metadata": [
       "action_scaling",
       "camera_names",
-      "observation_keys"
+      "observation_keys",
+      "expert_data_num"
     ]
   },
   "simulator_card": {
@@ -100,27 +149,14 @@ POLICY AND SIMULATOR CAPABILITIES:
     }
   },
   "generation_card": {
-    "taskgen_operations": [
-      {
-        "operation": "official_passthrough",
-        "controlled_axis": null,
-        "generation_mode": null,
-        "allowed_change_roots": []
-      },
-      {
-        "operation": "retrieve_or_generate_scene_checker",
-        "controlled_axis": null,
-        "generation_mode": "generic_provider_scene_checker_codegen",
-        "allowed_change_roots": [
-          "load_actors",
-          "check_success"
-        ]
-      }
-    ],
-    "toolgen": {
-      "retrieve_first": true,
-      "can_generate_rule_metric": true,
-      "can_generate_vqa_question": true
+    "backend_primitives": {
+      "scene": true,
+      "checker": true,
+      "telemetry": true,
+      "rule": true,
+      "vqa": true,
+      "retrieve": true,
+      "generate": true
     }
   }
 }
@@ -131,10 +167,10 @@ COMPLETED ROUND EVIDENCE (chronological; empty means first proposal):
     "schema_version": 1,
     "round_id": "round_1",
     "tested_sub_aspect": "task_execution.official_baseline",
-    "tested_hypothesis": "这个ACT策略在grab_roller任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？",
+    "tested_hypothesis": "Relative to the official grab task, does there exist a newly generated executable scene challenge that exposes a terminal alignment weakness in this policy? After observing official-control evidence, let the Plan Agent choose the most informative supported scene change without an aspect or template from me. To avoid a trivial perturbation, the chosen geometric scene change must displace the manipulated roller by at least 0.05 m while remaining expert-solvable; the Plan Agent chooses the axis and exact magnitude. Define experimental success as the official task goal AND both terminal TCPs being within 0.025 m of their corresponding roller contact points, using only current simulator point positions; do not require episode history, accumulated contact, or a trajectory-derived success threshold. Independently report one scalar metric computed from the rollout trajectory that diagnoses the chosen hypothesis, but treat that scalar strictly as diagnostic evidence and never as the terminal success outcome.",
     "tested_perturbation": "unchanged official-scene control",
     "outcome": "success",
-    "evidence_summary": "EvidencePacket strength=sufficient; policy_success_rate=1.0; Rule metric=official_check_success; outcome_metric=official_check_success; outcome_authority=official_check_success; outcome_semantics=official_only; VQA status=passed; planned_tool_measurements=[{\"metric\": \"official_check_success\", \"null_reason\": null, \"passed\": true, \"provider_called\": false, \"route\": \"reuse\", \"unit\": null, \"value\": true}].",
+    "evidence_summary": "EvidencePacket strength=sufficient; authoritative_candidate_outcome=success; success_predicate_metric=official_check_success; success_predicate_value=1.0; success_predicate_authority=official_check_success; success_predicate_semantics=official_only; policy_success_rate=1.0; Rule metric=official_check_success; VQA status=skipped; diagnostic_tool_role=supporting_measurement_not_success_authority; diagnostic_tool_measurements=[{\"metric\": \"official_check_success\", \"null_reason\": null, \"passed\": true, \"provider_called\": false, \"route\": \"reuse\", \"unit\": null, \"value\": true}].",
     "limitations": [
       "One bounded runtime round is not a statistical generalization estimate."
     ]
@@ -142,14 +178,15 @@ COMPLETED ROUND EVIDENCE (chronological; empty means first proposal):
   {
     "schema_version": 1,
     "round_id": "round_2",
-    "tested_sub_aspect": "object_geometry.graspable_scale_reduction",
-    "tested_hypothesis": "这个ACT策略在grab_roller任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？\nScene need: 仅将roller的统一物体尺度设为原始尺度的0.85，保持位置、姿态、外观、光照、杂物和任务场景其他状态不变。 Preserve unchanged: task identity; policy checkpoint; roller初始位置和姿态; roller外观与材质; lighting and clutter.\nChecker need: reuse the official implementation",
-    "tested_perturbation": "dynamic.grab.roller.object.geometry.graspable.scale.reduction.roller.15.act.5e696fb1d45c",
-    "outcome": "ambiguous",
-    "evidence_summary": "EvidencePacket strength=uncertain; policy_success_rate=1.0; Rule metric=query_left_tcp_to_roller_left_contact_min_distance; outcome_metric=official_check_success; outcome_authority=official_check_success_reused; outcome_semantics=official_only; VQA status=passed; planned_tool_measurements=[{\"metric\": \"query_left_tcp_to_roller_left_contact_min_distance\", \"null_reason\": \"measured\", \"passed\": null, \"provider_called\": true, \"route\": \"provider_python_codegen\", \"unit\": \"m\", \"value\": 0.02206086926162243}].",
+    "tested_sub_aspect": "scene_robustness.roller_translation.terminal_tcp_alignment",
+    "tested_hypothesis": "Relative to the official grab task, does there exist a newly generated executable scene challenge that exposes a terminal alignment weakness in this policy? After observing official-control evidence, let the Plan Agent choose the most informative supported scene change without an aspect or template from me. To avoid a trivial perturbation, the chosen geometric scene change must displace the manipulated roller by at least 0.05 m while remaining expert-solvable; the Plan Agent chooses the axis and exact magnitude. Define experimental success as the official task goal AND both terminal TCPs being within 0.025 m of their corresponding roller contact points, using only current simulator point positions; do not require episode history, accumulated contact, or a trajectory-derived success threshold. Independently report one scalar metric computed from the rollout trajectory that diagnoses the chosen hypothesis, but treat that scalar strictly as diagnostic evidence and never as the terminal success outcome.\nScene need: Generate an executable expert-solvable scene by translating the roller exactly 0.05 m along the world x-axis from its official-scene position. Preserve unchanged: task identity; policy checkpoint; official core predicate as a required conjunct.\nChecker need: Evaluate the boolean conjunction of the official goal, left TCP distance to the left roller contact point being at most 0.025 m, and right TCP distance to the right roller contact point being at most 0.025 m, using terminal current simulator point positions only.",
+    "tested_perturbation": "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff",
+    "outcome": "failure",
+    "evidence_summary": "EvidencePacket strength=sufficient; authoritative_candidate_outcome=failure; success_predicate_metric=generated_check_success; success_predicate_value=0.0; success_predicate_authority=llm_generated_python_ast_validated; success_predicate_semantics=expected_semantic_extension; policy_success_rate=0.0; Rule metric=terminal_max_tcp_contact_distance; VQA status=passed; diagnostic_tool_role=supporting_measurement_not_success_authority; diagnostic_tool_measurements=[{\"metric\": \"terminal_max_tcp_contact_distance\", \"null_reason\": \"measured\", \"passed\": null, \"provider_called\": true, \"returns_diagnostic_not_success\": true, \"route\": \"provider_python_codegen\", \"unit\": \"m\", \"value\": 0.24384725093841553}].",
     "limitations": [
       "One bounded runtime round is not a statistical generalization estimate.",
-      "The typed Rule/VQA/pipeline evidence is not sufficient: original_intent_incomplete"
+      "This round is judged by the bounded generated_check_success predicate and is not an official RoboTwin success result.",
+      "The generated checker has not been certified as equivalent to the official core predicate; its verdict must be treated as experimental."
     ]
   }
 ]
@@ -161,9 +198,9 @@ Return strict JSON with exactly these fields:
   "sub_aspect": "semantic.sub_aspect_discovered_now",
   "hypothesis": "A falsifiable statement this one round will test.",
   "requested_perturbation": {
-    "description": "One bounded, diagnostic perturbation.",
+    "description": "Set one advertised factor from its baseline to one bounded diagnostic value.",
     "controlled_changes": [
-      "the single factor intentionally changed"
+      "factor: baseline -> diagnostic value"
     ],
     "preserve": [
       "task identity",
@@ -175,8 +212,8 @@ Return strict JSON with exactly these fields:
     "description": "Scene construction or adaptation needed."
   },
   "checker_need": {
-    "required": false,
-    "description": null
+    "required": true,
+    "description": "The additional experimental success predicate."
   },
   "rule_tool_need": {
     "required": true,

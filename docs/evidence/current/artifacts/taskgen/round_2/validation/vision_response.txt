@@ -5,7 +5,7 @@
   "requested_change_assessment": "consistent",
   "visual_physical_plausibility": "plausible",
   "unexpected_changes": [],
-  "diagnosis": "The generated scene visibly shows the roller uniformly reduced in scale while preserving its apparent position, orientation, appearance, lighting, clutter, and other scene elements.",
+  "diagnosis": "The generated scene is visible and physically plausible, with the roller visibly translated relative to the official scene. The exact 0.05 m displacement is not visually decidable from RGB alone.",
   "repair_instructions": [],
-  "confidence": 0.97
+  "confidence": 0.82
 }

@@ -1,26 +1,29 @@
 {
   "schema_version": 1,
   "task_name": "grab_roller",
-  "metric": "query_left_tcp_to_roller_left_contact_min_distance",
-  "question": "What was the minimum 3D distance between the left TCP and the roller's left contact position?",
+  "metric": "terminal_max_tcp_contact_distance",
+  "question": "What is the terminal maximum of the left and right TCP distances to their corresponding roller contact points?",
   "route": "force_codegen",
   "reference_tool": null,
   "required_signals": [
     "semantic_trace.left_tcp_position",
     "semantic_trace.roller_left_contact_position",
+    "semantic_trace.right_tcp_position",
+    "semantic_trace.roller_right_contact_position",
     "semantic_trace.physics_step"
   ],
   "output_contract": {
-    "source": "typed_metric_spec_v1",
+    "source": "typed_metric_spec_v2",
     "metric_spec": {
-      "schema_version": 1,
-      "operation": "minimum_distance",
-      "left_signal": "left_tcp_position",
-      "right_signal": "roller_left_contact_position",
-      "dimensions": [
-        "x",
-        "y",
-        "z"
+      "schema_version": 2,
+      "operation": "derived_observable",
+      "observable_id": "terminal_max_tcp_contact_distance",
+      "description": "At the terminal sample, compute the larger Euclidean distance between left TCP and left roller contact, and right TCP and right roller contact.",
+      "required_signals": [
+        "left_tcp_position",
+        "roller_left_contact_position",
+        "right_tcp_position",
+        "roller_right_contact_position"
       ],
       "unit": "m",
       "null_semantics": "null_if_no_finite_sample"
@@ -28,7 +31,7 @@
     "value_type": "number_or_null",
     "unit": "m",
     "passed": null,
-    "evidence": "argmin_physics_step"
+    "evidence": "caller_supplied_oracle_evidence_steps"
   },
   "validation_requirements": {
     "min_episodes": 1,

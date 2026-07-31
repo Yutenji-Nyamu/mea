@@ -11,6 +11,6 @@
   "reference_tool": "official_check_success",
   "provider_required": false,
   "reason": "exact metric identifier matched a Trusted Tool",
-  "catalog_snapshot_sha256": "f8e0ab1df719237948c3ec37a2989d4e058a123dec03875f69a694ca9f501b6d",
+  "catalog_snapshot_sha256": "47009391b0457d9ee5548f212da3279790a75b3fd58271c93ca2f9dc15730d02",
   "provider_called": false
 }

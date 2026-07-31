@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "status": "completed",
+  "source_summary_path": "summary/summary.json",
+  "projection_source": "current_code_post_run",
+  "source_summary_sha256": "27603608caa513874de9ff4a89a6c64d41a2f8e0494d0ae445f30e659df68b82",
+  "source_flagship_acceptance": {
+    "schema_version": 1,
+    "accepted": false,
+    "execution_entrypoint": "scripts/manipeval_agent.py",
+    "history_replay_disabled": true,
+    "online_query_interpretation": true,
+    "query_interpretation_attempt_count": 1,
+    "query_interpretation_bounded_repair_used": false,
+    "online_query_candidate_binding": false,
+    "candidate_binding_mode": "unresolved",
+    "cli_candidate_hint_used": false,
+    "candidate_domain_resolution": "generation_required_no_registered_candidate",
+    "candidate_aspect_ids": null,
+    "bound_candidate_templates": [
+      "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff"
+    ],
+    "singleton_query_candidate": false,
+    "query_candidates_bound": false,
+    "runtime_bound_route": true,
+    "global_router_provider_calls": 0,
+    "act_rollouts": 2,
+    "required_act_rollouts": 2,
+    "accepted_act_rollout_range": [
+      2,
+      3
+    ],
+    "policy_rollouts": 2,
+    "accepted_policy_rollout_range": [
+      2,
+      3
+    ],
+    "control_requirement": "required",
+    "control_requirement_satisfied": true,
+    "round_routes": [
+      "official",
+      "generic_provider_scene_checker_codegen"
+    ],
+    "stop_reason": "evidence_sufficient",
+    "evidence_sufficient": true,
+    "outcome_semantics_statuses": [
+      "official_only",
+      "expected_semantic_extension"
+    ],
+    "answer_scope": "bounded_experimental_query_semantics",
+    "same_bundle_bound_checker_reuse": false,
+    "typed_execution_complete": true,
+    "candidate_execution_accepted": true,
+    "bound_checker_metric": null,
+    "bound_checker_module_sha256": null,
+    "cross_query_registry_reuse_established": false
+  },
+  "projection": {
+    "schema_version": 1,
+    "accepted": true,
+    "execution_entrypoint": "scripts/manipeval_agent.py",
+    "history_replay_disabled": true,
+    "online_query_interpretation": true,
+    "query_interpretation_attempt_count": 1,
+    "query_interpretation_bounded_repair_used": false,
+    "online_query_candidate_binding": true,
+    "candidate_binding_mode": "online_runtime_discovery",
+    "cli_candidate_hint_used": false,
+    "candidate_domain_resolution": "generation_required_no_registered_candidate",
+    "candidate_aspect_ids": null,
+    "bound_candidate_templates": [
+      "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff"
+    ],
+    "singleton_query_candidate": true,
+    "query_candidates_bound": true,
+    "runtime_bound_route": true,
+    "global_router_provider_calls": 0,
+    "act_rollouts": 2,
+    "required_act_rollouts": 2,
+    "accepted_act_rollout_range": [
+      2,
+      3
+    ],
+    "policy_rollouts": 2,
+    "accepted_policy_rollout_range": [
+      2,
+      3
+    ],
+    "control_requirement": "required",
+    "control_requirement_satisfied": true,
+    "round_routes": [
+      "official",
+      "generic_provider_scene_checker_codegen"
+    ],
+    "stop_reason": "evidence_sufficient",
+    "evidence_sufficient": true,
+    "outcome_semantics_statuses": [
+      "official_only",
+      "expected_semantic_extension"
+    ],
+    "answer_scope": "bounded_experimental_query_semantics",
+    "same_bundle_bound_checker_reuse": false,
+    "typed_execution_complete": true,
+    "candidate_execution_accepted": true,
+    "bound_checker_metric": null,
+    "bound_checker_module_sha256": null,
+    "cross_query_registry_reuse_established": false
+  }
+}

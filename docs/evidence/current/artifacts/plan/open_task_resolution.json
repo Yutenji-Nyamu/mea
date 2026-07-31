@@ -3,28 +3,28 @@
   "decision": "retrieve_and_adapt",
   "reason_code": "nearest_training_task",
   "query_interpretation": {
-    "source_query": "这个ACT策略在grab_roller任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？",
-    "requested_variation": "Shift the roller center laterally by a fixed, reachable offset toward the workspace boundary. Preserve the roller's color, material, size, shape, orientation, tabletop scene layout, camera viewpoint, task instruction, policy checkpoint, and official success semantics.",
-    "sub_aspect": "Robustness to a bounded lateral shift of the roller within the reachable workspace",
     "schema_version": 1,
-    "measurement_need": "Compare official grab_roller success between the nominal roller center position and the laterally shifted position, while verifying that the shifted center remains inside the reachable workspace.",
-    "hypothesis": "The ACT policy will show a lower official-task success rate when the roller is shifted laterally toward the workspace boundary than at its nominal center position, despite the roller remaining reachable.",
-    "task_intent": "Grasp the roller and achieve the official grab_roller task goal."
+    "sub_aspect": "Terminal TCP alignment after geometric displacement of the manipulated roller",
+    "requested_variation": "Generate an expert-solvable scene that displaces the manipulated roller along one supported diagnostic axis by at least 0.05 m, with TaskGen selecting the smallest measurable exact magnitude and the axis after official-source retrieval; preserve task identity and policy checkpoint.",
+    "task_intent": "Use the robot's TCPs to grasp the roller and achieve the official grab-task goal.",
+    "measurement_need": "The terminal maximum of the two TCP-to-corresponding-roller-contact-point distances, reported as a scalar diagnostic from the rollout trajectory.",
+    "hypothesis": "After a supported single-axis roller displacement of at least 0.05 m, the policy can satisfy the official grab goal while at least one terminal TCP remains more than 0.025 m from its corresponding roller contact point.",
+    "source_query": "Relative to the official grab task, does there exist a newly generated executable scene challenge that exposes a terminal alignment weakness in this policy? After observing official-control evidence, let the Plan Agent choose the most informative supported scene change without an aspect or template from me. To avoid a trivial perturbation, the chosen geometric scene change must displace the manipulated roller by at least 0.05 m while remaining expert-solvable; the Plan Agent chooses the axis and exact magnitude. Define experimental success as the official task goal AND both terminal TCPs being within 0.025 m of their corresponding roller contact points, using only current simulator point positions; do not require episode history, accumulated contact, or a trajectory-derived success threshold. Independently report one scalar metric computed from the rollout trajectory that diagnoses the chosen hypothesis, but treat that scalar strictly as diagnostic evidence and never as the terminal success outcome."
   },
   "policy_scope": {
     "schema_version": 1,
-    "policy_name": "ACT",
-    "checkpoint_id": "act-grab_roller/demo_clean-50",
-    "single_task_checkpoint": true,
+    "policy_name": "SmolVLA",
+    "checkpoint_id": "lerobot/smolvla_robotwin",
+    "single_task_checkpoint": false,
     "training_tasks": [
       "grab_roller"
     ],
-    "language_conditioned": false,
+    "language_conditioned": true,
     "supports_unseen_tasks": false
   },
   "selected_base_task": {
     "task_name": "grab_roller",
-    "score": 0.715794,
+    "score": 0.577327,
     "execution_status": "capability_registered",
     "capability_aspects": [
       "task_execution.official_baseline"
@@ -33,33 +33,23 @@
   "ranked_candidates": [
     {
       "task_name": "grab_roller",
-      "score": 0.715794,
+      "score": 0.577327,
       "execution_status": "capability_registered",
       "capability_aspects": [
         "task_execution.official_baseline"
       ]
     },
     {
-      "task_name": "beat_block_hammer",
-      "score": 0.035355,
-      "execution_status": "capability_registered",
-      "capability_aspects": [
-        "object_appearance.color",
-        "object_position",
-        "performance.pickup_to_contact_timing",
-        "object_scale",
-        "safety.hammer_left_camera_contact",
-        "robustness.distractor_avoidance",
-        "task_execution.official_baseline"
-      ]
+      "task_name": "place_object_basket",
+      "score": 0.071429,
+      "execution_status": "official_base_only",
+      "capability_aspects": []
     },
     {
-      "task_name": "adjust_bottle",
-      "score": 0.0,
-      "execution_status": "capability_registered",
-      "capability_aspects": [
-        "task_execution.official_baseline"
-      ]
+      "task_name": "place_bread_basket",
+      "score": 0.061546,
+      "execution_status": "official_base_only",
+      "capability_aspects": []
     }
   ],
   "resolution_contract": {

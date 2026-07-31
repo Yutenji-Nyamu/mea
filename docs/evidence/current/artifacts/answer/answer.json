@@ -1,22 +1,23 @@
 {
-  "answer": "目前无法确定 ACT 最先在哪种物体属性或场景变化上暴露弱点。基线、roller 缩小至原尺度 0.85、以及缩小至 0.70 的测试均通过官方成功检查；因此在本次已测试范围内尚未观察到任务失败，结论为不确定。",
-  "evaluation_scope": "grab_roller 任务、ACT 策略、官方等价成功检查；共 3 个策略 episode，唯一种子为 [100401]：未扰动基线 1 次、0.85 尺度候选 1 次、0.70 尺度候选 1 次。0.85 候选记录左 TCP 到左接触点最小距离 0.02206086926162243 m，0.70 候选记录右 TCP 到右接触点最小距离 0.04654303938150406 m；这些距离仅为观测值，未定义通过或失败阈值。",
+  "answer": "是。在 grab_roller 任务中，Plan Agent 选择将 roller 沿世界 x 轴平移 0.05 m，并验证该场景可由专家解决。官方未改变场景控制成功；但在平移场景中，SmolVLA 未完成由官方目标与两个 terminal TCP-接触点距离均不超过 0.025 m 组成的实验谓词。因此，在本次有限实验范围内发现了 terminal alignment weakness。",
+  "evaluation_scope": "共测试 N=2 个 policy episodes，唯一种子为 [100401]：官方控制 1 个 episode，0.05 m 世界 x 轴平移场景 1 个 episode；策略为 SmolVLA，任务为 grab_roller。平移场景的 generated_check_success=0.0，且该 checker 是经验证的语义扩展，并非官方等价检查器。平移场景的 terminal 最大 TCP-to-contact 距离为 0.24384725093841553 m；该值是 terminal 当前点位置诊断量，不是轨迹峰值。",
   "findings": [
-    "未扰动基线官方成功率为 1/1。",
-    "roller 缩小至原尺度 0.85 的候选官方成功率为 1/1，未显示任务失败。",
-    "roller 缩小至原尺度 0.70 的候选官方成功率为 1/1，未显示任务失败。",
-    "执行流水线完成且没有报告证据冲突，但查询充分性契约未满足，因此不能据此认定存在已验证的最早弱点。"
+    "官方未改变场景中，官方检查成功率为 1/1。",
+    "0.05 m 世界 x 轴 roller 平移场景通过了场景生成、执行、专家可解性及工具验证。",
+    "平移场景中，官方核心谓词仍满足，但组合实验检查失败，策略成功率为 0/1；因此策略未完成该实验任务。",
+    "terminal 最大 TCP-to-contact 距离为 0.24384725093841553 m，明显超过 0.025 m 阈值。",
+    "执行 VQA 无证据冲突，并在 final 帧定性观察到左 TCP 看起来比右 TCP 更远离对应接触点；该观察仅为支持性视觉证据。"
   ],
   "limitations": [
-    "本次仅有 N=3 个策略 episode，且全部使用种子 [100401]，不是广泛泛化评估。",
-    "评估在预算耗尽前未满足查询充分性契约，结论为 inconclusive。",
-    "两个 Query-derived 候选的原始意图字段均未覆盖，包括 requested_change、preserved_conditions、hypothesis 和 required_observation；因此不能把这些结果当作完整实现原始扰动意图的决定性证据。",
-    "候选空间未封闭，不能推出穷尽性、最坏情况或一般化结论。",
-    "Evidence contains N=3 policy episodes at seeds [100401].",
-    "Tested Query-derived candidate contract requirements remain uncovered: ['intent.7d4cb852954896a8:requested_change', 'intent.7d4cb852954896a8:preserved_conditions', 'intent.7d4cb852954896a8:hypothesis', 'intent.7d4cb852954896a8:required_observation', 'intent.4660c0a7908d4c45:requested_change', 'intent.4660c0a7908d4c45:preserved_conditions', 'intent.4660c0a7908d4c45:hypothesis', 'intent.4660c0a7908d4c45:required_observation'].",
-    "The run stopped because its round budget was exhausted before the query-sufficiency contract was satisfied."
+    "结论仅适用于本次任务、checkpoint、0.05 m 世界 x 轴平移候选及种子 100401。",
+    "N=2 且只有一个唯一种子 [100401]，不是统计泛化保证。",
+    "候选域开放，未测试其他场景变化，不能推出穷尽性、最坏情况或普遍鲁棒性结论。",
+    "generated_check_success 不是官方 benchmark success；本次失败表示有界实验谓词失败，而非官方检查失败。",
+    "证据中未提供所要求的轨迹峰值标量的数值；0.24384725093841553 m 是 terminal 诊断值，不能改写为轨迹峰值。",
+    "Evidence contains N=2 policy episodes at seeds [100401].",
+    "The run stopped because the finite query-sufficiency contract was satisfied; this is not a statistical generalization guarantee."
   ],
-  "recommended_next_step": "在明确绑定并验证完整 0.85 与 0.70 尺度扰动、保持条件及双侧接触观测后，使用多个新种子进行更细的尺度递减扫描，直到官方成功检查首次失败；再将首次失败尺度与基线比较，以定位最早弱点。",
+  "recommended_next_step": "在保持同一官方谓词和 terminal 0.025 m 阈值的前提下，使用至少多个新的独立种子重复该 0.05 m 世界 x 轴平移场景，并从 rollout telemetry 明确输出轨迹峰值 TCP-to-contact 距离，分别与 terminal 距离及官方检查结果对照。",
   "consistency_validation": {
     "passed": true,
     "attempts_used": 1,
@@ -33,20 +34,20 @@
     "evidence_conflict": false
   },
   "provider_metadata": {
-    "id": "chatcmpl-202607300601417406098998268d9d6gBzNGzfh",
+    "id": "chatcmpl-202607310847406239805998268d9d69DKuNbGW",
     "model": "gpt-5.6-luna",
     "finish_reason": "stop",
     "usage": {
-      "prompt_tokens": 53274,
-      "completion_tokens": 784,
-      "total_tokens": 54058,
+      "prompt_tokens": 35784,
+      "completion_tokens": 989,
+      "total_tokens": 36773,
       "billing_usage": {
         "source": "oai_responses",
         "semantic": "openai",
         "openai_usage": {
           "prompt_tokens": 0,
           "completion_tokens": 0,
-          "total_tokens": 54058,
+          "total_tokens": 36773,
           "prompt_tokens_details": {
             "cached_tokens": 0,
             "text_tokens": 0,
@@ -59,8 +60,8 @@
             "image_tokens": 0,
             "reasoning_tokens": 0
           },
-          "input_tokens": 53274,
-          "output_tokens": 784,
+          "input_tokens": 35784,
+          "output_tokens": 989,
           "input_tokens_details": {
             "cached_tokens": 0,
             "text_tokens": 0,
@@ -83,8 +84,8 @@
         "image_tokens": 0,
         "reasoning_tokens": 0
       },
-      "input_tokens": 53274,
-      "output_tokens": 784,
+      "input_tokens": 35784,
+      "output_tokens": 989,
       "input_tokens_details": null,
       "claude_cache_creation_5_m_tokens": 0,
       "claude_cache_creation_1_h_tokens": 0
@@ -93,52 +94,41 @@
   },
   "answer_scope": {
     "schema_version": 1,
-    "sample_count": 3,
+    "sample_count": 2,
     "seeds": [
       100401
     ],
     "tested_candidate_ids": [
-      "dynamic.grab.roller.object.geometry.graspable.scale.reduction.roller.15.act.5e696fb1d45c",
-      "dynamic.grab.roller.object.geometry.graspable.scale.strong.reduction.roller.0.70.act.0.85.22.5c860bd23c57"
+      "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff"
     ],
     "untested_candidate_ids": [],
     "original_intent_ids": [
-      "intent.7d4cb852954896a8",
-      "intent.4660c0a7908d4c45"
+      "intent.78fbce792af89034"
     ],
-    "covered_original_intent_fields": [],
-    "uncovered_original_intent_fields": [
-      "intent.7d4cb852954896a8:requested_change",
-      "intent.7d4cb852954896a8:preserved_conditions",
-      "intent.7d4cb852954896a8:hypothesis",
-      "intent.7d4cb852954896a8:required_observation",
-      "intent.4660c0a7908d4c45:requested_change",
-      "intent.4660c0a7908d4c45:preserved_conditions",
-      "intent.4660c0a7908d4c45:hypothesis",
-      "intent.4660c0a7908d4c45:required_observation"
+    "covered_original_intent_fields": [
+      "intent.78fbce792af89034:requested_change",
+      "intent.78fbce792af89034:preserved_conditions",
+      "intent.78fbce792af89034:hypothesis",
+      "intent.78fbce792af89034:required_observation"
     ],
+    "uncovered_original_intent_fields": [],
     "unsupported_capabilities": [],
     "evidence_conflict": false,
-    "termination": "budget_exhausted",
-    "claim_verdict": "inconclusive",
+    "termination": "evidence_sufficient",
+    "claim_verdict": "counterexample_found",
     "required_limitations": [
       {
         "code": "sample_count_and_seeds",
-        "text": "Evidence contains N=3 policy episodes at seeds [100401]."
+        "text": "Evidence contains N=2 policy episodes at seeds [100401]."
       },
       {
-        "code": "original_intent_uncovered",
-        "text": "Tested Query-derived candidate contract requirements remain uncovered: ['intent.7d4cb852954896a8:requested_change', 'intent.7d4cb852954896a8:preserved_conditions', 'intent.7d4cb852954896a8:hypothesis', 'intent.7d4cb852954896a8:required_observation', 'intent.4660c0a7908d4c45:requested_change', 'intent.4660c0a7908d4c45:preserved_conditions', 'intent.4660c0a7908d4c45:hypothesis', 'intent.4660c0a7908d4c45:required_observation']."
-      },
-      {
-        "code": "termination_budget_exhausted",
-        "text": "The run stopped because its round budget was exhausted before the query-sufficiency contract was satisfied."
+        "code": "termination_evidence_sufficient",
+        "text": "The run stopped because the finite query-sufficiency contract was satisfied; this is not a statistical generalization guarantee."
       }
     ]
   },
   "limitation_codes": [
     "sample_count_and_seeds",
-    "original_intent_uncovered",
-    "termination_budget_exhausted"
+    "termination_evidence_sufficient"
   ]
 }

@@ -3,20 +3,18 @@ The image shows the same-seed official scene on the left and the generated
 Query-derived scene on the right.
 
 SEMANTIC CONCERN:
-object_geometry.graspable_scale_reduction: 将roller的整体几何尺度在保持其初始位姿和材质不变的情况下缩小15%后，ACT的双夹爪接触或抬升高度将失败，导致官方抓取成功率低于未扰动基线。
+scene_robustness.roller_translation.terminal_tcp_alignment: Translating the roller by exactly 0.05 m along the world x-axis will expose a terminal TCP alignment weakness, causing the combined experimental checker to fail despite the successful official-control result.
 
 REQUESTED SCENE NEED:
-仅将roller的统一物体尺度设为原始尺度的0.85，保持位置、姿态、外观、光照、杂物和任务场景其他状态不变。 Preserve unchanged: task identity; policy checkpoint; roller初始位置和姿态; roller外观与材质; lighting and clutter.
+Generate an executable expert-solvable scene by translating the roller exactly 0.05 m along the world x-axis from its official-scene position. Preserve unchanged: task identity; policy checkpoint; official core predicate as a required conjunct.
 
 CHECKER NEED (context only; RGB cannot validate success logic):
-No change requested; preserve the official implementation.
+Evaluate the boolean conjunction of the official goal, left TCP distance to the left roller contact point being at most 0.025 m, and right TCP distance to the right roller contact point being at most 0.025 m, using terminal current simulator point positions only.
 
 DECLARED CONDITIONS TO PRESERVE:
 - task identity
 - policy checkpoint
-- roller初始位置和姿态
-- roller外观与材质
-- lighting and clutter
+- official core predicate as a required conjunct
 
 Judge only visible facts: render usability, whether key task actors are visible,
 whether the requested visible change is consistent or contradicted, obvious
@@ -25,6 +23,10 @@ visible preservation violation of a declared condition in unexpected_changes. Us
 not_visually_decidable for mass, friction, identity, exact coordinates,
 contacts, predicates, or other facts that RGB cannot establish. Do not infer
 checker correctness or task success from the initial frame.
+requested_change_assessment must be exactly one of: consistent, contradicted,
+not_visually_decidable. Never substitute synonyms such as inconsistent.
+visual_physical_plausibility must be exactly one of: plausible, implausible,
+uncertain. Never substitute synonyms such as realistic or good.
 
 Return strict JSON with exactly these fields:
 {

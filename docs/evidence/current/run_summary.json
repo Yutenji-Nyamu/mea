@@ -1,90 +1,143 @@
 {
   "schema_version": 1,
-  "evaluation_id": "eval_20260730_batch31_grab_roller_broad_live_v3",
-  "source_evaluation": "mea/evaluation_runs/eval_20260730_batch31_grab_roller_broad_live_v3",
-  "latest_method_status": {
-    "as_of": "2026-07-31",
-    "accepted_bundle_unchanged": true,
-    "accepted_bundle": "eval_20260730_batch31_grab_roller_broad_live_v3",
-    "native_smolvla_v10": {
-      "evaluation_id": "eval_20260730_native_smolvla_broad_live_v10",
-      "official_control_episode": true,
-      "evidence_conditioned_round_2_proposal": true,
-      "round_2_policy_episode": false,
-      "terminal_stage": "taskgen",
-      "result": "negative_full_chain"
-    },
-    "native_smolvla_v10_taskgen_repair": {
-      "run_id": "run_native_smolvla_v10_taskgen_repair_v1",
-      "policy_rollouts": 0,
-      "local_repairs": 1,
-      "checker_fixtures": "2/2",
-      "vision_passed": true,
-      "expert_passed": true,
-      "result": "positive_taskgen_component_only"
-    },
-    "native_smolvla_v11": {
-      "evaluation_id": "eval_20260731_native_smolvla_broad_live_v11",
-      "official_control_episode": true,
-      "evidence_conditioned_round_2_proposal": true,
-      "round_2_policy_episode": false,
-      "terminal_stage": "taskgen_checker_fixture",
-      "result": "negative_full_chain"
-    },
-    "native_smolvla_v11_taskgen_repair": {
-      "run_id": "run_native_smolvla_v11_taskgen_repair_v1",
-      "policy_rollouts": 0,
-      "runtime_gates_passed": true,
-      "semantic_fidelity_passed": false,
-      "result": "rejected_posthoc_semantic_drift",
-      "reason": "gripper-closed proxy is not equivalent to simultaneous target contact"
-    },
-    "checker_semantic_review_gate": {
-      "status": "implemented_server_regression_passed",
-      "authority": "development_agent_proxy",
-      "checks": [
-        "every_checker_requirement",
-        "quantifiers_and_temporal_relations",
-        "direct_current_simulator_observables",
-        "no_correlated_proxy_substitution"
-      ],
-      "binding": [
-        "proposal_semantics_sha256",
-        "checker_sha256",
-        "registry",
-        "pre_policy"
-      ],
-      "live_acceptance": false
-    },
-    "method_conclusion": "Evidence-conditioned Proposal generation and bounded TaskGen repair have separate live evidence; a semantically faithful all-in-one flagship remains open."
-  },
-  "query": "这个ACT策略在grab_roller任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？",
+  "evaluation_id": "eval_20260731_batch32_clean_flagship_live_v18",
+  "source_evaluation": "mea/evaluation_runs/eval_20260731_batch32_clean_flagship_live_v18",
+  "query": "Relative to the official grab task, does there exist a newly generated executable scene challenge that exposes a terminal alignment weakness in this policy? After observing official-control evidence, let the Plan Agent choose the most informative supported scene change without an aspect or template from me. To avoid a trivial perturbation, the chosen geometric scene change must displace the manipulated roller by at least 0.05 m while remaining expert-solvable; the Plan Agent chooses the axis and exact magnitude. Define experimental success as the official task goal AND both terminal TCPs being within 0.025 m of their corresponding roller contact points, using only current simulator point positions; do not require episode history, accumulated contact, or a trajectory-derived success threshold. Independently report one scalar metric computed from the rollout trajectory that diagnoses the chosen hypothesis, but treat that scalar strictly as diagnostic evidence and never as the terminal success outcome.",
   "target": {
     "binding_mode": "single_task_single_checkpoint_open_world",
     "task_name": "grab_roller",
     "task_profile": null,
     "policy": {
-      "name": "ACT",
-      "backend": "act",
-      "language_conditioned": false,
+      "name": "SmolVLA",
+      "backend": "smolvla",
+      "language_conditioned": true,
       "task_schema_available": true,
-      "checkpoint_setting": "demo_clean",
-      "expert_data_num": 50
+      "language_input": "task_name_words",
+      "action_chunk_size": 50,
+      "action_dimension": 14,
+      "physics_timestep_seconds": 0.004,
+      "checkpoint_setting": "shared_official",
+      "task_instruction": "grab roller"
     },
     "checkpoint": {
-      "policy_name": "ACT",
-      "checkpoint_id": "act-grab_roller/demo_clean-50",
-      "checkpoint_path": "/root/autodl-tmp/RoboTwin/policy/ACT/act_ckpt/act-grab_roller/demo_clean-50",
-      "task_scope": "grab_roller",
+      "policy_name": "SmolVLA",
+      "checkpoint_id": "lerobot/smolvla_robotwin",
+      "checkpoint_path": "/root/autodl-tmp/checkpoints/robotwin/smolvla_robotwin",
+      "task_scope": "robotwin_official_tasks",
       "ready": true,
-      "checkpoint_setting": "demo_clean",
-      "expert_data_num": 50
+      "language_input": "task_name_words",
+      "action_chunk_size": 50,
+      "action_dimension": 14,
+      "physics_timestep_seconds": 0.004,
+      "checkpoint_setting": "shared_official"
     }
   },
   "plan": {
-    "evaluation_goal": "answer_open_query_with_evidence: 这个ACT策略在grab_roller任务中最先会在哪种可执行物体属性或场景变化上暴露弱点？",
-    "planning_state": "stopped_after_round_3_budget_exhausted",
-    "round_budget": 3
+    "evaluation_goal": "answer_open_query_with_evidence: Relative to the official grab task, does there exist a newly generated executable scene challenge that exposes a terminal alignment weakness in this policy? After observing official-control evidence, let the Plan Agent choose the most informative supported scene change without an aspect or template from me. To avoid a trivial perturbation, the chosen geometric scene change must displace the manipulated roller by at least 0.05 m while remaining expert-solvable; the Plan Agent chooses the axis and exact magnitude. Define experimental success as the official task goal AND both terminal TCPs being within 0.025 m of their corresponding roller contact points, using only current simulator point positions; do not require episode history, accumulated contact, or a trajectory-derived success threshold. Independently report one scalar metric computed from the rollout trajectory that diagnoses the chosen hypothesis, but treat that scalar strictly as diagnostic evidence and never as the terminal success outcome.",
+    "planning_state": "stopped_after_round_2",
+    "round_budget": 3,
+    "source_flagship_acceptance": {
+      "schema_version": 1,
+      "accepted": false,
+      "execution_entrypoint": "scripts/manipeval_agent.py",
+      "history_replay_disabled": true,
+      "online_query_interpretation": true,
+      "query_interpretation_attempt_count": 1,
+      "query_interpretation_bounded_repair_used": false,
+      "online_query_candidate_binding": false,
+      "candidate_binding_mode": "unresolved",
+      "cli_candidate_hint_used": false,
+      "candidate_domain_resolution": "generation_required_no_registered_candidate",
+      "candidate_aspect_ids": null,
+      "bound_candidate_templates": [
+        "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff"
+      ],
+      "singleton_query_candidate": false,
+      "query_candidates_bound": false,
+      "runtime_bound_route": true,
+      "global_router_provider_calls": 0,
+      "act_rollouts": 2,
+      "required_act_rollouts": 2,
+      "accepted_act_rollout_range": [
+        2,
+        3
+      ],
+      "policy_rollouts": 2,
+      "accepted_policy_rollout_range": [
+        2,
+        3
+      ],
+      "control_requirement": "required",
+      "control_requirement_satisfied": true,
+      "round_routes": [
+        "official",
+        "generic_provider_scene_checker_codegen"
+      ],
+      "stop_reason": "evidence_sufficient",
+      "evidence_sufficient": true,
+      "outcome_semantics_statuses": [
+        "official_only",
+        "expected_semantic_extension"
+      ],
+      "answer_scope": "bounded_experimental_query_semantics",
+      "same_bundle_bound_checker_reuse": false,
+      "typed_execution_complete": true,
+      "candidate_execution_accepted": true,
+      "bound_checker_metric": null,
+      "bound_checker_module_sha256": null,
+      "cross_query_registry_reuse_established": false
+    },
+    "current_acceptance_projection": {
+      "schema_version": 1,
+      "accepted": true,
+      "execution_entrypoint": "scripts/manipeval_agent.py",
+      "history_replay_disabled": true,
+      "online_query_interpretation": true,
+      "query_interpretation_attempt_count": 1,
+      "query_interpretation_bounded_repair_used": false,
+      "online_query_candidate_binding": true,
+      "candidate_binding_mode": "online_runtime_discovery",
+      "cli_candidate_hint_used": false,
+      "candidate_domain_resolution": "generation_required_no_registered_candidate",
+      "candidate_aspect_ids": null,
+      "bound_candidate_templates": [
+        "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff"
+      ],
+      "singleton_query_candidate": true,
+      "query_candidates_bound": true,
+      "runtime_bound_route": true,
+      "global_router_provider_calls": 0,
+      "act_rollouts": 2,
+      "required_act_rollouts": 2,
+      "accepted_act_rollout_range": [
+        2,
+        3
+      ],
+      "policy_rollouts": 2,
+      "accepted_policy_rollout_range": [
+        2,
+        3
+      ],
+      "control_requirement": "required",
+      "control_requirement_satisfied": true,
+      "round_routes": [
+        "official",
+        "generic_provider_scene_checker_codegen"
+      ],
+      "stop_reason": "evidence_sufficient",
+      "evidence_sufficient": true,
+      "outcome_semantics_statuses": [
+        "official_only",
+        "expected_semantic_extension"
+      ],
+      "answer_scope": "bounded_experimental_query_semantics",
+      "same_bundle_bound_checker_reuse": false,
+      "typed_execution_complete": true,
+      "candidate_execution_accepted": true,
+      "bound_checker_metric": null,
+      "bound_checker_module_sha256": null,
+      "cross_query_registry_reuse_established": false
+    }
   },
   "rounds": [
     {
@@ -93,7 +146,7 @@
       "template_id": "task_execution.official_baseline",
       "taskgen_route": "official",
       "taskgen_kind": "official_passthrough",
-      "execution_backend": "ACT",
+      "execution_backend": "SmolVLA",
       "seeds": [
         100401
       ],
@@ -104,7 +157,7 @@
       "tool_rows": [
         {
           "role": "policy_under_evaluation",
-          "policy_name": "ACT",
+          "policy_name": "SmolVLA",
           "seed": 100401,
           "value": true,
           "unit": null,
@@ -112,37 +165,19 @@
         }
       ],
       "vqa": {
-        "status": "passed",
-        "questions": [
-          {
-            "id": "roller_visibly_lifted",
-            "question": "Is the target roller visibly lifted by both robot arms?"
-          }
-        ],
-        "phenomena": [
-          {
-            "id": "roller_visibly_lifted",
-            "observed": true,
-            "description": "The roller is visibly elevated and held horizontally by both robot arms in the success frames.",
-            "confidence": 0.98,
-            "frame_ids": [
-              "success_before",
-              "success_after",
-              "final"
-            ]
-          }
-        ],
-        "numeric_consistency": "consistent",
-        "evidence_conflict": false
+        "status": null,
+        "questions": [],
+        "phenomena": [],
+        "numeric_consistency": null,
+        "evidence_conflict": null
       },
       "aggregate": {
         "status": "passed",
         "source_count": 1,
-        "episode_result_count": 2,
+        "episode_result_count": 1,
         "unique_episode_count": 1,
         "metric_ids": [
-          "official_check_success",
-          "time_to_success"
+          "official_check_success"
         ],
         "input_issue_count": 0
       },
@@ -150,7 +185,7 @@
         "action": "continue",
         "transition": "switch_concern",
         "decision_reason": "provider_authored_open_world_step",
-        "observation_summary": "官方未扰动场景已成功，说明当前失败不太可能来自基本任务流程；但仅一轮成功不能回答哪种物体或场景变化最先暴露弱点。尺度缩小直接降低双臂抓取的几何容错，且是load_actors明确支持的物体属性变化，比改变不可用的策略噪声或控制精度更可执行。该单因素扰动可用峰值高度和TCP接触距离诊断失败机制，同时保留官方checker以判断任务是否仍成功。",
+        "observation_summary": "The official unchanged-scene control succeeded, so baseline task execution is not the remaining uncertainty. The next most informative test is the smallest permitted geometric displacement, exactly 0.05 m along one supported position axis, while preserving expert solvability. The checker directly tests the requested terminal alignment conjunction, and the separate rollout-peak distance diagnoses transient alignment weakness without replacing the terminal success verdict.",
         "answered_query": false,
         "evidence_sufficient": null,
         "claim_verdict": null,
@@ -165,24 +200,24 @@
     },
     {
       "round_id": "round_2",
-      "aspect_id": "object_geometry.graspable_scale_reduction",
+      "aspect_id": "scene_robustness.roller_translation.terminal_tcp_alignment",
       "template_id": null,
       "taskgen_route": "generic_provider_scene_checker_codegen",
       "taskgen_kind": "generic_provider_scene_checker_codegen",
-      "execution_backend": "ACT",
+      "execution_backend": "SmolVLA",
       "seeds": [
         100401
       ],
       "pipeline_passed": true,
-      "policy_success": 1.0,
-      "tool_metric": "query_left_tcp_to_roller_left_contact_min_distance",
+      "policy_success": 0.0,
+      "tool_metric": "terminal_max_tcp_contact_distance",
       "tool_route": "provider_python_codegen",
       "tool_rows": [
         {
           "role": "policy_under_evaluation",
-          "policy_name": "ACT",
+          "policy_name": "SmolVLA",
           "seed": 100401,
-          "value": 0.02206086926162243,
+          "value": 0.24384725093841553,
           "unit": "m",
           "passed": null
         }
@@ -191,94 +226,17 @@
         "status": "passed",
         "questions": [
           {
-            "id": "roller_visibly_lifted",
-            "question": "Is the target roller visibly lifted by both robot arms?"
+            "id": "run_local.peak_tcp_contact_separation_side",
+            "question": "At the point of greatest visible TCP-to-contact separation during the rollout, is the left TCP farther from the left roller contact than the right TCP is from the right roller contact?"
           }
         ],
         "phenomena": [
           {
-            "id": "roller_visibly_lifted",
+            "id": "run_local.peak_tcp_contact_separation_side",
             "observed": true,
-            "description": "The roller is on the ground initially and is visibly held aloft by both robot arms in the later frames.",
-            "confidence": 0.99,
+            "description": "In the final rollout view, the left TCP appears farther from its left roller contact than the right TCP is from its right roller contact.",
+            "confidence": 0.65,
             "frame_ids": [
-              "initial",
-              "success_after"
-            ]
-          }
-        ],
-        "numeric_consistency": "consistent",
-        "evidence_conflict": false
-      },
-      "aggregate": {
-        "status": "passed",
-        "source_count": 2,
-        "episode_result_count": 3,
-        "unique_episode_count": 2,
-        "metric_ids": [
-          "official_check_success",
-          "query_left_tcp_to_roller_left_contact_min_distance",
-          "time_to_success"
-        ],
-        "input_issue_count": 0
-      },
-      "next_decision": {
-        "action": "continue",
-        "transition": "switch_concern",
-        "decision_reason": "provider_authored_open_world_step",
-        "observation_summary": "基线未扰动场景成功率为1.0，但0.85尺度测试仍成功且仅获得单侧22.1毫米距离观测，证据被标记为ambiguous并提示原始意图不完整，无法判断尺度变化是否接近失效边界。因此在保持其他因素不变的前提下，将同一可执行物体属性进一步缩小到0.70是对该不确定性的更具判别力的可观测版本；同时补充双侧距离，避免单侧观测掩盖双臂抓取瓶颈。",
-        "answered_query": false,
-        "evidence_sufficient": null,
-        "claim_verdict": null,
-        "stop_reason": null
-      },
-      "taskgen_gates": {
-        "generation_attempts": 1,
-        "checker_fixtures": "2/2",
-        "vision_passed": true,
-        "expert_passed": true
-      }
-    },
-    {
-      "round_id": "round_3",
-      "aspect_id": "object_geometry.graspable_scale_strong_reduction",
-      "template_id": null,
-      "taskgen_route": "generic_provider_scene_checker_codegen",
-      "taskgen_kind": "generic_provider_scene_checker_codegen",
-      "execution_backend": "ACT",
-      "seeds": [
-        100401
-      ],
-      "pipeline_passed": true,
-      "policy_success": 1.0,
-      "tool_metric": "query_right_tcp_to_roller_right_contact_min_distance",
-      "tool_route": "provider_python_codegen",
-      "tool_rows": [
-        {
-          "role": "policy_under_evaluation",
-          "policy_name": "ACT",
-          "seed": 100401,
-          "value": 0.04654303938150406,
-          "unit": "m",
-          "passed": null
-        }
-      ],
-      "vqa": {
-        "status": "passed",
-        "questions": [
-          {
-            "id": "roller_visibly_lifted",
-            "question": "Is the target roller visibly lifted by both robot arms?"
-          }
-        ],
-        "phenomena": [
-          {
-            "id": "roller_visibly_lifted",
-            "observed": true,
-            "description": "The roller is visibly elevated and held horizontally by both robot arms.",
-            "confidence": 0.99,
-            "frame_ids": [
-              "success_after",
               "final"
             ]
           }
@@ -289,27 +247,26 @@
       "aggregate": {
         "status": "passed",
         "source_count": 2,
-        "episode_result_count": 3,
+        "episode_result_count": 2,
         "unique_episode_count": 2,
         "metric_ids": [
-          "official_check_success",
-          "query_right_tcp_to_roller_right_contact_min_distance",
-          "time_to_success"
+          "generated_check_success",
+          "terminal_max_tcp_contact_distance"
         ],
         "input_issue_count": 0
       },
       "next_decision": {
         "action": "stop",
         "transition": "stop",
-        "decision_reason": "plan_agent_evidence_sufficiency",
-        "observation_summary": "The bounded rollout budget ended before the query sufficiency contract was satisfied.",
-        "answered_query": false,
-        "evidence_sufficient": false,
-        "claim_verdict": "inconclusive",
-        "stop_reason": "budget_exhausted"
+        "decision_reason": "provider_authored_open_world_step",
+        "observation_summary": "The official-scene control succeeded, while the bounded 0.05 m roller translation produced a sufficient experimental failure under the required official-goal-and-terminal-alignment predicate. This answers the existence question; the trajectory-independent terminal diagnostic also showed a 0.24384725093841553 m maximum TCP-to-contact distance.",
+        "answered_query": true,
+        "evidence_sufficient": null,
+        "claim_verdict": null,
+        "stop_reason": null
       },
       "taskgen_gates": {
-        "generation_attempts": 1,
+        "generation_attempts": 2,
         "checker_fixtures": "2/2",
         "vision_passed": true,
         "expert_passed": true
@@ -319,18 +276,101 @@
   "final_aggregate": {
     "schema_version": 1,
     "status": "passed",
-    "source_count": 5,
-    "episode_result_count": 8,
-    "unique_episode_count": 5,
+    "source_count": 3,
+    "episode_result_count": 3,
+    "unique_episode_count": 3,
     "metric_ids": [
+      "generated_check_success",
       "official_check_success",
-      "query_left_tcp_to_roller_left_contact_min_distance",
-      "query_right_tcp_to_roller_right_contact_min_distance",
-      "time_to_success"
+      "terminal_max_tcp_contact_distance"
     ],
     "input_issue_count": 0,
     "input_issues": [],
     "metrics": [
+      {
+        "metric": "generated_check_success",
+        "tools": [
+          "generated_check_success"
+        ],
+        "unit": null,
+        "value_kind": "boolean",
+        "cohorts": [
+          {
+            "role": "policy_under_evaluation",
+            "policy_names": [
+              "SmolVLA"
+            ],
+            "summary": {
+              "episode_result_count": 1,
+              "quality": {
+                "invalid": {
+                  "value": 0
+                },
+                "missing": {
+                  "value": 0
+                },
+                "valid": {
+                  "value": 1
+                }
+              },
+              "statistics": {
+                "false_count": {
+                  "value": 1
+                },
+                "false_rate": {
+                  "denominator": 1,
+                  "numerator": 1,
+                  "value": 1.0
+                },
+                "true_count": {
+                  "value": 0
+                },
+                "true_rate": {
+                  "denominator": 1,
+                  "numerator": 0,
+                  "value": 0.0
+                }
+              },
+              "unit": null,
+              "value_kind": "boolean"
+            },
+            "passed_summary": {
+              "episode_result_count": 1,
+              "quality": {
+                "invalid": {
+                  "value": 0
+                },
+                "missing": {
+                  "value": 0
+                },
+                "valid": {
+                  "value": 1
+                }
+              },
+              "statistics": {
+                "false_count": {
+                  "value": 1
+                },
+                "false_rate": {
+                  "denominator": 1,
+                  "numerator": 1,
+                  "value": 1.0
+                },
+                "true_count": {
+                  "value": 0
+                },
+                "true_rate": {
+                  "denominator": 1,
+                  "numerator": 0,
+                  "value": 0.0
+                }
+              },
+              "unit": null,
+              "value_kind": "boolean"
+            }
+          }
+        ]
+      },
       {
         "metric": "official_check_success",
         "tools": [
@@ -342,10 +382,10 @@
           {
             "role": "policy_under_evaluation",
             "policy_names": [
-              "ACT"
+              "SmolVLA"
             ],
             "summary": {
-              "episode_result_count": 3,
+              "episode_result_count": 1,
               "quality": {
                 "invalid": {
                   "value": 0
@@ -354,7 +394,7 @@
                   "value": 0
                 },
                 "valid": {
-                  "value": 3
+                  "value": 1
                 }
               },
               "statistics": {
@@ -362,24 +402,24 @@
                   "value": 0
                 },
                 "false_rate": {
-                  "denominator": 3,
+                  "denominator": 1,
                   "numerator": 0,
                   "value": 0.0
                 },
                 "success_count": {
-                  "value": 3
+                  "value": 1
                 },
                 "success_rate": {
-                  "denominator": 3,
-                  "numerator": 3,
+                  "denominator": 1,
+                  "numerator": 1,
                   "value": 1.0
                 },
                 "true_count": {
-                  "value": 3
+                  "value": 1
                 },
                 "true_rate": {
-                  "denominator": 3,
-                  "numerator": 3,
+                  "denominator": 1,
+                  "numerator": 1,
                   "value": 1.0
                 }
               },
@@ -387,7 +427,7 @@
               "value_kind": "boolean"
             },
             "passed_summary": {
-              "episode_result_count": 3,
+              "episode_result_count": 1,
               "quality": {
                 "invalid": {
                   "value": 0
@@ -396,7 +436,7 @@
                   "value": 0
                 },
                 "valid": {
-                  "value": 3
+                  "value": 1
                 }
               },
               "statistics": {
@@ -404,16 +444,16 @@
                   "value": 0
                 },
                 "false_rate": {
-                  "denominator": 3,
+                  "denominator": 1,
                   "numerator": 0,
                   "value": 0.0
                 },
                 "true_count": {
-                  "value": 3
+                  "value": 1
                 },
                 "true_rate": {
-                  "denominator": 3,
-                  "numerator": 3,
+                  "denominator": 1,
+                  "numerator": 1,
                   "value": 1.0
                 }
               },
@@ -424,9 +464,9 @@
         ]
       },
       {
-        "metric": "query_left_tcp_to_roller_left_contact_min_distance",
+        "metric": "terminal_max_tcp_contact_distance",
         "tools": [
-          "query_left_tcp_to_roller_left_contact_min_distance"
+          "terminal_max_tcp_contact_distance"
         ],
         "unit": "m",
         "value_kind": "numeric",
@@ -434,7 +474,7 @@
           {
             "role": "policy_under_evaluation",
             "policy_names": [
-              "ACT"
+              "SmolVLA"
             ],
             "summary": {
               "episode_result_count": 1,
@@ -451,120 +491,22 @@
               },
               "statistics": {
                 "max": {
-                  "value": 0.02206086926162243
+                  "value": 0.24384725093841553
                 },
                 "mean": {
-                  "value": 0.02206086926162243
+                  "value": 0.24384725093841553
                 },
                 "median": {
-                  "value": 0.02206086926162243
+                  "value": 0.24384725093841553
                 },
                 "min": {
-                  "value": 0.02206086926162243
+                  "value": 0.24384725093841553
                 },
                 "population_stddev": {
                   "value": 0.0
                 }
               },
               "unit": "m",
-              "value_kind": "numeric"
-            }
-          }
-        ]
-      },
-      {
-        "metric": "query_right_tcp_to_roller_right_contact_min_distance",
-        "tools": [
-          "query_right_tcp_to_roller_right_contact_min_distance"
-        ],
-        "unit": "m",
-        "value_kind": "numeric",
-        "cohorts": [
-          {
-            "role": "policy_under_evaluation",
-            "policy_names": [
-              "ACT"
-            ],
-            "summary": {
-              "episode_result_count": 1,
-              "quality": {
-                "invalid": {
-                  "value": 0
-                },
-                "missing": {
-                  "value": 0
-                },
-                "valid": {
-                  "value": 1
-                }
-              },
-              "statistics": {
-                "max": {
-                  "value": 0.04654303938150406
-                },
-                "mean": {
-                  "value": 0.04654303938150406
-                },
-                "median": {
-                  "value": 0.04654303938150406
-                },
-                "min": {
-                  "value": 0.04654303938150406
-                },
-                "population_stddev": {
-                  "value": 0.0
-                }
-              },
-              "unit": "m",
-              "value_kind": "numeric"
-            }
-          }
-        ]
-      },
-      {
-        "metric": "time_to_success",
-        "tools": [
-          "time_to_success"
-        ],
-        "unit": "s",
-        "value_kind": "numeric",
-        "cohorts": [
-          {
-            "role": "policy_under_evaluation",
-            "policy_names": [
-              "ACT"
-            ],
-            "summary": {
-              "episode_result_count": 3,
-              "quality": {
-                "invalid": {
-                  "value": 0
-                },
-                "missing": {
-                  "value": 0
-                },
-                "valid": {
-                  "value": 3
-                }
-              },
-              "statistics": {
-                "max": {
-                  "value": 31.576
-                },
-                "mean": {
-                  "value": 30.868
-                },
-                "median": {
-                  "value": 30.72
-                },
-                "min": {
-                  "value": 30.308
-                },
-                "population_stddev": {
-                  "value": 0.5281312968066436
-                }
-              },
-              "unit": "s",
               "value_kind": "numeric"
             }
           }
@@ -573,50 +515,43 @@
     ]
   },
   "answer": {
-    "answer": "目前无法确定 ACT 最先在哪种物体属性或场景变化上暴露弱点。基线、roller 缩小至原尺度 0.85、以及缩小至 0.70 的测试均通过官方成功检查；因此在本次已测试范围内尚未观察到任务失败，结论为不确定。",
+    "answer": "是。在 grab_roller 任务中，Plan Agent 选择将 roller 沿世界 x 轴平移 0.05 m，并验证该场景可由专家解决。官方未改变场景控制成功；但在平移场景中，SmolVLA 未完成由官方目标与两个 terminal TCP-接触点距离均不超过 0.025 m 组成的实验谓词。因此，在本次有限实验范围内发现了 terminal alignment weakness。",
     "findings": [
-      "未扰动基线官方成功率为 1/1。",
-      "roller 缩小至原尺度 0.85 的候选官方成功率为 1/1，未显示任务失败。",
-      "roller 缩小至原尺度 0.70 的候选官方成功率为 1/1，未显示任务失败。",
-      "执行流水线完成且没有报告证据冲突，但查询充分性契约未满足，因此不能据此认定存在已验证的最早弱点。"
+      "官方未改变场景中，官方检查成功率为 1/1。",
+      "0.05 m 世界 x 轴 roller 平移场景通过了场景生成、执行、专家可解性及工具验证。",
+      "平移场景中，官方核心谓词仍满足，但组合实验检查失败，策略成功率为 0/1；因此策略未完成该实验任务。",
+      "terminal 最大 TCP-to-contact 距离为 0.24384725093841553 m，明显超过 0.025 m 阈值。",
+      "执行 VQA 无证据冲突，并在 final 帧定性观察到左 TCP 看起来比右 TCP 更远离对应接触点；该观察仅为支持性视觉证据。"
     ],
-    "recommended_next_step": "在明确绑定并验证完整 0.85 与 0.70 尺度扰动、保持条件及双侧接触观测后，使用多个新种子进行更细的尺度递减扫描，直到官方成功检查首次失败；再将首次失败尺度与基线比较，以定位最早弱点。",
+    "recommended_next_step": "在保持同一官方谓词和 terminal 0.025 m 阈值的前提下，使用至少多个新的独立种子重复该 0.05 m 世界 x 轴平移场景，并从 rollout telemetry 明确输出轨迹峰值 TCP-to-contact 距离，分别与 terminal 距离及官方检查结果对照。",
     "limitations": [
-      "本次仅有 N=3 个策略 episode，且全部使用种子 [100401]，不是广泛泛化评估。",
-      "评估在预算耗尽前未满足查询充分性契约，结论为 inconclusive。",
-      "两个 Query-derived 候选的原始意图字段均未覆盖，包括 requested_change、preserved_conditions、hypothesis 和 required_observation；因此不能把这些结果当作完整实现原始扰动意图的决定性证据。",
-      "候选空间未封闭，不能推出穷尽性、最坏情况或一般化结论。",
-      "Evidence contains N=3 policy episodes at seeds [100401].",
-      "Tested Query-derived candidate contract requirements remain uncovered: ['intent.7d4cb852954896a8:requested_change', 'intent.7d4cb852954896a8:preserved_conditions', 'intent.7d4cb852954896a8:hypothesis', 'intent.7d4cb852954896a8:required_observation', 'intent.4660c0a7908d4c45:requested_change', 'intent.4660c0a7908d4c45:preserved_conditions', 'intent.4660c0a7908d4c45:hypothesis', 'intent.4660c0a7908d4c45:required_observation'].",
-      "The run stopped because its round budget was exhausted before the query-sufficiency contract was satisfied."
+      "结论仅适用于本次任务、checkpoint、0.05 m 世界 x 轴平移候选及种子 100401。",
+      "N=2 且只有一个唯一种子 [100401]，不是统计泛化保证。",
+      "候选域开放，未测试其他场景变化，不能推出穷尽性、最坏情况或普遍鲁棒性结论。",
+      "generated_check_success 不是官方 benchmark success；本次失败表示有界实验谓词失败，而非官方检查失败。",
+      "证据中未提供所要求的轨迹峰值标量的数值；0.24384725093841553 m 是 terminal 诊断值，不能改写为轨迹峰值。",
+      "Evidence contains N=2 policy episodes at seeds [100401].",
+      "The run stopped because the finite query-sufficiency contract was satisfied; this is not a statistical generalization guarantee."
     ]
   },
-  "post_run_semantic_alignment_reaudit": {
+  "post_run_semantic_alignment_reaudit": null,
+  "completed_round_reuse": {
+    "repair_id": "independent_query_tool_reuse_v1",
     "act_rollouts_started": 0,
-    "mutates_source_evaluation": false,
-    "rounds": [
-      {
-        "round_id": "round_2",
-        "original_relationship": "diagnostic_proxy",
-        "recomputed_relationship": "direct",
-        "recomputed_coverage": "partial",
-        "pending_intent_fields": [
-          "preserved_conditions",
-          "required_observation"
-        ]
-      },
-      {
-        "round_id": "round_3",
-        "original_relationship": "diagnostic_proxy",
-        "recomputed_relationship": "direct",
-        "recomputed_coverage": "partial",
-        "pending_intent_fields": [
-          "preserved_conditions",
-          "required_observation"
-        ]
-      }
+    "first_query_route": "provider_python_codegen",
+    "first_query_measurements": [
+      0.24384725093841553
     ],
-    "conclusion": "The quantified scale assignments are direct scene changes rather than unchanged-scene proxies. Required-observation and preservation coverage remain pending: each round executed one scalar Rule Tool, and the original preservation conditions lack complete simulator or visual authority."
-  },
-  "completed_round_reuse": null
+    "exact_reuse_route": "run_local_reuse",
+    "exact_reuse_provider_called": false,
+    "aggregate_status": "source_round_passed_not_recomputed",
+    "acceptance_projection": {
+      "status": "completed",
+      "source_summary_path": "summary/summary.json",
+      "projection_source": "current_code_post_run",
+      "artifact": "artifacts/audit/completed_round_reuse/acceptance_projection.json",
+      "accepted": true,
+      "candidate_execution_accepted": true
+    }
+  }
 }

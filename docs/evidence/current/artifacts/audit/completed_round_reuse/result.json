@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "status": "completed",
+  "repair_id": "independent_query_tool_reuse_v1",
+  "source_evaluation_id": "eval_20260731_batch32_clean_flagship_live_v18",
+  "source_round_id": "round_2",
+  "mode": "independent_followup_query_exact_run_local_tool_reuse",
+  "act_rollouts_started": 0,
+  "provider_calls_started": 0,
+  "first_query_route": "provider_python_codegen",
+  "first_query_provider_called": true,
+  "first_query_measurements": [
+    0.24384725093841553
+  ],
+  "exact_reuse_route": "run_local_reuse",
+  "exact_reuse_kind": "run_local_registry",
+  "exact_reuse_provider_called": false,
+  "exact_reuse_measurements": [
+    0.24384725093841553
+  ],
+  "source_registration_id": "runlocal_69223f1181c20689d466",
+  "reuse_registration_id": "runlocal_69223f1181c20689d466",
+  "registry_unchanged": true,
+  "aggregate_status": "source_round_passed_not_recomputed",
+  "flagship_acceptance": {
+    "schema_version": 1,
+    "accepted": true,
+    "execution_entrypoint": "scripts/manipeval_agent.py",
+    "history_replay_disabled": true,
+    "online_query_interpretation": true,
+    "query_interpretation_attempt_count": 1,
+    "query_interpretation_bounded_repair_used": false,
+    "online_query_candidate_binding": true,
+    "candidate_binding_mode": "online_runtime_discovery",
+    "cli_candidate_hint_used": false,
+    "candidate_domain_resolution": "generation_required_no_registered_candidate",
+    "candidate_aspect_ids": null,
+    "bound_candidate_templates": [
+      "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff"
+    ],
+    "singleton_query_candidate": true,
+    "query_candidates_bound": true,
+    "runtime_bound_route": true,
+    "global_router_provider_calls": 0,
+    "act_rollouts": 2,
+    "required_act_rollouts": 2,
+    "accepted_act_rollout_range": [
+      2,
+      3
+    ],
+    "policy_rollouts": 2,
+    "accepted_policy_rollout_range": [
+      2,
+      3
+    ],
+    "control_requirement": "required",
+    "control_requirement_satisfied": true,
+    "round_routes": [
+      "official",
+      "generic_provider_scene_checker_codegen"
+    ],
+    "stop_reason": "evidence_sufficient",
+    "evidence_sufficient": true,
+    "outcome_semantics_statuses": [
+      "official_only",
+      "expected_semantic_extension"
+    ],
+    "answer_scope": "bounded_experimental_query_semantics",
+    "same_bundle_bound_checker_reuse": false,
+    "typed_execution_complete": true,
+    "candidate_execution_accepted": true,
+    "bound_checker_metric": null,
+    "bound_checker_module_sha256": null,
+    "cross_query_registry_reuse_established": false
+  },
+  "limitations": [
+    "This is append-only reuse over completed telemetry.",
+    "It is not a new policy rollout.",
+    "It proves run-local reuse, not cross-evaluation registry reuse."
+  ]
+}
