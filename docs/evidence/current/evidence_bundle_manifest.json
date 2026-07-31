@@ -73,8 +73,8 @@
   "artifacts": [
     {
       "path": "README.md",
-      "bytes": 10522,
-      "sha256": "40e3e69a1dcec9060c553318397c384facafce76b30bf44a080087eb2d08f2b6"
+      "bytes": 10556,
+      "sha256": "b9ddb3414cbe1726bbc59a49ff3ca7d58acca39b92d64ec7067392bf67ecbdea"
     },
     {
       "path": "artifacts/aggregate/final.json",

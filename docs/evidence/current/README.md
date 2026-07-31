@@ -136,4 +136,4 @@ N/A - no real scene image was found.
 ### Completed-round Tool reuse audit
 
 {"repair_id": "independent_query_tool_reuse_v1", "act_rollouts_started": 0, "first_query_route": "provider_python_codegen", "first_query_measurements": [0.24384725093841553], "exact_reuse_route": "run_local_reuse", "exact_reuse_provider_called": false, "aggregate_status": "source_round_passed_not_recomputed", "acceptance_projection": {"status": "completed", "source_summary_path": "summary/summary.json", "projection_source": "current_code_post_run", "artifact": "artifacts/audit/completed_round_reuse/acceptance_projection.json", "accepted": true, "candidate_execution_accepted": true}}
-This audit reuses completed policy telemetry and starts no simulator or policy rollout. It proves exact run-local reuse, not independent cross-evaluation reuse.
+This independent follow-up Query reuses completed policy telemetry and starts no simulator or policy rollout. It proves exact reuse within this evaluation's registry, not cross-evaluation reuse.
