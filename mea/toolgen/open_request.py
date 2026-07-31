@@ -748,8 +748,11 @@ class OpenToolRequestAgent:
         )
         novel_rule = (
             "Otherwise propose a schema_version=2 derived_observable semantic "
-            "contract with a precise physical description, unit, and 1-8 "
-            "advertised required_signals. ToolGen will run a separate "
+            "contract. Its description MUST contain 1-240 characters, "
+            "required_signals MUST contain 1-8 advertised signal names, and "
+            "null_semantics MUST be exactly null_if_no_finite_sample. Include "
+            "all three fields in every complete response, including repairs. "
+            "Also provide a precise physical unit. ToolGen will run a separate "
             "development-agent semantic review against this contract, "
             "restrict the implementation to those "
             "signals, and run deterministic finite-output and artifact-"
@@ -872,7 +875,11 @@ class OpenToolRequestAgent:
                 attempt_prompt += (
                     "\n\nPREVIOUS VALIDATION ERROR:\n"
                     + self.last_errors[-1]
-                    + "\nReturn one corrected complete JSON object."
+                    + "\nReturn one corrected complete JSON object. Preserve "
+                    "every required key from the output example. For a "
+                    "derived_observable, description must contain 1-240 "
+                    "characters and null_semantics must be exactly "
+                    "null_if_no_finite_sample."
                 )
             try:
                 response = self.provider.text(

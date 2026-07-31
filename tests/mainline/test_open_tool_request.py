@@ -27,9 +27,11 @@ class _RetryProvider:
     def __init__(self, payloads):
         self.payloads = list(payloads)
         self.calls = 0
+        self.prompts = []
         self.last_metadata = {"provider": "fixture"}
 
-    def text(self, *_args, **_kwargs):
+    def text(self, prompt, *_args, **_kwargs):
+        self.prompts.append(prompt)
         payload = self.payloads[min(self.calls, len(self.payloads) - 1)]
         self.calls += 1
         return json.dumps(payload)
@@ -180,6 +182,43 @@ class OpenToolRequestTest(unittest.TestCase):
         self.assertIn(
             '"operation": "derived_observable"',
             agent.last_prompt,
+        )
+        self.assertIn(
+            "description MUST contain 1-240 characters",
+            agent.last_prompt,
+        )
+        self.assertIn(
+            "null_semantics MUST be exactly null_if_no_finite_sample",
+            agent.last_prompt,
+        )
+
+    def test_derived_observable_repair_repeats_complete_contract(self):
+        root = Path(__file__).resolve().parents[2]
+        invalid = _derived()
+        invalid["metric_spec"]["description"] = "x" * 241
+        provider = _RetryProvider([invalid, _derived()])
+        agent = OpenToolRequestAgent(root, provider, model="fixture-model")
+
+        bundle = agent.propose(
+            source_query="Where does the trajectory first become jerky?",
+            semantic_concern="pre-contact motion quality",
+            tool_need="Measure the peak per-step hammer motion.",
+            task_name="beat_block_hammer",
+            derived_observable_oracle_available=True,
+        )
+
+        self.assertEqual(
+            bundle["tool_request"]["metric_spec"]["operation"],
+            "derived_observable",
+        )
+        self.assertEqual(provider.calls, 2)
+        self.assertIn(
+            "description must contain 1-240 characters",
+            provider.prompts[1],
+        )
+        self.assertIn(
+            "null_semantics must be exactly null_if_no_finite_sample",
+            provider.prompts[1],
         )
 
     def test_derived_observable_identity_matches_the_tool_metric(self):
