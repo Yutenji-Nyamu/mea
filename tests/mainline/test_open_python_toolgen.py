@@ -301,6 +301,11 @@ class OpenPythonToolGenTests(unittest.TestCase):
                 '"details.operation": "minimum_distance"',
                 provider.prompts[0],
             )
+            self.assertIn('"details.reason": "measured"', provider.prompts[0])
+            self.assertNotIn(
+                "details.reason_on_measurement",
+                provider.prompts[0],
+            )
             self.assertEqual(generated["generation"]["successful_attempt"], 1)
             self.assertTrue(
                 (root / "generated/attempts/attempt_1/prompt.md").is_file()

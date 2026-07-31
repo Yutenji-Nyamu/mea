@@ -1064,7 +1064,7 @@ def _provider_codegen_prompt(
         "passed": None,
         "evidence_steps": "plain Python int physics steps",
         "details.operation": operation,
-        "details.reason_on_measurement": normal_reason,
+        "details.reason": normal_reason,
         "details.allowed_null_reasons": null_reasons,
         "json_native_scalars_only": True,
     }
