@@ -108,5 +108,19 @@ PYTHONPATH=. /root/autodl-tmp/envs/mea-libero/bin/python -m pytest -q \
   tests/mainline
 ```
 
-最终结果与 GitHub HEAD 在本批收尾提交后写入 Git 历史与任务汇报；权威紧凑证据为
+结果：
+
+```text
+306 passed, 16 subtests passed in 17.55s
+```
+
+日志位于：
+
+```text
+/root/autodl-tmp/mea-run-logs/batch32_method_mainline_refactor/
+  final_mainline.log
+  final_mainline.status
+```
+
+所有测试均在 AutoDL server；Windows PC 没有运行项目测试。权威紧凑证据为
 [`docs/evidence/current/`](../../../../docs/evidence/current/README.md)。
