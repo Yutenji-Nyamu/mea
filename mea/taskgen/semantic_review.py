@@ -41,6 +41,16 @@ _BINDING_FIELDS = {
     "checker_sha256",
     "official_checker_sha256",
 }
+_ROBOTWIN_RUNTIME_API_AUTHORITY = """\
+- `self.scene.get_contacts()` returns current PhysX contacts.
+- Each contact body exposes its scene entity as `.entity`.
+- A RoboTwin Actor wrapper exposes that same scene entity as `.actor`.
+- `self.robot.left_gripper` and `self.robot.right_gripper` contain gripper
+  joints; each joint tuple's `[0].child_link` is the corresponding gripper
+  link entity.
+These are established read-only RoboTwin runtime APIs. Do not reject their
+use as unsupported; review whether the code uses them with the exact actor,
+side, simultaneity, and object identities required by the Proposal."""
 
 
 def _canonical_sha256(value: Any) -> str:
@@ -184,6 +194,9 @@ FROZEN PROPOSAL:
 
 TASK CONTEXT:
 {json.dumps(task_context, ensure_ascii=False, sort_keys=True, indent=2)}
+
+SUPPORTED ROBOTWIN CHECKER API:
+{_ROBOTWIN_RUNTIME_API_AUTHORITY}
 
 METHOD PROVENANCE:
 {json.dumps(method_provenance, ensure_ascii=False, sort_keys=True, indent=2)}

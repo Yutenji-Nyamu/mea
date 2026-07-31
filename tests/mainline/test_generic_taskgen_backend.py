@@ -2062,6 +2062,7 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                 "derive the smallest measurable change", prompt
             )
             self.assertIn("self.scene.get_contacts()", prompt)
+            self.assertIn("self.robot.left_gripper", prompt)
             self.assertIn("do not invent a helper", prompt)
             self.assertIn(
                 "check_success cannot read the completed trajectory",
@@ -2170,6 +2171,14 @@ class GenericTaskGenBackendTests(unittest.TestCase):
         self.assertIn('self.target = "generated"', task_source)
         self.assertNotIn("changed_scene", task_source)
         self.assertIn("correlated proxy", provider.method_prompts[1])
+        self.assertIn(
+            "SUPPORTED ROBOTWIN CHECKER API",
+            provider.review_prompts[1],
+        )
+        self.assertIn(
+            "joint tuple's `[0].child_link`",
+            provider.review_prompts[1],
+        )
         self.assertEqual(review["status"], "approved")
         self.assertEqual(review["authority"], "development_agent_proxy")
 
