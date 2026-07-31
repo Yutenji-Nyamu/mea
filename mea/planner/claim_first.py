@@ -815,6 +815,17 @@ robustness Query, for example, a successful control
 can justify selecting the highest-risk supported perturbation, while a failed
 control should redirect to baseline reliability or failure diagnosis.
 
+Interpret completed evidence by its declared role.  The top-level `outcome`
+is the authoritative verdict for the tested hypothesis.  A
+`diagnostic_tool_measurements` value is supporting diagnosis only and never
+rewrites that verdict.  Preserve the Tool's temporal semantics exactly:
+`peak`/`maximum over the rollout` is not a terminal/current-state value.
+Failure example: if `outcome="success"` for a terminal checker while a
+trajectory-peak distance is large, do not call that a terminal failure or a
+failing existential witness.  The correct next step may diagnose the large
+transient or choose a stronger scene challenge, but it must retain the
+successful terminal-checker result.
+
 Stop only when the completed evidence already answers the original Query.  For
 action=stop set sub_aspect and
 requested_perturbation to null, all four needs to

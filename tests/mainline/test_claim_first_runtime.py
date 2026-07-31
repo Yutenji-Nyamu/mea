@@ -358,6 +358,18 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             "must not use its scale to relax, replace",
             compact_prompt,
         )
+        self.assertIn(
+            "`diagnostic_tool_measurements` value is supporting diagnosis only",
+            compact_prompt,
+        )
+        self.assertIn(
+            "`peak`/`maximum over the rollout` is not a terminal/current-state value",
+            compact_prompt,
+        )
+        self.assertIn(
+            'outcome="success" for a terminal checker',
+            compact_prompt,
+        )
 
     def test_plan_agent_session_is_canonical_with_legacy_aliases(self):
         self.assertIs(ClaimFirstRuntimeController, PlanAgentSession)
@@ -1098,6 +1110,14 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         self.assertIn("precontact_jerk_peak", evidence_summary)
         self.assertIn('"value": 0.031', evidence_summary)
         self.assertIn('"provider_called": false', evidence_summary)
+        self.assertIn(
+            "authoritative_candidate_outcome=success",
+            evidence_summary,
+        )
+        self.assertIn(
+            "diagnostic_tool_role=supporting_measurement_not_success_authority",
+            evidence_summary,
+        )
 
     def test_explicit_evidence_artifact_paths_override_shared_round_directory(self):
         plan = round_plan(

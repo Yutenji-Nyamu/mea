@@ -1260,13 +1260,17 @@ def build_claim_first_evidence_record(
         else "[]"
     )
     summary_text = (
-        f"EvidencePacket strength={strength}; policy_success_rate="
-        f"{success_rate}; Rule metric={packet['rule']['metric']}; "
-        f"outcome_metric={policy_outcome.get('metric')}; "
-        f"outcome_authority={policy_outcome.get('authority')}; "
-        f"outcome_semantics={outcome_semantics_status}; "
+        f"EvidencePacket strength={strength}; "
+        f"authoritative_candidate_outcome={semantic_outcome}; "
+        f"success_predicate_metric={policy_outcome.get('metric')}; "
+        f"success_predicate_value={policy_outcome.get('value')}; "
+        f"success_predicate_authority={policy_outcome.get('authority')}; "
+        f"success_predicate_semantics={outcome_semantics_status}; "
+        f"policy_success_rate={success_rate}; "
+        f"Rule metric={packet['rule']['metric']}; "
         f"VQA status={packet['vqa']['status']}; "
-        f"planned_tool_measurements={tool_summary}."
+        "diagnostic_tool_role=supporting_measurement_not_success_authority; "
+        f"diagnostic_tool_measurements={tool_summary}."
     )
     open_query = validate_open_query_evidence(
         [

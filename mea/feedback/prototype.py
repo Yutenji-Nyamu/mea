@@ -209,6 +209,11 @@ EVIDENCE INTERPRETATION CONTRACT:
    不是本次 evaluation evidence，禁止与本次 Aggregate 合并或据此声称本次成功。
 2. `ANSWER SCOPE` 是 deterministic validator 从证据投影的硬边界。回答必须与其
    N/seeds、未测试候选、unsupported capability、冲突和停止原因一致。
+3. `generated_check_success` 在 `expected_semantic_extension` 且无 evidence
+   conflict 时，是该 Query 所定义的有界实验条件的结果；它不是官方 benchmark
+   success，但不能仅因 `official_equivalent=false` 就被说成“无法判断实验条件”。
+4. Tool 的时间语义不可改写：trajectory peak/max 是诊断量，不是 terminal/current
+   value。不得用较大的 peak 把成功的 terminal checker 改写成 terminal failure。
 
 AGENT RULES:
 {instructions}
