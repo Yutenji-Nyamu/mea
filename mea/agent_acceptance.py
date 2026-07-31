@@ -228,6 +228,7 @@ def build_compact_flagship_acceptance(
         in {
             "broad_or_ambiguous",
             "open_world_candidate_discovery_required",
+            "generation_required_no_registered_candidate",
         }
         and concern_candidate_resolution.get("concern_created_before_catalog")
         is True

@@ -531,7 +531,7 @@ class CrossTaskEntrypointTests(unittest.TestCase):
             open_task_resolution={"decision": "retrieve_and_adapt"},
             concern_candidate_resolution={
                 "decision": "catalog_external",
-                "resolution": "open_world_candidate_discovery_required",
+                "resolution": "generation_required_no_registered_candidate",
                 "candidate_aspect_ids": None,
                 "selected_template_ids": [],
                 "concern_created_before_catalog": True,
