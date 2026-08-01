@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from .retrieval import TrustedToolRetriever
+from .schema import validate_task_schema
 from .tools import TrajectoryView, run_trusted_tools
 
 
@@ -27,6 +28,7 @@ def evaluate_telemetry_root(
     task_name: str = "beat_block_hammer",
     outcome_metric: str = "official_check_success",
     outcome_binding: Mapping[str, Any] | None = None,
+    task_schema: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     normalized_outcome_binding: dict[str, str] | None = None
     if outcome_metric == "generated_check_success":
@@ -67,13 +69,41 @@ def evaluate_telemetry_root(
             "outcome_binding is only valid for generated_check_success"
         )
     root = Path(telemetry_root).expanduser().resolve()
+    metadata_paths = sorted(root.rglob("episode.json"))
+    if not metadata_paths:
+        raise RuntimeError(f"no complete telemetry episode found under {root}")
+    episode_schemas = [
+        validate_task_schema(
+            json.loads(
+                (metadata_path.parent / "schema.json").read_text(
+                    encoding="utf-8"
+                )
+            ),
+            expected_task_name=task_name,
+        )
+        for metadata_path in metadata_paths
+    ]
+    executed_schema = (
+        validate_task_schema(
+            dict(task_schema),
+            expected_task_name=task_name,
+        )
+        if isinstance(task_schema, Mapping)
+        else episode_schemas[0]
+    )
+    if any(schema != executed_schema for schema in episode_schemas):
+        raise RuntimeError(
+            "telemetry episodes expose a schema different from the executed "
+            "TaskSchema authority"
+        )
     selection = TrustedToolRetriever().select(
         user_request,
         task_name=task_name,
         outcome_metric=outcome_metric,
+        task_schema=executed_schema,
     )
     episodes: list[dict[str, Any]] = []
-    for metadata_path in sorted(root.rglob("episode.json")):
+    for metadata_path in metadata_paths:
         episode_dir = metadata_path.parent
         trajectory = TrajectoryView(episode_dir)
         episode_task = trajectory.metadata.get("task_name")

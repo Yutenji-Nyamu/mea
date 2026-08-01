@@ -97,10 +97,20 @@ def refresh_plan_agent_capabilities_from_runtime_context(
     task_schema = context.get("task_schema")
     if not isinstance(task_schema, Mapping):
         raise ValueError("runtime_task_context has no task schema")
+    task_name = context.get("task_name")
+    if (
+        child_manifest.get("generation_kind") != "official_passthrough"
+        or child_manifest.get("task_module") != f"envs.{task_name}"
+    ):
+        # Current TaskGen contexts establish authority from the official base
+        # reset.  They do not yet describe provider-added actors in the
+        # generated module, so retaining the last validated capability card is
+        # more accurate than promoting the base schema as generated-scene
+        # authority.
+        return current
     simulator = current.get("simulator_card")
     if not isinstance(simulator, Mapping):
         raise ValueError("Plan Agent capabilities have no simulator card")
-    task_name = context.get("task_name")
     if (
         not isinstance(task_name, str)
         or task_name != simulator.get("task_name")

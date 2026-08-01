@@ -295,7 +295,11 @@ def test_runtime_task_context_refreshes_next_plan_agent_capabilities(
 
     refreshed = refresh_plan_agent_capabilities_from_runtime_context(
         capabilities,
-        {"runtime_task_context": context},
+        {
+            "generation_kind": "official_passthrough",
+            "task_module": "envs.alpha_task",
+            "runtime_task_context": context,
+        },
     )
 
     assert refreshed["generation_card"]["backend_primitives"][
@@ -311,6 +315,54 @@ def test_runtime_task_context_refreshes_next_plan_agent_capabilities(
         "schema_origin"
     ] == "runtime_probe"
     assert refreshed["policy_card"]["unknown_metadata"] == []
+
+
+def test_generated_round_does_not_promote_official_base_task_context(
+    tmp_path,
+):
+    _write_official_task(tmp_path, "alpha_task", "move the alpha object")
+    context = resolve_robotwin_task_context(
+        tmp_path,
+        "alpha_task",
+        runtime_probe=_task_context_probe(tmp_path, "alpha_task"),
+    ).to_dict()
+    capabilities = {
+        "schema_version": 2,
+        "policy_card": {
+            "policy_name": "SmolVLA",
+            "unknown_metadata": ["semantic_actor_schema"],
+        },
+        "simulator_card": {
+            "task_name": "alpha_task",
+            "tracked_actors": [],
+            "success_contract": {
+                "authority": "official_task_check_success_only",
+                "semantic_telemetry_available": False,
+            },
+        },
+        "generation_card": {
+            "backend_primitives": {
+                "scene": True,
+                "checker": True,
+                "telemetry": False,
+                "rule": True,
+                "vqa": True,
+                "retrieve": True,
+                "generate": True,
+            }
+        },
+    }
+
+    retained = refresh_plan_agent_capabilities_from_runtime_context(
+        capabilities,
+        {
+            "generation_kind": "generic_provider_scene_checker_codegen",
+            "task_module": "mea.generated_tasks.run_alpha.task",
+            "runtime_task_context": context,
+        },
+    )
+
+    assert retained == capabilities
 
 
 def test_native_schema_less_control_persists_runtime_task_context(tmp_path):

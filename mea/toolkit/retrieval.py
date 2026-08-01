@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
-from .schema import load_task_schema
+from .schema import load_task_schema, validate_task_schema
 from .tools import TOOL_CATALOG, public_tool_catalog
 
 
@@ -40,13 +40,21 @@ class TrustedToolRetriever:
         *,
         task_name: str,
         outcome_metric: str = "official_check_success",
+        task_schema: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         if outcome_metric not in {
             "official_check_success",
             "generated_check_success",
         }:
             raise ValueError(f"unsupported outcome metric: {outcome_metric}")
-        schema = load_task_schema(self.repo_root, task_name)
+        schema = (
+            validate_task_schema(
+                dict(task_schema),
+                expected_task_name=task_name,
+            )
+            if isinstance(task_schema, Mapping)
+            else load_task_schema(self.repo_root, task_name)
+        )
         profile = schema.get("trusted_tool_profile", "generic_success")
         text = user_request.lower()
         selected = list(
@@ -106,6 +114,10 @@ class TrustedToolRetriever:
                 "task_family": schema.get("task_family"),
                 "trusted_tool_profile": profile,
             },
-            "selection_mode": "schema_profile_plus_deterministic_keywords",
+            "selection_mode": (
+                "executed_schema_profile_plus_deterministic_keywords"
+                if task_schema is not None
+                else "schema_profile_plus_deterministic_keywords"
+            ),
             "outcome_metric": outcome_metric,
         }

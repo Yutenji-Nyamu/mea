@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Any, Mapping
 from unittest.mock import patch
 
+import numpy as np
+
 from mea.method_runtime import (
     BackendBindingRequest,
     CandidateRequest,
@@ -31,6 +33,7 @@ from mea.taskgen.rollout_evidence import (
     evaluate_generic_task_rollout_telemetry,
 )
 from mea.taskgen.semantic_review import checker_review_identity_sha256
+from mea.toolkit import evaluate_telemetry_root
 
 
 class _Provider:
@@ -865,3 +868,88 @@ def test_generic_rollout_bridge_reuses_official_checker_without_hash_binding(
     assert evaluate.call_args.kwargs["outcome_binding"] is None
     assert result["tool_retrieval"]["route"] == "official_checker_reuse"
     assert result["outcome_authority"] == "official_check_success_reused"
+
+
+def test_toolkit_uses_executed_schema_without_static_task_registration(
+    tmp_path: Path,
+) -> None:
+    task_name = "runtime_only_task"
+    episode = tmp_path / "telemetry/smolvla/episode_000"
+    episode.mkdir(parents=True)
+    schema = {
+        "schema_version": 1,
+        "task_name": task_name,
+        "task_family": "robotwin_runtime_discovered",
+        "trusted_tool_profile": "runtime_actor_positions",
+        "physics_timestep_seconds": 0.004,
+        "action_dimension": 14,
+        "probe_task_attributes": [],
+        "tracked_actors": [
+            {
+                "id": "target",
+                "task_attribute": "target",
+                "scene_name": "target_actor",
+                "functional_points": [],
+                "contact_points": [],
+            }
+        ],
+        "contact_focus_actor_ids": [],
+        "semantic_fields": [
+            {
+                "name": "target_position",
+                "source": "actor_position",
+                "actor_id": "target",
+            }
+        ],
+        "semantic_roles": {},
+        "success_contract": {
+            "type": "official_check_success",
+            "authority": "official_check_success_runtime_callable",
+            "official_source_sha256": "a" * 64,
+            "semantic_telemetry_available": True,
+        },
+    }
+    (episode / "schema.json").write_text(
+        json.dumps(schema) + "\n",
+        encoding="utf-8",
+    )
+    (episode / "episode.json").write_text(
+        json.dumps(
+            {
+                "task_name": task_name,
+                "policy_name": "SmolVLA",
+                "seed": 23,
+                "success": True,
+                "physics_steps": 1,
+                "semantic_trace_rows": 2,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (episode / "states.csv").write_text(
+        "policy_step\n0\n",
+        encoding="utf-8",
+    )
+    np.savez_compressed(
+        episode / "semantic_trace.npz",
+        physics_step=np.asarray([0, 1], dtype=np.int64),
+        policy_step=np.asarray([0, 0], dtype=np.int64),
+        simulation_time_seconds=np.asarray([0.0, 0.004]),
+        success=np.asarray([False, True]),
+        target_position=np.zeros((2, 3), dtype=np.float32),
+    )
+
+    result = evaluate_telemetry_root(
+        tmp_path / "telemetry",
+        user_request="Did the runtime-only task succeed?",
+        task_name=task_name,
+    )
+
+    assert result["tool_retrieval"]["selection_mode"] == (
+        "executed_schema_profile_plus_deterministic_keywords"
+    )
+    assert result["episodes"][0]["tool_results"][0]["tool"] == (
+        "official_check_success"
+    )
+    assert result["episodes"][0]["tool_results"][0]["value"] is True
