@@ -120,6 +120,9 @@ from mea.robotwin.native_agent_round import (
     execute_hyvla_method_round,
     execute_smolvla_method_round,
 )
+from mea.robotwin.production_round_executor import (
+    build_production_round_executor,
+)
 from mea.taskgen import round_materialization as taskgen_round_materialization
 from mea.taskgen.runtime import create_generic_provider_taskgen_run
 from mea.toolgen import route_tool_request
@@ -1093,12 +1096,6 @@ def _build_round_executor(*, native_act: bool) -> RoundExecutor:
             native_policy_rounds=native_policy_rounds,
         )
     )
-
-
-def build_production_round_executor() -> RoundExecutor:
-    """Assemble the production lifecycle with native ACT and SmolVLA."""
-
-    return _build_round_executor(native_act=True)
 
 
 def execute_round(
@@ -2553,9 +2550,6 @@ def main() -> None:
                 args.hyvla_port
                 if args.policy_backend == "hyvla"
                 else args.smolvla_port
-            ),
-            materialize_round=(
-                taskgen_round_materialization.materialize_open_world_round
             ),
             reviewed_task_registry=reviewed_task_registry,
             reviewed_tool_registry=reviewed_tool_registry,

@@ -16,7 +16,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any, Mapping
 
 from mea.agent_acceptance import build_compact_flagship_acceptance
 from mea.agent_evidence import (
@@ -43,9 +43,7 @@ from mea.planner import (
 from mea.providers import OpenAICompatibleProvider
 from mea.round_evidence import aggregate_evaluation_results
 from mea.round_executor import RoundExecutionRequest, RoundExecutor
-
-
-MaterializeRound = Callable[..., tuple[dict[str, Any], dict[str, Any]]]
+from mea.taskgen.round_materialization import materialize_open_world_round
 
 
 def _write_json(path: Path, value: Any) -> None:
@@ -300,7 +298,6 @@ class PlanAgentApplication:
     policy_backend: str
     runtime_target: Mapping[str, Any] | None
     policy_server_port: int
-    materialize_round: MaterializeRound
     reviewed_task_registry: Path | None = None
     reviewed_tool_registry: Path | None = None
     reviewed_vqa_registry: Path | None = None
@@ -590,7 +587,7 @@ class PlanAgentApplication:
                     "Proposal before execution"
                 )
             next_round_number = len(plan["rounds"]) + 1
-            materialized_round, open_tool_bundle = self.materialize_round(
+            materialized_round, open_tool_bundle = materialize_open_world_round(
                 self.repo_root,
                 evaluation_dir=self.evaluation_dir,
                 round_number=next_round_number,

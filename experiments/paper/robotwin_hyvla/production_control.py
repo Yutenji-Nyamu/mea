@@ -30,7 +30,9 @@ from mea.planner.runtime_task_binding import (
     build_runtime_open_world_evaluation_target,
 )
 from mea.round_executor import RoundExecutionRequest
-from scripts.manipeval_agent import build_production_round_executor
+from mea.robotwin.production_round_executor import (
+    build_production_round_executor,
+)
 
 
 def _write_json(path: Path, value: Any) -> None:

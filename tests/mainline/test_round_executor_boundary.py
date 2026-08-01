@@ -14,7 +14,7 @@ from mea.round_tools import (
     executed_policy_episode_dirs,
     executed_runtime_task_schema,
 )
-from scripts.manipeval_agent import (
+from mea.robotwin.production_round_executor import (
     build_production_round_executor,
 )
 
