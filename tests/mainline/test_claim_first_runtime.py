@@ -936,7 +936,11 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             "policy_task_binding": build_policy_task_binding(
                 task_name="press_stapler",
                 task_family="runtime_discovered",
-                policy={"name": "Hy-VLA", "language_conditioned": True},
+                policy={
+                    "name": "Hy-VLA",
+                    "backend": "hyvla",
+                    "language_conditioned": True,
+                },
                 checkpoint={
                     "checkpoint_id": "hyvla-robotwin",
                     "checkpoint_setting": "demo_clean",
