@@ -386,7 +386,7 @@ class ProductionCliBoundaryTests(unittest.TestCase):
         )
 
         broad_resolution = dict(resolution)
-        broad_query = "Where does this policy first expose a weakness?"
+        broad_query = "Does there exist a sub-aspect that exposes a weakness?"
         self.assertTrue(
             resolve_plan_agent_control_required(
                 broad_query,
