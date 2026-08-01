@@ -1,0 +1,338 @@
+{
+  "schema_version": 1,
+  "evaluation_id": "eval_20260801_batch33_hyvla_plan_agent_control_v9",
+  "source_evaluation": "mea/evaluation_runs/eval_20260801_batch33_hyvla_plan_agent_control_v9",
+  "query": "Does this Hy-VLA policy complete the unchanged official press_stapler task in RoboTwin? Run exactly one official control episode and answer only from that evidence.",
+  "target": {
+    "binding_mode": "single_task_single_checkpoint_open_world",
+    "task_name": "press_stapler",
+    "task_profile": null,
+    "policy": {
+      "name": "Hy-VLA",
+      "backend": "hyvla",
+      "language_conditioned": true,
+      "task_schema_available": false,
+      "language_input": "official_description",
+      "action_chunk_size": 6,
+      "action_dimension": 16,
+      "action_semantics": "dual_arm_ee_wxyz",
+      "physics_timestep_seconds": 0.004,
+      "policy_source_path": "/root/autodl-tmp/third_party/Hy-Embodied-0.5-VLA",
+      "policy_python": "/root/autodl-tmp/envs/mea-hyvla/bin/python",
+      "server_management": "external_only",
+      "checkpoint_setting": "shared_official",
+      "task_instruction": "Use one arm to press the stapler."
+    },
+    "checkpoint": {
+      "policy_name": "Hy-VLA",
+      "checkpoint_id": "tencent/Hy-Embodied-0.5-VLA-RoboTwin",
+      "checkpoint_path": "/root/autodl-tmp/checkpoints/robotwin/hyvla_robotwin",
+      "task_scope": "robotwin_official_tasks",
+      "ready": true,
+      "language_input": "official_description",
+      "action_chunk_size": 6,
+      "action_dimension": 16,
+      "action_semantics": "dual_arm_ee_wxyz",
+      "physics_timestep_seconds": 0.004,
+      "policy_source_path": "/root/autodl-tmp/third_party/Hy-Embodied-0.5-VLA",
+      "policy_python": "/root/autodl-tmp/envs/mea-hyvla/bin/python",
+      "server_management": "external_only",
+      "checkpoint_setting": "shared_official"
+    }
+  },
+  "plan": {
+    "evaluation_goal": "answer_open_query_with_evidence: Does this Hy-VLA policy complete the unchanged official press_stapler task in RoboTwin? Run exactly one official control episode and answer only from that evidence.",
+    "planning_state": "stopped_after_round_1",
+    "round_budget": 1,
+    "source_flagship_acceptance": {
+      "schema_version": 1,
+      "accepted": false,
+      "execution_entrypoint": "scripts/manipeval_agent.py",
+      "history_replay_disabled": true,
+      "candidate_unexecutable_count": 0,
+      "candidate_unexecutable_ids": [],
+      "online_query_interpretation": true,
+      "query_interpretation_attempt_count": 1,
+      "query_interpretation_bounded_repair_used": false,
+      "online_query_candidate_binding": false,
+      "candidate_binding_mode": "unresolved",
+      "cli_candidate_hint_used": false,
+      "candidate_domain_resolution": "official_execution_from_typed_needs",
+      "candidate_aspect_ids": [
+        "task_execution.official_baseline"
+      ],
+      "bound_candidate_templates": [
+        "dynamic.press.stapler.whether.hy.vla.completes.the.official.press.stapler.manipulation.in.a.single.control.episode.in.exactly.one.unchanged.official.press.stapler.episode.hy.vla.satisfies.the.official.task.success.predicate.f05d3e73886e"
+      ],
+      "singleton_query_candidate": false,
+      "query_candidates_bound": false,
+      "runtime_bound_route": true,
+      "global_router_provider_calls": 0,
+      "act_rollouts": 1,
+      "required_act_rollouts": 2,
+      "accepted_act_rollout_range": [
+        2,
+        3
+      ],
+      "policy_rollouts": 1,
+      "accepted_policy_rollout_range": [
+        2,
+        3
+      ],
+      "control_requirement": "not_required",
+      "control_requirement_satisfied": true,
+      "round_routes": [
+        "official"
+      ],
+      "stop_reason": "evidence_sufficient",
+      "evidence_sufficient": true,
+      "outcome_semantics_statuses": [
+        "official_only"
+      ],
+      "answer_scope": "official_equivalent",
+      "same_bundle_bound_checker_reuse": false,
+      "typed_execution_complete": true,
+      "candidate_execution_accepted": true,
+      "bound_checker_metric": null,
+      "bound_checker_module_sha256": null,
+      "cross_query_registry_reuse_established": false
+    },
+    "current_acceptance_projection": {
+      "schema_version": 1,
+      "accepted": false,
+      "execution_entrypoint": "scripts/manipeval_agent.py",
+      "history_replay_disabled": true,
+      "candidate_unexecutable_count": 0,
+      "candidate_unexecutable_ids": [],
+      "online_query_interpretation": true,
+      "query_interpretation_attempt_count": 1,
+      "query_interpretation_bounded_repair_used": false,
+      "online_query_candidate_binding": false,
+      "candidate_binding_mode": "unresolved",
+      "cli_candidate_hint_used": false,
+      "candidate_domain_resolution": "official_execution_from_typed_needs",
+      "candidate_aspect_ids": [
+        "task_execution.official_baseline"
+      ],
+      "bound_candidate_templates": [
+        "dynamic.press.stapler.whether.hy.vla.completes.the.official.press.stapler.manipulation.in.a.single.control.episode.in.exactly.one.unchanged.official.press.stapler.episode.hy.vla.satisfies.the.official.task.success.predicate.f05d3e73886e"
+      ],
+      "singleton_query_candidate": false,
+      "query_candidates_bound": false,
+      "runtime_bound_route": true,
+      "global_router_provider_calls": 0,
+      "act_rollouts": 1,
+      "required_act_rollouts": 2,
+      "accepted_act_rollout_range": [
+        2,
+        3
+      ],
+      "policy_rollouts": 1,
+      "accepted_policy_rollout_range": [
+        2,
+        3
+      ],
+      "control_requirement": "not_required",
+      "control_requirement_satisfied": true,
+      "round_routes": [
+        "official"
+      ],
+      "stop_reason": "evidence_sufficient",
+      "evidence_sufficient": true,
+      "outcome_semantics_statuses": [
+        "official_only"
+      ],
+      "answer_scope": "official_equivalent",
+      "same_bundle_bound_checker_reuse": false,
+      "typed_execution_complete": true,
+      "candidate_execution_accepted": true,
+      "bound_checker_metric": null,
+      "bound_checker_module_sha256": null,
+      "cross_query_registry_reuse_established": false
+    }
+  },
+  "rounds": [
+    {
+      "round_id": "round_1",
+      "aspect_id": "Whether Hy-VLA completes the official press_stapler manipulation in a single control episode",
+      "template_id": null,
+      "taskgen_route": "official",
+      "taskgen_kind": "official_passthrough",
+      "execution_backend": "Hy-VLA",
+      "seeds": [
+        10000
+      ],
+      "pipeline_passed": true,
+      "policy_success": 1.0,
+      "tool_metric": "official_check_success",
+      "tool_route": "reuse",
+      "tool_rows": [
+        {
+          "role": "policy_under_evaluation",
+          "policy_name": "Hy-VLA",
+          "seed": 10000,
+          "value": true,
+          "unit": null,
+          "passed": true
+        }
+      ],
+      "vqa": {
+        "status": null,
+        "questions": [],
+        "phenomena": [],
+        "numeric_consistency": null,
+        "evidence_conflict": null
+      },
+      "aggregate": {
+        "status": "passed",
+        "source_count": 1,
+        "episode_result_count": 1,
+        "unique_episode_count": 1,
+        "metric_ids": [
+          "official_check_success"
+        ],
+        "input_issue_count": 0
+      },
+      "next_decision": {
+        "action": "stop",
+        "transition": "stop",
+        "decision_reason": "provider_authored_open_world_step",
+        "observation_summary": "The completed evidence is sufficient and authoritative for the requested single episode: the unchanged official control received outcome success with official_check_success=true. This answers the Query without making a statistical generalization beyond that episode.",
+        "answered_query": true,
+        "evidence_sufficient": null,
+        "claim_verdict": null,
+        "stop_reason": null
+      },
+      "taskgen_gates": {
+        "generation_attempts": null,
+        "checker_fixtures": null,
+        "vision_passed": null,
+        "expert_passed": null
+      }
+    }
+  ],
+  "final_aggregate": {
+    "schema_version": 1,
+    "status": "passed",
+    "source_count": 1,
+    "episode_result_count": 1,
+    "unique_episode_count": 1,
+    "metric_ids": [
+      "official_check_success"
+    ],
+    "input_issue_count": 0,
+    "input_issues": [],
+    "metrics": [
+      {
+        "metric": "official_check_success",
+        "tools": [
+          "official_check_success"
+        ],
+        "unit": null,
+        "value_kind": "boolean",
+        "cohorts": [
+          {
+            "role": "policy_under_evaluation",
+            "policy_names": [
+              "Hy-VLA"
+            ],
+            "summary": {
+              "episode_result_count": 1,
+              "quality": {
+                "invalid": {
+                  "value": 0
+                },
+                "missing": {
+                  "value": 0
+                },
+                "valid": {
+                  "value": 1
+                }
+              },
+              "statistics": {
+                "false_count": {
+                  "value": 0
+                },
+                "false_rate": {
+                  "denominator": 1,
+                  "numerator": 0,
+                  "value": 0.0
+                },
+                "success_count": {
+                  "value": 1
+                },
+                "success_rate": {
+                  "denominator": 1,
+                  "numerator": 1,
+                  "value": 1.0
+                },
+                "true_count": {
+                  "value": 1
+                },
+                "true_rate": {
+                  "denominator": 1,
+                  "numerator": 1,
+                  "value": 1.0
+                }
+              },
+              "unit": null,
+              "value_kind": "boolean"
+            },
+            "passed_summary": {
+              "episode_result_count": 1,
+              "quality": {
+                "invalid": {
+                  "value": 0
+                },
+                "missing": {
+                  "value": 0
+                },
+                "valid": {
+                  "value": 1
+                }
+              },
+              "statistics": {
+                "false_count": {
+                  "value": 0
+                },
+                "false_rate": {
+                  "denominator": 1,
+                  "numerator": 0,
+                  "value": 0.0
+                },
+                "true_count": {
+                  "value": 1
+                },
+                "true_rate": {
+                  "denominator": 1,
+                  "numerator": 1,
+                  "value": 1.0
+                }
+              },
+              "unit": null,
+              "value_kind": "boolean"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "answer": {
+    "answer": "是。在未改变的 RoboTwin 官方 press_stapler 任务上，Hy-VLA 的 1 个官方控制回合通过了官方成功检查（official_check_success=true），因此该回合完成了任务。",
+    "findings": [
+      "Hy-VLA 在该回合的 policy_success=1.0。",
+      "官方检查在证据步 2866 记录成功，且无证据冲突。",
+      "执行流水线和测量工具均通过。"
+    ],
+    "recommended_next_step": "在保持官方任务与检查器不变的前提下，使用更多独立种子和回合重复评估，以估计稳定成功率。",
+    "limitations": [
+      "证据仅覆盖 N=1、种子 10000 的单个回合。",
+      "本次因有限查询充分性契约满足而停止，不构成统计意义上的泛化保证。",
+      "未测试其他种子、场景变化或更多回合。",
+      "Evidence contains N=1 policy episodes at seeds [10000].",
+      "The run stopped because the finite query-sufficiency contract was satisfied; this is not a statistical generalization guarantee."
+    ]
+  },
+  "post_run_semantic_alignment_reaudit": null,
+  "completed_round_reuse": null
+}

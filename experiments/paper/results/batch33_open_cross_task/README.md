@@ -68,13 +68,14 @@ official rollout coverage，不代表 13 个任务均跑通 MEA TaskGen/ToolGen/
 该 pilot 只证明第二个多任务 policy adapter 可运行；它不是 MEA round、50-task success、
 sample-efficiency 或 policy-ranking 证据。
 
-生产 MEA 接入另有三个诚实负结果：
+生产 MEA 接入经历以下三个阶段：
 
-| run | policy rollout | stop reason |
-| --- | ---: | --- |
-| **eval_20260801_batch33_hyvla_plan_agent_control_v1** | 0 | schema-less binding 缺少正的 physics timestep；随后在 73d43ed 补齐 runtime metadata |
-| **eval_20260801_batch33_hyvla_plan_agent_control_v2** | 0 | provider typed needs 正确；schema-less resolver 仍错误依赖旧 aspect 菜单，admission 拒绝 official candidate；当前代码已修 |
-| **eval_20260801_batch33_hyvla_plan_agent_control_v3** | 0 | broad weakness Query 在单轮上限内得到 unsupported_candidate_domain |
+| 阶段 | 结果 | 结论 |
+| --- | --- | --- |
+| v1–v4-plan | binding、schema-less admission、broad candidate 与 launcher key 注入依次暴露问题；0 rollout | 均不是 Hy-VLA policy failure |
+| v5–v8-plan | official route、typed no-scene/checker needs、official Rule reuse 与 closed candidate universe 逐步闭合 | v8-plan 形成 clean pre-rollout contract |
+| v9 live + cached finalization | Hy-VLA official success 1.0；pipeline passed；Tool exact official reuse；Agent stop；QueryContract sufficient；首次 final summary 遇 UIUI 503，随后 provider-only 以 0 新 rollout 完成 manifest/Answer，三份受检 cached artifact SHA-256 未变 | 得到 N=1 official-control 方法正例；不是生成 scene/checker/Tool 或多任务排名证据 |
 
-三次均在 policy 连接前停止，不能计作 Hy-VLA task failure，也没有形成完整 MEA round。
-准确错误、model-load 时间和已采取的修复见冷流水账第 6 节。
+逐次错误、model-load 时间和已采取的修复只维护在冷流水账第 6 节，本文不重复。
+可移动的 v9 Query、Plan、Tool、Aggregate、Answer 和短视频见
+[`docs/evidence/supplements/2026-08-01/hyvla_v9_control`](../../../../docs/evidence/supplements/2026-08-01/hyvla_v9_control/README.md)。

@@ -1,0 +1,19 @@
+{
+  "schema_version": 3,
+  "claim_type": "diagnostic",
+  "candidate_universe": [
+    "dynamic.press.stapler.whether.hy.vla.completes.the.official.press.stapler.manipulation.in.a.single.control.episode.in.exactly.one.unchanged.official.press.stapler.episode.hy.vla.satisfies.the.official.task.success.predicate.f05d3e73886e"
+  ],
+  "required_coverage": {
+    "candidate_ids": [
+      "dynamic.press.stapler.whether.hy.vla.completes.the.official.press.stapler.manipulation.in.a.single.control.episode.in.exactly.one.unchanged.official.press.stapler.episode.hy.vla.satisfies.the.official.task.success.predicate.f05d3e73886e"
+    ],
+    "minimum_evaluated": 1,
+    "minimum_per_group": null
+  },
+  "round_budget": 1,
+  "comparison_groups": null,
+  "candidate_universe_closed": true,
+  "existential_witness_outcome": null,
+  "control_requirement": "not_required"
+}

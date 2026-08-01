@@ -259,9 +259,10 @@ and official success all completed; these warnings were therefore non-blocking.
 
 ## 6. Production MEA integration attempts
 
-The standalone official rollout above succeeded, but the first three production
-MEA invocations all stopped before connecting to the policy server. They are
-method-admission failures, not Hy-VLA inference or task failures. The exact v3
+The standalone official rollout above succeeded. Production integration then
+progressed from binding/admission failures through a clean official-control
+method round and cached finalization. The early failures are not Hy-VLA inference
+or task failures. The exact v3
 launcher remains on the server at
 `/root/autodl-tmp/tmp/batch33_hyvla_control_live_v3.sh`; v1 and v2 remain beside
 it as `batch33_hyvla_control_live.sh` and
@@ -288,13 +289,43 @@ UIUI_API_KEY="$UIUI_API_KEY" "$sim_python" scripts/manipeval_agent.py \
 | --- | --- | --- | --- |
 | **eval_20260801_batch33_hyvla_plan_agent_control_v1** | press_stapler, Hy-VLA external backend; model load 164.323 s | PlanningContextError: schema-less policy binding requires a positive policy.physics_timestep_seconds; no policy connection and 0 rollout | Runtime binding metadata was incomplete. Commit **73d43ed** added physics_timestep_seconds=0.004 and action_chunk_size=6; this was a binding fix, not a model change. |
 | **eval_20260801_batch33_hyvla_plan_agent_control_v2** | Query: “Does this Hy-VLA policy complete the unchanged official press_stapler task in RoboTwin? Run exactly one official control episode and answer only from that evidence.”; model load 165.023 s | Provider correctly returned scene/checker/VQA=false and official Rule reuse, but schema-less target resolution still classified it generation_required_no_registered_candidate / execution_authorized=false; completed_without_execution, 0 rollout | The resolver incorrectly required an old `target.aspects` entry after typed needs had already authorized unchanged official execution. The current fix binds `control_template_id(target)` directly and is covered by a schema-less regression. |
-| **eval_20260801_batch33_hyvla_plan_agent_control_v3** | Broad weakness Query, press_stapler, max_agent_rounds=1; model load 165.77 s | unsupported_candidate_domain, completed_without_execution; no policy connection and 0 rollout | A broad candidate was not materialized into an executable Proposal. No follow-up rollout was run, so production Hy-VLA acceptance remains open. |
+| **eval_20260801_batch33_hyvla_plan_agent_control_v3** | Broad weakness Query, press_stapler, max_agent_rounds=1; model load 165.77 s | unsupported_candidate_domain, completed_without_execution; no policy connection and 0 rollout | At that revision a broad candidate was not materialized into an executable Proposal; later official-control acceptance does not relabel this attempt. |
+| **eval_20260801_batch33_hyvla_plan_agent_control_v4_plan** | Plan-only official-control retry | The remote launcher consumed stdin before injecting UIUI_API_KEY, so the provider was never called and no plan evidence was produced | Launcher plumbing failure; no method or policy conclusion. |
+| **eval_20260801_batch33_hyvla_plan_agent_control_v5_plan** | Schema-less official-control Query | Official route was executable; typed needs requested no scene/checker, and control requirement was not_required | Confirmed that old task/aspect menus were no longer an execution prerequisite, while exposing the remaining QueryContract semantics issue. |
+| **eval_20260801_batch33_hyvla_plan_agent_control_v6** | One Hy-VLA official-control rollout | Policy success was 1.0, but the runtime generated an unnecessary query_derived_observable and stopped on open-contract budget | Positive policy evidence; negative method-routing result. Official success should reuse the official Rule Tool. |
+| **eval_20260801_batch33_hyvla_plan_agent_control_v7_plan** | Official Rule-reuse correction | The frozen candidate universe was reopened during Proposal registration | Contract mutation bug; no policy conclusion. |
+| **eval_20260801_batch33_hyvla_plan_agent_control_v8_plan** | Plan-only official-control acceptance | candidate universe closed=true, official route, Rule kind=reuse | Clean pre-rollout contract acceptance. |
+| **eval_20260801_batch33_hyvla_plan_agent_control_v9** | One production official-control round | policy success=1.0, pipeline passed, exact official Tool reuse with provider_called=false, Agent action=stop, QueryContract evidence_sufficient, deterministic verdict=no_failure_observed | The method round succeeded. Only the final natural-language summary call failed with UIUI HTTP 503 model_not_found, so the initial manifest was failed despite intact cached evidence. |
 
-All three attempts paid model-load time before the method admission failure was
-known. A future launcher should complete route/binding/admission before starting
-the external Hy-VLA server whenever the selected round does not yet require policy
-inference. None of these attempts changes the accepted standalone N=1 result in
-section 5.
+The v9 evaluation was then finalized from cached evidence with a provider-only
+command. It started 0 additional rollout, preserved the SHA-256 values of all
+three checked cached source artifacts, wrote a completed manifest, and produced
+an Answer that reports N=1 official success together with the required scope
+limitations. This is the accepted production official-control result. It is not
+evidence for generated scene/checker behavior or cross-task ranking.
+
+The exact answer-only command was:
+
+```bash
+cd /root/autodl-tmp/mea-worktrees/evidence-refinement-runtime
+/root/autodl-tmp/envs/mea-libero/bin/python \
+  scripts/manipeval_finalize_answer.py \
+  --repo-root . \
+  --evaluation-id eval_20260801_batch33_hyvla_plan_agent_control_v9 \
+  --base-url https://api.uiuihao.com/v1
+```
+
+The API key was supplied only to that process and is not part of the command or
+ledger. Before and after the command, `sha256sum` covered
+`summary/aggregate_result.json`, `summary/summary.json`, and
+`summary/evidence_bundle.json`; `cmp` reported no difference. The first terminal
+summary call's HTTP 503 remains archived in `manifest.cached_finalization` as the
+original failure rather than being erased from the audit trail.
+
+The early live attempts paid model-load time before admission or contract failure
+was known. Launchers should complete plan-only route/binding/admission before
+starting the external Hy-VLA server whenever the selected round does not yet
+require policy inference.
 
 ## 7. Upstream integration boundaries
 
@@ -304,13 +335,13 @@ section 5.
   outside a function. This adapter does not modify upstream source.
 - The official examples assume policy and simulator can share one environment;
   dependency isolation is the only reason for the loopback transport.
-- This is one successful official episode, not evidence of the published 50-task
-  aggregate, sample efficiency, or policy ranking.
-- It is not yet a complete MEA round: there is no generated Proposal/scene/checker,
-  Tool/VQA/Aggregate, or evidence-conditioned next Plan Agent decision in this
-  pilot. The three production attempts in section 6 also produced zero rollout.
-  The production integration should add only a backend binding and reuse the
-  shared method runtime.
+- The standalone pilot and v9 each contain one successful official episode; they
+  are not evidence of the published 50-task aggregate, sample efficiency, or
+  policy ranking.
+- v9 is a complete, bounded official-control MEA round through Rule reuse,
+  Aggregate, Plan Agent stop, QueryContract validation, and cached Answer
+  finalization. It does not exercise Proposal-derived scene/checker generation,
+  a newly generated Tool, or evidence-conditioned refinement to a second round.
 
 ## 8. Durability boundary
 
@@ -324,9 +355,9 @@ rollout. It is not a byte-for-byte terminal transcript:
 - the exact per-wheel interrupted download/retry commands and individual wheel
   hashes were not copied into the repository; the durable authority is the pinned
   uv.lock versions plus the recorded successful hash check;
-- the three original production launchers remain in server tmp rather than Git;
-  section 6 preserves the exact shared Agent command, immutable evaluation IDs,
-  per-attempt differences, outcomes, and artifact paths.
+- the original production launchers remain in server tmp rather than Git;
+  section 6 preserves the shared Agent command and confirmed attempt outcomes,
+  without reconstructing unavailable per-attempt terminal commands.
 
 These omissions should not be filled with reconstructed history. A future
 deployment should copy its generated downloader, bounded network log, and final

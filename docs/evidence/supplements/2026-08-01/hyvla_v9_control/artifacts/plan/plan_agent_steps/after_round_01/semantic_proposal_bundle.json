@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "source": "provider_plan_agent_open_query",
+  "input_digest": "d2dbda9c4718c5d012d6719a16a36a6dee751e3f8d7c3c425daa30ef06f96b06",
+  "planning_lineage": {
+    "schema_version": 1,
+    "decision_kind": "evidence_conditioned_refinement",
+    "evidence_conditioned": true,
+    "completed_round_ids": [
+      "round_1"
+    ],
+    "completed_round_count": 1,
+    "input_digest": "d2dbda9c4718c5d012d6719a16a36a6dee751e3f8d7c3c425daa30ef06f96b06"
+  },
+  "proposal": {
+    "schema_version": 2,
+    "action": "stop",
+    "sub_aspect": null,
+    "hypothesis": "The one unchanged official press_stapler control episode succeeded: Hy-VLA completed the task according to the authoritative official_check_success predicate (value 1.0).",
+    "requested_perturbation": null,
+    "scene_need": {
+      "required": false,
+      "description": null
+    },
+    "checker_need": {
+      "required": false,
+      "description": null
+    },
+    "rule_tool_need": {
+      "required": false,
+      "description": null,
+      "reuse_first": true
+    },
+    "vqa_tool_need": {
+      "required": false,
+      "description": null,
+      "reuse_first": true
+    },
+    "rationale": "The completed evidence is sufficient and authoritative for the requested single episode: the unchanged official control received outcome success with official_check_success=true. This answers the Query without making a statistical generalization beyond that episode.",
+    "task_need": {
+      "required": false,
+      "description": null
+    },
+    "tool_need": {
+      "required": false,
+      "description": null,
+      "reuse_first": true
+    }
+  },
+  "provider": {
+    "model_requested": "gpt-5.6-luna",
+    "called": true,
+    "attempt_count": 1,
+    "errors": [],
+    "last_metadata": {
+      "id": "resp_0ca5b8e3ed97b7cd016a6db56ec88481999973aa66dd887ca4",
+      "model": "gpt-5.6-luna",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 3046,
+        "completion_tokens": 248,
+        "total_tokens": 3294,
+        "completion_tokens_details": {
+          "reasoning_tokens": 80
+        }
+      },
+      "retry_count": 0
+    }
+  }
+}

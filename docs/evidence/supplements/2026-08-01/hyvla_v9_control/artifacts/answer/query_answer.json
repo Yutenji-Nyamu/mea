@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "original_query": "Does this Hy-VLA policy complete the unchanged official press_stapler task in RoboTwin? Run exactly one official control episode and answer only from that evidence.",
+  "answered": true,
+  "answer_scope": "official_equivalent",
+  "official_benchmark_answered": true,
+  "stop_reason": "evidence_sufficient",
+  "claim_type": "diagnostic",
+  "claim_verdict": "no_failure_observed",
+  "answer": "For the finite registered candidate domain, the Query verdict is no_failure_observed.",
+  "tested_candidate_ids": [
+    "dynamic.press.stapler.whether.hy.vla.completes.the.official.press.stapler.manipulation.in.a.single.control.episode.in.exactly.one.unchanged.official.press.stapler.episode.hy.vla.satisfies.the.official.task.success.predicate.f05d3e73886e"
+  ],
+  "untested_candidate_ids": [],
+  "limitations": [
+    "This is a finite-domain stopping prototype, not a statistical generalization guarantee.",
+    "Diagnosis strings are trusted upstream evidence labels; this contract does not independently infer or validate causality.",
+    "This answer is limited to the bound task, checkpoint, variants, and recorded seeds.",
+    "A finite-domain N-small result is not a broad generalization guarantee."
+  ],
+  "evidence_refs": [
+    {
+      "kind": "child_manifest",
+      "path": "mea/generated_tasks/run_native_hyvla_75b201c201c8/manifest.json"
+    },
+    {
+      "kind": "evidence_aggregate",
+      "path": "mea/evaluation_runs/eval_20260801_batch33_hyvla_plan_agent_control_v9/execution/round_1/evidence_aggregate.json"
+    },
+    {
+      "kind": "round_aggregate",
+      "path": "mea/evaluation_runs/eval_20260801_batch33_hyvla_plan_agent_control_v9/execution/round_1/aggregate_result.json"
+    },
+    {
+      "kind": "tool_execution",
+      "path": "mea/evaluation_runs/eval_20260801_batch33_hyvla_plan_agent_control_v9/execution/round_1/planned_tool/tool_execution.json"
+    }
+  ],
+  "evaluation_outcomes": [
+    {
+      "metric": "official_check_success",
+      "authority": "official_check_success",
+      "binding": null,
+      "value": 1.0,
+      "official_equivalent": true,
+      "execution_scope": "official_check_success",
+      "outcome_semantics": {
+        "schema_version": 1,
+        "status": "official_only",
+        "evidence_conflict": false,
+        "official_equivalent": true,
+        "outcome_authority": "official_check_success",
+        "episodes": [],
+        "reason_codes": [
+          "official_outcome_has_no_generated_checker"
+        ]
+      }
+    }
+  ],
+  "outcome_semantics": [
+    {
+      "schema_version": 1,
+      "status": "official_only",
+      "evidence_conflict": false,
+      "official_equivalent": true,
+      "outcome_authority": "official_check_success",
+      "episodes": [],
+      "reason_codes": [
+        "official_outcome_has_no_generated_checker"
+      ]
+    }
+  ],
+  "evidence_conflict": false
+}

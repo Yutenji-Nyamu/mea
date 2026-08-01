@@ -52,8 +52,11 @@ Batch33 扩展了跨任务和第二个多任务 policy 的证据，但没有产�
   official outcome，为 `8/13` 成功。它只说明 policy/backend 广度，不代表 13 个任务均完成
   TaskGen、ToolGen 或多轮 MEA。
 - Hy-VLA official RoboTwin checkpoint 已在服务器完成离线 official-wrapper 验证，并在
-  `press_stapler / demo_clean / seed=10000` 的 official N=1 中成功。它证明第二个多任务
-  policy adapter 可运行，尚未接入完整 MEA round。
+  `press_stapler / demo_clean / seed=10000` 的 official N=1 中成功。生产 v9 随后复用
+  RoboTwin 共享方法外层，完成 official rollout、Rule Tool 精确复用、Aggregate、Agent
+  stop、QueryContract evidence sufficiency 与 cached Answer finalization。它证明第二个
+  多任务 policy backend 可进入一轮受限 official-control MEA；没有证明生成式
+  scene/checker/Tool、多轮 refinement 或多任务排名。
 
 冷结果索引与服务器原始路径见
 [`experiments/paper/results/batch33_open_cross_task/README.md`](../experiments/paper/results/batch33_open_cross_task/README.md)。
@@ -67,7 +70,7 @@ Batch33 扩展了跨任务和第二个多任务 policy 的证据，但没有产�
 | Fig. 3：Proposal → retrieve/generate scene + `check_success()` → rollout | v18 同链生成 scene/checker 并裁决真实 policy episode | **小范围单例完成**；跨任务冷启动仍受 TaskContext/schema 与 simulator hook 限制 |
 | 首帧视觉诊断与局部重新生成 | render/VLM 与一次局部 repair 路径已在历史真实案例触发；v18 无需 repair | **组件完成**；视觉只审外观，数值关系仍由 simulator/fixture 审计 |
 | Fig. 4：ToolGen retrieve/generate/validate/register/reuse | v18 新 Python Tool 有 live finite 值；Batch33 v3 又在同一 bundle 完成 generate、live 与第三轮 exact reuse | **同一 evaluation 内完成**；尚未证明 reviewed registry 的跨 evaluation 长期复用 |
-| rollout → Rule/VQA → Aggregate → Plan Agent → Answer | RoboTwin 的 SmolVLA/ACT 共用 `RoundExecutor` 与方法外层 | **RoboTwin 小范围完成**；LIBERO 仍有独立外层 |
+| rollout → Rule/VQA → Aggregate → Plan Agent → Answer | RoboTwin 的 SmolVLA/ACT 共用 `RoundExecutor` 与方法外层；Hy-VLA v9 也完成 official-control round、validated stop 与 cached Answer | **RoboTwin 小范围跨 policy 完成**；LIBERO 仍有独立外层 |
 | 回答原 Query 并约束确定性 | `AnswerScope` 报告 N、seed、候选域、冲突、停止原因与语义边界 | **完成度较高**；还需避免模型凭空收紧 Query 子要求 |
 
 ## 实验 claim
@@ -80,7 +83,7 @@ Batch33 扩展了跨任务和第二个多任务 policy 的证据，但没有产�
 | Tables 7–8：VQA 四条件 accuracy/AUROC | 8 个缓存样本、单 VLM、proxy gold | **仅协议 smoke** |
 | Table 9：少样本保持多 policy 排名 | ACT/DP3 三 seed 为 2/3 对 2/3，Spearman 不可算 | **未复现** |
 | Fig. 6：系统错误率与模块分布 | 固定 operation 分母很小 | **不可比较** |
-| RoboTwin/LIBERO 跨任务适配 | SmolVLA 已有 13 任务 official outcome（8/13）；Hy-VLA 有一项 official N=1 正例；LIBERO 有 basic adaptation | **policy adapter 广度增加；完整方法外层尚未跨 policy/环境统一** |
+| RoboTwin/LIBERO 跨任务适配 | SmolVLA 已有 13 任务 official outcome（8/13）；Hy-VLA 有 official N=1 及共享外层 official-control 正例；LIBERO 有 basic adaptation | **RoboTwin 已跨两个 generalist backend；LIBERO 方法外层仍未统一** |
 
 ## 下一步主干
 
@@ -90,9 +93,10 @@ Batch33 扩展了跨任务和第二个多任务 policy 的证据，但没有产�
 2. **完成一个无手写 schema 的跨任务 clean flagship。** 同一 bundle 中要求 Proposal、
    scene/checker、live Tool、evidence-conditioned refinement、Agent stop 与 Answer 全部成立；
    TaskSchema 只作缓存，缺失时从 official source、reset actors 与 telemetry 构建 TaskContext。
-3. **把 Hy-VLA 与 LIBERO 接入同一方法外层。** backend 可以不同，但
-   QueryContract、Plan Agent session、RoundExecutor、Aggregate、stop 与 Answer
-   不应重复实现。
+3. **发布 Hy-VLA v9 的紧凑证据，并统一 LIBERO 方法外层。** v9 的 UIUI 503
+   已通过零 rollout cached finalization 恢复；只需保留原始失败与完成边界，不再为
+   Hy-VLA 新建方法链。LIBERO 仍应复用 QueryContract、Plan Agent session、
+   RoundExecutor、Aggregate、stop 与 Answer。
 4. **继续收束生产结构。** `PlanAgentApplication` 拥有 route/round/stop/answer；
    `MethodRuntime` 是唯一 TaskGen materialization owner。迁移 caller 后再删除 legacy
    planner、任务方言和重复 registry，不再增加 façade。

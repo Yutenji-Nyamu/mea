@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "source": "provider_plan_agent_query_interpretation",
+  "concern": {
+    "task_intent": "Press the stapler as required by the official press_stapler task and achieve the official task goal.",
+    "measurement_need": "The boolean result returned by the official check_success() evaluation for the completed episode.",
+    "hypothesis": "In exactly one unchanged official press_stapler episode, Hy-VLA satisfies the official task success predicate.",
+    "source_query": "Does this Hy-VLA policy complete the unchanged official press_stapler task in RoboTwin? Run exactly one official control episode and answer only from that evidence.",
+    "requested_variation": "No scene variation; run exactly one official episode with the official task identity and policy checkpoint unchanged.",
+    "sub_aspect": "Whether Hy-VLA completes the official press_stapler manipulation in a single control episode",
+    "schema_version": 1
+  },
+  "experiment_needs": {
+    "scene_need": {
+      "required": false,
+      "description": null
+    },
+    "checker_need": {
+      "required": false,
+      "description": null
+    },
+    "rule_tool_need": {
+      "required": true,
+      "description": "Reuse the official check_success() result as a boolean success observation.",
+      "reuse_first": true
+    },
+    "vqa_tool_need": {
+      "required": false,
+      "description": null,
+      "reuse_first": true
+    }
+  },
+  "provider": {
+    "model_requested": "gpt-5.6-luna",
+    "called": true,
+    "attempt_count": 1,
+    "errors": [],
+    "last_metadata": {
+      "id": "resp_0c2fa45f2fc4e399016a6db51be644819aa3372f6669f8283d",
+      "model": "gpt-5.6-luna",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 1381,
+        "completion_tokens": 466,
+        "total_tokens": 1847,
+        "completion_tokens_details": {
+          "reasoning_tokens": 238
+        }
+      },
+      "retry_count": 0
+    }
+  }
+}

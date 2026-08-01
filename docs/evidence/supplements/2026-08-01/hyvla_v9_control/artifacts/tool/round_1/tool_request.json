@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "task_name": "press_stapler",
+  "metric": "official_check_success",
+  "question": "Did the rollout satisfy the official RoboTwin success check?"
+}

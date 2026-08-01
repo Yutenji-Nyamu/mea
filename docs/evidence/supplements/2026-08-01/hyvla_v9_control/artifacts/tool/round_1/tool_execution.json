@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "route": "reuse",
+  "reference_tool": "official_check_success",
+  "tool_spec": {
+    "schema_version": 1,
+    "task_name": "press_stapler",
+    "metric": "official_check_success",
+    "question": "Did the rollout satisfy the official RoboTwin success check?",
+    "route": "reuse",
+    "reference_tool": "official_check_success",
+    "required_signals": [],
+    "output_contract": {
+      "source": "trusted_tool_catalog"
+    },
+    "validation_requirements": {
+      "min_episodes": 1,
+      "distinct_reference_values": false,
+      "required_reference_values": []
+    }
+  },
+  "source": {
+    "scope": "trusted_catalog",
+    "tool": "official_check_success",
+    "reference_tool": "official_check_success",
+    "tool_sha256": "a81c64679f614717fa869b312e8e927bff9fbfae65c02f57bddcf14964285822",
+    "artifact": null
+  },
+  "episodes": [
+    {
+      "episode_dir": "mea/generated_tasks/run_native_hyvla_75b201c201c8/evaluation/telemetry/act/episode_000_seed_10000",
+      "policy_name": "Hy-VLA",
+      "seed": 10000,
+      "role": "policy_under_evaluation",
+      "result": {
+        "tool": "official_check_success",
+        "value": true,
+        "unit": null,
+        "passed": true,
+        "evidence_steps": [
+          2866
+        ],
+        "details": {
+          "latched_eval_success": true,
+          "success_transition_recorded": true
+        },
+        "tool_sha256": "a81c64679f614717fa869b312e8e927bff9fbfae65c02f57bddcf14964285822"
+      }
+    }
+  ],
+  "validation": {
+    "provider_called": false,
+    "catalog_tool_found": true,
+    "episode_count": 1,
+    "required_reference_values_observed": true
+  },
+  "artifacts": {
+    "tool_spec": "mea/evaluation_runs/eval_20260801_batch33_hyvla_plan_agent_control_v9/execution/round_1/planned_tool/tool_spec.json",
+    "resolved_tool_spec": "mea/evaluation_runs/eval_20260801_batch33_hyvla_plan_agent_control_v9/execution/round_1/planned_tool/resolved_tool_spec.json",
+    "tool_execution": "mea/evaluation_runs/eval_20260801_batch33_hyvla_plan_agent_control_v9/execution/round_1/planned_tool/tool_execution.json",
+    "tool_request": "mea/evaluation_runs/eval_20260801_batch33_hyvla_plan_agent_control_v9/execution/round_1/planned_tool/tool_request.json",
+    "catalog_snapshot": "mea/evaluation_runs/eval_20260801_batch33_hyvla_plan_agent_control_v9/execution/round_1/planned_tool/catalog_snapshot.json",
+    "route_decision": "mea/evaluation_runs/eval_20260801_batch33_hyvla_plan_agent_control_v9/execution/round_1/planned_tool/route_decision.json"
+  },
+  "requested_route": "auto",
+  "tool_request": {
+    "schema_version": 1,
+    "task_name": "press_stapler",
+    "metric": "official_check_success",
+    "question": "Did the rollout satisfy the official RoboTwin success check?"
+  },
+  "route_decision": {
+    "schema_version": 1,
+    "status": "resolved",
+    "matching_policy": "strict_exact_metric_id",
+    "requested_route": "auto",
+    "resolved_route": "reuse",
+    "task_name": "press_stapler",
+    "metric": "official_check_success",
+    "exact_match": true,
+    "matched_registry": "trusted_tool_catalog",
+    "reference_tool": "official_check_success",
+    "provider_required": false,
+    "reason": "exact metric identifier matched a Trusted Tool",
+    "catalog_snapshot_sha256": "47009391b0457d9ee5548f212da3279790a75b3fd58271c93ca2f9dc15730d02",
+    "provider_called": false
+  }
+}

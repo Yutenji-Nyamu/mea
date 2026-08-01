@@ -1,0 +1,294 @@
+{
+  "schema_version": 2,
+  "semantic_proposal_bundle": {
+    "schema_version": 1,
+    "source": "provider_plan_agent_open_query",
+    "input_digest": "d2dbda9c4718c5d012d6719a16a36a6dee751e3f8d7c3c425daa30ef06f96b06",
+    "planning_lineage": {
+      "schema_version": 1,
+      "decision_kind": "evidence_conditioned_refinement",
+      "evidence_conditioned": true,
+      "completed_round_ids": [
+        "round_1"
+      ],
+      "completed_round_count": 1,
+      "input_digest": "d2dbda9c4718c5d012d6719a16a36a6dee751e3f8d7c3c425daa30ef06f96b06"
+    },
+    "proposal": {
+      "schema_version": 2,
+      "action": "stop",
+      "sub_aspect": null,
+      "hypothesis": "The one unchanged official press_stapler control episode succeeded: Hy-VLA completed the task according to the authoritative official_check_success predicate (value 1.0).",
+      "requested_perturbation": null,
+      "scene_need": {
+        "required": false,
+        "description": null
+      },
+      "checker_need": {
+        "required": false,
+        "description": null
+      },
+      "rule_tool_need": {
+        "required": false,
+        "description": null,
+        "reuse_first": true
+      },
+      "vqa_tool_need": {
+        "required": false,
+        "description": null,
+        "reuse_first": true
+      },
+      "rationale": "The completed evidence is sufficient and authoritative for the requested single episode: the unchanged official control received outcome success with official_check_success=true. This answers the Query without making a statistical generalization beyond that episode.",
+      "task_need": {
+        "required": false,
+        "description": null
+      },
+      "tool_need": {
+        "required": false,
+        "description": null,
+        "reuse_first": true
+      }
+    },
+    "provider": {
+      "model_requested": "gpt-5.6-luna",
+      "called": true,
+      "attempt_count": 1,
+      "errors": [],
+      "last_metadata": {
+        "id": "resp_0ca5b8e3ed97b7cd016a6db56ec88481999973aa66dd887ca4",
+        "model": "gpt-5.6-luna",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 3046,
+          "completion_tokens": 248,
+          "total_tokens": 3294,
+          "completion_tokens_details": {
+            "reasoning_tokens": 80
+          }
+        },
+        "retry_count": 0
+      }
+    }
+  },
+  "semantic_needs": {
+    "scene_need": {
+      "required": false,
+      "description": null
+    },
+    "checker_need": {
+      "required": false,
+      "description": null
+    },
+    "rule_tool_need": {
+      "required": false,
+      "description": null,
+      "reuse_first": true
+    },
+    "vqa_tool_need": {
+      "required": false,
+      "description": null,
+      "reuse_first": true
+    },
+    "task_need": {
+      "required": false,
+      "description": null
+    },
+    "tool_need": {
+      "required": false,
+      "description": null,
+      "reuse_first": true
+    }
+  },
+  "resolution": {
+    "schema_version": 1,
+    "semantic_sub_aspect": null,
+    "resolved_aspect_id": null,
+    "resolved_template_id": null,
+    "resolved_candidate_id": null,
+    "resolution": "query_contract_validated_stop",
+    "hidden": false,
+    "matched_tokens": [],
+    "catalog_was_model_visible": false,
+    "catalog_resolution_error": null,
+    "retrieval_aspect_id": null,
+    "retrieval_template_id": null,
+    "retrieval_resolution": null
+  },
+  "query_contract": {
+    "schema_version": 3,
+    "claim_type": "diagnostic",
+    "candidate_universe": [
+      "dynamic.press.stapler.whether.hy.vla.completes.the.official.press.stapler.manipulation.in.a.single.control.episode.in.exactly.one.unchanged.official.press.stapler.episode.hy.vla.satisfies.the.official.task.success.predicate.f05d3e73886e"
+    ],
+    "required_coverage": {
+      "candidate_ids": [
+        "dynamic.press.stapler.whether.hy.vla.completes.the.official.press.stapler.manipulation.in.a.single.control.episode.in.exactly.one.unchanged.official.press.stapler.episode.hy.vla.satisfies.the.official.task.success.predicate.f05d3e73886e"
+      ],
+      "minimum_evaluated": 1,
+      "minimum_per_group": null
+    },
+    "round_budget": 1,
+    "comparison_groups": null,
+    "candidate_universe_closed": true,
+    "existential_witness_outcome": null,
+    "control_requirement": "not_required"
+  },
+  "query_assessment": {
+    "schema_version": 1,
+    "contract": {
+      "schema_version": 3,
+      "claim_type": "diagnostic",
+      "candidate_universe": [
+        "dynamic.press.stapler.whether.hy.vla.completes.the.official.press.stapler.manipulation.in.a.single.control.episode.in.exactly.one.unchanged.official.press.stapler.episode.hy.vla.satisfies.the.official.task.success.predicate.f05d3e73886e"
+      ],
+      "required_coverage": {
+        "candidate_ids": [
+          "dynamic.press.stapler.whether.hy.vla.completes.the.official.press.stapler.manipulation.in.a.single.control.episode.in.exactly.one.unchanged.official.press.stapler.episode.hy.vla.satisfies.the.official.task.success.predicate.f05d3e73886e"
+        ],
+        "minimum_evaluated": 1,
+        "minimum_per_group": null
+      },
+      "round_budget": 1,
+      "comparison_groups": null,
+      "candidate_universe_closed": true,
+      "existential_witness_outcome": null,
+      "control_requirement": "not_required"
+    },
+    "should_stop": true,
+    "stop_reason": "evidence_sufficient",
+    "claim_verdict": "no_failure_observed",
+    "evidence_sufficient": true,
+    "completed_rounds": 1,
+    "round_budget": 1,
+    "budget_remaining": 0,
+    "candidate_universe_closed": true,
+    "candidate_discovery_required": false,
+    "observed_candidate_ids": [
+      "dynamic.press.stapler.whether.hy.vla.completes.the.official.press.stapler.manipulation.in.a.single.control.episode.in.exactly.one.unchanged.official.press.stapler.episode.hy.vla.satisfies.the.official.task.success.predicate.f05d3e73886e"
+    ],
+    "decisive_candidate_ids": [
+      "dynamic.press.stapler.whether.hy.vla.completes.the.official.press.stapler.manipulation.in.a.single.control.episode.in.exactly.one.unchanged.official.press.stapler.episode.hy.vla.satisfies.the.official.task.success.predicate.f05d3e73886e"
+    ],
+    "conflict_candidate_ids": [],
+    "unknown_candidate_ids": [],
+    "untested_required_candidate_ids": [],
+    "untested_candidate_ids": [],
+    "recommended_candidate_ids": [],
+    "rationale": "The entire finite required domain was checked and no failure was observed; this does not prove failures are impossible.",
+    "statistics": {
+      "diagnosed_failure_candidate_ids": []
+    },
+    "limitations": [
+      "This is a finite-domain stopping prototype, not a statistical generalization guarantee.",
+      "Diagnosis strings are trusted upstream evidence labels; this contract does not independently infer or validate causality."
+    ]
+  },
+  "query_answer": {
+    "schema_version": 1,
+    "original_query": "Does this Hy-VLA policy complete the unchanged official press_stapler task in RoboTwin? Run exactly one official control episode and answer only from that evidence.",
+    "answered": true,
+    "answer_scope": "official_equivalent",
+    "official_benchmark_answered": true,
+    "stop_reason": "evidence_sufficient",
+    "claim_type": "diagnostic",
+    "claim_verdict": "no_failure_observed",
+    "answer": "For the finite registered candidate domain, the Query verdict is no_failure_observed.",
+    "tested_candidate_ids": [
+      "dynamic.press.stapler.whether.hy.vla.completes.the.official.press.stapler.manipulation.in.a.single.control.episode.in.exactly.one.unchanged.official.press.stapler.episode.hy.vla.satisfies.the.official.task.success.predicate.f05d3e73886e"
+    ],
+    "untested_candidate_ids": [],
+    "limitations": [
+      "This is a finite-domain stopping prototype, not a statistical generalization guarantee.",
+      "Diagnosis strings are trusted upstream evidence labels; this contract does not independently infer or validate causality.",
+      "This answer is limited to the bound task, checkpoint, variants, and recorded seeds.",
+      "A finite-domain N-small result is not a broad generalization guarantee."
+    ],
+    "evidence_refs": [
+      {
+        "kind": "child_manifest",
+        "path": "mea/generated_tasks/run_native_hyvla_75b201c201c8/manifest.json"
+      },
+      {
+        "kind": "evidence_aggregate",
+        "path": "mea/evaluation_runs/eval_20260801_batch33_hyvla_plan_agent_control_v9/execution/round_1/evidence_aggregate.json"
+      },
+      {
+        "kind": "round_aggregate",
+        "path": "mea/evaluation_runs/eval_20260801_batch33_hyvla_plan_agent_control_v9/execution/round_1/aggregate_result.json"
+      },
+      {
+        "kind": "tool_execution",
+        "path": "mea/evaluation_runs/eval_20260801_batch33_hyvla_plan_agent_control_v9/execution/round_1/planned_tool/tool_execution.json"
+      }
+    ],
+    "evaluation_outcomes": [
+      {
+        "metric": "official_check_success",
+        "authority": "official_check_success",
+        "binding": null,
+        "value": 1.0,
+        "official_equivalent": true,
+        "execution_scope": "official_check_success",
+        "outcome_semantics": {
+          "schema_version": 1,
+          "status": "official_only",
+          "evidence_conflict": false,
+          "official_equivalent": true,
+          "outcome_authority": "official_check_success",
+          "episodes": [],
+          "reason_codes": [
+            "official_outcome_has_no_generated_checker"
+          ]
+        }
+      }
+    ],
+    "outcome_semantics": [
+      {
+        "schema_version": 1,
+        "status": "official_only",
+        "evidence_conflict": false,
+        "official_equivalent": true,
+        "outcome_authority": "official_check_success",
+        "episodes": [],
+        "reason_codes": [
+          "official_outcome_has_no_generated_checker"
+        ]
+      }
+    ],
+    "evidence_conflict": false
+  },
+  "plan_step": {
+    "schema_version": 2,
+    "action": "stop",
+    "aspect_id": null,
+    "candidate_id": null,
+    "execution_mode": "none",
+    "proposal": null,
+    "rationale": "The completed evidence is sufficient and authoritative for the requested single episode: the unchanged official control received outcome success with official_check_success=true. This answers the Query without making a statistical generalization beyond that episode.",
+    "hypothesis": "The one unchanged official press_stapler control episode succeeded: Hy-VLA completed the task according to the authoritative official_check_success predicate (value 1.0).",
+    "answered_query": true,
+    "claim_verdict": "no_failure_observed",
+    "stop_reason": "evidence_sufficient",
+    "next_round": null,
+    "planning_lineage": {
+      "schema_version": 1,
+      "decision_kind": "evidence_conditioned_refinement",
+      "evidence_conditioned": true,
+      "completed_round_ids": [
+        "round_1"
+      ],
+      "completed_round_count": 1,
+      "input_digest": "d2dbda9c4718c5d012d6719a16a36a6dee751e3f8d7c3c425daa30ef06f96b06"
+    }
+  },
+  "planning_lineage": {
+    "schema_version": 1,
+    "decision_kind": "evidence_conditioned_refinement",
+    "evidence_conditioned": true,
+    "completed_round_ids": [
+      "round_1"
+    ],
+    "completed_round_count": 1,
+    "input_digest": "d2dbda9c4718c5d012d6719a16a36a6dee751e3f8d7c3c425daa30ef06f96b06"
+  }
+}

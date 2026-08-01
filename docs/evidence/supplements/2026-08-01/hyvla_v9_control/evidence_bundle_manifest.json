@@ -1,0 +1,156 @@
+{
+  "schema_version": 3,
+  "path_basis": "bundle_relative",
+  "evaluation_id": "eval_20260801_batch33_hyvla_plan_agent_control_v9",
+  "source_evaluation": "mea/evaluation_runs/eval_20260801_batch33_hyvla_plan_agent_control_v9",
+  "source_server_path": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/evaluation_runs/eval_20260801_batch33_hyvla_plan_agent_control_v9",
+  "report": "README.md",
+  "summary": "run_summary.json",
+  "publish_mode": true,
+  "files": [
+    "README.md",
+    "artifacts/aggregate/final.json",
+    "artifacts/aggregate/round_1.json",
+    "artifacts/answer/answer.json",
+    "artifacts/answer/query_answer.json",
+    "artifacts/plan/decisions/after_round_1.json",
+    "artifacts/plan/global_query_route.json",
+    "artifacts/plan/open_task_resolution.json",
+    "artifacts/plan/plan_agent_steps/after_round_01/bound_semantic_step.json",
+    "artifacts/plan/plan_agent_steps/after_round_01/prompt.md",
+    "artifacts/plan/plan_agent_steps/after_round_01/response_1.txt",
+    "artifacts/plan/plan_agent_steps/after_round_01/semantic_proposal_bundle.json",
+    "artifacts/plan/query_interpretation.json",
+    "artifacts/plan/query_interpretation_prompt.md",
+    "artifacts/plan/query_interpretation_response_1.txt",
+    "artifacts/plan/query_sufficiency_contract.json",
+    "artifacts/query/request.json",
+    "artifacts/tool/round_1/resolved_tool_spec.json",
+    "artifacts/tool/round_1/route_decision.json",
+    "artifacts/tool/round_1/tool_execution.json",
+    "artifacts/tool/round_1/tool_request.json",
+    "assets/round_1_act.mp4",
+    "evidence_bundle_manifest.json",
+    "run_summary.json"
+  ],
+  "artifacts": [
+    {
+      "path": "README.md",
+      "bytes": 4604,
+      "sha256": "ff91a0bbd7629a9eb77169374e8ad2a8f9049edd051d3da989d8310118d45d1c"
+    },
+    {
+      "path": "artifacts/aggregate/final.json",
+      "bytes": 2514,
+      "sha256": "f4d6a337dc227753741f9ca030d4151073e647dc0ad2bac320184ce06c1acf61"
+    },
+    {
+      "path": "artifacts/aggregate/round_1.json",
+      "bytes": 2514,
+      "sha256": "f4d6a337dc227753741f9ca030d4151073e647dc0ad2bac320184ce06c1acf61"
+    },
+    {
+      "path": "artifacts/answer/answer.json",
+      "bytes": 4726,
+      "sha256": "899fdc0fce3eaaf33abc7f1b688d7d926728fb47d331cf0238e3ab4588e9613b"
+    },
+    {
+      "path": "artifacts/answer/query_answer.json",
+      "bytes": 2896,
+      "sha256": "1d03ff5a38b5cfc6164c9e08f6fc33639f5a89f017cb974bdf5bedefbc67460d"
+    },
+    {
+      "path": "artifacts/plan/decisions/after_round_1.json",
+      "bytes": 6192,
+      "sha256": "c458b95672fc4460006ae0e21106afe2175898d4ba4b77cadcbe2ba788fffe6c"
+    },
+    {
+      "path": "artifacts/plan/global_query_route.json",
+      "bytes": 3462,
+      "sha256": "39e869dd586135db5eb826d073293bc0b893a8c8a7e787a5f7f833667fc11d64"
+    },
+    {
+      "path": "artifacts/plan/open_task_resolution.json",
+      "bytes": 2687,
+      "sha256": "af746f5b07a2f5ec8b0b7cc511aed399fbb0367f26c9cbfae5ae0602848f0f48"
+    },
+    {
+      "path": "artifacts/plan/plan_agent_steps/after_round_01/bound_semantic_step.json",
+      "bytes": 11315,
+      "sha256": "b5f3f5fdb9e1776dd1b7a62410a281e96f7bfb7d327411db7d96b5303a82e266"
+    },
+    {
+      "path": "artifacts/plan/plan_agent_steps/after_round_01/prompt.md",
+      "bytes": 13675,
+      "sha256": "cd5637eb58f70e27f0fe485c98e5a4a73cfc9665fcee74dfbb6adaa128ffc596"
+    },
+    {
+      "path": "artifacts/plan/plan_agent_steps/after_round_01/response_1.txt",
+      "bytes": 803,
+      "sha256": "ca14518a5be8224675d521e4272b5ec430348b13f41b94b86d5db8cf9af86bc3"
+    },
+    {
+      "path": "artifacts/plan/plan_agent_steps/after_round_01/semantic_proposal_bundle.json",
+      "bytes": 2145,
+      "sha256": "ea853d31e216ac19643c1104791c487d2226ed9c275aafc7f42d7d0cee1de2d1"
+    },
+    {
+      "path": "artifacts/plan/query_interpretation.json",
+      "bytes": 1942,
+      "sha256": "a8f415d721715ef311773b50779b86abee302aadc9c0e1301ff756518cc20f97"
+    },
+    {
+      "path": "artifacts/plan/query_interpretation_prompt.md",
+      "bytes": 6746,
+      "sha256": "38915d99100b03421d73c2917eb1bcb8c55c833627ae125d8110aae50953395b"
+    },
+    {
+      "path": "artifacts/plan/query_interpretation_response_1.txt",
+      "bytes": 1138,
+      "sha256": "1146bf1cd4462684bed0b7b976ea1b723ed0dda0dfba815fb04efc16f9a3470b"
+    },
+    {
+      "path": "artifacts/plan/query_sufficiency_contract.json",
+      "bytes": 860,
+      "sha256": "b98afd0db79372e8ade64ba4efb19b949a4bf53d4d2edde9c5f74d32647da64d"
+    },
+    {
+      "path": "artifacts/query/request.json",
+      "bytes": 189,
+      "sha256": "c59c0e789f33fae6d516c0a6c0bc97d95ec246e347bd012d7c361409eded3d58"
+    },
+    {
+      "path": "artifacts/tool/round_1/resolved_tool_spec.json",
+      "bytes": 1540,
+      "sha256": "e17ace3c7c0d692bc84a3ef71b79aefa9aee56a7834942ad7ef87881c4336ffd"
+    },
+    {
+      "path": "artifacts/tool/round_1/route_decision.json",
+      "bytes": 557,
+      "sha256": "c7ce9cb6232d83ab38a3f9573464d81f115f580e57b2be66764cb1abf98a21db"
+    },
+    {
+      "path": "artifacts/tool/round_1/tool_execution.json",
+      "bytes": 3411,
+      "sha256": "013789c6bb2622d0bbed68624b4fc1a5d10edc15056492f50cb32304ce5bca8d"
+    },
+    {
+      "path": "artifacts/tool/round_1/tool_request.json",
+      "bytes": 174,
+      "sha256": "c23c55b11d4e9346be9054cf8ed74779ac6c1109c064032c7288e60dbf025ce7"
+    },
+    {
+      "path": "assets/round_1_act.mp4",
+      "bytes": 9478,
+      "sha256": "20ecae2803e4835783da7ec0d6f6f5d4dbb541dfafb178896ce92fa13b176155"
+    },
+    {
+      "path": "run_summary.json",
+      "bytes": 11947,
+      "sha256": "88629ca7aa157448fc574f7f327437818350849a28aba2ea800afa26a452f108"
+    }
+  ],
+  "round_count": 1,
+  "video_size_limit_bytes": 1000000,
+  "included_repair_id": null
+}

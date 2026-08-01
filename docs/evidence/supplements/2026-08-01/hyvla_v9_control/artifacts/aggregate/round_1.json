@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "source_count": 1,
+  "episode_result_count": 1,
+  "unique_episode_count": 1,
+  "metric_ids": [
+    "official_check_success"
+  ],
+  "input_issue_count": 0,
+  "input_issues": [],
+  "metrics": [
+    {
+      "metric": "official_check_success",
+      "tools": [
+        "official_check_success"
+      ],
+      "unit": null,
+      "value_kind": "boolean",
+      "cohorts": [
+        {
+          "role": "policy_under_evaluation",
+          "policy_names": [
+            "Hy-VLA"
+          ],
+          "summary": {
+            "episode_result_count": 1,
+            "quality": {
+              "invalid": {
+                "value": 0
+              },
+              "missing": {
+                "value": 0
+              },
+              "valid": {
+                "value": 1
+              }
+            },
+            "statistics": {
+              "false_count": {
+                "value": 0
+              },
+              "false_rate": {
+                "denominator": 1,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "success_count": {
+                "value": 1
+              },
+              "success_rate": {
+                "denominator": 1,
+                "numerator": 1,
+                "value": 1.0
+              },
+              "true_count": {
+                "value": 1
+              },
+              "true_rate": {
+                "denominator": 1,
+                "numerator": 1,
+                "value": 1.0
+              }
+            },
+            "unit": null,
+            "value_kind": "boolean"
+          },
+          "passed_summary": {
+            "episode_result_count": 1,
+            "quality": {
+              "invalid": {
+                "value": 0
+              },
+              "missing": {
+                "value": 0
+              },
+              "valid": {
+                "value": 1
+              }
+            },
+            "statistics": {
+              "false_count": {
+                "value": 0
+              },
+              "false_rate": {
+                "denominator": 1,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "true_count": {
+                "value": 1
+              },
+              "true_rate": {
+                "denominator": 1,
+                "numerator": 1,
+                "value": 1.0
+              }
+            },
+            "unit": null,
+            "value_kind": "boolean"
+          }
+        }
+      ]
+    }
+  ]
+}
