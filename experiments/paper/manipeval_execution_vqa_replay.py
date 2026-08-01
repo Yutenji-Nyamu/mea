@@ -27,7 +27,8 @@ from mea.execution_vqa import (
     validate_run_local_question_spec,
 )
 from mea.providers import OpenAICompatibleProvider
-from scripts.manipeval_agent import run_round_execution_vqa, write_json
+from mea.execution_vqa.runtime import run_round_execution_vqa
+from scripts.manipeval_agent import write_json
 
 
 def _read_object(path: Path) -> dict[str, Any]:

@@ -9,6 +9,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from mea.agent_acceptance import build_compact_flagship_acceptance
+from mea.agent_evidence import build_evidence_bundle
 from mea.planner import (
     BoundTaskPlanSession,
     PlanAgentQueryInterpreter,
@@ -17,22 +19,23 @@ from mea.planner import (
     discover_robotwin_task_inventory,
     resolve_open_task,
 )
+from mea.planner.experiment_candidate import build_experiment_candidate
 from mea.taskgen import create_official_task_run
+from mea.execution_vqa.runtime import run_round_execution_vqa
+from mea.round_summary import (
+    normalize_outcome_semantics,
+    summarize_round,
+    taskgen_ast_gate_passed,
+)
 from scripts.manipeval_agent import (
     bind_ready_task_after_query_interpretation,
-    build_compact_flagship_acceptance,
-    build_evidence_bundle,
     build_bound_plan_agent_handoff,
     build_pending_task_binding_policy_card,
     build_taskgen_command,
     concern_candidate_domain_is_executable,
     finish_unsupported_global_route,
     finish_unsupported_open_task_resolution,
-    run_round_execution_vqa,
-    normalize_outcome_semantics,
     persist_query_contract,
-    summarize_round,
-    taskgen_ast_gate_passed,
 )
 from scripts.manipeval_taskgen import (
     _checker_fixture_failure_diagnosis,
@@ -1424,6 +1427,12 @@ class CrossTaskEntrypointTests(unittest.TestCase):
             child = root / "mea/generated_tasks/run_click"
             execution = root / "mea/evaluation_runs/e/execution/round_1"
             child.mkdir(parents=True)
+            episode = child / "evaluation/telemetry/act/episode_0"
+            episode.mkdir(parents=True)
+            shutil.copy2(
+                REPO_ROOT / "mea/toolkit/schemas/click_bell.json",
+                episode / "schema.json",
+            )
             round_plan = official_round()
             round_plan["semantic_need_execution"] = {
                 "vqa_tool": {
@@ -1431,13 +1440,35 @@ class CrossTaskEntrypointTests(unittest.TestCase):
                     "description": "the distractor remains untouched",
                 }
             }
+            round_plan["proposal"] = build_experiment_candidate(
+                source_query="Does the policy avoid touching a distractor?",
+                base_task="click_bell",
+                semantic_concern="target discrimination near a distractor",
+                vqa_tool_need="Determine whether the distractor remains untouched.",
+            )
+            provider = self.FrozenConcernProvider(
+                {
+                    "schema_version": 1,
+                    "question_spec": {
+                        "id": "run_local.distractor_remains_untouched",
+                        "question_type": "visible_unintended_contact",
+                        "target_role": "distractor",
+                        "question": (
+                            "Does the evidence show that the distractor "
+                            "remains untouched throughout the rollout?"
+                        ),
+                        "visual_scope": "rollout_change",
+                        "numeric_authority": "no_numeric_oracle",
+                    },
+                }
+            )
             result = run_round_execution_vqa(
                 repo_root=root,
                 child_manifest={"task_name": "click_bell"},
                 child_dir=child,
                 tool_evaluation=None,
                 execution_dir=execution,
-                provider=object(),
+                provider=provider,
                 model="vision",
                 round_plan=round_plan,
             )
@@ -1449,9 +1480,11 @@ class CrossTaskEntrypointTests(unittest.TestCase):
 
             self.assertEqual(result["status"], "skipped")
             self.assertEqual(len(query["phenomenon_ids"]), 1)
-            self.assertTrue(
-                query["phenomenon_ids"][0].startswith("run_local.query_")
+            self.assertEqual(
+                query["phenomenon_ids"][0],
+                "run_local.distractor_remains_untouched",
             )
+            self.assertEqual(provider.calls, 1)
             self.assertIn(
                 "the distractor remains untouched",
                 query["questions"][0]["question"],

@@ -14,6 +14,9 @@ from mea.method_runtime import (
     RolloutRequest,
     build_round_evidence,
 )
+from mea.plan_agent_application import (
+    refresh_plan_agent_capabilities_from_runtime_context,
+)
 from mea.planner.context import build_planning_context
 from mea.planner.experiment_candidate import build_experiment_candidate
 from mea.planner.open_task_resolver import policy_task_scope_from_card
@@ -37,6 +40,7 @@ from mea.robotwin.native_agent_round import (
 from mea.taskgen.generic_backend import GenericTaskGenError
 from mea.taskgen.provider_scene_checker import validate_provider_run_id
 from mea.robotwin.runtime import RoboTwinMethodBackend
+from mea.robotwin_task_context import resolve_robotwin_task_context
 from mea.robotwin.smolvla_rollout import (
     SmolVLARolloutError,
     SmolVLARobotwinRolloutRunner,
@@ -179,12 +183,16 @@ def test_smolvla_manifest_binds_discovered_tasks_to_one_checkpoint(tmp_path):
 
 def test_method_backend_allows_schema_less_official_control(tmp_path):
     _write_official_task(tmp_path, "alpha_task", "move the alpha object")
+    probe_calls = []
+
+    def probe_context(**kwargs):
+        probe_calls.append(kwargs)
+        return _task_context_probe(tmp_path, "alpha_task")
+
     backend = RoboTwinMethodBackend(
         repo_root=tmp_path,
         rollout_runner=lambda **_: {},
-        task_context_probe_runner=lambda **_: _task_context_probe(
-            tmp_path, "alpha_task"
-        ),
+        task_context_probe_runner=probe_context,
     )
 
     binding = backend.bind_task(
@@ -202,11 +210,26 @@ def test_method_backend_allows_schema_less_official_control(tmp_path):
     candidate = backend.official_candidate(
         binding,
         source_query="Can this policy solve the official task?",
+        seed=7,
     )
 
     assert binding.task_contract["task_schema_available"] is False
-    assert candidate.validation == {"route": "official_control"}
+    assert len(probe_calls) == 1
+    assert probe_calls[0]["seed"] == 7
+    assert candidate.validation == {
+        "route": "official_control",
+        "task_context": {
+            "schema_origin": "runtime_probe",
+            "runtime_probe_executed": True,
+        },
+    }
     assert candidate.task_contract["task_module"] == "envs.alpha_task"
+    assert candidate.task_contract["task_schema_available"] is True
+    assert (
+        candidate.task_contract["task_context"]["schema_origin"]
+        == "runtime_probe"
+    )
+    assert candidate.metadata["task_context_bound_before_rollout"] is True
 
     official_query = build_experiment_candidate(
         source_query="Can it solve only the official task?",
@@ -232,6 +255,121 @@ def test_method_backend_allows_schema_less_official_control(tmp_path):
     assert materialized.metadata["official_task_reused"] is True
     assert materialized.metadata["task_context_bound_before_rollout"] is True
     assert materialized.task_contract["task_schema_available"] is True
+
+
+def test_runtime_task_context_refreshes_next_plan_agent_capabilities(
+    tmp_path,
+):
+    _write_official_task(tmp_path, "alpha_task", "move the alpha object")
+    context = resolve_robotwin_task_context(
+        tmp_path,
+        "alpha_task",
+        runtime_probe=_task_context_probe(tmp_path, "alpha_task"),
+    ).to_dict()
+    capabilities = {
+        "schema_version": 2,
+        "policy_card": {
+            "policy_name": "SmolVLA",
+            "unknown_metadata": ["semantic_actor_schema"],
+        },
+        "simulator_card": {
+            "task_name": "alpha_task",
+            "tracked_actors": [],
+            "success_contract": {
+                "authority": "official_task_check_success_only",
+                "semantic_telemetry_available": False,
+            },
+        },
+        "generation_card": {
+            "backend_primitives": {
+                "scene": True,
+                "checker": True,
+                "telemetry": False,
+                "rule": True,
+                "vqa": True,
+                "retrieve": True,
+                "generate": True,
+            }
+        },
+    }
+
+    refreshed = refresh_plan_agent_capabilities_from_runtime_context(
+        capabilities,
+        {"runtime_task_context": context},
+    )
+
+    assert refreshed["generation_card"]["backend_primitives"][
+        "telemetry"
+    ] is True
+    assert refreshed["simulator_card"]["tracked_actors"][0]["id"] == (
+        "target"
+    )
+    assert refreshed["simulator_card"]["success_contract"][
+        "authority"
+    ] == "official_check_success_runtime_callable"
+    assert refreshed["simulator_card"]["task_context_authority"][
+        "schema_origin"
+    ] == "runtime_probe"
+    assert refreshed["policy_card"]["unknown_metadata"] == []
+
+
+def test_native_schema_less_control_persists_runtime_task_context(tmp_path):
+    _write_official_task(tmp_path, "alpha_task", "move the alpha object")
+    checkpoint = tmp_path / "smolvla"
+    checkpoint.mkdir()
+    (checkpoint / "config.json").write_text("{}\n", encoding="utf-8")
+    (checkpoint / "model.safetensors").write_bytes(b"weights")
+    target = build_runtime_open_world_evaluation_target(
+        tmp_path,
+        "alpha_task",
+        max_rounds=2,
+        policy_spec=build_smolvla_policy_spec(checkpoint),
+    )
+
+    def rollout_runner(*, candidate, **_kwargs):
+        assert candidate.task_contract["task_schema_available"] is True
+        return {
+            "success": True,
+            "episode": {"official_check_success": True},
+            "artifacts": {},
+            "metadata": {"semantic_telemetry_ready": True},
+        }
+
+    with patch(
+        "mea.robotwin.runtime.probe_official_robotwin_task_context",
+        return_value=_task_context_probe(tmp_path, "alpha_task"),
+    ) as probe:
+        result = _execute_robotwin_method_round(
+            policy_backend="smolvla",
+            policy_name="SmolVLA",
+            rollout_runner=rollout_runner,
+            repo_root=tmp_path,
+            evaluation_dir=tmp_path / "evaluation",
+            evaluation_id="eval_schema_less_control",
+            round_plan={
+                "round_id": "round_1",
+                "template_id": "task_execution.official_baseline",
+                "sub_aspect": "task_execution.official_baseline",
+                "task_instruction": "Can the policy solve the official task?",
+                "task_name": "alpha_task",
+                "route": "official",
+                "execution": {"seeds": [11]},
+            },
+            runtime_target=target,
+            telemetry_profile="balanced_v1",
+        )
+
+    probe.assert_called_once()
+    manifest = result["child_manifest"]
+    assert manifest["runtime_task_context"]["schema_origin"] == (
+        "runtime_probe"
+    )
+    assert manifest["method_runtime"]["candidate"]["task_contract"][
+        "task_schema_available"
+    ] is True
+    assert manifest["method_runtime"]["candidate"]["metadata"][
+        "runtime_task_context_probe_executed"
+    ] is True
 
 
 def test_policy_backend_rejects_a_mismatched_rollout_hook():

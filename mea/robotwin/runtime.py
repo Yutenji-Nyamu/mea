@@ -287,13 +287,22 @@ class RoboTwinMethodBackend:
             },
         )
 
-    @staticmethod
     def official_candidate(
+        self,
         binding: BackendTaskBinding,
         *,
         source_query: str,
+        seed: int,
         candidate_id: str = "official_control",
     ) -> MaterializedCandidate:
+        """Bind an unchanged task after establishing execution context.
+
+        A shared policy may execute an official task that has no reviewed
+        ``TaskSchema``.  The unchanged control is the first real method round,
+        so establish its actor/telemetry authority before policy inference
+        rather than waiting for a later TaskGen or Tool-only Proposal.
+        """
+
         adapter = binding.native_task
         if not isinstance(
             adapter,
@@ -302,6 +311,56 @@ class RoboTwinMethodBackend:
             raise TypeError(
                 "RoboTwin binding native_task has the wrong runtime type"
             )
+        task_contract = deepcopy(dict(binding.task_contract))
+        task_context_value = task_contract.get("task_context")
+        runtime_probe_executed = False
+        if not isinstance(task_contract.get("task_schema"), Mapping):
+            policy = task_contract.get("policy")
+            action_dimension = (
+                policy.get("action_dimension", 0)
+                if isinstance(policy, Mapping)
+                else 0
+            )
+            if (
+                isinstance(action_dimension, bool)
+                or not isinstance(action_dimension, int)
+                or action_dimension < 1
+            ):
+                raise ValueError(
+                    "schema-less official control requires the bound policy "
+                    "action_dimension"
+                )
+            try:
+                runtime_probe = self.task_context_probe_runner(
+                    repo_root=self.repo_root,
+                    task_name=adapter.task_name,
+                    seed=int(seed),
+                    action_dimension=action_dimension,
+                )
+                task_context = resolve_robotwin_task_context(
+                    self.repo_root,
+                    adapter.task_name,
+                    runtime_probe=runtime_probe,
+                )
+            except (RoboTwinTaskContextError, TypeError, ValueError) as exc:
+                raise ValueError(
+                    "official control could not establish runtime "
+                    f"TaskContext authority: {exc}"
+                ) from exc
+            if task_context.task_schema is None:
+                raise ValueError(
+                    "official control runtime TaskContext has no telemetry "
+                    "schema"
+                )
+            task_context_value = task_context.to_dict()
+            task_contract.update(
+                {
+                    "task_schema": deepcopy(dict(task_context.task_schema)),
+                    "task_schema_available": True,
+                    "task_context": task_context_value,
+                }
+            )
+            runtime_probe_executed = True
         manifest = {
             "schema_version": 1,
             "status": "official",
@@ -325,7 +384,7 @@ class RoboTwinMethodBackend:
             binding_id=binding.binding_id,
             source_query=source_query,
             task_contract={
-                **dict(binding.task_contract),
+                **task_contract,
                 "task_module": manifest["task_module"],
             },
             native_task=native,
@@ -333,8 +392,28 @@ class RoboTwinMethodBackend:
                 **binding.artifacts,
                 "task_module": manifest["task_module"],
             },
-            validation={"route": "official_control"},
-            metadata={"official_control": True},
+            validation={
+                "route": "official_control",
+                "task_context": (
+                    {
+                        "schema_origin": task_context_value.get(
+                            "schema_origin"
+                        ),
+                        "runtime_probe_executed": runtime_probe_executed,
+                    }
+                    if isinstance(task_context_value, Mapping)
+                    else None
+                ),
+            },
+            metadata={
+                "official_control": True,
+                "task_context_bound_before_rollout": isinstance(
+                    task_contract.get("task_schema"), Mapping
+                ),
+                "runtime_task_context_probe_executed": (
+                    runtime_probe_executed
+                ),
+            },
         )
 
     def materialize_candidate(

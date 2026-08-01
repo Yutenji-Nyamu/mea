@@ -18,9 +18,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
+from mea.execution_vqa.runtime import run_round_execution_vqa
 from mea.planner import build_evidence_aggregate
 from mea.proposals import tool_request_from_proposal
 from mea.round_evidence import aggregate_round_results
+from mea.round_summary import summarize_round
 from mea.round_tools import (
     materialize_open_world_tool_request,
     reuse_bound_child_checker_tool,
@@ -63,17 +65,14 @@ def _round_requests_execution_vqa(
 class RoundExecutionServices:
     """Migration seams not yet owned by the backend-neutral lifecycle.
 
-    Generic artifact writing and existing Tool/MethodRuntime APIs are imported
-    directly in this module.  The remaining callbacks are the child TaskGen
-    transport and summary/VQA helpers that still live in the legacy CLI; they
-    can move independently without changing the typed round contract.
+    Generic artifact writing, summary, VQA, Tool, and MethodRuntime APIs are
+    imported directly.  The remaining callbacks are the legacy child TaskGen
+    transport plus the policy-backend registry.
     """
 
     update_manifest: Callable[..., Mapping[str, Any]]
     build_taskgen_command: Callable[..., tuple[list[str], str]]
     run_logged: Callable[..., int]
-    run_round_execution_vqa: Callable[..., Mapping[str, Any]]
-    summarize_round: Callable[..., dict[str, Any]]
     native_policy_rounds: Mapping[str, Callable[..., Mapping[str, Any]]]
 
 
@@ -261,7 +260,7 @@ class RoundExecutor:
             round_plan=round_plan,
             execution_vqa=execution_vqa,
         )
-        round_summary = services.summarize_round(
+        round_summary = summarize_round(
             round_plan,
             child_manifest,
             child_dir,
@@ -625,7 +624,7 @@ class RoundExecutor:
                 execution_vqa,
             )
         elif semantic_ready:
-            execution_vqa = services.run_round_execution_vqa(
+            execution_vqa = run_round_execution_vqa(
                 repo_root=request.repo_root,
                 child_manifest=child_manifest,
                 child_dir=child_dir,

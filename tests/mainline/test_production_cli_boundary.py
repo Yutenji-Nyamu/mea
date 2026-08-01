@@ -25,10 +25,12 @@ def run_import_probe(source: str) -> dict[str, bool]:
 
 
 class ProductionCliBoundaryTests(unittest.TestCase):
-    def test_agent_reexports_extracted_cli_and_acceptance_contracts(self) -> None:
+    def test_agent_exports_cli_contracts_without_internal_acceptance_helpers(
+        self,
+    ) -> None:
         probe = (
             "import importlib.util,json,pathlib;"
-            "from mea import agent_acceptance,agent_cli;"
+            "from mea import agent_cli;"
             "path=pathlib.Path('scripts/manipeval_agent.py');"
             "spec=importlib.util.spec_from_file_location('agent_reexports',path);"
             "module=importlib.util.module_from_spec(spec);"
@@ -42,8 +44,8 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             "is agent_cli.resolve_default_open_query_planner,"
             "'candidate_budget':module.resolve_plan_agent_candidate_budget "
             "is agent_cli.resolve_plan_agent_candidate_budget,"
-            "'episode_results':module._episode_tool_results "
-            "is agent_acceptance._episode_tool_results}))"
+            "'episode_results_absent':"
+            "not hasattr(module,'_episode_tool_results')}))"
         )
         self.assertEqual(
             run_import_probe(probe),
@@ -52,7 +54,7 @@ class ProductionCliBoundaryTests(unittest.TestCase):
                 "allowed_aspects": True,
                 "planner_default": True,
                 "candidate_budget": True,
-                "episode_results": True,
+                "episode_results_absent": True,
             },
         )
 

@@ -5,11 +5,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 from mea.round_tools import reuse_bound_child_checker_tool
+from mea.round_summary import summarize_round
 from mea.toolgen import contact_tool_request
 from scripts.manipeval_agent import (
     build_taskgen_command,
     execute_round,
-    summarize_round,
 )
 from scripts.manipeval_taskgen import collect_position_samples, newest_eval_dir
 
@@ -385,7 +385,7 @@ class MultiRoundRuntimeTests(unittest.TestCase):
                     return_value=tool_evaluation,
                 ) as routed_tool,
                 patch(
-                    "scripts.manipeval_agent.run_round_execution_vqa",
+                    "mea.round_executor.run_round_execution_vqa",
                     return_value={
                         "status": "passed",
                         "evidence_conflict": False,
@@ -603,7 +603,7 @@ class MultiRoundRuntimeTests(unittest.TestCase):
                     "mea.round_executor.execute_tool_request"
                 ) as duplicate_toolgen,
                 patch(
-                    "scripts.manipeval_agent.run_round_execution_vqa",
+                    "mea.round_executor.run_round_execution_vqa",
                     return_value={
                         "status": "passed",
                         "evidence_conflict": False,

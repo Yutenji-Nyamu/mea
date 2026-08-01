@@ -4,15 +4,14 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from mea.toolkit import aggregate_tool_executions
-from mea.feedback.answer_scope import build_answer_scope
-from scripts.manipeval_agent import (
+from mea.agent_evidence import build_evidence_bundle, compact_aggregate_result
+from mea.execution_vqa.runtime import (
     _episode_numeric_tool_results,
     _same_telemetry_episode,
-    build_evidence_bundle,
-    compact_aggregate_result,
     run_round_execution_vqa,
 )
+from mea.toolkit import aggregate_tool_executions
+from mea.feedback.answer_scope import build_answer_scope
 
 
 class AgentEvidenceIntegrationTests(unittest.TestCase):
@@ -227,7 +226,7 @@ class AgentEvidenceIntegrationTests(unittest.TestCase):
                 }
 
             with patch(
-                "scripts.manipeval_agent.run_execution_vqa",
+                "mea.execution_vqa.runtime.run_execution_vqa",
                 side_effect=fake_vqa,
             ):
                 result = run_round_execution_vqa(
@@ -382,7 +381,7 @@ class AgentEvidenceIntegrationTests(unittest.TestCase):
                 }
 
             with patch(
-                "scripts.manipeval_agent.run_execution_vqa",
+                "mea.execution_vqa.runtime.run_execution_vqa",
                 side_effect=fake_vqa,
             ):
                 result = run_round_execution_vqa(
@@ -471,7 +470,7 @@ class AgentEvidenceIntegrationTests(unittest.TestCase):
                 }
 
             with patch(
-                "scripts.manipeval_agent.run_execution_vqa",
+                "mea.execution_vqa.runtime.run_execution_vqa",
                 side_effect=fake_vqa,
             ):
                 result = run_round_execution_vqa(
@@ -601,7 +600,7 @@ class AgentEvidenceIntegrationTests(unittest.TestCase):
                 }
 
             with patch(
-                "scripts.manipeval_agent.run_execution_vqa",
+                "mea.execution_vqa.runtime.run_execution_vqa",
                 side_effect=fake_vqa,
             ):
                 result = run_round_execution_vqa(

@@ -34,7 +34,12 @@ from mea.plan_artifacts import (
     PLAN_AGENT_STEPS,
     PROPOSAL_MATERIALIZATION,
 )
-from mea.planner import PlanAgent, PlanAgentSession, render_query_answer
+from mea.planner import (
+    PlanAgent,
+    PlanAgentSession,
+    render_query_answer,
+    validate_open_query_capabilities,
+)
 from mea.providers import OpenAICompatibleProvider
 from mea.round_evidence import aggregate_evaluation_results
 from mea.round_executor import RoundExecutionRequest, RoundExecutor
@@ -59,6 +64,97 @@ def update_manifest(evaluation_dir: Path, **updates: Any) -> dict[str, Any]:
     manifest.update(updates)
     _write_json(path, manifest)
     return manifest
+
+
+def refresh_plan_agent_capabilities_from_runtime_context(
+    capabilities: Mapping[str, Any],
+    child_manifest: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Promote one backend-validated TaskContext into the next Plan step.
+
+    Shared policies may start with source-only task identity.  The unchanged
+    control establishes actor and telemetry authority before inference; expose
+    that newly observed execution surface to the next evidence-conditioned
+    decision without adding a task-specific capability menu.
+    """
+
+    current = deepcopy(dict(capabilities))
+    raw_context = child_manifest.get("runtime_task_context")
+    if raw_context is None:
+        return current
+    if not isinstance(raw_context, Mapping):
+        raise ValueError("runtime_task_context must be an object")
+    context = deepcopy(dict(raw_context))
+    if (
+        context.get("schema_version") != 1
+        or context.get("taskgen_ready") is not True
+        or context.get("schema_origin")
+        not in {"runtime_probe", "reviewed_task_schema"}
+    ):
+        raise ValueError(
+            "runtime_task_context is not a validated execution context"
+        )
+    task_schema = context.get("task_schema")
+    if not isinstance(task_schema, Mapping):
+        raise ValueError("runtime_task_context has no task schema")
+    simulator = current.get("simulator_card")
+    if not isinstance(simulator, Mapping):
+        raise ValueError("Plan Agent capabilities have no simulator card")
+    task_name = context.get("task_name")
+    if (
+        not isinstance(task_name, str)
+        or task_name != simulator.get("task_name")
+        or task_schema.get("task_name") != task_name
+    ):
+        raise ValueError(
+            "runtime TaskContext task differs from the Plan Agent binding"
+        )
+
+    refreshed_simulator = deepcopy(dict(simulator))
+    for field in (
+        "physics_timestep_seconds",
+        "action_dimension",
+        "tracked_actors",
+        "semantic_fields",
+        "semantic_roles",
+        "success_contract",
+        "telemetry_observables",
+    ):
+        if field in task_schema:
+            refreshed_simulator[field] = deepcopy(task_schema[field])
+    refreshed_simulator["task_context_authority"] = {
+        "schema_origin": context["schema_origin"],
+        "official_source_sha256": context.get("official_source_sha256"),
+        "authority": deepcopy(dict(context.get("authority") or {})),
+    }
+    current["simulator_card"] = refreshed_simulator
+
+    generation = current.get("generation_card")
+    primitives = (
+        generation.get("backend_primitives")
+        if isinstance(generation, Mapping)
+        else None
+    )
+    if not isinstance(primitives, Mapping):
+        raise ValueError(
+            "runtime TaskContext promotion requires backend primitives"
+        )
+    refreshed_primitives = deepcopy(dict(primitives))
+    refreshed_primitives["telemetry"] = True
+    current["generation_card"] = {
+        "backend_primitives": refreshed_primitives,
+    }
+
+    policy = current.get("policy_card")
+    if isinstance(policy, Mapping):
+        refreshed_policy = deepcopy(dict(policy))
+        unknown = refreshed_policy.get("unknown_metadata")
+        if isinstance(unknown, list):
+            refreshed_policy["unknown_metadata"] = [
+                item for item in unknown if item != "semantic_actor_schema"
+            ]
+        current["policy_card"] = refreshed_policy
+    return validate_open_query_capabilities(current)
 
 
 def apply_external_hard_round_cap(
@@ -347,18 +443,28 @@ class PlanAgentApplication:
             )
             for item in round_runs
         ]
-        semantic_bundle = self.session.propose_semantic_step(
-            self.agent,
-            runtime_state,
-            capabilities=self.capabilities,
-            evaluation_intent=None,
-        )
         step_dir = (
             self.evaluation_dir
             / PLAN_AGENT_STEPS
             / f"after_round_{executed_rounds:02d}"
         )
         step_dir.mkdir(parents=True, exist_ok=True)
+        self.capabilities = (
+            refresh_plan_agent_capabilities_from_runtime_context(
+                self.capabilities,
+                round_runs[-1]["child_manifest"],
+            )
+        )
+        _write_json(
+            step_dir / "runtime_capabilities.json",
+            self.capabilities,
+        )
+        semantic_bundle = self.session.propose_semantic_step(
+            self.agent,
+            runtime_state,
+            capabilities=self.capabilities,
+            evaluation_intent=None,
+        )
         (step_dir / "prompt.md").write_text(
             self.agent.last_prompt or "",
             encoding="utf-8",
@@ -893,5 +999,6 @@ class PlanAgentApplication:
 __all__ = [
     "PlanAgentApplication",
     "apply_external_hard_round_cap",
+    "refresh_plan_agent_capabilities_from_runtime_context",
     "update_manifest",
 ]

@@ -8,13 +8,13 @@ from pathlib import Path
 import mea.round_executor as round_executor_module
 from mea.round_evidence import aggregate_sources
 from mea.round_executor import RoundExecutionResult, RoundExecutor
+from mea.round_summary import normalize_outcome_semantics
 from mea.round_tools import (
     executed_policy_episode_dirs,
     executed_runtime_task_schema,
 )
 from scripts.manipeval_agent import (
     build_production_round_executor,
-    normalize_outcome_semantics,
 )
 
 

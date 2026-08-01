@@ -450,6 +450,7 @@ def _execute_robotwin_method_round(
         candidate = backend.official_candidate(
             binding,
             source_query=query,
+            seed=seed,
             candidate_id=str(
                 round_plan.get("candidate_id")
                 or round_plan.get("template_id")
@@ -505,6 +506,12 @@ def _execute_robotwin_method_round(
     executed_schema_available = bool(
         candidate.task_contract.get("task_schema_available")
     )
+    executed_task_context = candidate.task_contract.get("task_context")
+    executed_schema_origin = (
+        executed_task_context.get("schema_origin")
+        if isinstance(executed_task_context, Mapping)
+        else None
+    )
     execution_scope = (
         "generated_check_success"
         if generated_checker
@@ -520,6 +527,12 @@ def _execute_robotwin_method_round(
         limitations += (
             "No reviewed TaskSchema; the Task context is limited to official "
             "source identity and executed telemetry.",
+        )
+    elif executed_schema_origin == "runtime_probe":
+        limitations += (
+            "The TaskContext was derived from a fresh official reset rather "
+            "than a reviewed task-specific schema; semantic roles and "
+            "thresholds remain unavailable unless directly observed.",
         )
     semantic_ready = bool(
         rollout.metadata.get("semantic_telemetry_ready")
@@ -651,6 +664,13 @@ def _execute_robotwin_method_round(
                 "artifacts": deepcopy(dict(candidate.artifacts)),
             }
             if taskgen_manifest is not None
+            else None
+        ),
+        "runtime_task_context": (
+            deepcopy(dict(candidate.task_contract["task_context"]))
+            if isinstance(
+                candidate.task_contract.get("task_context"), Mapping
+            )
             else None
         ),
         "method_runtime": {
