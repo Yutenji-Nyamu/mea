@@ -1027,6 +1027,22 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             official_success_reuse=resolution["official_success_reuse"],
         )
         self.assertEqual(candidate["rule_tool_need"]["kind"], "reuse")
+        contract = build_query_sufficiency_contract(
+            query,
+            candidate_universe=[candidate["candidate_id"]],
+            round_budget=1,
+            claim_type="diagnostic",
+            candidate_universe_closed=True,
+            control_requirement="not_required",
+        )
+        session = PlanAgentSession(
+            query,
+            official_only_target,
+            query_contract=contract,
+            require_control_anchor=False,
+        )
+        session.register_frozen_candidate(candidate)
+        self.assertTrue(session.query_contract["candidate_universe_closed"])
 
     def test_official_only_task_admits_broad_concern_to_open_planner(self):
         official_only_target = {

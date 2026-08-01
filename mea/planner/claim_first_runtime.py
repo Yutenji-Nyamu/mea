@@ -1878,11 +1878,17 @@ class PlanAgentSession:
                 f"dynamic candidate id collision: {candidate_id}"
             )
         self.dynamic_candidates[candidate_id] = trusted
-        self.query_contract = extend_query_candidate_universe(
-            self.query_contract,
-            [candidate_id],
-            candidate_universe_closed=False,
-        )
+        if candidate_id not in self.query_contract["candidate_universe"]:
+            # A genuinely new evidence-conditioned Proposal reopens the
+            # candidate universe.  A Query-frozen candidate that is already
+            # present in a closed contract must not silently discard that
+            # caller-authored finite scope merely by being registered for
+            # execution.
+            self.query_contract = extend_query_candidate_universe(
+                self.query_contract,
+                [candidate_id],
+                candidate_universe_closed=False,
+            )
         return deepcopy(trusted)
 
     def register_frozen_candidate(
