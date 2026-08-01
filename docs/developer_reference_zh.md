@@ -78,6 +78,21 @@
 `envs.<task>`，不维护任务 allowlist；它只增加 policy backend 广度，不替代上述
 Query→TaskGen/ToolGen→evidence planning 验收。
 
+## 增加 policy backend
+
+- 模型、checkpoint、Python/CUDA 依赖和仿真资产只在服务器下载、安装与验证。
+- 在 `experiments/paper/<backend>/deployment_ledger.md` 保留一份 cold 流水账：硬件与
+  磁盘探针、source/checkpoint revision、路径、大小与 hash、环境创建、实际执行的每条
+  命令及结果、遇到的问题、诊断依据和最终解决方法。
+- 网络加速、镜像、wheel 重试和临时目录必须记录启用与退出边界；不得记录密码、API key、
+  token 或代理凭证。
+- 分开报告 offline import/forward、standalone official rollout 与共享 MEA 方法入口；前两项
+  通过不能自动升级为完整方法证据。
+- 短 runbook 只保存已验证的最短复现路径并链接流水账，不在多个文档复制完整终端历史。
+
+Hy-VLA 的具体范例见
+[`experiments/paper/robotwin_hyvla/deployment_ledger.md`](../experiments/paper/robotwin_hyvla/deployment_ledger.md)。
+
 ## 扩展 TaskGen
 
 - retrieve-first；未命中时由 provider 只生成 Proposal 声明所需的 scene 和/或
