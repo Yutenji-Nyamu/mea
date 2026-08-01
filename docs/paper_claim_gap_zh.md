@@ -30,15 +30,43 @@ generated checker 是有界实验语义，不是官方 benchmark checker；因�
 只要求从 rollout telemetry 得到一个诊断标量；提示词已由该失败例修正，原始产物未被
 回写。
 
+### Batch33 补充事实（不替换当前旗舰）
+
+Batch33 扩展了跨任务和第二个多任务 policy 的证据，但没有产生比 v18 更完整的可接受旗舰：
+
+- `press_stapler` v3 从未指定 aspect/template 的 Query 出发，在同一 bundle 中完成
+  evidence-conditioned scene refinement，并生成有 live finite 值的 Python Tool；第三轮精确
+  `run_local_reuse` 同一 registration。三次 policy episode 均成功，最终因 `N=3` 预算停止，
+  `evidence_sufficient=false`；checker 是 official reuse，因此不能替代 v18 的完整
+  scene+checker 正例。
+- v4 在前三轮成功后由 Plan Agent 提出更强的第四候选；TaskGen 的 expert gate 两次均以
+  `target_pose cannot be None` 拒绝该候选，第四次 policy rollout **没有启动**。这属于
+  candidate materialization failure，不是 policy failure。
+- v5 在同一在线 bundle 中闭合了这条恢复链：三轮成功证据促使 Agent 提出 vertical
+  `+0.16 m` Proposal；其 TaskGen 拒绝成为 typed `N=0` planning evidence；Agent 随即切换为
+  lateral `+0.20 m`，TaskGen、SmolVLA rollout 与复用 Tool 再次成功。四个 policy episode
+  均成功，最终因五个 method-step 外部上限停止，仍为 inconclusive，而非泛化正结论。
+- v5 同时暴露 source answer 把 planning rejection 误算成全局 `pipeline_invalid`。当前代码已把
+  policy pipeline health 与 planning gap 分开，并有缓存 fixture 回归；没有篡改 source 产物。
+- SmolVLA 新增五任务 official N=1 为 `2/5`；连同既有结果，目前共有 13 个任务得到明确
+  official outcome，为 `8/13` 成功。它只说明 policy/backend 广度，不代表 13 个任务均完成
+  TaskGen、ToolGen 或多轮 MEA。
+- Hy-VLA official RoboTwin checkpoint 已在服务器完成离线 official-wrapper 验证，并在
+  `press_stapler / demo_clean / seed=10000` 的 official N=1 中成功。它证明第二个多任务
+  policy adapter 可运行，尚未接入完整 MEA round。
+
+冷结果索引与服务器原始路径见
+[`experiments/paper/results/batch33_open_cross_task/README.md`](../experiments/paper/results/batch33_open_cross_task/README.md)。
+
 ## 方法 claim
 
 | 论文 claim | 当前项目 | 判断 |
 | --- | --- | --- |
-| Fig. 2/5：开放 Query 驱动 Plan Agent 自主提出 sub-aspect | v18 在 completed control evidence 后才选择轴与精确位移；catalog 对模型不可见 | **小范围单例完成**；Query 仍限定了 terminal-alignment concern，尚非开放弱点搜索 |
-| evidence 决定下一轮，并在充分时停止 | v18 为 `continue → 新 Proposal → Agent stop → QueryContract 验证` | **小范围单例完成**；有限 existential 合同不代表广泛充分性 |
+| Fig. 2/5：开放 Query 驱动 Plan Agent 自主提出 sub-aspect | v18 在 completed control evidence 后才选择轴与精确位移；Batch33 v3 又证明 evidence 可连续细化同一 sub-aspect | **小范围单例完成**；尚缺 broad Query 下由 evidence 转向新的 concern |
+| evidence 决定下一轮，并在充分时停止 | v18 为 `continue → 新 Proposal → Agent stop → QueryContract 验证`；Batch33 v5 又完成 `TaskGen rejection → N=0 evidence → switch concern → executable rollout` | **两类小范围行为均有 live 证据**；它们尚未在同一 broad Query 中同时以 `evidence_sufficient` 主动停止，有限 existential 合同也不代表广泛充分性 |
 | Fig. 3：Proposal → retrieve/generate scene + `check_success()` → rollout | v18 同链生成 scene/checker 并裁决真实 policy episode | **小范围单例完成**；跨任务冷启动仍受 TaskContext/schema 与 simulator hook 限制 |
 | 首帧视觉诊断与局部重新生成 | render/VLM 与一次局部 repair 路径已在历史真实案例触发；v18 无需 repair | **组件完成**；视觉只审外观，数值关系仍由 simulator/fixture 审计 |
-| Fig. 4：ToolGen retrieve/generate/validate/register/reuse | v18 新 Python Tool 有 live finite 值；独立 follow-up Query exact reuse | **同一 evaluation 内完成**；尚未证明 reviewed registry 的跨 evaluation 长期复用 |
+| Fig. 4：ToolGen retrieve/generate/validate/register/reuse | v18 新 Python Tool 有 live finite 值；Batch33 v3 又在同一 bundle 完成 generate、live 与第三轮 exact reuse | **同一 evaluation 内完成**；尚未证明 reviewed registry 的跨 evaluation 长期复用 |
 | rollout → Rule/VQA → Aggregate → Plan Agent → Answer | RoboTwin 的 SmolVLA/ACT 共用 `RoundExecutor` 与方法外层 | **RoboTwin 小范围完成**；LIBERO 仍有独立外层 |
 | 回答原 Query 并约束确定性 | `AnswerScope` 报告 N、seed、候选域、冲突、停止原因与语义边界 | **完成度较高**；还需避免模型凭空收紧 Query 子要求 |
 
@@ -52,19 +80,23 @@ generated checker 是有界实验语义，不是官方 benchmark checker；因�
 | Tables 7–8：VQA 四条件 accuracy/AUROC | 8 个缓存样本、单 VLM、proxy gold | **仅协议 smoke** |
 | Table 9：少样本保持多 policy 排名 | ACT/DP3 三 seed 为 2/3 对 2/3，Spearman 不可算 | **未复现** |
 | Fig. 6：系统错误率与模块分布 | 固定 operation 分母很小 | **不可比较** |
-| RoboTwin/LIBERO 跨任务适配 | SmolVLA 可低成本扩 official rollout；LIBERO 有 basic adaptation | **完整方法外层尚未跨环境统一** |
+| RoboTwin/LIBERO 跨任务适配 | SmolVLA 已有 13 任务 official outcome（8/13）；Hy-VLA 有一项 official N=1 正例；LIBERO 有 basic adaptation | **policy adapter 广度增加；完整方法外层尚未跨 policy/环境统一** |
 
 ## 下一步主干
 
-1. **解除跨任务 TaskContext 准入。** 将手写 TaskSchema 降级为缓存；缺失时从 official
-   source、reset actors 与 telemetry retrieve/generate/validate，禁止新增任务名分支。
-2. **把 LIBERO 接入同一方法外层。** simulator backend 可以不同，但
+1. **完成一个 broad Query 的主动停止 clean flagship。** 在 v5 已证明 rejection 后重规划的
+   基础上，让同一 bundle 最终由 Plan Agent 提出 stop、QueryContract 验证
+   `evidence_sufficient`；不得靠 hard cap，也不得把 planning gap 计作 policy failure。
+2. **完成一个无手写 schema 的跨任务 clean flagship。** 同一 bundle 中要求 Proposal、
+   scene/checker、live Tool、evidence-conditioned refinement、Agent stop 与 Answer 全部成立；
+   TaskSchema 只作缓存，缺失时从 official source、reset actors 与 telemetry 构建 TaskContext。
+3. **把 Hy-VLA 与 LIBERO 接入同一方法外层。** backend 可以不同，但
    QueryContract、Plan Agent session、RoundExecutor、Aggregate、stop 与 Answer
    不应重复实现。
-3. **继续收束生产结构。** `PlanAgentApplication` 拥有 route/round/stop/answer；
+4. **继续收束生产结构。** `PlanAgentApplication` 拥有 route/round/stop/answer；
    `MethodRuntime` 是唯一 TaskGen materialization owner。迁移 caller 后再删除 legacy
    planner、任务方言和重复 registry，不再增加 façade。
-4. **方法稳定后补实验。** 先做小型三 seed dense/adaptive 保真；独立人工 Plan/VQA、
+5. **方法稳定后补实验。** 先做小型三 seed dense/adaptive 保真；独立人工 Plan/VQA、
    多 policy ranking 与大规模任务后置。
 
 ## 软件工程边界

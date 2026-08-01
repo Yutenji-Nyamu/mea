@@ -351,6 +351,40 @@ class ProductionCliBoundaryTests(unittest.TestCase):
         )
         self.assertEqual(run_import_probe(probe), {"budget": 1})
 
+    def test_typed_official_experiment_is_not_charged_two_rounds(self) -> None:
+        from mea.agent_cli import (
+            resolve_plan_agent_candidate_budget,
+            resolve_plan_agent_control_required,
+        )
+
+        resolution = {
+            "resolution": "official_execution_from_typed_needs",
+            "execution_authorized": True,
+        }
+        query = (
+            "Run exactly one unchanged official control episode and answer "
+            "only from that evidence."
+        )
+
+        self.assertFalse(
+            resolve_plan_agent_control_required(
+                query,
+                query_contract=None,
+                semantic_context=None,
+                candidate_resolution=resolution,
+            )
+        )
+        self.assertEqual(
+            resolve_plan_agent_candidate_budget(
+                1,
+                user_request=query,
+                query_contract=None,
+                semantic_context=None,
+                candidate_resolution=resolution,
+            ),
+            1,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -929,6 +929,72 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         self.assertTrue(resolution["task_need"]["required"])
         self.assertFalse(resolution["execution_authorized"])
 
+    def test_typed_no_taskgen_needs_bind_the_unchanged_official_execution(self):
+        official_only_target = {
+            "schema_version": 3,
+            "binding_mode": "single_task_single_checkpoint_open_world",
+            "policy_task_binding": build_policy_task_binding(
+                task_name="press_stapler",
+                task_family="runtime_discovered",
+                policy={"name": "Hy-VLA", "language_conditioned": True},
+                checkpoint={
+                    "checkpoint_id": "hyvla-robotwin",
+                    "checkpoint_setting": "demo_clean",
+                    "expert_data_num": 50,
+                    "ready": True,
+                },
+                task_schema_available=False,
+            ),
+            "max_rounds": 1,
+        }
+        query = (
+            "Does this Hy-VLA policy complete the unchanged official "
+            "press_stapler task in RoboTwin? Run exactly one official control "
+            "episode and answer only from that evidence."
+        )
+        concern = {
+            "schema_version": 1,
+            "source_query": query,
+            "sub_aspect": "Official press_stapler task completion.",
+            "hypothesis": "Hy-VLA completes the unchanged official task.",
+            "task_intent": "Press the official stapler.",
+            "requested_variation": "Reuse the unchanged official task.",
+            "measurement_need": "Observe official check_success().",
+        }
+        needs = {
+            "scene_need": {"required": False, "description": None},
+            "checker_need": {"required": False, "description": None},
+            "rule_tool_need": {
+                "required": True,
+                "description": "Reuse official check_success().",
+                "reuse_first": True,
+            },
+            "vqa_tool_need": {
+                "required": False,
+                "description": None,
+                "reuse_first": True,
+            },
+        }
+
+        resolution = resolve_concern_candidate_domain(
+            concern,
+            target=official_only_target,
+            experiment_needs=needs,
+        )
+
+        self.assertEqual(resolution["decision"], "bind_single_aspect")
+        self.assertEqual(
+            resolution["resolution"],
+            "official_execution_from_typed_needs",
+        )
+        self.assertEqual(
+            resolution["selected_template_ids"],
+            ["task_execution.official_baseline"],
+        )
+        self.assertFalse(resolution["taskgen_required"])
+        self.assertTrue(resolution["execution_authorized"])
+        self.assertEqual(resolution["experiment_needs"], needs)
+
     def test_official_only_task_admits_broad_concern_to_open_planner(self):
         official_only_target = {
             "task_name": "adjust_bottle",

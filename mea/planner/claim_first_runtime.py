@@ -591,16 +591,19 @@ def resolve_concern_candidate_domain(
     concern: Mapping[str, Any],
     *,
     target: Mapping[str, Any],
+    experiment_needs: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Bind an online Query interpretation to a finite capability domain.
 
     Query interpretation is authored before task/capability retrieval and never sees the
-    executable catalog.  The runtime may therefore use its semantic fields to
-    narrow a trusted capability inventory, but only on an exact or unique
-    lexical match.  Broad or tied concerns keep the complete non-control
-    domain and explicitly ask the Planner to discover the most informative
-    first candidate.  Ambiguity is therefore a planning state, not an
-    admission failure.
+    executable catalog.  Its typed experiment needs take precedence over
+    prose matching when they say the unchanged official execution already
+    supplies the required evidence.  Otherwise the runtime may use semantic
+    fields to narrow a trusted capability inventory, but only on an exact or
+    unique lexical match.  Broad or tied concerns keep the complete
+    non-control domain and explicitly ask the Planner to discover the most
+    informative first candidate.  Ambiguity is therefore a planning state,
+    not an admission failure.
     """
 
     if not isinstance(concern, Mapping):
@@ -620,6 +623,40 @@ def resolve_concern_candidate_domain(
         concern.get("source_query"), "QueryInterpretation.source_query"
     )
     control_template = control_template_id(target)
+    trusted_needs = (
+        validate_free_concern_experiment_needs(experiment_needs)
+        if experiment_needs is not None
+        else None
+    )
+    if (
+        trusted_needs is not None
+        and trusted_needs["scene_need"]["required"] is False
+        and trusted_needs["checker_need"]["required"] is False
+    ):
+        # Typed work needs are the Plan Agent's machine-readable artifact
+        # contract.  When neither scene nor checker work is requested, the
+        # executable experiment is the unchanged official task plus the
+        # requested Rule/VQA observation.  Do not reinterpret prose tokens as
+        # a request for a generated catalog-external scene.
+        # Runtime-bound schema-less tasks deliberately have no ``aspects``
+        # menu. ``control_template_id`` is already the trusted task binding's
+        # official execution identity, so it is also the neutral semantic
+        # aspect for this no-TaskGen experiment.
+        return {
+            "schema_version": 1,
+            "decision": "bind_single_aspect",
+            "resolution": "official_execution_from_typed_needs",
+            "candidate_aspect_ids": [control_template],
+            "selected_aspect_id": control_template,
+            "selected_template_ids": [control_template],
+            "ranked_aspects": [],
+            "concern_created_before_catalog": True,
+            "catalog_was_model_visible": False,
+            "concern": deepcopy(dict(concern)),
+            "experiment_needs": deepcopy(trusted_needs),
+            "taskgen_required": False,
+            "execution_authorized": True,
+        }
     concern_text = " ".join(semantic_fields.values()).casefold()
     concern_tokens = (
         _expanded_semantic_tokens(semantic_fields) - _CONCERN_GENERIC_TOKENS

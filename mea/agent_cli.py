@@ -435,11 +435,25 @@ def resolve_plan_agent_control_required(
     *,
     query_contract: Mapping[str, Any] | None,
     semantic_context: Mapping[str, Any] | None,
+    candidate_resolution: Mapping[str, Any] | None = None,
 ) -> bool:
-    """Resolve the control cost before screening the candidate budget."""
+    """Resolve whether a separate control anchor precedes the experiment.
+
+    A trusted QueryContract remains authoritative.  Otherwise a typed
+    unchanged-official candidate is already the requested experiment, so it
+    must not be charged a second control round merely because the Query calls
+    that episode a "control".
+    """
 
     if query_contract is not None:
         return query_contract["control_requirement"] == "required"
+    if (
+        isinstance(candidate_resolution, Mapping)
+        and candidate_resolution.get("resolution")
+        == "official_execution_from_typed_needs"
+        and candidate_resolution.get("execution_authorized") is True
+    ):
+        return False
     return (
         infer_control_requirement(
             user_request,
@@ -479,6 +493,7 @@ def resolve_plan_agent_candidate_budget(
     user_request: str,
     query_contract: Mapping[str, Any] | None,
     semantic_context: Mapping[str, Any] | None,
+    candidate_resolution: Mapping[str, Any] | None = None,
 ) -> int | None:
     """Return candidate rounds after charging only a required control."""
 
@@ -489,6 +504,7 @@ def resolve_plan_agent_candidate_budget(
             user_request,
             query_contract=query_contract,
             semantic_context=semantic_context,
+            candidate_resolution=candidate_resolution,
         )
     )
 

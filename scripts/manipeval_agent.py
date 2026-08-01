@@ -412,6 +412,14 @@ def concern_candidate_domain_is_executable(
 ) -> bool:
     """Admit a semantic domain without requiring a preselected template."""
 
+    if (
+        resolution.get("resolution")
+        == "official_execution_from_typed_needs"
+        and resolution.get("execution_authorized") is True
+    ):
+        # The required official control is itself the requested experiment;
+        # it does not need an additional generated-candidate round.
+        return candidate_budget is None or candidate_budget >= 0
     if candidate_budget is not None and candidate_budget < 1:
         return False
     decision = resolution.get("decision")
@@ -1519,6 +1527,9 @@ def main() -> None:
                 target=runtime_claim_first_targets[
                     args.bound_task_name
                 ],
+                experiment_needs=free_concern_bundle.get(
+                    "experiment_needs"
+                ),
             )
             semantic_context_for_budget = (
                 free_concern_bundle.get("concern")
@@ -1531,6 +1542,7 @@ def main() -> None:
                 user_request=args.request,
                 query_contract=query_sufficiency_contract,
                 semantic_context=semantic_context_for_budget,
+                candidate_resolution=concern_candidate_resolution,
             )
             candidate_domain_supported = (
                 concern_candidate_domain_is_executable(
@@ -1860,6 +1872,7 @@ def main() -> None:
             args.request,
             query_contract=query_sufficiency_contract,
             semantic_context=semantic_context,
+            candidate_resolution=concern_candidate_resolution,
         )
         if (
             not claim_first_control_required
