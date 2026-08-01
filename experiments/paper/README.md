@@ -33,8 +33,9 @@ RoboTwin/SmolVLA 的早期独立 adapter 位于
 [`robotwin_smolvla/`](robotwin_smolvla/README.md)；当前共享 runtime backend 为
 [`mea/robotwin/smolvla_rollout.py`](../../mea/robotwin/smolvla_rollout.py)，已通过
 `MethodRuntime` 接入生产 Plan Agent；v18 已在同一方法链运行 generic
-scene/checker、请求型 Rule Tool 与 VQA。跨任务冷启动仍受 TaskContext/schema 与
-simulator hook 限制。
+scene/checker、请求型 Rule Tool 与 VQA。runtime TaskContext 已通过跨任务 reset 验收，
+reviewed TaskSchema 不再是准入表；无 schema 的完整 scene/checker live 验收仍缺，
+simulator hook 仍是真实边界。
 逐命令部署流水和早期测试 runner 位于其
 [`history/20260729/`](robotwin_smolvla/history/20260729/README.md)，属于冷归档，
 默认不递归读取。
@@ -99,6 +100,7 @@ transport 与 official rollout；不是第二套 MEA 外层。短复现说明见
 | [`results/batch30_open_python_toolgen_live/`](results/batch30_open_python_toolgen_live/) | 缓存真实 telemetry 上的 provider Python ToolGen、一次 repair 与 exact reuse |
 | [`results/batch32_method_mainline_refactor/`](results/batch32_method_mainline_refactor/implementation_and_run_ledger.md) | Plan Agent application、唯一 TaskGen materialization owner、v18 方法运行与复用审计 |
 | [`results/batch33_open_cross_task/`](results/batch33_open_cross_task/README.md) | PressStapler evidence refinement、candidate rejection、SmolVLA 五任务 breadth 与 Hy-VLA N=1 |
+| [`results/batch34_task_independent_context/`](results/batch34_task_independent_context/probe_summary.json) | 无 policy 的跨任务 reset TaskContext 与嵌套 actor 发现 |
 
 旧运行的简短结论与边界另见
 [`docs/evidence/history.jsonl`](../../docs/evidence/history.jsonl)。若两处描述冲突，

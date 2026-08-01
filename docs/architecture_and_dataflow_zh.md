@@ -3,14 +3,16 @@
 ## 当前生产边界
 
 MEA 的生产方法链对 policy backend 中立。系统先解释开放 Query，再从 official task
-source、TaskSchema 与已声明的 policy scope 中建立 `PolicyTaskBinding`；ACT、SmolVLA
+source、runtime TaskContext 与已声明的 policy scope 中建立 `PolicyTaskBinding`；ACT、SmolVLA
 或其他 policy 只是该 binding 选择的 rollout backend，不决定用户能问什么、Plan Agent
 能提出什么 Proposal。
 
 `mea/artifact_retrieval_index.py` 仅检索已审查的 Task/Tool/VQA artifact；
 official inventory 仅发现可用 task。两者都不是执行许可表。执行许可来自：
 
-- task source 与 schema 可发现；
+- official task source 与 runtime reset 可用；reviewed TaskSchema 只是可选语义缓存，
+  不是任务 allowlist；缺失时从 source-bound public root 下的原生 list/tuple/dict actor
+  建立本次运行的 TaskContext；
 - policy checkpoint 明确支持该 task；
 - simulator/backend 发布了 Proposal 所需的 scene、checker、telemetry 或 VQA hook；
 - 生成物通过对应的 simulator、fixture、render/VLM 与 expert gate。

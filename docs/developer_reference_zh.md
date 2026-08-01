@@ -21,8 +21,11 @@
   主链。生产 Plan Agent 不得实例化 `CatalogPlanAgent` 或任务专属 legacy planner；旧 planner
   只能由 `experiments/paper/legacy_planner_factory.py` 显式、延迟加载。
 - 生产 generated round 使用 Proposal 与
-  `GenericRoboTwinTaskAdapter`；后者只包含 official source/class、TaskSchema、检索文档/
+  `GenericRoboTwinTaskAdapter`；后者只包含 official source/class、runtime TaskContext、检索文档/
   资产和 simulator validation hooks，不得枚举 aspect、variant、metric 或 planner route。
+- reviewed TaskSchema 是可复用的语义缓存，不是生产准入表。缺失时 fresh reset probe 只从
+  official source 声明的 public root 中发现 actor；嵌套访问只允许原生 list/tuple/dict 的
+  typed `access_path`，不执行字符串路径，也不猜 target role、contact point 或 success threshold。
 - `mea/artifact_retrieval_index.py` 是生产 reviewed artifact 检索入口；
   `mea/capability_adapter.py` 暂留为旧模板/消融兼容数据源。两者的成员关系都不得作为
   open-world round 的执行许可。
@@ -55,17 +58,17 @@
 
 ## 增加 RoboTwin task
 
-1. 确认 official task 可以由 expert 在若干固定 seed 初始化并完成。
-2. 增加 TaskSchema：actor、接触点、单位、official success 和可用 generic metrics。
-3. 下载服务器端 ACT/DP3 checkpoint 与 stats；记录来源和 revision。
-4. 不为生产 Plan Agent/TaskGen 增加任务名条目。`runtime_task_binding.py` 从
-   source/schema/checkpoint 自动建立执行边界，
-   `load_generic_robotwin_task_adapter()` 再从 source/schema 自动发现生成 hooks。
+1. 确认 official source 可在固定 seed reset，并验证所选 policy backend 的 task binding。
+2. 无 reviewed TaskSchema 时由 fresh reset 自动建立 run-local TaskContext；只有需要稳定
+   role、functional/contact point 或更丰富 telemetry 时才增加 reviewed TaskSchema。
+3. 不为生产 Plan Agent/TaskGen 增加任务名条目。`runtime_task_binding.py` 从
+   source/TaskContext/policy scope 自动建立执行边界，
+   `load_generic_robotwin_task_adapter()` 再从 source/TaskContext 自动发现生成 hooks。
    只有确有已审查 artifact 需要复用时，才向 retrieval index 增加数据化条目；它不能
    携带 planner kind、执行许可或预排 aspect 顺序。
-5. 用 generic recorder、Rule Tool 和 VQA 跑一个 N=1 official smoke；这只能把任务标成
+4. 用 generic recorder、Rule Tool 和 VQA 跑一个 N=1 official smoke；这只能把任务标成
    `official-only`。
-6. 只有 Query 确实需要新场景，且 model-written scene/checker、fixture/render、
+5. 只有 Query 确实需要新场景，且 model-written scene/checker、fixture/render、
    rollout、Tool/VQA/Answer 均在同一链中通过，才能把任务标成“深入”。
 
 当前支持范围、每个 adapter 的证据深度和最新旗舰验收会随运行更新，统一见
