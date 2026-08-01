@@ -943,6 +943,8 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
                 },
                 checkpoint={
                     "checkpoint_id": "hyvla-robotwin",
+                    "policy_name": "Hy-VLA",
+                    "task_scope": "robotwin_official_tasks",
                     "checkpoint_setting": "demo_clean",
                     "expert_data_num": 50,
                     "ready": True,
