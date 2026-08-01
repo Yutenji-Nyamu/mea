@@ -19,11 +19,14 @@ if str(REPO_ROOT) in sys.path:
 sys.path.insert(0, str(REPO_ROOT))
 
 from mea.agent_cli import (
+    load_query_sufficiency_contract,
     parse_args,
+    paper_compat_profile_requested,
     resolve_plan_agent_allowed_aspects,
     resolve_plan_agent_candidate_budget,
     resolve_plan_agent_control_required,
     resolve_default_open_query_planner,
+    validate_and_normalize_agent_args,
 )
 from mea.agent_evidence import (
     _round_evidence,
@@ -88,6 +91,7 @@ from mea.planner.query_contract import (
 from mea.planner.runtime_task_binding import (
     RuntimePolicySpec,
     RuntimeTaskBindingError,
+    build_hyvla_policy_spec,
     build_runtime_open_world_evaluation_target,
     build_smolvla_policy_spec,
 )
@@ -113,6 +117,7 @@ from mea.round_executor import (
 from mea.round_evidence import aggregate_evaluation_results
 from mea.robotwin.native_agent_round import (
     execute_act_method_round,
+    execute_hyvla_method_round,
     execute_smolvla_method_round,
 )
 from mea.taskgen import round_materialization as taskgen_round_materialization
@@ -1049,6 +1054,12 @@ def run_logged(command: list[str], *, cwd: Path, log_path: Path) -> int:
 
 def _build_round_executor(*, native_act: bool) -> RoundExecutor:
     native_policy_rounds = {
+        "hyvla": partial(
+            execute_hyvla_method_round,
+            generated_task_materializer=(
+                create_generic_provider_taskgen_run
+            ),
+        ),
         "smolvla": partial(
             execute_smolvla_method_round,
             generated_task_materializer=(
@@ -1103,6 +1114,7 @@ def execute_round(
     policy_backend: str = "act",
     runtime_target: Mapping[str, Any] | None = None,
     smolvla_port: int = 18771,
+    hyvla_port: int = 18781,
 ) -> tuple[dict[str, Any], Path, dict[str, Any], dict[str, Any], int]:
     """Compatibility import for callers migrating to :class:`RoundExecutor`."""
 
@@ -1125,7 +1137,9 @@ def execute_round(
         registration_identity=registration_identity,
         policy_backend=policy_backend,
         runtime_target=runtime_target,
-        smolvla_port=smolvla_port,
+        policy_server_port=(
+            hyvla_port if policy_backend == "hyvla" else smolvla_port
+        ),
     )
     executor = (
         build_production_round_executor()
@@ -1151,20 +1165,9 @@ def main() -> None:
         return
     requested_open_query_planner = args.open_query_planner
     args.open_query_planner = resolve_default_open_query_planner(args)
-    compat_profile_requested = bool(
-        requested_open_query_planner == "catalog_step_v1"
-        or args.task_profile != "official"
-        or args.planning_policy != "dynamic_evidence_v1"
-        or args.proposal_mode != "catalog"
-        or any(
-            value is not None
-            for value in (
-                args.evidence_manifest,
-                args.command_plan,
-                args.registered_route,
-                args.registered_strategy,
-            )
-        )
+    compat_profile_requested = paper_compat_profile_requested(
+        args,
+        requested_open_query_planner=requested_open_query_planner,
     )
     if compat_profile_requested:
         from experiments.paper.compat_agent_profile import (
@@ -1181,90 +1184,28 @@ def main() -> None:
             raise SystemExit(str(exc)) from exc
         args.open_query_planner = compat_profile["open_query_planner"]
     claim_first_mode = args.open_query_planner == "plan_agent_v1"
-    if args.policy_backend == "smolvla" and not claim_first_mode:
-        raise SystemExit(
-            "--policy-backend smolvla is available only on the production "
-            "Plan Agent path"
-        )
-    if (
-        args.policy_backend == "smolvla"
-        and args.execution_backend not in {None, "act"}
-    ):
-        raise SystemExit(
-            "SmolVLA evaluates the bound policy only; "
-            "--execution-backend expert/both remains an ACT compatibility path"
-        )
-    if args.smolvla_port < 1 or args.smolvla_port > 65535:
-        raise SystemExit("--smolvla-port must be in [1, 65535]")
-    claim_first_bound_plan_only = bool(
-        claim_first_mode
-        and args.plan_only
-        and args.bound_task_name is not None
-        and not args.auto_route
+    claim_first_bound_plan_only = validate_and_normalize_agent_args(
+        args,
+        plan_agent_mode=claim_first_mode,
     )
-    if claim_first_mode and not claim_first_bound_plan_only:
-        # Query-first routing is the production default.  ``--auto-route`` is
-        # retained as an explicit spelling for existing commands.
-        args.auto_route = True
-    if args.num_episodes <= 0:
-        raise SystemExit("--num-episodes must be positive")
-    if args.auto_route and args.task_module is not None:
-        raise SystemExit(
-            "--auto-route resolves a trusted task module; do not pass --task-module"
-        )
-    if (
-        args.bound_task_name is not None
-        and not args.auto_route
-        and not claim_first_bound_plan_only
-    ):
-        raise SystemExit("--bound-task-name requires --auto-route")
-    if args.bound_requested_aspect_ids is not None and args.bound_task_name is None:
-        raise SystemExit(
-            "--bound-requested-aspect-id requires --bound-task-name"
-        )
-    if claim_first_mode and not (
-        args.auto_route or claim_first_bound_plan_only
-    ):
-        raise SystemExit(
-            "plan_agent_v1 requires --auto-route, or --plan-only with "
-            "--bound-task-name"
-        )
-    if claim_first_bound_plan_only and args.bound_requested_aspect_ids is not None:
-        raise SystemExit(
-            "providerless Plan Agent plan-only owns the control anchor; "
-            "do not predeclare aspect ids"
-        )
-    if args.query_sufficiency_contract is not None and not claim_first_mode:
-        raise SystemExit(
-            "--query-sufficiency-contract requires the production Plan Agent"
-        )
     repo_root = args.repo_root.expanduser().resolve()
-    runtime_policy_spec = (
-        build_smolvla_policy_spec(
+    if args.policy_backend == "smolvla":
+        runtime_policy_spec = build_smolvla_policy_spec(
             args.smolvla_checkpoint.expanduser().resolve()
         )
-        if args.policy_backend == "smolvla"
-        else None
-    )
+    elif args.policy_backend == "hyvla":
+        runtime_policy_spec = build_hyvla_policy_spec(
+            args.hyvla_checkpoint.expanduser().resolve(),
+            source_dir=args.hyvla_source.expanduser().resolve(),
+            python_env=args.hyvla_python_env.expanduser().resolve(),
+        )
+    else:
+        runtime_policy_spec = None
     query_sufficiency_contract: dict[str, Any] | None = None
     if args.query_sufficiency_contract is not None:
-        contract_path = args.query_sufficiency_contract.expanduser().resolve()
-        try:
-            loaded_contract = json.loads(contract_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            raise SystemExit(
-                f"cannot read --query-sufficiency-contract: {exc}"
-            ) from exc
-        if not isinstance(loaded_contract, dict):
-            raise SystemExit("--query-sufficiency-contract must contain a JSON object")
-        try:
-            query_sufficiency_contract = (
-                validate_query_sufficiency_contract(loaded_contract)
-            )
-        except ValueError as exc:
-            raise SystemExit(
-                f"invalid --query-sufficiency-contract: {exc}"
-            ) from exc
+        query_sufficiency_contract = load_query_sufficiency_contract(
+            args.query_sufficiency_contract
+        )
     args.evaluation_id = args.evaluation_id or make_evaluation_id()
     registered_execution: dict[str, Any] | None = None
     if args.registered_strategy is not None:
@@ -2580,7 +2521,11 @@ def main() -> None:
             telemetry_profile=args.telemetry_profile,
             policy_backend=args.policy_backend,
             runtime_target=claim_first_initial_target,
-            smolvla_port=args.smolvla_port,
+            policy_server_port=(
+                args.hyvla_port
+                if args.policy_backend == "hyvla"
+                else args.smolvla_port
+            ),
             materialize_round=(
                 taskgen_round_materialization.materialize_open_world_round
             ),
@@ -2638,7 +2583,11 @@ def main() -> None:
                     registration_identity=registration_identity,
                     policy_backend=args.policy_backend,
                     runtime_target=claim_first_initial_target,
-                    smolvla_port=args.smolvla_port,
+                    policy_server_port=(
+                        args.hyvla_port
+                        if args.policy_backend == "hyvla"
+                        else args.smolvla_port
+                    ),
                 )
             )
             child_manifest = round_result.child_manifest

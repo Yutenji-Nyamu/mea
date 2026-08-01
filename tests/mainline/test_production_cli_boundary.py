@@ -37,6 +37,12 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             "spec.loader.exec_module(module);"
             "print(json.dumps({"
             "'parse_args':module.parse_args is agent_cli.parse_args,"
+            "'compat_profile':module.paper_compat_profile_requested "
+            "is agent_cli.paper_compat_profile_requested,"
+            "'argument_validation':module.validate_and_normalize_agent_args "
+            "is agent_cli.validate_and_normalize_agent_args,"
+            "'contract_loader':module.load_query_sufficiency_contract "
+            "is agent_cli.load_query_sufficiency_contract,"
             "'allowed_aspects':"
             "module.resolve_plan_agent_allowed_aspects "
             "is agent_cli.resolve_plan_agent_allowed_aspects,"
@@ -51,6 +57,9 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             run_import_probe(probe),
             {
                 "parse_args": True,
+                "compat_profile": True,
+                "argument_validation": True,
+                "contract_loader": True,
                 "allowed_aspects": True,
                 "planner_default": True,
                 "candidate_budget": True,
@@ -309,6 +318,10 @@ class ProductionCliBoundaryTests(unittest.TestCase):
         )
         self.assertIn(
             '"smolvla": partial(',
+            agent_source,
+        )
+        self.assertIn(
+            '"hyvla": partial(',
             agent_source,
         )
         self.assertIn(

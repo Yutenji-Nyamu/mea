@@ -275,7 +275,7 @@ def materialize_open_world_round(
     _write_json(artifact_dir / PROPOSAL_FILENAME, normalized)
     _write_json(artifact_dir / "tool_request_bundle.json", tool_bundle)
     execution = deepcopy(dict(control_execution))
-    if policy_backend not in {"act", "smolvla"}:
+    if policy_backend not in {"act", "smolvla", "hyvla"}:
         raise ValueError(f"unsupported production policy backend: {policy_backend!r}")
     # ``backend`` remains the legacy policy-vs-expert evidence selector until
     # its compatibility readers are migrated.  ``policy_backend`` is the

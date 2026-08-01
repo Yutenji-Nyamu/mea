@@ -114,6 +114,109 @@ class AgentEvidenceIntegrationTests(unittest.TestCase):
             self.assertEqual(scope["seeds"], [])
             self.assertEqual(scope["termination"], "pipeline_invalid")
 
+    def test_candidate_rejection_is_planning_evidence_not_pipeline_failure(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            repo_root = Path(temporary)
+            evaluation_id = "eval_replan_after_candidate_rejection"
+            run_specs = [
+                (
+                    "round_1",
+                    "official",
+                    [17],
+                    True,
+                    None,
+                ),
+                (
+                    "round_2",
+                    "generic_provider_scene_checker_codegen",
+                    [],
+                    False,
+                    {
+                        "schema_version": 1,
+                        "kind": "candidate_unexecutable",
+                        "candidate_id": "dynamic.bad_materialization",
+                        "diagnosis": "target_pose cannot be None",
+                        "policy_sample_count": 0,
+                        "policy_rollouts_started": 0,
+                    },
+                ),
+            ]
+            round_runs = []
+            for round_id, route, actual_seeds, passed, planning in run_specs:
+                child_dir = repo_root / "mea/generated_tasks" / round_id
+                child_dir.mkdir(parents=True)
+                observations = {
+                    "execution_backend": "SmolVLA",
+                    "requested_seeds": [17],
+                    "actual_seeds": actual_seeds,
+                    "scene_alignment": passed,
+                    "observed_color": None,
+                    "expert_solvable": None,
+                    "act_pipeline_status": passed if actual_seeds else None,
+                    "policy_success": 1.0 if actual_seeds else None,
+                    "position_samples": [],
+                    "position_metrics": {},
+                    "aggregate": None,
+                    "execution_vqa": {"status": "skipped", "artifacts": {}},
+                }
+                if planning is not None:
+                    observations["planning_observation"] = planning
+                round_runs.append(
+                    {
+                        "round_plan": {
+                            "round_id": round_id,
+                            "template_id": (
+                                "task_execution.official_baseline"
+                                if round_id == "round_1"
+                                else None
+                            ),
+                            "candidate_id": (
+                                planning["candidate_id"]
+                                if planning is not None
+                                else None
+                            ),
+                            "sub_aspect": round_id,
+                            "task_instruction": "Evaluate one bounded round.",
+                            "route": route,
+                            "execution": {
+                                "backend": "act",
+                                "seeds": [17],
+                                "num_episodes": 1,
+                            },
+                        },
+                        "child_manifest": {"run_id": round_id},
+                        "child_dir": child_dir,
+                        "round_summary": {
+                            "round_id": round_id,
+                            "pipeline_passed": passed,
+                            "observations": observations,
+                        },
+                        "tool_evaluation": {"artifacts": {}},
+                    }
+                )
+
+            evidence = build_evidence_bundle(
+                repo_root,
+                evaluation_id,
+                "Where is the first executable weakness?",
+                {
+                    "max_rounds": 2,
+                    "planning_state": "stopped_after_round_2_by_hard_cap",
+                    "round_decisions": [],
+                    "requested_template_ids": [],
+                    "requested_aspect_ids": [],
+                },
+                round_runs,
+            )
+
+            self.assertTrue(evidence["observations"]["pipeline_passed"])
+            self.assertEqual(evidence["observations"]["policy_round_count"], 1)
+            self.assertEqual(evidence["observations"]["planning_round_count"], 1)
+            self.assertEqual(evidence["total_episodes"], 1)
+            scope = build_answer_scope(evidence)
+            self.assertEqual(scope["sample_count"], 1)
+            self.assertEqual(scope["termination"], "budget_exhausted")
+
     def test_compact_aggregate_preserves_group_statistics(self):
         aggregate = aggregate_tool_executions(
             [

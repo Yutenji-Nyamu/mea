@@ -57,6 +57,7 @@ def build_compact_flagship_acceptance(
     """Project a strict, scoped acceptance for one online 2-3 round run."""
 
     policy_rollouts = 0
+    policy_round_pipeline_passed: list[bool] = []
     round_routes: list[str] = []
     semantics_statuses: list[str] = []
     runtime_candidate_ids: list[str] = []
@@ -84,6 +85,9 @@ def build_compact_flagship_acceptance(
                 planning_rejection_candidate_ids.append(candidate_id)
             continue
         round_routes.append(str(summary.get("route") or ""))
+        policy_round_pipeline_passed.append(
+            summary.get("pipeline_passed", True) is True
+        )
         implementation_trace = observations.get("implementation_trace")
         if (
             isinstance(semantic_execution, Mapping)
@@ -335,6 +339,14 @@ def build_compact_flagship_acceptance(
             else all(route != "official" for route in round_routes)
         )
     )
+    control_requirement_satisfied = bool(
+        not control_required
+        or (
+            round_routes
+            and round_routes[0] == "official"
+            and policy_round_pipeline_passed[0]
+        )
+    )
     answer_scope = answer.get("answer_scope")
     answer_semantics_scoped = bool(
         answer_scope == "official_equivalent"
@@ -420,7 +432,7 @@ def build_compact_flagship_acceptance(
         "policy_rollouts": policy_rollouts,
         "accepted_policy_rollout_range": [2, 3],
         "control_requirement": control_requirement,
-        "control_requirement_satisfied": method_round_sequence,
+        "control_requirement_satisfied": control_requirement_satisfied,
         "round_routes": round_routes,
         "stop_reason": answer.get("stop_reason") or assessment.get("stop_reason"),
         "evidence_sufficient": evidence_sufficient,

@@ -20,7 +20,7 @@ from mea.taskgen import (
 )
 from mea.taskgen.probe import light_component_colors, task_attribute_summary
 from mea.taskgen.round_materialization import build_taskgen_command
-from scripts.manipeval_taskgen import (
+from mea.taskgen.visual_validation import (
     validate_click_bell_scene_contract,
 )
 

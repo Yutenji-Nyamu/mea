@@ -292,6 +292,10 @@ def validate_policy_task_binding(
     known_rollout = {
         "act": ("act_eval_mea", "policy/ACT/eval_mea.sh"),
         "smolvla": ("smolvla_robotwin", "mea.robotwin.smolvla_rollout"),
+        "hyvla": (
+            "hyvla_robotwin_external",
+            "mea.robotwin.hyvla_rollout",
+        ),
     }.get(policy_backend)
     if known_rollout is not None and (
         rollout["kind"],

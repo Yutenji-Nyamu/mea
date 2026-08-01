@@ -391,6 +391,15 @@ def build_evidence_bundle(
         )
         for item in round_runs
     ]
+    planning_rounds = [
+        item
+        for item in rounds
+        if isinstance(
+            item.get("observations", {}).get("planning_observation"),
+            Mapping,
+        )
+    ]
+    policy_rounds = [item for item in rounds if item not in planning_rounds]
     total_episodes = sum(item["num_episodes"] for item in rounds)
     requested_total_episodes = sum(
         item["requested_num_episodes"] for item in rounds
@@ -577,8 +586,10 @@ def build_evidence_bundle(
         "rounds": rounds,
         "observations": {
             "execution_backends": execution_backends,
-            "scene_alignment": all(
-                item["observations"]["scene_alignment"] for item in rounds
+            "scene_alignment": bool(policy_rounds)
+            and all(
+                item["observations"]["scene_alignment"]
+                for item in policy_rounds
             ),
             "observed_color_by_round": [
                 item["observations"]["observed_color"] for item in rounds
@@ -600,9 +611,21 @@ def build_evidence_bundle(
             "position_varied": position_metrics.get("position_varied"),
             "position_metrics": position_metrics,
             "position_metrics_by_round": position_metrics_by_round,
-            "pipeline_passed": all(
-                item["observations"]["pipeline_passed"] for item in rounds
+            # A TaskGen candidate rejected before policy execution is planning
+            # evidence, not a failed policy/evaluation pipeline.  Preserve the
+            # rejected round below while computing policy-pipeline health only
+            # from rounds that actually started policy execution.
+            "pipeline_passed": bool(policy_rounds)
+            and all(
+                item["observations"]["pipeline_passed"]
+                for item in policy_rounds
             ),
+            "policy_round_count": len(policy_rounds),
+            "planning_round_count": len(planning_rounds),
+            "planning_observations": [
+                item["observations"]["planning_observation"]
+                for item in planning_rounds
+            ],
             "aggregate": compact_aggregate_result(evaluation_aggregate),
             "execution_vqa_conflict": any(
                 bool(

@@ -415,7 +415,7 @@ def _relative(path: Path, repo_root: Path) -> str:
 
 def _role(policy_name: Any) -> str:
     normalized = str(policy_name or "").casefold()
-    if normalized in {"act", "smolvla"}:
+    if normalized in {"act", "smolvla", "hy-vla", "hyvla"}:
         return "policy_under_evaluation"
     if normalized == "expert":
         return "expert_validation"

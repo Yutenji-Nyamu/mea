@@ -299,7 +299,7 @@ class PlanAgentApplication:
     telemetry_profile: str
     policy_backend: str
     runtime_target: Mapping[str, Any] | None
-    smolvla_port: int
+    policy_server_port: int
     materialize_round: MaterializeRound
     reviewed_task_registry: Path | None = None
     reviewed_tool_registry: Path | None = None
@@ -958,7 +958,7 @@ class PlanAgentApplication:
                         registration_identity=self.registration_identity,
                         policy_backend=self.policy_backend,
                         runtime_target=self.runtime_target,
-                        smolvla_port=self.smolvla_port,
+                        policy_server_port=self.policy_server_port,
                     )
                 )
                 round_runs.append(

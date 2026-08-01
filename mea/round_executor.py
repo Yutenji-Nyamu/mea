@@ -98,7 +98,7 @@ class RoundExecutionRequest:
     registration_identity: dict[str, Any] | None = None
     policy_backend: str = "act"
     runtime_target: Mapping[str, Any] | None = None
-    smolvla_port: int = 18771
+    policy_server_port: int = 18771
 
 
 @dataclass(frozen=True)
@@ -147,7 +147,7 @@ class RoundExecutor:
                 round_plan=round_plan,
                 runtime_target=request.runtime_target,
                 telemetry_profile=request.telemetry_profile,
-                policy_server_port=request.smolvla_port,
+                policy_server_port=request.policy_server_port,
                 gpu=request.gpu,
                 provider=request.provider,
                 text_model=request.text_model,
@@ -717,11 +717,10 @@ class RoundExecutor:
             )
             round_summary["observations"].update(
                 {
-                    "execution_backend": (
-                        "SmolVLA"
-                        if request.policy_backend == "smolvla"
-                        else request.policy_backend.upper()
-                    ),
+                    "execution_backend": {
+                        "smolvla": "SmolVLA",
+                        "hyvla": "Hy-VLA",
+                    }.get(request.policy_backend, request.policy_backend.upper()),
                     "policy_backend": request.policy_backend,
                     "semantic_telemetry_ready": semantic_ready,
                     "method_runtime": {

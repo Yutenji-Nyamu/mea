@@ -10,7 +10,7 @@ from mea.taskgen import (
     validate_vision_observation,
 )
 from mea.taskgen.reflection import _repair_prompt
-from scripts.manipeval_taskgen import run_vision_check
+from mea.taskgen.visual_validation import run_vision_check
 
 
 SPEC = {

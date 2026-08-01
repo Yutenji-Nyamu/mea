@@ -25,6 +25,7 @@ from mea.method_runtime import (
 from mea.planner.experiment_candidate import validate_experiment_candidate
 from mea.planner.policy_task_binding import policy_task_binding_from_target
 from mea.robotwin.act_rollout import ACTRobotwinRolloutRunner
+from mea.robotwin.hyvla_rollout import HyVLARobotwinRolloutRunner
 from mea.robotwin.runtime import (
     AcceptedTaskGenMaterializer,
     RoboTwinMethodBackend,
@@ -333,17 +334,17 @@ def _project_trusted_checker_outcome(
         expected_metric=expected_metric,
     )
     episode = rollout.episode
-    if policy_backend == "smolvla":
+    if policy_backend in {"smolvla", "hyvla"}:
         if episode.get("active_checker_metric") != expected_metric:
             raise NativeAgentRoundError(
-                "SmolVLA active checker differs from trusted ToolResult"
+                f"{policy_backend} active checker differs from trusted ToolResult"
             )
         if not isinstance(
             episode.get("episode_latched_success"),
             bool,
         ):
             raise NativeAgentRoundError(
-                "SmolVLA result lacks an explicit episode latch"
+                f"{policy_backend} result lacks an explicit episode latch"
             )
         if expected_metric == "generated_check_success":
             generated = episode.get("generated_checker_success")
@@ -360,12 +361,12 @@ def _project_trusted_checker_outcome(
                 is not official_core
             ):
                 raise NativeAgentRoundError(
-                    "SmolVLA generated/official checker channels disagree "
+                    f"{policy_backend} generated/official checker channels disagree "
                     "with the trusted ToolResult"
                 )
         elif episode.get("official_check_success") is not result["value"]:
             raise NativeAgentRoundError(
-                "SmolVLA official checker differs from trusted ToolResult"
+                f"{policy_backend} official checker differs from trusted ToolResult"
             )
     projected = replace(
         rollout,
@@ -860,6 +861,51 @@ def execute_smolvla_method_round(
     )
 
 
+def execute_hyvla_method_round(
+    *,
+    repo_root: str | Path,
+    evaluation_dir: str | Path,
+    evaluation_id: str,
+    round_plan: Mapping[str, Any],
+    runtime_target: Mapping[str, Any],
+    telemetry_profile: str,
+    policy_server_port: int,
+    gpu: int = 0,
+    provider: Any = None,
+    text_model: str = "",
+    vision_model: str = "",
+    max_reflections: int = 1,
+    generated_task_materializer: (
+        GeneratedTaskMaterializer | None
+    ) = None,
+) -> dict[str, Any]:
+    """Execute a round against an explicitly started Hy-VLA server."""
+
+    del gpu
+    return _execute_robotwin_method_round(
+        policy_backend="hyvla",
+        policy_name="Hy-VLA",
+        rollout_runner=HyVLARobotwinRolloutRunner(
+            port=policy_server_port,
+            repo_root=repo_root,
+            telemetry_profile=telemetry_profile,
+        ),
+        repo_root=repo_root,
+        evaluation_dir=evaluation_dir,
+        evaluation_id=evaluation_id,
+        round_plan=round_plan,
+        runtime_target=runtime_target,
+        telemetry_profile=telemetry_profile,
+        provider=provider,
+        text_model=text_model,
+        vision_model=vision_model,
+        max_reflections=max_reflections,
+        generated_task_materializer=generated_task_materializer,
+        execution_vqa_connected=True,
+        rollout_output_subdir="evaluation",
+    )
+
+
 def execute_act_method_round(
     *,
     repo_root: str | Path,
@@ -913,5 +959,6 @@ __all__ = [
     "GeneratedTaskMaterializer",
     "NativeAgentRoundError",
     "execute_act_method_round",
+    "execute_hyvla_method_round",
     "execute_smolvla_method_round",
 ]

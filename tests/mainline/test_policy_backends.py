@@ -25,6 +25,7 @@ from mea.planner.policy_task_binding import (
     build_policy_task_binding,
 )
 from mea.planner.runtime_task_binding import (
+    build_hyvla_policy_spec,
     build_runtime_open_world_evaluation_target,
     build_runtime_policy_task_manifest,
     build_smolvla_policy_spec,
@@ -35,8 +36,10 @@ from mea.robotwin.native_agent_round import (
     _execute_robotwin_method_round,
     _project_trusted_checker_outcome,
     execute_act_method_round,
+    execute_hyvla_method_round,
     execute_smolvla_method_round,
 )
+from mea.robotwin.hyvla_rollout import HyVLARobotwinRolloutRunner
 from mea.taskgen.attempts import CandidateUnexecutableError
 from mea.taskgen.generic_backend import GenericTaskGenError
 from mea.taskgen.provider_scene_checker import validate_provider_run_id
@@ -179,6 +182,42 @@ def test_smolvla_manifest_binds_discovered_tasks_to_one_checkpoint(tmp_path):
             "available": False,
         }
         for item in bindings
+    )
+
+
+def test_hyvla_manifest_is_multitask_and_records_external_runtime(tmp_path):
+    _write_official_task(tmp_path, "alpha_task", "move the alpha object")
+    checkpoint = tmp_path / "hyvla"
+    checkpoint.mkdir()
+    for name in ("config.json", "model.safetensors", "norm_stats.pkl"):
+        (checkpoint / name).write_bytes(b"artifact")
+    source = tmp_path / "hyvla-source"
+    python_env = tmp_path / "hyvla-env"
+    (source / "robotwin_eval").mkdir(parents=True)
+    (source / "robotwin_eval" / "deploy_policy.py").write_bytes(b"source")
+    (python_env / "bin").mkdir(parents=True)
+    (python_env / "bin" / "python").write_bytes(b"python")
+
+    manifest = build_runtime_policy_task_manifest(
+        tmp_path,
+        build_hyvla_policy_spec(
+            checkpoint,
+            source_dir=source,
+            python_env=python_env,
+        ),
+    )
+
+    binding = manifest["tasks"][0]["policy_task_binding"]
+    assert manifest["policy_backend"] == "hyvla"
+    assert binding["hooks"]["rollout"] == {
+        "kind": "hyvla_robotwin_external",
+        "entrypoint": "mea.robotwin.hyvla_rollout",
+        "task_name": "alpha_task",
+    }
+    assert binding["policy"]["server_management"] == "external_only"
+    assert binding["policy"]["policy_source_path"] == str(source.resolve())
+    assert binding["policy"]["policy_python"] == str(
+        (python_env / "bin" / "python").resolve()
     )
 
 
@@ -578,6 +617,34 @@ def test_smolvla_native_envelope_accepts_shared_taskgen_and_vqa(tmp_path):
     assert result is expected
     call = execute_shared.call_args.kwargs
     assert call["policy_backend"] == "smolvla"
+    assert call["generated_task_materializer"] is materializer
+    assert call["execution_vqa_connected"] is True
+
+
+def test_hyvla_native_envelope_reuses_shared_method_round(tmp_path):
+    expected = {"unsupported": False}
+    materializer = lambda *args, **kwargs: {}
+    with patch(
+        "mea.robotwin.native_agent_round._execute_robotwin_method_round",
+        return_value=expected,
+    ) as execute_shared:
+        result = execute_hyvla_method_round(
+            repo_root=tmp_path,
+            evaluation_dir=tmp_path / "evaluation",
+            evaluation_id="eval",
+            round_plan={"round_id": "round_1"},
+            runtime_target={},
+            telemetry_profile="balanced_v1",
+            policy_server_port=18781,
+            generated_task_materializer=materializer,
+        )
+
+    assert result is expected
+    call = execute_shared.call_args.kwargs
+    assert call["policy_backend"] == "hyvla"
+    assert call["policy_name"] == "Hy-VLA"
+    assert isinstance(call["rollout_runner"], HyVLARobotwinRolloutRunner)
+    assert call["rollout_runner"].port == 18781
     assert call["generated_task_materializer"] is materializer
     assert call["execution_vqa_connected"] is True
 

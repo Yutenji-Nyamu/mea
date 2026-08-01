@@ -118,6 +118,50 @@ def build_smolvla_policy_spec(
     )
 
 
+def build_hyvla_policy_spec(
+    checkpoint_dir: str | Path,
+    *,
+    source_dir: str | Path,
+    python_env: str | Path,
+    checkpoint_id: str = "tencent/Hy-Embodied-0.5-VLA-RoboTwin",
+) -> RuntimePolicySpec:
+    """Describe an externally served official Hy-VLA RoboTwin checkpoint.
+
+    Hy-VLA and RoboTwin use separate Python environments.  MEA therefore
+    records both locations but only connects to an explicitly started
+    loopback policy server; it never launches or mutates either environment.
+    """
+
+    return RuntimePolicySpec(
+        backend="hyvla",
+        policy_name="Hy-VLA",
+        checkpoint_id=checkpoint_id,
+        checkpoint_dir=Path(checkpoint_dir),
+        task_scope="robotwin_official_tasks",
+        rollout_kind="hyvla_robotwin_external",
+        rollout_entrypoint="mea.robotwin.hyvla_rollout",
+        required_artifacts=(
+            "config.json",
+            "model.safetensors",
+            "norm_stats.pkl",
+        ),
+        language_conditioned=True,
+        metadata={
+            "language_input": "official_description",
+            "action_dimension": 16,
+            "action_semantics": "dual_arm_ee_wxyz",
+            "policy_source_path": str(
+                Path(source_dir).expanduser().resolve()
+            ),
+            "policy_python": str(
+                Path(python_env).expanduser().resolve() / "bin" / "python"
+            ),
+            "server_management": "external_only",
+            "checkpoint_setting": "shared_official",
+        },
+    )
+
+
 def _positive_int(value: Any, *, field: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise RuntimeTaskBindingError(f"{field} must be a positive integer")
@@ -235,6 +279,14 @@ def build_runtime_policy_task_binding(
             spec.checkpoint_dir / relative_path,
             label=label,
         )
+    if spec.backend == "hyvla":
+        source = Path(str(spec.metadata["policy_source_path"]))
+        python = Path(str(spec.metadata["policy_python"]))
+        _require_nonempty_file(
+            source / "robotwin_eval" / "deploy_policy.py",
+            label="Hy-VLA official source",
+        )
+        _require_nonempty_file(python, label="Hy-VLA policy Python")
 
     try:
         policy_metadata = dict(spec.metadata)
@@ -363,6 +415,7 @@ def build_runtime_open_world_evaluation_target(
 __all__ = [
     "RuntimePolicySpec",
     "RuntimeTaskBindingError",
+    "build_hyvla_policy_spec",
     "build_smolvla_policy_spec",
     "build_runtime_open_world_evaluation_target",
     "build_runtime_policy_task_manifest",

@@ -53,7 +53,7 @@ class RoundExecutorBoundaryTests(unittest.TestCase):
         )
         self.assertEqual(
             set(executor._services.native_policy_rounds),
-            {"act", "smolvla"},
+            {"act", "smolvla", "hyvla"},
         )
 
     def test_typed_result_exposes_named_round_outputs(self):
