@@ -148,8 +148,10 @@ def build_hyvla_policy_spec(
         language_conditioned=True,
         metadata={
             "language_input": "official_description",
+            "action_chunk_size": 6,
             "action_dimension": 16,
             "action_semantics": "dual_arm_ee_wxyz",
+            "physics_timestep_seconds": 0.004,
             "policy_source_path": str(
                 Path(source_dir).expanduser().resolve()
             ),

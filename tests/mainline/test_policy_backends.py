@@ -215,6 +215,8 @@ def test_hyvla_manifest_is_multitask_and_records_external_runtime(tmp_path):
         "task_name": "alpha_task",
     }
     assert binding["policy"]["server_management"] == "external_only"
+    assert binding["policy"]["action_chunk_size"] == 6
+    assert binding["policy"]["physics_timestep_seconds"] == 0.004
     assert binding["policy"]["policy_source_path"] == str(source.resolve())
     assert binding["policy"]["policy_python"] == str(
         (python_env / "bin" / "python").resolve()
