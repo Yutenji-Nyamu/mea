@@ -21,6 +21,7 @@ from mea.planner import (
 )
 from mea.planner.experiment_candidate import build_experiment_candidate
 from mea.taskgen import create_official_task_run
+from mea.taskgen.round_materialization import build_taskgen_command
 from mea.execution_vqa.runtime import run_round_execution_vqa
 from mea.round_summary import (
     normalize_outcome_semantics,
@@ -31,7 +32,6 @@ from scripts.manipeval_agent import (
     bind_ready_task_after_query_interpretation,
     build_bound_plan_agent_handoff,
     build_pending_task_binding_policy_card,
-    build_taskgen_command,
     concern_candidate_domain_is_executable,
     finish_unsupported_global_route,
     finish_unsupported_open_task_resolution,

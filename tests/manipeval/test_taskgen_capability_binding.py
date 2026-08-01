@@ -22,8 +22,8 @@ from mea.proposals import (
     tool_proposal_from_contract,
 )
 from mea.taskgen.success_spec import experimental_bbh_success_spec_v2
+from mea.taskgen.round_materialization import build_taskgen_command
 from mea.round_contract import validate_round_capability_contract
-from scripts.manipeval_agent import build_taskgen_command
 from scripts.manipeval_taskgen import (
     prepare_planner_capability_binding,
     task_artifact_summary,

@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol
 
 from .attempts import (
+    CandidateUnexecutableError,
     REPAIR_SUCCESS_SPEC,
     TaskGenerationRecoveryError,
     TaskGenerationStageError,
@@ -569,6 +570,10 @@ def run_provider_codegen(
             official_baseline_failure = diagnosis.startswith(
                 "official same-seed expert baseline is unavailable"
             )
+            candidate_unexecutable = diagnosis.startswith(
+                "generated scene/expert failed official terminal-state "
+                "authority"
+            )
             failure_runtime = {"provider_calls": 1}
             error_runtime = getattr(exc, "runtime", {})
             if isinstance(error_runtime, Mapping):
@@ -590,7 +595,7 @@ def run_provider_codegen(
                     "semantic_review"
                     if semantic_review_unavailable
                     else "expert_gate"
-                    if official_baseline_failure
+                    if official_baseline_failure or candidate_unexecutable
                     else "success_spec"
                     if checker_validation_failure
                     else "scene_codegen"
@@ -600,6 +605,8 @@ def run_provider_codegen(
                     if semantic_review_unavailable
                     else "official_baseline_unsolvable"
                     if official_baseline_failure
+                    else "candidate_unexecutable"
+                    if candidate_unexecutable
                     else "invalid_spec"
                     if checker_validation_failure
                     else "invalid_candidate"
@@ -656,6 +663,17 @@ def run_provider_codegen(
                 attempt_root=attempt_path,
                 summary=exc.summary,
             )
+        final_failure = (
+            (exc.summary.get("attempts") or [{}])[-1].get("failure") or {}
+        )
+        if (
+            final_failure.get("stage") == "expert_gate"
+            and final_failure.get("failure_kind")
+            == "candidate_unexecutable"
+        ):
+            raise CandidateUnexecutableError(
+                str(exc), summary=exc.summary
+            ) from exc
         raise error_type(str(exc)) from exc
     state["attempt_summary"] = summary
     return state

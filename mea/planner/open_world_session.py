@@ -689,10 +689,43 @@ class _FrozenExecutionTransport:
                 raise OpenWorldSessionError(
                     "observation history items must be objects"
                 )
+            observations = observation.get("observations")
+            if (
+                isinstance(observations, Mapping)
+                and isinstance(
+                    observations.get("planning_observation"), Mapping
+                )
+            ):
+                continue
             value = observation.get("candidate_evidence")
             if isinstance(value, Mapping):
                 result.append(deepcopy(dict(value)))
         return result
+
+    @staticmethod
+    def _completed_policy_candidate_rounds(
+        observation_history: Iterable[Mapping[str, Any]],
+        *,
+        control_required: bool,
+    ) -> int:
+        completed = 0
+        for index, observation in enumerate(observation_history):
+            if not isinstance(observation, Mapping):
+                raise OpenWorldSessionError(
+                    "observation history items must be objects"
+                )
+            if control_required and index == 0:
+                continue
+            observations = observation.get("observations")
+            if (
+                isinstance(observations, Mapping)
+                and isinstance(
+                    observations.get("planning_observation"), Mapping
+                )
+            ):
+                continue
+            completed += 1
+        return completed
 
     def apply_plan_step(
         self,
@@ -733,10 +766,11 @@ class _FrozenExecutionTransport:
             evidence = self._candidate_evidence_from_history(
                 observation_history
             )
-            completed_candidate_rounds = max(
-                len(observation_history)
-                - int(self._control_required(contract)),
-                0,
+            completed_candidate_rounds = (
+                self._completed_policy_candidate_rounds(
+                    observation_history,
+                    control_required=self._control_required(contract),
+                )
             )
             assessment = self.assess_query_sufficiency(
                 current,
@@ -888,14 +922,13 @@ class _FrozenExecutionTransport:
         assessment = None
         if isinstance(normalized.get("query_contract"), Mapping):
             candidate_evidence = self._candidate_evidence_from_history(history)
-            completed_candidate_rounds = max(
-                len(history)
-                - int(
-                    self._control_required(
+            completed_candidate_rounds = (
+                self._completed_policy_candidate_rounds(
+                    history,
+                    control_required=self._control_required(
                         normalized["query_contract"]
-                    )
-                ),
-                0,
+                    ),
+                )
             )
             assessment = self.assess_query_sufficiency(
                 normalized,

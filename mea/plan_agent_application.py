@@ -713,6 +713,30 @@ class PlanAgentApplication:
         query_answer: Mapping[str, Any] | None,
         executed_rounds: int,
     ) -> dict[str, Any]:
+        policy_round_runs = [
+            item
+            for item in round_runs
+            if not isinstance(
+                item["round_summary"].get("observations", {}).get(
+                    "planning_observation"
+                ),
+                Mapping,
+            )
+        ]
+        planning_observations = [
+            deepcopy(
+                item["round_summary"]["observations"][
+                    "planning_observation"
+                ]
+            )
+            for item in round_runs
+            if isinstance(
+                item["round_summary"].get("observations", {}).get(
+                    "planning_observation"
+                ),
+                Mapping,
+            )
+        ]
         evaluation_aggregate = aggregate_evaluation_results(
             round_runs,
             self.evaluation_dir / "summary/aggregate_result.json",
@@ -722,14 +746,18 @@ class PlanAgentApplication:
             "evaluation_id": self.evaluation_id,
             "status": (
                 "completed"
-                if round_runs
+                if policy_round_runs
                 and all(
                     item["round_summary"]["pipeline_passed"]
-                    for item in round_runs
+                    for item in policy_round_runs
                 )
+                else "completed_with_planning_gap"
+                if planning_observations and not policy_round_runs
                 else "completed_with_pipeline_failure"
             ),
             "rounds": [item["round_summary"] for item in round_runs],
+            "planning_observations": planning_observations,
+            "policy_round_count": len(policy_round_runs),
             "aggregate": compact_aggregate_result(evaluation_aggregate),
         }
         evidence = build_evidence_bundle(

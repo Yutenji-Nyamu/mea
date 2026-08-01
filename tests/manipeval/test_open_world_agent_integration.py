@@ -9,7 +9,7 @@ from mea.planner.experiment_candidate import build_experiment_candidate
 from mea.round_evidence import compact_tool_evaluation
 from mea.round_summary import summarize_round
 from mea.round_tools import materialize_open_world_tool_request
-from scripts.manipeval_agent import (
+from mea.taskgen.round_materialization import (
     build_taskgen_command,
     materialize_open_world_round,
 )

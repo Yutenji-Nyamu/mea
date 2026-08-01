@@ -1163,6 +1163,12 @@ def build_claim_first_evidence_record(
     refs = _round_artifact_refs(round_summary)
     observations = round_summary.get("observations")
     observations = observations if isinstance(observations, Mapping) else {}
+    planning_observation = observations.get("planning_observation")
+    planning_observation = (
+        deepcopy(dict(planning_observation))
+        if isinstance(planning_observation, Mapping)
+        else None
+    )
     policy_outcome = (
         observations.get("policy_outcome")
         if isinstance(observations.get("policy_outcome"), Mapping)
@@ -1198,7 +1204,10 @@ def build_claim_first_evidence_record(
     generated_metric = (
         policy_outcome.get("metric") == "generated_check_success"
     )
-    if outcome_semantics_status == "conflict":
+    if planning_observation is not None:
+        semantic_outcome = "ambiguous"
+        candidate_outcome = "unknown"
+    elif outcome_semantics_status == "conflict":
         semantic_outcome = "ambiguous"
         candidate_outcome = "conflict"
     elif generated_metric and outcome_semantics_status not in {
@@ -1250,6 +1259,11 @@ def build_claim_first_evidence_record(
         )
     if success_rate is None:
         limitations.append("Policy success was not reported for this round.")
+    if planning_observation is not None:
+        limitations.append(
+            "TaskGen rejected this candidate before policy execution; it is "
+            "planning evidence only and contributes N=0 policy samples."
+        )
     if policy_outcome.get("official_equivalent") is False:
         limitations.append(
             "This round is judged by the bounded generated_check_success "
@@ -1290,6 +1304,12 @@ def build_claim_first_evidence_record(
         "diagnostic_tool_role=supporting_measurement_not_success_authority; "
         f"diagnostic_tool_measurements={tool_summary}."
     )
+    if planning_observation is not None:
+        summary_text += (
+            " planning_observation=candidate_unexecutable; "
+            "policy_sample_count=0; diagnosis="
+            f"{planning_observation.get('diagnosis')}."
+        )
     open_query = validate_open_query_evidence(
         [
             {
@@ -1304,7 +1324,11 @@ def build_claim_first_evidence_record(
             }
         ]
     )[0]
-    diagnosis = None
+    diagnosis = (
+        str(planning_observation.get("diagnosis") or "").strip() or None
+        if planning_observation is not None
+        else None
+    )
     if candidate_outcome == "fail":
         diagnosis = (
             f"Observed policy success_rate={float(success_rate):.6g} for "
@@ -1330,6 +1354,10 @@ def build_claim_first_evidence_record(
         "evaluation_outcome": deepcopy(dict(policy_outcome)),
         "outcome_semantics": outcome_semantics,
         "planned_tool_evidence": planned_tool_evidence,
+        "planning_observation": planning_observation,
+        "policy_sample_count": (
+            0 if planning_observation is not None else None
+        ),
         "evidence_packet": packet,
         "evidence_refs": refs,
     }
@@ -2070,14 +2098,19 @@ class PlanAgentSession:
                 "QueryContract universe: "
                 f"{list(dict.fromkeys(outside_candidate_ids))}"
             )
+        policy_candidate_records = [
+            record
+            for record in candidate_records
+            if record.get("planning_observation") is None
+        ]
         candidate_evidence = [
             deepcopy(record["candidate_evidence"])
-            for record in candidate_records
+            for record in policy_candidate_records
         ]
         assessment = assess_query_sufficiency(
             self.query_contract,
             candidate_evidence,
-            completed_rounds=len(candidate_records),
+            completed_rounds=len(policy_candidate_records),
         )
         transport_conflict_ids = [
             record["candidate_id"]

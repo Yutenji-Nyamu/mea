@@ -38,6 +38,7 @@ from .artifact_index import (
     GenericTaskArtifactIndex,
     materialize_reused_generic_task,
 )
+from .attempts import CandidateUnexecutableError
 from .generic_backend import (
     GenericRoboTwinTaskGenBackend,
     GenericTaskGenError,
@@ -2144,10 +2145,29 @@ def record_generic_taskgen_generation_failure(
         ).strip()
     except (OSError, subprocess.CalledProcessError):
         base_commit = None
+    candidate_unexecutable = isinstance(error, CandidateUnexecutableError)
+    attempt_summary = getattr(error, "summary", {})
+    attempt_runtime = (
+        attempt_summary.get("runtime")
+        if isinstance(attempt_summary, Mapping)
+        else {}
+    )
+    final_failure = (
+        ((attempt_summary.get("attempts") or [{}])[-1].get("failure") or {})
+        if isinstance(attempt_summary, Mapping)
+        else {}
+    )
+    policy_rollouts_started = (
+        int(attempt_runtime.get("act_rollouts_started", 0))
+        if isinstance(attempt_runtime, Mapping)
+        else 0
+    )
     manifest = {
         "schema_version": 1,
         "run_id": run_id,
-        "status": "failed",
+        "status": (
+            "candidate_unexecutable" if candidate_unexecutable else "failed"
+        ),
         "created_at": datetime.now().astimezone().isoformat(),
         "user_request": str(user_request),
         "task_name": candidate["base_task"],
@@ -2164,9 +2184,28 @@ def record_generic_taskgen_generation_failure(
         "proposal_path": "generation/proposal.json",
         "task_generation_attempts": attempt_artifact,
         "failure": {
-            "stage": "provider_scene_checker_generation",
+            "stage": (
+                "taskgen_expert_gate"
+                if candidate_unexecutable
+                else "provider_scene_checker_generation"
+            ),
+            "failure_kind": (
+                "candidate_unexecutable"
+                if candidate_unexecutable
+                else final_failure.get("failure_kind")
+            ),
             "type": type(error).__name__,
             "message": str(error),
+            "diagnosis": (
+                final_failure.get("message")
+                if candidate_unexecutable
+                else None
+            ),
+        },
+        "policy_execution": {
+            "started": policy_rollouts_started > 0,
+            "rollouts_started": policy_rollouts_started,
+            "sample_count": 0,
         },
     }
     write_json(run_dir / "manifest.json", manifest)

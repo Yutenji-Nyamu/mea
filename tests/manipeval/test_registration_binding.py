@@ -3,7 +3,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.manipeval_agent import build_taskgen_command, update_manifest as update_parent
+from mea.taskgen.round_materialization import build_taskgen_command
+from scripts.manipeval_agent import update_manifest as update_parent
 from scripts.manipeval_taskgen import (
     bind_registration_to_episode_metadata,
     update_manifest as update_child,

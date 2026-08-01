@@ -68,6 +68,7 @@ from .success_spec import (
     validate_success_spec,
 )
 from .attempts import (
+    CandidateUnexecutableError,
     REGENERATE_CANDIDATE,
     REPAIR_SCENE,
     REPAIR_SUCCESS_SPEC,
@@ -149,6 +150,7 @@ __all__ = [
     "validate_compiled_success_method",
     "validate_success_spec",
     "REGENERATE_CANDIDATE",
+    "CandidateUnexecutableError",
     "REPAIR_SCENE",
     "REPAIR_SUCCESS_SPEC",
     "TASKGEN_TERMINAL",

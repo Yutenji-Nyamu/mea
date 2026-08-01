@@ -443,7 +443,14 @@ class RoundExecutor:
                     **tool_kwargs,
                 )
         else:
+            candidate_rejection = child_manifest.get(
+                "candidate_unexecutable"
+            )
             skip_reason = (
+                str(candidate_rejection.get("diagnosis"))
+                if child_manifest.get("status") == "candidate_unexecutable"
+                and isinstance(candidate_rejection, Mapping)
+                else
                 str(
                     (
                         child_manifest.get("unsupported_capability") or {}
@@ -636,12 +643,21 @@ class RoundExecutor:
                 reviewed_vqa_registry=request.reviewed_vqa_registry,
             )
         else:
+            candidate_rejection = child_manifest.get(
+                "candidate_unexecutable"
+            )
             execution_vqa = {
                 "schema_version": 1,
                 "status": "skipped",
                 "reason": (
-                    "TaskSchema unavailable or the requested capability is "
-                    "unsupported; VQA was not executed."
+                    str(candidate_rejection.get("diagnosis"))
+                    if child_manifest.get("status")
+                    == "candidate_unexecutable"
+                    and isinstance(candidate_rejection, Mapping)
+                    else (
+                        "TaskSchema unavailable or the requested capability "
+                        "is unsupported; VQA was not executed."
+                    )
                 ),
                 "evidence_conflict": False,
             }
@@ -682,6 +698,23 @@ class RoundExecutor:
         round_summary: dict[str, Any],
     ) -> None:
         if native is not None:
+            planning_observation = native.get("planning_observation")
+            if not isinstance(planning_observation, Mapping):
+                candidate_rejection = native.get("child_manifest", {}).get(
+                    "candidate_unexecutable"
+                )
+                planning_observation = (
+                    candidate_rejection
+                    if isinstance(candidate_rejection, Mapping)
+                    else None
+                )
+            method_status = (
+                "candidate_unexecutable"
+                if native.get("candidate_unexecutable") is True
+                else "unsupported"
+                if native.get("unsupported") is True
+                else "validated"
+            )
             round_summary["observations"].update(
                 {
                     "execution_backend": (
@@ -692,11 +725,7 @@ class RoundExecutor:
                     "policy_backend": request.policy_backend,
                     "semantic_telemetry_ready": semantic_ready,
                     "method_runtime": {
-                        "status": (
-                            "unsupported"
-                            if native.get("unsupported") is True
-                            else "validated"
-                        ),
+                        "status": method_status,
                         "runtime": "MethodRuntime",
                         "backend": "RoboTwinMethodBackend",
                         "policy_backend": request.policy_backend,
@@ -710,6 +739,46 @@ class RoundExecutor:
                     },
                 }
             )
+            if planning_observation is not None:
+                round_summary["failure_stage"] = "taskgen_expert_gate"
+                round_summary["observations"].update(
+                    {
+                        "planning_observation": deepcopy(
+                            dict(planning_observation)
+                        ),
+                        "policy_success": None,
+                        "policy_outcome": {
+                            "metric": None,
+                            "authority": None,
+                            "binding": None,
+                            "value": None,
+                            "official_equivalent": None,
+                            "execution_scope": "not_executed",
+                            "outcome_semantics": {
+                                "schema_version": 1,
+                                "status": "non_comparable",
+                                "evidence_conflict": False,
+                                "official_equivalent": None,
+                                "outcome_authority": None,
+                                "episodes": [],
+                                "reason_codes": [
+                                    "candidate_unexecutable_before_policy"
+                                ],
+                            },
+                        },
+                        "outcome_semantics": {
+                            "schema_version": 1,
+                            "status": "non_comparable",
+                            "evidence_conflict": False,
+                            "official_equivalent": None,
+                            "outcome_authority": None,
+                            "episodes": [],
+                            "reason_codes": [
+                                "candidate_unexecutable_before_policy"
+                            ],
+                        },
+                    }
+                )
             round_summary["observations"]["evidence_aggregate"] = (
                 build_evidence_aggregate(
                     request.round_plan,

@@ -1301,6 +1301,88 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             bound["semantic_needs"]["tool_need"]["required"]
         )
 
+    def test_candidate_rejection_is_n_zero_evidence_and_preserves_budget(self):
+        query = "Where does this policy first expose a weakness?"
+        controller = ClaimFirstRuntimeController(query, target())
+        control = round_plan(
+            1, "performance.completion_time_stability.official"
+        )
+        rejected = round_plan(2, "object_position.left_fixed")
+        rejected_summary = summary(
+            rejected,
+            None,
+            pipeline_passed=False,
+        )
+        rejected_summary["observations"]["planning_observation"] = {
+            "schema_version": 1,
+            "kind": "candidate_unexecutable",
+            "candidate_id": rejected["template_id"],
+            "sub_aspect": rejected["sub_aspect"],
+            "reason_code": "taskgen_expert_gate_candidate_unexecutable",
+            "diagnosis": "target_pose cannot be None",
+            "policy_rollouts_started": 0,
+            "policy_sample_count": 0,
+            "taskgen_attempt_summary": (
+                "mea/generated_tasks/rejected/validation/"
+                "task_generation_attempt_summary.json"
+            ),
+        }
+
+        state = controller.observe(
+            [control, rejected],
+            [summary(control, 1.0), rejected_summary],
+        )
+
+        self.assertEqual(state["assessment"]["completed_rounds"], 0)
+        self.assertEqual(state["assessment"]["budget_remaining"], 2)
+        self.assertEqual(state["assessment"]["observed_candidate_ids"], [])
+        self.assertEqual(state["records"][1]["policy_sample_count"], 0)
+        self.assertIn(
+            "planning_observation=candidate_unexecutable",
+            state["open_query_evidence_history"][1]["evidence_summary"],
+        )
+
+        class ReselectPlanner:
+            def propose(
+                self,
+                user_query,
+                *,
+                capabilities,
+                evidence_history,
+                evaluation_intent=None,
+            ):
+                assert "target_pose cannot be None" in (
+                    evidence_history[-1]["evidence_summary"]
+                )
+                bundle = semantic_bundle("object_instance.base0")
+                lineage = build_open_query_planning_lineage(
+                    user_query,
+                    capabilities,
+                    evidence_history,
+                    evaluation_intent,
+                )
+                bundle["input_digest"] = lineage["input_digest"]
+                bundle["planning_lineage"] = lineage
+                return bundle
+
+        bound = controller.propose_and_bind_semantic_step(
+            ReselectPlanner(),
+            state,
+            capabilities=open_query_capabilities(),
+            executed_candidate_ids=[
+                control["template_id"],
+                rejected["template_id"],
+            ],
+        )
+        self.assertEqual(
+            bound["resolution"]["retrieval_template_id"],
+            "object_instance.base0",
+        )
+        self.assertNotEqual(
+            bound["plan_step"]["candidate_id"],
+            rejected["template_id"],
+        )
+
     def test_control_evidence_is_read_before_round_two_concern_is_authored(self):
         query = "Where does this policy first expose a weakness?"
         controller = ClaimFirstRuntimeController(query, target())

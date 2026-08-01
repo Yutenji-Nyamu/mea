@@ -60,6 +60,7 @@ def build_compact_flagship_acceptance(
     round_routes: list[str] = []
     semantics_statuses: list[str] = []
     runtime_candidate_ids: list[str] = []
+    planning_rejection_candidate_ids: list[str] = []
     typed_candidate_completion: dict[str, bool] = {}
     same_bundle_bound_checker_reuse = False
     bound_checker_metric: str | None = None
@@ -67,7 +68,6 @@ def build_compact_flagship_acceptance(
     for run in round_runs:
         summary = run.get("round_summary")
         summary = summary if isinstance(summary, Mapping) else {}
-        round_routes.append(str(summary.get("route") or ""))
         semantic_execution = summary.get("semantic_need_execution")
         if isinstance(semantic_execution, Mapping) and isinstance(
             semantic_execution.get("candidate_id"), str
@@ -77,6 +77,13 @@ def build_compact_flagship_acceptance(
             )
         observations = summary.get("observations")
         observations = observations if isinstance(observations, Mapping) else {}
+        planning_observation = observations.get("planning_observation")
+        if isinstance(planning_observation, Mapping):
+            candidate_id = planning_observation.get("candidate_id")
+            if isinstance(candidate_id, str) and candidate_id:
+                planning_rejection_candidate_ids.append(candidate_id)
+            continue
+        round_routes.append(str(summary.get("route") or ""))
         implementation_trace = observations.get("implementation_trace")
         if (
             isinstance(semantic_execution, Mapping)
@@ -372,6 +379,10 @@ def build_compact_flagship_acceptance(
         "accepted": accepted,
         "execution_entrypoint": "scripts/manipeval_agent.py",
         "history_replay_disabled": history_disabled,
+        "candidate_unexecutable_count": len(
+            planning_rejection_candidate_ids
+        ),
+        "candidate_unexecutable_ids": planning_rejection_candidate_ids,
         "online_query_interpretation": online_query_interpretation,
         "query_interpretation_attempt_count": free_provider.get("attempt_count"),
         "query_interpretation_bounded_repair_used": bool(

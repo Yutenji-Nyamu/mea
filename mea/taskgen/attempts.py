@@ -26,6 +26,15 @@ class TaskGenerationRecoveryError(RuntimeError):
         self.summary = dict(summary or {})
 
 
+class CandidateUnexecutableError(TaskGenerationRecoveryError):
+    """A generated candidate remained infeasible after local TaskGen repair.
+
+    This is a pre-policy method observation.  Callers may return it to the
+    Plan Agent as evidence for choosing a different Proposal, but must not
+    classify it as a policy failure or retry the policy.
+    """
+
+
 @dataclass
 class TaskGenerationStageError(RuntimeError):
     """Typed TaskGen failure reported by a materializer or validation gate."""
@@ -52,6 +61,7 @@ _RECOVERY_ACTIONS: dict[tuple[str, str], str] = {
     ("static_validation", "failed"): REGENERATE_CANDIDATE,
     ("render_probe", "failed"): REPAIR_SCENE,
     ("vision_validation", "failed"): REPAIR_SCENE,
+    ("expert_gate", "candidate_unexecutable"): REGENERATE_CANDIDATE,
     ("expert_gate", "unsolvable"): REGENERATE_CANDIDATE,
 }
 
@@ -310,6 +320,7 @@ def run_bounded_task_generation(
 
 
 __all__ = [
+    "CandidateUnexecutableError",
     "REGENERATE_CANDIDATE",
     "REPAIR_SCENE",
     "REPAIR_SUCCESS_SPEC",

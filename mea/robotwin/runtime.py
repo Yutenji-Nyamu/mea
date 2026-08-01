@@ -33,6 +33,7 @@ from mea.planner.experiment_candidate import (
     ExperimentCandidateError,
     validate_experiment_candidate,
 )
+from mea.taskgen.attempts import CandidateUnexecutableError
 from mea.taskgen.generic_backend import (
     GenericTaskGenError,
     GenericRoboTwinTaskAdapter,
@@ -560,6 +561,17 @@ class RoboTwinMethodBackend:
                         telemetry_profile=self.taskgen_telemetry_profile,
                         action_dimension=int(action_dimension or 0),
                     )
+                except CandidateUnexecutableError as exc:
+                    record_generic_taskgen_generation_failure(
+                        self.repo_root,
+                        run_id=run_id,
+                        user_request=request.source_query,
+                        experiment_candidate=candidate,
+                        model=self.taskgen_text_model,
+                        telemetry_profile=self.taskgen_telemetry_profile,
+                        error=exc,
+                    )
+                    raise
                 except GenericTaskGenError as exc:
                     record_generic_taskgen_generation_failure(
                         self.repo_root,

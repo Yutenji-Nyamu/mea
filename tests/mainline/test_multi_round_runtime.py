@@ -6,11 +6,9 @@ from unittest.mock import patch
 
 from mea.round_tools import reuse_bound_child_checker_tool
 from mea.round_summary import summarize_round
+from mea.taskgen.round_materialization import build_taskgen_command
 from mea.toolgen import contact_tool_request
-from scripts.manipeval_agent import (
-    build_taskgen_command,
-    execute_round,
-)
+from scripts.manipeval_agent import execute_round
 from scripts.manipeval_taskgen import collect_position_samples, newest_eval_dir
 
 

@@ -37,6 +37,7 @@ from mea.robotwin.native_agent_round import (
     execute_act_method_round,
     execute_smolvla_method_round,
 )
+from mea.taskgen.attempts import CandidateUnexecutableError
 from mea.taskgen.generic_backend import GenericTaskGenError
 from mea.taskgen.provider_scene_checker import validate_provider_run_id
 from mea.robotwin.runtime import RoboTwinMethodBackend
@@ -650,6 +651,112 @@ def test_native_taskgen_failure_leaves_compact_child_manifest(tmp_path):
     )
     assert manifest["status"] == "failed"
     assert manifest["failure"]["message"] == "provider repair exhausted"
+
+
+def test_candidate_unexecutable_returns_planning_evidence_without_rollout(
+    tmp_path,
+):
+    _write_official_task(
+        tmp_path,
+        "alpha_task",
+        "move the alpha object",
+    )
+    candidate = build_experiment_candidate(
+        source_query="Find a feasible spatial stress test.",
+        base_task="alpha_task",
+        semantic_concern="target lateral displacement",
+        scene_need="Shift the target laterally by 0.12 m.",
+    )
+    contract = {
+        "task_name": "alpha_task",
+        "policy": {
+            "name": "SmolVLA",
+            "backend": "smolvla",
+            "action_dimension": 14,
+        },
+        "checkpoint": {
+            "checkpoint_id": "fixture-smolvla",
+            "checkpoint_path": str(tmp_path / "smolvla"),
+        },
+        "task_schema": {"available": True},
+    }
+    summary = {
+        "status": "failed",
+        "runtime": {
+            "provider_calls": 2,
+            "simulator_probes": 4,
+            "expert_probes": 8,
+            "act_rollouts_started": 0,
+        },
+        "attempts": [
+            {
+                "failure": {
+                    "stage": "expert_gate",
+                    "failure_kind": "candidate_unexecutable",
+                    "message": (
+                        "generated scene/expert failed official terminal-state "
+                        "authority: target_pose cannot be None"
+                    ),
+                }
+            }
+        ],
+    }
+
+    def reject_candidate(*_args, **_kwargs):
+        raise CandidateUnexecutableError(
+            "TaskGen recovery failed after 2 attempt(s)",
+            summary=summary,
+        )
+
+    rollout_calls = []
+
+    def forbidden_rollout(**kwargs):
+        rollout_calls.append(kwargs)
+        raise AssertionError("policy rollout must not start")
+
+    with patch(
+        "mea.robotwin.native_agent_round.policy_task_binding_from_target",
+        return_value=contract,
+    ):
+        result = _execute_robotwin_method_round(
+            policy_backend="smolvla",
+            policy_name="SmolVLA",
+            rollout_runner=forbidden_rollout,
+            repo_root=tmp_path,
+            evaluation_dir=tmp_path / "evaluation",
+            evaluation_id="eval_candidate_unexecutable",
+            round_plan={
+                "round_id": "round_1",
+                "candidate_id": candidate["candidate_id"],
+                "proposal": candidate,
+                "sub_aspect": "target lateral displacement",
+                "task_instruction": candidate["source_query"],
+                "task_name": "alpha_task",
+                "route": "generic_provider_scene_checker_codegen",
+                "execution": {"seeds": [1]},
+            },
+            runtime_target={},
+            telemetry_profile="balanced_v1",
+            provider=object(),
+            text_model="fixture-model",
+            vision_model="fixture-model",
+            generated_task_materializer=reject_candidate,
+        )
+
+    assert rollout_calls == []
+    assert result["candidate_unexecutable"] is True
+    assert result["semantic_telemetry_ready"] is False
+    manifest = result["child_manifest"]
+    assert manifest["status"] == "candidate_unexecutable"
+    assert manifest["act_evaluation"]["actual_seeds"] == []
+    assert manifest["policy_execution"] == {
+        "started": False,
+        "rollouts_started": 0,
+        "sample_count": 0,
+    }
+    assert (
+        manifest["candidate_unexecutable"]["policy_sample_count"] == 0
+    )
 
 
 def test_smolvla_runner_enables_telemetry_only_for_schema_backed_candidate(

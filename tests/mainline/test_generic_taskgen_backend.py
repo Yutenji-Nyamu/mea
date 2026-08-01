@@ -10,6 +10,7 @@ from typing import Any, Mapping
 
 from mea.planner.experiment_candidate import build_experiment_candidate
 from mea.planner.semantic_coverage import build_evaluation_intent
+from mea.taskgen.attempts import CandidateUnexecutableError
 from mea.taskgen.generic_backend import (
     GenericRoboTwinTaskAdapter,
     GenericRoboTwinTaskGenBackend,
@@ -238,6 +239,56 @@ class ProviderSceneCheckerRepairTests(unittest.TestCase):
         self.assertEqual(
             checker_error["repair_scope"],
             "checker_only_after_expert_action",
+        )
+
+    def test_expert_failure_exhaustion_is_typed_candidate_rejection(self):
+        response = {
+            "load_actors": (
+                "def load_actors(self):\n"
+                "    self.target_pose = None\n"
+            ),
+            "check_success": (
+                "def check_success(self):\n"
+                "    return False\n"
+            ),
+        }
+        provider = _Provider([response, response])
+
+        def reject(_methods: Mapping[str, Any]) -> dict[str, Any]:
+            raise GenericTaskGenError(
+                "generated scene/expert failed official terminal-state "
+                'authority: {"reason":"expert_execution_error",'
+                '"expert_error":{"message":"target_pose cannot be None"}}',
+                runtime={"simulator_probes": 2, "expert_probes": 4},
+            )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaises(CandidateUnexecutableError) as raised:
+                run_provider_codegen(
+                    attempt_root=Path(temp_dir) / "attempts",
+                    proposal={"candidate_id": "dynamic.unexecutable"},
+                    prompt="Generate a method pair.",
+                    provider=provider,
+                    model="fixture-model",
+                    validate=reject,
+                    error_type=GenericTaskGenError,
+                    max_regenerations=1,
+                )
+
+        summary = raised.exception.summary
+        self.assertEqual(summary["attempt_count"], 2)
+        self.assertEqual(summary["regenerations_used"], 1)
+        self.assertEqual(summary["runtime"]["act_rollouts_started"], 0)
+        self.assertTrue(
+            all(
+                item["failure"]["stage"] == "expert_gate"
+                and item["failure"]["failure_kind"]
+                == "candidate_unexecutable"
+                for item in summary["attempts"]
+            )
+        )
+        self.assertIn(
+            "scene/expert-solvability failure", provider.prompts[1]
         )
 
 def _write_cold_task_repo(root: Path) -> None:

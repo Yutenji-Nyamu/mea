@@ -31,6 +31,7 @@ from mea.robotwin.runtime import (
     RoboTwinRolloutRunner,
 )
 from mea.robotwin.smolvla_rollout import SmolVLARobotwinRolloutRunner
+from mea.taskgen.attempts import CandidateUnexecutableError
 from mea.taskgen.rollout_evidence import (
     evaluate_generic_task_rollout_telemetry,
 )
@@ -156,6 +157,109 @@ def _unsupported_round(
         "candidate_id": candidate_id,
         "evidence_outcome": "unsupported",
         "unsupported": True,
+    }
+
+
+def _candidate_unexecutable_round(
+    *,
+    evaluation_root: Path,
+    round_plan: Mapping[str, Any],
+    child_dir: Path,
+    proposal: Mapping[str, Any],
+    policy_backend: str,
+    policy_name: str,
+) -> dict[str, Any]:
+    """Return one rejected TaskGen candidate as pre-policy planning evidence."""
+
+    manifest_path = child_dir / "manifest.json"
+    try:
+        raw_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise NativeAgentRoundError(
+            "candidate-unexecutable TaskGen manifest is unavailable"
+        ) from exc
+    if not isinstance(raw_manifest, Mapping):
+        raise NativeAgentRoundError(
+            "candidate-unexecutable TaskGen manifest must be an object"
+        )
+    child_manifest = deepcopy(dict(raw_manifest))
+    failure = child_manifest.get("failure")
+    policy_execution = child_manifest.get("policy_execution")
+    if not (
+        child_manifest.get("status") == "candidate_unexecutable"
+        and isinstance(failure, Mapping)
+        and failure.get("failure_kind") == "candidate_unexecutable"
+        and isinstance(policy_execution, Mapping)
+        and policy_execution.get("rollouts_started") == 0
+        and policy_execution.get("sample_count") == 0
+    ):
+        raise NativeAgentRoundError(
+            "candidate-unexecutable TaskGen manifest changed its typed boundary"
+        )
+    candidate_id = str(proposal["candidate_id"])
+    planning_observation = {
+        "schema_version": 1,
+        "kind": "candidate_unexecutable",
+        "candidate_id": candidate_id,
+        "sub_aspect": str(round_plan["sub_aspect"]),
+        "reason_code": "taskgen_expert_gate_candidate_unexecutable",
+        "diagnosis": str(failure.get("diagnosis") or failure.get("message")),
+        "policy_rollouts_started": 0,
+        "policy_sample_count": 0,
+        "taskgen_attempt_summary": child_manifest.get(
+            "task_generation_attempts"
+        ),
+    }
+    method_runtime = {
+        "schema_version": 1,
+        "status": "candidate_unexecutable",
+        "candidate_id": candidate_id,
+        "proposal": deepcopy(dict(proposal)),
+        "planning_observation": planning_observation,
+    }
+    child_manifest.update(
+        {
+            "policy_backend": policy_backend,
+            "candidate_unexecutable": planning_observation,
+            "act_evaluation": {
+                "passed": False,
+                "actual_seeds": [],
+                "policy_name": policy_name,
+                "outcome_metric": None,
+                "outcome_value": None,
+            },
+            "task_artifact_summary": {
+                "success_official_equivalent": None,
+                "success_execution_scope": "not_executed",
+            },
+            "trusted_tool_evaluation": {
+                "schema_version": 1,
+                "status": "skipped",
+                "outcome_metric": None,
+                "outcome_authority": None,
+                "episode_count": 0,
+                "episodes": [],
+            },
+            "method_runtime": method_runtime,
+        }
+    )
+    method_runtime_path = (
+        evaluation_root
+        / "execution"
+        / str(round_plan["round_id"])
+        / "method_runtime.json"
+    )
+    _write_json(manifest_path, child_manifest)
+    _write_json(method_runtime_path, method_runtime)
+    return {
+        "child_manifest": child_manifest,
+        "child_dir": child_dir,
+        "manifest_path": manifest_path,
+        "method_runtime_path": method_runtime_path,
+        "semantic_telemetry_ready": False,
+        "candidate_id": candidate_id,
+        "evidence_outcome": "candidate_unexecutable",
+        "candidate_unexecutable": True,
     }
 
 
@@ -458,20 +562,30 @@ def _execute_robotwin_method_round(
             ),
         )
     else:
-        candidate = runtime.materialize_candidate(
-            binding,
-            CandidateRequest(
-                candidate_id=proposal["candidate_id"],
-                source_query=proposal["source_query"],
-                proposal_bundle=proposal,
-                output_dir=child_dir,
-                seed=seed,
-                context={
-                    "taskgen_run_id": run_id,
-                    "requested_max_reflections": max_reflections,
-                },
-            ),
-        )
+        try:
+            candidate = runtime.materialize_candidate(
+                binding,
+                CandidateRequest(
+                    candidate_id=proposal["candidate_id"],
+                    source_query=proposal["source_query"],
+                    proposal_bundle=proposal,
+                    output_dir=child_dir,
+                    seed=seed,
+                    context={
+                        "taskgen_run_id": run_id,
+                        "requested_max_reflections": max_reflections,
+                    },
+                ),
+            )
+        except CandidateUnexecutableError:
+            return _candidate_unexecutable_round(
+                evaluation_root=evaluation_root,
+                round_plan=round_plan,
+                child_dir=child_dir,
+                proposal=proposal,
+                policy_backend=policy_backend,
+                policy_name=policy_name,
+            )
     taskgen_manifest: dict[str, Any] | None = None
     if generated_task_required:
         manifest_path = Path(candidate.artifacts["manifest"])
