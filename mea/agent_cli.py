@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from mea.planner.query_contract import (
+    infer_claim_type,
     infer_control_requirement,
     validate_query_sufficiency_contract,
 )
@@ -452,6 +453,7 @@ def resolve_plan_agent_control_required(
         and candidate_resolution.get("resolution")
         == "official_execution_from_typed_needs"
         and candidate_resolution.get("execution_authorized") is True
+        and infer_claim_type(user_request) == "diagnostic"
     ):
         return False
     return (

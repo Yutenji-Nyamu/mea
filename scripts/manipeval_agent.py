@@ -1838,6 +1838,7 @@ def main() -> None:
     initial_free_concern_semantic_bundle: dict[str, Any] | None = None
     frozen_first_open_candidate: dict[str, Any] | None = None
     initial_open_candidate: dict[str, Any] | None = None
+    direct_single_candidate_query = False
     if claim_first_mode:
         if global_catalog is None:
             raise RuntimeError(
@@ -1868,6 +1869,13 @@ def main() -> None:
                         provider_record=free_concern_bundle.get("provider"),
                     )
                 )
+        direct_single_candidate_query = bool(
+            isinstance(concern_candidate_resolution, Mapping)
+            and concern_candidate_resolution.get("resolution")
+            == "official_execution_from_typed_needs"
+            and concern_candidate_resolution.get("execution_authorized") is True
+            and infer_claim_type(args.request) == "diagnostic"
+        )
         claim_first_control_required = resolve_plan_agent_control_required(
             args.request,
             query_contract=query_sufficiency_contract,
@@ -1888,6 +1896,13 @@ def main() -> None:
                     task_name=args.task_name,
                     proposal=initial_free_concern_semantic_bundle["proposal"],
                     evaluation_intent=claim_first_evaluation_intent,
+                    official_success_reuse=bool(
+                        isinstance(concern_candidate_resolution, Mapping)
+                        and concern_candidate_resolution.get(
+                            "official_success_reuse"
+                        )
+                        is True
+                    ),
                 )
             )
         claim_first_round_budget = (
@@ -1925,7 +1940,7 @@ def main() -> None:
                         - int(claim_first_control_required)
                     ),
                     claim_type=inferred_claim_type,
-                    candidate_universe_closed=False,
+                    candidate_universe_closed=direct_single_candidate_query,
                     control_requirement=(
                         "required"
                         if claim_first_control_required

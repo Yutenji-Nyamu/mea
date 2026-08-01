@@ -64,7 +64,6 @@ from .query_contract import (
     build_query_sufficiency_contract,
     extend_query_candidate_universe,
     infer_claim_type,
-    query_is_official_only,
     validate_query_sufficiency_contract,
 )
 
@@ -195,6 +194,7 @@ def build_dynamic_experiment_candidate(
     task_name: str,
     proposal: Mapping[str, Any],
     evaluation_intent: Mapping[str, Any] | None = None,
+    official_success_reuse: bool = False,
 ) -> dict[str, Any]:
     """Bind one semantic proposal without rewriting its first-candidate intent.
 
@@ -206,6 +206,8 @@ def build_dynamic_experiment_candidate(
     experiment contract.
     """
 
+    if not isinstance(official_success_reuse, bool):
+        raise ClaimFirstRuntimeError("official_success_reuse must be bool")
     trusted = validate_open_query_plan_proposal(proposal, has_evidence=True)
     if trusted["action"] != "continue":
         raise ClaimFirstRuntimeError(
@@ -282,7 +284,7 @@ def build_dynamic_experiment_candidate(
             {
                 "kind": (
                     "reuse"
-                    if query_is_official_only(user_query)
+                    if official_success_reuse
                     else "measure"
                 ),
                 "description": str(rule_tool_need["description"]).strip(),
@@ -642,6 +644,14 @@ def resolve_concern_candidate_domain(
         # menu. ``control_template_id`` is already the trusted task binding's
         # official execution identity, so it is also the neutral semantic
         # aspect for this no-TaskGen experiment.
+        rule_description = str(
+            trusted_needs["rule_tool_need"].get("description") or ""
+        ).casefold()
+        official_success_reuse = bool(
+            trusted_needs["rule_tool_need"]["required"]
+            and "official" in rule_description
+            and "check_success" in rule_description
+        )
         return {
             "schema_version": 1,
             "decision": "bind_single_aspect",
@@ -655,6 +665,7 @@ def resolve_concern_candidate_domain(
             "concern": deepcopy(dict(concern)),
             "experiment_needs": deepcopy(trusted_needs),
             "taskgen_required": False,
+            "official_success_reuse": official_success_reuse,
             "execution_authorized": True,
         }
     concern_text = " ".join(semantic_fields.values()).casefold()

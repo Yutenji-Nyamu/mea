@@ -1003,8 +1003,30 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             ["task_execution.official_baseline"],
         )
         self.assertFalse(resolution["taskgen_required"])
+        self.assertTrue(resolution["official_success_reuse"])
         self.assertTrue(resolution["execution_authorized"])
         self.assertEqual(resolution["experiment_needs"], needs)
+
+        proposal_bundle = build_initial_semantic_proposal_bundle(
+            user_query=query,
+            concern=concern,
+            experiment_needs=needs,
+            evaluation_intent=build_evaluation_intent(
+                source_query=query,
+                original_concern=concern["sub_aspect"],
+                hypothesis=concern["hypothesis"],
+                requested_change=concern["requested_variation"],
+                preserved_conditions=[],
+                required_observation=concern["measurement_need"],
+            ),
+        )
+        candidate = build_dynamic_experiment_candidate(
+            user_query=query,
+            task_name="press_stapler",
+            proposal=proposal_bundle["proposal"],
+            official_success_reuse=resolution["official_success_reuse"],
+        )
+        self.assertEqual(candidate["rule_tool_need"]["kind"], "reuse")
 
     def test_official_only_task_admits_broad_concern_to_open_planner(self):
         official_only_target = {

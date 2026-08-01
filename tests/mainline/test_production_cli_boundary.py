@@ -385,6 +385,17 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             1,
         )
 
+        broad_resolution = dict(resolution)
+        broad_query = "Where does this policy first expose a weakness?"
+        self.assertTrue(
+            resolve_plan_agent_control_required(
+                broad_query,
+                query_contract=None,
+                semantic_context=None,
+                candidate_resolution=broad_resolution,
+            )
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
