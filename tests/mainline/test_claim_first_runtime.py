@@ -949,6 +949,11 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
                     "expert_data_num": 50,
                     "ready": True,
                 },
+                rollout={
+                    "kind": "hyvla_robotwin_external",
+                    "entrypoint": "mea.robotwin.hyvla_rollout",
+                    "task_name": "press_stapler",
+                },
                 task_schema_available=False,
             ),
             "max_rounds": 1,
