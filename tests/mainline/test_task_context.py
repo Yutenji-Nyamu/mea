@@ -11,9 +11,11 @@ from mea.robotwin_task_context import (
 )
 from mea.taskgen.generic_backend import (
     GenericTaskGenError,
+    _semantic_field_access_guide,
     discover_generic_robotwin_task_identity,
     load_generic_robotwin_task_adapter,
 )
+from mea.toolkit.schema import resolve_task_actor
 
 
 class _Actor:
@@ -59,6 +61,16 @@ class runtime_context_task:
         return False
 
 
+class nested_context_task:
+    def __init__(self, actors: list[_Actor]) -> None:
+        self.actor_groups = {"targets": (list(actors),)}
+        self.scene = _Scene(actors)
+        self.robot = _Robot()
+
+    def check_success(self) -> bool:
+        return False
+
+
 def _write_source_only_task(root: Path) -> None:
     source = root / "envs/runtime_context_task.py"
     source.parent.mkdir(parents=True)
@@ -82,6 +94,21 @@ def _runtime_probe(root: Path) -> dict[str, object]:
         repo_root=root,
         task_name="runtime_context_task",
         action_dimension=14,
+    )
+
+
+def _write_nested_source_task(root: Path) -> None:
+    source = root / "envs/nested_context_task.py"
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_text(
+        "class nested_context_task:\n"
+        "    def load_actors(self):\n"
+        "        self.actor_groups = {'targets': ([create_actor(), "
+        "create_actor()],)}\n\n"
+        "    def check_success(self):\n"
+        "        return all(actor.is_ready() for actor in "
+        "self.actor_groups['targets'][0])\n",
+        encoding="utf-8",
     )
 
 
@@ -202,3 +229,65 @@ def test_runtime_probe_cannot_invent_source_actor_or_rebind_source(
             "runtime_context_task",
             runtime_probe=forged_hash,
         )
+
+
+def test_live_probe_discovers_nested_builtin_actor_containers(
+    tmp_path: Path,
+) -> None:
+    _write_nested_source_task(tmp_path)
+    actors = [_Actor("repeated_target"), _Actor("repeated_target")]
+
+    probe = build_runtime_task_context_probe(
+        nested_context_task(actors),
+        repo_root=tmp_path,
+        task_name="nested_context_task",
+        action_dimension=14,
+    )
+    context = resolve_robotwin_task_context(
+        tmp_path,
+        "nested_context_task",
+        runtime_probe=probe,
+    )
+
+    expected_paths = [
+        [
+            {"attribute": "actor_groups"},
+            {"key": "targets"},
+            {"index": 0},
+            {"index": index},
+        ]
+        for index in range(2)
+    ]
+    assert probe["actors"] == [
+        {"access_path": path, "scene_name": "repeated_target"}
+        for path in expected_paths
+    ]
+    assert context.task_schema is not None
+    assert [
+        actor["access_path"]
+        for actor in context.task_schema["tracked_actors"]
+    ] == expected_paths
+    actor_ids = [
+        actor["id"] for actor in context.task_schema["tracked_actors"]
+    ]
+    assert len(set(actor_ids)) == 2
+    assert actor_ids[0].startswith(
+        "actor_groups_key_str_targets_index_0_index_0_path_"
+    )
+    assert actor_ids[1].startswith(
+        "actor_groups_key_str_targets_index_0_index_1_path_"
+    )
+    assert all(
+        "task_attribute" not in actor
+        for actor in context.task_schema["tracked_actors"]
+    )
+    assert resolve_task_actor(
+        nested_context_task(actors),
+        context.task_schema["tracked_actors"][1],
+    ) is actors[1]
+    guide = _semantic_field_access_guide(
+        {"task_schema": context.task_schema}
+    )
+    assert (
+        'self.actor_groups["targets"][0][0].get_pose().p' in guide
+    )

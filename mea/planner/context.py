@@ -13,7 +13,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping
 
-from mea.capability_adapter import resolve_task_retrieval_index
+from mea.artifact_retrieval_index import resolve_task_retrieval_index
 from mea.toolkit import load_task_schema
 from .policy_task_binding import (
     PolicyTaskBindingError,

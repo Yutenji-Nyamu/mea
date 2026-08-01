@@ -165,6 +165,45 @@ class MetricSpecTests(unittest.TestCase):
         with self.assertRaisesRegex(MetricSpecError, "actor ids"):
             validate_metric_spec(invalid_selector)
 
+    def test_event_selector_prefers_stable_actor_ids_with_legacy_fallback(self):
+        from mea.toolgen.metric_spec import _event_matches
+
+        selector = {
+            "event_type": "contact_interval",
+            "actors": ["bottles_index_0", "dustbin"],
+            "physical_only": True,
+        }
+        current_event = {
+            "type": "contact_interval",
+            "actors": ["bottle", "dustbin"],
+            "actor_ids": ["bottles_index_0", "dustbin"],
+            "physical_contact": True,
+        }
+        legacy_event = {
+            "type": "contact_interval",
+            "actors": ["bottles_index_0", "dustbin"],
+            "physical_contact": True,
+        }
+
+        self.assertTrue(_event_matches(current_event, selector))
+        self.assertTrue(_event_matches(legacy_event, selector))
+        self.assertFalse(
+            _event_matches(
+                {**current_event, "actor_ids": ["bottles_index_1", "dustbin"]},
+                selector,
+            )
+        )
+        source = compile_metric_spec_source(
+            {
+                "schema_version": 1,
+                "operation": "event_count",
+                "event": selector,
+                "unit": "count",
+                "null_semantics": "zero_if_absent",
+            }
+        )
+        self.assertIn("item.get('actor_ids') or item.get('actors', [])", source)
+
     def test_tool_proposal_v3_carries_the_typed_metric(self):
         proposal = validate_tool_proposal(
             {

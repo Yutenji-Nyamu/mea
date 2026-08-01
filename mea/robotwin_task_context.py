@@ -20,6 +20,8 @@ from typing import Any, Mapping
 
 from mea.toolkit.schema import (
     TaskSchemaError,
+    actor_access_path,
+    actor_access_path_key,
     load_task_schema,
     task_schema_path,
     validate_task_schema,
@@ -42,7 +44,11 @@ _PROBE_KEYS = {
     "action_dimension",
     "actors",
 }
-_ACTOR_KEYS = {"task_attribute", "scene_name"}
+_ACTOR_KEY_SETS = {
+    frozenset({"task_attribute", "scene_name"}),
+    frozenset({"access_path", "scene_name"}),
+    frozenset({"task_attribute", "access_path", "scene_name"}),
+}
 _OBSERVABLE_KEYS = {
     "simulation_clock",
     "policy_action",
@@ -178,6 +184,98 @@ def _source_facts(
         methods,
         attributes,
     )
+
+
+def _actor_id_from_access_path(path: list[dict[str, Any]]) -> str:
+    """Derive a stable telemetry id from a validated structured path."""
+
+    key = actor_access_path_key({"access_path": path})
+    root = str(path[0]["attribute"])
+    if len(path) == 1 and _TASK_NAME.fullmatch(root):
+        return root
+    parts = [root] if _TASK_NAME.fullmatch(root) else ["actor"]
+    for segment in path[1:]:
+        operation, operand = next(iter(segment.items()))
+        if operation == "index":
+            parts.extend(("index", str(operand)))
+        elif isinstance(operand, int):
+            encoded = (
+                str(operand)
+                if operand >= 0
+                else f"negative_{abs(operand)}"
+            )
+            parts.extend(("key", "int", encoded))
+        elif _TASK_NAME.fullmatch(operand):
+            parts.extend(("key", "str", operand))
+        else:
+            digest = hashlib.sha256(operand.encode("utf-8")).hexdigest()[:12]
+            parts.extend(("key", "str", digest))
+    candidate = "_".join(parts)
+    if _TASK_NAME.fullmatch(candidate):
+        return (
+            candidate
+            + "_path_"
+            + hashlib.sha256(key.encode("utf-8")).hexdigest()[:12]
+        )
+    return "actor_" + hashlib.sha256(key.encode("utf-8")).hexdigest()[:16]
+
+
+def _container_actor_paths(
+    value: Any,
+    *,
+    path: list[dict[str, Any]],
+    scene_identity: set[int],
+    ancestors: frozenset[int] = frozenset(),
+) -> list[tuple[int, list[dict[str, Any]], Any]]:
+    """Find scene actors through builtin containers without arbitrary reads."""
+
+    simulator_actor = getattr(value, "actor", value)
+    simulator_identity = id(simulator_actor)
+    if simulator_identity in scene_identity:
+        get_name = getattr(value, "get_name", None)
+        get_pose = getattr(value, "get_pose", None)
+        if callable(get_name) and callable(get_pose):
+            return [(simulator_identity, path, value)]
+        return []
+    if type(value) not in {list, tuple, dict}:
+        return []
+    container_identity = id(value)
+    if container_identity in ancestors:
+        return []
+    nested_ancestors = ancestors | {container_identity}
+    found: list[tuple[int, list[dict[str, Any]], Any]] = []
+    if type(value) in {list, tuple}:
+        for index, item in enumerate(value):
+            found.extend(
+                _container_actor_paths(
+                    item,
+                    path=[*path, {"index": index}],
+                    scene_identity=scene_identity,
+                    ancestors=nested_ancestors,
+                )
+            )
+        return found
+    keys = [
+        key
+        for key in value
+        if not isinstance(key, bool) and isinstance(key, (str, int))
+    ]
+    keys.sort(
+        key=lambda key: (
+            0 if isinstance(key, int) else 1,
+            key if isinstance(key, int) else str(key),
+        )
+    )
+    for key in keys:
+        found.extend(
+            _container_actor_paths(
+                value[key],
+                path=[*path, {"key": key}],
+                scene_identity=scene_identity,
+                ancestors=nested_ancestors,
+            )
+        )
+    return found
 
 
 def _schema_telemetry_observables(
@@ -409,49 +507,60 @@ def _runtime_schema(
         )
     tracked_actors: list[dict[str, Any]] = []
     semantic_fields: list[dict[str, Any]] = []
-    seen_attributes: set[str] = set()
-    seen_scene_names: set[str] = set()
+    seen_access_paths: set[str] = set()
+    seen_actor_ids: set[str] = set()
     for index, raw_actor in enumerate(actors):
-        if not isinstance(raw_actor, Mapping) or set(raw_actor) != _ACTOR_KEYS:
+        if (
+            not isinstance(raw_actor, Mapping)
+            or frozenset(raw_actor) not in _ACTOR_KEY_SETS
+        ):
             raise RoboTwinTaskContextError(
                 f"runtime TaskContext actor {index} has an invalid schema"
             )
-        attribute = raw_actor.get("task_attribute")
-        scene_name = raw_actor.get("scene_name")
-        if (
-            not isinstance(attribute, str)
-            or not attribute.isidentifier()
-            or attribute.startswith("_")
-            or attribute not in source_attributes
-        ):
+        try:
+            access_path = actor_access_path(raw_actor)
+            access_key = actor_access_path_key(raw_actor)
+        except TaskSchemaError as exc:
             raise RoboTwinTaskContextError(
-                f"runtime actor attribute lacks source authority: {attribute!r}"
+                f"runtime TaskContext actor {index} access_path is invalid"
+            ) from exc
+        root_attribute = access_path[0]["attribute"]
+        scene_name = raw_actor.get("scene_name")
+        if root_attribute not in source_attributes:
+            raise RoboTwinTaskContextError(
+                "runtime actor access root lacks source authority: "
+                f"{root_attribute!r}"
             )
         if not isinstance(scene_name, str) or not scene_name.strip():
             raise RoboTwinTaskContextError(
-                f"runtime actor {attribute!r} has no simulator name"
+                f"runtime actor {access_path!r} has no simulator name"
             )
-        if attribute in seen_attributes or scene_name in seen_scene_names:
+        if access_key in seen_access_paths:
             raise RoboTwinTaskContextError(
-                "runtime TaskContext actors must have unique attributes and "
-                "simulator names"
+                "runtime TaskContext actors must have unique access paths"
             )
-        actor_id = attribute
-        if _TASK_NAME.fullmatch(actor_id) is None:
+        actor_id = _actor_id_from_access_path(access_path)
+        if actor_id in seen_actor_ids:
             raise RoboTwinTaskContextError(
-                f"runtime actor attribute is not a stable semantic id: {actor_id!r}"
+                "runtime actor paths produced duplicate stable ids: "
+                f"{actor_id!r}"
             )
-        seen_attributes.add(attribute)
-        seen_scene_names.add(scene_name)
-        tracked_actors.append(
+        seen_access_paths.add(access_key)
+        seen_actor_ids.add(actor_id)
+        actor_spec: dict[str, Any] = {"id": actor_id}
+        if len(access_path) == 1:
+            # Preserve the established direct-attribute TaskSchema shape.
+            actor_spec["task_attribute"] = root_attribute
+        else:
+            actor_spec["access_path"] = access_path
+        actor_spec.update(
             {
-                "id": actor_id,
-                "task_attribute": attribute,
-                "scene_name": scene_name,
+                "scene_name": scene_name.strip(),
                 "functional_points": [],
                 "contact_points": [],
             }
         )
+        tracked_actors.append(actor_spec)
         semantic_fields.append(
             {
                 "name": f"{actor_id}_position",
@@ -601,27 +710,46 @@ def build_runtime_task_context_probe(
     if callable(get_all_articulations):
         scene_objects.extend(list(get_all_articulations() or []))
     actor_identity = {id(actor) for actor in scene_objects}
-    candidates: list[dict[str, str]] = []
+    paths_by_identity: dict[
+        int, list[tuple[list[dict[str, Any]], Any]]
+    ] = {}
     for attribute in context.source_task_attributes:
-        actor = getattr(task, attribute, None)
-        # RoboTwin's public Actor wrapper keeps the simulator Entity or
-        # PhysxArticulation in ``actor``.  Accept only exact object identity
-        # against the just-reset scene inventory.
-        simulator_actor = getattr(actor, "actor", actor)
-        if id(simulator_actor) not in actor_identity:
+        try:
+            value = getattr(task, attribute)
+        except AttributeError:
             continue
-        get_name = getattr(actor, "get_name", None)
-        get_pose = getattr(actor, "get_pose", None)
-        if not callable(get_name) or not callable(get_pose):
-            continue
-        scene_name = get_name()
-        if isinstance(scene_name, str) and scene_name.strip():
-            candidates.append(
-                {
-                    "task_attribute": attribute,
-                    "scene_name": scene_name.strip(),
-                }
+        for identity, path, actor in _container_actor_paths(
+            value,
+            path=[{"attribute": attribute}],
+            scene_identity=actor_identity,
+        ):
+            paths_by_identity.setdefault(identity, []).append((path, actor))
+    canonical_actors: list[tuple[list[dict[str, Any]], Any]] = []
+    for paths in paths_by_identity.values():
+        canonical_actors.append(
+            min(
+                paths,
+                key=lambda item: (
+                    len(item[0]),
+                    actor_access_path_key({"access_path": item[0]}),
+                ),
             )
+        )
+    canonical_actors.sort(
+        key=lambda item: actor_access_path_key({"access_path": item[0]})
+    )
+    candidates: list[dict[str, Any]] = []
+    for access_path, actor in canonical_actors:
+        scene_name = actor.get_name()
+        if not isinstance(scene_name, str) or not scene_name.strip():
+            continue
+        candidate: dict[str, Any] = {"scene_name": scene_name.strip()}
+        if len(access_path) == 1:
+            # Preserve the old direct probe shape exactly.
+            candidate["task_attribute"] = access_path[0]["attribute"]
+        else:
+            candidate["access_path"] = access_path
+        candidates.append(candidate)
     get_timestep = getattr(scene, "get_timestep", None)
     physics_dt = get_timestep() if callable(get_timestep) else None
     if (

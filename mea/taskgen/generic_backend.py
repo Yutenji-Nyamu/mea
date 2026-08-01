@@ -38,6 +38,7 @@ from mea.robotwin_task_context import (
     RoboTwinTaskContextError,
     resolve_robotwin_task_context,
 )
+from mea.toolkit.schema import actor_access_expression
 
 from .provider_scene_checker import (
     TextProvider,
@@ -1396,15 +1397,18 @@ def _semantic_field_access_guide(adapter: Mapping[str, Any]) -> str:
     if not isinstance(schema, Mapping):
         return ""
     tracked = schema.get("tracked_actors")
-    actor_attributes: dict[str, str] = {}
+    actor_expressions: dict[str, str] = {}
     if isinstance(tracked, list):
         for item in tracked:
             if not isinstance(item, Mapping):
                 continue
             actor_id = item.get("id")
-            task_attribute = item.get("task_attribute")
-            if isinstance(actor_id, str) and isinstance(task_attribute, str):
-                actor_attributes[actor_id] = task_attribute
+            if not isinstance(actor_id, str):
+                continue
+            try:
+                actor_expressions[actor_id] = actor_access_expression(item)
+            except (KeyError, TypeError, ValueError):
+                continue
     fields = schema.get("semantic_fields")
     if not isinstance(fields, list):
         return ""
@@ -1423,11 +1427,11 @@ def _semantic_field_access_guide(adapter: Mapping[str, Any]) -> str:
             "actor_contact_position",
         }:
             actor_id = field.get("actor_id")
-            task_attribute = actor_attributes.get(str(actor_id))
-            if task_attribute is None:
+            actor_expression = actor_expressions.get(str(actor_id))
+            if actor_expression is None:
                 continue
             if source == "actor_position":
-                expression = f"self.{task_attribute}.get_pose().p"
+                expression = f"{actor_expression}.get_pose().p"
             else:
                 point_id = field.get("point_id")
                 if isinstance(point_id, bool) or not isinstance(point_id, int):
@@ -1438,7 +1442,7 @@ def _semantic_field_access_guide(adapter: Mapping[str, Any]) -> str:
                     else "get_contact_point"
                 )
                 expression = (
-                    f'self.{task_attribute}.{method}({point_id}, "pose").p'
+                    f'{actor_expression}.{method}({point_id}, "pose").p'
                 )
         elif source == "robot_tcp_position":
             side = field.get("side")

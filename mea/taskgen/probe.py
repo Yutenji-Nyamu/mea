@@ -19,6 +19,7 @@ from mea.execution_receipt import (
     validate_frozen_candidate_source,
     validate_imported_task_binding,
 )
+from mea.toolkit.schema import actor_access_path, resolve_task_actor
 
 
 def deep_update(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
@@ -111,8 +112,17 @@ def load_task_args(
 
 
 def actor_summary(task: Any) -> list[dict[str, Any]]:
+    scene = task.scene
+    scene_objects = list(scene.get_all_actors() or [])
+    get_all_articulations = getattr(scene, "get_all_articulations", None)
+    if callable(get_all_articulations):
+        scene_objects.extend(list(get_all_articulations() or []))
     actors = []
-    for actor in task.scene.get_all_actors():
+    seen_identity: set[int] = set()
+    for actor in scene_objects:
+        if id(actor) in seen_identity:
+            continue
+        seen_identity.add(id(actor))
         pose = actor.get_pose()
         actors.append(
             {
@@ -244,19 +254,22 @@ def tracked_actor_summary(
 
     summaries: list[dict[str, Any]] = []
     for actor_spec in schema["tracked_actors"]:
-        actor = getattr(task, actor_spec["task_attribute"])
+        actor = resolve_task_actor(task, actor_spec)
         collision_geometry = _collision_geometry_summary(actor)
         if not collision_geometry:
             collision_geometry = _actor_model_geometry_summary(actor)
         summary: dict[str, Any] = {
             "id": actor_spec["id"],
-            "task_attribute": actor_spec["task_attribute"],
             "scene_name": actor_spec["scene_name"],
             **_pose_summary(actor.get_pose()),
             "collision_geometry": collision_geometry,
             "functional_points": {},
             "contact_points": {},
         }
+        if isinstance(actor_spec.get("task_attribute"), str):
+            summary["task_attribute"] = actor_spec["task_attribute"]
+        else:
+            summary["access_path"] = actor_access_path(actor_spec)
         for point_id in actor_spec.get("functional_points", []):
             point = actor.get_functional_point(point_id, "pose")
             summary["functional_points"][str(point_id)] = _pose_summary(point)
@@ -304,10 +317,22 @@ def task_schema_rule_check(
     for actor in scene_actors:
         name = actor["name"]
         scene_name_counts[name] = scene_name_counts.get(name, 0) + 1
-    declared_scene_names = {actor["scene_name"] for actor in schema["tracked_actors"]}
+    declared_scene_names = {
+        actor["scene_name"] for actor in schema["tracked_actors"]
+    }
+    declared_scene_name_counts: dict[str, int] = {}
+    for actor in schema["tracked_actors"]:
+        scene_name = actor["scene_name"]
+        declared_scene_name_counts[scene_name] = (
+            declared_scene_name_counts.get(scene_name, 0) + 1
+        )
     runtime_names_match = True
     for actor_spec in schema["tracked_actors"]:
-        runtime_actor = getattr(task, actor_spec["task_attribute"], None)
+        try:
+            runtime_actor = resolve_task_actor(task, actor_spec)
+        except (AttributeError, IndexError, KeyError, TypeError):
+            runtime_names_match = False
+            break
         get_name = getattr(runtime_actor, "get_name", None)
         if not callable(get_name) or get_name() != actor_spec["scene_name"]:
             runtime_names_match = False
@@ -321,14 +346,19 @@ def task_schema_rule_check(
             numeric_values.extend(point["quaternion"])
         for point in actor["contact_points"].values():
             numeric_values.extend(point["raw"])
+    access_paths_present = True
+    for actor in schema["tracked_actors"]:
+        try:
+            resolve_task_actor(task, actor)
+        except (AttributeError, IndexError, KeyError, TypeError):
+            access_paths_present = False
+            break
     checks = {
-        "all_tracked_actor_attributes_present": all(
-            hasattr(task, actor["task_attribute"]) for actor in schema["tracked_actors"]
-        ),
+        "all_tracked_actor_access_paths_present": access_paths_present,
         "tracked_actor_runtime_names_match": runtime_names_match,
-        "declared_scene_names_unique": all(
-            scene_name_counts.get(name, 0) == 1
-            for name in declared_scene_names
+        "declared_scene_actor_multiplicity_matches": all(
+            scene_name_counts.get(name, 0) == expected_count
+            for name, expected_count in declared_scene_name_counts.items()
         ),
         "finite_tracked_actor_state": bool(numeric_values)
         and all(math.isfinite(value) and abs(value) < 100 for value in numeric_values),
@@ -338,6 +368,15 @@ def task_schema_rule_check(
     }
     return {
         **checks,
+        # Artifact-reader compatibility for direct-attribute schemas. These
+        # aliases now cover structured paths and declared multiplicity too.
+        "all_tracked_actor_attributes_present": access_paths_present,
+        "declared_scene_names_present": checks[
+            "declared_scene_actor_multiplicity_matches"
+        ],
+        "declared_scene_names_unique": checks[
+            "declared_scene_actor_multiplicity_matches"
+        ],
         "passed": all(checks.values()),
         "tracked_actor_ids": [actor["id"] for actor in tracked_actors],
         "declared_scene_names": sorted(declared_scene_names),

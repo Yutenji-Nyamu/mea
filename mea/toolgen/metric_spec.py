@@ -721,7 +721,14 @@ def _event_matches(event: Mapping[str, Any], selector: Mapping[str, Any]) -> boo
     if selector["physical_only"] and event.get("physical_contact") is not True:
         return False
     actors = selector["actors"]
-    return actors is None or sorted(event.get("actors", [])) == actors
+    if actors is None:
+        return True
+    # Current recorder artifacts expose stable TaskSchema actor ids alongside
+    # legacy simulator names.  Query-derived selectors are expressed in those
+    # advertised ids so same-name actor instances remain distinguishable.
+    # Historical episodes have no actor_ids and retain their old name match.
+    event_actors = event.get("actor_ids") or event.get("actors", [])
+    return sorted(event_actors) == actors
 
 
 def _event_fields(selector: Mapping[str, Any]) -> tuple[str, str]:
@@ -772,7 +779,8 @@ def _compiled_event_filter(selector: Mapping[str, Any]) -> str:
         clauses.append("item.get('physical_contact') is True")
     if selector["actors"] is not None:
         clauses.append(
-            f"sorted(item.get('actors', [])) == {selector['actors']!r}"
+            "sorted(item.get('actor_ids') or item.get('actors', [])) == "
+            f"{selector['actors']!r}"
         )
     return " and ".join(clauses)
 

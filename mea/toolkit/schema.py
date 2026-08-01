@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 
 class TaskSchemaError(RuntimeError):
@@ -24,6 +24,149 @@ COMMON_TRACE_KEYS = frozenset(
     {"physics_step", "policy_step", "simulation_time_seconds", "success"}
 )
 _TASK_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
+
+
+def validate_actor_access_path(
+    value: Any,
+    *,
+    field: str = "access_path",
+) -> list[dict[str, Any]]:
+    """Validate a data-only path from a task to one actor.
+
+    The first segment is one public task attribute. Remaining segments may
+    index only builtin list/tuple/dict containers. Keeping the path as typed
+    data lets recorder and TaskGen resolve it without ``eval`` or arbitrary
+    attribute traversal.
+    """
+
+    if type(value) is not list or not value:
+        raise TaskSchemaError(f"{field} must be a non-empty list")
+    normalized: list[dict[str, Any]] = []
+    for index, segment in enumerate(value):
+        if type(segment) is not dict or len(segment) != 1:
+            raise TaskSchemaError(
+                f"{field}[{index}] must contain exactly one path operation"
+            )
+        operation, operand = next(iter(segment.items()))
+        if index == 0:
+            if (
+                operation != "attribute"
+                or not isinstance(operand, str)
+                or not operand.isidentifier()
+                or operand.startswith("_")
+            ):
+                raise TaskSchemaError(
+                    f"{field}[0] must name one public task attribute"
+                )
+        elif operation == "index":
+            if (
+                isinstance(operand, bool)
+                or not isinstance(operand, int)
+                or operand < 0
+            ):
+                raise TaskSchemaError(
+                    f"{field}[{index}].index must be a non-negative integer"
+                )
+        elif operation == "key":
+            if isinstance(operand, bool) or not isinstance(
+                operand, (str, int)
+            ):
+                raise TaskSchemaError(
+                    f"{field}[{index}].key must be a string or integer"
+                )
+        else:
+            raise TaskSchemaError(
+                f"{field}[{index}] uses unsupported operation {operation!r}"
+            )
+        normalized.append(dict(segment))
+    return normalized
+
+
+def actor_access_path(actor_spec: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Return the canonical actor path, accepting legacy task_attribute."""
+
+    raw_path = actor_spec.get("access_path")
+    task_attribute = actor_spec.get("task_attribute")
+    if raw_path is None:
+        if (
+            not isinstance(task_attribute, str)
+            or not task_attribute.isidentifier()
+            or task_attribute.startswith("_")
+        ):
+            raise TaskSchemaError(
+                "tracked actor must declare access_path or a public "
+                "task_attribute"
+            )
+        return [{"attribute": task_attribute}]
+    path = validate_actor_access_path(raw_path)
+    if task_attribute is not None and (
+        not isinstance(task_attribute, str)
+        or path != [{"attribute": task_attribute}]
+    ):
+        raise TaskSchemaError(
+            "task_attribute may accompany access_path only as its exact "
+            "direct-attribute compatibility alias"
+        )
+    return path
+
+
+def actor_access_path_key(actor_spec: Mapping[str, Any]) -> str:
+    """Return a deterministic equality key for a validated actor path."""
+
+    return json.dumps(
+        actor_access_path(actor_spec),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+
+def resolve_task_actor(task: Any, actor_spec: Mapping[str, Any]) -> Any:
+    """Resolve one validated actor path without executing path text."""
+
+    current: Any = task
+    for index, segment in enumerate(actor_access_path(actor_spec)):
+        operation, operand = next(iter(segment.items()))
+        if operation == "attribute":
+            if index != 0:
+                raise TaskSchemaError(
+                    "actor attribute access is allowed only at path root"
+                )
+            current = getattr(current, operand)
+        elif operation == "index":
+            if type(current) not in {list, tuple}:
+                raise TypeError(
+                    "actor access_path index requires a list or tuple"
+                )
+            current = current[operand]
+        elif operation == "key":
+            if type(current) is not dict:
+                raise TypeError("actor access_path key requires a dict")
+            current = current[operand]
+        else:  # validate_actor_access_path makes this unreachable.
+            raise TaskSchemaError(
+                f"unsupported actor access_path operation: {operation!r}"
+            )
+    return current
+
+
+def actor_access_expression(
+    actor_spec: Mapping[str, Any],
+    *,
+    root: str = "self",
+) -> str:
+    """Render a validated path as an exact Python read expression."""
+
+    expression = root
+    for segment in actor_access_path(actor_spec):
+        operation, operand = next(iter(segment.items()))
+        if operation == "attribute":
+            expression += f".{operand}"
+        elif operation == "index":
+            expression += f"[{operand}]"
+        else:
+            expression += "[" + json.dumps(operand, ensure_ascii=False) + "]"
+    return expression
 
 
 def task_schema_path(repo_root: str | Path, task_name: str) -> Path:
@@ -97,23 +240,27 @@ def validate_task_schema(
     if not isinstance(actors, list) or not actors:
         raise TaskSchemaError("TaskSchema.tracked_actors 必须是非空 list")
     actor_map: dict[str, dict[str, Any]] = {}
-    attributes: set[str] = set()
+    access_paths: set[str] = set()
     for index, actor in enumerate(actors):
         if not isinstance(actor, dict):
             raise TaskSchemaError(f"tracked_actors[{index}] 必须是 object")
         actor_id = actor.get("id")
-        attribute = actor.get("task_attribute")
         scene_name = actor.get("scene_name")
         if not isinstance(actor_id, str) or not _TASK_NAME.fullmatch(actor_id):
             raise TaskSchemaError(f"tracked_actors[{index}].id 非法")
         if actor_id in actor_map:
             raise TaskSchemaError(f"tracked actor id 重复: {actor_id}")
-        if not isinstance(attribute, str) or not attribute:
+        try:
+            access_key = actor_access_path_key(actor)
+        except TaskSchemaError as exc:
             raise TaskSchemaError(
-                f"tracked_actors[{index}].task_attribute 必须是非空字符串"
+                f"tracked_actors[{index}] actor access is invalid: {exc}"
+            ) from exc
+        if access_key in access_paths:
+            raise TaskSchemaError(
+                f"tracked actor access_path is duplicated: "
+                f"{actor_access_path(actor)!r}"
             )
-        if attribute in attributes:
-            raise TaskSchemaError(f"task_attribute 重复: {attribute}")
         if not isinstance(scene_name, str) or not scene_name:
             raise TaskSchemaError(
                 f"tracked_actors[{index}].scene_name 必须是非空字符串"
@@ -127,7 +274,7 @@ def validate_task_schema(
             field=f"tracked_actors[{index}].contact_points",
         )
         actor_map[actor_id] = actor
-        attributes.add(attribute)
+        access_paths.add(access_key)
 
     focus_ids = value.get("contact_focus_actor_ids", [])
     if not isinstance(focus_ids, list) or any(

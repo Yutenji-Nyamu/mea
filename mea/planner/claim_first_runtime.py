@@ -29,9 +29,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from mea.aspects import public_aspect_ontology
-from mea.capability_adapter import (
-    resolve_task_retrieval_index,
-)
+from mea.artifact_retrieval_index import resolve_task_retrieval_index
 
 from .claim_first import (
     ClaimFirstPlanError,

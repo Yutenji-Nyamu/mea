@@ -19,7 +19,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from mea.capability_adapter import resolve_task_retrieval_index
+from mea.artifact_retrieval_index import resolve_task_retrieval_index
 
 from .catalog import catalog_task, validate_act_catalog
 from .context import build_planning_context

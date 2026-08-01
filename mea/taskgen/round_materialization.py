@@ -14,12 +14,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping
 
-from mea.agent_evidence import round_execution_backend
-from mea.capability_adapter import taskgen_route
 from mea.plan_artifacts import PROPOSAL_FILENAME, PROPOSAL_MATERIALIZATION
-from mea.planner.experiment_candidate import validate_experiment_candidate
-from mea.proposals import ProposalError, validate_task_proposal
-from mea.round_contract import validate_round_capability_contract
 
 
 def _write_json(path: Path, value: Any) -> None:
@@ -49,6 +44,14 @@ def build_taskgen_command(
     registration_identity: dict[str, Any] | None = None,
     run_id_suffix: str = "",
 ) -> tuple[list[str], str]:
+    # This command builder is the legacy capability/TaskProposal boundary.
+    # Keep its task-menu imports local so the production ExperimentCandidate
+    # materializer below does not load compatibility planning state.
+    from mea.agent_evidence import round_execution_backend
+    from mea.capability_adapter import taskgen_route
+    from mea.proposals import ProposalError, validate_task_proposal
+    from mea.round_contract import validate_round_capability_contract
+
     capability_contract = validate_round_capability_contract(round_plan)
     if run_id_suffix and re.fullmatch(r"_[A-Za-z0-9_]+", run_id_suffix) is None:
         raise ValueError("run_id_suffix must be empty or a safe underscore suffix")
@@ -222,6 +225,8 @@ def materialize_open_world_round(
     policy_backend: str = "act",
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Materialize only the TaskGen and ToolGen stages requested by a candidate."""
+
+    from mea.planner.experiment_candidate import validate_experiment_candidate
 
     normalized = validate_experiment_candidate(candidate)
     scene_need = normalized["scene_need"]

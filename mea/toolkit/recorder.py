@@ -24,7 +24,13 @@ from mea.execution_receipt import (
 )
 
 from .profiles import load_telemetry_profile, telemetry_profile_sha256
-from .schema import load_task_schema, validate_task_schema
+from .schema import (
+    TaskSchemaError,
+    actor_access_path_key,
+    load_task_schema,
+    resolve_task_actor,
+    validate_task_schema,
+)
 
 
 class RecorderError(RuntimeError):
@@ -53,7 +59,7 @@ def extend_task_schema_with_generated_actors(
     focus = result.setdefault("contact_focus_actor_ids", [])
     semantic_fields = result.setdefault("semantic_fields", [])
     ids = {item["id"] for item in actors}
-    attributes = {item["task_attribute"] for item in actors}
+    access_keys = {actor_access_path_key(item) for item in actors}
     scene_names = {item["scene_name"] for item in actors}
     field_names = {item["name"] for item in semantic_fields}
     expected = {
@@ -138,7 +144,7 @@ def extend_task_schema_with_generated_actors(
                 actor for actor in actors if actor["id"] == actor_id
             )
             exact_redeclaration = bool(
-                existing["task_attribute"] == attribute
+                existing.get("task_attribute") == attribute
                 and existing["scene_name"] == scene_name
                 and list(existing.get("functional_points", []))
                 == points["functional_points"]
@@ -166,7 +172,10 @@ def extend_task_schema_with_generated_actors(
                 f"does not match runtime actor name {runtime_name!r}; give "
                 "the new actor a unique name and declare that exact name"
             )
-        if attribute in attributes or scene_name in scene_names:
+        generated_access_key = actor_access_path_key(
+            {"task_attribute": attribute}
+        )
+        if generated_access_key in access_keys or scene_name in scene_names:
             raise RecorderError(
                 f"generated tracked actor {index} duplicates the base schema"
             )
@@ -218,14 +227,17 @@ def extend_task_schema_with_generated_actors(
         if item["contact_focus"]:
             focus.append(actor_id)
         ids.add(actor_id)
-        attributes.add(attribute)
+        access_keys.add(generated_access_key)
         scene_names.add(scene_name)
     # Validate the final schema, not only newly appended declarations.  A
     # generated subclass may redeclare an official actor or may add an
     # untracked actor with the same SAPIEN name; both cases would otherwise
     # make contact telemetry ambiguous.
     for actor_spec in actors:
-        runtime_actor = getattr(task, actor_spec["task_attribute"], None)
+        try:
+            runtime_actor = resolve_task_actor(task, actor_spec)
+        except (AttributeError, IndexError, KeyError, TypeError):
+            runtime_actor = None
         get_runtime_name = getattr(runtime_actor, "get_name", None)
         runtime_name = (
             get_runtime_name() if callable(get_runtime_name) else None
@@ -240,7 +252,15 @@ def extend_task_schema_with_generated_actors(
     get_all_actors = getattr(scene, "get_all_actors", None)
     if callable(get_all_actors):
         runtime_name_counts: dict[str, int] = {}
-        for runtime_actor in list(get_all_actors() or []):
+        scene_objects = list(get_all_actors() or [])
+        get_all_articulations = getattr(scene, "get_all_articulations", None)
+        if callable(get_all_articulations):
+            scene_objects.extend(list(get_all_articulations() or []))
+        seen_scene_identity: set[int] = set()
+        for runtime_actor in scene_objects:
+            if id(runtime_actor) in seen_scene_identity:
+                continue
+            seen_scene_identity.add(id(runtime_actor))
             get_runtime_name = getattr(runtime_actor, "get_name", None)
             runtime_name = (
                 get_runtime_name() if callable(get_runtime_name) else None
@@ -249,14 +269,27 @@ def extend_task_schema_with_generated_actors(
                 runtime_name_counts[runtime_name] = (
                     runtime_name_counts.get(runtime_name, 0) + 1
                 )
+        declared_name_counts: dict[str, int] = {}
+        for actor_spec in actors:
+            scene_name = actor_spec["scene_name"]
+            declared_name_counts[scene_name] = (
+                declared_name_counts.get(scene_name, 0) + 1
+            )
         ambiguous = sorted(
-            actor_spec["scene_name"]
-            for actor_spec in actors
-            if runtime_name_counts.get(actor_spec["scene_name"], 0) != 1
+            scene_name
+            for scene_name, expected_count in declared_name_counts.items()
+            if runtime_name_counts.get(scene_name, 0) != expected_count
         )
         if ambiguous:
+            if all(
+                declared_name_counts[name] == 1 for name in ambiguous
+            ):
+                raise RecorderError(
+                    "tracked actor runtime names must occur exactly once in "
+                    "the scene: " + ", ".join(ambiguous)
+                )
             raise RecorderError(
-                "tracked actor runtime names must occur exactly once in the "
+                "tracked actor runtime-name multiplicity differs from the "
                 "scene: " + ", ".join(ambiguous)
             )
     try:
@@ -286,6 +319,10 @@ def _body_name(body: Any) -> str:
         return str(getattr(body, "name", ""))
     getter = getattr(entity, "get_name", None)
     return str(getter() if callable(getter) else getattr(entity, "name", ""))
+
+
+def _body_entity(body: Any) -> Any:
+    return getattr(body, "entity", body)
 
 
 def _dynamic_velocity(actor_wrapper: Any) -> tuple[list[float | None], list[float | None]]:
@@ -637,18 +674,19 @@ class EpisodeRecorder:
         )
 
     def _validate_task(self, task: Any) -> None:
-        missing = [
-            item["task_attribute"]
-            for item in self.schema["tracked_actors"]
-            if not hasattr(task, item["task_attribute"])
-        ]
+        missing: list[str] = []
+        for item in self.schema["tracked_actors"]:
+            try:
+                resolve_task_actor(task, item)
+            except (AttributeError, IndexError, KeyError, TypeError):
+                missing.append(str(item["id"]))
         if missing:
-            raise RecorderError(f"TaskSchema actor attributes 缺失: {missing}")
+            raise RecorderError(f"TaskSchema actor access paths 缺失: {missing}")
         if not hasattr(task, "robot") or not hasattr(task, "scene"):
             raise RecorderError("task 缺少 robot 或 scene")
 
     def _actor(self, task: Any, actor_spec: dict[str, Any]) -> Any:
-        return getattr(task, actor_spec["task_attribute"])
+        return resolve_task_actor(task, actor_spec)
 
     @staticmethod
     def _put_vector(row: dict[str, Any], prefix: str, values: Any) -> None:
@@ -945,18 +983,66 @@ class EpisodeRecorder:
         self.pending_action = None
 
     def _contact_samples(self, task: Any) -> dict[tuple[str, str], dict[str, Any]]:
-        scene_names = {
-            item["scene_name"]
-            for item in self.schema["tracked_actors"]
-            if item["id"] in self.schema.get("contact_focus_actor_ids", [])
-        }
+        tracked_actors = self.schema["tracked_actors"]
+        focus_ids = set(self.schema.get("contact_focus_actor_ids", []))
+        scene_name_counts: dict[str, int] = {}
+        for item in tracked_actors:
+            scene_name = item["scene_name"]
+            scene_name_counts[scene_name] = (
+                scene_name_counts.get(scene_name, 0) + 1
+            )
+        tracked_entities: dict[int, tuple[str, str]] = {}
+        focused_entity_ids: set[int] = set()
+        unique_focus_names: set[str] = set()
+        for item in tracked_actors:
+            scene_name = item["scene_name"]
+            if scene_name_counts[scene_name] == 1:
+                # Keep existing contact labels and articulation-name fallback
+                # for legacy direct actors.
+                label = scene_name
+            else:
+                label = f"{scene_name}#{item['id']}"
+            if item["id"] in focus_ids and scene_name_counts[scene_name] == 1:
+                unique_focus_names.add(scene_name)
+            try:
+                actor = self._actor(task, item)
+            except (
+                TaskSchemaError,
+                AttributeError,
+                IndexError,
+                KeyError,
+                TypeError,
+            ):
+                continue
+            entity = getattr(actor, "actor", actor)
+            entity_identity = id(entity)
+            tracked_entities[entity_identity] = (label, str(item["id"]))
+            if item["id"] in focus_ids:
+                focused_entity_ids.add(entity_identity)
         samples: dict[tuple[str, str], dict[str, Any]] = {}
         for contact in task.scene.get_contacts():
             bodies = list(getattr(contact, "bodies", []))
             if len(bodies) != 2:
                 continue
-            names = (_body_name(bodies[0]), _body_name(bodies[1]))
-            if not names[0] or not names[1] or not scene_names.intersection(names):
+            raw_names = (_body_name(bodies[0]), _body_name(bodies[1]))
+            identities = tuple(id(_body_entity(body)) for body in bodies)
+            names = tuple(
+                tracked_entities.get(identity, (raw_name, raw_name))[0]
+                for identity, raw_name in zip(identities, raw_names)
+            )
+            actor_ids = tuple(
+                tracked_entities.get(identity, (raw_name, raw_name))[1]
+                for identity, raw_name in zip(identities, raw_names)
+            )
+            identity_focus = any(
+                identity in focused_entity_ids for identity in identities
+            )
+            name_focus = bool(unique_focus_names.intersection(raw_names))
+            if (
+                not names[0]
+                or not names[1]
+                or not (identity_focus or name_focus)
+            ):
                 continue
             pair = tuple(sorted(names))
             point_count = 0
@@ -990,6 +1076,8 @@ class EpisodeRecorder:
             value = samples.setdefault(
                 pair,
                 {
+                    "actors": list(sorted(raw_names)),
+                    "actor_ids": list(sorted(actor_ids)),
                     "point_count": 0,
                     "max_impulse": 0.0,
                     "min_separation": None,
@@ -1038,7 +1126,8 @@ class EpisodeRecorder:
                 )
             self.active_contacts[pair] = {
                 "type": "contact_interval",
-                "actors": list(pair),
+                "actors": list(sample.get("actors", pair)),
+                "actor_ids": list(sample.get("actor_ids", pair)),
                 "start_policy_step": self.policy_step,
                 "start_physics_step": self.physics_step,
                 "start_simulation_time_seconds": self.physics_step * self.physics_dt,
