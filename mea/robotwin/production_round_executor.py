@@ -42,15 +42,6 @@ def production_native_policy_rounds() -> dict[str, Callable[..., Any]]:
     }
 
 
-def _compat_subprocess_unavailable(*_args: Any, **_kwargs: Any) -> Any:
-    """Reject accidental entry into the legacy child-process transport."""
-
-    raise RuntimeError(
-        "production RoboTwin rounds require a native MethodRuntime backend; "
-        "the legacy TaskGen subprocess is available only through paper compat"
-    )
-
-
 def build_production_round_executor() -> RoundExecutor:
     """Build the native-only executor used by the production Plan Agent."""
 
@@ -61,8 +52,6 @@ def build_production_round_executor() -> RoundExecutor:
     return RoundExecutor(
         RoundExecutionServices(
             update_manifest=update_manifest,
-            build_taskgen_command=_compat_subprocess_unavailable,
-            run_logged=_compat_subprocess_unavailable,
             native_policy_rounds=production_native_policy_rounds(),
         )
     )

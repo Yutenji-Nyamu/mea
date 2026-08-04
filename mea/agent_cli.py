@@ -117,18 +117,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--generated-rounds",
         type=int,
-        choices=[1, 2, 3, 4, 5],
-        default=2,
-        help="Round budget for a bounded click_bell generated profile.",
+        choices=[1, 2, 3, 4, 5, 6, 7, 8],
+        default=5,
+        help=(
+            "Planning allowance for evidence-conditioned generated rounds. "
+            "The Plan Agent should stop earlier when evidence is sufficient; "
+            "this is not the preferred semantic stopping rule."
+        ),
     )
     parser.add_argument(
         "--max-agent-rounds",
         type=int,
-        choices=[1, 2, 3, 4, 5],
+        choices=[1, 2, 3, 4, 5, 6, 7, 8],
         help=(
-            "Optional task-agnostic hard execution cap. After this many completed "
-            "rounds the Agent writes an auditable budget stop without asking the "
-            "planner to add another round."
+            "Optional emergency execution ceiling. Normal method runs should "
+            "omit it and stop through the evidence-sufficiency contract."
         ),
     )
     parser.add_argument(

@@ -15,7 +15,7 @@ ROUND_MATERIALIZATION = (
 PLANNER_RETRIEVAL_BOUNDARIES = (
     REPO_ROOT / "mea" / "planner" / "context.py",
     REPO_ROOT / "mea" / "planner" / "open_world_session.py",
-    REPO_ROOT / "mea" / "planner" / "claim_first_runtime.py",
+    REPO_ROOT / "mea" / "planner" / "query_interpretation.py",
 )
 LEGACY_MODULES = {
     "mea.capability_adapter",

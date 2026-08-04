@@ -63,16 +63,9 @@ def _round_requests_execution_vqa(
 
 @dataclass(frozen=True)
 class RoundExecutionServices:
-    """Migration seams not yet owned by the backend-neutral lifecycle.
-
-    Generic artifact writing, summary, VQA, Tool, and MethodRuntime APIs are
-    imported directly.  The remaining callbacks are the legacy child TaskGen
-    transport plus the policy-backend registry.
-    """
+    """Native policy backends and the manifest writer used by one round."""
 
     update_manifest: Callable[..., Mapping[str, Any]]
-    build_taskgen_command: Callable[..., tuple[list[str], str]]
-    run_logged: Callable[..., int]
     native_policy_rounds: Mapping[str, Callable[..., Mapping[str, Any]]]
 
 
@@ -92,10 +85,8 @@ class RoundExecutionRequest:
     provider: Any
     toolgen_model: str
     telemetry_profile: str = "balanced_v1"
-    reviewed_task_registry: Path | None = None
     reviewed_tool_registry: Path | None = None
     reviewed_vqa_registry: Path | None = None
-    registration_identity: dict[str, Any] | None = None
     policy_backend: str = "act"
     runtime_target: Mapping[str, Any] | None = None
     policy_server_port: int = 18771
@@ -112,11 +103,82 @@ class RoundExecutionResult:
     returncode: int
 
 
+@dataclass(frozen=True)
+class _PolicyRoundArtifacts:
+    """Simulator/backend artifacts consumed by the shared evidence lifecycle."""
+
+    child_manifest: dict[str, Any]
+    child_dir: Path
+    execution_dir: Path
+    child_manifest_path: Path
+    run_id: str
+    returncode: int
+    semantic_ready: bool
+    native: Mapping[str, Any] | None
+
+
 class RoundExecutor:
     """Execute one Proposal through policy, evidence tools, and aggregation."""
 
     def __init__(self, services: RoundExecutionServices) -> None:
         self._services = services
+
+    def _execute_policy(
+        self, request: RoundExecutionRequest
+    ) -> _PolicyRoundArtifacts:
+        """Execute one native MethodRuntime backend.
+
+        Legacy ACT TaskGen subprocess transport lives in
+        ``experiments.paper.compat_round_executor`` and is intentionally not a
+        production fallback.
+        """
+
+        native_policy_round = self._services.native_policy_rounds.get(
+            request.policy_backend
+        )
+        if native_policy_round is None:
+            raise RuntimeError(
+                "production rounds require a native MethodRuntime backend: "
+                f"{request.policy_backend!r}"
+            )
+        if request.runtime_target is None:
+            raise RuntimeError(
+                "native policy execution requires the bound runtime target"
+            )
+        round_id = request.round_plan["round_id"]
+        self._services.update_manifest(
+            request.evaluation_dir,
+            status=f"executing_{round_id}",
+            active_child_run_id=None,
+            policy_backend=request.policy_backend,
+        )
+        native = native_policy_round(
+            repo_root=request.repo_root,
+            evaluation_dir=request.evaluation_dir,
+            evaluation_id=request.evaluation_id,
+            round_plan=request.round_plan,
+            runtime_target=request.runtime_target,
+            telemetry_profile=request.telemetry_profile,
+            policy_server_port=request.policy_server_port,
+            gpu=request.gpu,
+            provider=request.provider,
+            text_model=request.text_model,
+            vision_model=request.vision_model,
+            max_reflections=request.max_reflections,
+        )
+        child_manifest = dict(native["child_manifest"])
+        return _PolicyRoundArtifacts(
+            child_manifest=child_manifest,
+            child_dir=native["child_dir"],
+            execution_dir=(
+                request.evaluation_dir / "execution" / round_id
+            ),
+            child_manifest_path=native["manifest_path"],
+            run_id=str(child_manifest["run_id"]),
+            returncode=0,
+            semantic_ready=bool(native["semantic_telemetry_ready"]),
+            native=native,
+        )
 
     def execute(self, request: RoundExecutionRequest) -> RoundExecutionResult:
         services = self._services
@@ -126,79 +188,15 @@ class RoundExecutor:
         round_plan = request.round_plan
         round_id = round_plan["round_id"]
 
-        native_policy_round = services.native_policy_rounds.get(
-            request.policy_backend
-        )
-        if native_policy_round is not None:
-            if request.runtime_target is None:
-                raise RuntimeError(
-                    "native policy execution requires the bound runtime target"
-                )
-            services.update_manifest(
-                evaluation_dir,
-                status=f"executing_{round_id}",
-                active_child_run_id=None,
-                policy_backend=request.policy_backend,
-            )
-            native = native_policy_round(
-                repo_root=repo_root,
-                evaluation_dir=evaluation_dir,
-                evaluation_id=evaluation_id,
-                round_plan=round_plan,
-                runtime_target=request.runtime_target,
-                telemetry_profile=request.telemetry_profile,
-                policy_server_port=request.policy_server_port,
-                gpu=request.gpu,
-                provider=request.provider,
-                text_model=request.text_model,
-                vision_model=request.vision_model,
-                max_reflections=request.max_reflections,
-            )
-            child_manifest = native["child_manifest"]
-            child_dir = native["child_dir"]
-            execution_dir = evaluation_dir / "execution" / round_id
-            child_manifest_path = native["manifest_path"]
-            run_id = child_manifest["run_id"]
-            returncode = 0
-            semantic_ready = native["semantic_telemetry_ready"]
-        elif request.policy_backend != "act":
-            raise RuntimeError(
-                f"unsupported policy backend: {request.policy_backend!r}"
-            )
-        else:
-            semantic_ready = True
-            native = None
-            command, run_id = services.build_taskgen_command(
-                repo_root,
-                evaluation_id,
-                round_plan,
-                text_model=request.text_model,
-                vision_model=request.vision_model,
-                base_url=request.base_url,
-                gpu=request.gpu,
-                max_reflections=request.max_reflections,
-                telemetry_profile=request.telemetry_profile,
-                reviewed_task_registry=request.reviewed_task_registry,
-                registration_identity=request.registration_identity,
-                run_id_suffix="",
-            )
-            execution_dir = evaluation_dir / "execution" / round_id
-            _write_json(
-                execution_dir / "taskgen_command.json",
-                {"command": command, "child_run_id": run_id},
-            )
-            services.update_manifest(
-                evaluation_dir,
-                status=f"executing_{round_id}",
-                active_child_run_id=run_id,
-            )
-            returncode = services.run_logged(
-                command,
-                cwd=repo_root,
-                log_path=execution_dir / "taskgen.log",
-            )
-            child_dir = repo_root / "mea/generated_tasks" / run_id
-            child_manifest_path = child_dir / "manifest.json"
+        policy = self._execute_policy(request)
+        child_manifest = policy.child_manifest
+        child_dir = policy.child_dir
+        execution_dir = policy.execution_dir
+        child_manifest_path = policy.child_manifest_path
+        run_id = policy.run_id
+        returncode = policy.returncode
+        semantic_ready = policy.semantic_ready
+        native = policy.native
 
         if not child_manifest_path.is_file():
             raise RuntimeError(
@@ -207,15 +205,6 @@ class RoundExecutor:
         child_manifest = json.loads(
             child_manifest_path.read_text(encoding="utf-8")
         )
-        if (
-            native is None
-            and request.registration_identity is not None
-            and child_manifest.get("registration_identity")
-            != request.registration_identity
-        ):
-            raise RuntimeError(
-                f"child registration identity mismatch: {run_id}"
-            )
         _write_json(
             execution_dir / "child_run.json",
             {

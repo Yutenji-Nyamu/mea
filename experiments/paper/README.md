@@ -56,6 +56,9 @@ transport 与 official rollout；不是第二套 MEA 外层。短复现说明见
   和 task-specific legacy Planner。
 - [`registered_execution_adapter.py`](registered_execution_adapter.py)：在 paper protocol
   内延迟加载旧 strategy/receipt stack。
+- [`compat_taskgen/`](compat_taskgen/)：冻结 standalone TaskGen 的 BBH、ClickBell、
+  registered/reviewed 与 Table-3 兼容执行；生产 Agent 的 generic TaskGen 由
+  `mea.taskgen.runtime` / `MethodRuntime` 直接拥有。
 - [`manipeval_click_bell_open_taskgen.py`](manipeval_click_bell_open_taskgen.py)：历史
   ClickBell Gate-0 TaskGen 协议。
 - [`manipeval_click_bell_open_evidence.py`](manipeval_click_bell_open_evidence.py)：历史

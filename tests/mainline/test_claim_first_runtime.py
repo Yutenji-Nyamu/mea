@@ -380,6 +380,11 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         )
 
     def test_plan_agent_session_is_canonical_with_legacy_aliases(self):
+        from mea.planner.plan_agent_session import (
+            PlanAgentSession as CanonicalPlanAgentSession,
+        )
+
+        self.assertIs(PlanAgentSession, CanonicalPlanAgentSession)
         self.assertIs(ClaimFirstRuntimeController, PlanAgentSession)
         self.assertIs(ClaimFirstRuntimeError, PlanAgentSessionError)
 

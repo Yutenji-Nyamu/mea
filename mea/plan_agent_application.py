@@ -298,10 +298,8 @@ class PlanAgentApplication:
     policy_backend: str
     runtime_target: Mapping[str, Any] | None
     policy_server_port: int
-    reviewed_task_registry: Path | None = None
     reviewed_tool_registry: Path | None = None
     reviewed_vqa_registry: Path | None = None
-    registration_identity: Mapping[str, Any] | None = None
     max_agent_rounds: int | None = None
     global_route_result: Mapping[str, Any] | None = None
     free_concern_bundle: Mapping[str, Any] | None = None
@@ -949,10 +947,8 @@ class PlanAgentApplication:
                         provider=self.provider,
                         toolgen_model=self.models["toolgen"],
                         telemetry_profile=self.telemetry_profile,
-                        reviewed_task_registry=self.reviewed_task_registry,
                         reviewed_tool_registry=self.reviewed_tool_registry,
                         reviewed_vqa_registry=self.reviewed_vqa_registry,
-                        registration_identity=self.registration_identity,
                         policy_backend=self.policy_backend,
                         runtime_target=self.runtime_target,
                         policy_server_port=self.policy_server_port,

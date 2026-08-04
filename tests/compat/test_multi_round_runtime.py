@@ -8,7 +8,7 @@ from mea.round_tools import reuse_bound_child_checker_tool
 from mea.round_summary import summarize_round
 from mea.taskgen.round_materialization import build_taskgen_command
 from mea.toolgen import contact_tool_request
-from scripts.manipeval_agent import execute_round
+from experiments.paper.compat_agent_runner import execute_round
 from scripts.manipeval_taskgen import collect_position_samples, newest_eval_dir
 
 
@@ -377,7 +377,10 @@ class MultiRoundRuntimeTests(unittest.TestCase):
             )
             provider = object()
             with (
-                patch("scripts.manipeval_agent.run_logged", return_value=0),
+                patch(
+                    "experiments.paper.compat_agent_runner.run_logged",
+                    return_value=0,
+                ),
                 patch(
                     "mea.round_executor.execute_tool_request",
                     return_value=tool_evaluation,
@@ -456,7 +459,10 @@ class MultiRoundRuntimeTests(unittest.TestCase):
                 json.dumps(failed_manifest), encoding="utf-8"
             )
             with (
-                patch("scripts.manipeval_agent.run_logged", return_value=7),
+                patch(
+                    "experiments.paper.compat_agent_runner.run_logged",
+                    return_value=7,
+                ),
                 patch(
                     "mea.round_executor.execute_tool_request"
                 ) as skipped_tool,
@@ -596,7 +602,10 @@ class MultiRoundRuntimeTests(unittest.TestCase):
                 "1\n", encoding="utf-8"
             )
             with (
-                patch("scripts.manipeval_agent.run_logged", return_value=0),
+                patch(
+                    "experiments.paper.compat_agent_runner.run_logged",
+                    return_value=0,
+                ),
                 patch(
                     "mea.round_executor.execute_tool_request"
                 ) as duplicate_toolgen,

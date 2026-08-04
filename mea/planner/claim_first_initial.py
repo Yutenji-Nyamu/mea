@@ -18,7 +18,7 @@ from typing import Any, Mapping
 
 from mea.toolgen import official_success_tool_request
 
-from .claim_first_runtime import control_template_id
+from .query_interpretation import control_template_id
 from .policy_task_binding import (
     PolicyTaskBindingError,
     policy_task_binding_from_target,

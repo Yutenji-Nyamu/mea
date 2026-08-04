@@ -710,44 +710,27 @@ class OpenToolRequestAgent:
         derived_available = bool(
             context.get("derived_observable_validation_available")
         )
-        output_example = (
-            {
-                "schema_version": 2,
-                "task_name": context["task_name"],
-                "metric": "query_derived_observable",
-                "question": "What was the peak per-step motion of the target?",
-                "metric_spec": {
-                    "schema_version": 2,
-                    "operation": "derived_observable",
-                    "observable_id": "query_derived_observable",
-                    "description": (
-                        "Maximum Euclidean displacement per physics step "
-                        "between consecutive target-position samples."
-                    ),
-                    "required_signals": ["advertised_target_position"],
-                    "unit": "m_per_step",
-                    "null_semantics": "null_if_no_finite_sample",
-                },
-            }
-            if derived_available
-            else {
-                "schema_version": 2,
-                "task_name": context["task_name"],
-                "metric": "query_minimum_distance",
-                "question": "How close did the robot get to the target?",
-                "metric_spec": {
-                    "schema_version": 1,
-                    "operation": "minimum_distance",
-                    "left_signal": "advertised_robot_position",
-                    "right_signal": "advertised_target_position",
-                    "dimensions": ["x", "y", "z"],
-                    "unit": "m",
-                    "null_semantics": "null_if_no_finite_sample",
-                },
-            }
-        )
+        # Lead with an independently interpreted operator.  Earlier prompts
+        # showed a derived-observable example first, which made the model skip
+        # a simpler typed contract and weakened numeric validation.
+        output_example = {
+            "schema_version": 2,
+            "task_name": context["task_name"],
+            "metric": "query_minimum_distance",
+            "question": "How close did the robot get to the target?",
+            "metric_spec": {
+                "schema_version": 1,
+                "operation": "minimum_distance",
+                "left_signal": "advertised_robot_position",
+                "right_signal": "advertised_target_position",
+                "dimensions": ["x", "y", "z"],
+                "unit": "m",
+                "null_semantics": "null_if_no_finite_sample",
+            },
+        }
         novel_rule = (
-            "Otherwise propose a schema_version=2 derived_observable semantic "
+            "Only when no advertised typed operator exactly expresses the "
+            "need, propose a schema_version=2 derived_observable semantic "
             "contract. Its description MUST contain 1-240 characters, "
             "required_signals MUST contain 1-8 advertised signal names, and "
             "null_semantics MUST be exactly null_if_no_finite_sample. Include "
@@ -781,8 +764,10 @@ class OpenToolRequestAgent:
             "schema_version=2 request with a schema_version=1 MetricSpec when "
             "one existing operator exactly expresses the need. "
             + novel_rule
-            + " Generated Python is checked on fixture and live telemetry "
-            "before exact registration/reuse when that path is available. "
+            + " Provider-written Python for a typed operator is checked by a "
+            "separate trusted numeric interpreter on live telemetry before "
+            "exact registration/reuse. A derived observable is instead bound "
+            "to its declared-signal validation authority. "
             "Replace every placeholder signal with a real advertised name. "
             "A registered "
             "composite target is an exact static match and may be selected by "

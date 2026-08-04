@@ -814,6 +814,15 @@ a distant numeric boundary unrelated to the measurement.  For a broad
 robustness Query, for example, a successful control
 can justify selecting the highest-risk supported perturbation, while a failed
 control should redirect to baseline reliability or failure diagnosis.
+Failure example from prior runs: after a successful generated test whose live
+scalar shows a comfortable margin, merely increasing the same scene factor is
+not a new sub-aspect unless that value brackets a clear boundary.  When the
+scalar instead weakens the current hypothesis, switch to the most informative
+orthogonal concern that the capability card can execute.  State explicitly
+which observed Tool value or outcome caused the switch.  Conversely, do not
+manufacture another concern
+after the completed evidence already satisfies the Query contract: propose
+action=stop so the contract can validate the answer.
 
 Interpret completed evidence by its declared role.  The top-level `outcome`
 is the authoritative verdict for the tested hypothesis.  A

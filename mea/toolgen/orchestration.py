@@ -1180,10 +1180,16 @@ def _execute_typed_metric_request(
         and all(value is not None for value in oracle_agreements)
         else None
     )
-    independent_numeric_oracle = (
-        raw.get("validation_authority")
-        == "caller_supplied_independent_numeric_oracle"
-    )
+    validation_authority = raw.get("validation_authority")
+    # A typed MetricSpec is executed by provider-written Python but checked by
+    # the separate trusted interpreter below.  That interpreter is an
+    # independent numeric oracle just as a caller-owned evaluator is; only a
+    # free-form derived observable without either authority remains a semantic
+    # review rather than numeric oracle evidence.
+    independent_numeric_oracle = validation_authority in {
+        "caller_supplied_independent_numeric_oracle",
+        "typed_metric_spec_interpreter",
+    }
     execution = {
         "schema_version": 1,
         "status": "passed",
@@ -1217,7 +1223,15 @@ def _execute_typed_metric_request(
             "provider_called": bool(raw.get("provider_called")),
             "typed_metric_spec": True,
             "python_generated_by_model": actual_route == "provider_python_codegen",
-            "authority": raw.get("validation_authority"),
+            "authority": validation_authority,
+            "oracle_kind": (
+                "trusted_typed_metric_interpreter"
+                if validation_authority == "typed_metric_spec_interpreter"
+                else "caller_supplied_numeric_oracle"
+                if validation_authority
+                == "caller_supplied_independent_numeric_oracle"
+                else "semantic_review_only"
+            ),
             "semantic_review": raw.get("semantic_review"),
             "task_code_context_consumed": bool(
                 raw.get("task_code_context_consumed")
