@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "source": "provider_plan_agent_open_query",
+  "input_digest": "72978f0b19774d773e5b879cd74799f9d709493a466dc074815cac2b6db5cb70",
+  "planning_lineage": {
+    "schema_version": 1,
+    "decision_kind": "evidence_conditioned_refinement",
+    "evidence_conditioned": true,
+    "completed_round_ids": [
+      "round_1",
+      "round_2",
+      "round_3"
+    ],
+    "completed_round_count": 3,
+    "input_digest": "72978f0b19774d773e5b879cd74799f9d709493a466dc074815cac2b6db5cb70"
+  },
+  "proposal": {
+    "schema_version": 2,
+    "action": "continue",
+    "sub_aspect": "vertical_robustness.stapler_terminal_height_retention",
+    "hypothesis": "After translating the stapler upward by 0.02 m, the policy may still satisfy the official press_stapler goal while the terminal stapler height exceeds the expert-grounded boundary of 0.741 m, causing the combined experimental checker to fail.",
+    "requested_perturbation": {
+      "description": "Translate the stapler upward from its official baseline position by +0.02 m along the simulator z-axis.",
+      "controlled_changes": [
+        "stapler z-position: baseline -> baseline + 0.02 m"
+      ],
+      "preserve": [
+        "task identity",
+        "policy checkpoint",
+        "official core predicate as a required conjunct"
+      ]
+    },
+    "scene_need": {
+      "required": true,
+      "description": "Construct or adapt the scene by translating the stapler upward from its official baseline position by +0.02 m along the simulator z-axis. Preserve task identity and policy checkpoint."
+    },
+    "checker_need": {
+      "required": true,
+      "description": "Return true only when the official core predicate and the added terminal-state relation both hold: official goal AND terminal stapler z-position is less than or equal to 0.741 m."
+    },
+    "rule_tool_need": {
+      "required": true,
+      "description": "Report the terminal stapler z-position in meters as the primary scalar observation for this round.",
+      "reuse_first": true
+    },
+    "vqa_tool_need": {
+      "required": false,
+      "description": null,
+      "reuse_first": true
+    },
+    "rationale": "Round 3 succeeded with a terminal left-TCP-to-stapler distance of 0.089382 m under the 0.10 m checker threshold, leaving only a small margin and making further amplification of that same concern less informative. Round 2 also showed that the prior TCP-asymmetry checker failed its expert positive fixture. The expert terminal state provides a directly observable stapler height of 0.741 m, so an orthogonal +0.02 m vertical translation can test a bounded height-retention concern with a checker relation directly supported by the simulator API, while the Rule Tool independently measures the terminal height.",
+    "task_need": {
+      "required": true,
+      "description": "Construct or adapt the scene by translating the stapler upward from its official baseline position by +0.02 m along the simulator z-axis. Preserve task identity and policy checkpoint. | Return true only when the official core predicate and the added terminal-state relation both hold: official goal AND terminal stapler z-position is less than or equal to 0.741 m."
+    },
+    "tool_need": {
+      "required": true,
+      "description": "Report the terminal stapler z-position in meters as the primary scalar observation for this round.",
+      "reuse_first": true
+    }
+  },
+  "provider": {
+    "model_requested": "gpt-5.6-luna",
+    "called": true,
+    "attempt_count": 1,
+    "errors": [],
+    "last_metadata": {
+      "id": "resp_0a63ade9ee8723cf016a71f3d71298819488c58eaca8e499bf",
+      "model": "gpt-5.6-luna",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 5372,
+        "completion_tokens": 1462,
+        "total_tokens": 6834,
+        "prompt_tokens_details": {
+          "cached_tokens": 3840
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 1034
+        }
+      },
+      "retry_count": 0
+    }
+  }
+}

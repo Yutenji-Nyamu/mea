@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "status": "skipped",
+  "source_count": null,
+  "episode_result_count": null,
+  "unique_episode_count": null,
+  "metric_ids": [],
+  "input_issue_count": 0,
+  "input_issues": [],
+  "metrics": []
+}

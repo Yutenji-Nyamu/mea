@@ -1,0 +1,207 @@
+{
+    "schema_version":  1,
+    "evaluation_id":  "eval_20260804_batch36_clean_flagship_press_stapler_s1000_v5",
+    "role":  "negative_overall_run_with_positive_method_subchain",
+    "artifacts":  [
+                      {
+                          "path":  "artifacts/aggregate/round_1.json",
+                          "bytes":  2515,
+                          "sha256":  "5d8781a41915c354ba7e4c7d1e1dde4be073b6483a36eba81246fe7d2381026d"
+                      },
+                      {
+                          "path":  "artifacts/aggregate/round_2.json",
+                          "bytes":  222,
+                          "sha256":  "87db74d894736ac1cc0ce2e290630d1ea8693407a6ce3e80a12975c442ed624b"
+                      },
+                      {
+                          "path":  "artifacts/aggregate/round_3.json",
+                          "bytes":  3563,
+                          "sha256":  "48b50d47f22e087a76084c9627dab9c23b2d84fd59b8b7b61258a70966fb392e"
+                      },
+                      {
+                          "path":  "artifacts/plan/global_query_route.json",
+                          "bytes":  4029,
+                          "sha256":  "e51576aded1dd131edeb300b235047d90c2bc02926d223908e5e8ca308a40f9c"
+                      },
+                      {
+                          "path":  "artifacts/plan/open_task_resolution.json",
+                          "bytes":  3784,
+                          "sha256":  "3d229e5416fdb606097065fedcb3456d8a7ed0791c81726c24ec514ee0dd6a17"
+                      },
+                      {
+                          "path":  "artifacts/plan/plan_agent_steps/after_round_01/prompt.md",
+                          "bytes":  16706,
+                          "sha256":  "fc3ebbb468b1ca32a3ef835f3949c5a2e01aeb358d689724c2f320338892f836"
+                      },
+                      {
+                          "path":  "artifacts/plan/plan_agent_steps/after_round_01/response_1.txt",
+                          "bytes":  2004,
+                          "sha256":  "2897a838368bc46148eeb628e97ae5f8d91d0c6c3afcde82a2ab3a3464110434"
+                      },
+                      {
+                          "path":  "artifacts/plan/plan_agent_steps/after_round_01/semantic_proposal_bundle.json",
+                          "bytes":  5371,
+                          "sha256":  "574deb25a857f8d4552fb85a607f40b79c8e0008acf1e802a2e700152f6526bc"
+                      },
+                      {
+                          "path":  "artifacts/plan/plan_agent_steps/after_round_02/prompt.md",
+                          "bytes":  21180,
+                          "sha256":  "696d7a0a47a088361a19b0361d499ad0b909aabc322fb0705b1bbe3705654da0"
+                      },
+                      {
+                          "path":  "artifacts/plan/plan_agent_steps/after_round_02/response_1.txt",
+                          "bytes":  2196,
+                          "sha256":  "0cb8bb74803f505012eaa57878d5ef9c64084d790c55b9da893f1c3ab322720a"
+                      },
+                      {
+                          "path":  "artifacts/plan/plan_agent_steps/after_round_02/semantic_proposal_bundle.json",
+                          "bytes":  3925,
+                          "sha256":  "a78e9c0aac295a43098f4acff43fd75c94c13852be14fa8017c720218e30b882"
+                      },
+                      {
+                          "path":  "artifacts/plan/plan_agent_steps/after_round_03/prompt.md",
+                          "bytes":  24314,
+                          "sha256":  "ffc45f346231afd3bf6739906d5f0890c0c41a3179928f3d50536ab839ea6ff1"
+                      },
+                      {
+                          "path":  "artifacts/plan/plan_agent_steps/after_round_03/response_1.txt",
+                          "bytes":  2012,
+                          "sha256":  "50d6879fd9696f9b353ecc1ca0cfd27723c94f5806bb47b87a2ccaf09bd3b3b9"
+                      },
+                      {
+                          "path":  "artifacts/plan/plan_agent_steps/after_round_03/semantic_proposal_bundle.json",
+                          "bytes":  4004,
+                          "sha256":  "0af99f3b193bc454f45dc6f40279026e03e04ff981ac3a4b6065fb317d6a9703"
+                      },
+                      {
+                          "path":  "artifacts/plan/query_interpretation.json",
+                          "bytes":  4894,
+                          "sha256":  "9fa56bc62436e0e5940fc65b824a69508a4db2b27a84bef589ed25173d0c6784"
+                      },
+                      {
+                          "path":  "artifacts/plan/query_interpretation_prompt.md",
+                          "bytes":  8423,
+                          "sha256":  "a64aae92b2636a65c267ce618cf1492ac8b9cf693c1727173cf99712aa4f0bb8"
+                      },
+                      {
+                          "path":  "artifacts/plan/query_interpretation_response_1.txt",
+                          "bytes":  2795,
+                          "sha256":  "d93380111ef467e331ed8c2c855a020efff24fcf866fa890345d737a42f89d2d"
+                      },
+                      {
+                          "path":  "artifacts/plan/query_sufficiency_contract.json",
+                          "bytes":  364,
+                          "sha256":  "1544b218ecf8c403762ab22358a711716fe3b4af4091a23b82f17cf2d9d3b2f5"
+                      },
+                      {
+                          "path":  "artifacts/query/request.json",
+                          "bytes":  1006,
+                          "sha256":  "13843f54e84d83400f58e52fa034a918bb4838b9f9dd20e3a5271be92c8a3583"
+                      },
+                      {
+                          "path":  "artifacts/taskgen/round_2/failure_summary.json",
+                          "bytes":  4100,
+                          "sha256":  "c7bc62e81303faafa55d77665c96d1a418b2bd5b0663bedc8a4ea368df5dd2d3"
+                      },
+                      {
+                          "path":  "artifacts/taskgen/round_2/proposal.json",
+                          "bytes":  5424,
+                          "sha256":  "eec20d0fd3e63b56b164d68591ba3a5fc59d1b28fca65e3d7f4190435124624a"
+                      },
+                      {
+                          "path":  "artifacts/taskgen/round_3/checker_semantic_review.json",
+                          "bytes":  772,
+                          "sha256":  "72cc75a4ed56e32e0031f2c92c1bd4da6a373970e02d3c42b408dd53801a12af"
+                      },
+                      {
+                          "path":  "artifacts/taskgen/round_3/code_prompt.md",
+                          "bytes":  39534,
+                          "sha256":  "2cb55ec281b5a8a0c10231056754bdb8ade7dab12c9bfb31f6237781b8cc9bcc"
+                      },
+                      {
+                          "path":  "artifacts/taskgen/round_3/episode0.mp4",
+                          "bytes":  9350,
+                          "sha256":  "dad2fab9737b82a7deec6e1be209a96c5f3915d015671a4b8adc4cced49166e8"
+                      },
+                      {
+                          "path":  "artifacts/taskgen/round_3/expert_preflight.json",
+                          "bytes":  7909,
+                          "sha256":  "99ace5db6f94455d27bb99fc19729f6fb16b290e2633a37db620f7b21ba55a74"
+                      },
+                      {
+                          "path":  "artifacts/taskgen/round_3/provider_response.txt",
+                          "bytes":  1018,
+                          "sha256":  "ea5ebd80676867ea5cd10d8c01b6c26235193972f467b13cf7d8d9c708bc90d8"
+                      },
+                      {
+                          "path":  "artifacts/taskgen/round_3/result.json",
+                          "bytes":  31935,
+                          "sha256":  "0db794fc1c1a284492771fa9d1ffff83733f71ef221a2dfacf608fc48fd8a505"
+                      },
+                      {
+                          "path":  "artifacts/taskgen/round_3/scene_comparison.png",
+                          "bytes":  73533,
+                          "sha256":  "e31c1a9fa961d56e841cea829aae4f679df5e601905eac3e713b37aec5a2acab"
+                      },
+                      {
+                          "path":  "artifacts/taskgen/round_3/setup_preflight.json",
+                          "bytes":  4780,
+                          "sha256":  "0c8995f780b42fc2fc0ac262359d93d0d7ae79ab33abdda0ec843ccbfeab96a7"
+                      },
+                      {
+                          "path":  "artifacts/taskgen/round_3/task.py",
+                          "bytes":  1429,
+                          "sha256":  "b1068adacb37fa53458d0b10dd65549c2f8c9ccb78699cd222dd10a62b5fe2b3"
+                      },
+                      {
+                          "path":  "artifacts/taskgen/round_3/vision.json",
+                          "bytes":  2391,
+                          "sha256":  "607e1427a2b0d3d9d68328b65ed9640d9ae943cc07100fdc1056968135c44515"
+                      },
+                      {
+                          "path":  "artifacts/tool/exact_reuse/route_decision.json",
+                          "bytes":  624,
+                          "sha256":  "13b7d5a821a1af05e79eee66fb07d54d05f7e75348f621c93f3b4b22e6d64aeb"
+                      },
+                      {
+                          "path":  "artifacts/tool/exact_reuse/summary.json",
+                          "bytes":  762,
+                          "sha256":  "526f2eea926e28760a96672ca098cca92ae8371653eda66ef0523147675b279c"
+                      },
+                      {
+                          "path":  "artifacts/tool/exact_reuse/tool_execution.json",
+                          "bytes":  5157,
+                          "sha256":  "525c396235074db2edc5e89cc16f2945035e7026fe1ecf8b9b5b9e616e67400b"
+                      },
+                      {
+                          "path":  "artifacts/tool/round_3/route_decision.json",
+                          "bytes":  672,
+                          "sha256":  "4f7cb1800ae3e7fe1b0a76eeebb25927637deaa00ac58ea0f6cc7866044dfe23"
+                      },
+                      {
+                          "path":  "artifacts/tool/round_3/tool_execution.json",
+                          "bytes":  5071,
+                          "sha256":  "7d7c29b4ffe3cbba4d35316aebbef9d340c351bda315b0ce013bbd4ffa915df8"
+                      },
+                      {
+                          "path":  "artifacts/tool/round_3/tool_request.json",
+                          "bytes":  530,
+                          "sha256":  "9a39d7a906c5966976b4207d670e001b2cb8b5d8c4f2aa078d3ce4c0c309e239"
+                      },
+                      {
+                          "path":  "code/round_3_tool.py",
+                          "bytes":  1145,
+                          "sha256":  "5de1f9a8476a2b9aed59f04c6a9d87611879d410cc949df5de21e486b58a252b"
+                      },
+                      {
+                          "path":  "README.md",
+                          "bytes":  4714,
+                          "sha256":  "8350977a2b6c507d7529178882e5856738582b0de44cc459b2bb544f767adad6"
+                      },
+                      {
+                          "path":  "run_summary.json",
+                          "bytes":  11612,
+                          "sha256":  "3ba0ff80cab094b97cbfc90242a8f5ca6c248f1e8943cc61c30a1001d89e3fc8"
+                      }
+                  ]
+}

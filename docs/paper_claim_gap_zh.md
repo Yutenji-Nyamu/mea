@@ -32,7 +32,7 @@ generated checker 是有界实验语义，不是官方 benchmark checker；因�
 
 ### 近期补充事实（不替换当前旗舰）
 
-Batch33–35 扩展了跨任务、第二个多任务 policy 与 schema-free TaskGen 证据，但没有产生
+Batch33–36 扩展了跨任务、第二个多任务 policy 与 schema-free TaskGen 证据，但没有产生
 比 v18 更完整的可接受旗舰：
 
 - `press_stapler` v3 从未指定 aspect/template 的 Query 出发，在同一 bundle 中完成
@@ -76,6 +76,13 @@ Batch33–35 扩展了跨任务、第二个多任务 policy 与 schema-free Task
   rollout；新 Python Tool 从 telemetry 得到 `0.09898103773593903 m` 并进入 Aggregate。
   运行因两轮预算耗尽而停止，`evidence_sufficient=false`，Tool 无独立数值 oracle且本次未
   exact reuse，因此只关闭 schema-free live TaskGen 执行 gap，不替换 v18 旗舰。
+- Batch36 v5 首次在同一 broad Query 中完成
+  `TaskGen typed N=0 → evidence-conditioned orthogonal concern → model-written scene/checker
+  → successful SmolVLA rollout → independently validated live Tool → new concern`。Round 3
+  Tool 值为 `0.08938229084014893 m`；第二个独立 Query 以零 provider、零 rollout 精确命中
+  同一 registration。Round 4 的 checker 被 expert-solvability gate 拒绝，随后 provider 空响应，
+  因而没有 Agent 主动 stop 或 final Answer。紧凑原始产物见
+  [`batch36_v5_refinement`](evidence/supplements/2026-08-04/batch36_v5_refinement/README.md)。
 
 冷结果索引与服务器原始路径见
 [`batch33_open_cross_task/README.md`](../experiments/paper/results/batch33_open_cross_task/README.md)
@@ -86,11 +93,11 @@ Batch33–35 扩展了跨任务、第二个多任务 policy 与 schema-free Task
 
 | 论文 claim | 当前项目 | 判断 |
 | --- | --- | --- |
-| Fig. 2/5：开放 Query 驱动 Plan Agent 自主提出 sub-aspect | v18 在 completed control evidence 后才选择轴与精确位移；Batch33 v3 又证明 evidence 可连续细化同一 sub-aspect | **小范围单例完成**；尚缺 broad Query 下由 evidence 转向新的 concern |
-| evidence 决定下一轮，并在充分时停止 | v18 为 `continue → 新 Proposal → Agent stop → QueryContract 验证`；Batch33 v5 又完成 `TaskGen rejection → N=0 evidence → switch concern → executable rollout` | **两类小范围行为均有 live 证据**；它们尚未在同一 broad Query 中同时以 `evidence_sufficient` 主动停止，有限 existential 合同也不代表广泛充分性 |
+| Fig. 2/5：开放 Query 驱动 Plan Agent 自主提出 sub-aspect | v18 在 completed control evidence 后才选择轴与精确位移；Batch36 v5 又让 TaskGen 负 evidence 从 x 关系切换到正交 y concern，随后由 live Tool 转向 vertical concern | **小范围行为完成**；仍缺同一 broad Query 最终主动 stop 的合一正例 |
+| evidence 决定下一轮，并在充分时停止 | v18 为 `continue → 新 Proposal → Agent stop → QueryContract 验证`；Batch36 v5 为 `TaskGen rejection → N=0 evidence → switch concern → executable rollout → new concern` | **两类行为均有 live 证据**；它们尚未在同一 broad Query 中合一为 `evidence_sufficient` 主动停止，有限 existential 合同也不代表广泛充分性 |
 | Fig. 3：Proposal → retrieve/generate scene + `check_success()` → rollout | v18 同链生成 scene/checker 并裁决真实 policy episode；Batch35 v2 又在无 reviewed schema 的 runtime TaskContext 上完成 model-written scene/checker 与真实 rollout | **小范围双例完成**；覆盖两个任务、每例一个 seed，simulator hook 与语义 preservation 仍是真实边界 |
 | 首帧视觉诊断与局部重新生成 | render/VLM 与一次局部 repair 路径已在历史真实案例触发；v18 无需 repair | **组件完成**；视觉只审外观，数值关系仍由 simulator/fixture 审计 |
-| Fig. 4：ToolGen retrieve/generate/validate/register/reuse | v18 新 Python Tool 有 live finite 值；Batch33 v3 又在同一 bundle 完成 generate、live 与第三轮 exact reuse | **同一 evaluation 内完成**；尚未证明 reviewed registry 的跨 evaluation 长期复用 |
+| Fig. 4：ToolGen retrieve/generate/validate/register/reuse | v18 新 Python Tool 有 live finite 值；Batch36 v5 在同一 evaluation 完成独立 oracle、live finite 值、影响下一 Proposal 与第二 Query exact reuse | **同一 evaluation 内完成**；尚未证明 reviewed registry 的跨 evaluation 长期复用 |
 | rollout → Rule/VQA → Aggregate → Plan Agent → Answer | RoboTwin 的 SmolVLA/ACT 共用 `RoundExecutor` 与方法外层；Hy-VLA v9 也完成 official-control round、validated stop 与 cached Answer | **RoboTwin 小范围跨 policy 完成**；LIBERO 仍有独立外层 |
 | 回答原 Query 并约束确定性 | `AnswerScope` 报告 N、seed、候选域、冲突、停止原因与语义边界 | **完成度较高**；还需避免模型凭空收紧 Query 子要求 |
 
@@ -108,12 +115,13 @@ Batch33–35 扩展了跨任务、第二个多任务 policy 与 schema-free Task
 
 ## 下一步主干
 
-1. **完成一个 broad Query 的主动停止 clean flagship。** 在 v5 已证明 rejection 后重规划的
-   基础上，让同一 bundle 最终由 Plan Agent 提出 stop、QueryContract 验证
+1. **完成一个 broad Query 的主动停止 clean flagship。** 在 Batch36 v5 已把 rejection、
+   concern switch、scene/checker、rollout、Tool 与 reuse 合入同一 evaluation 的基础上，只需
+   让同一 bundle 最终由 Plan Agent 提出 stop、QueryContract 验证
    `evidence_sufficient`；不得靠 hard cap，也不得把 planning gap 计作 policy failure。
-2. **把 Batch35 的完整执行链推进到证据充分停止。** schema-free scene/checker、真实
-   rollout 与 live Tool 已同链完成；下一次补独立 Tool oracle/fixture、exact reuse、Agent
-   stop 与 QueryContract `evidence_sufficient`，不再新增任务专属 schema、方言或运输层。
+2. **保持 checker 的 expert-solvable 语义。** Batch36 的 vertical 失败来自 checker 把场景
+   改动本身编码为必败条件；当前 prompt 与 bounded validation 已修正。下一正验收不再新增
+   任务专属 schema、方言、中央 recovery 或额外重试层。
 3. **发布 Hy-VLA v9 的紧凑证据，并统一 LIBERO 方法外层。** v9 的 UIUI 503
    已通过零 rollout cached finalization 恢复；只需保留原始失败与完成边界，不再为
    Hy-VLA 新建方法链。LIBERO 仍应复用 QueryContract、Plan Agent session、

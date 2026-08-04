@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "status": "resolved",
+  "matching_policy": "strict_exact_metric_id",
+  "requested_route": "auto",
+  "resolved_route": "provider_python_codegen",
+  "task_name": "press_stapler",
+  "metric": "query_terminal_left_tcp_to_stapler_distance",
+  "exact_match": true,
+  "matched_registry": "query_induced_python_tool",
+  "reference_tool": null,
+  "provider_required": false,
+  "reason": "registry miss triggered provider Python generation; static, semantic-review/oracle, determinism, artifact, and live-telemetry gates passed",
+  "catalog_snapshot_sha256": "e055a34e29d899b3993450fdef9a614f3c9f12ea259ff6ab71986c4c427b3952",
+  "provider_called": true
+}

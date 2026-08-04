@@ -1,0 +1,15 @@
+{
+  "schema_version": 3,
+  "claim_type": "existential",
+  "candidate_universe": [],
+  "required_coverage": {
+    "candidate_ids": [],
+    "minimum_evaluated": 0,
+    "minimum_per_group": null
+  },
+  "round_budget": 6,
+  "comparison_groups": null,
+  "candidate_universe_closed": false,
+  "existential_witness_outcome": "fail",
+  "control_requirement": "required"
+}

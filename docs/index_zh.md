@@ -22,6 +22,7 @@
   `README.Agent.md` 是运行时 prompt 与论文消融组件，不能作为普通文档删除。
 - **Cold**：环境安装流水账、`evidence/current/artifacts|assets`、
   [`2026-07-31 negative supplements`](evidence/supplements/2026-07-31/)、
+  [`2026-08-04 method supplements`](evidence/supplements/2026-08-04/)、
   [`Batch33 方法与多任务 policy 结果`](../experiments/paper/results/batch33_open_cross_task/README.md)、
   `experiments/paper/inputs|results`、vendor policy 文档和 tests。仅在复现、审计、
   消融或定位 caller 时按索引打开；paper 实验层入口见

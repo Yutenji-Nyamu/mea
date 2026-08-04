@@ -1,0 +1,15 @@
+{
+  "authority": "development_agent_proxy",
+  "checker_sha256": "8ffc89b0e88b693d52ae229206777c42c1ed27d838c0c14bbe5477f9be81c371",
+  "checks": {
+    "does_not_substitute_correlated_proxy": true,
+    "implements_every_checker_requirement": true,
+    "preserves_quantifiers_and_temporal_relations": true,
+    "uses_direct_current_simulator_observables": true
+  },
+  "official_checker_sha256": "d7f1769673816c168ab3add119e44f05e9739d7e123ad4a79be0ebc149e6bac7",
+  "proposal_semantics_sha256": "9764489d645c5942b6540911dc8f3a4e194430b7aed8c082a819618f52fc8ba3",
+  "reason": "The method conjuncts the runtime-bound official predicate with the current left-TCP-to-stapler actor-position Euclidean distance threshold of 0.10 m.",
+  "schema_version": 1,
+  "status": "approved"
+}

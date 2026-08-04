@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "requested_route": "auto",
+  "route": "provider_python_codegen",
+  "reference_tool": null,
+  "tool_spec": {
+    "schema_version": 1,
+    "task_name": "press_stapler",
+    "metric": "query_terminal_left_tcp_to_stapler_distance",
+    "question": "What is the terminal Euclidean distance between the left TCP and the stapler?",
+    "route": "force_codegen",
+    "reference_tool": null,
+    "required_signals": [
+      "semantic_trace.left_tcp_position",
+      "semantic_trace.stapler_position",
+      "semantic_trace.physics_step"
+    ],
+    "output_contract": {
+      "source": "typed_metric_spec_v1",
+      "metric_spec": {
+        "schema_version": 1,
+        "operation": "terminal_minimum_distance",
+        "left_signals": [
+          "left_tcp_position"
+        ],
+        "right_signal": "stapler_position",
+        "dimensions": [
+          "x",
+          "y",
+          "z"
+        ],
+        "unit": "m",
+        "null_semantics": "null_if_terminal_not_finite"
+      },
+      "value_type": "number_or_null",
+      "unit": "m",
+      "passed": null,
+      "evidence": "terminal_physics_step"
+    },
+    "validation_requirements": {
+      "min_episodes": 1,
+      "distinct_reference_values": false,
+      "required_reference_values": []
+    }
+  },
+  "tool_request": {
+    "schema_version": 2,
+    "task_name": "press_stapler",
+    "metric": "query_terminal_left_tcp_to_stapler_distance",
+    "question": "What is the terminal Euclidean distance between the left TCP and the stapler?",
+    "metric_spec": {
+      "schema_version": 1,
+      "operation": "terminal_minimum_distance",
+      "left_signals": [
+        "left_tcp_position"
+      ],
+      "right_signal": "stapler_position",
+      "dimensions": [
+        "x",
+        "y",
+        "z"
+      ],
+      "unit": "m",
+      "null_semantics": "null_if_terminal_not_finite"
+    }
+  },
+  "route_decision": {
+    "schema_version": 1,
+    "status": "resolved",
+    "matching_policy": "strict_exact_metric_id",
+    "requested_route": "auto",
+    "resolved_route": "provider_python_codegen",
+    "task_name": "press_stapler",
+    "metric": "query_terminal_left_tcp_to_stapler_distance",
+    "exact_match": true,
+    "matched_registry": "query_induced_python_tool",
+    "reference_tool": null,
+    "provider_required": false,
+    "reason": "registry miss triggered provider Python generation; static, semantic-review/oracle, determinism, artifact, and live-telemetry gates passed",
+    "catalog_snapshot_sha256": "e055a34e29d899b3993450fdef9a614f3c9f12ea259ff6ab71986c4c427b3952",
+    "provider_called": true
+  },
+  "source": {
+    "scope": "run_local_generated",
+    "tool": "query_terminal_left_tcp_to_stapler_distance",
+    "reference_tool": null,
+    "artifact": "mea/evaluation_runs/eval_20260804_batch36_clean_flagship_press_stapler_s1000_v5/execution/round_3/planned_tool/typed_metric_spec/generated_tool.py",
+    "registration_id": "runlocal_7491f4a78df9a9cab80a"
+  },
+  "episodes": [
+    {
+      "episode_dir": "mea/generated_tasks/run_native_smolvla_569f882cf9b1/evaluation/telemetry/act/episode_000_seed_1000",
+      "policy_name": "SmolVLA",
+      "seed": 1000,
+      "role": "policy_under_evaluation",
+      "result": {
+        "tool": "query_terminal_left_tcp_to_stapler_distance",
+        "value": 0.08938229084014893,
+        "unit": "m",
+        "passed": null,
+        "evidence_steps": [
+          9075
+        ],
+        "details": {
+          "operation": "terminal_minimum_distance",
+          "reason": "measured"
+        },
+        "tool_sha256": "5de1f9a8476a2b9aed59f04c6a9d87611879d410cc949df5de21e486b58a252b"
+      }
+    }
+  ],
+  "validation": {
+    "provider_called": true,
+    "typed_metric_spec": true,
+    "python_generated_by_model": true,
+    "authority": "typed_metric_spec_interpreter",
+    "oracle_kind": "trusted_typed_metric_interpreter",
+    "semantic_review": null,
+    "task_code_context_consumed": true,
+    "episode_count": 1,
+    "validation_gates_passed": true,
+    "independent_numeric_oracle": true,
+    "oracle_agreement": true
+  },
+  "artifacts": {
+    "tool_request": "mea/evaluation_runs/eval_20260804_batch36_clean_flagship_press_stapler_s1000_v5/execution/round_3/planned_tool/tool_request.json",
+    "catalog_snapshot": "mea/evaluation_runs/eval_20260804_batch36_clean_flagship_press_stapler_s1000_v5/execution/round_3/planned_tool/catalog_snapshot.json",
+    "route_decision": "mea/evaluation_runs/eval_20260804_batch36_clean_flagship_press_stapler_s1000_v5/execution/round_3/planned_tool/route_decision.json",
+    "metric_spec_execution": "mea/evaluation_runs/eval_20260804_batch36_clean_flagship_press_stapler_s1000_v5/execution/round_3/planned_tool/typed_metric_spec/execution.json",
+    "resolved_tool_spec": "mea/evaluation_runs/eval_20260804_batch36_clean_flagship_press_stapler_s1000_v5/execution/round_3/planned_tool/resolved_tool_spec.json",
+    "tool_execution": "mea/evaluation_runs/eval_20260804_batch36_clean_flagship_press_stapler_s1000_v5/execution/round_3/planned_tool/tool_execution.json"
+  }
+}

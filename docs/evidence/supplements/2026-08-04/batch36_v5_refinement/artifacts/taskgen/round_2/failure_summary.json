@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "recovery_scope": "task_generation_before_policy",
+  "proposal_identity_sha256": "85318b17256cbb7448696ac1bf623b4e8371837f8ee69afcca6f117cb77e5df5",
+  "status": "failed",
+  "max_regenerations": 1,
+  "attempt_count": 2,
+  "regenerations_used": 1,
+  "attempts": [
+    {
+      "attempt_index": 1,
+      "status": "failed_retryable",
+      "started_at": "2026-08-04T22:03:06.199497+08:00",
+      "finished_at": "2026-08-04T22:06:56.134964+08:00",
+      "requested_action": null,
+      "failure": {
+        "stage": "success_spec",
+        "failure_kind": "invalid_spec",
+        "type": "TaskGenerationStageError",
+        "message": "generated checker failed live negative/positive fixtures: {\"expert_terminal_actor_xyz_m\": {\"stapler\": [-0.107097, 0.011531, 0.741]}, \"expert_terminal_actor_z_m\": {\"stapler\": 0.741}, \"expert_terminal_robot_tcp_xyz_m\": {\"left\": [-0.137309, 0.022625, 0.810939], \"right\": [0.305233, -0.192807, 0.941005]}, \"failed_fixtures\": [{\"expected\": true, \"fixture_id\": \"official_expert_terminal_positive\", \"observed\": false}], \"initial_actor_xyz_m\": {\"stapler\": [-0.107097, 0.011531, 0.741]}, \"initial_actor_z_m\": {\"stapler\": 0.741}, \"initial_robot_tcp_xyz_m\": {\"left\": [-0.300323, -0.193828, 0.941998], \"right\": [0.305233, -0.192806, 0.940998]}}",
+        "diagnosis": {
+          "provider_metadata": {
+            "id": "resp_07d80c9d67170c2d016a71f11add108193bc0465771155f003",
+            "model": "gpt-5.6-terra",
+            "finish_reason": "stop",
+            "usage": {
+              "prompt_tokens": 9767,
+              "completion_tokens": 543,
+              "total_tokens": 10310,
+              "completion_tokens_details": {
+                "reasoning_tokens": 174
+              }
+            },
+            "retry_count": 0
+          }
+        }
+      },
+      "recovery_action": "repair_success_spec",
+      "runtime": {
+        "provider_calls": 2,
+        "simulator_probes": 0,
+        "expert_probes": 0,
+        "act_rollouts_started": 0
+      }
+    },
+    {
+      "attempt_index": 2,
+      "status": "failed_terminal",
+      "started_at": "2026-08-04T22:06:56.135758+08:00",
+      "finished_at": "2026-08-04T22:10:16.936649+08:00",
+      "requested_action": "repair_success_spec",
+      "failure": {
+        "stage": "success_spec",
+        "failure_kind": "invalid_spec",
+        "type": "TaskGenerationStageError",
+        "message": "generated checker failed live negative/positive fixtures: {\"expert_terminal_actor_xyz_m\": {\"stapler\": [-0.107097, 0.011531, 0.741]}, \"expert_terminal_actor_z_m\": {\"stapler\": 0.741}, \"expert_terminal_robot_tcp_xyz_m\": {\"left\": [-0.137342, 0.022537, 0.810942], \"right\": [0.305233, -0.192807, 0.941005]}, \"failed_fixtures\": [{\"expected\": true, \"fixture_id\": \"official_expert_terminal_positive\", \"observed\": false}], \"initial_actor_xyz_m\": {\"stapler\": [-0.107097, 0.011531, 0.741]}, \"initial_actor_z_m\": {\"stapler\": 0.741}, \"initial_robot_tcp_xyz_m\": {\"left\": [-0.300323, -0.193828, 0.941998], \"right\": [0.305233, -0.192806, 0.940998]}}",
+        "diagnosis": {
+          "provider_metadata": {
+            "id": "resp_0374bbe8dc94fa6f016a71f206ef448197a549216487d36852",
+            "model": "gpt-5.6-terra",
+            "finish_reason": "stop",
+            "usage": {
+              "prompt_tokens": 10469,
+              "completion_tokens": 619,
+              "total_tokens": 11088,
+              "prompt_tokens_details": {
+                "cached_tokens": 8960
+              },
+              "completion_tokens_details": {
+                "reasoning_tokens": 250
+              }
+            },
+            "retry_count": 0
+          }
+        }
+      },
+      "recovery_action": "repair_success_spec",
+      "runtime": {
+        "provider_calls": 2,
+        "simulator_probes": 0,
+        "expert_probes": 0,
+        "act_rollouts_started": 0
+      }
+    }
+  ],
+  "runtime": {
+    "provider_calls": 4,
+    "simulator_probes": 0,
+    "expert_probes": 0,
+    "act_rollouts_started": 0
+  },
+  "policy_retry_allowed": false
+}

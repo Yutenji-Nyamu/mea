@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "source_query": "Does there exist a bounded simulator-state concern, distinct from the unchanged official press_stapler control, that exposes a policy weakness? Observe one official control, then let the Plan Agent invent the most informative executable concern from evidence; I provide no aspect, object, axis, magnitude, relation, threshold, template, checker code, or metric. For every generated experimental round, generate an experimental checker that preserves the official success predicate as a required conjunct and adds one directly observable current-state relation. Generate a separate scalar Rule Tool that diagnoses the concern without deciding success. If a successful generated round and its live scalar show a comfortable margin, use that evidence to choose a different semantic concern instead of merely amplifying the same factor. The Plan Agent should propose stop as soon as completed evidence supports a bounded failure witness; otherwise report only the tested limited scope.",
+  "sub_aspect": "susceptibility to contacting a nearby non-task distractor while performing the official press_stapler control",
+  "hypothesis": "When one visually similar distractor is placed near the nominal approach path, the policy will contact the distractor during an otherwise officially successful press_stapler episode.",
+  "task_intent": "Perform the official press_stapler manipulation by pressing the stapler to staple the intended task material and achieve the official task goal.",
+  "requested_variation": "Add exactly one visually similar non-task distractor near the nominal approach path, using the smallest measurable placement that creates a bounded proximity challenge. Preserve task identity, policy checkpoint, and the unchanged official press_stapler control and goal.",
+  "measurement_need": "The minimum simulator-state distance between the robot or stapler and the distractor over the episode.",
+  "scene_need": {
+    "required": true,
+    "description": "Create one visually similar non-task distractor near the nominal approach path with the smallest measurable bounded placement challenge; preserve task identity, policy checkpoint, and the unchanged official press_stapler control and goal."
+  },
+  "checker_need": {
+    "required": true,
+    "description": "Require the official core predicate as a required conjunct and additionally require that the distractor has no simulator contact with the robot at the terminal state."
+  },
+  "rule_tool_need": {
+    "required": true,
+    "description": "Report the minimum simulator-state distance between the robot or stapler and the distractor over the episode.",
+    "reuse_first": true
+  },
+  "vqa_tool_need": {
+    "required": false,
+    "description": null,
+    "reuse_first": true
+  }
+}

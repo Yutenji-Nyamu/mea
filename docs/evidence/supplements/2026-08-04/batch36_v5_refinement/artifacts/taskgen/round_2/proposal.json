@@ -1,0 +1,53 @@
+{
+  "schema_version": 2,
+  "candidate_id": "dynamic.press.stapler.spatial.robustness.stapler.translation.left.right.tcp.asymmetry.after.translating.the.stapler.0.02.m.along.the.simulator.x.axis.while.preserving.the.official.task.the.policy.can.satisfy.the.official.goal.yet.finish.with.the.left.tcp.farther.from.the.stapler.than.the.right.tcp.revealing.a.bounded.spatial.asymmetry.68723a3444d8",
+  "source_query": "Does there exist a bounded simulator-state concern, distinct from the unchanged official press_stapler control, that exposes a policy weakness? Observe one official control, then let the Plan Agent invent the most informative executable concern from evidence; I provide no aspect, object, axis, magnitude, relation, threshold, template, checker code, or metric. For every generated experimental round, generate an experimental checker that preserves the official success predicate as a required conjunct and adds one directly observable current-state relation. Generate a separate scalar Rule Tool that diagnoses the concern without deciding success. If a successful generated round and its live scalar show a comfortable margin, use that evidence to choose a different semantic concern instead of merely amplifying the same factor. The Plan Agent should propose stop as soon as completed evidence supports a bounded failure witness; otherwise report only the tested limited scope.",
+  "base_task": "press_stapler",
+  "semantic_concern": "spatial_robustness.stapler_translation_left_right_tcp_asymmetry: After translating the stapler 0.02 m along the simulator x-axis while preserving the official task, the policy can satisfy the official goal yet finish with the left TCP farther from the stapler than the right TCP, revealing a bounded spatial asymmetry.",
+  "scene_need": {
+    "kind": "adapt",
+    "description": "Construct or adapt the scene by translating the stapler from its official baseline position by +0.02 m along the simulator x-axis. Preserve unchanged: task identity; policy checkpoint.",
+    "reuse_first": true
+  },
+  "checker_need": {
+    "kind": "generate",
+    "description": "Return true only when the official core predicate and the added terminal-state relation both hold: official goal AND terminal Euclidean distance from the left TCP to the stapler is greater than terminal Euclidean distance from the right TCP to the stapler.",
+    "reuse_first": true
+  },
+  "rule_tool_need": {
+    "kind": "measure",
+    "description": "Report one scalar observation: the terminal signed TCP-distance difference, terminal left-TCP-to-stapler distance minus terminal right-TCP-to-stapler distance.",
+    "reuse_first": true
+  },
+  "vqa_tool_need": null,
+  "tool_need": {
+    "kind": "measure",
+    "description": "Report one scalar observation: the terminal signed TCP-distance difference, terminal left-TCP-to-stapler distance minus terminal right-TCP-to-stapler distance.",
+    "reuse_first": true
+  },
+  "evaluation_intent": {
+    "schema_version": 1,
+    "intent_id": "intent.d98971f2c23e50dd",
+    "source_query": "Does there exist a bounded simulator-state concern, distinct from the unchanged official press_stapler control, that exposes a policy weakness? Observe one official control, then let the Plan Agent invent the most informative executable concern from evidence; I provide no aspect, object, axis, magnitude, relation, threshold, template, checker code, or metric. For every generated experimental round, generate an experimental checker that preserves the official success predicate as a required conjunct and adds one directly observable current-state relation. Generate a separate scalar Rule Tool that diagnoses the concern without deciding success. If a successful generated round and its live scalar show a comfortable margin, use that evidence to choose a different semantic concern instead of merely amplifying the same factor. The Plan Agent should propose stop as soon as completed evidence supports a bounded failure witness; otherwise report only the tested limited scope.",
+    "original_concern": "spatial_robustness.stapler_translation_left_right_tcp_asymmetry",
+    "hypothesis": "After translating the stapler 0.02 m along the simulator x-axis while preserving the official task, the policy can satisfy the official goal yet finish with the left TCP farther from the stapler than the right TCP, revealing a bounded spatial asymmetry.",
+    "requested_change": "Translate the stapler from its official baseline position by +0.02 m along the simulator x-axis.",
+    "preserved_conditions": [
+      "task identity",
+      "policy checkpoint"
+    ],
+    "required_observation": "Return true only when the official core predicate and the added terminal-state relation both hold: official goal AND terminal Euclidean distance from the left TCP to the stapler is greater than terminal Euclidean distance from the right TCP to the stapler. Report one scalar observation: the terminal signed TCP-distance difference, terminal left-TCP-to-stapler distance minus terminal right-TCP-to-stapler distance."
+  },
+  "intent_alignment": {
+    "schema_version": 1,
+    "relationship": "direct",
+    "rationale": "Candidate preserves the requested change, hypothesis, and observation semantics.",
+    "matched_intent_fields": [
+      "requested_change",
+      "preserved_conditions",
+      "hypothesis",
+      "required_observation"
+    ],
+    "unmatched_intent_fields": []
+  }
+}

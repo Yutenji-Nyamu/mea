@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "source": "provider_plan_agent_query_interpretation",
+  "concern": {
+    "requested_variation": "Add exactly one visually similar non-task distractor near the nominal approach path, using the smallest measurable placement that creates a bounded proximity challenge. Preserve task identity, policy checkpoint, and the unchanged official press_stapler control and goal.",
+    "hypothesis": "When one visually similar distractor is placed near the nominal approach path, the policy will contact the distractor during an otherwise officially successful press_stapler episode.",
+    "sub_aspect": "susceptibility to contacting a nearby non-task distractor while performing the official press_stapler control",
+    "measurement_need": "The minimum simulator-state distance between the robot or stapler and the distractor over the episode.",
+    "source_query": "Does there exist a bounded simulator-state concern, distinct from the unchanged official press_stapler control, that exposes a policy weakness? Observe one official control, then let the Plan Agent invent the most informative executable concern from evidence; I provide no aspect, object, axis, magnitude, relation, threshold, template, checker code, or metric. For every generated experimental round, generate an experimental checker that preserves the official success predicate as a required conjunct and adds one directly observable current-state relation. Generate a separate scalar Rule Tool that diagnoses the concern without deciding success. If a successful generated round and its live scalar show a comfortable margin, use that evidence to choose a different semantic concern instead of merely amplifying the same factor. The Plan Agent should propose stop as soon as completed evidence supports a bounded failure witness; otherwise report only the tested limited scope.",
+    "task_intent": "Perform the official press_stapler manipulation by pressing the stapler to staple the intended task material and achieve the official task goal.",
+    "schema_version": 1
+  },
+  "experiment_needs": {
+    "scene_need": {
+      "required": true,
+      "description": "Create one visually similar non-task distractor near the nominal approach path with the smallest measurable bounded placement challenge; preserve task identity, policy checkpoint, and the unchanged official press_stapler control and goal."
+    },
+    "checker_need": {
+      "required": true,
+      "description": "Require the official core predicate as a required conjunct and additionally require that the distractor has no simulator contact with the robot at the terminal state."
+    },
+    "rule_tool_need": {
+      "required": true,
+      "description": "Report the minimum simulator-state distance between the robot or stapler and the distractor over the episode.",
+      "reuse_first": true
+    },
+    "vqa_tool_need": {
+      "required": false,
+      "description": null,
+      "reuse_first": true
+    }
+  },
+  "provider": {
+    "model_requested": "gpt-5.6-luna",
+    "called": true,
+    "attempt_count": 1,
+    "errors": [],
+    "last_metadata": {
+      "id": "chatcmpl-202608041400275101651368268d9d6wmzclQRi",
+      "model": "gpt-5.6-luna",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 1659,
+        "completion_tokens": 1510,
+        "total_tokens": 3169,
+        "billing_usage": {
+          "source": "oai_responses",
+          "semantic": "openai",
+          "openai_usage": {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 3169,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "text_tokens": 0,
+              "audio_tokens": 0,
+              "image_tokens": 0
+            },
+            "completion_tokens_details": {
+              "text_tokens": 0,
+              "audio_tokens": 0,
+              "image_tokens": 0,
+              "reasoning_tokens": 0
+            },
+            "input_tokens": 1659,
+            "output_tokens": 1510,
+            "input_tokens_details": {
+              "cached_tokens": 0,
+              "text_tokens": 0,
+              "audio_tokens": 0,
+              "image_tokens": 0
+            },
+            "claude_cache_creation_5_m_tokens": 0,
+            "claude_cache_creation_1_h_tokens": 0
+          }
+        },
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 0,
+          "audio_tokens": 0,
+          "image_tokens": 0
+        },
+        "completion_tokens_details": {
+          "text_tokens": 0,
+          "audio_tokens": 0,
+          "image_tokens": 0,
+          "reasoning_tokens": 0
+        },
+        "input_tokens": 1659,
+        "output_tokens": 1510,
+        "input_tokens_details": null,
+        "claude_cache_creation_5_m_tokens": 0,
+        "claude_cache_creation_1_h_tokens": 0
+      },
+      "retry_count": 0
+    }
+  }
+}

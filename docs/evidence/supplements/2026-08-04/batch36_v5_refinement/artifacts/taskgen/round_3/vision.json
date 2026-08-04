@@ -1,0 +1,74 @@
+{
+  "comparison_image": "official_vs_generated.png",
+  "confidence": 0.78,
+  "diagnosis": "The stapler remains visible in the generated scene with a small positional change consistent with the requested translation. No visible unintended changes or physical implausibilities are apparent; exact simulator displacement and predicate satisfaction are not visually decidable.",
+  "key_task_actors_visible": true,
+  "model_requested": "gpt-5.6-luna",
+  "passed": true,
+  "provider_metadata": {
+    "finish_reason": "stop",
+    "id": "chatcmpl-202608041413389350327148268d9d6PFLLrzvm",
+    "model": "gpt-5.6-luna",
+    "retry_count": 0,
+    "usage": {
+      "billing_usage": {
+        "openai_usage": {
+          "claude_cache_creation_1_h_tokens": 0,
+          "claude_cache_creation_5_m_tokens": 0,
+          "completion_tokens": 0,
+          "completion_tokens_details": {
+            "audio_tokens": 0,
+            "image_tokens": 0,
+            "reasoning_tokens": 0,
+            "text_tokens": 0
+          },
+          "input_tokens": 732,
+          "input_tokens_details": {
+            "audio_tokens": 0,
+            "cached_tokens": 0,
+            "image_tokens": 0,
+            "text_tokens": 0
+          },
+          "output_tokens": 464,
+          "prompt_tokens": 0,
+          "prompt_tokens_details": {
+            "audio_tokens": 0,
+            "cached_tokens": 0,
+            "image_tokens": 0,
+            "text_tokens": 0
+          },
+          "total_tokens": 1196
+        },
+        "semantic": "openai",
+        "source": "oai_responses"
+      },
+      "claude_cache_creation_1_h_tokens": 0,
+      "claude_cache_creation_5_m_tokens": 0,
+      "completion_tokens": 464,
+      "completion_tokens_details": {
+        "audio_tokens": 0,
+        "image_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 0
+      },
+      "input_tokens": 732,
+      "input_tokens_details": null,
+      "output_tokens": 464,
+      "prompt_tokens": 732,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 0,
+        "text_tokens": 0
+      },
+      "total_tokens": 1196
+    }
+  },
+  "render_usable": true,
+  "repair_instructions": [],
+  "requested_change_assessment": "consistent",
+  "scene_change_authority_available": true,
+  "schema_version": 1,
+  "unexpected_changes": [],
+  "visual_physical_plausibility": "plausible"
+}

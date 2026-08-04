@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "decision": "retrieve_and_adapt",
+  "reason_code": "nearest_training_task",
+  "query_interpretation": {
+    "requested_variation": "Add exactly one visually similar non-task distractor near the nominal approach path, using the smallest measurable placement that creates a bounded proximity challenge. Preserve task identity, policy checkpoint, and the unchanged official press_stapler control and goal.",
+    "hypothesis": "When one visually similar distractor is placed near the nominal approach path, the policy will contact the distractor during an otherwise officially successful press_stapler episode.",
+    "sub_aspect": "susceptibility to contacting a nearby non-task distractor while performing the official press_stapler control",
+    "measurement_need": "The minimum simulator-state distance between the robot or stapler and the distractor over the episode.",
+    "source_query": "Does there exist a bounded simulator-state concern, distinct from the unchanged official press_stapler control, that exposes a policy weakness? Observe one official control, then let the Plan Agent invent the most informative executable concern from evidence; I provide no aspect, object, axis, magnitude, relation, threshold, template, checker code, or metric. For every generated experimental round, generate an experimental checker that preserves the official success predicate as a required conjunct and adds one directly observable current-state relation. Generate a separate scalar Rule Tool that diagnoses the concern without deciding success. If a successful generated round and its live scalar show a comfortable margin, use that evidence to choose a different semantic concern instead of merely amplifying the same factor. The Plan Agent should propose stop as soon as completed evidence supports a bounded failure witness; otherwise report only the tested limited scope.",
+    "task_intent": "Perform the official press_stapler manipulation by pressing the stapler to staple the intended task material and achieve the official task goal.",
+    "schema_version": 1
+  },
+  "policy_scope": {
+    "schema_version": 1,
+    "policy_name": "SmolVLA",
+    "checkpoint_id": "lerobot/smolvla_robotwin",
+    "single_task_checkpoint": false,
+    "training_tasks": [
+      "press_stapler"
+    ],
+    "language_conditioned": true,
+    "supports_unseen_tasks": false
+  },
+  "selected_base_task": {
+    "task_name": "press_stapler",
+    "score": 0.597183,
+    "execution_status": "official_base_only",
+    "capability_aspects": []
+  },
+  "ranked_candidates": [
+    {
+      "task_name": "press_stapler",
+      "score": 0.597183,
+      "execution_status": "official_base_only",
+      "capability_aspects": []
+    },
+    {
+      "task_name": "move_stapler_pad",
+      "score": 0.279729,
+      "execution_status": "official_base_only",
+      "capability_aspects": []
+    },
+    {
+      "task_name": "adjust_bottle",
+      "score": 0.0,
+      "execution_status": "capability_registered",
+      "capability_aspects": [
+        "task_execution.official_baseline"
+      ]
+    }
+  ],
+  "resolution_contract": {
+    "concern_created_before_inventory": true,
+    "catalog_role": "execution_capability_inventory_only",
+    "retrieval_field": "QueryInterpretation.task_intent",
+    "semantic_threshold": 0.2,
+    "semantic_near_tie_margin": 0.03,
+    "plausible_candidate_names": [
+      "press_stapler"
+    ],
+    "preserve_base_task_semantics": true
+  },
+  "checkpoint_binding": {
+    "schema_version": 1,
+    "selected_task_name": "press_stapler",
+    "reason_code": "explicit_bound_task",
+    "fallback_used": false,
+    "catalog_visible_to_concern_model": false,
+    "retrieval_field": "explicit_policy_binding",
+    "semantic_threshold": 0.2,
+    "ranked_ready_tasks": []
+  }
+}

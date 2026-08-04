@@ -1,0 +1,124 @@
+{
+  "schema_version": 1,
+  "source": "provider_plan_agent_open_query",
+  "input_digest": "aa8cdb7a24284654055c9ee430b4a38bb0d96a02284e554d173172a19d4518b9",
+  "planning_lineage": {
+    "schema_version": 1,
+    "decision_kind": "evidence_conditioned_refinement",
+    "evidence_conditioned": true,
+    "completed_round_ids": [
+      "round_1"
+    ],
+    "completed_round_count": 1,
+    "input_digest": "aa8cdb7a24284654055c9ee430b4a38bb0d96a02284e554d173172a19d4518b9"
+  },
+  "proposal": {
+    "schema_version": 2,
+    "action": "continue",
+    "sub_aspect": "spatial_robustness.stapler_translation_left_right_tcp_asymmetry",
+    "hypothesis": "After translating the stapler 0.02 m along the simulator x-axis while preserving the official task, the policy can satisfy the official goal yet finish with the left TCP farther from the stapler than the right TCP, revealing a bounded spatial asymmetry.",
+    "requested_perturbation": {
+      "description": "Translate the stapler from its official baseline position by +0.02 m along the simulator x-axis.",
+      "controlled_changes": [
+        "stapler x-position: official baseline -> baseline +0.02 m"
+      ],
+      "preserve": [
+        "task identity",
+        "policy checkpoint"
+      ]
+    },
+    "scene_need": {
+      "required": true,
+      "description": "Construct or adapt the scene by translating the stapler from its official baseline position by +0.02 m along the simulator x-axis."
+    },
+    "checker_need": {
+      "required": true,
+      "description": "Return true only when the official core predicate and the added terminal-state relation both hold: official goal AND terminal Euclidean distance from the left TCP to the stapler is greater than terminal Euclidean distance from the right TCP to the stapler."
+    },
+    "rule_tool_need": {
+      "required": true,
+      "description": "Report one scalar observation: the terminal signed TCP-distance difference, terminal left-TCP-to-stapler distance minus terminal right-TCP-to-stapler distance.",
+      "reuse_first": true
+    },
+    "vqa_tool_need": {
+      "required": false,
+      "description": null,
+      "reuse_first": true
+    },
+    "rationale": "The unchanged official control succeeded with an authoritative official_check_success value of 1.0, so baseline task reliability is not the next uncertainty, and no experimental scalar has established a factor boundary. The most informative supported orthogonal concern is a bounded spatial translation of the only tracked task actor, paired with a directly observable terminal comparison between the two TCP-to-stapler distances. The checker tests the boolean weakness witness while the Rule Tool independently reports its scalar magnitude.",
+    "task_need": {
+      "required": true,
+      "description": "Construct or adapt the scene by translating the stapler from its official baseline position by +0.02 m along the simulator x-axis. | Return true only when the official core predicate and the added terminal-state relation both hold: official goal AND terminal Euclidean distance from the left TCP to the stapler is greater than terminal Euclidean distance from the right TCP to the stapler."
+    },
+    "tool_need": {
+      "required": true,
+      "description": "Report one scalar observation: the terminal signed TCP-distance difference, terminal left-TCP-to-stapler distance minus terminal right-TCP-to-stapler distance.",
+      "reuse_first": true
+    }
+  },
+  "provider": {
+    "model_requested": "gpt-5.6-luna",
+    "called": true,
+    "attempt_count": 1,
+    "errors": [],
+    "last_metadata": {
+      "id": "chatcmpl-202608041402031370408528268d9d62vrHePFq",
+      "model": "gpt-5.6-luna",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 3549,
+        "completion_tokens": 1277,
+        "total_tokens": 4826,
+        "billing_usage": {
+          "source": "oai_responses",
+          "semantic": "openai",
+          "openai_usage": {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 4826,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "text_tokens": 0,
+              "audio_tokens": 0,
+              "image_tokens": 0
+            },
+            "completion_tokens_details": {
+              "text_tokens": 0,
+              "audio_tokens": 0,
+              "image_tokens": 0,
+              "reasoning_tokens": 0
+            },
+            "input_tokens": 3549,
+            "output_tokens": 1277,
+            "input_tokens_details": {
+              "cached_tokens": 0,
+              "text_tokens": 0,
+              "audio_tokens": 0,
+              "image_tokens": 0
+            },
+            "claude_cache_creation_5_m_tokens": 0,
+            "claude_cache_creation_1_h_tokens": 0
+          }
+        },
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 0,
+          "audio_tokens": 0,
+          "image_tokens": 0
+        },
+        "completion_tokens_details": {
+          "text_tokens": 0,
+          "audio_tokens": 0,
+          "image_tokens": 0,
+          "reasoning_tokens": 0
+        },
+        "input_tokens": 3549,
+        "output_tokens": 1277,
+        "input_tokens_details": null,
+        "claude_cache_creation_5_m_tokens": 0,
+        "claude_cache_creation_1_h_tokens": 0
+      },
+      "retry_count": 0
+    }
+  }
+}

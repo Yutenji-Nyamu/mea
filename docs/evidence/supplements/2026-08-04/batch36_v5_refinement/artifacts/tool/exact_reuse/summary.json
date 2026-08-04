@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "source_evaluation": "eval_20260804_batch36_clean_flagship_press_stapler_s1000_v5",
+  "source_round": "round_3",
+  "query_kind": "independent_identical_tool_need",
+  "rollouts_executed": 0,
+  "first_route": "provider_python_codegen",
+  "first_provider_called": true,
+  "first_registration_id": "runlocal_7491f4a78df9a9cab80a",
+  "exact_reuse_route": "run_local_reuse",
+  "exact_reuse_provider_called": false,
+  "exact_reuse_registration_id": "runlocal_7491f4a78df9a9cab80a",
+  "first_value": 0.08938229084014893,
+  "exact_reuse_value": 0.08938229084014893,
+  "tool_execution": "mea/evaluation_runs/eval_20260804_batch36_clean_flagship_press_stapler_s1000_v5/repairs/round_3_second_query_exact_reuse/planned_tool/tool_execution.json"
+}

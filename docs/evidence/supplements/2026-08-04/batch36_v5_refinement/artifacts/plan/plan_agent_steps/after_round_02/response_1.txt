@@ -1,0 +1,36 @@
+{
+  "schema_version": 2,
+  "action": "continue",
+  "sub_aspect": "spatial_robustness.stapler_translation_y_axis.left_tcp_terminal_proximity",
+  "hypothesis": "Under a bounded +0.02 m simulator-y translation of the stapler, the policy will fail to satisfy the combined condition of the official press_stapler goal and terminal left-TCP-to-stapler distance at most 0.10 m.",
+  "requested_perturbation": {
+    "description": "Translate the stapler from its official baseline position by +0.02 m along the simulator y-axis.",
+    "controlled_changes": [
+      "stapler simulator-y position: baseline -> baseline + 0.02 m"
+    ],
+    "preserve": [
+      "task identity",
+      "policy checkpoint",
+      "official core predicate as a required conjunct"
+    ]
+  },
+  "scene_need": {
+    "required": true,
+    "description": "Construct or adapt the scene by translating the stapler from its official baseline position by +0.02 m along the simulator y-axis."
+  },
+  "checker_need": {
+    "required": true,
+    "description": "Return true only when the official core predicate and the added terminal-state relation both hold: official goal AND terminal Euclidean distance between the left TCP and the stapler is less than or equal to 0.10 m."
+  },
+  "rule_tool_need": {
+    "required": true,
+    "description": "Report the terminal Euclidean distance in meters between the left TCP and the stapler as the primary scalar observation.",
+    "reuse_first": true
+  },
+  "vqa_tool_need": {
+    "required": false,
+    "description": null,
+    "reuse_first": true
+  },
+  "rationale": "The prior x-translation round was rejected before policy execution because its left-versus-right distance relation was false in the official expert positive fixture, with the expert terminal left-TCP-to-stapler distance approximately 0.077 m and the right-TCP distance approximately 0.502 m. This makes that relation unsuitable, while grounding a directly observable 0.10 m terminal-distance boundary from completed state evidence. A new orthogonal y-axis translation tests a distinct bounded spatial concern and the checker and Rule Tool use the same current-state terminal distance with separate boolean and scalar roles."
+}
