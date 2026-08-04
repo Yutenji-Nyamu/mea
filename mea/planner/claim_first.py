@@ -821,6 +821,11 @@ scene-only diagnostic evidence, or report the need unsupported.  For a broad
 robustness Query, for example, a successful control
 can justify selecting the highest-risk supported perturbation, while a failed
 control should redirect to baseline reliability or failure diagnosis.
+For a pre-policy TaskGen failure, inspect `bounded_repair_evidence` as well as
+the terminal diagnosis.  If an earlier expert fixture gives concrete terminal
+state showing that the requested boolean relation is false, do not repeat that
+same relation merely because the local repair later violated the Proposal.
+Use the simulator state to correct the Proposal itself or switch concern.
 Failure example from prior runs: after a successful generated test whose live
 scalar shows a comfortable margin, merely increasing the same scene factor is
 not a new sub-aspect unless that value brackets a clear boundary.  When the

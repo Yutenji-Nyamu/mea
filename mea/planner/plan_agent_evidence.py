@@ -358,6 +358,13 @@ def build_claim_first_evidence_record(
             "policy_sample_count=0; diagnosis="
             f"{planning_observation.get('diagnosis')}."
         )
+        repair_evidence = planning_observation.get("bounded_repair_evidence")
+        if isinstance(repair_evidence, list) and repair_evidence:
+            summary_text += (
+                " bounded_repair_evidence="
+                + json.dumps(repair_evidence, ensure_ascii=False, sort_keys=True)
+                + "."
+            )
     open_query = validate_open_query_evidence(
         [
             {

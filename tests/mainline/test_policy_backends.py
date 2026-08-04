@@ -702,6 +702,20 @@ def test_native_taskgen_failure_becomes_n_zero_planning_evidence(tmp_path):
                     "status": "failed",
                     "attempts": [
                         {
+                            "status": "failed_retryable",
+                            "failure": {
+                                "stage": "success_spec",
+                                "failure_kind": "invalid_spec",
+                                "type": "TaskGenerationStageError",
+                                "message": (
+                                    "expert fixture failed with terminal "
+                                    "TCP coordinates"
+                                ),
+                            },
+                            "recovery_action": "repair_success_spec",
+                            "runtime": {"act_rollouts_started": 0},
+                        },
+                        {
                             "status": "failed_terminal",
                             "failure": {
                                 "stage": "scene_codegen",
@@ -759,6 +773,13 @@ def test_native_taskgen_failure_becomes_n_zero_planning_evidence(tmp_path):
     assert result["taskgen_materialization_failed"] is True
     assert result["planning_observation"]["policy_sample_count"] == 0
     assert result["planning_observation"]["failure_stage"] == "scene_codegen"
+    assert result["planning_observation"]["bounded_repair_evidence"] == [
+        {
+            "stage": "success_spec",
+            "failure_kind": "invalid_spec",
+            "message": "expert fixture failed with terminal TCP coordinates",
+        }
+    ]
     run_id = _build_native_run_id(
         "eval_failure",
         "round_1",

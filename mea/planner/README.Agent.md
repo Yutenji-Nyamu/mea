@@ -54,6 +54,10 @@ use its expert-terminal actor/TCP coordinates to derive or bracket the next
 observable boundary; do not repeat an arbitrary threshold with only a side or
 actor relabel. If no grounded boundary exists, choose an exact observable
 relation, run a scene-only diagnostic, or report the need unsupported.
+For a TaskGen failure, read `bounded_repair_evidence` as well as the terminal
+diagnosis. If an earlier expert fixture disproves the requested relation, fix
+the Proposal or switch concern; do not repeat it because a later local repair
+was correctly rejected for changing semantics.
 
 The next concern may be outside the retrieval inventory. It becomes an
 `ExperimentCandidate` with independent optional needs:

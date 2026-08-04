@@ -390,6 +390,11 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             "do not repeat the same arbitrary threshold",
             compact_prompt,
         )
+        self.assertIn("`bounded_repair_evidence`", compact_prompt)
+        self.assertIn(
+            "do not repeat that same relation",
+            compact_prompt,
+        )
 
     def test_plan_agent_session_is_canonical_with_legacy_aliases(self):
         from mea.planner.plan_agent_session import (
@@ -1486,6 +1491,13 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             "diagnosis": "checker did not preserve the official core",
             "policy_rollouts_started": 0,
             "policy_sample_count": 0,
+            "bounded_repair_evidence": [
+                {
+                    "stage": "success_spec",
+                    "failure_kind": "invalid_spec",
+                    "message": "expert terminal TCP relation was false",
+                }
+            ],
         }
         materialization_controller = ClaimFirstRuntimeController(
             query, target()
@@ -1506,6 +1518,12 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         )
         self.assertIn(
             "planning_observation=taskgen_materialization_failed",
+            materialization_state["open_query_evidence_history"][1][
+                "evidence_summary"
+            ],
+        )
+        self.assertIn(
+            "expert terminal TCP relation was false",
             materialization_state["open_query_evidence_history"][1][
                 "evidence_summary"
             ],
