@@ -271,12 +271,12 @@ class ProductionCliBoundaryTests(unittest.TestCase):
         )
         application = source.index("PlanAgentApplication(")
         execution = source.index(").run()", application)
-        compat_loop = source.index(
-            "round_runs: list[dict[str, Any]] = []",
-            execution,
+        compat_dispatch = source.index(
+            "run_legacy_catalog_agent(", execution
         )
         self.assertLess(application, execution)
-        self.assertLess(execution, compat_loop)
+        self.assertLess(execution, compat_dispatch)
+        self.assertNotIn("round_runs: list[dict[str, Any]] = []", source)
         self.assertNotIn(
             "propose_semantic_step(",
             source,
@@ -312,22 +312,26 @@ class ProductionCliBoundaryTests(unittest.TestCase):
         executor_source = (REPO_ROOT / "mea/round_executor.py").read_text(
             encoding="utf-8"
         )
+        assembly_source = (
+            REPO_ROOT / "mea/robotwin/production_round_executor.py"
+        ).read_text(encoding="utf-8")
         self.assertIn(
-            'native_policy_rounds["act"] = partial(',
-            agent_source,
+            '"act": partial(',
+            assembly_source,
         )
         self.assertIn(
             '"smolvla": partial(',
-            agent_source,
+            assembly_source,
         )
         self.assertIn(
             '"hyvla": partial(',
-            agent_source,
+            assembly_source,
         )
         self.assertIn(
-            "generated_task_materializer=(",
-            agent_source,
+            "generated_task_materializer=materializer",
+            assembly_source,
         )
+        self.assertNotIn("native_policy_rounds", agent_source)
         self.assertNotIn(
             "project_executed_round_through_method_runtime(",
             agent_source + executor_source,

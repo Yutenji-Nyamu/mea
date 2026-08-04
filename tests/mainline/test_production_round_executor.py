@@ -4,8 +4,6 @@ import ast
 from functools import partial
 from pathlib import Path
 
-import pytest
-
 from mea.robotwin import production_round_executor as production
 from mea.robotwin.native_agent_round import (
     execute_act_method_round,
@@ -42,16 +40,8 @@ def test_production_executor_registers_only_native_method_backends() -> None:
         "smolvla",
         "hyvla",
     }
-    assert (
-        executor._services.build_taskgen_command
-        is production._compat_subprocess_unavailable
-    )
-    assert (
-        executor._services.run_logged
-        is production._compat_subprocess_unavailable
-    )
-    with pytest.raises(RuntimeError, match="legacy TaskGen subprocess"):
-        executor._services.run_logged([])
+    assert not hasattr(executor._services, "build_taskgen_command")
+    assert not hasattr(executor._services, "run_logged")
 
     source_path = Path(production.__file__).resolve()
     tree = ast.parse(source_path.read_text(encoding="utf-8"))

@@ -731,7 +731,9 @@ class OpenToolRequestAgent:
         novel_rule = (
             "Only when no advertised typed operator exactly expresses the "
             "need, propose a schema_version=2 derived_observable semantic "
-            "contract. Its description MUST contain 1-240 characters, "
+            "contract with metric_spec.operation exactly "
+            '"derived_observable". Its description MUST contain 1-240 '
+            "characters, "
             "required_signals MUST contain 1-8 advertised signal names, and "
             "null_semantics MUST be exactly null_if_no_finite_sample. Include "
             "all three fields in every complete response, including repairs. "

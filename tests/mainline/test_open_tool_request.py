@@ -180,7 +180,7 @@ class OpenToolRequestTest(unittest.TestCase):
             "derived_observable",
         )
         self.assertIn(
-            '"operation": "derived_observable"',
+            'metric_spec.operation exactly "derived_observable"',
             agent.last_prompt,
         )
         self.assertIn(

@@ -182,16 +182,6 @@ class RoundExecutorBoundaryTests(unittest.TestCase):
                     executor = RoundExecutor(
                         RoundExecutionServices(
                             update_manifest=lambda *_args, **_kwargs: {},
-                            build_taskgen_command=lambda *_args, **_kwargs: (
-                                _ for _ in ()
-                            ).throw(
-                                AssertionError("legacy TaskGen must not run")
-                            ),
-                            run_logged=lambda *_args, **_kwargs: (
-                                _ for _ in ()
-                            ).throw(
-                                AssertionError("child command must not run")
-                            ),
                             native_policy_rounds={"smolvla": native_round},
                         )
                     )
