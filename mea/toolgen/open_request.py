@@ -194,6 +194,17 @@ def tool_generation_context(
                 "unit": "m",
                 "null_semantics": "null_if_no_finite_sample",
             },
+            "terminal_minimum_distance": {
+                "schema_version": 1,
+                "operation": "terminal_minimum_distance",
+                "left_signals": [
+                    "<one_or_more_advertised_robot_position_fields>"
+                ],
+                "right_signal": "<advertised_target_position_field>",
+                "dimensions": ["x", "y", "z"],
+                "unit": "m",
+                "null_semantics": "null_if_terminal_not_finite",
+            },
             "event_count": {
                 "schema_version": 1,
                 "operation": "event_count",
@@ -346,12 +357,18 @@ def validate_open_tool_request(
                 )
         elif available_signal_names is not None and operation in {
             "minimum_distance",
+            "terminal_minimum_distance",
             "terminal_signal_component",
             "terminal_signal_difference",
         }:
             requested_signals = (
                 {str(metric_spec["signal"])}
                 if operation == "terminal_signal_component"
+                else {
+                    *[str(item) for item in metric_spec["left_signals"]],
+                    str(metric_spec["right_signal"]),
+                }
+                if operation == "terminal_minimum_distance"
                 else {
                     str(metric_spec["left_signal"]),
                     str(metric_spec["right_signal"]),
@@ -728,6 +745,15 @@ class OpenToolRequestAgent:
                 "null_semantics": "null_if_no_finite_sample",
             },
         }
+        derived_contract = {
+            "schema_version": 2,
+            "operation": "derived_observable",
+            "observable_id": "query_specific_observable",
+            "description": "Exact trajectory reduction required by the Query.",
+            "required_signals": ["advertised_semantic_field_name"],
+            "unit": "physical_unit",
+            "null_semantics": "null_if_no_finite_sample",
+        }
         novel_rule = (
             "Only when no advertised typed operator exactly expresses the "
             "need, propose a schema_version=2 derived_observable semantic "
@@ -795,6 +821,10 @@ class OpenToolRequestAgent:
             "single terminal_signal_component. Treat an unqualified lift "
             "height difference between two objects as their terminal z "
             "difference; an event metric is not aligned. "
+            "When the need asks for the terminal minimum distance from two or "
+            "more candidate robot TCP/gripper fields to one target field, use "
+            "terminal_minimum_distance with all candidate fields in "
+            "left_signals and the target in right_signal. "
             "The structured ToolArtifactContext contains the exact Proposal, "
             "TaskArtifact authority summary, executed runtime schema, reusable "
             "artifacts, and oracle availability. Honor its typed need; do not "
@@ -808,6 +838,13 @@ class OpenToolRequestAgent:
             + "\n\nOUTPUT EXAMPLE "
             "(replace every advertised_* placeholder):\n"
             + json.dumps(output_example, ensure_ascii=False, indent=2)
+            + (
+                "\n\nDERIVED FALLBACK METRIC_SPEC SHAPE (use only when no typed "
+                "operator is exact):\n"
+                + json.dumps(derived_contract, ensure_ascii=False, indent=2)
+                if derived_available
+                else ""
+            )
         )
 
     def propose(

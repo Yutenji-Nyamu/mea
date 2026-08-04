@@ -39,6 +39,16 @@ DERIVED_SPEC = {
     "null_semantics": "null_if_no_finite_sample",
 }
 
+TERMINAL_MINIMUM_DISTANCE_SPEC = {
+    "schema_version": 1,
+    "operation": "terminal_minimum_distance",
+    "left_signals": ["left_tcp_position", "right_tcp_position"],
+    "right_signal": "block_position",
+    "dimensions": ["x", "y", "z"],
+    "unit": "m",
+    "null_semantics": "null_if_terminal_not_finite",
+}
+
 DERIVED_SOURCE = """def generated_tool(trajectory):
     positions = np.asarray(trajectory.trace["hammer_position"], dtype=float)
     physics = np.asarray(trajectory.trace["physics_step"], dtype=int)
@@ -115,6 +125,33 @@ class SequencedProvider:
 
 
 class OpenPythonToolGenTests(unittest.TestCase):
+    def test_terminal_minimum_distance_has_independent_compiler_oracle(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            episode = root / "episode"
+            write_episode(episode, policy_name="SmolVLA", physical_contact=True)
+
+            result = execute_metric_spec(
+                task_name="beat_block_hammer",
+                metric="terminal_minimum_tcp_to_block_distance",
+                question="Which TCP ended closest to the block?",
+                metric_spec=TERMINAL_MINIMUM_DISTANCE_SPEC,
+                episode_dirs=[episode],
+                output_dir=root / "tool",
+            )
+
+            self.assertEqual(result["route"], "typed_metric_spec_compile")
+            self.assertEqual(
+                result["validation_authority"],
+                "typed_metric_spec_interpreter",
+            )
+            oracle = result["episodes"][0]["oracle_projection"]
+            self.assertAlmostEqual(oracle["value"], 0.08, places=5)
+            self.assertEqual(
+                oracle["details"]["operation"],
+                "terminal_minimum_distance",
+            )
+
     def test_bounded_for_loop_is_valid_generated_python(self):
         report = validate_generated_tool(
             """def generated_tool(trajectory):

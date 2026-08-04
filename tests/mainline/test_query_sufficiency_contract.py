@@ -65,6 +65,20 @@ class QuerySufficiencyTruthTableTests(unittest.TestCase):
             "existential",
         )
         self.assertEqual(
+            infer_claim_type(
+                "Does there exist a bounded weakness? Every generated checker "
+                "must preserve the official predicate."
+            ),
+            "existential",
+        )
+        self.assertEqual(
+            infer_claim_type(
+                "Where does this policy first show a bounded weakness among "
+                "distinct concerns? Every checker must preserve the goal."
+            ),
+            "diagnostic",
+        )
+        self.assertEqual(
             infer_claim_type("List all failing candidates in this suite."),
             "failure_enumeration",
         )

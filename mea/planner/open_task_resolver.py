@@ -90,6 +90,10 @@ _EXPLICIT_SUCCESS_SEMANTICS = re.compile(
     r"|(?:successful?\s+(?:sample|episode)|成功样本).{0,40}"
     r"(?:where|in\s+which|such\s+that|使|其中|要求|必须)"
     r"|check_success"
+    r"|(?:experimental\s+checker|generated\s+checker).{0,80}"
+    r"(?:must|shall|required).{0,80}"
+    r"(?:official\s+(?:success|goal|predicate)|required\s+conjunct|"
+    r"additional\s+(?:relation|condition|predicate))"
     r"|(?:把|将)?成功(?:条件)?定义为"
     r"|以.{1,80}为成功(?:条件)?",
     re.IGNORECASE,

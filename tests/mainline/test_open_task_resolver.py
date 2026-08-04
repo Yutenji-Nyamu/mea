@@ -399,6 +399,17 @@ class QueryInterpretationTests(unittest.TestCase):
             resolver.query_requires_experimental_checker(query)
         )
 
+    def test_generated_checker_requirement_is_not_treated_as_optional(self):
+        query = (
+            "Every generated experimental checker must preserve the official "
+            "success predicate as a required conjunct and add one directly "
+            "observable current-state relation."
+        )
+
+        self.assertTrue(
+            resolver.query_requires_experimental_checker(query)
+        )
+
     def test_agent_can_be_frozen_to_one_attempt(self):
         provider = self.Provider(["{}"])
         with self.assertRaisesRegex(

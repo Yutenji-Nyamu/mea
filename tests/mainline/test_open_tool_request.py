@@ -95,6 +95,24 @@ def _terminal_difference(task_name: str = "adjust_bottle"):
     }
 
 
+def _terminal_minimum_distance(task_name: str = "adjust_bottle"):
+    return {
+        "schema_version": 2,
+        "task_name": task_name,
+        "metric": "terminal_minimum_tcp_to_target_distance",
+        "question": "Which TCP ended closest to the target?",
+        "metric_spec": {
+            "schema_version": 1,
+            "operation": "terminal_minimum_distance",
+            "left_signals": ["left_tcp_position", "right_tcp_position"],
+            "right_signal": "bottle_functional_position",
+            "dimensions": ["x", "y", "z"],
+            "unit": "m",
+            "null_semantics": "null_if_terminal_not_finite",
+        },
+    }
+
+
 def _derived(task_name: str = "beat_block_hammer"):
     return {
         "schema_version": 2,
@@ -335,6 +353,31 @@ class OpenToolRequestTest(unittest.TestCase):
             bundle["context"]["typed_operator_contracts"],
         )
         self.assertIn("terminal two-signal difference", agent.last_prompt)
+
+    def test_agent_exposes_terminal_minimum_distance_for_candidate_tcps(self):
+        root = Path(__file__).resolve().parents[2]
+        provider = _Provider(_terminal_minimum_distance())
+        agent = OpenToolRequestAgent(root, provider, model="fixture-model")
+
+        bundle = agent.propose(
+            source_query="Where does this policy first become weak?",
+            semantic_concern="terminal target approach",
+            tool_need=(
+                "Measure the terminal minimum distance from either advertised "
+                "TCP position to the bottle functional position."
+            ),
+            task_name="adjust_bottle",
+        )
+
+        self.assertEqual(
+            bundle["tool_request"]["metric_spec"]["operation"],
+            "terminal_minimum_distance",
+        )
+        self.assertIn(
+            "terminal_minimum_distance",
+            bundle["context"]["typed_operator_contracts"],
+        )
+        self.assertIn("two or more candidate robot TCP", agent.last_prompt)
 
     def test_lift_height_difference_aligns_operation_signals_and_component(self):
         need = (

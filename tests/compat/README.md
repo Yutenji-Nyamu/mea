@@ -10,3 +10,7 @@ the default paper-method regression suite. Existing cases remain in
 
 `test_multi_round_runtime.py` covers the historical `execute_round` wrapper now
 owned by `experiments.paper.compat_agent_runner`.
+
+`test_plan_agent_prototype.py` and `test_bound_task_plan_session.py` retain the
+pre-production catalog planner and bound-task session behavior. The production
+Plan Agent session remains covered in `tests/mainline/test_claim_first_runtime.py`.

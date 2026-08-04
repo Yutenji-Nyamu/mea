@@ -1,3 +1,5 @@
+"""Compatibility coverage for the pre-production catalog PlanAgentPrototype."""
+
 import json
 import shutil
 import tempfile

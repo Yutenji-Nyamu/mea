@@ -126,6 +126,7 @@ def catalog_snapshot() -> dict[str, Any]:
                 "derived_observable",
                 "event_count",
                 "minimum_distance",
+                "terminal_minimum_distance",
                 "terminal_signal_component",
                 "terminal_signal_difference",
                 "time_between_events",

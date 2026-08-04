@@ -1,3 +1,5 @@
+"""Compatibility coverage for the legacy bound-task planning session."""
+
 import json
 import tempfile
 import unittest

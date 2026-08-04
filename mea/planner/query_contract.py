@@ -137,6 +137,22 @@ def infer_claim_type(user_query: str) -> str:
     """
 
     query = _text(user_query, "user_query").casefold()
+    # Resolve an explicit top-level existence question before scanning method
+    # instructions.  A Query such as "does there exist a weakness; every
+    # generated checker must preserve the official core" is existential; the
+    # word "every" constrains artifacts, not the truth condition.
+    if re.search(
+        r"\b(?:does\s+there\s+exist|is\s+there\s+(?:at\s+least\s+one|any))\b",
+        query,
+        re.IGNORECASE,
+    ):
+        return "existential"
+    if re.search(
+        r"\bwhere\s+does\b.{0,96}\b(?:first|weakness|fail(?:s|ure)?)\b",
+        query,
+        re.IGNORECASE,
+    ):
+        return "diagnostic"
     # These are truth-condition markers, not task/aspect keywords.  Keeping
     # the Chinese forms explicit avoids constraining concern discovery while
     # giving a Chinese Query the same stopping semantics as its English form.

@@ -37,6 +37,15 @@ _MINIMUM_DISTANCE_KEYS = {
     "unit",
     "null_semantics",
 }
+_TERMINAL_MINIMUM_DISTANCE_KEYS = {
+    "schema_version",
+    "operation",
+    "left_signals",
+    "right_signal",
+    "dimensions",
+    "unit",
+    "null_semantics",
+}
 _EVENT_COUNT_KEYS = {
     "schema_version",
     "operation",
@@ -87,6 +96,7 @@ _DERIVED_OBSERVABLE_KEYS = {
 _EVENT_SELECTOR_KEYS = {"event_type", "actors", "physical_only"}
 _V1_OPERATIONS = {
     "minimum_distance",
+    "terminal_minimum_distance",
     "event_count",
     "time_between_events",
     "terminal_signal_component",
@@ -245,10 +255,55 @@ def validate_metric_spec(value: Any) -> dict[str, Any]:
         return _validate_derived_observable(spec)
     if not isinstance(operation, str) or operation not in _V1_OPERATIONS:
         raise MetricSpecError(
-            "MetricSpec.operation must be event_count, minimum_distance, "
-            "terminal_signal_component, terminal_signal_difference, or "
-            "time_between_events"
+            "MetricSpec.operation must be one of "
+            f"{sorted(_V1_OPERATIONS)}"
         )
+    if operation == "terminal_minimum_distance":
+        if set(spec) != _TERMINAL_MINIMUM_DISTANCE_KEYS:
+            raise MetricSpecError(
+                "MetricSpec fields for terminal_minimum_distance must be "
+                f"exactly {sorted(_TERMINAL_MINIMUM_DISTANCE_KEYS)}"
+            )
+        left_signals = spec.get("left_signals")
+        if (
+            not isinstance(left_signals, list)
+            or not 1 <= len(left_signals) <= 8
+            or any(
+                not isinstance(signal, str) or not _SIGNAL.fullmatch(signal)
+                for signal in left_signals
+            )
+            or len(set(left_signals)) != len(left_signals)
+        ):
+            raise MetricSpecError(
+                "terminal_minimum_distance.left_signals must contain 1-8 "
+                "unique safe trace signals"
+            )
+        right_signal = spec.get("right_signal")
+        if not isinstance(right_signal, str) or not _SIGNAL.fullmatch(right_signal):
+            raise MetricSpecError(
+                "terminal_minimum_distance.right_signal is not a safe trace signal"
+            )
+        if right_signal in left_signals:
+            raise MetricSpecError(
+                "terminal_minimum_distance right_signal must differ from left_signals"
+            )
+        dimensions = spec.get("dimensions")
+        if dimensions not in (["x", "y"], ["x", "y", "z"]):
+            raise MetricSpecError(
+                "terminal_minimum_distance.dimensions must be [x,y] or [x,y,z]"
+            )
+        if spec.get("unit") != "m":
+            raise MetricSpecError(
+                "terminal_minimum_distance currently requires unit=m"
+            )
+        if spec.get("null_semantics") != "null_if_terminal_not_finite":
+            raise MetricSpecError(
+                "terminal_minimum_distance requires "
+                "null_semantics=null_if_terminal_not_finite"
+            )
+        spec["left_signals"] = list(left_signals)
+        spec["right_signal"] = right_signal
+        return spec
     if operation == "terminal_signal_component":
         keys = set(spec)
         if keys not in {
@@ -424,6 +479,14 @@ def metric_spec_tool_spec(
         ]
         value_type = "number_or_null"
         evidence_kind = "argmin_physics_step"
+    elif spec["operation"] == "terminal_minimum_distance":
+        required = [
+            *[f"semantic_trace.{signal}" for signal in spec["left_signals"]],
+            f"semantic_trace.{spec['right_signal']}",
+            "semantic_trace.physics_step",
+        ]
+        value_type = "number_or_null"
+        evidence_kind = "terminal_physics_step"
     elif spec["operation"] == "terminal_signal_difference":
         required = [
             f"semantic_trace.{spec['left_signal']}",
@@ -490,6 +553,71 @@ def evaluate_metric_spec(
             "ToolGen semantic-review/runtime validation or a caller-supplied "
             "independent oracle"
         )
+    if spec["operation"] == "terminal_minimum_distance":
+        signal_names = [*spec["left_signals"], spec["right_signal"]]
+        try:
+            arrays = {
+                name: np.asarray(trajectory.trace[name], dtype=float)
+                for name in signal_names
+            }
+        except (KeyError, TypeError, ValueError) as exc:
+            raise MetricSpecError(
+                f"trajectory is missing a declared signal: {exc}"
+            ) from exc
+        lengths = {array.shape[0] for array in arrays.values() if array.ndim == 2}
+        if len(lengths) != 1 or len(arrays) != sum(
+            array.ndim == 2 for array in arrays.values()
+        ):
+            raise MetricSpecError(
+                "declared signals must be aligned two-dimensional arrays"
+            )
+        sample_count = next(iter(lengths))
+        indices = [_DIMENSION_INDEX[item] for item in spec["dimensions"]]
+        if not sample_count or any(
+            max(indices) >= array.shape[1] for array in arrays.values()
+        ):
+            raise MetricSpecError(
+                "declared signals do not contain the requested terminal dimensions"
+            )
+        terminal_index = sample_count - 1
+        target = arrays[spec["right_signal"]][terminal_index, indices]
+        distances = {
+            signal: float(
+                np.linalg.norm(arrays[signal][terminal_index, indices] - target)
+            )
+            for signal in spec["left_signals"]
+        }
+        finite = {
+            signal: value
+            for signal, value in distances.items()
+            if math.isfinite(value)
+        }
+        winner = min(finite, key=finite.get) if finite else None
+        physics = np.asarray(
+            trajectory.trace.get("physics_step", np.arange(sample_count)),
+            dtype=int,
+        )
+        if physics.ndim != 1 or len(physics) != sample_count:
+            raise MetricSpecError(
+                "physics_step must align with the declared signals"
+            )
+        return {
+            "value": finite[winner] if winner is not None else None,
+            "unit": spec["unit"],
+            "passed": None,
+            "evidence_steps": (
+                [int(physics[terminal_index])] if winner is not None else []
+            ),
+            "details": {
+                "operation": spec["operation"],
+                "left_signals": list(spec["left_signals"]),
+                "right_signal": spec["right_signal"],
+                "dimensions": list(spec["dimensions"]),
+                "selected_left_signal": winner,
+                "terminal_index": terminal_index,
+                "reason": "measured" if winner is not None else "terminal_not_finite",
+            },
+        }
     if spec["operation"] == "terminal_signal_difference":
         try:
             left = np.asarray(
@@ -939,6 +1067,40 @@ def _compile_terminal_signal_difference_source(spec: Mapping[str, Any]) -> str:
 '''
 
 
+def _compile_terminal_minimum_distance_source(spec: Mapping[str, Any]) -> str:
+    indices = [_DIMENSION_INDEX[item] for item in spec["dimensions"]]
+    return f'''def generated_tool(trajectory):
+    left_signals = {spec["left_signals"]!r}
+    target = np.asarray(trajectory.trace[{spec["right_signal"]!r}], dtype=float)
+    terminal_index = len(target) - 1
+    target_terminal = target[terminal_index, {indices!r}]
+    left_terminal = np.asarray([
+        np.asarray(trajectory.trace[signal], dtype=float)[terminal_index, {indices!r}]
+        for signal in left_signals
+    ])
+    distances = np.linalg.norm(left_terminal - target_terminal, axis=1)
+    finite = np.isfinite(distances)
+    winner_index = int(np.argmin(np.where(finite, distances, np.inf))) if np.any(finite) else None
+    winner = left_signals[winner_index] if winner_index is not None else None
+    physics = np.asarray(trajectory.trace["physics_step"], dtype=int)
+    return {{
+        "value": float(distances[winner_index]) if winner_index is not None else None,
+        "unit": {spec["unit"]!r},
+        "passed": None,
+        "evidence_steps": [int(physics[terminal_index])] if winner is not None else [],
+        "details": {{
+            "operation": {spec["operation"]!r},
+            "left_signals": left_signals,
+            "right_signal": {spec["right_signal"]!r},
+            "dimensions": {spec["dimensions"]!r},
+            "selected_left_signal": winner,
+            "terminal_index": terminal_index,
+            "reason": "measured" if winner is not None else "terminal_not_finite",
+        }},
+    }}
+'''
+
+
 def compile_metric_spec_source(metric_spec: Mapping[str, Any]) -> str:
     """Compile a MetricSpec to auditable Python accepted by ToolGen's AST gate."""
 
@@ -956,6 +1118,8 @@ def compile_metric_spec_source(metric_spec: Mapping[str, Any]) -> str:
         return _compile_terminal_signal_component_source(spec)
     if spec["operation"] == "terminal_signal_difference":
         return _compile_terminal_signal_difference_source(spec)
+    if spec["operation"] == "terminal_minimum_distance":
+        return _compile_terminal_minimum_distance_source(spec)
     indices = [_DIMENSION_INDEX[item] for item in spec["dimensions"]]
     return f'''def generated_tool(trajectory):
     left = np.asarray(trajectory.trace[{spec["left_signal"]!r}], dtype=float)
@@ -1059,6 +1223,7 @@ def _provider_codegen_prompt(
     null_reasons = {
         "derived_observable": ["no_finite_sample"],
         "minimum_distance": ["no_finite_sample"],
+        "terminal_minimum_distance": ["terminal_not_finite"],
         "terminal_signal_component": ["terminal_not_finite"],
         "terminal_signal_difference": ["terminal_not_finite"],
         "event_count": [],
@@ -1606,12 +1771,15 @@ def execute_metric_spec(
     if spec["operation"] in {
         "derived_observable",
         "minimum_distance",
+        "terminal_minimum_distance",
         "terminal_signal_component",
         "terminal_signal_difference",
     }:
         required_signals = (
             set(spec["required_signals"])
             if spec["operation"] == "derived_observable"
+            else {*spec["left_signals"], spec["right_signal"]}
+            if spec["operation"] == "terminal_minimum_distance"
             else {spec["left_signal"], spec["right_signal"]}
             if spec["operation"]
             in {"minimum_distance", "terminal_signal_difference"}
