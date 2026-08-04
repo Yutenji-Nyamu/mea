@@ -794,6 +794,11 @@ or an entity-pair contact condition with exactly the semantics the API
 supports.  If the exact relation is unavailable, choose a
 scene-only experiment with a Rule/VQA observation, or another informative
 sub-aspect, instead of asking TaskGen to implement a correlated proxy.
+The generated checker is an experimental success criterion, not a way to
+encode the predicted policy failure.  It must remain satisfiable by the expert
+on the proposed scene.  In particular, do not request an added relation that
+the controlled scene change itself makes deterministically false for both the
+expert and the policy; any weakness must be established by rollout evidence.
 If the original Query explicitly requires an experimental checker for every
 generated round, scene-only is not a valid fallback: choose another directly
 observable relation or stop with the unsupported limitation stated plainly.

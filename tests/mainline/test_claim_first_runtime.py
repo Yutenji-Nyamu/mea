@@ -399,6 +399,14 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             "scene-only is not a valid fallback",
             compact_prompt,
         )
+        self.assertIn(
+            "must remain satisfiable by the expert",
+            compact_prompt,
+        )
+        self.assertIn(
+            "controlled scene change itself makes deterministically false",
+            compact_prompt,
+        )
 
     def test_plan_agent_session_is_canonical_with_legacy_aliases(self):
         from mea.planner.plan_agent_session import (
