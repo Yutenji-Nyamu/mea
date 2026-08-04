@@ -28,14 +28,15 @@
 | [`manipeval_evidence_manifest.py`](manipeval_evidence_manifest.py) | 建立或检查 hash-pinned evidence manifest | 否 |
 | [`manipeval_portfolio.py`](manipeval_portfolio.py) | 规划或审计历史 cross-task portfolio | 否 |
 | [`libero_adapter_smoke.py`](libero_adapter_smoke.py) | LIBERO/SmolVLA adapter feasibility smoke | 显式调用时可能 |
+| [`generic_method_matrix.py`](generic_method_matrix.py) | 只读聚合冻结的跨任务方法 bundle，并分离方法、policy 与 Answer 状态 | 否 |
 
 RoboTwin/SmolVLA 的早期独立 adapter 位于
 [`robotwin_smolvla/`](robotwin_smolvla/README.md)；当前共享 runtime backend 为
 [`mea/robotwin/smolvla_rollout.py`](../../mea/robotwin/smolvla_rollout.py)，已通过
 `MethodRuntime` 接入生产 Plan Agent；v18 已在同一方法链运行 generic
 scene/checker、请求型 Rule Tool 与 VQA。runtime TaskContext 已通过跨任务 reset 验收，
-reviewed TaskSchema 不再是准入表；无 schema 的完整 scene/checker live 验收仍缺，
-simulator hook 仍是真实边界。
+reviewed TaskSchema 不再是准入表；Batch35 又完成一次无 reviewed schema 的真实
+scene/checker + SmolVLA rollout，但仍是单任务、单 seed，simulator hook 仍是真实边界。
 逐命令部署流水和早期测试 runner 位于其
 [`history/20260729/`](robotwin_smolvla/history/20260729/README.md)，属于冷归档，
 默认不递归读取。
@@ -101,6 +102,7 @@ transport 与 official rollout；不是第二套 MEA 外层。短复现说明见
 | [`results/batch32_method_mainline_refactor/`](results/batch32_method_mainline_refactor/implementation_and_run_ledger.md) | Plan Agent application、唯一 TaskGen materialization owner、v18 方法运行与复用审计 |
 | [`results/batch33_open_cross_task/`](results/batch33_open_cross_task/README.md) | PressStapler evidence refinement、candidate rejection、SmolVLA 五任务 breadth 与 Hy-VLA N=1 |
 | [`results/batch34_task_independent_context/`](results/batch34_task_independent_context/probe_summary.json) | 无 policy 的跨任务 reset TaskContext 与嵌套 actor 发现 |
+| [`results/batch35_generic_method_matrix/`](results/batch35_generic_method_matrix/README.md) | 五任务通用方法矩阵与 schema-free scene/checker live 补充验收 |
 
 旧运行的简短结论与边界另见
 [`docs/evidence/history.jsonl`](../../docs/evidence/history.jsonl)。若两处描述冲突，

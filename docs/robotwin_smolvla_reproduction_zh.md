@@ -217,14 +217,16 @@ Query → Plan Agent → runtime task binding → Proposal
 `TaskSchema` 是人工 reviewed fast path，不是任务准入表：它提供稳定 actor role、
 contact point、success contract 与 richer telemetry。缺少 reviewed `TaskSchema` 时，
 系统先读取 official source，再用一次 fresh simulator reset 生成 run-local
-`TaskContext`；该 probe 只接受 source-bound actor attribute/runtime name、physics
-timestep、action dimension 与 callable official `check_success()`，不会从名字或图像
+`TaskContext`；该 probe 只接受 source-bound public root 下的直接 actor attribute，或
+builtin `list/tuple/dict` 容器中的 typed `access_path`，并记录 runtime name、physics
+timestep、action dimension 与 callable official `check_success()`；不会从名字或图像
 猜测 role、contact point 或 success threshold。
 
-runtime-derived `TaskContext` 已有进入 generic TaskGen 的代码入口，但完整
-scene/checker 冷启动尚无服务器 live 验收；当前可声称的能力仅是基于 raw actor
-position 等可验证信号的 Tool-only 诊断。因此在完成服务器 cold-start acceptance
-前，不把这条新代码路径写成跨任务生成式方法证据。
+runtime-derived `TaskContext` 已进入 generic TaskGen。Batch35 在无 reviewed schema 的
+`press_stapler` 上完成一次真实 cold-start acceptance：provider-written scene/checker、
+AST、fixture、render/VLM、expert、SmolVLA rollout 和 live Python Tool 均通过。该结果
+仍只有单任务、单 seed，且因轮次预算停止而 `evidence_sufficient=false`；因此只证明
+通用入口可执行，不代表跨任务生成成功率或策略泛化。
 通用 scene/checker TaskGen、请求型 VQA 与 SmolVLA rollout 已接入同一
 `RoundExecutor`；不要为每个任务增加手写 allowlist、Planner 分支或测试文件。
 

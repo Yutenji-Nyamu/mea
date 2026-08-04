@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "batch_id": "batch35_generic_method_matrix_9cb13d5",
+  "source_commit": "9cb13d57bc509b341ecbdbaa26ec3147b338e101",
+  "frozen_from_server_preflight_before_analysis": true,
+  "preregistered_paper_experiment": false,
+  "purpose": "Cross-task characterization of the same generic production method path without task-specific patches.",
+  "benchmark": "robotwin",
+  "policy_backend": "smolvla",
+  "checkpoint": "/root/autodl-tmp/checkpoints/robotwin/smolvla_robotwin",
+  "query": "Starting from one unchanged official episode as control, what executable object or scene variation is most likely to expose this policy's first weakness on the bound RoboTwin task? Choose every next sub-aspect only after observing the previous evidence, and stop as soon as the original Query is answerable. I do not supply an aspect, template, scene edit, success checker, or metric.",
+  "tasks": [
+    "press_stapler",
+    "place_bread_basket",
+    "put_bottles_dustbin",
+    "place_empty_cup",
+    "grab_roller"
+  ],
+  "scene_seed": 1000,
+  "policy_server_seed": 103500,
+  "episodes_per_round": 1,
+  "max_agent_rounds": {
+    "press_stapler": 3,
+    "place_bread_basket": 3,
+    "put_bottles_dustbin": 2,
+    "place_empty_cup": 2,
+    "grab_roller": 2
+  },
+  "authorized_global_rollout_budget": 10,
+  "server_batch_root": "/root/autodl-tmp/tmp/batch35_generic_method_matrix_9cb13d5",
+  "acceptance": [
+    "Use one production Plan Agent and RoundExecutor path for every task.",
+    "Do not supply an aspect, template, scene edit, checker, or metric in the Query.",
+    "Do not add a selected task name branch or reviewed TaskSchema during the batch.",
+    "Report method completion, policy outcome, and answer sufficiency separately.",
+    "Treat official-control policy failure as a valid bounded negative, not a method failure.",
+    "Do not infer benchmark generalization from this N=1 characterization."
+  ]
+}

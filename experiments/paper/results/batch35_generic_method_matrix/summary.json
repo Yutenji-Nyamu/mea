@@ -1,0 +1,266 @@
+{
+  "schema_version": 2,
+  "batch_id": "batch35_generic_method_matrix_9cb13d5",
+  "source_commit": "9cb13d57bc509b341ecbdbaa26ec3147b338e101",
+  "evaluation_count": 5,
+  "policy_rollout_count": 7,
+  "generated_round_count": 2,
+  "rejected_round_count": 0,
+  "materialization_failure_count": 1,
+  "method_status_counts": {
+    "completed_inconclusive_answer": 4,
+    "method_system_failure": 1
+  },
+  "last_authoritative_stage_counts": {
+    "answer": 4,
+    "taskgen": 1
+  },
+  "policy_negative_task_count": 3,
+  "evaluations": [
+    {
+      "task": "press_stapler",
+      "evaluation_id": "eval_20260801_batch35_generic_press_stapler_s1000",
+      "method_status": "completed_inconclusive_answer",
+      "manifest_status": "completed",
+      "failure_stage": null,
+      "method_failure_reasons": [],
+      "last_authoritative_stage": "answer",
+      "policy_rollouts": 3,
+      "policy_observations": [
+        {
+          "round_id": "round_1",
+          "scope": "official",
+          "pipeline_passed": true,
+          "outcome": true,
+          "seeds": [
+            1000
+          ]
+        },
+        {
+          "round_id": "round_2",
+          "scope": "generated",
+          "pipeline_passed": true,
+          "outcome": true,
+          "seeds": [
+            1000
+          ]
+        },
+        {
+          "round_id": "round_3",
+          "scope": "generated",
+          "pipeline_passed": true,
+          "outcome": true,
+          "seeds": [
+            1000
+          ]
+        }
+      ],
+      "policy_negative_observed": false,
+      "policy_negative_scopes": [],
+      "bounded_rounds": 3,
+      "completed_rounds": 3,
+      "generated_rounds": 2,
+      "rejected_rounds": 0,
+      "materialization_failures": 0,
+      "runtime_schema_origins": [
+        "runtime_probe"
+      ],
+      "distinct_sub_aspects": [
+        "scene_robustness.extrapolated_lateral_stapler_displacement",
+        "scene_robustness.lateral_stapler_displacement",
+        "task_execution.official_baseline"
+      ],
+      "evidence_conditioned_steps": 2,
+      "agent_stop_proposed": false,
+      "answered": false,
+      "evidence_sufficient": false,
+      "stop_reason": "budget_exhausted",
+      "claim_verdict": "inconclusive",
+      "exact_tool_reuse_rounds": [
+        "round_3"
+      ],
+      "answer_path": "mea/evaluation_runs/eval_20260801_batch35_generic_press_stapler_s1000/plan/plan_agent_session/query_answer.json"
+    },
+    {
+      "task": "place_bread_basket",
+      "evaluation_id": "eval_20260801_batch35_generic_place_bread_basket_s1000",
+      "method_status": "completed_inconclusive_answer",
+      "manifest_status": "completed",
+      "failure_stage": null,
+      "method_failure_reasons": [],
+      "last_authoritative_stage": "answer",
+      "policy_rollouts": 1,
+      "policy_observations": [
+        {
+          "round_id": "round_1",
+          "scope": "official",
+          "pipeline_passed": true,
+          "outcome": false,
+          "seeds": [
+            1000
+          ]
+        }
+      ],
+      "policy_negative_observed": true,
+      "policy_negative_scopes": [
+        "official"
+      ],
+      "bounded_rounds": 1,
+      "completed_rounds": 1,
+      "generated_rounds": 0,
+      "rejected_rounds": 0,
+      "materialization_failures": 0,
+      "runtime_schema_origins": [
+        "runtime_probe"
+      ],
+      "distinct_sub_aspects": [
+        "task_execution.official_baseline"
+      ],
+      "evidence_conditioned_steps": 0,
+      "agent_stop_proposed": false,
+      "answered": false,
+      "evidence_sufficient": false,
+      "stop_reason": "control_baseline_policy_failed",
+      "claim_verdict": "inconclusive",
+      "exact_tool_reuse_rounds": [],
+      "answer_path": "mea/evaluation_runs/eval_20260801_batch35_generic_place_bread_basket_s1000/plan/plan_agent_session/query_answer.json"
+    },
+    {
+      "task": "put_bottles_dustbin",
+      "evaluation_id": "eval_20260801_batch35_generic_put_bottles_dustbin_s1000",
+      "method_status": "completed_inconclusive_answer",
+      "manifest_status": "completed",
+      "failure_stage": null,
+      "method_failure_reasons": [],
+      "last_authoritative_stage": "answer",
+      "policy_rollouts": 1,
+      "policy_observations": [
+        {
+          "round_id": "round_1",
+          "scope": "official",
+          "pipeline_passed": true,
+          "outcome": false,
+          "seeds": [
+            1000
+          ]
+        }
+      ],
+      "policy_negative_observed": true,
+      "policy_negative_scopes": [
+        "official"
+      ],
+      "bounded_rounds": 1,
+      "completed_rounds": 1,
+      "generated_rounds": 0,
+      "rejected_rounds": 0,
+      "materialization_failures": 0,
+      "runtime_schema_origins": [
+        "runtime_probe"
+      ],
+      "distinct_sub_aspects": [
+        "task_execution.official_baseline"
+      ],
+      "evidence_conditioned_steps": 0,
+      "agent_stop_proposed": false,
+      "answered": false,
+      "evidence_sufficient": false,
+      "stop_reason": "control_baseline_policy_failed",
+      "claim_verdict": "inconclusive",
+      "exact_tool_reuse_rounds": [],
+      "answer_path": "mea/evaluation_runs/eval_20260801_batch35_generic_put_bottles_dustbin_s1000/plan/plan_agent_session/query_answer.json"
+    },
+    {
+      "task": "place_empty_cup",
+      "evaluation_id": "eval_20260801_batch35_generic_place_empty_cup_s1000",
+      "method_status": "completed_inconclusive_answer",
+      "manifest_status": "completed",
+      "failure_stage": null,
+      "method_failure_reasons": [],
+      "last_authoritative_stage": "answer",
+      "policy_rollouts": 1,
+      "policy_observations": [
+        {
+          "round_id": "round_1",
+          "scope": "official",
+          "pipeline_passed": true,
+          "outcome": false,
+          "seeds": [
+            1000
+          ]
+        }
+      ],
+      "policy_negative_observed": true,
+      "policy_negative_scopes": [
+        "official"
+      ],
+      "bounded_rounds": 1,
+      "completed_rounds": 1,
+      "generated_rounds": 0,
+      "rejected_rounds": 0,
+      "materialization_failures": 0,
+      "runtime_schema_origins": [
+        "runtime_probe"
+      ],
+      "distinct_sub_aspects": [
+        "task_execution.official_baseline"
+      ],
+      "evidence_conditioned_steps": 0,
+      "agent_stop_proposed": false,
+      "answered": false,
+      "evidence_sufficient": false,
+      "stop_reason": "control_baseline_policy_failed",
+      "claim_verdict": "inconclusive",
+      "exact_tool_reuse_rounds": [],
+      "answer_path": "mea/evaluation_runs/eval_20260801_batch35_generic_place_empty_cup_s1000/plan/plan_agent_session/query_answer.json"
+    },
+    {
+      "task": "grab_roller",
+      "evaluation_id": "eval_20260801_batch35_generic_grab_roller_s1000",
+      "method_status": "method_system_failure",
+      "manifest_status": "failed",
+      "failure_stage": "round_2_execution",
+      "method_failure_reasons": [
+        "evaluation manifest records failure",
+        "evaluation status=failed",
+        "failure=GenericTaskGenError: TaskGen recovery failed after 1 attempt(s)",
+        "lifecycle_status=failed"
+      ],
+      "last_authoritative_stage": "taskgen",
+      "policy_rollouts": 1,
+      "policy_observations": [
+        {
+          "round_id": "round_1",
+          "scope": "official",
+          "pipeline_passed": true,
+          "outcome": true,
+          "seeds": [
+            1000
+          ]
+        }
+      ],
+      "policy_negative_observed": false,
+      "policy_negative_scopes": [],
+      "bounded_rounds": 1,
+      "completed_rounds": 1,
+      "generated_rounds": 0,
+      "rejected_rounds": 0,
+      "materialization_failures": 1,
+      "runtime_schema_origins": [
+        "reviewed_task_schema"
+      ],
+      "distinct_sub_aspects": [
+        "scene_robustness.object_lateral_offset",
+        "task_execution.official_baseline"
+      ],
+      "evidence_conditioned_steps": 1,
+      "agent_stop_proposed": null,
+      "answered": false,
+      "evidence_sufficient": null,
+      "stop_reason": null,
+      "claim_verdict": null,
+      "exact_tool_reuse_rounds": [],
+      "answer_path": null
+    }
+  ],
+  "claim_boundary": "Cross-task N=1 method characterization; method completion, policy outcomes, and answer sufficiency are orthogonal. This batch does not establish benchmark generalization or reproduce a paper table."
+}

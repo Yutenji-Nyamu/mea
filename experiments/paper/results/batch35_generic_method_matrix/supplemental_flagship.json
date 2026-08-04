@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "batch_id": "batch35_schemafree_checker_supplement",
+  "purpose": "Close the schema-free generic scene-plus-checker execution gap without rewriting the frozen five-task matrix.",
+  "query": "Relative to the unchanged official task, does there exist a minimally changed executable scene in which this policy still satisfies the official goal but violates one additional nontrivial simulator-state success relation chosen by the Plan Agent to diagnose the most likely first weakness? Observe one official control before choosing the relation. The experimental checker must be the official success predicate AND the chosen relation; a separate scalar Tool must diagnose the same concern without deciding success. I supply no aspect, object, axis, magnitude, relation, threshold, template, checker code, or metric. Stop when one valid counterexample answers the Query; otherwise report inconclusive.",
+  "query_scope": "A broad existential Query requests one unchanged control, then lets the Plan Agent choose a minimal scene change, an official-core-conjunct experimental checker, and a separate scalar diagnostic Tool; no aspect, object, axis, magnitude, relation, threshold, template, checker, or metric is supplied.",
+  "runs": [
+    {
+      "label": "v1_source_failure",
+      "evaluation_id": "eval_20260801_batch35_schemafree_checker_press_stapler_s1000",
+      "source_commit": "9cb13d57bc509b341ecbdbaa26ec3147b338e101",
+      "server_raw_root": "/root/autodl-tmp/tmp/batch35_schemafree_checker_flagship_9cb13d5",
+      "policy_rollouts": 1,
+      "status": "failed_round_2_taskgen",
+      "last_authoritative_stage": "taskgen_static_validation",
+      "result": "The unchanged press_stapler control succeeded. Two provider responses implemented bool(official_success and relation), but the validator rejected the transparent bool wrapper before any generated-scene rollout.",
+      "claim_boundary": "The source run remains failed and has no generated policy episode or final Answer."
+    },
+    {
+      "label": "cached_validator_recheck",
+      "source_commit": "7f3e2ec1aa1c6b93cfbedd0e1ee0765f941ddc82",
+      "policy_rollouts": 0,
+      "provider_calls": 0,
+      "cached_provider_responses_checked": 2,
+      "status": "passed",
+      "result": "Both immutable v1 provider responses pass the corrected checker AST and official-core-conjunct validation.",
+      "claim_boundary": "This validates the code correction only; it does not retroactively turn v1 into a completed run."
+    },
+    {
+      "label": "v2_live_execution",
+      "evaluation_id": "eval_20260804_batch35_schemafree_checker_press_stapler_s1000_v2",
+      "source_commit": "7f3e2ec1aa1c6b93cfbedd0e1ee0765f941ddc82",
+      "server_raw_root": "/root/autodl-tmp/tmp/batch35_schemafree_checker_flagship_7f3e2ec_v2",
+      "policy_backend": "smolvla",
+      "task": "press_stapler",
+      "seed": 1000,
+      "policy_rollouts": 2,
+      "routes": [
+        "official",
+        "generic_provider_scene_checker_codegen"
+      ],
+      "taskgen": {
+        "attempts": 1,
+        "regenerations": 0,
+        "model_written_python": true,
+        "restricted_success_spec_compiler_used": false,
+        "checker_fixtures": "2/2",
+        "scene_change_passed": true,
+        "visual_self_check_passed": true,
+        "expert_gate_passed": true,
+        "preservation_status": "verified"
+      },
+      "generated_episode": {
+        "official_core_predicate_satisfied": true,
+        "generated_check_success": true,
+        "outcome_semantics": "expected_semantic_extension"
+      },
+      "tool": {
+        "route": "provider_python_codegen",
+        "metric": "terminal_min_tcp_stapler_distance",
+        "live_value": 0.09898103773593903,
+        "unit": "m",
+        "entered_aggregate": true,
+        "independent_numeric_oracle": false,
+        "exact_reuse_in_this_run": false
+      },
+      "finalization": {
+        "initial_final_summary_error": "transient provider HTTP 503 model_not_found after all round evidence had been written",
+        "cached_answer_only_retry_rollouts": 0,
+        "cached_source_hashes_preserved": {
+          "aggregate_result": "61096ac1457304699551e9f6cf4f1a46758e749c35bcad96baa1b50a96938ea4",
+          "summary": "9e36d8919ad34f0df2a605be6d22637fab9e762cabc75b5db444d3e418d9c9f8",
+          "evidence_bundle": "0012a2eda2ed33823d70619efcd8b17a8938d4c44f766ae949c31f34233daf77"
+        }
+      },
+      "status": "completed_inconclusive_answer",
+      "stop_reason": "budget_exhausted",
+      "evidence_sufficient": false,
+      "flagship_accepted": false,
+      "claim_verdict": "inconclusive",
+      "claim_boundary": "This is a real schema-free scene-plus-checker-plus-Tool execution, but it is not an active evidence-sufficient stop, exact Tool reuse proof, or generalization result."
+    }
+  ],
+  "rollout_accounting": {
+    "frozen_matrix": 7,
+    "supplement_v1": 1,
+    "supplement_v2": 2,
+    "cached_rechecks_and_finalization": 0,
+    "batch35_total": 10,
+    "authorized_cap": 10
+  },
+  "current_evidence_replaced": false
+}
