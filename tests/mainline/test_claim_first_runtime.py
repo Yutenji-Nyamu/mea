@@ -1,4 +1,5 @@
 import unittest
+from copy import deepcopy
 
 from mea.agent_acceptance import _RUNTIME_DISCOVERY_RESOLUTIONS
 from mea.planner.claim_first import PlanAgent, build_open_query_planning_lineage
@@ -1457,7 +1458,46 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             state["open_query_evidence_history"][1]["evidence_summary"],
         )
 
+        materialization_summary = deepcopy(rejected_summary)
+        materialization_summary["observations"]["planning_observation"] = {
+            "schema_version": 1,
+            "kind": "taskgen_materialization_failed",
+            "candidate_id": rejected["template_id"],
+            "sub_aspect": rejected["sub_aspect"],
+            "failure_stage": "scene_codegen",
+            "reason_code": "taskgen_scene_codegen_invalid_candidate",
+            "diagnosis": "checker did not preserve the official core",
+            "policy_rollouts_started": 0,
+            "policy_sample_count": 0,
+        }
+        materialization_controller = ClaimFirstRuntimeController(
+            query, target()
+        )
+        materialization_state = materialization_controller.observe(
+            [control, rejected],
+            [summary(control, 1.0), materialization_summary],
+        )
+        self.assertEqual(
+            materialization_state["assessment"]["budget_remaining"], 2
+        )
+        self.assertEqual(
+            materialization_state["assessment"]["observed_candidate_ids"],
+            [],
+        )
+        self.assertEqual(
+            materialization_state["records"][1]["policy_sample_count"], 0
+        )
+        self.assertIn(
+            "planning_observation=taskgen_materialization_failed",
+            materialization_state["open_query_evidence_history"][1][
+                "evidence_summary"
+            ],
+        )
+
         class ReselectPlanner:
+            def __init__(self, expected_diagnosis):
+                self.expected_diagnosis = expected_diagnosis
+
             def propose(
                 self,
                 user_query,
@@ -1466,7 +1506,7 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
                 evidence_history,
                 evaluation_intent=None,
             ):
-                assert "target_pose cannot be None" in (
+                assert self.expected_diagnosis in (
                     evidence_history[-1]["evidence_summary"]
                 )
                 bundle = semantic_bundle("object_instance.base0")
@@ -1481,7 +1521,7 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
                 return bundle
 
         bound = controller.propose_and_bind_semantic_step(
-            ReselectPlanner(),
+            ReselectPlanner("target_pose cannot be None"),
             state,
             capabilities=open_query_capabilities(),
             executed_candidate_ids=[
@@ -1495,6 +1535,21 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         )
         self.assertNotEqual(
             bound["plan_step"]["candidate_id"],
+            rejected["template_id"],
+        )
+        materialization_bound = (
+            materialization_controller.propose_and_bind_semantic_step(
+                ReselectPlanner("checker did not preserve the official core"),
+                materialization_state,
+                capabilities=open_query_capabilities(),
+                executed_candidate_ids=[
+                    control["template_id"],
+                    rejected["template_id"],
+                ],
+            )
+        )
+        self.assertNotEqual(
+            materialization_bound["plan_step"]["candidate_id"],
             rejected["template_id"],
         )
 

@@ -1765,6 +1765,48 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             self.assertTrue(
                 report["official_core_enforced_as_conjunct"]
             )
+            bool_wrapped_alias_checker = {
+                **methods,
+                "check_success": (
+                    "def check_success(self):\n"
+                    "    official_success = "
+                    "self.mea_official_check_success()\n"
+                    "    terminal_distance = 0.02\n"
+                    "    return bool(official_success and "
+                    "terminal_distance <= 0.03)\n"
+                ),
+            }
+            report = validate_generic_task_methods(
+                bool_wrapped_alias_checker,
+                official_source=root / f"envs/{task_name}.py",
+                official_class=task_name,
+                require_official_core_conjunct=True,
+            )
+            self.assertTrue(
+                report["official_core_enforced_as_conjunct"]
+            )
+            shadowed_bool_checker = {
+                **methods,
+                "check_success": (
+                    "def check_success(self):\n"
+                    "    def bool(_value):\n"
+                    "        return True\n"
+                    "    official_success = "
+                    "self.mea_official_check_success()\n"
+                    "    return bool(official_success and "
+                    "self.target is not None)\n"
+                ),
+            }
+            with self.assertRaisesRegex(
+                GenericTaskGenError,
+                "required boolean conjunct",
+            ):
+                validate_generic_task_methods(
+                    shadowed_bool_checker,
+                    official_source=root / f"envs/{task_name}.py",
+                    official_class=task_name,
+                    require_official_core_conjunct=True,
+                )
             overwritten_alias_checker = {
                 **methods,
                 "check_success": (
@@ -1804,6 +1846,27 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             self.assertTrue(
                 report["official_core_enforced_as_conjunct"]
             )
+            bypassable_guard_checker = {
+                **methods,
+                "check_success": (
+                    "def check_success(self):\n"
+                    "    if not self.mea_official_check_success():\n"
+                    "        if self.target is not None:\n"
+                    "            return True\n"
+                    "        return False\n"
+                    "    return True\n"
+                ),
+            }
+            with self.assertRaisesRegex(
+                GenericTaskGenError,
+                "required boolean conjunct",
+            ):
+                validate_generic_task_methods(
+                    bypassable_guard_checker,
+                    official_source=root / f"envs/{task_name}.py",
+                    official_class=task_name,
+                    require_official_core_conjunct=True,
+                )
             discarded_call_checker = {
                 **methods,
                 "check_success": (
@@ -2295,7 +2358,7 @@ class GenericTaskGenBackendTests(unittest.TestCase):
         self.assertEqual(review["status"], "approved")
         self.assertEqual(review["authority"], "development_agent_proxy")
 
-    def test_review_call_is_counted_when_preflight_raises(self) -> None:
+    def test_unexpected_preflight_failure_is_terminal_and_counted(self) -> None:
         def failing_preflight(
             _attempt_dir: Path,
             _module_source: str,
@@ -2354,8 +2417,16 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                 ).read_text(encoding="utf-8")
             )
 
-        self.assertEqual(summary["attempt_count"], 2)
-        self.assertEqual(summary["runtime"]["provider_calls"], 4)
+        self.assertEqual(summary["attempt_count"], 1)
+        self.assertEqual(summary["runtime"]["provider_calls"], 2)
+        self.assertEqual(
+            summary["attempts"][0]["failure"]["stage"],
+            "task_generation",
+        )
+        self.assertEqual(
+            summary["attempts"][0]["failure"]["failure_kind"],
+            "unclassified_exception",
+        )
 
     def test_unavailable_review_is_terminal_not_a_checker_repair(self) -> None:
         class UnavailableReviewProvider(_Provider):

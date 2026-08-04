@@ -1,5 +1,6 @@
 import hashlib
 import json
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -651,7 +652,7 @@ def test_hyvla_native_envelope_reuses_shared_method_round(tmp_path):
     assert call["execution_vqa_connected"] is True
 
 
-def test_native_taskgen_failure_leaves_compact_child_manifest(tmp_path):
+def test_native_taskgen_failure_becomes_n_zero_planning_evidence(tmp_path):
     _write_official_task(
         tmp_path,
         "alpha_task",
@@ -677,17 +678,63 @@ def test_native_taskgen_failure_leaves_compact_child_manifest(tmp_path):
         "task_schema": {"available": True},
     }
 
-    def fail_taskgen(*_args, **_kwargs):
+    def fail_taskgen(repo_root, *_args, **kwargs):
+        attempt_root = (
+            Path(repo_root)
+            / "mea/generated_task_attempts"
+            / kwargs["run_id"]
+        )
+        attempt_root.mkdir(parents=True)
+        (attempt_root / "task_generation_attempt_summary.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "recovery_scope": "task_generation_before_policy",
+                    "proposal_identity_sha256": hashlib.sha256(
+                        json.dumps(
+                            candidate,
+                            ensure_ascii=False,
+                            sort_keys=True,
+                            separators=(",", ":"),
+                            allow_nan=False,
+                        ).encode("utf-8")
+                    ).hexdigest(),
+                    "status": "failed",
+                    "attempts": [
+                        {
+                            "status": "failed_terminal",
+                            "failure": {
+                                "stage": "scene_codegen",
+                                "failure_kind": "invalid_candidate",
+                                "type": "TaskGenerationStageError",
+                                "message": "checker validation failed",
+                            },
+                            "recovery_action": "regenerate_candidate",
+                            "runtime": {"act_rollouts_started": 0},
+                        }
+                    ],
+                    "runtime": {"act_rollouts_started": 0},
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
         raise GenericTaskGenError("provider repair exhausted")
+
+    rollout_calls = []
+
+    def forbidden_rollout(**kwargs):
+        rollout_calls.append(kwargs)
+        raise AssertionError("policy rollout must not start")
 
     with patch(
         "mea.robotwin.native_agent_round.policy_task_binding_from_target",
         return_value=contract,
-    ), pytest.raises(GenericTaskGenError, match="repair exhausted"):
-        _execute_robotwin_method_round(
+    ):
+        result = _execute_robotwin_method_round(
             policy_backend="smolvla",
             policy_name="SmolVLA",
-            rollout_runner=lambda **_: {},
+            rollout_runner=forbidden_rollout,
             repo_root=tmp_path,
             evaluation_dir=tmp_path / "evaluation",
             evaluation_id="eval_failure",
@@ -708,6 +755,10 @@ def test_native_taskgen_failure_leaves_compact_child_manifest(tmp_path):
             generated_task_materializer=fail_taskgen,
         )
 
+    assert rollout_calls == []
+    assert result["taskgen_materialization_failed"] is True
+    assert result["planning_observation"]["policy_sample_count"] == 0
+    assert result["planning_observation"]["failure_stage"] == "scene_codegen"
     run_id = _build_native_run_id(
         "eval_failure",
         "round_1",
@@ -718,8 +769,111 @@ def test_native_taskgen_failure_leaves_compact_child_manifest(tmp_path):
             tmp_path / "mea" / "generated_tasks" / run_id / "manifest.json"
         ).read_text(encoding="utf-8")
     )
-    assert manifest["status"] == "failed"
+    assert manifest["status"] == "taskgen_materialization_failed"
     assert manifest["failure"]["message"] == "provider repair exhausted"
+    assert manifest["act_evaluation"]["actual_seeds"] == []
+
+
+def test_native_taskgen_system_failures_remain_fatal(tmp_path):
+    _write_official_task(tmp_path, "alpha_task", "move the alpha object")
+    candidate = build_experiment_candidate(
+        source_query="Generate one shifted scene.",
+        base_task="alpha_task",
+        semantic_concern="shift robustness",
+        scene_need="Shift the target laterally.",
+    )
+    contract = {
+        "task_name": "alpha_task",
+        "policy": {
+            "name": "SmolVLA",
+            "backend": "smolvla",
+            "action_dimension": 14,
+        },
+        "checkpoint": {
+            "checkpoint_id": "fixture-smolvla",
+            "checkpoint_path": str(tmp_path / "smolvla"),
+        },
+        "task_schema": {"available": True},
+    }
+    proposal_sha256 = hashlib.sha256(
+        json.dumps(
+            candidate,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    scenarios = (
+        ("missing_summary", None, None, None),
+        ("system_stage", "task_generation", "unclassified_exception", 0),
+        ("rollout_recorded", "scene_codegen", "invalid_candidate", 1),
+        ("boolean_rollout", "scene_codegen", "invalid_candidate", False),
+    )
+    for name, stage, failure_kind, rollout_count in scenarios:
+        def fail_taskgen(repo_root, *_args, **kwargs):
+            if stage is not None:
+                attempt_root = (
+                    Path(repo_root)
+                    / "mea/generated_task_attempts"
+                    / kwargs["run_id"]
+                )
+                attempt_root.mkdir(parents=True)
+                summary = {
+                    "schema_version": 1,
+                    "recovery_scope": "task_generation_before_policy",
+                    "proposal_identity_sha256": proposal_sha256,
+                    "status": "failed",
+                    "attempts": [
+                        {
+                            "status": "failed_terminal",
+                            "failure": {
+                                "stage": stage,
+                                "failure_kind": failure_kind,
+                                "type": "TaskGenerationStageError",
+                                "message": "fixture failure",
+                            },
+                            "runtime": {
+                                "act_rollouts_started": rollout_count
+                            },
+                        }
+                    ],
+                    "runtime": {"act_rollouts_started": rollout_count},
+                }
+                (attempt_root / "task_generation_attempt_summary.json").write_text(
+                    json.dumps(summary) + "\n", encoding="utf-8"
+                )
+            raise GenericTaskGenError("fixture system failure")
+
+        with patch(
+            "mea.robotwin.native_agent_round.policy_task_binding_from_target",
+            return_value=contract,
+        ), pytest.raises(NativeAgentRoundError):
+            _execute_robotwin_method_round(
+                policy_backend="smolvla",
+                policy_name="SmolVLA",
+                rollout_runner=lambda **_: pytest.fail(
+                    "policy rollout must not start"
+                ),
+                repo_root=tmp_path,
+                evaluation_dir=tmp_path / f"evaluation_{name}",
+                evaluation_id=f"eval_{name}",
+                round_plan={
+                    "round_id": "round_1",
+                    "candidate_id": candidate["candidate_id"],
+                    "proposal": candidate,
+                    "task_instruction": candidate["source_query"],
+                    "task_name": "alpha_task",
+                    "route": "generated",
+                    "execution": {"seeds": [1]},
+                },
+                runtime_target={},
+                telemetry_profile="balanced_v1",
+                provider=object(),
+                text_model="fixture-model",
+                vision_model="fixture-model",
+                generated_task_materializer=fail_taskgen,
+            )
 
 
 def test_candidate_unexecutable_returns_planning_evidence_without_rollout(

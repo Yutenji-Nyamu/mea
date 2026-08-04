@@ -446,10 +446,17 @@ class RoundExecutor:
             candidate_rejection = child_manifest.get(
                 "candidate_unexecutable"
             )
+            taskgen_failure = child_manifest.get(
+                "taskgen_materialization_failed"
+            )
             skip_reason = (
                 str(candidate_rejection.get("diagnosis"))
                 if child_manifest.get("status") == "candidate_unexecutable"
                 and isinstance(candidate_rejection, Mapping)
+                else str(taskgen_failure.get("diagnosis"))
+                if child_manifest.get("status")
+                == "taskgen_materialization_failed"
+                and isinstance(taskgen_failure, Mapping)
                 else
                 str(
                     (
@@ -646,6 +653,9 @@ class RoundExecutor:
             candidate_rejection = child_manifest.get(
                 "candidate_unexecutable"
             )
+            taskgen_failure = child_manifest.get(
+                "taskgen_materialization_failed"
+            )
             execution_vqa = {
                 "schema_version": 1,
                 "status": "skipped",
@@ -654,6 +664,10 @@ class RoundExecutor:
                     if child_manifest.get("status")
                     == "candidate_unexecutable"
                     and isinstance(candidate_rejection, Mapping)
+                    else str(taskgen_failure.get("diagnosis"))
+                    if child_manifest.get("status")
+                    == "taskgen_materialization_failed"
+                    and isinstance(taskgen_failure, Mapping)
                     else (
                         "TaskSchema unavailable or the requested capability "
                         "is unsupported; VQA was not executed."
@@ -711,6 +725,8 @@ class RoundExecutor:
             method_status = (
                 "candidate_unexecutable"
                 if native.get("candidate_unexecutable") is True
+                else "taskgen_materialization_failed"
+                if native.get("taskgen_materialization_failed") is True
                 else "unsupported"
                 if native.get("unsupported") is True
                 else "validated"
@@ -739,7 +755,14 @@ class RoundExecutor:
                 }
             )
             if planning_observation is not None:
-                round_summary["failure_stage"] = "taskgen_expert_gate"
+                reason_code = str(
+                    planning_observation.get("reason_code")
+                    or "taskgen_planning_observation_before_policy"
+                )
+                round_summary["failure_stage"] = str(
+                    planning_observation.get("failure_stage")
+                    or "taskgen_expert_gate"
+                )
                 round_summary["observations"].update(
                     {
                         "planning_observation": deepcopy(
@@ -761,7 +784,7 @@ class RoundExecutor:
                                 "outcome_authority": None,
                                 "episodes": [],
                                 "reason_codes": [
-                                    "candidate_unexecutable_before_policy"
+                                    reason_code
                                 ],
                             },
                         },
@@ -773,7 +796,7 @@ class RoundExecutor:
                             "outcome_authority": None,
                             "episodes": [],
                             "reason_codes": [
-                                "candidate_unexecutable_before_policy"
+                                reason_code
                             ],
                         },
                     }

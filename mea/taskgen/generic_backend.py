@@ -40,6 +40,7 @@ from mea.robotwin_task_context import (
 )
 from mea.toolkit.schema import actor_access_expression
 
+from .attempts import TaskGenerationStageError
 from .provider_scene_checker import (
     TextProvider,
     compose_prompt,
@@ -518,6 +519,40 @@ def _is_official_core_conjunct(
     )
 
 
+def _unwrap_boolean_cast(node: ast.AST | None) -> ast.AST | None:
+    """Return the value of a transparent ``bool(value)`` wrapper."""
+
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "bool"
+        and len(node.args) == 1
+        and not node.keywords
+    ):
+        return node.args[0]
+    return node
+
+
+def _binds_identifier(tree: ast.AST, identifier: str) -> bool:
+    """Conservatively detect a local binding that can shadow a builtin."""
+
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Name)
+            and isinstance(node.ctx, ast.Store)
+            and node.id == identifier
+        ):
+            return True
+        if isinstance(node, ast.arg) and node.arg == identifier:
+            return True
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            if node.name == identifier:
+                return True
+        if isinstance(node, ast.ExceptHandler) and node.name == identifier:
+            return True
+    return False
+
+
 def _checker_enforces_official_core_conjunct(
     checker: ast.Module,
 ) -> bool:
@@ -541,12 +576,10 @@ def _checker_enforces_official_core_conjunct(
         and isinstance(first.test, ast.UnaryOp)
         and isinstance(first.test.op, ast.Not)
         and _is_direct_official_core_call(first.test.operand)
-        and any(
-            isinstance(child, ast.Return)
-            and isinstance(child.value, ast.Constant)
-            and child.value.value is False
-            for child in first.body
-        )
+        and len(first.body) == 1
+        and isinstance(first.body[0], ast.Return)
+        and isinstance(first.body[0].value, ast.Constant)
+        and first.body[0].value.value is False
     ):
         return True
     non_false_returns = [
@@ -558,19 +591,29 @@ def _checker_enforces_official_core_conjunct(
             and node.value.value is False
         )
     ]
-    return bool(non_false_returns) and all(
-        isinstance(node.value, ast.BoolOp)
-        and isinstance(node.value.op, ast.And)
-        and any(
-            _is_official_core_conjunct(
-                value,
-                aliases,
-                return_lineno=node.lineno,
-            )
-            for value in node.value.values
+    if not non_false_returns:
+        return False
+    bool_is_builtin = not _binds_identifier(function, "bool")
+    for node in non_false_returns:
+        value = (
+            _unwrap_boolean_cast(node.value)
+            if bool_is_builtin
+            else node.value
         )
-        for node in non_false_returns
-    )
+        if not (
+            isinstance(value, ast.BoolOp)
+            and isinstance(value.op, ast.And)
+            and any(
+                _is_official_core_conjunct(
+                    conjunct,
+                    aliases,
+                    return_lineno=node.lineno,
+                )
+                for conjunct in value.values
+            )
+        ):
+            return False
+    return True
 
 
 def validate_generic_task_methods(
@@ -1928,13 +1971,15 @@ class GenericRoboTwinTaskGenBackend:
                     ) from exc
                 raise
             except Exception as exc:
-                raise GenericTaskGenError(
+                raise TaskGenerationStageError(
+                    "task_generation",
+                    "unclassified_exception",
                     "generic TaskGen validation hook failed: "
                     f"{type(exc).__name__}: {exc}",
                     runtime=(
-                        {"semantic_review_provider_calls": 1}
+                        {"provider_calls": 2}
                         if checker_semantic_review is not None
-                        else None
+                        else {"provider_calls": 1}
                     ),
                 ) from exc
             accepted_module["source"] = module_source

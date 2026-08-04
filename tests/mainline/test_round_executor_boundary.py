@@ -71,141 +71,198 @@ class RoundExecutorBoundaryTests(unittest.TestCase):
         self.assertEqual(result.tool_evaluation["status"], "passed")
         self.assertEqual(result.returncode, 0)
 
-    def test_candidate_unexecutable_projects_n_zero_planning_observation(self):
+    def test_prepolicy_taskgen_outcomes_project_n_zero_planning_observation(self):
         with tempfile.TemporaryDirectory() as temporary:
             repo_root = Path(temporary)
-            evaluation_dir = repo_root / "mea/evaluation_runs/eval_rejected"
-            child_dir = repo_root / "mea/generated_tasks/run_rejected"
-            manifest_path = child_dir / "manifest.json"
-            method_runtime_path = (
-                evaluation_dir / "execution/round_1/method_runtime.json"
-            )
-            planning_observation = {
-                "schema_version": 1,
-                "kind": "candidate_unexecutable",
-                "candidate_id": "dynamic.shifted_target",
-                "sub_aspect": "target displacement",
-                "reason_code": (
-                    "taskgen_expert_gate_candidate_unexecutable"
-                ),
-                "diagnosis": "target_pose cannot be None",
-                "policy_rollouts_started": 0,
-                "policy_sample_count": 0,
-                "taskgen_attempt_summary": (
-                    "mea/generated_tasks/run_rejected/validation/"
-                    "task_generation_attempt_summary.json"
-                ),
-            }
-            child_manifest = {
-                "schema_version": 1,
-                "run_id": "run_rejected",
-                "status": "candidate_unexecutable",
-                "task_name": "alpha_task",
-                "candidate_unexecutable": planning_observation,
-                "act_evaluation": {
-                    "passed": False,
-                    "actual_seeds": [],
-                    "policy_name": "SmolVLA",
-                },
-                "policy_execution": {
-                    "started": False,
-                    "rollouts_started": 0,
-                    "sample_count": 0,
-                },
-                "task_artifact_summary": {
-                    "success_official_equivalent": None,
-                    "success_execution_scope": "not_executed",
-                },
-                "trusted_tool_evaluation": {
-                    "schema_version": 1,
-                    "status": "skipped",
-                    "outcome_metric": None,
-                    "outcome_authority": None,
-                    "episode_count": 0,
-                    "episodes": [],
-                },
-            }
-            manifest_path.parent.mkdir(parents=True)
-            manifest_path.write_text(
-                json.dumps(child_manifest) + "\n", encoding="utf-8"
-            )
-            method_runtime_path.parent.mkdir(parents=True)
-            method_runtime_path.write_text("{}\n", encoding="utf-8")
-
-            def native_round(**_kwargs):
-                return {
-                    "child_manifest": child_manifest,
-                    "child_dir": child_dir,
-                    "manifest_path": manifest_path,
-                    "method_runtime_path": method_runtime_path,
-                    "semantic_telemetry_ready": False,
-                    "candidate_id": "dynamic.shifted_target",
-                    "evidence_outcome": "candidate_unexecutable",
-                    "candidate_unexecutable": True,
-                }
-
-            executor = RoundExecutor(
-                RoundExecutionServices(
-                    update_manifest=lambda *_args, **_kwargs: {},
-                    build_taskgen_command=lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                        AssertionError("legacy TaskGen must not run")
+            scenarios = (
+                {
+                    "status": "candidate_unexecutable",
+                    "reason_code": (
+                        "taskgen_expert_gate_candidate_unexecutable"
                     ),
-                    run_logged=lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                        AssertionError("child command must not run")
+                    "diagnosis": "target_pose cannot be None",
+                },
+                {
+                    "status": "taskgen_materialization_failed",
+                    "failure_stage": "scene_codegen",
+                    "reason_code": (
+                        "taskgen_scene_codegen_invalid_candidate"
                     ),
-                    native_policy_rounds={"smolvla": native_round},
-                )
+                    "diagnosis": (
+                        "checker did not preserve the official core"
+                    ),
+                },
             )
-            result = executor.execute(
-                RoundExecutionRequest(
-                    repo_root=repo_root,
-                    evaluation_dir=evaluation_dir,
-                    evaluation_id="eval_rejected",
-                    round_plan={
-                        "round_id": "round_1",
-                        "template_id": None,
+            for scenario in scenarios:
+                status = scenario["status"]
+                with self.subTest(status=status):
+                    evaluation_id = f"eval_{status}"
+                    evaluation_dir = (
+                        repo_root / "mea/evaluation_runs" / evaluation_id
+                    )
+                    child_dir = (
+                        repo_root / "mea/generated_tasks" / f"run_{status}"
+                    )
+                    manifest_path = child_dir / "manifest.json"
+                    method_runtime_path = (
+                        evaluation_dir
+                        / "execution/round_1/method_runtime.json"
+                    )
+                    planning_observation = {
+                        "schema_version": 1,
+                        "kind": status,
                         "candidate_id": "dynamic.shifted_target",
                         "sub_aspect": "target displacement",
-                        "task_instruction": "Find a feasible spatial test.",
-                        "route": "generic_provider_scene_checker_codegen",
-                        "execution": {
-                            "backend": "act",
-                            "seeds": [7],
-                            "num_episodes": 1,
+                        "reason_code": scenario["reason_code"],
+                        "diagnosis": scenario["diagnosis"],
+                        "policy_rollouts_started": 0,
+                        "policy_sample_count": 0,
+                        "taskgen_attempt_summary": (
+                            f"mea/generated_tasks/run_{status}/validation/"
+                            "task_generation_attempt_summary.json"
+                        ),
+                    }
+                    if "failure_stage" in scenario:
+                        planning_observation["failure_stage"] = scenario[
+                            "failure_stage"
+                        ]
+                    child_manifest = {
+                        "schema_version": 1,
+                        "run_id": f"run_{status}",
+                        "status": status,
+                        "task_name": "alpha_task",
+                        status: planning_observation,
+                        "act_evaluation": {
+                            "passed": False,
+                            "actual_seeds": [],
+                            "policy_name": "SmolVLA",
                         },
-                        "tool_request": {
-                            "metric": "official_check_success"
+                        "policy_execution": {
+                            "started": False,
+                            "rollouts_started": 0,
+                            "sample_count": 0,
                         },
-                    },
-                    text_model="fixture-model",
-                    vision_model="fixture-model",
-                    base_url=None,
-                    gpu=0,
-                    max_reflections=1,
-                    provider=object(),
-                    toolgen_model="fixture-model",
-                    policy_backend="smolvla",
-                    runtime_target={},
-                )
-            )
+                        "task_artifact_summary": {
+                            "success_official_equivalent": None,
+                            "success_execution_scope": "not_executed",
+                        },
+                        "trusted_tool_evaluation": {
+                            "schema_version": 1,
+                            "status": "skipped",
+                            "outcome_metric": None,
+                            "outcome_authority": None,
+                            "episode_count": 0,
+                            "episodes": [],
+                        },
+                    }
+                    manifest_path.parent.mkdir(parents=True)
+                    manifest_path.write_text(
+                        json.dumps(child_manifest) + "\n", encoding="utf-8"
+                    )
+                    method_runtime_path.parent.mkdir(parents=True)
+                    method_runtime_path.write_text("{}\n", encoding="utf-8")
 
-            observations = result.round_summary["observations"]
-            self.assertEqual(observations["actual_seeds"], [])
-            self.assertIsNone(observations["policy_success"])
-            self.assertIsNone(observations["policy_outcome"]["value"])
-            self.assertEqual(
-                observations["planning_observation"], planning_observation
-            )
-            self.assertFalse(
-                observations["evidence_aggregate"]["policy"]["reported"]
-            )
-            self.assertEqual(
-                observations["evidence_aggregate"]["rule"][
-                    "observed_policy_episodes"
-                ],
-                0,
-            )
-            self.assertFalse(result.round_summary["pipeline_passed"])
+                    def native_round(**_kwargs):
+                        result = {
+                            "child_manifest": child_manifest,
+                            "child_dir": child_dir,
+                            "manifest_path": manifest_path,
+                            "method_runtime_path": method_runtime_path,
+                            "semantic_telemetry_ready": False,
+                            "candidate_id": "dynamic.shifted_target",
+                            "evidence_outcome": status,
+                            status: True,
+                        }
+                        if status == "taskgen_materialization_failed":
+                            result["planning_observation"] = (
+                                planning_observation
+                            )
+                        return result
+
+                    executor = RoundExecutor(
+                        RoundExecutionServices(
+                            update_manifest=lambda *_args, **_kwargs: {},
+                            build_taskgen_command=lambda *_args, **_kwargs: (
+                                _ for _ in ()
+                            ).throw(
+                                AssertionError("legacy TaskGen must not run")
+                            ),
+                            run_logged=lambda *_args, **_kwargs: (
+                                _ for _ in ()
+                            ).throw(
+                                AssertionError("child command must not run")
+                            ),
+                            native_policy_rounds={"smolvla": native_round},
+                        )
+                    )
+                    result = executor.execute(
+                        RoundExecutionRequest(
+                            repo_root=repo_root,
+                            evaluation_dir=evaluation_dir,
+                            evaluation_id=evaluation_id,
+                            round_plan={
+                                "round_id": "round_1",
+                                "template_id": None,
+                                "candidate_id": "dynamic.shifted_target",
+                                "sub_aspect": "target displacement",
+                                "task_instruction": (
+                                    "Find a feasible spatial test."
+                                ),
+                                "route": (
+                                    "generic_provider_scene_checker_codegen"
+                                ),
+                                "execution": {
+                                    "backend": "act",
+                                    "seeds": [7],
+                                    "num_episodes": 1,
+                                },
+                                "tool_request": {
+                                    "metric": "official_check_success"
+                                },
+                            },
+                            text_model="fixture-model",
+                            vision_model="fixture-model",
+                            base_url=None,
+                            gpu=0,
+                            max_reflections=1,
+                            provider=object(),
+                            toolgen_model="fixture-model",
+                            policy_backend="smolvla",
+                            runtime_target={},
+                        )
+                    )
+
+                    observations = result.round_summary["observations"]
+                    self.assertEqual(observations["actual_seeds"], [])
+                    self.assertIsNone(observations["policy_success"])
+                    self.assertIsNone(observations["policy_outcome"]["value"])
+                    self.assertEqual(
+                        observations["planning_observation"],
+                        planning_observation,
+                    )
+                    self.assertEqual(
+                        observations["method_runtime"]["status"], status
+                    )
+                    self.assertEqual(
+                        result.round_summary["failure_stage"],
+                        scenario.get("failure_stage", "taskgen_expert_gate"),
+                    )
+                    self.assertEqual(
+                        observations["outcome_semantics"]["reason_codes"],
+                        [scenario["reason_code"]],
+                    )
+                    self.assertFalse(
+                        observations["evidence_aggregate"]["policy"][
+                            "reported"
+                        ]
+                    )
+                    self.assertEqual(
+                        observations["evidence_aggregate"]["rule"][
+                            "observed_policy_episodes"
+                        ],
+                        0,
+                    )
+                    self.assertFalse(result.round_summary["pipeline_passed"])
 
     def test_executed_schema_discovery_is_policy_backend_neutral(self):
         with tempfile.TemporaryDirectory() as temporary:

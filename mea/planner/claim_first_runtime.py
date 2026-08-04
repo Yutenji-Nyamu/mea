@@ -1351,8 +1351,11 @@ def build_claim_first_evidence_record(
         f"diagnostic_tool_measurements={tool_summary}."
     )
     if planning_observation is not None:
+        planning_kind = str(
+            planning_observation.get("kind") or "unknown"
+        )
         summary_text += (
-            " planning_observation=candidate_unexecutable; "
+            f" planning_observation={planning_kind}; "
             "policy_sample_count=0; diagnosis="
             f"{planning_observation.get('diagnosis')}."
         )
