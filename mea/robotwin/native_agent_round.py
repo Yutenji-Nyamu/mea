@@ -236,29 +236,6 @@ def _candidate_unexecutable_round(
             "task_generation_attempts"
         ),
     }
-    bounded_repair_evidence: list[dict[str, str]] = []
-    for attempt in attempts[:-1]:
-        attempt_failure = (
-            attempt.get("failure") if isinstance(attempt, Mapping) else None
-        )
-        if not isinstance(attempt_failure, Mapping):
-            continue
-        message = str(attempt_failure.get("message") or "").strip()
-        if not message:
-            continue
-        bounded_repair_evidence.append(
-            {
-                "stage": str(attempt_failure.get("stage") or "unknown"),
-                "failure_kind": str(
-                    attempt_failure.get("failure_kind") or "unknown"
-                ),
-                "message": message[:2400],
-            }
-        )
-    if bounded_repair_evidence:
-        planning_observation["bounded_repair_evidence"] = (
-            bounded_repair_evidence[-1:]
-        )
     method_runtime = {
         "schema_version": 1,
         "status": "candidate_unexecutable",
@@ -445,6 +422,29 @@ def _taskgen_materialization_failure_round(
             "task_generation_attempts"
         ),
     }
+    bounded_repair_evidence: list[dict[str, str]] = []
+    for attempt in attempts[:-1]:
+        attempt_failure = (
+            attempt.get("failure") if isinstance(attempt, Mapping) else None
+        )
+        if not isinstance(attempt_failure, Mapping):
+            continue
+        message = str(attempt_failure.get("message") or "").strip()
+        if not message:
+            continue
+        bounded_repair_evidence.append(
+            {
+                "stage": str(attempt_failure.get("stage") or "unknown"),
+                "failure_kind": str(
+                    attempt_failure.get("failure_kind") or "unknown"
+                ),
+                "message": message[:2400],
+            }
+        )
+    if bounded_repair_evidence:
+        planning_observation["bounded_repair_evidence"] = (
+            bounded_repair_evidence[-1:]
+        )
     method_runtime = {
         "schema_version": 1,
         "status": "taskgen_materialization_failed",
