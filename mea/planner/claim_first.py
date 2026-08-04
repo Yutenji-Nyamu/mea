@@ -794,6 +794,9 @@ or an entity-pair contact condition with exactly the semantics the API
 supports.  If the exact relation is unavailable, choose a
 scene-only experiment with a Rule/VQA observation, or another informative
 sub-aspect, instead of asking TaskGen to implement a correlated proxy.
+If the original Query explicitly requires an experimental checker for every
+generated round, scene-only is not a valid fallback: choose another directly
+observable relation or stop with the unsupported limitation stated plainly.
 TaskGen may retrieve or generate scene and checker code; ToolGen may retrieve
 or generate Rule/VQA Tools.  These artifact primitives do not authorize policy
 or controller intervention: do not reduce gripper precision, inject action

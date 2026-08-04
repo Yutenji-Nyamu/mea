@@ -410,6 +410,18 @@ class QueryInterpretationTests(unittest.TestCase):
             resolver.query_requires_experimental_checker(query)
         )
 
+    def test_imperative_generated_round_checker_is_not_optional(self):
+        query = (
+            "For every generated experimental round, generate an "
+            "experimental checker that preserves the official success "
+            "predicate as a required conjunct and adds one directly "
+            "observable current-state relation."
+        )
+
+        self.assertTrue(
+            resolver.query_requires_experimental_checker(query)
+        )
+
     def test_agent_can_be_frozen_to_one_attempt(self):
         provider = self.Provider(["{}"])
         with self.assertRaisesRegex(

@@ -78,6 +78,9 @@ infer target contact from gripper closure, simultaneity from sequential events,
 or placement from height. If the exact relation is unavailable, choose a
 scene-only plus Rule/VQA observation experiment or another informative
 sub-aspect instead of knowingly creating an unverifiable checker.
+If the original Query explicitly requires a checker for every generated round,
+scene-only is not a valid fallback; choose another observable relation or stop
+and state the unsupported limitation.
 
 Do not treat a valid policy failure as pipeline failure. Do not turn a few
 successful episodes into a generalization claim. Open candidate universes

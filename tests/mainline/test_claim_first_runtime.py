@@ -395,6 +395,10 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             "do not repeat that same relation",
             compact_prompt,
         )
+        self.assertIn(
+            "scene-only is not a valid fallback",
+            compact_prompt,
+        )
 
     def test_plan_agent_session_is_canonical_with_legacy_aliases(self):
         from mea.planner.plan_agent_session import (
