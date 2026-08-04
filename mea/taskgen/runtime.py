@@ -1330,7 +1330,7 @@ def create_generic_provider_taskgen_run(
             scene_json=attempt_dir / "expert_preflight.json",
             image=attempt_dir / "expert_head.png",
             log_path=attempt_dir / "expert_preflight.log",
-            max_expert_attempts=3,
+            max_expert_attempts=1,
             telemetry_profile=telemetry_profile,
             raise_on_failure=False,
             **(
@@ -1379,7 +1379,7 @@ def create_generic_provider_taskgen_run(
                     scene_json=official_control_dir / "expert.json",
                     image=official_control_dir / "expert_head.png",
                     log_path=official_control_dir / "expert.log",
-                    max_expert_attempts=3,
+                    max_expert_attempts=1,
                     telemetry_profile=telemetry_profile,
                     raise_on_failure=False,
                     **(

@@ -552,6 +552,14 @@ def run_provider_codegen(
                         ),
                     },
                 )
+                if (
+                    methods["check_success"]
+                    == accepted_previous_methods["check_success"]
+                ):
+                    raise error_type(
+                        "generated checker repair repeated the failing checker "
+                        "unchanged"
+                    )
             previous_methods = dict(methods)
             validation = validate(methods)
         except error_type as exc:
@@ -562,6 +570,7 @@ def run_provider_codegen(
                     "generated checker failed live execution",
                     "generated checker contradicts TaskSchema success contract",
                     "generated checker failed semantic review",
+                    "generated checker repair repeated the failing checker",
                 )
             )
             semantic_review_unavailable = diagnosis.startswith(

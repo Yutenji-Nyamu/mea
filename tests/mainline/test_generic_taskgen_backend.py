@@ -73,6 +73,55 @@ class _Provider:
 
 
 class ProviderSceneCheckerRepairTests(unittest.TestCase):
+    def test_unchanged_checker_repair_stops_before_revalidation(self):
+        scene = (
+            "def load_actors(self):\n"
+            '    self.target = "stable_scene"\n'
+        )
+        checker = (
+            "def check_success(self):\n"
+            "    return False\n"
+        )
+        provider = _Provider(
+            [
+                {"load_actors": scene, "check_success": checker},
+                {"load_actors": scene, "check_success": checker},
+            ]
+        )
+        validations = 0
+
+        def validate(_methods: Mapping[str, Any]) -> dict[str, Any]:
+            nonlocal validations
+            validations += 1
+            raise GenericTaskGenError(
+                "generated checker failed live negative/positive fixtures"
+            )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            attempt_root = Path(temp_dir) / "attempts"
+            with self.assertRaises(GenericTaskGenError):
+                run_provider_codegen(
+                    attempt_root=attempt_root,
+                    proposal={"candidate_id": "dynamic.synthetic"},
+                    prompt="Generate a method pair.",
+                    provider=provider,
+                    model="fixture-model",
+                    validate=validate,
+                    error_type=GenericTaskGenError,
+                    max_regenerations=1,
+                )
+            terminal = json.loads(
+                (attempt_root / "attempt_02/attempt_result.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+
+        self.assertEqual(validations, 1)
+        self.assertIn(
+            "repeated the failing checker unchanged",
+            terminal["failure"]["message"],
+        )
+
     def test_live_checker_failure_preserves_simulator_validated_scene(self):
         first_scene = (
             "def load_actors(self):\n"
