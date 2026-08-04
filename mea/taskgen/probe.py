@@ -161,6 +161,32 @@ def _numeric_sequence(value: Any) -> list[float] | None:
     return vector if vector and all(math.isfinite(item) for item in vector) else None
 
 
+def robot_tcp_xyz_summary(task: Any) -> dict[str, list[float]]:
+    """Read finite left/right TCP positions when the robot exposes them.
+
+    TCP state is optional repair context, not a simulator admission gate.  A
+    missing or unavailable getter therefore only omits that side.
+    """
+
+    robot = getattr(task, "robot", None)
+    if robot is None:
+        return {}
+    result: dict[str, list[float]] = {}
+    for side in ("left", "right"):
+        getter = getattr(robot, f"get_{side}_tcp_pose", None)
+        if not callable(getter):
+            continue
+        try:
+            pose = getter()
+            values = _numeric_sequence(getattr(pose, "p", pose))
+        except Exception:
+            continue
+        if values is None or len(values) < 3:
+            continue
+        result[side] = [round(value, 6) for value in values[:3]]
+    return result
+
+
 def _collision_geometry_summary(actor: Any) -> list[dict[str, Any]]:
     """Read simulator collision geometry without assigning authority to RGB.
 
@@ -600,6 +626,9 @@ def run_probe(arguments: argparse.Namespace) -> dict[str, Any]:
         result["actors"] = actor_summary(task)
         result["tracked_actors"] = tracked_actor_summary(task, schema)
         result["task_attributes"] = task_attribute_summary(task, schema)
+        initial_robot_tcp = robot_tcp_xyz_summary(task)
+        if initial_robot_tcp:
+            result["initial_robot_tcp_xyz_m"] = initial_robot_tcp
         tracked_by_id = {actor["id"]: actor for actor in result["tracked_actors"]}
         # Preserve the original BBH probe contract for existing reports/tests.
         if "block" in tracked_by_id:
@@ -708,6 +737,11 @@ def run_probe(arguments: argparse.Namespace) -> dict[str, Any]:
                 task,
                 schema,
             )
+            expert_terminal_robot_tcp = robot_tcp_xyz_summary(task)
+            if expert_terminal_robot_tcp:
+                result["expert_terminal_robot_tcp_xyz_m"] = (
+                    expert_terminal_robot_tcp
+                )
             result["expert"] = {
                 "plan_success": bool(task.plan_success),
                 "check_success": generated_checker_success,

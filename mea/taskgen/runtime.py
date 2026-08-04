@@ -909,6 +909,33 @@ def _tracked_actor_positions(
     return positions
 
 
+def _robot_tcp_positions(
+    scene: Mapping[str, Any],
+    field: str,
+) -> dict[str, list[float]]:
+    """Return finite optional left/right TCP coordinates from probe evidence."""
+
+    raw_positions = scene.get(field)
+    if not isinstance(raw_positions, Mapping):
+        return {}
+    positions: dict[str, list[float]] = {}
+    for side in ("left", "right"):
+        position = raw_positions.get(side)
+        if (
+            not isinstance(position, (list, tuple))
+            or len(position) < 3
+            or any(
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(float(value))
+                for value in position[:3]
+            )
+        ):
+            continue
+        positions[side] = [round(float(value), 6) for value in position[:3]]
+    return positions
+
+
 def _expert_terminal_authority_failure(
     expert: Mapping[str, Any],
 ) -> dict[str, Any] | None:
@@ -1000,6 +1027,18 @@ def _checker_fixture_failure_diagnosis(
         "initial_actor_xyz_m": _tracked_actor_positions(setup),
         "expert_terminal_actor_xyz_m": _tracked_actor_positions(expert),
     }
+    initial_robot_tcp = _robot_tcp_positions(
+        setup,
+        "initial_robot_tcp_xyz_m",
+    )
+    if initial_robot_tcp:
+        evidence["initial_robot_tcp_xyz_m"] = initial_robot_tcp
+    expert_terminal_robot_tcp = _robot_tcp_positions(
+        expert,
+        "expert_terminal_robot_tcp_xyz_m",
+    )
+    if expert_terminal_robot_tcp:
+        evidence["expert_terminal_robot_tcp_xyz_m"] = expert_terminal_robot_tcp
     if lift_boundary is not None:
         evidence["official_lift_contract"] = {
             "target_actor_id": target_actor_id or None,

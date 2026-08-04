@@ -47,9 +47,13 @@ After each completed round:
 3. stop if the evidence contract is satisfied;
 4. otherwise propose the next most informative semantic concern.
 
-When completed evidence contains a finite scalar, use its observed scale to
-bracket the next intervention or falsifiable threshold. Do not invent a
-far-away numeric boundary unrelated to the measurement.
+Only put a numeric boundary into a generated checker when the original Query
+or completed finite scalar/state evidence grounds that boundary. A successful
+control alone is not numeric calibration. After a checker fixture failure,
+use its expert-terminal actor/TCP coordinates to derive or bracket the next
+observable boundary; do not repeat an arbitrary threshold with only a side or
+actor relabel. If no grounded boundary exists, choose an exact observable
+relation, run a scene-only diagnostic, or report the need unsupported.
 
 The next concern may be outside the retrieval inventory. It becomes an
 `ExperimentCandidate` with independent optional needs:

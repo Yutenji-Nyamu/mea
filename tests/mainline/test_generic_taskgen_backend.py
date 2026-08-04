@@ -29,6 +29,7 @@ from mea.taskgen.provider_scene_checker import (
     run_provider_codegen,
     validate_method_ast,
 )
+from mea.taskgen.probe import robot_tcp_xyz_summary
 from mea.taskgen.runtime import (
     _checker_fixture_failure_diagnosis,
     _generated_checker_execution_failure,
@@ -2475,6 +2476,21 @@ class GenericTaskGenBackendTests(unittest.TestCase):
         self.assertEqual(provider.review_calls, 1)
 
     def test_checker_repair_diagnosis_includes_terminal_xyz_state(self) -> None:
+        initial_tcp = robot_tcp_xyz_summary(
+            SimpleNamespace(
+                robot=SimpleNamespace(
+                    get_left_tcp_pose=lambda: [0.01, -0.02, 0.78, 1.0],
+                )
+            )
+        )
+        terminal_tcp = robot_tcp_xyz_summary(
+            SimpleNamespace(
+                robot=SimpleNamespace(
+                    get_left_tcp_pose=lambda: [0.11, -0.02, 0.74, 1.0],
+                    get_right_tcp_pose=lambda: [0.03, 0.04, 0.75, 1.0],
+                )
+            )
+        )
         diagnosis = _checker_fixture_failure_diagnosis(
             [
                 {
@@ -2487,18 +2503,23 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             setup={
                 "tracked_actors": [
                     {"id": "target", "position": [0.1, -0.2, 0.74]}
-                ]
+                ],
+                "initial_robot_tcp_xyz_m": initial_tcp,
             },
             expert={
                 "expert_terminal_tracked_actors": [
                     {"id": "target", "position": [0.12, -0.2, 0.85]}
-                ]
+                ],
+                "expert_terminal_robot_tcp_xyz_m": terminal_tcp,
             },
         )
 
         self.assertIn('"initial_actor_xyz_m"', diagnosis)
         self.assertIn('"expert_terminal_actor_xyz_m"', diagnosis)
         self.assertIn('"target": [0.12, -0.2, 0.85]', diagnosis)
+        self.assertIn('"initial_robot_tcp_xyz_m"', diagnosis)
+        self.assertIn('"expert_terminal_robot_tcp_xyz_m"', diagnosis)
+        self.assertIn('"right": [0.03, 0.04, 0.75]', diagnosis)
 
     def test_partial_generation_reuses_unrequested_official_method(
         self,

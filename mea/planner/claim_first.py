@@ -809,8 +809,15 @@ the rationale must cite a concrete observed outcome or limitation and explain
 why it changed the priority of this sub-aspect.  Do not present a candidate
 that was already frozen before seeing that evidence as evidence-conditioned
 refinement.  If completed evidence contains a finite scalar, bracket the next
-intervention or falsifiable threshold around that observed scale; do not invent
-a distant numeric boundary unrelated to the measurement.  For a broad
+intervention or falsifiable threshold around that observed scale.  Never put a
+numeric boundary into a generated success checker unless that exact boundary
+comes from the original Query or from completed finite scalar/state evidence.
+A successful control alone is not numeric calibration.  After a checker
+fixture fails, use its expert-terminal actor/TCP coordinates to derive or
+bracket a new observable boundary; do not repeat the same arbitrary threshold
+with only an actor or robot-side relabel.  When no grounded boundary exists,
+choose an exact discrete relation supported by the current-state API, request
+scene-only diagnostic evidence, or report the need unsupported.  For a broad
 robustness Query, for example, a successful control
 can justify selecting the highest-risk supported perturbation, while a failed
 control should redirect to baseline reliability or failure diagnosis.

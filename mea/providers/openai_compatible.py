@@ -71,7 +71,6 @@ class OpenAICompatibleProvider(MultimodalProvider):
                 if retryable_status and attempt < self.max_retries:
                     time.sleep(self.retry_delay * (attempt + 1))
                     continue
-                break
             except (requests.Timeout, requests.ConnectionError) as exc:
                 if attempt >= self.max_retries:
                     raise ProviderError(
@@ -79,6 +78,40 @@ class OpenAICompatibleProvider(MultimodalProvider):
                         f"{attempt + 1} attempts: {type(exc).__name__}"
                     ) from exc
                 time.sleep(self.retry_delay * (attempt + 1))
+                continue
+
+            if response.status_code >= 400:
+                break
+
+            try:
+                data = response.json()
+                content = data["choices"][0]["message"]["content"]
+                if not isinstance(content, str) or not content.strip():
+                    raise ProviderError("Gateway returned empty assistant content")
+            except (ValueError, KeyError, IndexError, TypeError) as exc:
+                error = ProviderError(
+                    "Gateway returned an invalid chat completion: "
+                    f"{response.text[:1000]}"
+                )
+                if attempt >= self.max_retries:
+                    raise error from exc
+            except ProviderError:
+                if attempt >= self.max_retries:
+                    raise
+            else:
+                self.last_metadata = {
+                    "id": data.get("id"),
+                    "model": data.get("model"),
+                    "finish_reason": data.get("choices", [{}])[0].get(
+                        "finish_reason"
+                    ),
+                    "usage": data.get("usage"),
+                    "retry_count": retry_count,
+                }
+                return content.strip()
+
+            time.sleep(self.retry_delay * (attempt + 1))
+
         if response is None:
             raise ProviderError("Gateway request did not produce a response")
         if response.status_code >= 400:
@@ -86,26 +119,7 @@ class OpenAICompatibleProvider(MultimodalProvider):
             raise ProviderError(
                 f"Gateway request failed with HTTP {response.status_code}: {body}"
             )
-
-        try:
-            data = response.json()
-            content = data["choices"][0]["message"]["content"]
-        except (ValueError, KeyError, IndexError, TypeError) as exc:
-            raise ProviderError(
-                f"Gateway returned an invalid chat completion: {response.text[:1000]}"
-            ) from exc
-
-        if not isinstance(content, str) or not content.strip():
-            raise ProviderError("Gateway returned empty assistant content")
-
-        self.last_metadata = {
-            "id": data.get("id"),
-            "model": data.get("model"),
-            "finish_reason": data.get("choices", [{}])[0].get("finish_reason"),
-            "usage": data.get("usage"),
-            "retry_count": retry_count,
-        }
-        return content.strip()
+        raise ProviderError("Gateway request did not produce a valid chat completion")
 
     def text(
         self,

@@ -378,6 +378,18 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             '`outcome="success"` for a terminal checker',
             compact_prompt,
         )
+        self.assertIn(
+            "A successful control alone is not numeric calibration",
+            compact_prompt,
+        )
+        self.assertIn(
+            "expert-terminal actor/TCP coordinates",
+            compact_prompt,
+        )
+        self.assertIn(
+            "do not repeat the same arbitrary threshold",
+            compact_prompt,
+        )
 
     def test_plan_agent_session_is_canonical_with_legacy_aliases(self):
         from mea.planner.plan_agent_session import (
