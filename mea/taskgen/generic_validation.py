@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import re
 import textwrap
 from collections.abc import Mapping
@@ -742,4 +743,3 @@ __all__ = [
     "build_generic_task_subclass_module",
     "validate_generic_task_methods",
 ]
-
