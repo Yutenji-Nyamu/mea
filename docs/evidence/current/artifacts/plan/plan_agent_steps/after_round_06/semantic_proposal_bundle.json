@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "source": "provider_plan_agent_open_query",
+  "input_digest": "a75efed43cff22c1de0868c41864cbe4aba19e7b5f73b2c227a836b22c399d0d",
+  "planning_lineage": {
+    "schema_version": 1,
+    "decision_kind": "evidence_conditioned_refinement",
+    "evidence_conditioned": true,
+    "completed_round_ids": [
+      "round_1",
+      "round_2",
+      "round_3",
+      "round_4",
+      "round_5",
+      "round_6"
+    ],
+    "completed_round_count": 6,
+    "input_digest": "a75efed43cff22c1de0868c41864cbe4aba19e7b5f73b2c227a836b22c399d0d"
+  },
+  "proposal": {
+    "schema_version": 2,
+    "action": "continue",
+    "sub_aspect": "scene_robustness.vertical_reach_displacement_terminal_tcp_proximity",
+    "hypothesis": "Translating the stapler initial position by +0.030 m along the world z-axis will cause the policy to fail the terminal conjunction of the official core predicate and a left-TCP-to-stapler distance of at most 0.080 m, while the expert can satisfy that criterion.",
+    "requested_perturbation": {
+      "description": "Translate the stapler initial position from the official reset pose by +0.030 m along the world z-axis.",
+      "controlled_changes": [
+        "stapler initial world-z position: official reset pose -> official reset pose +0.030 m"
+      ],
+      "preserve": [
+        "task identity",
+        "policy checkpoint",
+        "official core predicate as a required conjunct"
+      ]
+    },
+    "scene_need": {
+      "required": true,
+      "description": "Retrieve or adapt the official press_stapler scene and translate only the stapler initial position by +0.030 m along world z."
+    },
+    "checker_need": {
+      "required": true,
+      "description": "Retrieve the official checker and create an experimental terminal checker with the boolean predicate: official core predicate as a required conjunct AND Euclidean distance(left_tcp_position, stapler_position) <= 0.080 m."
+    },
+    "rule_tool_need": {
+      "required": true,
+      "description": "Report the terminal Euclidean distance between left_tcp_position and stapler_position in meters.",
+      "reuse_first": true
+    },
+    "vqa_tool_need": {
+      "required": false,
+      "description": null,
+      "reuse_first": true
+    },
+    "rationale": "Rounds 3–6 successfully retained the 0.080 m terminal proximity criterion under world-x and world-y displacement; their terminal distances remained near the grounded 0.080 m scale (0.079825–0.079986 m). A +0.030 m world-z translation probes the orthogonal vertical-reach concern rather than repeating lateral displacement or merely tightening the same boundary, while the advertised current-state positions directly support both the satisfiable checker relation and its diagnostic measurement.",
+    "task_need": {
+      "required": true,
+      "description": "Retrieve or adapt the official press_stapler scene and translate only the stapler initial position by +0.030 m along world z. | Retrieve the official checker and create an experimental terminal checker with the boolean predicate: official core predicate as a required conjunct AND Euclidean distance(left_tcp_position, stapler_position) <= 0.080 m."
+    },
+    "tool_need": {
+      "required": true,
+      "description": "Report the terminal Euclidean distance between left_tcp_position and stapler_position in meters.",
+      "reuse_first": true
+    }
+  },
+  "provider": {
+    "model_requested": "gpt-5.6-terra",
+    "called": true,
+    "attempt_count": 1,
+    "errors": [
+      "ProviderError: Gateway returned empty assistant content"
+    ],
+    "last_metadata": {
+      "id": "resp_080cd7f4c16a78b9016a731c892a488199b2f1effa40b28a41",
+      "model": "gpt-5.6-terra",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 12605,
+        "completion_tokens": 587,
+        "total_tokens": 13192,
+        "prompt_tokens_details": {
+          "cached_tokens": 4608
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 175
+        }
+      },
+      "retry_count": 0
+    }
+  }
+}

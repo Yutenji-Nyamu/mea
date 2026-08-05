@@ -218,7 +218,11 @@ failing existential witness.  The correct next step may diagnose the large
 transient or choose a stronger scene challenge, but it must retain the
 successful terminal-checker result.
 
-Stop only when the completed evidence already answers the original Query.  For
+Stop when the completed evidence answers the original Query.  You may also
+stop when the candidate universe remains open but the advertised runtime
+capabilities contain no further distinct informative executable concern.  In
+that case state explicitly that the result is inconclusive and that untested
+concerns may remain; information saturation is not evidence sufficiency.  For
 action=stop set sub_aspect and
 requested_perturbation to null, all four needs to
 required=false/description=null, and express the evidence-supported conclusion

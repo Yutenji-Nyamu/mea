@@ -556,6 +556,8 @@ class CrossTaskEntrypointTests(unittest.TestCase):
         candidate_ids = [
             "dynamic.grab_roller.clearance",
             "dynamic.grab_roller.clearance.refined",
+            "dynamic.grab_roller.orientation",
+            "dynamic.grab_roller.orientation.refined",
         ]
         round_runs = []
         for candidate_id in candidate_ids:
@@ -627,7 +629,7 @@ class CrossTaskEntrypointTests(unittest.TestCase):
         )
 
         self.assertTrue(acceptance["accepted"])
-        self.assertEqual(acceptance["policy_rollouts"], 2)
+        self.assertEqual(acceptance["policy_rollouts"], 4)
         self.assertEqual(
             acceptance["control_requirement"], "not_required"
         )

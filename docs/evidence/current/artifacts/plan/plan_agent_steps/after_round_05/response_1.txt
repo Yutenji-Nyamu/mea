@@ -1,0 +1,36 @@
+{
+  "schema_version": 2,
+  "action": "continue",
+  "sub_aspect": "scene_robustness.orthogonal_world_y_displacement_terminal_tcp_proximity",
+  "hypothesis": "Translating the stapler's initial position by +0.030 m along the world y-axis will cause the policy to fail the experimental terminal predicate consisting of the official core predicate and left-TCP-to-stapler distance no greater than 0.080 m, exposing an orthogonal lateral retargeting weakness while the expert remains able to satisfy the predicate.",
+  "requested_perturbation": {
+    "description": "Translate the stapler initial position from the official reset pose by +0.030 m along the world y-axis.",
+    "controlled_changes": [
+      "stapler initial world-y displacement: 0 m -> +0.030 m"
+    ],
+    "preserve": [
+      "task identity",
+      "policy checkpoint",
+      "official core predicate as a required conjunct"
+    ]
+  },
+  "scene_need": {
+    "required": true,
+    "description": "Construct or adapt the official press_stapler scene by translating the stapler initial position from the official reset pose by +0.030 m along the world y-axis; make no other scene modification."
+  },
+  "checker_need": {
+    "required": true,
+    "description": "Create an experimental terminal checker whose boolean predicate is the official core predicate as a required conjunct AND Euclidean distance between left_tcp_position and stapler_position is less than or equal to 0.080 m."
+  },
+  "rule_tool_need": {
+    "required": true,
+    "description": "Report the single primary scalar observation terminal_left_tcp_to_stapler_distance: the terminal Euclidean distance in meters between left_tcp_position and stapler_position.",
+    "reuse_first": true
+  },
+  "vqa_tool_need": {
+    "required": false,
+    "description": null,
+    "reuse_first": true
+  },
+  "rationale": "The +0.030 m world-x perturbation produced successful experimental-checker outcomes in rounds 3-5, with the latest terminal left-TCP-to-stapler distance measured as 0.07982503806186039 m under the 0.07992 m threshold, so that tested axis has not exposed a weakness. This round probes the orthogonal world-y displacement while retaining the directly observable TCP-distance criterion and the official predicate conjunct. The earlier contact-based checker was rejected during materialization, so the proposal uses the validated current-state distance observable instead."
+}

@@ -1,0 +1,54 @@
+{
+  "base_task": "press_stapler",
+  "candidate_id": "dynamic.press.stapler.scene.robustness.vertical.reach.displacement.terminal.tcp.proximity.translating.the.stapler.initial.position.by.0.030.m.along.the.world.z.axis.will.cause.the.policy.to.fail.the.terminal.conjunction.of.the.official.core.predicate.and.a.left.tcp.to.stapler.distance.of.at.most.0.080.m.while.the.expert.can.satisfy.that.criterion.8b06bca69155",
+  "checker_need": {
+    "description": "Retrieve the official checker and create an experimental terminal checker with the boolean predicate: official core predicate as a required conjunct AND Euclidean distance(left_tcp_position, stapler_position) <= 0.080 m.",
+    "kind": "generate",
+    "reuse_first": true
+  },
+  "evaluation_intent": {
+    "hypothesis": "Translating the stapler initial position by +0.030 m along the world z-axis will cause the policy to fail the terminal conjunction of the official core predicate and a left-TCP-to-stapler distance of at most 0.080 m, while the expert can satisfy that criterion.",
+    "intent_id": "intent.17b28cba7174aa17",
+    "original_concern": "scene_robustness.vertical_reach_displacement_terminal_tcp_proximity",
+    "preserved_conditions": [
+      "task identity",
+      "policy checkpoint",
+      "official core predicate as a required conjunct"
+    ],
+    "requested_change": "Translate the stapler initial position from the official reset pose by +0.030 m along the world z-axis.",
+    "required_observation": "Retrieve the official checker and create an experimental terminal checker with the boolean predicate: official core predicate as a required conjunct AND Euclidean distance(left_tcp_position, stapler_position) <= 0.080 m. Report the terminal Euclidean distance between left_tcp_position and stapler_position in meters.",
+    "schema_version": 1,
+    "source_query": "Does there exist a bounded, executable scene concern beyond the unchanged official press_stapler task under which this policy exposes a measured weakness? Observe the control, then let the Plan Agent invent and refine the most informative concerns from evidence. I provide no aspect, object, axis, magnitude, relation, threshold, template, checker code, or metric. Generate only the scene, checker, Rule Tool, or VQA Tool actually required by each Proposal. A generated checker must preserve official success as a required conjunct and add only directly observable current-state semantics. A diagnostic Tool must remain separate from success. After a valid success, the evidence must choose a genuinely different semantic concern or an evidence-grounded boundary refinement rather than repeat the same test. The Plan Agent must propose stop as soon as a definitive failure witness has an evidence-backed diagnosis. If executable supported concerns become informationally saturated without such a witness, it must actively stop and answer only the tested scope."
+  },
+  "intent_alignment": {
+    "matched_intent_fields": [
+      "requested_change",
+      "preserved_conditions",
+      "hypothesis",
+      "required_observation"
+    ],
+    "rationale": "Candidate preserves the requested change, hypothesis, and observation semantics.",
+    "relationship": "direct",
+    "schema_version": 1,
+    "unmatched_intent_fields": []
+  },
+  "rule_tool_need": {
+    "description": "Report the terminal Euclidean distance between left_tcp_position and stapler_position in meters.",
+    "kind": "measure",
+    "reuse_first": true
+  },
+  "scene_need": {
+    "description": "Retrieve or adapt the official press_stapler scene and translate only the stapler initial position by +0.030 m along world z. Preserve unchanged: task identity; policy checkpoint; official core predicate as a required conjunct.",
+    "kind": "adapt",
+    "reuse_first": true
+  },
+  "schema_version": 2,
+  "semantic_concern": "scene_robustness.vertical_reach_displacement_terminal_tcp_proximity: Translating the stapler initial position by +0.030 m along the world z-axis will cause the policy to fail the terminal conjunction of the official core predicate and a left-TCP-to-stapler distance of at most 0.080 m, while the expert can satisfy that criterion.",
+  "source_query": "Does there exist a bounded, executable scene concern beyond the unchanged official press_stapler task under which this policy exposes a measured weakness? Observe the control, then let the Plan Agent invent and refine the most informative concerns from evidence. I provide no aspect, object, axis, magnitude, relation, threshold, template, checker code, or metric. Generate only the scene, checker, Rule Tool, or VQA Tool actually required by each Proposal. A generated checker must preserve official success as a required conjunct and add only directly observable current-state semantics. A diagnostic Tool must remain separate from success. After a valid success, the evidence must choose a genuinely different semantic concern or an evidence-grounded boundary refinement rather than repeat the same test. The Plan Agent must propose stop as soon as a definitive failure witness has an evidence-backed diagnosis. If executable supported concerns become informationally saturated without such a witness, it must actively stop and answer only the tested scope.",
+  "tool_need": {
+    "description": "Report the terminal Euclidean distance between left_tcp_position and stapler_position in meters.",
+    "kind": "measure",
+    "reuse_first": true
+  },
+  "vqa_tool_need": null
+}

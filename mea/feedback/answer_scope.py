@@ -35,6 +35,9 @@ _LEGACY_SCOPE_KEYS = _SCOPE_KEYS - _INTENT_SCOPE_KEYS
 _LIMITATION_KEYS = {"code", "text"}
 _TERMINATIONS = {
     "evidence_sufficient",
+    "agent_inconclusive_stop",
+    # Historical reader compatibility for Batch37 and earlier artifacts.
+    "agent_saturation_inconclusive",
     "budget_exhausted",
     "continue",
     "control_not_passed",
@@ -366,6 +369,13 @@ def _termination(evidence: Mapping[str, Any]) -> tuple[str, str | None]:
             and sufficient is True
             and should_stop is True
         ) or (
+            reason in {
+                "agent_inconclusive_stop",
+                "agent_saturation_inconclusive",
+            }
+            and sufficient is False
+            and should_stop is True
+        ) or (
             reason == "budget_exhausted"
             and sufficient is False
             and should_stop is True
@@ -464,6 +474,17 @@ def _canonical_limitations(
         "evidence_sufficient": (
             "The run stopped because the finite query-sufficiency contract was "
             "satisfied; this is not a statistical generalization guarantee."
+        ),
+        "agent_inconclusive_stop": (
+            "The Plan Agent declared that it had no further grounded "
+            "Proposal. QueryContract did not independently prove capability-"
+            "space exhaustion; the Query remains inconclusive, the candidate "
+            "universe may remain open, and untested concerns may still exist."
+        ),
+        "agent_saturation_inconclusive": (
+            "Historical Agent-declared saturation stop. QueryContract did not "
+            "independently prove capability-space exhaustion; the Query "
+            "remains inconclusive and untested concerns may still exist."
         ),
         "budget_exhausted": (
             "The run stopped because its round budget was exhausted before the "

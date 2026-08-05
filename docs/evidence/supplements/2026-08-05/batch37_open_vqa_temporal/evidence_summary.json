@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "source_evaluation": "eval_20260805_batch37_open_vqa_temporal_press_stapler_s1000_v2",
+  "reuse_evaluation": "eval_20260805_batch37_open_vqa_temporal_press_stapler_s1000_v2_reviewed_reuse",
+  "task": "press_stapler",
+  "policy": "SmolVLA",
+  "seed": 1000,
+  "source_rollouts": 1,
+  "official_success": true,
+  "generated_question": {
+    "semantic_key": "18de6f007c628b33e511627895adeabefd12fc4e873ee3d1bdc334298b9d47d4",
+    "id": "run_local.gripper_overshoot_reversal",
+    "question": "Before the first successful press, does either gripper visibly pass beyond the stapler and then reverse direction to re-align with it?",
+    "question_type": "visible_state_change",
+    "visual_scope": "rollout_change",
+    "numeric_authority": "no_numeric_oracle"
+  },
+  "visual_capture": {
+    "profile": "temporal_keyframes_v1",
+    "captured_frames": 10,
+    "selected_frames": ["initial", "context_1", "context_2", "success_before"]
+  },
+  "source_observation": {
+    "observed": false,
+    "confidence": 0.82
+  },
+  "reviewed_exact_reuse": {
+    "question_status": "reused",
+    "question_source": "reviewed_persistent_exact_vqa_need_reuse",
+    "additional_rollouts": 0,
+    "text_calls": 0,
+    "vision_calls": 1,
+    "observed": true,
+    "confidence": 0.86
+  },
+  "cross_execution_conflict": true,
+  "conclusion": "The VQA question artifact was generated, registered, and exactly reused, but repeated observation of the same frozen evidence produced conflicting boolean answers.",
+  "limitations": [
+    "N=1, one seed, one frozen episode and one VLM.",
+    "No independent human gold or simulator perturbation robustness evaluation.",
+    "This is not evidence that the temporal phenomenon is truly present or absent."
+  ]
+}

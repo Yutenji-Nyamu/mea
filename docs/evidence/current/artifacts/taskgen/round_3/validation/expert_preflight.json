@@ -1,0 +1,366 @@
+{
+  "task_name": "press_stapler",
+  "task_module": "mea.generated_task_attempts.run_native_smolvla_32cbc0710389.attempt_01.candidate_task",
+  "seed": 1000,
+  "setup_success": true,
+  "render_success": true,
+  "expert_requested": true,
+  "telemetry_requested": false,
+  "eval_mode": false,
+  "execution_receipt_requested": false,
+  "task_schema": {
+    "schema_version": 1,
+    "task_name": "press_stapler",
+    "task_family": "robotwin_runtime_discovered",
+    "trusted_tool_profile": "runtime_actor_positions",
+    "tracked_actor_ids": [
+      "stapler"
+    ],
+    "semantic_field_names": [
+      "stapler_position",
+      "left_tcp_position",
+      "right_tcp_position"
+    ]
+  },
+  "domain_randomization": {
+    "cluttered_table": false,
+    "clean_background_rate": 1.0,
+    "cluttered_object_count": 0,
+    "cluttered_objects": [],
+    "authority": "simulator_task_info:cluttered_table_info",
+    "random_background": false,
+    "wall_texture": null,
+    "table_texture": null,
+    "texture_split": null,
+    "background_authority": "simulator_task_info:texture_info",
+    "random_light": false,
+    "crazy_random_light_rate": 0.0,
+    "crazy_random_light": false,
+    "direction_light_count": 1,
+    "point_light_count": 2,
+    "direction_light_colors": [
+      [
+        0.5,
+        0.5,
+        0.5
+      ]
+    ],
+    "point_light_colors": [
+      [
+        1.0,
+        1.0,
+        1.0
+      ],
+      [
+        1.0,
+        1.0,
+        1.0
+      ]
+    ],
+    "lighting_authority": "simulator_task_attributes:random_light,crazy_random_light_rate,crazy_random_light;simulator_light_components:get_color"
+  },
+  "actors": [
+    {
+      "name": "ground",
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "quaternion": [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name": "wall",
+      "position": [
+        0.0,
+        1.0,
+        1.5
+      ],
+      "quaternion": [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name": "table",
+      "position": [
+        0.0,
+        0.0,
+        0.7400000095367432
+      ],
+      "quaternion": [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name": "048_stapler",
+      "position": [
+        -0.09709739685058594,
+        0.011530912481248379,
+        0.7409999966621399
+      ],
+      "quaternion": [
+        -0.42036500573158264,
+        -0.42036500573158264,
+        0.5685888528823853,
+        0.5685888528823853
+      ]
+    },
+    {
+      "name": "",
+      "position": [
+        0.0,
+        -0.6499999761581421,
+        0.0
+      ],
+      "quaternion": [
+        0.7071068286895752,
+        0.0,
+        0.0,
+        0.7071068286895752
+      ]
+    }
+  ],
+  "tracked_actors": [
+    {
+      "id": "stapler",
+      "scene_name": "048_stapler",
+      "position": [
+        -0.09709739685058594,
+        0.011530912481248379,
+        0.7409999966621399
+      ],
+      "quaternion": [
+        -0.42036500573158264,
+        -0.42036500573158264,
+        0.5685888528823853,
+        0.5685888528823853
+      ],
+      "collision_geometry": [
+        {
+          "geometry_type": "create_actor_asset",
+          "modelname": "048_stapler",
+          "model_id": 5,
+          "collision_asset": "assets/objects/048_stapler/collision/base5.glb",
+          "convex": true,
+          "is_static": true,
+          "scale": [
+            0.05,
+            0.05,
+            0.05
+          ],
+          "extents": [
+            0.40815700553843975,
+            0.7111183446017296,
+            1.9292999038896659
+          ],
+          "center": [
+            -0.00030622194431527704,
+            0.33604817454756686,
+            -0.0012446627426975388
+          ]
+        }
+      ],
+      "functional_points": {},
+      "contact_points": {},
+      "task_attribute": "stapler"
+    }
+  ],
+  "task_attributes": {},
+  "initial_robot_tcp_xyz_m": {
+    "left": [
+      -0.300323,
+      -0.193828,
+      0.941998
+    ],
+    "right": [
+      0.305233,
+      -0.192806,
+      0.940998
+    ]
+  },
+  "image": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_task_attempts/run_native_smolvla_32cbc0710389/attempt_01/expert_head.png",
+  "rule_check": {
+    "all_tracked_actor_access_paths_present": true,
+    "tracked_actor_runtime_names_match": true,
+    "declared_scene_actor_multiplicity_matches": true,
+    "finite_tracked_actor_state": true,
+    "official_check_success_callable": true,
+    "all_tracked_actor_attributes_present": true,
+    "declared_scene_names_present": true,
+    "declared_scene_names_unique": true,
+    "passed": true,
+    "tracked_actor_ids": [
+      "stapler"
+    ],
+    "declared_scene_names": [
+      "048_stapler"
+    ]
+  },
+  "initial_check_success": false,
+  "expert_terminal_tracked_actors": [
+    {
+      "id": "stapler",
+      "scene_name": "048_stapler",
+      "position": [
+        -0.09709739685058594,
+        0.011530912481248379,
+        0.7409999966621399
+      ],
+      "quaternion": [
+        -0.42036500573158264,
+        -0.42036500573158264,
+        0.5685888528823853,
+        0.5685888528823853
+      ],
+      "collision_geometry": [
+        {
+          "geometry_type": "create_actor_asset",
+          "modelname": "048_stapler",
+          "model_id": 5,
+          "collision_asset": "assets/objects/048_stapler/collision/base5.glb",
+          "convex": true,
+          "is_static": true,
+          "scale": [
+            0.05,
+            0.05,
+            0.05
+          ],
+          "extents": [
+            0.40815700553843975,
+            0.7111183446017296,
+            1.9292999038896659
+          ],
+          "center": [
+            -0.00030622194431527704,
+            0.33604817454756686,
+            -0.0012446627426975388
+          ]
+        }
+      ],
+      "functional_points": {},
+      "contact_points": {},
+      "task_attribute": "stapler"
+    }
+  ],
+  "expert_terminal_actors": [
+    {
+      "name": "ground",
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "quaternion": [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name": "wall",
+      "position": [
+        0.0,
+        1.0,
+        1.5
+      ],
+      "quaternion": [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name": "table",
+      "position": [
+        0.0,
+        0.0,
+        0.7400000095367432
+      ],
+      "quaternion": [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name": "048_stapler",
+      "position": [
+        -0.09709739685058594,
+        0.011530912481248379,
+        0.7409999966621399
+      ],
+      "quaternion": [
+        -0.42036500573158264,
+        -0.42036500573158264,
+        0.5685888528823853,
+        0.5685888528823853
+      ]
+    },
+    {
+      "name": "",
+      "position": [
+        0.0,
+        -0.6499999761581421,
+        0.0
+      ],
+      "quaternion": [
+        0.7071068286895752,
+        0.0,
+        0.0,
+        0.7071068286895752
+      ]
+    }
+  ],
+  "expert_terminal_task_attributes": {},
+  "expert_terminal_robot_tcp_xyz_m": {
+    "left": [
+      -0.127371,
+      0.022365,
+      0.810947
+    ],
+    "right": [
+      0.305233,
+      -0.192807,
+      0.941005
+    ]
+  },
+  "expert": {
+    "plan_success": true,
+    "check_success": true,
+    "official_check_success": true,
+    "official_core_predicate_satisfied": true,
+    "official_success_authority": "mea_official_check_success",
+    "passed": true,
+    "attempts_used": 1
+  },
+  "expert_attempts": [
+    {
+      "attempt_index": 0,
+      "returncode": 0,
+      "expert": {
+        "plan_success": true,
+        "check_success": true,
+        "official_check_success": true,
+        "official_core_predicate_satisfied": true,
+        "official_success_authority": "mea_official_check_success",
+        "passed": true,
+        "attempts_used": 1
+      }
+    }
+  ],
+  "returncode": 0
+}

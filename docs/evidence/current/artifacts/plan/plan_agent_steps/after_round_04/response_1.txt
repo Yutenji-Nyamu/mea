@@ -1,0 +1,37 @@
+{
+  "schema_version": 2,
+  "action": "continue",
+  "sub_aspect": "scene_robustness.lateral_shift_terminal_proximity_boundary",
+  "hypothesis": "With the stapler translated by +0.030 m along world x from the official reset pose, the policy will fail the experimental terminal conjunction of the official core predicate and left-TCP-to-stapler distance less than or equal to 0.07992 m, revealing that its previously successful spatial retargeting margin is below the evidence-grounded boundary.",
+  "requested_perturbation": {
+    "description": "Set the stapler initial world-x offset from the official reset pose to +0.030 m and tighten the experimental terminal left-TCP-to-stapler proximity boundary from 0.08000 m to 0.07992 m.",
+    "controlled_changes": [
+      "stapler initial world-x offset: 0.000 m -> +0.030 m relative to the official reset pose",
+      "experimental terminal left-TCP-to-stapler distance boundary: 0.08000 m -> 0.07992 m"
+    ],
+    "preserve": [
+      "task identity",
+      "policy checkpoint",
+      "official core predicate as a required conjunct"
+    ]
+  },
+  "scene_need": {
+    "required": true,
+    "description": "Retrieve or adapt the official press_stapler scene by translating the stapler initial position from the official reset pose by +0.030 m along the world x-axis."
+  },
+  "checker_need": {
+    "required": true,
+    "description": "Retrieve the official checker and create an experimental terminal checker with the boolean predicate: official core predicate as a required conjunct AND Euclidean distance(left_tcp_position, stapler_position) <= 0.07992 m."
+  },
+  "rule_tool_need": {
+    "required": true,
+    "description": "Retrieve first or generate a Rule Tool reporting the terminal Euclidean distance between left_tcp_position and stapler_position in meters as its primary scalar observation.",
+    "reuse_first": true
+  },
+  "vqa_tool_need": {
+    "required": false,
+    "description": null,
+    "reuse_first": true
+  },
+  "rationale": "The +0.030 m lateral-shift experiment succeeded at the 0.080 m criterion, but its terminal left-TCP-to-stapler distance was 0.07994672000122097 m; the +0.031 m success measured 0.07990267815148812 m. These successful measurements bracket 0.07992 m, making a 0.07992 m terminal boundary an evidence-grounded refinement rather than another uncalibrated lateral-shift escalation. This directly tests whether the observed near-boundary retargeting margin yields a definitive, diagnosable experimental failure while retaining the official core predicate."
+}

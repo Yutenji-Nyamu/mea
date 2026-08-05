@@ -1,0 +1,287 @@
+{
+  "schema_version": 2,
+  "semantic_proposal_bundle": {
+    "schema_version": 1,
+    "source": "provider_plan_agent_open_query",
+    "input_digest": "a8c1fe75aaf471cf757b68bbbfe77c2d22cb6c739549b745a3ecbd7433a058e3",
+    "planning_lineage": {
+      "schema_version": 1,
+      "decision_kind": "evidence_conditioned_refinement",
+      "evidence_conditioned": true,
+      "completed_round_ids": [
+        "round_1",
+        "round_2",
+        "round_3",
+        "round_4",
+        "round_5",
+        "round_6",
+        "round_7",
+        "round_8",
+        "round_9",
+        "round_10"
+      ],
+      "completed_round_count": 10,
+      "input_digest": "a8c1fe75aaf471cf757b68bbbfe77c2d22cb6c739549b745a3ecbd7433a058e3"
+    },
+    "proposal": {
+      "schema_version": 2,
+      "action": "continue",
+      "sub_aspect": "scene_robustness.initial_stapler_roll_orientation",
+      "hypothesis": "Applying a bounded +15 degree roll rotation about the world-x axis to the stapler from its official reset orientation will cause the policy to fail the satisfiable terminal conjunction of the official core predicate and left-TCP-to-stapler distance less than or equal to 0.07980 m, exposing sensitivity to an untested press-surface roll alignment concern.",
+      "requested_perturbation": {
+        "description": "Alter only the stapler initial orientation by applying a +15 degree rotation about the world-x axis relative to the official reset orientation.",
+        "controlled_changes": [
+          "stapler initial world-x roll: 0 degrees relative to official reset orientation -> +15 degrees relative to official reset orientation"
+        ],
+        "preserve": [
+          "task identity",
+          "policy checkpoint",
+          "official core predicate as a required conjunct"
+        ]
+      },
+      "scene_need": {
+        "required": true,
+        "description": "Retrieve or adapt the official press_stapler scene and apply only a +15 degree world-x roll rotation to the stapler initial orientation relative to its official reset orientation."
+      },
+      "checker_need": {
+        "required": true,
+        "description": "Retrieve the official checker and create an experimental terminal checker whose boolean predicate is: official core predicate as a required conjunct AND Euclidean distance(left_tcp_position, stapler_position) <= 0.07980 m."
+      },
+      "rule_tool_need": {
+        "required": true,
+        "description": "Report the terminal Euclidean distance between left_tcp_position and stapler_position in metres.",
+        "reuse_first": true
+      },
+      "vqa_tool_need": {
+        "required": false,
+        "description": null,
+        "reuse_first": true
+      },
+      "rationale": "The unchanged control succeeded, and the completed translation, yaw, and pitch concerns also succeeded under the experimental terminal criterion. In particular, the yaw and pitch tests produced terminal left-TCP-to-stapler distances of 0.07974978433448847 m and 0.07976609109967475 m, respectively, below the evidence-grounded 0.07980 m threshold. Rather than repeating a successful translation or yaw/pitch test, world-x roll isolates a genuinely untested orientation degree of freedom while retaining the same directly observable, already-materialized diagnostic relation and bounded scene-only intervention.",
+      "task_need": {
+        "required": true,
+        "description": "Retrieve or adapt the official press_stapler scene and apply only a +15 degree world-x roll rotation to the stapler initial orientation relative to its official reset orientation. | Retrieve the official checker and create an experimental terminal checker whose boolean predicate is: official core predicate as a required conjunct AND Euclidean distance(left_tcp_position, stapler_position) <= 0.07980 m."
+      },
+      "tool_need": {
+        "required": true,
+        "description": "Report the terminal Euclidean distance between left_tcp_position and stapler_position in metres.",
+        "reuse_first": true
+      }
+    },
+    "provider": {
+      "model_requested": "gpt-5.6-terra",
+      "called": true,
+      "attempt_count": 1,
+      "errors": [],
+      "last_metadata": {
+        "id": "chatcmpl-a93ab5e6-3b9e-474e-9e3d-77a77e93a44b",
+        "model": "gpt-5.6-terra",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 9694,
+          "completion_tokens": 866,
+          "total_tokens": 10560,
+          "completion_tokens_details": {
+            "reasoning_tokens": 406
+          },
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "cache_write_tokens": 0
+          }
+        },
+        "retry_count": 0
+      }
+    }
+  },
+  "semantic_needs": {
+    "scene_need": {
+      "required": true,
+      "description": "Retrieve or adapt the official press_stapler scene and apply only a +15 degree world-x roll rotation to the stapler initial orientation relative to its official reset orientation. Preserve unchanged: task identity; policy checkpoint; official core predicate as a required conjunct."
+    },
+    "checker_need": {
+      "required": true,
+      "description": "Retrieve the official checker and create an experimental terminal checker whose boolean predicate is: official core predicate as a required conjunct AND Euclidean distance(left_tcp_position, stapler_position) <= 0.07980 m."
+    },
+    "rule_tool_need": {
+      "required": true,
+      "description": "Report the terminal Euclidean distance between left_tcp_position and stapler_position in metres.",
+      "reuse_first": true
+    },
+    "vqa_tool_need": {
+      "required": false,
+      "description": null,
+      "reuse_first": true
+    },
+    "task_need": {
+      "required": true,
+      "description": "Retrieve or adapt the official press_stapler scene and apply only a +15 degree world-x roll rotation to the stapler initial orientation relative to its official reset orientation. | Retrieve the official checker and create an experimental terminal checker whose boolean predicate is: official core predicate as a required conjunct AND Euclidean distance(left_tcp_position, stapler_position) <= 0.07980 m."
+    },
+    "tool_need": {
+      "required": true,
+      "description": "Report the terminal Euclidean distance between left_tcp_position and stapler_position in metres.",
+      "reuse_first": true
+    }
+  },
+  "resolution": {
+    "schema_version": 1,
+    "semantic_sub_aspect": "scene_robustness.initial_stapler_roll_orientation",
+    "resolved_aspect_id": null,
+    "resolved_template_id": null,
+    "resolved_candidate_id": "dynamic.press.stapler.scene.robustness.initial.stapler.roll.orientation.applying.a.bounded.15.degree.roll.rotation.about.the.world.x.axis.to.the.stapler.from.its.official.reset.orientation.will.cause.the.policy.to.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.exposing.sensitivity.to.an.untested.press.surface.roll.alignment.concern.a60098bc03e2",
+    "resolution": "proposal_reuse_or_generate",
+    "hidden": false,
+    "matched_tokens": [],
+    "catalog_was_model_visible": false,
+    "catalog_resolution_error": "no unexecuted non-control template remains in the bound task",
+    "retrieval_aspect_id": null,
+    "retrieval_template_id": null,
+    "retrieval_resolution": null
+  },
+  "query_contract": {
+    "schema_version": 3,
+    "claim_type": "existential",
+    "candidate_universe": [
+      "dynamic.press.stapler.scene.robustness.initial.lateral.displacement.translating.the.stapler.s.initial.position.by.0.03.m.along.the.world.x.axis.will.expose.a.policy.weakness.the.policy.will.not.satisfy.the.combined.predicate.of.official.task.success.and.terminal.physical.contact.between.the.stapler.and.either.robot.gripper.ee000124987f",
+      "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.left.tcp.proximity.after.translating.the.stapler.initial.position.by.0.03.m.along.the.world.x.axis.the.policy.will.fail.the.satisfiable.combined.terminal.criterion.of.official.press.stapler.success.and.left.tcp.to.stapler.distance.no.greater.than.0.080.m.exposing.a.spatial.retargeting.weakness.5536913db934",
+      "dynamic.press.stapler.scene.robustness.lateral.shift.boundary.refinement.increasing.the.stapler.initial.world.x.displacement.from.0.030.m.to.0.031.m.relative.to.the.official.reset.pose.will.cause.the.policy.to.fail.the.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.080.m.exposing.a.bounded.spatial.retargeting.weakness.2cfa9bfa7a31",
+      "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.proximity.boundary.with.the.stapler.translated.by.0.030.m.along.world.x.from.the.official.reset.pose.the.policy.will.fail.the.experimental.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07992.m.revealing.that.its.previously.successful.spatial.retargeting.margin.is.below.the.evidence.grounded.boundary.0946283b238c",
+      "dynamic.press.stapler.scene.robustness.orthogonal.world.y.displacement.terminal.tcp.proximity.translating.the.stapler.s.initial.position.by.0.030.m.along.the.world.y.axis.will.cause.the.policy.to.fail.the.experimental.terminal.predicate.consisting.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.no.greater.than.0.080.m.exposing.an.orthogonal.lateral.retargeting.weakness.while.the.expert.remains.able.to.satisfy.the.predicate.58f7e703ef15",
+      "dynamic.press.stapler.scene.robustness.vertical.reach.displacement.terminal.tcp.proximity.translating.the.stapler.initial.position.by.0.030.m.along.the.world.z.axis.will.cause.the.policy.to.fail.the.terminal.conjunction.of.the.official.core.predicate.and.a.left.tcp.to.stapler.distance.of.at.most.0.080.m.while.the.expert.can.satisfy.that.criterion.8b06bca69155",
+      "dynamic.press.stapler.scene.robustness.lateral.shift.evidence.bracketed.terminal.tcp.margin.with.the.stapler.initially.translated.by.0.030.m.along.world.x.the.policy.will.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.0.07980.m.exposing.an.evidence.bracketed.spatial.retargeting.margin.weakness.6ad07b3dba9b",
+      "dynamic.press.stapler.scene.robustness.initial.stapler.yaw.orientation.with.the.stapler.rotated.by.15.degrees.about.the.world.z.axis.from.its.official.reset.orientation.the.policy.will.fail.the.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.revealing.orientation.sensitive.retargeting.despite.its.successful.translational.perturbation.results.7b8aa62577e6",
+      "dynamic.press.stapler.scene.robustness.initial.stapler.pitch.alignment.rotating.the.stapler.by.15.degrees.about.the.world.y.axis.from.its.official.reset.orientation.will.cause.the.policy.to.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.exposing.sensitivity.to.press.surface.pitch.alignment.d77104b18bec",
+      "dynamic.press.stapler.scene.robustness.initial.stapler.roll.orientation.applying.a.bounded.15.degree.roll.rotation.about.the.world.x.axis.to.the.stapler.from.its.official.reset.orientation.will.cause.the.policy.to.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.exposing.sensitivity.to.an.untested.press.surface.roll.alignment.concern.a60098bc03e2"
+    ],
+    "required_coverage": {
+      "candidate_ids": [
+        "dynamic.press.stapler.scene.robustness.initial.lateral.displacement.translating.the.stapler.s.initial.position.by.0.03.m.along.the.world.x.axis.will.expose.a.policy.weakness.the.policy.will.not.satisfy.the.combined.predicate.of.official.task.success.and.terminal.physical.contact.between.the.stapler.and.either.robot.gripper.ee000124987f",
+        "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.left.tcp.proximity.after.translating.the.stapler.initial.position.by.0.03.m.along.the.world.x.axis.the.policy.will.fail.the.satisfiable.combined.terminal.criterion.of.official.press.stapler.success.and.left.tcp.to.stapler.distance.no.greater.than.0.080.m.exposing.a.spatial.retargeting.weakness.5536913db934",
+        "dynamic.press.stapler.scene.robustness.lateral.shift.boundary.refinement.increasing.the.stapler.initial.world.x.displacement.from.0.030.m.to.0.031.m.relative.to.the.official.reset.pose.will.cause.the.policy.to.fail.the.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.080.m.exposing.a.bounded.spatial.retargeting.weakness.2cfa9bfa7a31",
+        "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.proximity.boundary.with.the.stapler.translated.by.0.030.m.along.world.x.from.the.official.reset.pose.the.policy.will.fail.the.experimental.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07992.m.revealing.that.its.previously.successful.spatial.retargeting.margin.is.below.the.evidence.grounded.boundary.0946283b238c",
+        "dynamic.press.stapler.scene.robustness.orthogonal.world.y.displacement.terminal.tcp.proximity.translating.the.stapler.s.initial.position.by.0.030.m.along.the.world.y.axis.will.cause.the.policy.to.fail.the.experimental.terminal.predicate.consisting.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.no.greater.than.0.080.m.exposing.an.orthogonal.lateral.retargeting.weakness.while.the.expert.remains.able.to.satisfy.the.predicate.58f7e703ef15",
+        "dynamic.press.stapler.scene.robustness.vertical.reach.displacement.terminal.tcp.proximity.translating.the.stapler.initial.position.by.0.030.m.along.the.world.z.axis.will.cause.the.policy.to.fail.the.terminal.conjunction.of.the.official.core.predicate.and.a.left.tcp.to.stapler.distance.of.at.most.0.080.m.while.the.expert.can.satisfy.that.criterion.8b06bca69155",
+        "dynamic.press.stapler.scene.robustness.lateral.shift.evidence.bracketed.terminal.tcp.margin.with.the.stapler.initially.translated.by.0.030.m.along.world.x.the.policy.will.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.0.07980.m.exposing.an.evidence.bracketed.spatial.retargeting.margin.weakness.6ad07b3dba9b",
+        "dynamic.press.stapler.scene.robustness.initial.stapler.yaw.orientation.with.the.stapler.rotated.by.15.degrees.about.the.world.z.axis.from.its.official.reset.orientation.the.policy.will.fail.the.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.revealing.orientation.sensitive.retargeting.despite.its.successful.translational.perturbation.results.7b8aa62577e6",
+        "dynamic.press.stapler.scene.robustness.initial.stapler.pitch.alignment.rotating.the.stapler.by.15.degrees.about.the.world.y.axis.from.its.official.reset.orientation.will.cause.the.policy.to.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.exposing.sensitivity.to.press.surface.pitch.alignment.d77104b18bec",
+        "dynamic.press.stapler.scene.robustness.initial.stapler.roll.orientation.applying.a.bounded.15.degree.roll.rotation.about.the.world.x.axis.to.the.stapler.from.its.official.reset.orientation.will.cause.the.policy.to.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.exposing.sensitivity.to.an.untested.press.surface.roll.alignment.concern.a60098bc03e2"
+      ],
+      "minimum_evaluated": 10,
+      "minimum_per_group": null
+    },
+    "round_budget": 19,
+    "comparison_groups": null,
+    "candidate_universe_closed": false,
+    "existential_witness_outcome": "fail",
+    "control_requirement": "required"
+  },
+  "plan_step": {
+    "schema_version": 2,
+    "action": "propose",
+    "aspect_id": "scene_robustness.initial_stapler_roll_orientation",
+    "candidate_id": "dynamic.press.stapler.scene.robustness.initial.stapler.roll.orientation.applying.a.bounded.15.degree.roll.rotation.about.the.world.x.axis.to.the.stapler.from.its.official.reset.orientation.will.cause.the.policy.to.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.exposing.sensitivity.to.an.untested.press.surface.roll.alignment.concern.a60098bc03e2",
+    "execution_mode": "reuse_or_generate",
+    "proposal": {
+      "schema_version": 2,
+      "candidate_id": "dynamic.press.stapler.scene.robustness.initial.stapler.roll.orientation.applying.a.bounded.15.degree.roll.rotation.about.the.world.x.axis.to.the.stapler.from.its.official.reset.orientation.will.cause.the.policy.to.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.exposing.sensitivity.to.an.untested.press.surface.roll.alignment.concern.a60098bc03e2",
+      "source_query": "Does there exist a bounded, executable scene concern beyond the unchanged official press_stapler task under which this policy exposes a measured weakness? Observe the control, then let the Plan Agent invent and refine the most informative concerns from evidence. I provide no aspect, object, axis, magnitude, relation, threshold, template, checker code, or metric. Generate only the scene, checker, Rule Tool, or VQA Tool actually required by each Proposal. A generated checker must preserve official success as a required conjunct and add only directly observable current-state semantics. A diagnostic Tool must remain separate from success. After a valid success, the evidence must choose a genuinely different semantic concern or an evidence-grounded boundary refinement rather than repeat the same test. The Plan Agent must propose stop as soon as a definitive failure witness has an evidence-backed diagnosis. If executable supported concerns become informationally saturated without such a witness, it must actively stop and answer only the tested scope.",
+      "base_task": "press_stapler",
+      "semantic_concern": "scene_robustness.initial_stapler_roll_orientation: Applying a bounded +15 degree roll rotation about the world-x axis to the stapler from its official reset orientation will cause the policy to fail the satisfiable terminal conjunction of the official core predicate and left-TCP-to-stapler distance less than or equal to 0.07980 m, exposing sensitivity to an untested press-surface roll alignment concern.",
+      "scene_need": {
+        "kind": "adapt",
+        "description": "Retrieve or adapt the official press_stapler scene and apply only a +15 degree world-x roll rotation to the stapler initial orientation relative to its official reset orientation. Preserve unchanged: task identity; policy checkpoint; official core predicate as a required conjunct.",
+        "reuse_first": true
+      },
+      "checker_need": {
+        "kind": "generate",
+        "description": "Retrieve the official checker and create an experimental terminal checker whose boolean predicate is: official core predicate as a required conjunct AND Euclidean distance(left_tcp_position, stapler_position) <= 0.07980 m.",
+        "reuse_first": true
+      },
+      "rule_tool_need": {
+        "kind": "measure",
+        "description": "Report the terminal Euclidean distance between left_tcp_position and stapler_position in metres.",
+        "reuse_first": true
+      },
+      "vqa_tool_need": null,
+      "tool_need": {
+        "kind": "measure",
+        "description": "Report the terminal Euclidean distance between left_tcp_position and stapler_position in metres.",
+        "reuse_first": true
+      },
+      "evaluation_intent": {
+        "schema_version": 1,
+        "intent_id": "intent.6ecd39d3a2cb0a25",
+        "source_query": "Does there exist a bounded, executable scene concern beyond the unchanged official press_stapler task under which this policy exposes a measured weakness? Observe the control, then let the Plan Agent invent and refine the most informative concerns from evidence. I provide no aspect, object, axis, magnitude, relation, threshold, template, checker code, or metric. Generate only the scene, checker, Rule Tool, or VQA Tool actually required by each Proposal. A generated checker must preserve official success as a required conjunct and add only directly observable current-state semantics. A diagnostic Tool must remain separate from success. After a valid success, the evidence must choose a genuinely different semantic concern or an evidence-grounded boundary refinement rather than repeat the same test. The Plan Agent must propose stop as soon as a definitive failure witness has an evidence-backed diagnosis. If executable supported concerns become informationally saturated without such a witness, it must actively stop and answer only the tested scope.",
+        "original_concern": "scene_robustness.initial_stapler_roll_orientation",
+        "hypothesis": "Applying a bounded +15 degree roll rotation about the world-x axis to the stapler from its official reset orientation will cause the policy to fail the satisfiable terminal conjunction of the official core predicate and left-TCP-to-stapler distance less than or equal to 0.07980 m, exposing sensitivity to an untested press-surface roll alignment concern.",
+        "requested_change": "Alter only the stapler initial orientation by applying a +15 degree rotation about the world-x axis relative to the official reset orientation.",
+        "preserved_conditions": [
+          "task identity",
+          "policy checkpoint",
+          "official core predicate as a required conjunct"
+        ],
+        "required_observation": "Retrieve the official checker and create an experimental terminal checker whose boolean predicate is: official core predicate as a required conjunct AND Euclidean distance(left_tcp_position, stapler_position) <= 0.07980 m. Report the terminal Euclidean distance between left_tcp_position and stapler_position in metres."
+      },
+      "intent_alignment": {
+        "schema_version": 1,
+        "relationship": "direct",
+        "rationale": "Candidate preserves the requested change, hypothesis, and observation semantics.",
+        "matched_intent_fields": [
+          "requested_change",
+          "preserved_conditions",
+          "hypothesis",
+          "required_observation"
+        ],
+        "unmatched_intent_fields": []
+      }
+    },
+    "rationale": "The unchanged control succeeded, and the completed translation, yaw, and pitch concerns also succeeded under the experimental terminal criterion. In particular, the yaw and pitch tests produced terminal left-TCP-to-stapler distances of 0.07974978433448847 m and 0.07976609109967475 m, respectively, below the evidence-grounded 0.07980 m threshold. Rather than repeating a successful translation or yaw/pitch test, world-x roll isolates a genuinely untested orientation degree of freedom while retaining the same directly observable, already-materialized diagnostic relation and bounded scene-only intervention.",
+    "answered_query": false,
+    "planning_lineage": {
+      "schema_version": 1,
+      "decision_kind": "evidence_conditioned_refinement",
+      "evidence_conditioned": true,
+      "completed_round_ids": [
+        "round_1",
+        "round_2",
+        "round_3",
+        "round_4",
+        "round_5",
+        "round_6",
+        "round_7",
+        "round_8",
+        "round_9",
+        "round_10"
+      ],
+      "completed_round_count": 10,
+      "input_digest": "a8c1fe75aaf471cf757b68bbbfe77c2d22cb6c739549b745a3ecbd7433a058e3"
+    }
+  },
+  "planning_lineage": {
+    "schema_version": 1,
+    "decision_kind": "evidence_conditioned_refinement",
+    "evidence_conditioned": true,
+    "completed_round_ids": [
+      "round_1",
+      "round_2",
+      "round_3",
+      "round_4",
+      "round_5",
+      "round_6",
+      "round_7",
+      "round_8",
+      "round_9",
+      "round_10"
+    ],
+    "completed_round_count": 10,
+    "input_digest": "a8c1fe75aaf471cf757b68bbbfe77c2d22cb6c739549b745a3ecbd7433a058e3"
+  },
+  "execution_binding": {
+    "schema_version": 2,
+    "candidate_id": "dynamic.press.stapler.scene.robustness.initial.stapler.roll.orientation.applying.a.bounded.15.degree.roll.rotation.about.the.world.x.axis.to.the.stapler.from.its.official.reset.orientation.will.cause.the.policy.to.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.exposing.sensitivity.to.an.untested.press.surface.roll.alignment.concern.a60098bc03e2",
+    "materialization_path": "plan/proposal_materialization/round_11",
+    "taskgen_route": "generic_provider_scene_checker_codegen",
+    "toolgen_route": "deferred_until_executed_telemetry_schema",
+    "catalog_template_used": false,
+    "retrieval_template_hint": null
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "render_usable": true,
+  "key_task_actors_visible": true,
+  "requested_change_assessment": "not_visually_decidable",
+  "visual_physical_plausibility": "plausible",
+  "unexpected_changes": [],
+  "diagnosis": "The generated scene is visible and physically plausible, but the exact 0.031 m stapler offset cannot be verified from RGB alone.",
+  "repair_instructions": [],
+  "confidence": 0.96
+}

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "intent_id": "intent.dc3449435d044cdf",
+  "candidate_id": "dynamic.press.stapler.scene.robustness.initial.stapler.yaw.orientation.with.the.stapler.rotated.by.15.degrees.about.the.world.z.axis.from.its.official.reset.orientation.the.policy.will.fail.the.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.revealing.orientation.sensitive.retargeting.despite.its.successful.translational.perturbation.results.7b8aa62577e6",
+  "stage": "taskgen",
+  "relationship": "direct",
+  "rationale": "Candidate preserves the requested change, hypothesis, and observation semantics.",
+  "covered_intent_fields": [
+    "requested_change",
+    "preserved_conditions",
+    "hypothesis"
+  ],
+  "uncovered_intent_fields": [],
+  "pending_intent_fields": [
+    "required_observation"
+  ],
+  "coverage_status": "partial",
+  "repair_required": false,
+  "validation_evidence": {
+    "scene_change_passed": true,
+    "checker_fixtures_passed": true,
+    "visual_diagnosis_passed": true,
+    "preserved_conditions_verified": true,
+    "tool_evaluation_passed": null
+  }
+}

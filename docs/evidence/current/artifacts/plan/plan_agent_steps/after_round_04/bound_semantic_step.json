@@ -1,0 +1,258 @@
+{
+  "schema_version": 2,
+  "semantic_proposal_bundle": {
+    "schema_version": 1,
+    "source": "provider_plan_agent_open_query",
+    "input_digest": "6a72030c43a0adddf412cd7b8d3d54f7c4fc5fc863fed4301f1dd9a5ceb5baeb",
+    "planning_lineage": {
+      "schema_version": 1,
+      "decision_kind": "evidence_conditioned_refinement",
+      "evidence_conditioned": true,
+      "completed_round_ids": [
+        "round_1",
+        "round_2",
+        "round_3",
+        "round_4"
+      ],
+      "completed_round_count": 4,
+      "input_digest": "6a72030c43a0adddf412cd7b8d3d54f7c4fc5fc863fed4301f1dd9a5ceb5baeb"
+    },
+    "proposal": {
+      "schema_version": 2,
+      "action": "continue",
+      "sub_aspect": "scene_robustness.lateral_shift_terminal_proximity_boundary",
+      "hypothesis": "With the stapler translated by +0.030 m along world x from the official reset pose, the policy will fail the experimental terminal conjunction of the official core predicate and left-TCP-to-stapler distance less than or equal to 0.07992 m, revealing that its previously successful spatial retargeting margin is below the evidence-grounded boundary.",
+      "requested_perturbation": {
+        "description": "Set the stapler initial world-x offset from the official reset pose to +0.030 m and tighten the experimental terminal left-TCP-to-stapler proximity boundary from 0.08000 m to 0.07992 m.",
+        "controlled_changes": [
+          "stapler initial world-x offset: 0.000 m -> +0.030 m relative to the official reset pose",
+          "experimental terminal left-TCP-to-stapler distance boundary: 0.08000 m -> 0.07992 m"
+        ],
+        "preserve": [
+          "task identity",
+          "policy checkpoint",
+          "official core predicate as a required conjunct"
+        ]
+      },
+      "scene_need": {
+        "required": true,
+        "description": "Retrieve or adapt the official press_stapler scene by translating the stapler initial position from the official reset pose by +0.030 m along the world x-axis."
+      },
+      "checker_need": {
+        "required": true,
+        "description": "Retrieve the official checker and create an experimental terminal checker with the boolean predicate: official core predicate as a required conjunct AND Euclidean distance(left_tcp_position, stapler_position) <= 0.07992 m."
+      },
+      "rule_tool_need": {
+        "required": true,
+        "description": "Retrieve first or generate a Rule Tool reporting the terminal Euclidean distance between left_tcp_position and stapler_position in meters as its primary scalar observation.",
+        "reuse_first": true
+      },
+      "vqa_tool_need": {
+        "required": false,
+        "description": null,
+        "reuse_first": true
+      },
+      "rationale": "The +0.030 m lateral-shift experiment succeeded at the 0.080 m criterion, but its terminal left-TCP-to-stapler distance was 0.07994672000122097 m; the +0.031 m success measured 0.07990267815148812 m. These successful measurements bracket 0.07992 m, making a 0.07992 m terminal boundary an evidence-grounded refinement rather than another uncalibrated lateral-shift escalation. This directly tests whether the observed near-boundary retargeting margin yields a definitive, diagnosable experimental failure while retaining the official core predicate.",
+      "task_need": {
+        "required": true,
+        "description": "Retrieve or adapt the official press_stapler scene by translating the stapler initial position from the official reset pose by +0.030 m along the world x-axis. | Retrieve the official checker and create an experimental terminal checker with the boolean predicate: official core predicate as a required conjunct AND Euclidean distance(left_tcp_position, stapler_position) <= 0.07992 m."
+      },
+      "tool_need": {
+        "required": true,
+        "description": "Retrieve first or generate a Rule Tool reporting the terminal Euclidean distance between left_tcp_position and stapler_position in meters as its primary scalar observation.",
+        "reuse_first": true
+      }
+    },
+    "provider": {
+      "model_requested": "gpt-5.6-terra",
+      "called": true,
+      "attempt_count": 1,
+      "errors": [],
+      "last_metadata": {
+        "id": "chatcmpl-fea9d5cc-e344-4458-8e2a-a3bfeeeb4d46",
+        "model": "gpt-5.6-terra",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 5996,
+          "completion_tokens": 1667,
+          "total_tokens": 7663,
+          "completion_tokens_details": {
+            "reasoning_tokens": 1056
+          },
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "cache_write_tokens": 0
+          }
+        },
+        "retry_count": 0
+      }
+    }
+  },
+  "semantic_needs": {
+    "scene_need": {
+      "required": true,
+      "description": "Retrieve or adapt the official press_stapler scene by translating the stapler initial position from the official reset pose by +0.030 m along the world x-axis. Preserve unchanged: task identity; policy checkpoint; official core predicate as a required conjunct."
+    },
+    "checker_need": {
+      "required": true,
+      "description": "Retrieve the official checker and create an experimental terminal checker with the boolean predicate: official core predicate as a required conjunct AND Euclidean distance(left_tcp_position, stapler_position) <= 0.07992 m."
+    },
+    "rule_tool_need": {
+      "required": true,
+      "description": "Retrieve first or generate a Rule Tool reporting the terminal Euclidean distance between left_tcp_position and stapler_position in meters as its primary scalar observation.",
+      "reuse_first": true
+    },
+    "vqa_tool_need": {
+      "required": false,
+      "description": null,
+      "reuse_first": true
+    },
+    "task_need": {
+      "required": true,
+      "description": "Retrieve or adapt the official press_stapler scene by translating the stapler initial position from the official reset pose by +0.030 m along the world x-axis. | Retrieve the official checker and create an experimental terminal checker with the boolean predicate: official core predicate as a required conjunct AND Euclidean distance(left_tcp_position, stapler_position) <= 0.07992 m."
+    },
+    "tool_need": {
+      "required": true,
+      "description": "Retrieve first or generate a Rule Tool reporting the terminal Euclidean distance between left_tcp_position and stapler_position in meters as its primary scalar observation.",
+      "reuse_first": true
+    }
+  },
+  "resolution": {
+    "schema_version": 1,
+    "semantic_sub_aspect": "scene_robustness.lateral_shift_terminal_proximity_boundary",
+    "resolved_aspect_id": null,
+    "resolved_template_id": null,
+    "resolved_candidate_id": "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.proximity.boundary.with.the.stapler.translated.by.0.030.m.along.world.x.from.the.official.reset.pose.the.policy.will.fail.the.experimental.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07992.m.revealing.that.its.previously.successful.spatial.retargeting.margin.is.below.the.evidence.grounded.boundary.0946283b238c",
+    "resolution": "proposal_reuse_or_generate",
+    "hidden": false,
+    "matched_tokens": [],
+    "catalog_was_model_visible": false,
+    "catalog_resolution_error": "no unexecuted non-control template remains in the bound task",
+    "retrieval_aspect_id": null,
+    "retrieval_template_id": null,
+    "retrieval_resolution": null
+  },
+  "query_contract": {
+    "schema_version": 3,
+    "claim_type": "existential",
+    "candidate_universe": [
+      "dynamic.press.stapler.scene.robustness.initial.lateral.displacement.translating.the.stapler.s.initial.position.by.0.03.m.along.the.world.x.axis.will.expose.a.policy.weakness.the.policy.will.not.satisfy.the.combined.predicate.of.official.task.success.and.terminal.physical.contact.between.the.stapler.and.either.robot.gripper.ee000124987f",
+      "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.left.tcp.proximity.after.translating.the.stapler.initial.position.by.0.03.m.along.the.world.x.axis.the.policy.will.fail.the.satisfiable.combined.terminal.criterion.of.official.press.stapler.success.and.left.tcp.to.stapler.distance.no.greater.than.0.080.m.exposing.a.spatial.retargeting.weakness.5536913db934",
+      "dynamic.press.stapler.scene.robustness.lateral.shift.boundary.refinement.increasing.the.stapler.initial.world.x.displacement.from.0.030.m.to.0.031.m.relative.to.the.official.reset.pose.will.cause.the.policy.to.fail.the.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.080.m.exposing.a.bounded.spatial.retargeting.weakness.2cfa9bfa7a31",
+      "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.proximity.boundary.with.the.stapler.translated.by.0.030.m.along.world.x.from.the.official.reset.pose.the.policy.will.fail.the.experimental.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07992.m.revealing.that.its.previously.successful.spatial.retargeting.margin.is.below.the.evidence.grounded.boundary.0946283b238c"
+    ],
+    "required_coverage": {
+      "candidate_ids": [
+        "dynamic.press.stapler.scene.robustness.initial.lateral.displacement.translating.the.stapler.s.initial.position.by.0.03.m.along.the.world.x.axis.will.expose.a.policy.weakness.the.policy.will.not.satisfy.the.combined.predicate.of.official.task.success.and.terminal.physical.contact.between.the.stapler.and.either.robot.gripper.ee000124987f",
+        "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.left.tcp.proximity.after.translating.the.stapler.initial.position.by.0.03.m.along.the.world.x.axis.the.policy.will.fail.the.satisfiable.combined.terminal.criterion.of.official.press.stapler.success.and.left.tcp.to.stapler.distance.no.greater.than.0.080.m.exposing.a.spatial.retargeting.weakness.5536913db934",
+        "dynamic.press.stapler.scene.robustness.lateral.shift.boundary.refinement.increasing.the.stapler.initial.world.x.displacement.from.0.030.m.to.0.031.m.relative.to.the.official.reset.pose.will.cause.the.policy.to.fail.the.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.080.m.exposing.a.bounded.spatial.retargeting.weakness.2cfa9bfa7a31",
+        "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.proximity.boundary.with.the.stapler.translated.by.0.030.m.along.world.x.from.the.official.reset.pose.the.policy.will.fail.the.experimental.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07992.m.revealing.that.its.previously.successful.spatial.retargeting.margin.is.below.the.evidence.grounded.boundary.0946283b238c"
+      ],
+      "minimum_evaluated": 4,
+      "minimum_per_group": null
+    },
+    "round_budget": 19,
+    "comparison_groups": null,
+    "candidate_universe_closed": false,
+    "existential_witness_outcome": "fail",
+    "control_requirement": "required"
+  },
+  "plan_step": {
+    "schema_version": 2,
+    "action": "propose",
+    "aspect_id": "scene_robustness.lateral_shift_terminal_proximity_boundary",
+    "candidate_id": "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.proximity.boundary.with.the.stapler.translated.by.0.030.m.along.world.x.from.the.official.reset.pose.the.policy.will.fail.the.experimental.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07992.m.revealing.that.its.previously.successful.spatial.retargeting.margin.is.below.the.evidence.grounded.boundary.0946283b238c",
+    "execution_mode": "reuse_or_generate",
+    "proposal": {
+      "schema_version": 2,
+      "candidate_id": "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.proximity.boundary.with.the.stapler.translated.by.0.030.m.along.world.x.from.the.official.reset.pose.the.policy.will.fail.the.experimental.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07992.m.revealing.that.its.previously.successful.spatial.retargeting.margin.is.below.the.evidence.grounded.boundary.0946283b238c",
+      "source_query": "Does there exist a bounded, executable scene concern beyond the unchanged official press_stapler task under which this policy exposes a measured weakness? Observe the control, then let the Plan Agent invent and refine the most informative concerns from evidence. I provide no aspect, object, axis, magnitude, relation, threshold, template, checker code, or metric. Generate only the scene, checker, Rule Tool, or VQA Tool actually required by each Proposal. A generated checker must preserve official success as a required conjunct and add only directly observable current-state semantics. A diagnostic Tool must remain separate from success. After a valid success, the evidence must choose a genuinely different semantic concern or an evidence-grounded boundary refinement rather than repeat the same test. The Plan Agent must propose stop as soon as a definitive failure witness has an evidence-backed diagnosis. If executable supported concerns become informationally saturated without such a witness, it must actively stop and answer only the tested scope.",
+      "base_task": "press_stapler",
+      "semantic_concern": "scene_robustness.lateral_shift_terminal_proximity_boundary: With the stapler translated by +0.030 m along world x from the official reset pose, the policy will fail the experimental terminal conjunction of the official core predicate and left-TCP-to-stapler distance less than or equal to 0.07992 m, revealing that its previously successful spatial retargeting margin is below the evidence-grounded boundary.",
+      "scene_need": {
+        "kind": "adapt",
+        "description": "Retrieve or adapt the official press_stapler scene by translating the stapler initial position from the official reset pose by +0.030 m along the world x-axis. Preserve unchanged: task identity; policy checkpoint; official core predicate as a required conjunct.",
+        "reuse_first": true
+      },
+      "checker_need": {
+        "kind": "generate",
+        "description": "Retrieve the official checker and create an experimental terminal checker with the boolean predicate: official core predicate as a required conjunct AND Euclidean distance(left_tcp_position, stapler_position) <= 0.07992 m.",
+        "reuse_first": true
+      },
+      "rule_tool_need": {
+        "kind": "measure",
+        "description": "Retrieve first or generate a Rule Tool reporting the terminal Euclidean distance between left_tcp_position and stapler_position in meters as its primary scalar observation.",
+        "reuse_first": true
+      },
+      "vqa_tool_need": null,
+      "tool_need": {
+        "kind": "measure",
+        "description": "Retrieve first or generate a Rule Tool reporting the terminal Euclidean distance between left_tcp_position and stapler_position in meters as its primary scalar observation.",
+        "reuse_first": true
+      },
+      "evaluation_intent": {
+        "schema_version": 1,
+        "intent_id": "intent.24ec0d5539e241aa",
+        "source_query": "Does there exist a bounded, executable scene concern beyond the unchanged official press_stapler task under which this policy exposes a measured weakness? Observe the control, then let the Plan Agent invent and refine the most informative concerns from evidence. I provide no aspect, object, axis, magnitude, relation, threshold, template, checker code, or metric. Generate only the scene, checker, Rule Tool, or VQA Tool actually required by each Proposal. A generated checker must preserve official success as a required conjunct and add only directly observable current-state semantics. A diagnostic Tool must remain separate from success. After a valid success, the evidence must choose a genuinely different semantic concern or an evidence-grounded boundary refinement rather than repeat the same test. The Plan Agent must propose stop as soon as a definitive failure witness has an evidence-backed diagnosis. If executable supported concerns become informationally saturated without such a witness, it must actively stop and answer only the tested scope.",
+        "original_concern": "scene_robustness.lateral_shift_terminal_proximity_boundary",
+        "hypothesis": "With the stapler translated by +0.030 m along world x from the official reset pose, the policy will fail the experimental terminal conjunction of the official core predicate and left-TCP-to-stapler distance less than or equal to 0.07992 m, revealing that its previously successful spatial retargeting margin is below the evidence-grounded boundary.",
+        "requested_change": "Set the stapler initial world-x offset from the official reset pose to +0.030 m and tighten the experimental terminal left-TCP-to-stapler proximity boundary from 0.08000 m to 0.07992 m.",
+        "preserved_conditions": [
+          "task identity",
+          "policy checkpoint",
+          "official core predicate as a required conjunct"
+        ],
+        "required_observation": "Retrieve the official checker and create an experimental terminal checker with the boolean predicate: official core predicate as a required conjunct AND Euclidean distance(left_tcp_position, stapler_position) <= 0.07992 m. Retrieve first or generate a Rule Tool reporting the terminal Euclidean distance between left_tcp_position and stapler_position in meters as its primary scalar observation."
+      },
+      "intent_alignment": {
+        "schema_version": 1,
+        "relationship": "direct",
+        "rationale": "Candidate preserves the requested change, hypothesis, and observation semantics.",
+        "matched_intent_fields": [
+          "requested_change",
+          "preserved_conditions",
+          "hypothesis",
+          "required_observation"
+        ],
+        "unmatched_intent_fields": []
+      }
+    },
+    "rationale": "The +0.030 m lateral-shift experiment succeeded at the 0.080 m criterion, but its terminal left-TCP-to-stapler distance was 0.07994672000122097 m; the +0.031 m success measured 0.07990267815148812 m. These successful measurements bracket 0.07992 m, making a 0.07992 m terminal boundary an evidence-grounded refinement rather than another uncalibrated lateral-shift escalation. This directly tests whether the observed near-boundary retargeting margin yields a definitive, diagnosable experimental failure while retaining the official core predicate.",
+    "answered_query": false,
+    "planning_lineage": {
+      "schema_version": 1,
+      "decision_kind": "evidence_conditioned_refinement",
+      "evidence_conditioned": true,
+      "completed_round_ids": [
+        "round_1",
+        "round_2",
+        "round_3",
+        "round_4"
+      ],
+      "completed_round_count": 4,
+      "input_digest": "6a72030c43a0adddf412cd7b8d3d54f7c4fc5fc863fed4301f1dd9a5ceb5baeb"
+    }
+  },
+  "planning_lineage": {
+    "schema_version": 1,
+    "decision_kind": "evidence_conditioned_refinement",
+    "evidence_conditioned": true,
+    "completed_round_ids": [
+      "round_1",
+      "round_2",
+      "round_3",
+      "round_4"
+    ],
+    "completed_round_count": 4,
+    "input_digest": "6a72030c43a0adddf412cd7b8d3d54f7c4fc5fc863fed4301f1dd9a5ceb5baeb"
+  },
+  "execution_binding": {
+    "schema_version": 2,
+    "candidate_id": "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.proximity.boundary.with.the.stapler.translated.by.0.030.m.along.world.x.from.the.official.reset.pose.the.policy.will.fail.the.experimental.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07992.m.revealing.that.its.previously.successful.spatial.retargeting.margin.is.below.the.evidence.grounded.boundary.0946283b238c",
+    "materialization_path": "plan/proposal_materialization/round_05",
+    "taskgen_route": "generic_provider_scene_checker_codegen",
+    "toolgen_route": "deferred_until_executed_telemetry_schema",
+    "catalog_template_used": false,
+    "retrieval_template_hint": null
+  }
+}

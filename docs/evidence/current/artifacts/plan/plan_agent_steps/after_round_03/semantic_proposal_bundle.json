@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "source": "provider_plan_agent_open_query",
+  "input_digest": "6992f40bab6aed80da129a74803db7781de18f992d6be8d1e04a9e5991881d05",
+  "planning_lineage": {
+    "schema_version": 1,
+    "decision_kind": "evidence_conditioned_refinement",
+    "evidence_conditioned": true,
+    "completed_round_ids": [
+      "round_1",
+      "round_2",
+      "round_3"
+    ],
+    "completed_round_count": 3,
+    "input_digest": "6992f40bab6aed80da129a74803db7781de18f992d6be8d1e04a9e5991881d05"
+  },
+  "proposal": {
+    "schema_version": 2,
+    "action": "continue",
+    "sub_aspect": "scene_robustness.lateral_shift_boundary_refinement",
+    "hypothesis": "Increasing the stapler initial world-x displacement from +0.030 m to +0.031 m relative to the official reset pose will cause the policy to fail the terminal conjunction of the official core predicate and left-TCP-to-stapler distance less than or equal to 0.080 m, exposing a bounded spatial-retargeting weakness.",
+    "requested_perturbation": {
+      "description": "Alter the official scene by translating the stapler initial position by +0.031 m along the world x-axis relative to its official reset pose, refining the +0.030 m lateral-shift boundary where the prior terminal left-TCP-to-stapler distance was 0.07994672000122097 m against the 0.080 m criterion.",
+      "controlled_changes": [
+        "stapler initial world-x offset relative to official reset pose: +0.030 m -> +0.031 m"
+      ],
+      "preserve": [
+        "task identity",
+        "policy checkpoint",
+        "official core predicate as a required conjunct"
+      ]
+    },
+    "scene_need": {
+      "required": true,
+      "description": "Alter the retrieved official press_stapler scene by setting the stapler initial world-x offset to +0.031 m relative to the official reset pose; no other scene modification is requested."
+    },
+    "checker_need": {
+      "required": true,
+      "description": "Retrieve the official checker and create an experimental terminal checker whose boolean predicate is: official core predicate as a required conjunct AND Euclidean distance(left_tcp_position, stapler_position) <= 0.080 m."
+    },
+    "rule_tool_need": {
+      "required": true,
+      "description": "Retrieve first, otherwise generate, a Rule Tool reporting the terminal Euclidean distance between left_tcp_position and stapler_position in metres as its single primary scalar observation.",
+      "reuse_first": true
+    },
+    "vqa_tool_need": {
+      "required": false,
+      "description": null,
+      "reuse_first": true
+    },
+    "rationale": "Round 3 succeeded, but its terminal left-TCP-to-stapler distance was 0.07994672000122097 m, only 0.00005327999877903 m below the retained 0.080 m terminal criterion. This finite observation grounds a narrowly bracketed lateral-displacement boundary refinement rather than an unsupported new magnitude. The prior +0.030 m shift therefore does not establish weakness, while the additional +0.001 m displacement is the most informative executable test of whether that near-threshold terminal retargeting margin is robust.",
+    "task_need": {
+      "required": true,
+      "description": "Alter the retrieved official press_stapler scene by setting the stapler initial world-x offset to +0.031 m relative to the official reset pose; no other scene modification is requested. | Retrieve the official checker and create an experimental terminal checker whose boolean predicate is: official core predicate as a required conjunct AND Euclidean distance(left_tcp_position, stapler_position) <= 0.080 m."
+    },
+    "tool_need": {
+      "required": true,
+      "description": "Retrieve first, otherwise generate, a Rule Tool reporting the terminal Euclidean distance between left_tcp_position and stapler_position in metres as its single primary scalar observation.",
+      "reuse_first": true
+    }
+  },
+  "provider": {
+    "model_requested": "gpt-5.6-terra",
+    "called": true,
+    "attempt_count": 1,
+    "errors": [],
+    "last_metadata": {
+      "id": "chatcmpl-202608051107247225737688268d9d6k0eqOGPP",
+      "model": "gpt-5.6-terra",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 5278,
+        "completion_tokens": 1108,
+        "total_tokens": 6386,
+        "billing_usage": {
+          "source": "oai_responses",
+          "semantic": "openai",
+          "openai_usage": {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 6386,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "text_tokens": 0,
+              "audio_tokens": 0,
+              "image_tokens": 0
+            },
+            "completion_tokens_details": {
+              "text_tokens": 0,
+              "audio_tokens": 0,
+              "image_tokens": 0,
+              "reasoning_tokens": 0
+            },
+            "input_tokens": 5278,
+            "output_tokens": 1108,
+            "input_tokens_details": {
+              "cached_tokens": 0,
+              "text_tokens": 0,
+              "audio_tokens": 0,
+              "image_tokens": 0
+            },
+            "claude_cache_creation_5_m_tokens": 0,
+            "claude_cache_creation_1_h_tokens": 0
+          }
+        },
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 0,
+          "audio_tokens": 0,
+          "image_tokens": 0
+        },
+        "completion_tokens_details": {
+          "text_tokens": 0,
+          "audio_tokens": 0,
+          "image_tokens": 0,
+          "reasoning_tokens": 0
+        },
+        "input_tokens": 5278,
+        "output_tokens": 1108,
+        "input_tokens_details": null,
+        "claude_cache_creation_5_m_tokens": 0,
+        "claude_cache_creation_1_h_tokens": 0
+      },
+      "retry_count": 0
+    }
+  }
+}

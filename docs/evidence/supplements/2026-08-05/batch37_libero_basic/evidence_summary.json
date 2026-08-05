@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "status": "completed",
+  "evaluation_id": "eval_20260805_batch37_libero_shared_method_v4",
+  "benchmark": "libero",
+  "suite_task": "libero_object/task0",
+  "policy": "SmolVLA",
+  "query": "How robust is SmolVLA to task-relevant object identity changes in LIBERO, and where does it first fail?",
+  "seed": 100800,
+  "rollouts_executed": 2,
+  "elapsed_seconds": 163.621,
+  "rounds": [
+    {
+      "round": "official_control",
+      "executed_steps": 135,
+      "horizon": 280,
+      "reward_sum": 1.0,
+      "success": true,
+      "goal_predicate_satisfied": true
+    },
+    {
+      "round": "provider_written_custom_bddl",
+      "selected_object": "salad_dressing_1",
+      "executed_steps": 280,
+      "horizon": 280,
+      "reward_sum": 0.0,
+      "success": false,
+      "generated_goal_predicate_satisfied": false
+    }
+  ],
+  "tool": {
+    "tool_id": "libero_goal_predicate_tool",
+    "metric": "libero_goal_predicate_satisfied",
+    "route": "predicate_metric_compile_validate_register",
+    "live_value_non_null": true,
+    "value": false,
+    "exact_reuse": true,
+    "reuse_route": "exact_registry_reuse",
+    "reuse_additional_rollouts": 0
+  },
+  "aggregate": {
+    "status": "passed",
+    "episode_result_count": 1,
+    "metric": "libero_goal_predicate_satisfied",
+    "true_count": 0,
+    "false_count": 1
+  },
+  "answer": {
+    "verdict": "diagnosed",
+    "text": "For the finite registered candidate domain, the Query verdict is diagnosed.",
+    "sample_count": 2,
+    "termination": "evidence_sufficient",
+    "official_benchmark_answered": false
+  },
+  "acceptance": {
+    "query_contract_sufficient": true,
+    "planner_taskgen_alignment": true,
+    "episode_protocol_matches": true,
+    "plan_agent_active_stop_validated": false,
+    "method_chain_valid": false,
+    "scientific_evidence_eligible": false,
+    "paper_performance_evidence": false
+  },
+  "limitations": [
+    "Basic LIBERO adaptation only; the full RoboTwin outer method runtime is not reproduced.",
+    "The generated goal predicate is experimental and not official-equivalent.",
+    "The finite QueryContract, not an actively validated Plan Agent stop, terminated the run.",
+    "N=2 at one seed cannot establish general object-identity robustness."
+  ]
+}

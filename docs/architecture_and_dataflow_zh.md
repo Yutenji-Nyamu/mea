@@ -49,19 +49,20 @@ Plan Agent 可以提出 catalog 外 concern，但不能越过 backend 的真实�
 
 | 阶段 | 主要位置 | 最小职责 |
 | --- | --- | --- |
-| 入口编排 | `scripts/manipeval_agent.py`、`mea/agent_cli.py`、`mea/plan_agent_application.py` | CLI 解析参数和 binding；Application 原生拥有 round → evidence → next/stop → Answer 生命周期 |
+| 入口编排 | `scripts/manipeval_agent.py`、`mea/agent_cli.py`、`mea/agent_*.py` | 脚本只保留参数解析与分发；`agent_runtime_setup/query_routing/initial_plan/plan_session_setup/run_dispatch` 分别拥有启动、路由、首轮计划、session 与运行编排 |
 | Query / binding | `mea/planner/open_task_resolver.py`、`runtime_task_binding.py` | 先解释 Query，再验证 task、policy scope、checkpoint 与 runtime hooks |
-| Plan Agent | `mea/planner/claim_first_initial.py`、`claim_first_runtime.py`、`query_contract.py` | `PlanAgentSession` 建立首轮计划并依据完整 evidence 提出继续/停止；`open_world_session.py` 仅保留内部冻结执行运输与历史 reader 兼容 |
-| TaskGen | `mea/taskgen/runtime.py`、`generic_backend.py`、`artifact_index.py` | 按 typed need 精确复用或生成 scene/checker，并完成有界验证与一次 repair |
+| Plan Agent | `mea/plan_agent_application.py`、`plan_agent_bootstrap.py`、`plan_agent_runtime_decisions.py`、`mea/planner/plan_agent_{schema,provider,decisions,evidence_session,session}.py`、`query_contract.py` | Application 原生拥有 round → evidence → next/stop → Answer 生命周期；provider 提出继续/停止，QueryContract 只验证证据是否支持停止 |
+| TaskGen | `mea/taskgen/runtime.py`、`generic_request.py`、`generic_validation.py`、`preservation.py`、`probe_runtime.py`、`generic_backend.py` | 按 typed need 检索或生成 scene/checker；request、语义 preservation、simulator probe、fixture/render/VLM/expert 验证与一次 repair 分别有唯一 owner |
 | Policy backend | `PolicyTaskBinding` 与对应 runner | 在冻结的 task/checkpoint/seed 下输出 video、telemetry 与 official success |
 | 单轮执行 | `mea/round_executor.py`、`mea/robotwin/runtime.py`、`native_agent_round.py` | `MethodRuntime.materialize_candidate()` 是唯一生产 TaskGen materialization owner，随后 rollout → Rule/VQA → Aggregate；冻结 artifact binder 仅供兼容/重放 |
-| ToolGen / VQA | `mea/toolgen/`、`mea/execution_vqa/` | retrieve-first；miss 时按实际 telemetry 或视觉问题生成、验证、注册并运行 |
+| ToolGen / VQA | `mea/toolgen/{open_request_*,metric_*,tool_routing,tool_execution}.py`、`mea/execution_vqa/{open_question,reviewed_generated_questions}.py` | retrieve-first；Rule Tool 的 request/oracle/codegen/execution 与 VQA 问题生成、运行内复用、reviewed 持久复用分层负责 |
 | Answer | `mea/toolkit/aggregate.py`、`mea/feedback/` | 汇总证据并生成受限回答 |
 | 实验层 | `experiments/paper/` | fixed/adaptive、消融、ranking、人工/VQA 协议；不得反向成为生产入口 |
 
-`CapabilityAdapter` 与旧 planner/dialect 只服务历史 artifact、兼容和论文消融。新增 task
-不应要求增加任务名分支；理想新增项只提供 task identity、schema、policy binding 与
-simulator/runtime hooks。
+`mea/capability_adapter.py` 现仅是历史 reader 的兼容 shim；生产检索使用
+`artifact_retrieval_{index,records,schema}.py`，不授予执行许可。旧 planner/dialect 只服务历史
+artifact、兼容和论文消融。新增 task 不应要求任务名分支；只提供 task identity、
+schema 缓存、policy binding 与 simulator/runtime hooks。
 
 ## Backend 与 simulator 现状
 
@@ -69,8 +70,9 @@ simulator/runtime hooks。
   TaskGen，不再只是 `experiments/paper/` 的旁路 adapter。
 - 代码路径统一不等于已有 SmolVLA 生成式正证据；最新运行状态只维护在
   [论文 claim 与 gap](paper_claim_gap_zh.md)，不固化在架构文档中。
-- LIBERO 已有 SmolVLA benchmark/basic-adaptation chain，但尚未共享完整的 Plan Agent
-  session、RoundExecutor、stop contract 与 Answer loop。
+- LIBERO 已复用 simulator-neutral `MethodRuntime`、`PlanAgentSession`、QueryContract 停止验证
+  与 AnswerScope。BDDL/env/policy rollout 保持 backend-specific；其编排尚未由同一
+  `PlanAgentApplication` / `RoundExecutor` 拥有，且当前拆分后尚无新 live 验收。
 - generated checker 是实验评价语义，必须与 simulator official success 分开记录和回答。
 
 TaskGen 的具体 preservation、Pose、geometry authority 和 repair 规则见

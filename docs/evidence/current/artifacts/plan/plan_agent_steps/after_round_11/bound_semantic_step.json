@@ -1,0 +1,1077 @@
+{
+  "schema_version": 2,
+  "semantic_proposal_bundle": {
+    "schema_version": 1,
+    "source": "provider_plan_agent_open_query",
+    "input_digest": "64c0d16db7cd7f233d3ab651a0b5edc2898584d56120d1aca2a48f1c02687c22",
+    "planning_lineage": {
+      "schema_version": 1,
+      "decision_kind": "evidence_conditioned_refinement",
+      "evidence_conditioned": true,
+      "completed_round_ids": [
+        "round_1",
+        "round_2",
+        "round_3",
+        "round_4",
+        "round_5",
+        "round_6",
+        "round_7",
+        "round_8",
+        "round_9",
+        "round_10",
+        "round_11"
+      ],
+      "completed_round_count": 11,
+      "input_digest": "64c0d16db7cd7f233d3ab651a0b5edc2898584d56120d1aca2a48f1c02687c22"
+    },
+    "proposal": {
+      "schema_version": 2,
+      "action": "stop",
+      "sub_aspect": null,
+      "hypothesis": "No definitive measured policy weakness was established within the tested executable scope. The unchanged official control and bounded stapler translations and rotations all succeeded under the experimental terminal proximity predicates; the reported terminal left-TCP-to-stapler distances remained within the tested evidence-grounded bounds. Untested scene concerns may remain, but the advertised runtime capabilities provide no further distinct, semantically grounded executable concern beyond the already tested stapler pose transformations.",
+      "requested_perturbation": null,
+      "scene_need": {
+        "required": false,
+        "description": null
+      },
+      "checker_need": {
+        "required": false,
+        "description": null
+      },
+      "rule_tool_need": {
+        "required": false,
+        "description": null,
+        "reuse_first": true
+      },
+      "vqa_tool_need": {
+        "required": false,
+        "description": null,
+        "reuse_first": true
+      },
+      "rationale": "Rounds 3-11 successfully covered bounded initial stapler translations along world x, y, and z plus yaw, pitch, and roll orientation changes. The latest roll test succeeded with terminal distance 0.079618 m, and prior x-boundary refinements also succeeded down to a 0.07980 m predicate. These successful experimental outcomes do not supply a failure witness or a scene-factor boundary for further refinement. The simulator card exposes no tracked actors, semantic roles, probe attributes, or semantic telemetry from which to derive another distinct supported scene concern, so further candidate invention would be ungrounded.",
+      "task_need": {
+        "required": false,
+        "description": null
+      },
+      "tool_need": {
+        "required": false,
+        "description": null,
+        "reuse_first": true
+      }
+    },
+    "provider": {
+      "model_requested": "gpt-5.6-terra",
+      "called": true,
+      "attempt_count": 1,
+      "errors": [],
+      "last_metadata": {
+        "id": "resp_02858d456c45cd60016a732a86139c8197832131f97cdd8fec",
+        "model": "gpt-5.6-terra",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 10465,
+          "completion_tokens": 703,
+          "total_tokens": 11168,
+          "completion_tokens_details": {
+            "reasoning_tokens": 404
+          }
+        },
+        "retry_count": 1
+      }
+    }
+  },
+  "semantic_needs": {
+    "scene_need": {
+      "required": false,
+      "description": null
+    },
+    "checker_need": {
+      "required": false,
+      "description": null
+    },
+    "rule_tool_need": {
+      "required": false,
+      "description": null,
+      "reuse_first": true
+    },
+    "vqa_tool_need": {
+      "required": false,
+      "description": null,
+      "reuse_first": true
+    },
+    "task_need": {
+      "required": false,
+      "description": null
+    },
+    "tool_need": {
+      "required": false,
+      "description": null,
+      "reuse_first": true
+    }
+  },
+  "resolution": {
+    "schema_version": 1,
+    "semantic_sub_aspect": null,
+    "resolved_aspect_id": null,
+    "resolved_template_id": null,
+    "resolved_candidate_id": null,
+    "resolution": "plan_agent_inconclusive_stop",
+    "hidden": false,
+    "matched_tokens": [],
+    "catalog_was_model_visible": false,
+    "catalog_resolution_error": null,
+    "retrieval_aspect_id": null,
+    "retrieval_template_id": null,
+    "retrieval_resolution": null
+  },
+  "query_contract": {
+    "schema_version": 3,
+    "claim_type": "existential",
+    "candidate_universe": [
+      "dynamic.press.stapler.scene.robustness.initial.lateral.displacement.translating.the.stapler.s.initial.position.by.0.03.m.along.the.world.x.axis.will.expose.a.policy.weakness.the.policy.will.not.satisfy.the.combined.predicate.of.official.task.success.and.terminal.physical.contact.between.the.stapler.and.either.robot.gripper.ee000124987f",
+      "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.left.tcp.proximity.after.translating.the.stapler.initial.position.by.0.03.m.along.the.world.x.axis.the.policy.will.fail.the.satisfiable.combined.terminal.criterion.of.official.press.stapler.success.and.left.tcp.to.stapler.distance.no.greater.than.0.080.m.exposing.a.spatial.retargeting.weakness.5536913db934",
+      "dynamic.press.stapler.scene.robustness.lateral.shift.boundary.refinement.increasing.the.stapler.initial.world.x.displacement.from.0.030.m.to.0.031.m.relative.to.the.official.reset.pose.will.cause.the.policy.to.fail.the.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.080.m.exposing.a.bounded.spatial.retargeting.weakness.2cfa9bfa7a31",
+      "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.proximity.boundary.with.the.stapler.translated.by.0.030.m.along.world.x.from.the.official.reset.pose.the.policy.will.fail.the.experimental.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07992.m.revealing.that.its.previously.successful.spatial.retargeting.margin.is.below.the.evidence.grounded.boundary.0946283b238c",
+      "dynamic.press.stapler.scene.robustness.orthogonal.world.y.displacement.terminal.tcp.proximity.translating.the.stapler.s.initial.position.by.0.030.m.along.the.world.y.axis.will.cause.the.policy.to.fail.the.experimental.terminal.predicate.consisting.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.no.greater.than.0.080.m.exposing.an.orthogonal.lateral.retargeting.weakness.while.the.expert.remains.able.to.satisfy.the.predicate.58f7e703ef15",
+      "dynamic.press.stapler.scene.robustness.vertical.reach.displacement.terminal.tcp.proximity.translating.the.stapler.initial.position.by.0.030.m.along.the.world.z.axis.will.cause.the.policy.to.fail.the.terminal.conjunction.of.the.official.core.predicate.and.a.left.tcp.to.stapler.distance.of.at.most.0.080.m.while.the.expert.can.satisfy.that.criterion.8b06bca69155",
+      "dynamic.press.stapler.scene.robustness.lateral.shift.evidence.bracketed.terminal.tcp.margin.with.the.stapler.initially.translated.by.0.030.m.along.world.x.the.policy.will.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.0.07980.m.exposing.an.evidence.bracketed.spatial.retargeting.margin.weakness.6ad07b3dba9b",
+      "dynamic.press.stapler.scene.robustness.initial.stapler.yaw.orientation.with.the.stapler.rotated.by.15.degrees.about.the.world.z.axis.from.its.official.reset.orientation.the.policy.will.fail.the.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.revealing.orientation.sensitive.retargeting.despite.its.successful.translational.perturbation.results.7b8aa62577e6",
+      "dynamic.press.stapler.scene.robustness.initial.stapler.pitch.alignment.rotating.the.stapler.by.15.degrees.about.the.world.y.axis.from.its.official.reset.orientation.will.cause.the.policy.to.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.exposing.sensitivity.to.press.surface.pitch.alignment.d77104b18bec",
+      "dynamic.press.stapler.scene.robustness.initial.stapler.roll.orientation.applying.a.bounded.15.degree.roll.rotation.about.the.world.x.axis.to.the.stapler.from.its.official.reset.orientation.will.cause.the.policy.to.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.exposing.sensitivity.to.an.untested.press.surface.roll.alignment.concern.a60098bc03e2"
+    ],
+    "required_coverage": {
+      "candidate_ids": [
+        "dynamic.press.stapler.scene.robustness.initial.lateral.displacement.translating.the.stapler.s.initial.position.by.0.03.m.along.the.world.x.axis.will.expose.a.policy.weakness.the.policy.will.not.satisfy.the.combined.predicate.of.official.task.success.and.terminal.physical.contact.between.the.stapler.and.either.robot.gripper.ee000124987f",
+        "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.left.tcp.proximity.after.translating.the.stapler.initial.position.by.0.03.m.along.the.world.x.axis.the.policy.will.fail.the.satisfiable.combined.terminal.criterion.of.official.press.stapler.success.and.left.tcp.to.stapler.distance.no.greater.than.0.080.m.exposing.a.spatial.retargeting.weakness.5536913db934",
+        "dynamic.press.stapler.scene.robustness.lateral.shift.boundary.refinement.increasing.the.stapler.initial.world.x.displacement.from.0.030.m.to.0.031.m.relative.to.the.official.reset.pose.will.cause.the.policy.to.fail.the.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.080.m.exposing.a.bounded.spatial.retargeting.weakness.2cfa9bfa7a31",
+        "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.proximity.boundary.with.the.stapler.translated.by.0.030.m.along.world.x.from.the.official.reset.pose.the.policy.will.fail.the.experimental.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07992.m.revealing.that.its.previously.successful.spatial.retargeting.margin.is.below.the.evidence.grounded.boundary.0946283b238c",
+        "dynamic.press.stapler.scene.robustness.orthogonal.world.y.displacement.terminal.tcp.proximity.translating.the.stapler.s.initial.position.by.0.030.m.along.the.world.y.axis.will.cause.the.policy.to.fail.the.experimental.terminal.predicate.consisting.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.no.greater.than.0.080.m.exposing.an.orthogonal.lateral.retargeting.weakness.while.the.expert.remains.able.to.satisfy.the.predicate.58f7e703ef15",
+        "dynamic.press.stapler.scene.robustness.vertical.reach.displacement.terminal.tcp.proximity.translating.the.stapler.initial.position.by.0.030.m.along.the.world.z.axis.will.cause.the.policy.to.fail.the.terminal.conjunction.of.the.official.core.predicate.and.a.left.tcp.to.stapler.distance.of.at.most.0.080.m.while.the.expert.can.satisfy.that.criterion.8b06bca69155",
+        "dynamic.press.stapler.scene.robustness.lateral.shift.evidence.bracketed.terminal.tcp.margin.with.the.stapler.initially.translated.by.0.030.m.along.world.x.the.policy.will.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.0.07980.m.exposing.an.evidence.bracketed.spatial.retargeting.margin.weakness.6ad07b3dba9b",
+        "dynamic.press.stapler.scene.robustness.initial.stapler.yaw.orientation.with.the.stapler.rotated.by.15.degrees.about.the.world.z.axis.from.its.official.reset.orientation.the.policy.will.fail.the.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.revealing.orientation.sensitive.retargeting.despite.its.successful.translational.perturbation.results.7b8aa62577e6",
+        "dynamic.press.stapler.scene.robustness.initial.stapler.pitch.alignment.rotating.the.stapler.by.15.degrees.about.the.world.y.axis.from.its.official.reset.orientation.will.cause.the.policy.to.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.exposing.sensitivity.to.press.surface.pitch.alignment.d77104b18bec",
+        "dynamic.press.stapler.scene.robustness.initial.stapler.roll.orientation.applying.a.bounded.15.degree.roll.rotation.about.the.world.x.axis.to.the.stapler.from.its.official.reset.orientation.will.cause.the.policy.to.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.exposing.sensitivity.to.an.untested.press.surface.roll.alignment.concern.a60098bc03e2"
+      ],
+      "minimum_evaluated": 10,
+      "minimum_per_group": null
+    },
+    "round_budget": 19,
+    "comparison_groups": null,
+    "candidate_universe_closed": false,
+    "existential_witness_outcome": "fail",
+    "control_requirement": "required"
+  },
+  "query_assessment": {
+    "schema_version": 1,
+    "contract": {
+      "schema_version": 3,
+      "claim_type": "existential",
+      "candidate_universe": [
+        "dynamic.press.stapler.scene.robustness.initial.lateral.displacement.translating.the.stapler.s.initial.position.by.0.03.m.along.the.world.x.axis.will.expose.a.policy.weakness.the.policy.will.not.satisfy.the.combined.predicate.of.official.task.success.and.terminal.physical.contact.between.the.stapler.and.either.robot.gripper.ee000124987f",
+        "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.left.tcp.proximity.after.translating.the.stapler.initial.position.by.0.03.m.along.the.world.x.axis.the.policy.will.fail.the.satisfiable.combined.terminal.criterion.of.official.press.stapler.success.and.left.tcp.to.stapler.distance.no.greater.than.0.080.m.exposing.a.spatial.retargeting.weakness.5536913db934",
+        "dynamic.press.stapler.scene.robustness.lateral.shift.boundary.refinement.increasing.the.stapler.initial.world.x.displacement.from.0.030.m.to.0.031.m.relative.to.the.official.reset.pose.will.cause.the.policy.to.fail.the.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.080.m.exposing.a.bounded.spatial.retargeting.weakness.2cfa9bfa7a31",
+        "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.proximity.boundary.with.the.stapler.translated.by.0.030.m.along.world.x.from.the.official.reset.pose.the.policy.will.fail.the.experimental.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07992.m.revealing.that.its.previously.successful.spatial.retargeting.margin.is.below.the.evidence.grounded.boundary.0946283b238c",
+        "dynamic.press.stapler.scene.robustness.orthogonal.world.y.displacement.terminal.tcp.proximity.translating.the.stapler.s.initial.position.by.0.030.m.along.the.world.y.axis.will.cause.the.policy.to.fail.the.experimental.terminal.predicate.consisting.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.no.greater.than.0.080.m.exposing.an.orthogonal.lateral.retargeting.weakness.while.the.expert.remains.able.to.satisfy.the.predicate.58f7e703ef15",
+        "dynamic.press.stapler.scene.robustness.vertical.reach.displacement.terminal.tcp.proximity.translating.the.stapler.initial.position.by.0.030.m.along.the.world.z.axis.will.cause.the.policy.to.fail.the.terminal.conjunction.of.the.official.core.predicate.and.a.left.tcp.to.stapler.distance.of.at.most.0.080.m.while.the.expert.can.satisfy.that.criterion.8b06bca69155",
+        "dynamic.press.stapler.scene.robustness.lateral.shift.evidence.bracketed.terminal.tcp.margin.with.the.stapler.initially.translated.by.0.030.m.along.world.x.the.policy.will.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.0.07980.m.exposing.an.evidence.bracketed.spatial.retargeting.margin.weakness.6ad07b3dba9b",
+        "dynamic.press.stapler.scene.robustness.initial.stapler.yaw.orientation.with.the.stapler.rotated.by.15.degrees.about.the.world.z.axis.from.its.official.reset.orientation.the.policy.will.fail.the.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.revealing.orientation.sensitive.retargeting.despite.its.successful.translational.perturbation.results.7b8aa62577e6",
+        "dynamic.press.stapler.scene.robustness.initial.stapler.pitch.alignment.rotating.the.stapler.by.15.degrees.about.the.world.y.axis.from.its.official.reset.orientation.will.cause.the.policy.to.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.exposing.sensitivity.to.press.surface.pitch.alignment.d77104b18bec",
+        "dynamic.press.stapler.scene.robustness.initial.stapler.roll.orientation.applying.a.bounded.15.degree.roll.rotation.about.the.world.x.axis.to.the.stapler.from.its.official.reset.orientation.will.cause.the.policy.to.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.exposing.sensitivity.to.an.untested.press.surface.roll.alignment.concern.a60098bc03e2"
+      ],
+      "required_coverage": {
+        "candidate_ids": [
+          "dynamic.press.stapler.scene.robustness.initial.lateral.displacement.translating.the.stapler.s.initial.position.by.0.03.m.along.the.world.x.axis.will.expose.a.policy.weakness.the.policy.will.not.satisfy.the.combined.predicate.of.official.task.success.and.terminal.physical.contact.between.the.stapler.and.either.robot.gripper.ee000124987f",
+          "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.left.tcp.proximity.after.translating.the.stapler.initial.position.by.0.03.m.along.the.world.x.axis.the.policy.will.fail.the.satisfiable.combined.terminal.criterion.of.official.press.stapler.success.and.left.tcp.to.stapler.distance.no.greater.than.0.080.m.exposing.a.spatial.retargeting.weakness.5536913db934",
+          "dynamic.press.stapler.scene.robustness.lateral.shift.boundary.refinement.increasing.the.stapler.initial.world.x.displacement.from.0.030.m.to.0.031.m.relative.to.the.official.reset.pose.will.cause.the.policy.to.fail.the.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.080.m.exposing.a.bounded.spatial.retargeting.weakness.2cfa9bfa7a31",
+          "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.proximity.boundary.with.the.stapler.translated.by.0.030.m.along.world.x.from.the.official.reset.pose.the.policy.will.fail.the.experimental.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07992.m.revealing.that.its.previously.successful.spatial.retargeting.margin.is.below.the.evidence.grounded.boundary.0946283b238c",
+          "dynamic.press.stapler.scene.robustness.orthogonal.world.y.displacement.terminal.tcp.proximity.translating.the.stapler.s.initial.position.by.0.030.m.along.the.world.y.axis.will.cause.the.policy.to.fail.the.experimental.terminal.predicate.consisting.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.no.greater.than.0.080.m.exposing.an.orthogonal.lateral.retargeting.weakness.while.the.expert.remains.able.to.satisfy.the.predicate.58f7e703ef15",
+          "dynamic.press.stapler.scene.robustness.vertical.reach.displacement.terminal.tcp.proximity.translating.the.stapler.initial.position.by.0.030.m.along.the.world.z.axis.will.cause.the.policy.to.fail.the.terminal.conjunction.of.the.official.core.predicate.and.a.left.tcp.to.stapler.distance.of.at.most.0.080.m.while.the.expert.can.satisfy.that.criterion.8b06bca69155",
+          "dynamic.press.stapler.scene.robustness.lateral.shift.evidence.bracketed.terminal.tcp.margin.with.the.stapler.initially.translated.by.0.030.m.along.world.x.the.policy.will.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.0.07980.m.exposing.an.evidence.bracketed.spatial.retargeting.margin.weakness.6ad07b3dba9b",
+          "dynamic.press.stapler.scene.robustness.initial.stapler.yaw.orientation.with.the.stapler.rotated.by.15.degrees.about.the.world.z.axis.from.its.official.reset.orientation.the.policy.will.fail.the.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.revealing.orientation.sensitive.retargeting.despite.its.successful.translational.perturbation.results.7b8aa62577e6",
+          "dynamic.press.stapler.scene.robustness.initial.stapler.pitch.alignment.rotating.the.stapler.by.15.degrees.about.the.world.y.axis.from.its.official.reset.orientation.will.cause.the.policy.to.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.exposing.sensitivity.to.press.surface.pitch.alignment.d77104b18bec",
+          "dynamic.press.stapler.scene.robustness.initial.stapler.roll.orientation.applying.a.bounded.15.degree.roll.rotation.about.the.world.x.axis.to.the.stapler.from.its.official.reset.orientation.will.cause.the.policy.to.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.exposing.sensitivity.to.an.untested.press.surface.roll.alignment.concern.a60098bc03e2"
+        ],
+        "minimum_evaluated": 10,
+        "minimum_per_group": null
+      },
+      "round_budget": 19,
+      "comparison_groups": null,
+      "candidate_universe_closed": false,
+      "existential_witness_outcome": "fail",
+      "control_requirement": "required"
+    },
+    "should_stop": true,
+    "stop_reason": "agent_saturation_inconclusive",
+    "claim_verdict": "inconclusive",
+    "evidence_sufficient": false,
+    "completed_rounds": 9,
+    "round_budget": 19,
+    "budget_remaining": 10,
+    "candidate_universe_closed": false,
+    "candidate_discovery_required": false,
+    "observed_candidate_ids": [
+      "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.left.tcp.proximity.after.translating.the.stapler.initial.position.by.0.03.m.along.the.world.x.axis.the.policy.will.fail.the.satisfiable.combined.terminal.criterion.of.official.press.stapler.success.and.left.tcp.to.stapler.distance.no.greater.than.0.080.m.exposing.a.spatial.retargeting.weakness.5536913db934",
+      "dynamic.press.stapler.scene.robustness.lateral.shift.boundary.refinement.increasing.the.stapler.initial.world.x.displacement.from.0.030.m.to.0.031.m.relative.to.the.official.reset.pose.will.cause.the.policy.to.fail.the.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.080.m.exposing.a.bounded.spatial.retargeting.weakness.2cfa9bfa7a31",
+      "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.proximity.boundary.with.the.stapler.translated.by.0.030.m.along.world.x.from.the.official.reset.pose.the.policy.will.fail.the.experimental.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07992.m.revealing.that.its.previously.successful.spatial.retargeting.margin.is.below.the.evidence.grounded.boundary.0946283b238c",
+      "dynamic.press.stapler.scene.robustness.orthogonal.world.y.displacement.terminal.tcp.proximity.translating.the.stapler.s.initial.position.by.0.030.m.along.the.world.y.axis.will.cause.the.policy.to.fail.the.experimental.terminal.predicate.consisting.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.no.greater.than.0.080.m.exposing.an.orthogonal.lateral.retargeting.weakness.while.the.expert.remains.able.to.satisfy.the.predicate.58f7e703ef15",
+      "dynamic.press.stapler.scene.robustness.vertical.reach.displacement.terminal.tcp.proximity.translating.the.stapler.initial.position.by.0.030.m.along.the.world.z.axis.will.cause.the.policy.to.fail.the.terminal.conjunction.of.the.official.core.predicate.and.a.left.tcp.to.stapler.distance.of.at.most.0.080.m.while.the.expert.can.satisfy.that.criterion.8b06bca69155",
+      "dynamic.press.stapler.scene.robustness.lateral.shift.evidence.bracketed.terminal.tcp.margin.with.the.stapler.initially.translated.by.0.030.m.along.world.x.the.policy.will.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.0.07980.m.exposing.an.evidence.bracketed.spatial.retargeting.margin.weakness.6ad07b3dba9b",
+      "dynamic.press.stapler.scene.robustness.initial.stapler.yaw.orientation.with.the.stapler.rotated.by.15.degrees.about.the.world.z.axis.from.its.official.reset.orientation.the.policy.will.fail.the.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.revealing.orientation.sensitive.retargeting.despite.its.successful.translational.perturbation.results.7b8aa62577e6",
+      "dynamic.press.stapler.scene.robustness.initial.stapler.pitch.alignment.rotating.the.stapler.by.15.degrees.about.the.world.y.axis.from.its.official.reset.orientation.will.cause.the.policy.to.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.exposing.sensitivity.to.press.surface.pitch.alignment.d77104b18bec",
+      "dynamic.press.stapler.scene.robustness.initial.stapler.roll.orientation.applying.a.bounded.15.degree.roll.rotation.about.the.world.x.axis.to.the.stapler.from.its.official.reset.orientation.will.cause.the.policy.to.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.exposing.sensitivity.to.an.untested.press.surface.roll.alignment.concern.a60098bc03e2"
+    ],
+    "decisive_candidate_ids": [
+      "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.left.tcp.proximity.after.translating.the.stapler.initial.position.by.0.03.m.along.the.world.x.axis.the.policy.will.fail.the.satisfiable.combined.terminal.criterion.of.official.press.stapler.success.and.left.tcp.to.stapler.distance.no.greater.than.0.080.m.exposing.a.spatial.retargeting.weakness.5536913db934",
+      "dynamic.press.stapler.scene.robustness.lateral.shift.boundary.refinement.increasing.the.stapler.initial.world.x.displacement.from.0.030.m.to.0.031.m.relative.to.the.official.reset.pose.will.cause.the.policy.to.fail.the.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.080.m.exposing.a.bounded.spatial.retargeting.weakness.2cfa9bfa7a31",
+      "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.proximity.boundary.with.the.stapler.translated.by.0.030.m.along.world.x.from.the.official.reset.pose.the.policy.will.fail.the.experimental.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07992.m.revealing.that.its.previously.successful.spatial.retargeting.margin.is.below.the.evidence.grounded.boundary.0946283b238c",
+      "dynamic.press.stapler.scene.robustness.orthogonal.world.y.displacement.terminal.tcp.proximity.translating.the.stapler.s.initial.position.by.0.030.m.along.the.world.y.axis.will.cause.the.policy.to.fail.the.experimental.terminal.predicate.consisting.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.no.greater.than.0.080.m.exposing.an.orthogonal.lateral.retargeting.weakness.while.the.expert.remains.able.to.satisfy.the.predicate.58f7e703ef15",
+      "dynamic.press.stapler.scene.robustness.vertical.reach.displacement.terminal.tcp.proximity.translating.the.stapler.initial.position.by.0.030.m.along.the.world.z.axis.will.cause.the.policy.to.fail.the.terminal.conjunction.of.the.official.core.predicate.and.a.left.tcp.to.stapler.distance.of.at.most.0.080.m.while.the.expert.can.satisfy.that.criterion.8b06bca69155",
+      "dynamic.press.stapler.scene.robustness.lateral.shift.evidence.bracketed.terminal.tcp.margin.with.the.stapler.initially.translated.by.0.030.m.along.world.x.the.policy.will.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.0.07980.m.exposing.an.evidence.bracketed.spatial.retargeting.margin.weakness.6ad07b3dba9b",
+      "dynamic.press.stapler.scene.robustness.initial.stapler.yaw.orientation.with.the.stapler.rotated.by.15.degrees.about.the.world.z.axis.from.its.official.reset.orientation.the.policy.will.fail.the.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.revealing.orientation.sensitive.retargeting.despite.its.successful.translational.perturbation.results.7b8aa62577e6",
+      "dynamic.press.stapler.scene.robustness.initial.stapler.pitch.alignment.rotating.the.stapler.by.15.degrees.about.the.world.y.axis.from.its.official.reset.orientation.will.cause.the.policy.to.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.exposing.sensitivity.to.press.surface.pitch.alignment.d77104b18bec",
+      "dynamic.press.stapler.scene.robustness.initial.stapler.roll.orientation.applying.a.bounded.15.degree.roll.rotation.about.the.world.x.axis.to.the.stapler.from.its.official.reset.orientation.will.cause.the.policy.to.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.exposing.sensitivity.to.an.untested.press.surface.roll.alignment.concern.a60098bc03e2"
+    ],
+    "conflict_candidate_ids": [],
+    "unknown_candidate_ids": [],
+    "untested_required_candidate_ids": [
+      "dynamic.press.stapler.scene.robustness.initial.lateral.displacement.translating.the.stapler.s.initial.position.by.0.03.m.along.the.world.x.axis.will.expose.a.policy.weakness.the.policy.will.not.satisfy.the.combined.predicate.of.official.task.success.and.terminal.physical.contact.between.the.stapler.and.either.robot.gripper.ee000124987f"
+    ],
+    "untested_candidate_ids": [
+      "dynamic.press.stapler.scene.robustness.initial.lateral.displacement.translating.the.stapler.s.initial.position.by.0.03.m.along.the.world.x.axis.will.expose.a.policy.weakness.the.policy.will.not.satisfy.the.combined.predicate.of.official.task.success.and.terminal.physical.contact.between.the.stapler.and.either.robot.gripper.ee000124987f"
+    ],
+    "recommended_candidate_ids": [],
+    "rationale": "Rounds 3-11 successfully covered bounded initial stapler translations along world x, y, and z plus yaw, pitch, and roll orientation changes. The latest roll test succeeded with terminal distance 0.079618 m, and prior x-boundary refinements also succeeded down to a 0.07980 m predicate. These successful experimental outcomes do not supply a failure witness or a scene-factor boundary for further refinement. The simulator card exposes no tracked actors, semantic roles, probe attributes, or semantic telemetry from which to derive another distinct supported scene concern, so further candidate invention would be ungrounded.",
+    "statistics": {
+      "existential_witness_outcome": "fail",
+      "witness_candidate_ids": []
+    },
+    "limitations": [
+      "This is a finite-domain stopping prototype, not a statistical generalization guarantee.",
+      "The candidate universe is open; exhaustive, no-counterexample, and worst-case conclusions are not licensed.",
+      "The Plan Agent found no further distinct executable experiment in the advertised runtime capabilities; this information-saturation stop does not make the Query evidence sufficient."
+    ]
+  },
+  "query_answer": {
+    "schema_version": 1,
+    "original_query": "Does there exist a bounded, executable scene concern beyond the unchanged official press_stapler task under which this policy exposes a measured weakness? Observe the control, then let the Plan Agent invent and refine the most informative concerns from evidence. I provide no aspect, object, axis, magnitude, relation, threshold, template, checker code, or metric. Generate only the scene, checker, Rule Tool, or VQA Tool actually required by each Proposal. A generated checker must preserve official success as a required conjunct and add only directly observable current-state semantics. A diagnostic Tool must remain separate from success. After a valid success, the evidence must choose a genuinely different semantic concern or an evidence-grounded boundary refinement rather than repeat the same test. The Plan Agent must propose stop as soon as a definitive failure witness has an evidence-backed diagnosis. If executable supported concerns become informationally saturated without such a witness, it must actively stop and answer only the tested scope.",
+    "answered": false,
+    "answer_scope": "bounded_experimental_query_semantics",
+    "official_benchmark_answered": false,
+    "stop_reason": "agent_saturation_inconclusive",
+    "claim_type": "existential",
+    "claim_verdict": "inconclusive",
+    "answer": "The bounded evidence does not yet satisfy the truth conditions needed to answer the original Query.",
+    "tested_candidate_ids": [
+      "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.left.tcp.proximity.after.translating.the.stapler.initial.position.by.0.03.m.along.the.world.x.axis.the.policy.will.fail.the.satisfiable.combined.terminal.criterion.of.official.press.stapler.success.and.left.tcp.to.stapler.distance.no.greater.than.0.080.m.exposing.a.spatial.retargeting.weakness.5536913db934",
+      "dynamic.press.stapler.scene.robustness.lateral.shift.boundary.refinement.increasing.the.stapler.initial.world.x.displacement.from.0.030.m.to.0.031.m.relative.to.the.official.reset.pose.will.cause.the.policy.to.fail.the.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.080.m.exposing.a.bounded.spatial.retargeting.weakness.2cfa9bfa7a31",
+      "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.proximity.boundary.with.the.stapler.translated.by.0.030.m.along.world.x.from.the.official.reset.pose.the.policy.will.fail.the.experimental.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07992.m.revealing.that.its.previously.successful.spatial.retargeting.margin.is.below.the.evidence.grounded.boundary.0946283b238c",
+      "dynamic.press.stapler.scene.robustness.orthogonal.world.y.displacement.terminal.tcp.proximity.translating.the.stapler.s.initial.position.by.0.030.m.along.the.world.y.axis.will.cause.the.policy.to.fail.the.experimental.terminal.predicate.consisting.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.no.greater.than.0.080.m.exposing.an.orthogonal.lateral.retargeting.weakness.while.the.expert.remains.able.to.satisfy.the.predicate.58f7e703ef15",
+      "dynamic.press.stapler.scene.robustness.vertical.reach.displacement.terminal.tcp.proximity.translating.the.stapler.initial.position.by.0.030.m.along.the.world.z.axis.will.cause.the.policy.to.fail.the.terminal.conjunction.of.the.official.core.predicate.and.a.left.tcp.to.stapler.distance.of.at.most.0.080.m.while.the.expert.can.satisfy.that.criterion.8b06bca69155",
+      "dynamic.press.stapler.scene.robustness.lateral.shift.evidence.bracketed.terminal.tcp.margin.with.the.stapler.initially.translated.by.0.030.m.along.world.x.the.policy.will.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.0.07980.m.exposing.an.evidence.bracketed.spatial.retargeting.margin.weakness.6ad07b3dba9b",
+      "dynamic.press.stapler.scene.robustness.initial.stapler.yaw.orientation.with.the.stapler.rotated.by.15.degrees.about.the.world.z.axis.from.its.official.reset.orientation.the.policy.will.fail.the.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.revealing.orientation.sensitive.retargeting.despite.its.successful.translational.perturbation.results.7b8aa62577e6",
+      "dynamic.press.stapler.scene.robustness.initial.stapler.pitch.alignment.rotating.the.stapler.by.15.degrees.about.the.world.y.axis.from.its.official.reset.orientation.will.cause.the.policy.to.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.exposing.sensitivity.to.press.surface.pitch.alignment.d77104b18bec",
+      "dynamic.press.stapler.scene.robustness.initial.stapler.roll.orientation.applying.a.bounded.15.degree.roll.rotation.about.the.world.x.axis.to.the.stapler.from.its.official.reset.orientation.will.cause.the.policy.to.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.exposing.sensitivity.to.an.untested.press.surface.roll.alignment.concern.a60098bc03e2"
+    ],
+    "untested_candidate_ids": [
+      "dynamic.press.stapler.scene.robustness.initial.lateral.displacement.translating.the.stapler.s.initial.position.by.0.03.m.along.the.world.x.axis.will.expose.a.policy.weakness.the.policy.will.not.satisfy.the.combined.predicate.of.official.task.success.and.terminal.physical.contact.between.the.stapler.and.either.robot.gripper.ee000124987f"
+    ],
+    "limitations": [
+      "This is a finite-domain stopping prototype, not a statistical generalization guarantee.",
+      "The candidate universe is open; exhaustive, no-counterexample, and worst-case conclusions are not licensed.",
+      "The Plan Agent found no further distinct executable experiment in the advertised runtime capabilities; this information-saturation stop does not make the Query evidence sufficient.",
+      "Untested candidates: dynamic.press.stapler.scene.robustness.initial.lateral.displacement.translating.the.stapler.s.initial.position.by.0.03.m.along.the.world.x.axis.will.expose.a.policy.weakness.the.policy.will.not.satisfy.the.combined.predicate.of.official.task.success.and.terminal.physical.contact.between.the.stapler.and.either.robot.gripper.ee000124987f",
+      "This answer is limited to the bound task, checkpoint, variants, and recorded seeds.",
+      "A finite-domain N-small result is not a broad generalization guarantee.",
+      "At least one candidate verdict uses generated_check_success; it must not be interpreted as official benchmark success.",
+      "At least one generated checker has not been certified as official-equivalent; its verdict must be treated as experimental."
+    ],
+    "evidence_refs": [
+      {
+        "kind": "child_manifest",
+        "path": "mea/generated_tasks/run_native_smolvla_0eefd9afb118/manifest.json"
+      },
+      {
+        "kind": "evidence_aggregate",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_1/evidence_aggregate.json"
+      },
+      {
+        "kind": "round_aggregate",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_1/aggregate_result.json"
+      },
+      {
+        "kind": "tool_execution",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_1/planned_tool/tool_execution.json"
+      },
+      {
+        "kind": "child_manifest",
+        "path": "mea/generated_tasks/run_native_smolvla_c60a8a4175cb/manifest.json"
+      },
+      {
+        "kind": "evidence_aggregate",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_2/evidence_aggregate.json"
+      },
+      {
+        "kind": "round_aggregate",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_2/aggregate_result.json"
+      },
+      {
+        "kind": "child_manifest",
+        "path": "mea/generated_tasks/run_native_smolvla_32cbc0710389/manifest.json"
+      },
+      {
+        "kind": "evidence_aggregate",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_3/evidence_aggregate.json"
+      },
+      {
+        "kind": "round_aggregate",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_3/aggregate_result.json"
+      },
+      {
+        "kind": "tool_execution",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_3/planned_tool/tool_execution.json"
+      },
+      {
+        "kind": "child_manifest",
+        "path": "mea/generated_tasks/run_native_smolvla_59d5919f52d5/manifest.json"
+      },
+      {
+        "kind": "evidence_aggregate",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_4/evidence_aggregate.json"
+      },
+      {
+        "kind": "round_aggregate",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_4/aggregate_result.json"
+      },
+      {
+        "kind": "tool_execution",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_4/planned_tool/tool_execution.json"
+      },
+      {
+        "kind": "child_manifest",
+        "path": "mea/generated_tasks/run_native_smolvla_1351fe694f96/manifest.json"
+      },
+      {
+        "kind": "evidence_aggregate",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_5/evidence_aggregate.json"
+      },
+      {
+        "kind": "round_aggregate",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_5/aggregate_result.json"
+      },
+      {
+        "kind": "tool_execution",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_5/planned_tool/tool_execution.json"
+      },
+      {
+        "kind": "child_manifest",
+        "path": "mea/generated_tasks/run_native_smolvla_a53621cad240/manifest.json"
+      },
+      {
+        "kind": "evidence_aggregate",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_6/evidence_aggregate.json"
+      },
+      {
+        "kind": "round_aggregate",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_6/aggregate_result.json"
+      },
+      {
+        "kind": "tool_execution",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_6/planned_tool/tool_execution.json"
+      },
+      {
+        "kind": "child_manifest",
+        "path": "mea/generated_tasks/run_native_smolvla_884ccc01b1ad/manifest.json"
+      },
+      {
+        "kind": "evidence_aggregate",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_7/evidence_aggregate.json"
+      },
+      {
+        "kind": "round_aggregate",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_7/aggregate_result.json"
+      },
+      {
+        "kind": "tool_execution",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_7/planned_tool/tool_execution.json"
+      },
+      {
+        "kind": "child_manifest",
+        "path": "mea/generated_tasks/run_native_smolvla_df88556d12ac/manifest.json"
+      },
+      {
+        "kind": "evidence_aggregate",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_8/evidence_aggregate.json"
+      },
+      {
+        "kind": "round_aggregate",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_8/aggregate_result.json"
+      },
+      {
+        "kind": "tool_execution",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_8/planned_tool/tool_execution.json"
+      },
+      {
+        "kind": "child_manifest",
+        "path": "mea/generated_tasks/run_native_smolvla_4b43d925b502/manifest.json"
+      },
+      {
+        "kind": "evidence_aggregate",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_9/evidence_aggregate.json"
+      },
+      {
+        "kind": "round_aggregate",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_9/aggregate_result.json"
+      },
+      {
+        "kind": "tool_execution",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_9/planned_tool/tool_execution.json"
+      },
+      {
+        "kind": "child_manifest",
+        "path": "mea/generated_tasks/run_native_smolvla_4fa0081df8fb/manifest.json"
+      },
+      {
+        "kind": "evidence_aggregate",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_10/evidence_aggregate.json"
+      },
+      {
+        "kind": "round_aggregate",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_10/aggregate_result.json"
+      },
+      {
+        "kind": "tool_execution",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_10/planned_tool/tool_execution.json"
+      },
+      {
+        "kind": "child_manifest",
+        "path": "mea/generated_tasks/run_native_smolvla_d350264745aa/manifest.json"
+      },
+      {
+        "kind": "evidence_aggregate",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_11/evidence_aggregate.json"
+      },
+      {
+        "kind": "round_aggregate",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_11/aggregate_result.json"
+      },
+      {
+        "kind": "tool_execution",
+        "path": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_11/planned_tool/tool_execution.json"
+      }
+    ],
+    "evaluation_outcomes": [
+      {
+        "metric": "official_check_success",
+        "authority": "official_check_success",
+        "binding": null,
+        "value": 1.0,
+        "official_equivalent": true,
+        "execution_scope": "official_check_success",
+        "outcome_semantics": {
+          "schema_version": 1,
+          "status": "official_only",
+          "evidence_conflict": false,
+          "official_equivalent": true,
+          "outcome_authority": "official_check_success",
+          "episodes": [],
+          "reason_codes": [
+            "official_outcome_has_no_generated_checker"
+          ]
+        }
+      },
+      {
+        "metric": null,
+        "authority": null,
+        "binding": null,
+        "value": null,
+        "official_equivalent": null,
+        "execution_scope": "not_executed",
+        "outcome_semantics": {
+          "schema_version": 1,
+          "status": "non_comparable",
+          "evidence_conflict": false,
+          "official_equivalent": null,
+          "outcome_authority": null,
+          "episodes": [],
+          "reason_codes": [
+            "taskgen_success_spec_invalid_spec"
+          ]
+        }
+      },
+      {
+        "metric": "generated_check_success",
+        "authority": "llm_generated_python_ast_validated",
+        "binding": {
+          "metric": "generated_check_success",
+          "authority": "llm_generated_python_ast_validated",
+          "module_sha256": "afb436faef85b30328379f64c41942fc54ff3856a01aa229c945f01b8e305bad",
+          "task_module": "mea.generated_tasks.run_native_smolvla_32cbc0710389.task"
+        },
+        "value": 1.0,
+        "official_equivalent": false,
+        "execution_scope": "provider_generated_checker",
+        "outcome_semantics": {
+          "schema_version": 1,
+          "status": "expected_semantic_extension",
+          "evidence_conflict": false,
+          "official_equivalent": false,
+          "outcome_authority": "llm_generated_python_ast_validated",
+          "episodes": [
+            {
+              "seed": 1000,
+              "generated_checker_success": true,
+              "official_success": true,
+              "official_core_predicate_satisfied": true,
+              "official_equivalent": false,
+              "status": "expected_semantic_extension",
+              "reason": "generated_checker_adds_constraints_beyond_official_core"
+            }
+          ],
+          "reason_codes": [
+            "generated_checker_adds_constraints_beyond_official_core"
+          ]
+        }
+      },
+      {
+        "metric": "generated_check_success",
+        "authority": "llm_generated_python_ast_validated",
+        "binding": {
+          "metric": "generated_check_success",
+          "authority": "llm_generated_python_ast_validated",
+          "module_sha256": "b39a85451ddb0566ad2cd8d408ef6d34d53785623eee31bda490c21e6d3acce0",
+          "task_module": "mea.generated_tasks.run_native_smolvla_59d5919f52d5.task"
+        },
+        "value": 1.0,
+        "official_equivalent": false,
+        "execution_scope": "provider_generated_checker",
+        "outcome_semantics": {
+          "schema_version": 1,
+          "status": "expected_semantic_extension",
+          "evidence_conflict": false,
+          "official_equivalent": false,
+          "outcome_authority": "llm_generated_python_ast_validated",
+          "episodes": [
+            {
+              "seed": 1000,
+              "generated_checker_success": true,
+              "official_success": true,
+              "official_core_predicate_satisfied": true,
+              "official_equivalent": false,
+              "status": "expected_semantic_extension",
+              "reason": "generated_checker_adds_constraints_beyond_official_core"
+            }
+          ],
+          "reason_codes": [
+            "generated_checker_adds_constraints_beyond_official_core"
+          ]
+        }
+      },
+      {
+        "metric": "generated_check_success",
+        "authority": "llm_generated_python_ast_validated",
+        "binding": {
+          "metric": "generated_check_success",
+          "authority": "llm_generated_python_ast_validated",
+          "module_sha256": "f077dd880b944bb6a5dba61dcb265a9c79c749b6622b31da4abeb2a4ed29008e",
+          "task_module": "mea.generated_tasks.run_native_smolvla_1351fe694f96.task"
+        },
+        "value": 1.0,
+        "official_equivalent": false,
+        "execution_scope": "provider_generated_checker",
+        "outcome_semantics": {
+          "schema_version": 1,
+          "status": "expected_semantic_extension",
+          "evidence_conflict": false,
+          "official_equivalent": false,
+          "outcome_authority": "llm_generated_python_ast_validated",
+          "episodes": [
+            {
+              "seed": 1000,
+              "generated_checker_success": true,
+              "official_success": true,
+              "official_core_predicate_satisfied": true,
+              "official_equivalent": false,
+              "status": "expected_semantic_extension",
+              "reason": "generated_checker_adds_constraints_beyond_official_core"
+            }
+          ],
+          "reason_codes": [
+            "generated_checker_adds_constraints_beyond_official_core"
+          ]
+        }
+      },
+      {
+        "metric": "generated_check_success",
+        "authority": "llm_generated_python_ast_validated",
+        "binding": {
+          "metric": "generated_check_success",
+          "authority": "llm_generated_python_ast_validated",
+          "module_sha256": "5bbf051ee58d7d5d7d75805cb6e7bec899a85b8a2031b06a8eed24a50e4ce499",
+          "task_module": "mea.generated_tasks.run_native_smolvla_a53621cad240.task"
+        },
+        "value": 1.0,
+        "official_equivalent": false,
+        "execution_scope": "provider_generated_checker",
+        "outcome_semantics": {
+          "schema_version": 1,
+          "status": "expected_semantic_extension",
+          "evidence_conflict": false,
+          "official_equivalent": false,
+          "outcome_authority": "llm_generated_python_ast_validated",
+          "episodes": [
+            {
+              "seed": 1000,
+              "generated_checker_success": true,
+              "official_success": true,
+              "official_core_predicate_satisfied": true,
+              "official_equivalent": false,
+              "status": "expected_semantic_extension",
+              "reason": "generated_checker_adds_constraints_beyond_official_core"
+            }
+          ],
+          "reason_codes": [
+            "generated_checker_adds_constraints_beyond_official_core"
+          ]
+        }
+      },
+      {
+        "metric": "generated_check_success",
+        "authority": "llm_generated_python_ast_validated",
+        "binding": {
+          "metric": "generated_check_success",
+          "authority": "llm_generated_python_ast_validated",
+          "module_sha256": "69ee70784a039223baca15c129e353e873d46288514dd0744a3f0490b48e8fdf",
+          "task_module": "mea.generated_tasks.run_native_smolvla_884ccc01b1ad.task"
+        },
+        "value": 1.0,
+        "official_equivalent": false,
+        "execution_scope": "provider_generated_checker",
+        "outcome_semantics": {
+          "schema_version": 1,
+          "status": "expected_semantic_extension",
+          "evidence_conflict": false,
+          "official_equivalent": false,
+          "outcome_authority": "llm_generated_python_ast_validated",
+          "episodes": [
+            {
+              "seed": 1000,
+              "generated_checker_success": true,
+              "official_success": true,
+              "official_core_predicate_satisfied": true,
+              "official_equivalent": false,
+              "status": "expected_semantic_extension",
+              "reason": "generated_checker_adds_constraints_beyond_official_core"
+            }
+          ],
+          "reason_codes": [
+            "generated_checker_adds_constraints_beyond_official_core"
+          ]
+        }
+      },
+      {
+        "metric": "generated_check_success",
+        "authority": "llm_generated_python_ast_validated",
+        "binding": {
+          "metric": "generated_check_success",
+          "authority": "llm_generated_python_ast_validated",
+          "module_sha256": "07be08d1db99eaf277575a1c0c75d97312b8cb0f798f0953fb70489c253dfed3",
+          "task_module": "mea.generated_tasks.run_native_smolvla_df88556d12ac.task"
+        },
+        "value": 1.0,
+        "official_equivalent": false,
+        "execution_scope": "provider_generated_checker",
+        "outcome_semantics": {
+          "schema_version": 1,
+          "status": "expected_semantic_extension",
+          "evidence_conflict": false,
+          "official_equivalent": false,
+          "outcome_authority": "llm_generated_python_ast_validated",
+          "episodes": [
+            {
+              "seed": 1000,
+              "generated_checker_success": true,
+              "official_success": true,
+              "official_core_predicate_satisfied": true,
+              "official_equivalent": false,
+              "status": "expected_semantic_extension",
+              "reason": "generated_checker_adds_constraints_beyond_official_core"
+            }
+          ],
+          "reason_codes": [
+            "generated_checker_adds_constraints_beyond_official_core"
+          ]
+        }
+      },
+      {
+        "metric": "generated_check_success",
+        "authority": "llm_generated_python_ast_validated",
+        "binding": {
+          "metric": "generated_check_success",
+          "authority": "llm_generated_python_ast_validated",
+          "module_sha256": "8406059c7d35bd7f91e8fdb6fedd69e06e9ed49e7fbd0a997596eddbd4b330a1",
+          "task_module": "mea.generated_tasks.run_native_smolvla_4b43d925b502.task"
+        },
+        "value": 1.0,
+        "official_equivalent": false,
+        "execution_scope": "provider_generated_checker",
+        "outcome_semantics": {
+          "schema_version": 1,
+          "status": "expected_semantic_extension",
+          "evidence_conflict": false,
+          "official_equivalent": false,
+          "outcome_authority": "llm_generated_python_ast_validated",
+          "episodes": [
+            {
+              "seed": 1000,
+              "generated_checker_success": true,
+              "official_success": true,
+              "official_core_predicate_satisfied": true,
+              "official_equivalent": false,
+              "status": "expected_semantic_extension",
+              "reason": "generated_checker_adds_constraints_beyond_official_core"
+            }
+          ],
+          "reason_codes": [
+            "generated_checker_adds_constraints_beyond_official_core"
+          ]
+        }
+      },
+      {
+        "metric": "generated_check_success",
+        "authority": "llm_generated_python_ast_validated",
+        "binding": {
+          "metric": "generated_check_success",
+          "authority": "llm_generated_python_ast_validated",
+          "module_sha256": "28dc5de79ba3194a92928afe1fe90726ed951bfc11f3a19b8feb821263eb60fc",
+          "task_module": "mea.generated_tasks.run_native_smolvla_4fa0081df8fb.task"
+        },
+        "value": 1.0,
+        "official_equivalent": false,
+        "execution_scope": "provider_generated_checker",
+        "outcome_semantics": {
+          "schema_version": 1,
+          "status": "expected_semantic_extension",
+          "evidence_conflict": false,
+          "official_equivalent": false,
+          "outcome_authority": "llm_generated_python_ast_validated",
+          "episodes": [
+            {
+              "seed": 1000,
+              "generated_checker_success": true,
+              "official_success": true,
+              "official_core_predicate_satisfied": true,
+              "official_equivalent": false,
+              "status": "expected_semantic_extension",
+              "reason": "generated_checker_adds_constraints_beyond_official_core"
+            }
+          ],
+          "reason_codes": [
+            "generated_checker_adds_constraints_beyond_official_core"
+          ]
+        }
+      },
+      {
+        "metric": "generated_check_success",
+        "authority": "llm_generated_python_ast_validated",
+        "binding": {
+          "metric": "generated_check_success",
+          "authority": "llm_generated_python_ast_validated",
+          "module_sha256": "a8c8e5a9f98453e0c8d88a73aad95a91f91966886b5f6692c2151a7b8282d62f",
+          "task_module": "mea.generated_tasks.run_native_smolvla_d350264745aa.task"
+        },
+        "value": 1.0,
+        "official_equivalent": false,
+        "execution_scope": "provider_generated_checker",
+        "outcome_semantics": {
+          "schema_version": 1,
+          "status": "expected_semantic_extension",
+          "evidence_conflict": false,
+          "official_equivalent": false,
+          "outcome_authority": "llm_generated_python_ast_validated",
+          "episodes": [
+            {
+              "seed": 1000,
+              "generated_checker_success": true,
+              "official_success": true,
+              "official_core_predicate_satisfied": true,
+              "official_equivalent": false,
+              "status": "expected_semantic_extension",
+              "reason": "generated_checker_adds_constraints_beyond_official_core"
+            }
+          ],
+          "reason_codes": [
+            "generated_checker_adds_constraints_beyond_official_core"
+          ]
+        }
+      }
+    ],
+    "outcome_semantics": [
+      {
+        "schema_version": 1,
+        "status": "official_only",
+        "evidence_conflict": false,
+        "official_equivalent": true,
+        "outcome_authority": "official_check_success",
+        "episodes": [],
+        "reason_codes": [
+          "official_outcome_has_no_generated_checker"
+        ]
+      },
+      {
+        "schema_version": 1,
+        "status": "non_comparable",
+        "evidence_conflict": false,
+        "official_equivalent": null,
+        "outcome_authority": null,
+        "episodes": [],
+        "reason_codes": [
+          "taskgen_success_spec_invalid_spec"
+        ]
+      },
+      {
+        "schema_version": 1,
+        "status": "expected_semantic_extension",
+        "evidence_conflict": false,
+        "official_equivalent": false,
+        "outcome_authority": "llm_generated_python_ast_validated",
+        "episodes": [
+          {
+            "seed": 1000,
+            "generated_checker_success": true,
+            "official_success": true,
+            "official_core_predicate_satisfied": true,
+            "official_equivalent": false,
+            "status": "expected_semantic_extension",
+            "reason": "generated_checker_adds_constraints_beyond_official_core"
+          }
+        ],
+        "reason_codes": [
+          "generated_checker_adds_constraints_beyond_official_core"
+        ]
+      },
+      {
+        "schema_version": 1,
+        "status": "expected_semantic_extension",
+        "evidence_conflict": false,
+        "official_equivalent": false,
+        "outcome_authority": "llm_generated_python_ast_validated",
+        "episodes": [
+          {
+            "seed": 1000,
+            "generated_checker_success": true,
+            "official_success": true,
+            "official_core_predicate_satisfied": true,
+            "official_equivalent": false,
+            "status": "expected_semantic_extension",
+            "reason": "generated_checker_adds_constraints_beyond_official_core"
+          }
+        ],
+        "reason_codes": [
+          "generated_checker_adds_constraints_beyond_official_core"
+        ]
+      },
+      {
+        "schema_version": 1,
+        "status": "expected_semantic_extension",
+        "evidence_conflict": false,
+        "official_equivalent": false,
+        "outcome_authority": "llm_generated_python_ast_validated",
+        "episodes": [
+          {
+            "seed": 1000,
+            "generated_checker_success": true,
+            "official_success": true,
+            "official_core_predicate_satisfied": true,
+            "official_equivalent": false,
+            "status": "expected_semantic_extension",
+            "reason": "generated_checker_adds_constraints_beyond_official_core"
+          }
+        ],
+        "reason_codes": [
+          "generated_checker_adds_constraints_beyond_official_core"
+        ]
+      },
+      {
+        "schema_version": 1,
+        "status": "expected_semantic_extension",
+        "evidence_conflict": false,
+        "official_equivalent": false,
+        "outcome_authority": "llm_generated_python_ast_validated",
+        "episodes": [
+          {
+            "seed": 1000,
+            "generated_checker_success": true,
+            "official_success": true,
+            "official_core_predicate_satisfied": true,
+            "official_equivalent": false,
+            "status": "expected_semantic_extension",
+            "reason": "generated_checker_adds_constraints_beyond_official_core"
+          }
+        ],
+        "reason_codes": [
+          "generated_checker_adds_constraints_beyond_official_core"
+        ]
+      },
+      {
+        "schema_version": 1,
+        "status": "expected_semantic_extension",
+        "evidence_conflict": false,
+        "official_equivalent": false,
+        "outcome_authority": "llm_generated_python_ast_validated",
+        "episodes": [
+          {
+            "seed": 1000,
+            "generated_checker_success": true,
+            "official_success": true,
+            "official_core_predicate_satisfied": true,
+            "official_equivalent": false,
+            "status": "expected_semantic_extension",
+            "reason": "generated_checker_adds_constraints_beyond_official_core"
+          }
+        ],
+        "reason_codes": [
+          "generated_checker_adds_constraints_beyond_official_core"
+        ]
+      },
+      {
+        "schema_version": 1,
+        "status": "expected_semantic_extension",
+        "evidence_conflict": false,
+        "official_equivalent": false,
+        "outcome_authority": "llm_generated_python_ast_validated",
+        "episodes": [
+          {
+            "seed": 1000,
+            "generated_checker_success": true,
+            "official_success": true,
+            "official_core_predicate_satisfied": true,
+            "official_equivalent": false,
+            "status": "expected_semantic_extension",
+            "reason": "generated_checker_adds_constraints_beyond_official_core"
+          }
+        ],
+        "reason_codes": [
+          "generated_checker_adds_constraints_beyond_official_core"
+        ]
+      },
+      {
+        "schema_version": 1,
+        "status": "expected_semantic_extension",
+        "evidence_conflict": false,
+        "official_equivalent": false,
+        "outcome_authority": "llm_generated_python_ast_validated",
+        "episodes": [
+          {
+            "seed": 1000,
+            "generated_checker_success": true,
+            "official_success": true,
+            "official_core_predicate_satisfied": true,
+            "official_equivalent": false,
+            "status": "expected_semantic_extension",
+            "reason": "generated_checker_adds_constraints_beyond_official_core"
+          }
+        ],
+        "reason_codes": [
+          "generated_checker_adds_constraints_beyond_official_core"
+        ]
+      },
+      {
+        "schema_version": 1,
+        "status": "expected_semantic_extension",
+        "evidence_conflict": false,
+        "official_equivalent": false,
+        "outcome_authority": "llm_generated_python_ast_validated",
+        "episodes": [
+          {
+            "seed": 1000,
+            "generated_checker_success": true,
+            "official_success": true,
+            "official_core_predicate_satisfied": true,
+            "official_equivalent": false,
+            "status": "expected_semantic_extension",
+            "reason": "generated_checker_adds_constraints_beyond_official_core"
+          }
+        ],
+        "reason_codes": [
+          "generated_checker_adds_constraints_beyond_official_core"
+        ]
+      },
+      {
+        "schema_version": 1,
+        "status": "expected_semantic_extension",
+        "evidence_conflict": false,
+        "official_equivalent": false,
+        "outcome_authority": "llm_generated_python_ast_validated",
+        "episodes": [
+          {
+            "seed": 1000,
+            "generated_checker_success": true,
+            "official_success": true,
+            "official_core_predicate_satisfied": true,
+            "official_equivalent": false,
+            "status": "expected_semantic_extension",
+            "reason": "generated_checker_adds_constraints_beyond_official_core"
+          }
+        ],
+        "reason_codes": [
+          "generated_checker_adds_constraints_beyond_official_core"
+        ]
+      }
+    ],
+    "evidence_conflict": false
+  },
+  "plan_step": {
+    "schema_version": 2,
+    "action": "stop",
+    "aspect_id": null,
+    "candidate_id": null,
+    "execution_mode": "none",
+    "proposal": null,
+    "rationale": "Rounds 3-11 successfully covered bounded initial stapler translations along world x, y, and z plus yaw, pitch, and roll orientation changes. The latest roll test succeeded with terminal distance 0.079618 m, and prior x-boundary refinements also succeeded down to a 0.07980 m predicate. These successful experimental outcomes do not supply a failure witness or a scene-factor boundary for further refinement. The simulator card exposes no tracked actors, semantic roles, probe attributes, or semantic telemetry from which to derive another distinct supported scene concern, so further candidate invention would be ungrounded.",
+    "hypothesis": "No definitive measured policy weakness was established within the tested executable scope. The unchanged official control and bounded stapler translations and rotations all succeeded under the experimental terminal proximity predicates; the reported terminal left-TCP-to-stapler distances remained within the tested evidence-grounded bounds. Untested scene concerns may remain, but the advertised runtime capabilities provide no further distinct, semantically grounded executable concern beyond the already tested stapler pose transformations.",
+    "answered_query": false,
+    "claim_verdict": "inconclusive",
+    "stop_reason": "agent_saturation_inconclusive",
+    "next_round": null,
+    "planning_lineage": {
+      "schema_version": 1,
+      "decision_kind": "evidence_conditioned_refinement",
+      "evidence_conditioned": true,
+      "completed_round_ids": [
+        "round_1",
+        "round_2",
+        "round_3",
+        "round_4",
+        "round_5",
+        "round_6",
+        "round_7",
+        "round_8",
+        "round_9",
+        "round_10",
+        "round_11"
+      ],
+      "completed_round_count": 11,
+      "input_digest": "64c0d16db7cd7f233d3ab651a0b5edc2898584d56120d1aca2a48f1c02687c22"
+    }
+  },
+  "planning_lineage": {
+    "schema_version": 1,
+    "decision_kind": "evidence_conditioned_refinement",
+    "evidence_conditioned": true,
+    "completed_round_ids": [
+      "round_1",
+      "round_2",
+      "round_3",
+      "round_4",
+      "round_5",
+      "round_6",
+      "round_7",
+      "round_8",
+      "round_9",
+      "round_10",
+      "round_11"
+    ],
+    "completed_round_count": 11,
+    "input_digest": "64c0d16db7cd7f233d3ab651a0b5edc2898584d56120d1aca2a48f1c02687c22"
+  }
+}

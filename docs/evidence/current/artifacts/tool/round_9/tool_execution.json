@@ -1,0 +1,138 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "requested_route": "auto",
+  "route": "run_local_reuse",
+  "reference_tool": null,
+  "tool_spec": {
+    "schema_version": 1,
+    "task_name": "press_stapler",
+    "metric": "terminal_left_tcp_to_stapler_distance",
+    "question": "Reuse the validated terminal_left_tcp_to_stapler_distance measurement.",
+    "route": "force_codegen",
+    "reference_tool": null,
+    "required_signals": [
+      "semantic_trace.left_tcp_position",
+      "semantic_trace.stapler_position",
+      "semantic_trace.physics_step"
+    ],
+    "output_contract": {
+      "source": "typed_metric_spec_v2",
+      "metric_spec": {
+        "description": "Terminal Euclidean distance between left_tcp_position and stapler_position.",
+        "null_semantics": "null_if_no_finite_sample",
+        "observable_id": "terminal_left_tcp_to_stapler_distance",
+        "operation": "derived_observable",
+        "required_signals": [
+          "left_tcp_position",
+          "stapler_position"
+        ],
+        "schema_version": 2,
+        "unit": "m"
+      },
+      "value_type": "number_or_null",
+      "unit": "m",
+      "passed": null,
+      "evidence": "caller_supplied_oracle_evidence_steps"
+    },
+    "validation_requirements": {
+      "min_episodes": 1,
+      "distinct_reference_values": false,
+      "required_reference_values": []
+    }
+  },
+  "tool_request": {
+    "schema_version": 2,
+    "task_name": "press_stapler",
+    "metric": "terminal_left_tcp_to_stapler_distance",
+    "question": "Reuse the validated terminal_left_tcp_to_stapler_distance measurement.",
+    "metric_spec": {
+      "description": "Terminal Euclidean distance between left_tcp_position and stapler_position.",
+      "null_semantics": "null_if_no_finite_sample",
+      "observable_id": "terminal_left_tcp_to_stapler_distance",
+      "operation": "derived_observable",
+      "required_signals": [
+        "left_tcp_position",
+        "stapler_position"
+      ],
+      "schema_version": 2,
+      "unit": "m"
+    }
+  },
+  "route_decision": {
+    "schema_version": 1,
+    "status": "resolved",
+    "matching_policy": "strict_exact_metric_id",
+    "requested_route": "auto",
+    "resolved_route": "run_local_reuse",
+    "task_name": "press_stapler",
+    "metric": "terminal_left_tcp_to_stapler_distance",
+    "exact_match": true,
+    "matched_registry": "evaluation_local_tool_registry",
+    "reference_tool": null,
+    "provider_required": false,
+    "reason": "exact typed MetricSpec, task, and telemetry schema matched a validated evaluation-local Tool",
+    "catalog_snapshot_sha256": "e055a34e29d899b3993450fdef9a614f3c9f12ea259ff6ab71986c4c427b3952",
+    "provider_called": false
+  },
+  "source": {
+    "scope": "run_local_registry",
+    "tool": "terminal_left_tcp_to_stapler_distance",
+    "reference_tool": null,
+    "artifact": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/tool_registry/entries/runlocal_ddd5707e7b99bf44dd5e/generated_tool.py",
+    "registration_id": "runlocal_ddd5707e7b99bf44dd5e"
+  },
+  "episodes": [
+    {
+      "episode_dir": "mea/generated_tasks/run_native_smolvla_4b43d925b502/evaluation/telemetry/act/episode_000_seed_1000",
+      "policy_name": "SmolVLA",
+      "seed": 1000,
+      "role": "policy_under_evaluation",
+      "result": {
+        "tool": "terminal_left_tcp_to_stapler_distance",
+        "value": 0.07974978433448847,
+        "unit": "m",
+        "passed": null,
+        "evidence_steps": [
+          12322
+        ],
+        "details": {
+          "operation": "derived_observable",
+          "reason": "measured"
+        },
+        "tool_sha256": "5823cfc21ea60689e1ac32d6fb3b8838faa40674992fcd44f90049e4b94e72a5"
+      }
+    }
+  ],
+  "validation": {
+    "provider_called": false,
+    "typed_metric_spec": true,
+    "python_generated_by_model": false,
+    "authority": "toolgen_semantic_review_runtime",
+    "oracle_kind": "semantic_review_only",
+    "semantic_review": {
+      "schema_version": 1,
+      "status": "approved",
+      "checks": {
+        "implements_metric_description": true,
+        "uses_only_declared_signals": true,
+        "preserves_requested_unit": true,
+        "returns_diagnostic_not_success": true
+      },
+      "reason": "The tool computes the terminal finite Euclidean distance between the declared positions, reports meters, and returns passed as null."
+    },
+    "task_code_context_consumed": true,
+    "episode_count": 1,
+    "validation_gates_passed": true,
+    "independent_numeric_oracle": false,
+    "oracle_agreement": null
+  },
+  "artifacts": {
+    "tool_request": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_9/planned_tool/tool_request.json",
+    "catalog_snapshot": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_9/planned_tool/catalog_snapshot.json",
+    "route_decision": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_9/planned_tool/route_decision.json",
+    "metric_spec_execution": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_9/planned_tool/typed_metric_spec/execution.json",
+    "resolved_tool_spec": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_9/planned_tool/resolved_tool_spec.json",
+    "tool_execution": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_9/planned_tool/tool_execution.json"
+  }
+}

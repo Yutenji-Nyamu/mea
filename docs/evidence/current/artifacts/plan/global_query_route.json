@@ -3,17 +3,17 @@
   "selection": {
     "schema_version": 3,
     "decision": "route",
-    "task_name": "grab_roller",
+    "task_name": "press_stapler",
     "task_profile": "official",
-    "evaluation_goal": "answer_open_query_with_evidence: Relative to the official grab task, does there exist a newly generated executable scene challenge that exposes a terminal alignment weakness in this policy? After observing official-control evidence, let the Plan Agent choose the most informative supported scene change without an aspect or template from me. To avoid a trivial perturbation, the chosen geometric scene change must displace the manipulated roller by at least 0.05 m while remaining expert-solvable; the Plan Agent chooses the axis and exact magnitude. Define experimental success as the official task goal AND both terminal TCPs being within 0.025 m of their corresponding roller contact points, using only current simulator point positions; do not require episode history, accumulated contact, or a trajectory-derived success threshold. Independently report one scalar metric computed from the rollout trajectory that diagnoses the chosen hypothesis, but treat that scalar strictly as diagnostic evidence and never as the terminal success outcome.",
+    "evaluation_goal": "answer_open_query_with_evidence: Does there exist a bounded, executable scene concern beyond the unchanged official press_stapler task under which this policy exposes a measured weakness? Observe the control, then let the Plan Agent invent and refine the most informative concerns from evidence. I provide no aspect, object, axis, magnitude, relation, threshold, template, checker code, or metric. Generate only the scene, checker, Rule Tool, or VQA Tool actually required by each Proposal. A generated checker must preserve official success as a required conjunct and add only directly observable current-state semantics. A diagnostic Tool must remain separate from success. After a valid success, the evidence must choose a genuinely different semantic concern or an evidence-grounded boundary refinement rather than repeat the same test. The Plan Agent must propose stop as soon as a definitive failure witness has an evidence-backed diagnosis. If executable supported concerns become informationally saturated without such a witness, it must actively stop and answer only the tested scope.",
     "requested_aspect_ids": [],
     "first_aspect_id": null,
     "unsupported_capabilities": [],
     "binding_only": true
   },
   "resolved": {
-    "task_name": "grab_roller",
-    "task_family": "dual_arm_lift",
+    "task_name": "press_stapler",
+    "task_family": "robotwin_official_task",
     "task_profile": "official",
     "planner_kind": "plan_agent_v1",
     "checkpoint": {
@@ -31,7 +31,7 @@
     "aspects": []
   },
   "catalog_sha256": null,
-  "runtime_binding_sha256": "d4a2893d18985d1264b284f1308be762121a9dafb576cacb37b696a5a0da61e6",
+  "runtime_binding_sha256": "33065ae8d1376dd5e6cbcfc1225c6ca2f094bf0714c9f96e8d1aa34041db67e5",
   "provider_called": false,
   "attempt_count": 0,
   "validation_errors": [],

@@ -79,7 +79,6 @@ class RoundExecutionRequest:
     round_plan: dict[str, Any]
     text_model: str
     vision_model: str
-    base_url: str | None
     gpu: int
     max_reflections: int
     provider: Any

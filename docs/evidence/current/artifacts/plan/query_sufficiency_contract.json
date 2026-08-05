@@ -7,7 +7,7 @@
     "minimum_evaluated": 0,
     "minimum_per_group": null
   },
-  "round_budget": 2,
+  "round_budget": 19,
   "comparison_groups": null,
   "candidate_universe_closed": false,
   "existential_witness_outcome": "fail",

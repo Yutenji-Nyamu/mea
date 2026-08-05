@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "render_usable": true,
+  "key_task_actors_visible": true,
+  "requested_change_assessment": "not_visually_decidable",
+  "visual_physical_plausibility": "plausible",
+  "unexpected_changes": [],
+  "diagnosis": "The generated scene is visible and physically plausible, but RGB alone cannot verify the exact +15 degree world-x rotation or the preserved task and checker conditions.",
+  "repair_instructions": [],
+  "confidence": 0.86
+}

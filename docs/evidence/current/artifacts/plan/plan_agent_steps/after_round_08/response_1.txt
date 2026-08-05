@@ -1,0 +1,36 @@
+{
+  "schema_version": 2,
+  "action": "continue",
+  "sub_aspect": "scene_robustness.initial_stapler_yaw_orientation",
+  "hypothesis": "With the stapler rotated by +15 degrees about the world z-axis from its official reset orientation, the policy will fail the terminal conjunction of the official core predicate and left-TCP-to-stapler distance less than or equal to 0.07980 m, revealing orientation-sensitive retargeting despite its successful translational perturbation results.",
+  "requested_perturbation": {
+    "description": "Rotate only the stapler initial pose by +15 degrees about the world z-axis relative to its official reset orientation.",
+    "controlled_changes": [
+      "stapler initial world-z yaw: official reset orientation -> official reset orientation +15 degrees"
+    ],
+    "preserve": [
+      "task identity",
+      "policy checkpoint",
+      "official core predicate as a required conjunct"
+    ]
+  },
+  "scene_need": {
+    "required": true,
+    "description": "Retrieve the official press_stapler scene and alter only the stapler initial world-z yaw by +15 degrees relative to its official reset orientation."
+  },
+  "checker_need": {
+    "required": true,
+    "description": "Retrieve the official checker and create an experimental terminal checker with the directly observable boolean predicate: official core predicate as a required conjunct AND Euclidean distance(left_tcp_position, stapler_position) <= 0.07980 m."
+  },
+  "rule_tool_need": {
+    "required": true,
+    "description": "Reuse or generate a Rule Tool whose primary observation is the terminal Euclidean distance between left_tcp_position and stapler_position in meters.",
+    "reuse_first": true
+  },
+  "vqa_tool_need": {
+    "required": false,
+    "description": null,
+    "reuse_first": true
+  },
+  "rationale": "The control and all tested translational concerns succeeded, including world-x, world-y, and world-z displacement. The latest world-x result satisfied the tightened terminal predicate with a measured distance of 0.0796477768203362 m, so further translation without a newly bracketed failure boundary would repeat a successful concern. Initial yaw is a distinct, bounded scene semantic that tests whether the policy's approach and pressing behavior depends on the stapler's visual/geometric orientation. The 0.07980 m terminal relation remains evidence-grounded and directly observable, while the Rule Tool separately reports its terminal scalar diagnosis."
+}

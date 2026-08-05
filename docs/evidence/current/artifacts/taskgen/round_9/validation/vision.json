@@ -1,0 +1,29 @@
+{
+  "comparison_image": "official_vs_generated.png",
+  "confidence": 0.78,
+  "diagnosis": "The stapler is visible in both scenes and the generated scene appears physically plausible, but the exact +15-degree world-z yaw change cannot be verified reliably from the RGB images.",
+  "key_task_actors_visible": true,
+  "model_requested": "gpt-5.6-luna",
+  "passed": true,
+  "provider_metadata": {
+    "finish_reason": "stop",
+    "id": "resp_0bdd5b3d0ddd6794016a73243bc00c81949cc5c757f7dd8bbd",
+    "model": "gpt-5.6-luna",
+    "retry_count": 0,
+    "usage": {
+      "completion_tokens": 602,
+      "completion_tokens_details": {
+        "reasoning_tokens": 477
+      },
+      "prompt_tokens": 741,
+      "total_tokens": 1343
+    }
+  },
+  "render_usable": true,
+  "repair_instructions": [],
+  "requested_change_assessment": "not_visually_decidable",
+  "scene_change_authority_available": true,
+  "schema_version": 1,
+  "unexpected_changes": [],
+  "visual_physical_plausibility": "plausible"
+}

@@ -32,6 +32,7 @@ class LeRobotPolicyAdapter:
         observation_size: int = BATCH23_PARITY_OBSERVATION_SIZE,
         suite_name: str = "libero_object",
         task_id: int = 0,
+        backbone_metadata: str | Path | None = None,
     ):
         if not suite_name.strip():
             raise ValueError("suite_name cannot be empty")
@@ -44,6 +45,11 @@ class LeRobotPolicyAdapter:
         self.observation_size = observation_size
         self.suite_name = suite_name
         self.task_id = int(task_id)
+        self.backbone_metadata = (
+            Path(backbone_metadata).expanduser().resolve()
+            if backbone_metadata is not None
+            else None
+        )
         self.policy: Any | None = None
         self.env_config: Any | None = None
         self.preprocessor: Any | None = None
@@ -97,6 +103,14 @@ class LeRobotPolicyAdapter:
             observation_width=self.observation_size,
             max_parallel_tasks=1,
         )
+        if (
+            self.backbone_metadata is not None
+            and not (self.backbone_metadata / "config.json").is_file()
+        ):
+            raise FileNotFoundError(
+                "LIBERO SmolVLA backbone metadata is missing config.json: "
+                f"{self.backbone_metadata}"
+            )
         # Stock evaluator order is set_seed -> make_env -> make_policy -> rollout.
         envs = make_env(
             env_config,
@@ -108,6 +122,8 @@ class LeRobotPolicyAdapter:
         policy_config.pretrained_path = self.checkpoint
         policy_config.device = self.device
         policy_config.load_vlm_weights = False
+        if self.backbone_metadata is not None:
+            policy_config.vlm_model_name = str(self.backbone_metadata)
         policy_config.n_action_steps = self.n_action_steps
         policy = make_policy(
             cfg=policy_config,
@@ -115,13 +131,18 @@ class LeRobotPolicyAdapter:
             rename_map={},
         )
         policy.eval()
+        preprocessor_overrides = {
+            "device_processor": {"device": self.device},
+            "rename_observations_processor": {"rename_map": {}},
+        }
+        if self.backbone_metadata is not None:
+            preprocessor_overrides["tokenizer_processor"] = {
+                "tokenizer_name": str(self.backbone_metadata)
+            }
         preprocessor, postprocessor = make_pre_post_processors(
             policy_cfg=policy_config,
             pretrained_path=self.checkpoint,
-            preprocessor_overrides={
-                "device_processor": {"device": self.device},
-                "rename_observations_processor": {"rename_map": {}},
-            },
+            preprocessor_overrides=preprocessor_overrides,
         )
         env_preprocessor, env_postprocessor = make_env_pre_post_processors(
             env_cfg=env_config,
@@ -138,6 +159,11 @@ class LeRobotPolicyAdapter:
         return {
             "status": "passed",
             "checkpoint": str(self.checkpoint),
+            "backbone_metadata": (
+                str(self.backbone_metadata)
+                if self.backbone_metadata is not None
+                else None
+            ),
             "device": self.device,
             "n_action_steps": self.n_action_steps,
             "horizon_steps": self.horizon_steps,

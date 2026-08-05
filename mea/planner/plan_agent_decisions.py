@@ -12,7 +12,15 @@ from .plan_agent_schema import (
     validate_open_query_proposal_lineage,
 )
 from .plan_agent_errors import ClaimFirstRuntimeError
-from .plan_agent_evidence import _attach_planning_lineage, _current_planning_evidence
+from .plan_agent_evidence import (
+    _attach_planning_lineage,
+    _current_planning_evidence,
+    render_query_answer,
+)
+from .query_contract import (
+    QuerySufficiencyError,
+    project_agent_inconclusive_stop,
+)
 from .query_interpretation import (
     build_dynamic_experiment_candidate,
     resolve_semantic_proposal,
@@ -220,18 +228,34 @@ class PlanAgentDecisionMixin:
 
         if proposal["action"] == "stop":
             query_answer = observation.get("query_answer")
-            if not (
+            sufficient_stop = bool(
                 assessment.get("should_stop") is True
                 and assessment.get("evidence_sufficient") is True
                 and assessment.get("stop_reason") == "evidence_sufficient"
                 and isinstance(query_answer, Mapping)
                 and query_answer.get("answered") is True
-            ):
-                raise ClaimFirstRuntimeError(
-                    "Plan Agent stop rejected by QueryContract: completed "
-                    "evidence does not yet support an answer to the original "
-                    "Query"
+            )
+            if sufficient_stop:
+                stop_assessment = deepcopy(dict(assessment))
+                stop_answer = deepcopy(dict(query_answer))
+                resolution = "query_contract_validated_stop"
+                answered_query = True
+            else:
+                try:
+                    stop_assessment = project_agent_inconclusive_stop(
+                        assessment,
+                        rationale=proposal["rationale"],
+                    )
+                except QuerySufficiencyError as exc:
+                    raise ClaimFirstRuntimeError(str(exc)) from exc
+                stop_answer = render_query_answer(
+                    self.user_query,
+                    stop_assessment,
+                    observation.get("records") or [],
+                    baseline_valid=observation.get("control_passed") is not False,
                 )
+                resolution = "plan_agent_inconclusive_stop"
+                answered_query = False
             return {
                 "schema_version": 2,
                 "semantic_proposal_bundle": deepcopy(dict(proposal_bundle)),
@@ -249,7 +273,7 @@ class PlanAgentDecisionMixin:
                     "resolved_aspect_id": None,
                     "resolved_template_id": None,
                     "resolved_candidate_id": None,
-                    "resolution": "query_contract_validated_stop",
+                    "resolution": resolution,
                     "hidden": False,
                     "matched_tokens": [],
                     "catalog_was_model_visible": False,
@@ -259,8 +283,8 @@ class PlanAgentDecisionMixin:
                     "retrieval_resolution": None,
                 },
                 "query_contract": deepcopy(self.query_contract),
-                "query_assessment": deepcopy(dict(assessment)),
-                "query_answer": deepcopy(dict(query_answer)),
+                "query_assessment": stop_assessment,
+                "query_answer": stop_answer,
                 "plan_step": {
                     "schema_version": 2,
                     "action": "stop",
@@ -270,9 +294,9 @@ class PlanAgentDecisionMixin:
                     "proposal": None,
                     "rationale": proposal["rationale"],
                     "hypothesis": proposal["hypothesis"],
-                    "answered_query": True,
-                    "claim_verdict": assessment.get("claim_verdict"),
-                    "stop_reason": assessment.get("stop_reason"),
+                    "answered_query": answered_query,
+                    "claim_verdict": stop_assessment.get("claim_verdict"),
+                    "stop_reason": stop_assessment.get("stop_reason"),
                     "next_round": None,
                 },
             }

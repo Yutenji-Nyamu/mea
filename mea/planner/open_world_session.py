@@ -30,6 +30,7 @@ from .query_contract import (
     QuerySufficiencyError,
     assess_query_sufficiency,
     extend_query_candidate_universe,
+    project_agent_inconclusive_stop,
     validate_query_sufficiency_contract,
 )
 from .policy_task_binding import (
@@ -798,9 +799,13 @@ class _FrozenExecutionTransport:
                     "answered_query=true requires sufficient QueryContract evidence"
                 )
             if assessment is not None and not assessment["should_stop"]:
-                raise OpenWorldSessionError(
-                    "QueryContract evidence requires another candidate round"
-                )
+                try:
+                    assessment = project_agent_inconclusive_stop(
+                        assessment,
+                        rationale=str(step.get("rationale") or ""),
+                    )
+                except QuerySufficiencyError as exc:
+                    raise OpenWorldSessionError(str(exc)) from exc
         else:
             if len(current["rounds"]) >= self.target["max_rounds"]:
                 raise OpenWorldSessionError(

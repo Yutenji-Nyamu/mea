@@ -1048,6 +1048,64 @@ def assess_query_sufficiency(
     }
 
 
+def project_agent_inconclusive_stop(
+    assessment: Mapping[str, Any],
+    *,
+    rationale: str,
+) -> dict[str, Any]:
+    """Project an Agent-authored stop without upgrading evidence sufficiency.
+
+    An open candidate universe cannot usually prove an existential negative,
+    universal, or worst-case claim.  The Plan Agent may nevertheless determine
+    that it has no further grounded Proposal to offer.  That is a legitimate
+    method termination, but it is an *inconclusive* planning judgement rather
+    than a QueryContract proof that the open capability space is exhausted.
+    This projection keeps those two meanings mechanically distinct.
+    """
+
+    if not isinstance(assessment, Mapping):
+        raise QuerySufficiencyError("assessment must be an object")
+    text = rationale.strip() if isinstance(rationale, str) else ""
+    if not text:
+        raise QuerySufficiencyError(
+            "an inconclusive Plan Agent stop requires a rationale"
+        )
+    if assessment.get("evidence_sufficient") is True:
+        raise QuerySufficiencyError(
+            "sufficient evidence must use the evidence_sufficient stop"
+        )
+    if assessment.get("should_stop") is True:
+        raise QuerySufficiencyError(
+            "an existing QueryContract stop must not be relabelled as an "
+            "inconclusive Plan Agent stop"
+        )
+    completed_rounds = assessment.get("completed_rounds")
+    if (
+        isinstance(completed_rounds, bool)
+        or not isinstance(completed_rounds, int)
+        or completed_rounds < 1
+    ):
+        raise QuerySufficiencyError(
+            "an inconclusive Plan Agent stop requires completed evidence"
+        )
+    limitations = list(assessment.get("limitations") or [])
+    limitations.append(
+        "The Plan Agent declared that it had no further grounded Proposal. "
+        "QueryContract did not independently prove capability-space "
+        "exhaustion, and this stop does not make the Query evidence "
+        "sufficient."
+    )
+    return {
+        **deepcopy(dict(assessment)),
+        "should_stop": True,
+        "stop_reason": "agent_inconclusive_stop",
+        "claim_verdict": "inconclusive",
+        "evidence_sufficient": False,
+        "rationale": text,
+        "limitations": list(dict.fromkeys(limitations)),
+    }
+
+
 __all__ = [
     "CLAIM_TYPES",
     "OUTCOMES",
@@ -1057,6 +1115,7 @@ __all__ = [
     "extend_query_candidate_universe",
     "infer_claim_type",
     "infer_control_requirement",
+    "project_agent_inconclusive_stop",
     "query_is_official_only",
     "validate_query_sufficiency_contract",
 ]

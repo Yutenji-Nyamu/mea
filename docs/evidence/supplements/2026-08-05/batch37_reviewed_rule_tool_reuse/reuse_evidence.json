@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "claim": "reviewed generated Rule Tool exact reuse across evaluations",
+  "rollout_count": 0,
+  "provider_called": false,
+  "tool": {
+    "task_name": "press_stapler",
+    "tool_id": "terminal_minimum_tcp_to_stapler_distance",
+    "unit": "m",
+    "tool_sha256": "a4c4c06b48a5ac0ea45c2c676ab8ef43cbffb564459f46084ead3a64adc8982b",
+    "tool_contract_sha256": "21045e960c39e7bad300a5645604d6fed9f5491646f878d535fab6bfd5c53dd3",
+    "telemetry_schema_sha256": "5bed3fa0a88142821fdd5c4074610c0868263f9796de05df407807be26a9aec5"
+  },
+  "source": {
+    "evaluation_id": "eval_20260805_batch37_clean_flagship_press_stapler_s1000_v6",
+    "round": 2,
+    "registration_id": "runlocal_7de5a270f49a2c36a759",
+    "value": 0.08901826217769938
+  },
+  "reviewed_registration": {
+    "registration_id": "reviewed_2fd54429bd5284f4819d",
+    "scope": "reviewed_persistent",
+    "status": "approved"
+  },
+  "fresh_evaluation": {
+    "route": "reviewed_persistent_reuse",
+    "matched_registry": "reviewed_tool_registry",
+    "current_value": 0.08965935664029238,
+    "current_episode_count": 1
+  },
+  "fresh_validation": {
+    "integrity_hashes_matched": true,
+    "current_telemetry_revalidated": true,
+    "persistent_registry_scope": true,
+    "review_manifest_approved": true,
+    "deterministic": true,
+    "oracle_agreement": true,
+    "all_gates_passed": true
+  },
+  "scope_limitation": "Zero-rollout artifact-reuse evidence; not a new policy-performance sample."
+}

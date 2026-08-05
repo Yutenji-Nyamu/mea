@@ -5,7 +5,7 @@
   "reference_tool": "official_check_success",
   "tool_spec": {
     "schema_version": 1,
-    "task_name": "grab_roller",
+    "task_name": "press_stapler",
     "metric": "official_check_success",
     "question": "Did the rollout satisfy the official RoboTwin success check?",
     "route": "reuse",
@@ -29,9 +29,9 @@
   },
   "episodes": [
     {
-      "episode_dir": "mea/generated_tasks/run_native_smolvla_4ddb336ae71c/evaluation/telemetry/act/episode_000_seed_100401",
+      "episode_dir": "mea/generated_tasks/run_native_smolvla_0eefd9afb118/evaluation/telemetry/act/episode_000_seed_1000",
       "policy_name": "SmolVLA",
-      "seed": 100401,
+      "seed": 1000,
       "role": "policy_under_evaluation",
       "result": {
         "tool": "official_check_success",
@@ -39,7 +39,7 @@
         "unit": null,
         "passed": true,
         "evidence_steps": [
-          8945
+          9484
         ],
         "details": {
           "latched_eval_success": true,
@@ -56,17 +56,17 @@
     "required_reference_values_observed": true
   },
   "artifacts": {
-    "tool_spec": "mea/evaluation_runs/eval_20260731_batch32_clean_flagship_live_v18/execution/round_1/planned_tool/tool_spec.json",
-    "resolved_tool_spec": "mea/evaluation_runs/eval_20260731_batch32_clean_flagship_live_v18/execution/round_1/planned_tool/resolved_tool_spec.json",
-    "tool_execution": "mea/evaluation_runs/eval_20260731_batch32_clean_flagship_live_v18/execution/round_1/planned_tool/tool_execution.json",
-    "tool_request": "mea/evaluation_runs/eval_20260731_batch32_clean_flagship_live_v18/execution/round_1/planned_tool/tool_request.json",
-    "catalog_snapshot": "mea/evaluation_runs/eval_20260731_batch32_clean_flagship_live_v18/execution/round_1/planned_tool/catalog_snapshot.json",
-    "route_decision": "mea/evaluation_runs/eval_20260731_batch32_clean_flagship_live_v18/execution/round_1/planned_tool/route_decision.json"
+    "tool_spec": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_1/planned_tool/tool_spec.json",
+    "resolved_tool_spec": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_1/planned_tool/resolved_tool_spec.json",
+    "tool_execution": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_1/planned_tool/tool_execution.json",
+    "tool_request": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_1/planned_tool/tool_request.json",
+    "catalog_snapshot": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_1/planned_tool/catalog_snapshot.json",
+    "route_decision": "mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/execution/round_1/planned_tool/route_decision.json"
   },
   "requested_route": "auto",
   "tool_request": {
     "schema_version": 1,
-    "task_name": "grab_roller",
+    "task_name": "press_stapler",
     "metric": "official_check_success",
     "question": "Did the rollout satisfy the official RoboTwin success check?"
   },
@@ -76,14 +76,14 @@
     "matching_policy": "strict_exact_metric_id",
     "requested_route": "auto",
     "resolved_route": "reuse",
-    "task_name": "grab_roller",
+    "task_name": "press_stapler",
     "metric": "official_check_success",
     "exact_match": true,
     "matched_registry": "trusted_tool_catalog",
     "reference_tool": "official_check_success",
     "provider_required": false,
     "reason": "exact metric identifier matched a Trusted Tool",
-    "catalog_snapshot_sha256": "47009391b0457d9ee5548f212da3279790a75b3fd58271c93ca2f9dc15730d02",
+    "catalog_snapshot_sha256": "e055a34e29d899b3993450fdef9a614f3c9f12ea259ff6ab71986c4c427b3952",
     "provider_called": false
   }
 }

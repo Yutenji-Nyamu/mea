@@ -278,6 +278,14 @@ class PlanAgentRuntimeDecisionMixin:
                     "validated Plan Agent stop has no Query answer"
                 )
             query_answer = deepcopy(dict(raw_query_answer))
+            if not isinstance(runtime_state, dict):
+                raise RuntimeError(
+                    "Plan Agent stop requires a mutable runtime state"
+                )
+            runtime_state["assessment"] = deepcopy(
+                bound_step["query_assessment"]
+            )
+            runtime_state["query_answer"] = deepcopy(query_answer)
             _write_json(
                 self.evaluation_dir
                 / PLAN_AGENT_SESSION
@@ -376,12 +384,17 @@ class PlanAgentRuntimeDecisionMixin:
             },
         )
         if plan_step["action"] == "stop":
+            stop_assessment = bound_step["query_assessment"]
             update_manifest(
                 self.evaluation_dir,
                 plan_agent_stop={
                     "stop_reason": plan_step.get("stop_reason"),
-                    "evidence_sufficient": True,
-                    "answered_query": True,
+                    "evidence_sufficient": bool(
+                        stop_assessment.get("evidence_sufficient") is True
+                    ),
+                    "answered_query": bool(
+                        plan_step.get("answered_query") is True
+                    ),
                     "answer_path": (
                         (PLAN_AGENT_SESSION / "query_answer.json").as_posix()
                     ),
@@ -412,4 +425,3 @@ class PlanAgentRuntimeDecisionMixin:
 
 
 __all__ = ["PlanAgentRuntimeDecisionMixin"]
-

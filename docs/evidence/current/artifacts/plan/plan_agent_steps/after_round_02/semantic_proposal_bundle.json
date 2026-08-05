@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "source": "provider_plan_agent_open_query",
-  "input_digest": "ff92771b30a348d23664d484bb2ccaf504aafe781329b4e7503aa2beac59aaa2",
+  "input_digest": "b5fb02c0bd75a968400cd80bf8b10d3a92d543c458a7922a9454807e164831cd",
   "planning_lineage": {
     "schema_version": 1,
     "decision_kind": "evidence_conditioned_refinement",
@@ -11,25 +11,35 @@
       "round_2"
     ],
     "completed_round_count": 2,
-    "input_digest": "ff92771b30a348d23664d484bb2ccaf504aafe781329b4e7503aa2beac59aaa2"
+    "input_digest": "b5fb02c0bd75a968400cd80bf8b10d3a92d543c458a7922a9454807e164831cd"
   },
   "proposal": {
     "schema_version": 2,
-    "action": "stop",
-    "sub_aspect": null,
-    "hypothesis": "Yes. The newly generated executable scene translating the roller exactly 0.05 m along the world x-axis exposed a terminal alignment weakness: official control succeeded, but the combined experimental predicate failed, with terminal maximum TCP-to-contact distance measured at 0.24384725093841553 m.",
-    "requested_perturbation": null,
+    "action": "continue",
+    "sub_aspect": "scene_robustness.lateral_shift_terminal_left_tcp_proximity",
+    "hypothesis": "After translating the stapler initial position by +0.03 m along the world x-axis, the policy will fail the satisfiable combined terminal criterion of official press_stapler success and left-TCP-to-stapler distance no greater than 0.080 m, exposing a spatial-retargeting weakness.",
+    "requested_perturbation": {
+      "description": "Translate the stapler initial position from the official reset pose by +0.03 m along the world x-axis.",
+      "controlled_changes": [
+        "stapler initial world x position: official reset value -> official reset value + 0.03 m"
+      ],
+      "preserve": [
+        "task identity",
+        "policy checkpoint",
+        "official core predicate as a required conjunct"
+      ]
+    },
     "scene_need": {
-      "required": false,
-      "description": null
+      "required": true,
+      "description": "Construct or adapt the official press_stapler scene by translating the stapler initial position by +0.03 m along the world x-axis."
     },
     "checker_need": {
-      "required": false,
-      "description": null
+      "required": true,
+      "description": "Boolean terminal predicate: official core predicate as a required conjunct AND Euclidean distance between left_tcp_position and stapler_position is less than or equal to 0.080 m."
     },
     "rule_tool_need": {
-      "required": false,
-      "description": null,
+      "required": true,
+      "description": "Report the terminal Euclidean distance in meters between left_tcp_position and stapler_position; the primary observation is this terminal scalar distance.",
       "reuse_first": true
     },
     "vqa_tool_need": {
@@ -37,51 +47,78 @@
       "description": null,
       "reuse_first": true
     },
-    "rationale": "The official-scene control succeeded, while the bounded 0.05 m roller translation produced a sufficient experimental failure under the required official-goal-and-terminal-alignment predicate. This answers the existence question; the trajectory-independent terminal diagnostic also showed a 0.24384725093841553 m maximum TCP-to-contact distance.",
+    "rationale": "The unchanged official control succeeded, so the next test should be an executable bounded concern beyond baseline. The prior +0.03 m lateral-shift attempt produced no policy rollout because TaskGen rejected its checker, making that outcome ambiguous rather than evidence of robustness or failure. Its expert positive fixture provides a grounded directly observable terminal geometry: stapler [-0.097097, 0.011531, 0.741] and left TCP [-0.127417, 0.022307, 0.810949], approximately 0.077 m apart. This proposal corrects the invalid checker by explicitly requiring the official predicate as a boolean conjunct and uses a nearby evidence-bracketed 0.080 m terminal distance condition that remains satisfiable by that expert fixture. The Rule Tool separately diagnoses the same terminal scalar.",
     "task_need": {
-      "required": false,
-      "description": null
+      "required": true,
+      "description": "Construct or adapt the official press_stapler scene by translating the stapler initial position by +0.03 m along the world x-axis. | Boolean terminal predicate: official core predicate as a required conjunct AND Euclidean distance between left_tcp_position and stapler_position is less than or equal to 0.080 m."
     },
     "tool_need": {
-      "required": false,
-      "description": null,
+      "required": true,
+      "description": "Report the terminal Euclidean distance in meters between left_tcp_position and stapler_position; the primary observation is this terminal scalar distance.",
       "reuse_first": true
     }
   },
   "provider": {
-    "model_requested": "gpt-5.6-luna",
+    "model_requested": "gpt-5.6-terra",
     "called": true,
     "attempt_count": 1,
     "errors": [],
     "last_metadata": {
-      "id": "chatcmpl-E7dBvxKdmEWzt0fyP9mYx0oZV4Pge",
-      "model": "gpt-5.6-luna-2026-07-09",
+      "id": "chatcmpl-202608051103092254252898268d9d6MvOMH9BT",
+      "model": "gpt-5.6-terra",
       "finish_reason": "stop",
       "usage": {
-        "completion_tokens": 405,
-        "completion_tokens_details": {
-          "accepted_prediction_tokens": 0,
-          "audio_tokens": 0,
-          "reasoning_tokens": 185,
-          "rejected_prediction_tokens": 0
+        "prompt_tokens": 4583,
+        "completion_tokens": 954,
+        "total_tokens": 5537,
+        "billing_usage": {
+          "source": "oai_responses",
+          "semantic": "openai",
+          "openai_usage": {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 5537,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "text_tokens": 0,
+              "audio_tokens": 0,
+              "image_tokens": 0
+            },
+            "completion_tokens_details": {
+              "text_tokens": 0,
+              "audio_tokens": 0,
+              "image_tokens": 0,
+              "reasoning_tokens": 0
+            },
+            "input_tokens": 4583,
+            "output_tokens": 954,
+            "input_tokens_details": {
+              "cached_tokens": 0,
+              "text_tokens": 0,
+              "audio_tokens": 0,
+              "image_tokens": 0
+            },
+            "claude_cache_creation_5_m_tokens": 0,
+            "claude_cache_creation_1_h_tokens": 0
+          }
         },
-        "latency_checkpoint": {
-          "engine_tbt_ms": 10,
-          "engine_ttft_ms": 114,
-          "engine_ttlt_ms": 3996,
-          "pre_inference_ms": 81,
-          "service_tbt_ms": 10,
-          "service_ttft_ms": 477,
-          "service_ttlt_ms": 4354,
-          "total_duration_ms": 4282,
-          "user_visible_ttft_ms": 396
-        },
-        "prompt_tokens": 3439,
         "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 0,
           "audio_tokens": 0,
-          "cached_tokens": 0
+          "image_tokens": 0
         },
-        "total_tokens": 3844
+        "completion_tokens_details": {
+          "text_tokens": 0,
+          "audio_tokens": 0,
+          "image_tokens": 0,
+          "reasoning_tokens": 0
+        },
+        "input_tokens": 4583,
+        "output_tokens": 954,
+        "input_tokens_details": null,
+        "claude_cache_creation_5_m_tokens": 0,
+        "claude_cache_creation_1_h_tokens": 0
       },
       "retry_count": 0
     }

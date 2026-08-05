@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "source": "provider_plan_agent_open_query",
+  "input_digest": "968ca1c2640bcee90a3c05aa23ef8eed02846df2b6f295a409979e302a888bf5",
+  "planning_lineage": {
+    "schema_version": 1,
+    "decision_kind": "evidence_conditioned_refinement",
+    "evidence_conditioned": true,
+    "completed_round_ids": [
+      "round_1",
+      "round_2",
+      "round_3",
+      "round_4",
+      "round_5",
+      "round_6",
+      "round_7",
+      "round_8",
+      "round_9"
+    ],
+    "completed_round_count": 9,
+    "input_digest": "968ca1c2640bcee90a3c05aa23ef8eed02846df2b6f295a409979e302a888bf5"
+  },
+  "proposal": {
+    "schema_version": 2,
+    "action": "continue",
+    "sub_aspect": "scene_robustness.initial_stapler_pitch_alignment",
+    "hypothesis": "Rotating the stapler by +15 degrees about the world-y axis from its official reset orientation will cause the policy to fail the satisfiable terminal conjunction of the official core predicate and left-TCP-to-stapler distance less than or equal to 0.07980 m, exposing sensitivity to press-surface pitch alignment.",
+    "requested_perturbation": {
+      "description": "Alter only the stapler initial orientation by applying a +15 degree rotation about the world-y axis relative to the official reset orientation.",
+      "controlled_changes": [
+        "stapler initial world-y pitch: official reset orientation -> +15 degrees"
+      ],
+      "preserve": [
+        "task identity",
+        "policy checkpoint",
+        "official core predicate as a required conjunct"
+      ]
+    },
+    "scene_need": {
+      "required": true,
+      "description": "Retrieve or adapt the official press_stapler scene and alter only the stapler initial orientation by applying a +15 degree rotation about the world-y axis relative to the official reset orientation."
+    },
+    "checker_need": {
+      "required": true,
+      "description": "Retrieve the official checker and create an experimental terminal checker with the directly observable boolean predicate: official core predicate as a required conjunct AND Euclidean distance(left_tcp_position, stapler_position) <= 0.07980 m."
+    },
+    "rule_tool_need": {
+      "required": true,
+      "description": "Report the terminal Euclidean distance between left_tcp_position and stapler_position in meters; this scalar diagnoses the same terminal distance relation used by the experimental checker.",
+      "reuse_first": true
+    },
+    "vqa_tool_need": {
+      "required": false,
+      "description": null,
+      "reuse_first": true
+    },
+    "rationale": "The control and all completed translation, yaw, and evidence-bracketed terminal-proximity tests succeeded. In particular, the most recent +15 degree world-z yaw test passed with terminal left-TCP-to-stapler distance 0.07974978433448847 m, below the evidence-grounded 0.07980 m predicate. Further enlarging a previously successful displacement or yaw lacks a demonstrated boundary, so the priority shifts to the orthogonal pitch-alignment concern, which directly changes the stapler press-surface geometry while retaining a previously validated, directly observable terminal criterion.",
+    "task_need": {
+      "required": true,
+      "description": "Retrieve or adapt the official press_stapler scene and alter only the stapler initial orientation by applying a +15 degree rotation about the world-y axis relative to the official reset orientation. | Retrieve the official checker and create an experimental terminal checker with the directly observable boolean predicate: official core predicate as a required conjunct AND Euclidean distance(left_tcp_position, stapler_position) <= 0.07980 m."
+    },
+    "tool_need": {
+      "required": true,
+      "description": "Report the terminal Euclidean distance between left_tcp_position and stapler_position in meters; this scalar diagnoses the same terminal distance relation used by the experimental checker.",
+      "reuse_first": true
+    }
+  },
+  "provider": {
+    "model_requested": "gpt-5.6-terra",
+    "called": true,
+    "attempt_count": 1,
+    "errors": [],
+    "last_metadata": {
+      "id": "chatcmpl-202608051154465828276558268d9d6lavXtlAN",
+      "model": "gpt-5.6-terra",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 8984,
+        "completion_tokens": 907,
+        "total_tokens": 9891,
+        "billing_usage": {
+          "source": "oai_responses",
+          "semantic": "openai",
+          "openai_usage": {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 9891,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "text_tokens": 0,
+              "audio_tokens": 0,
+              "image_tokens": 0
+            },
+            "completion_tokens_details": {
+              "text_tokens": 0,
+              "audio_tokens": 0,
+              "image_tokens": 0,
+              "reasoning_tokens": 0
+            },
+            "input_tokens": 8984,
+            "output_tokens": 907,
+            "input_tokens_details": {
+              "cached_tokens": 0,
+              "text_tokens": 0,
+              "audio_tokens": 0,
+              "image_tokens": 0
+            },
+            "claude_cache_creation_5_m_tokens": 0,
+            "claude_cache_creation_1_h_tokens": 0
+          }
+        },
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 0,
+          "audio_tokens": 0,
+          "image_tokens": 0
+        },
+        "completion_tokens_details": {
+          "text_tokens": 0,
+          "audio_tokens": 0,
+          "image_tokens": 0,
+          "reasoning_tokens": 0
+        },
+        "input_tokens": 8984,
+        "output_tokens": 907,
+        "input_tokens_details": null,
+        "claude_cache_creation_5_m_tokens": 0,
+        "claude_cache_creation_1_h_tokens": 0
+      },
+      "retry_count": 0
+    }
+  }
+}

@@ -145,6 +145,23 @@ class AnswerScopeTests(unittest.TestCase):
             scope["required_limitations"][-1]["text"],
         )
 
+    def test_agent_inconclusive_stop_keeps_open_limits(self):
+        value = evidence("agent_inconclusive_stop")
+        scope = build_answer_scope(value)
+
+        self.assertEqual(scope["termination"], "agent_inconclusive_stop")
+        self.assertEqual(scope["claim_verdict"], "inconclusive")
+        self.assertEqual(scope["untested_candidate_ids"], ["position.right"])
+        self.assertIn(
+            "candidate universe may remain open",
+            scope["required_limitations"][-1]["text"],
+        )
+
+        legacy = build_answer_scope(evidence("agent_saturation_inconclusive"))
+        self.assertEqual(
+            legacy["termination"], "agent_saturation_inconclusive"
+        )
+
     def test_plan_agent_session_assessment_reaches_final_scope(self):
         value = {
             "total_episodes": 2,

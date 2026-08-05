@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "task_name": "press_stapler",
+  "metric": "terminal_left_tcp_to_stapler_distance",
+  "question": "What is the terminal Euclidean distance between left_tcp_position and stapler_position?",
+  "route": "force_codegen",
+  "reference_tool": null,
+  "required_signals": [
+    "semantic_trace.left_tcp_position",
+    "semantic_trace.stapler_position",
+    "semantic_trace.physics_step"
+  ],
+  "output_contract": {
+    "source": "typed_metric_spec_v2",
+    "metric_spec": {
+      "schema_version": 2,
+      "operation": "derived_observable",
+      "observable_id": "terminal_left_tcp_to_stapler_distance",
+      "description": "Terminal Euclidean distance between left_tcp_position and stapler_position.",
+      "required_signals": [
+        "left_tcp_position",
+        "stapler_position"
+      ],
+      "unit": "m",
+      "null_semantics": "null_if_no_finite_sample"
+    },
+    "value_type": "number_or_null",
+    "unit": "m",
+    "passed": null,
+    "evidence": "caller_supplied_oracle_evidence_steps"
+  },
+  "validation_requirements": {
+    "min_episodes": 1,
+    "distinct_reference_values": false,
+    "required_reference_values": []
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 2,
+  "task_name": "press_stapler",
+  "metric": "terminal_left_tcp_to_stapler_distance",
+  "question": "What is the terminal Euclidean distance between left_tcp_position and stapler_position?",
+  "metric_spec": {
+    "schema_version": 2,
+    "operation": "derived_observable",
+    "observable_id": "terminal_left_tcp_to_stapler_distance",
+    "description": "Terminal Euclidean distance between left_tcp_position and stapler_position.",
+    "required_signals": [
+      "left_tcp_position",
+      "stapler_position"
+    ],
+    "unit": "m",
+    "null_semantics": "null_if_no_finite_sample"
+  }
+}

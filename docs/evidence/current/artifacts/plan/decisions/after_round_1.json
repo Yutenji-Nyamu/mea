@@ -2,8 +2,8 @@
   "schema_version": 2,
   "action": "continue",
   "transition": "switch_concern",
-  "candidate_id": "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff",
-  "observation_summary": "The official unchanged-scene control succeeded, so baseline task execution is not the remaining uncertainty. The next most informative test is the smallest permitted geometric displacement, exactly 0.05 m along one supported position axis, while preserving expert solvability. The checker directly tests the requested terminal alignment conjunction, and the separate rollout-peak distance diagnoses transient alignment weakness without replacing the terminal success verdict.",
+  "candidate_id": "dynamic.press.stapler.scene.robustness.initial.lateral.displacement.translating.the.stapler.s.initial.position.by.0.03.m.along.the.world.x.axis.will.expose.a.policy.weakness.the.policy.will.not.satisfy.the.combined.predicate.of.official.task.success.and.terminal.physical.contact.between.the.stapler.and.either.robot.gripper.ee000124987f",
+  "observation_summary": "The unchanged official-scene control succeeded with official_check_success=1.0, so repeating the baseline is no longer informative. The next priority is a bounded scene-level robustness concern using the advertised actor-position perturbation. A small lateral displacement tests whether the policy can reacquire and physically engage the stapler; the required checker gives a directly observable combined success predicate, while the Rule Tool independently diagnoses terminal TCP proximity.",
   "decision_reason": "provider_authored_open_world_step",
   "answered_query": false,
   "plan_step_source": "provider_plan_agent_open_query",
@@ -15,58 +15,53 @@
       "round_1"
     ],
     "completed_round_count": 1,
-    "input_digest": "13b8ab7802f883e4f89394e7f66130e43007f58d907cee74a1f0f4bb4dd86063"
+    "input_digest": "a5ccd96d1ec66199a6d70fd1e7cf29d2002455edac0efbecf2c5693fa35107c3"
   },
   "plan_step_proposal": {
     "schema_version": 2,
     "action": "propose",
-    "aspect_id": "scene_robustness.roller_translation.terminal_tcp_alignment",
-    "candidate_id": "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff",
+    "aspect_id": "scene_robustness.initial_lateral_displacement",
+    "candidate_id": "dynamic.press.stapler.scene.robustness.initial.lateral.displacement.translating.the.stapler.s.initial.position.by.0.03.m.along.the.world.x.axis.will.expose.a.policy.weakness.the.policy.will.not.satisfy.the.combined.predicate.of.official.task.success.and.terminal.physical.contact.between.the.stapler.and.either.robot.gripper.ee000124987f",
     "execution_mode": "reuse_or_generate",
     "proposal": {
       "schema_version": 2,
-      "candidate_id": "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff",
-      "source_query": "Relative to the official grab task, does there exist a newly generated executable scene challenge that exposes a terminal alignment weakness in this policy? After observing official-control evidence, let the Plan Agent choose the most informative supported scene change without an aspect or template from me. To avoid a trivial perturbation, the chosen geometric scene change must displace the manipulated roller by at least 0.05 m while remaining expert-solvable; the Plan Agent chooses the axis and exact magnitude. Define experimental success as the official task goal AND both terminal TCPs being within 0.025 m of their corresponding roller contact points, using only current simulator point positions; do not require episode history, accumulated contact, or a trajectory-derived success threshold. Independently report one scalar metric computed from the rollout trajectory that diagnoses the chosen hypothesis, but treat that scalar strictly as diagnostic evidence and never as the terminal success outcome.",
-      "base_task": "grab_roller",
-      "semantic_concern": "scene_robustness.roller_translation.terminal_tcp_alignment: Translating the roller by exactly 0.05 m along the world x-axis will expose a terminal TCP alignment weakness, causing the combined experimental checker to fail despite the successful official-control result.",
+      "candidate_id": "dynamic.press.stapler.scene.robustness.initial.lateral.displacement.translating.the.stapler.s.initial.position.by.0.03.m.along.the.world.x.axis.will.expose.a.policy.weakness.the.policy.will.not.satisfy.the.combined.predicate.of.official.task.success.and.terminal.physical.contact.between.the.stapler.and.either.robot.gripper.ee000124987f",
+      "source_query": "Does there exist a bounded, executable scene concern beyond the unchanged official press_stapler task under which this policy exposes a measured weakness? Observe the control, then let the Plan Agent invent and refine the most informative concerns from evidence. I provide no aspect, object, axis, magnitude, relation, threshold, template, checker code, or metric. Generate only the scene, checker, Rule Tool, or VQA Tool actually required by each Proposal. A generated checker must preserve official success as a required conjunct and add only directly observable current-state semantics. A diagnostic Tool must remain separate from success. After a valid success, the evidence must choose a genuinely different semantic concern or an evidence-grounded boundary refinement rather than repeat the same test. The Plan Agent must propose stop as soon as a definitive failure witness has an evidence-backed diagnosis. If executable supported concerns become informationally saturated without such a witness, it must actively stop and answer only the tested scope.",
+      "base_task": "press_stapler",
+      "semantic_concern": "scene_robustness.initial_lateral_displacement: Translating the stapler's initial position by +0.03 m along the world x-axis will expose a policy weakness: the policy will not satisfy the combined predicate of official task success and terminal physical contact between the stapler and either robot gripper.",
       "scene_need": {
         "kind": "adapt",
-        "description": "Generate an executable expert-solvable scene by translating the roller exactly 0.05 m along the world x-axis from its official-scene position. Preserve unchanged: task identity; policy checkpoint; official core predicate as a required conjunct.",
+        "description": "Construct or adapt the official press_stapler scene by translating the stapler initial position from the official reset pose by +0.03 m along the world x-axis. Preserve unchanged: task identity; policy checkpoint.",
         "reuse_first": true
       },
       "checker_need": {
         "kind": "generate",
-        "description": "Evaluate the boolean conjunction of the official goal, left TCP distance to the left roller contact point being at most 0.025 m, and right TCP distance to the right roller contact point being at most 0.025 m, using terminal current simulator point positions only.",
+        "description": "Boolean terminal predicate: official goal AND the stapler is physically contacting either robot gripper in the terminal simulator state.",
         "reuse_first": true
       },
       "rule_tool_need": {
         "kind": "measure",
-        "description": "Report the terminal maximum of the left TCP-to-left-contact and right TCP-to-right-contact distances as one scalar.",
+        "description": "Report the terminal minimum Euclidean distance between the stapler position and either the left or right robot TCP.",
         "reuse_first": true
       },
-      "vqa_tool_need": {
-        "kind": "vqa",
-        "description": "Report the peak over the rollout of the larger of the left TCP-to-left-contact and right TCP-to-right-contact distances as one diagnostic trajectory scalar.",
-        "reuse_first": true
-      },
+      "vqa_tool_need": null,
       "tool_need": {
         "kind": "measure",
-        "description": "Report the terminal maximum of the left TCP-to-left-contact and right TCP-to-right-contact distances as one scalar.",
+        "description": "Report the terminal minimum Euclidean distance between the stapler position and either the left or right robot TCP.",
         "reuse_first": true
       },
       "evaluation_intent": {
         "schema_version": 1,
-        "intent_id": "intent.78fbce792af89034",
-        "source_query": "Relative to the official grab task, does there exist a newly generated executable scene challenge that exposes a terminal alignment weakness in this policy? After observing official-control evidence, let the Plan Agent choose the most informative supported scene change without an aspect or template from me. To avoid a trivial perturbation, the chosen geometric scene change must displace the manipulated roller by at least 0.05 m while remaining expert-solvable; the Plan Agent chooses the axis and exact magnitude. Define experimental success as the official task goal AND both terminal TCPs being within 0.025 m of their corresponding roller contact points, using only current simulator point positions; do not require episode history, accumulated contact, or a trajectory-derived success threshold. Independently report one scalar metric computed from the rollout trajectory that diagnoses the chosen hypothesis, but treat that scalar strictly as diagnostic evidence and never as the terminal success outcome.",
-        "original_concern": "scene_robustness.roller_translation.terminal_tcp_alignment",
-        "hypothesis": "Translating the roller by exactly 0.05 m along the world x-axis will expose a terminal TCP alignment weakness, causing the combined experimental checker to fail despite the successful official-control result.",
-        "requested_change": "Translate the manipulated roller exactly 0.05 m along the world x-axis from its official-scene position while retaining an expert-solvable arrangement.",
+        "intent_id": "intent.d2d4253a14ce9763",
+        "source_query": "Does there exist a bounded, executable scene concern beyond the unchanged official press_stapler task under which this policy exposes a measured weakness? Observe the control, then let the Plan Agent invent and refine the most informative concerns from evidence. I provide no aspect, object, axis, magnitude, relation, threshold, template, checker code, or metric. Generate only the scene, checker, Rule Tool, or VQA Tool actually required by each Proposal. A generated checker must preserve official success as a required conjunct and add only directly observable current-state semantics. A diagnostic Tool must remain separate from success. After a valid success, the evidence must choose a genuinely different semantic concern or an evidence-grounded boundary refinement rather than repeat the same test. The Plan Agent must propose stop as soon as a definitive failure witness has an evidence-backed diagnosis. If executable supported concerns become informationally saturated without such a witness, it must actively stop and answer only the tested scope.",
+        "original_concern": "scene_robustness.initial_lateral_displacement",
+        "hypothesis": "Translating the stapler's initial position by +0.03 m along the world x-axis will expose a policy weakness: the policy will not satisfy the combined predicate of official task success and terminal physical contact between the stapler and either robot gripper.",
+        "requested_change": "Translate the stapler initial position from the official reset pose by +0.03 m along the world x-axis.",
         "preserved_conditions": [
           "task identity",
-          "policy checkpoint",
-          "official core predicate as a required conjunct"
+          "policy checkpoint"
         ],
-        "required_observation": "Evaluate the boolean conjunction of the official goal, left TCP distance to the left roller contact point being at most 0.025 m, and right TCP distance to the right roller contact point being at most 0.025 m, using terminal current simulator point positions only. Report the terminal maximum of the left TCP-to-left-contact and right TCP-to-right-contact distances as one scalar. Report the peak over the rollout of the larger of the left TCP-to-left-contact and right TCP-to-right-contact distances as one diagnostic trajectory scalar."
+        "required_observation": "Boolean terminal predicate: official goal AND the stapler is physically contacting either robot gripper in the terminal simulator state. Report the terminal minimum Euclidean distance between the stapler position and either the left or right robot TCP."
       },
       "intent_alignment": {
         "schema_version": 1,
@@ -81,7 +76,7 @@
         "unmatched_intent_fields": []
       }
     },
-    "rationale": "The official unchanged-scene control succeeded, so baseline task execution is not the remaining uncertainty. The next most informative test is the smallest permitted geometric displacement, exactly 0.05 m along one supported position axis, while preserving expert solvability. The checker directly tests the requested terminal alignment conjunction, and the separate rollout-peak distance diagnoses transient alignment weakness without replacing the terminal success verdict.",
+    "rationale": "The unchanged official-scene control succeeded with official_check_success=1.0, so repeating the baseline is no longer informative. The next priority is a bounded scene-level robustness concern using the advertised actor-position perturbation. A small lateral displacement tests whether the policy can reacquire and physically engage the stapler; the required checker gives a directly observable combined success predicate, while the Rule Tool independently diagnoses terminal TCP proximity.",
     "answered_query": false,
     "planning_lineage": {
       "schema_version": 1,
@@ -91,26 +86,26 @@
         "round_1"
       ],
       "completed_round_count": 1,
-      "input_digest": "13b8ab7802f883e4f89394e7f66130e43007f58d907cee74a1f0f4bb4dd86063"
+      "input_digest": "a5ccd96d1ec66199a6d70fd1e7cf29d2002455edac0efbecf2c5693fa35107c3"
     }
   },
-  "round_budget_before_decision": 2,
+  "round_budget_before_decision": 19,
   "query_assessment": {
     "schema_version": 1,
     "contract": {
       "schema_version": 3,
       "claim_type": "existential",
       "candidate_universe": [
-        "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff"
+        "dynamic.press.stapler.scene.robustness.initial.lateral.displacement.translating.the.stapler.s.initial.position.by.0.03.m.along.the.world.x.axis.will.expose.a.policy.weakness.the.policy.will.not.satisfy.the.combined.predicate.of.official.task.success.and.terminal.physical.contact.between.the.stapler.and.either.robot.gripper.ee000124987f"
       ],
       "required_coverage": {
         "candidate_ids": [
-          "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff"
+          "dynamic.press.stapler.scene.robustness.initial.lateral.displacement.translating.the.stapler.s.initial.position.by.0.03.m.along.the.world.x.axis.will.expose.a.policy.weakness.the.policy.will.not.satisfy.the.combined.predicate.of.official.task.success.and.terminal.physical.contact.between.the.stapler.and.either.robot.gripper.ee000124987f"
         ],
         "minimum_evaluated": 1,
         "minimum_per_group": null
       },
-      "round_budget": 2,
+      "round_budget": 19,
       "comparison_groups": null,
       "candidate_universe_closed": false,
       "existential_witness_outcome": "fail",
@@ -121,8 +116,8 @@
     "claim_verdict": "inconclusive",
     "evidence_sufficient": false,
     "completed_rounds": 0,
-    "round_budget": 2,
-    "budget_remaining": 2,
+    "round_budget": 19,
+    "budget_remaining": 19,
     "candidate_universe_closed": false,
     "candidate_discovery_required": true,
     "observed_candidate_ids": [],
@@ -130,13 +125,13 @@
     "conflict_candidate_ids": [],
     "unknown_candidate_ids": [],
     "untested_required_candidate_ids": [
-      "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff"
+      "dynamic.press.stapler.scene.robustness.initial.lateral.displacement.translating.the.stapler.s.initial.position.by.0.03.m.along.the.world.x.axis.will.expose.a.policy.weakness.the.policy.will.not.satisfy.the.combined.predicate.of.official.task.success.and.terminal.physical.contact.between.the.stapler.and.either.robot.gripper.ee000124987f"
     ],
     "untested_candidate_ids": [
-      "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff"
+      "dynamic.press.stapler.scene.robustness.initial.lateral.displacement.translating.the.stapler.s.initial.position.by.0.03.m.along.the.world.x.axis.will.expose.a.policy.weakness.the.policy.will.not.satisfy.the.combined.predicate.of.official.task.success.and.terminal.physical.contact.between.the.stapler.and.either.robot.gripper.ee000124987f"
     ],
     "recommended_candidate_ids": [
-      "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff"
+      "dynamic.press.stapler.scene.robustness.initial.lateral.displacement.translating.the.stapler.s.initial.position.by.0.03.m.along.the.world.x.axis.will.expose.a.policy.weakness.the.policy.will.not.satisfy.the.combined.predicate.of.official.task.success.and.terminal.physical.contact.between.the.stapler.and.either.robot.gripper.ee000124987f"
     ],
     "rationale": "The query contract still has unresolved required evidence.",
     "statistics": {
@@ -151,51 +146,46 @@
   "next_round": {
     "round_id": "round_2",
     "template_id": null,
-    "candidate_id": "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff",
+    "candidate_id": "dynamic.press.stapler.scene.robustness.initial.lateral.displacement.translating.the.stapler.s.initial.position.by.0.03.m.along.the.world.x.axis.will.expose.a.policy.weakness.the.policy.will.not.satisfy.the.combined.predicate.of.official.task.success.and.terminal.physical.contact.between.the.stapler.and.either.robot.gripper.ee000124987f",
     "proposal": {
       "schema_version": 2,
-      "candidate_id": "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff",
-      "source_query": "Relative to the official grab task, does there exist a newly generated executable scene challenge that exposes a terminal alignment weakness in this policy? After observing official-control evidence, let the Plan Agent choose the most informative supported scene change without an aspect or template from me. To avoid a trivial perturbation, the chosen geometric scene change must displace the manipulated roller by at least 0.05 m while remaining expert-solvable; the Plan Agent chooses the axis and exact magnitude. Define experimental success as the official task goal AND both terminal TCPs being within 0.025 m of their corresponding roller contact points, using only current simulator point positions; do not require episode history, accumulated contact, or a trajectory-derived success threshold. Independently report one scalar metric computed from the rollout trajectory that diagnoses the chosen hypothesis, but treat that scalar strictly as diagnostic evidence and never as the terminal success outcome.",
-      "base_task": "grab_roller",
-      "semantic_concern": "scene_robustness.roller_translation.terminal_tcp_alignment: Translating the roller by exactly 0.05 m along the world x-axis will expose a terminal TCP alignment weakness, causing the combined experimental checker to fail despite the successful official-control result.",
+      "candidate_id": "dynamic.press.stapler.scene.robustness.initial.lateral.displacement.translating.the.stapler.s.initial.position.by.0.03.m.along.the.world.x.axis.will.expose.a.policy.weakness.the.policy.will.not.satisfy.the.combined.predicate.of.official.task.success.and.terminal.physical.contact.between.the.stapler.and.either.robot.gripper.ee000124987f",
+      "source_query": "Does there exist a bounded, executable scene concern beyond the unchanged official press_stapler task under which this policy exposes a measured weakness? Observe the control, then let the Plan Agent invent and refine the most informative concerns from evidence. I provide no aspect, object, axis, magnitude, relation, threshold, template, checker code, or metric. Generate only the scene, checker, Rule Tool, or VQA Tool actually required by each Proposal. A generated checker must preserve official success as a required conjunct and add only directly observable current-state semantics. A diagnostic Tool must remain separate from success. After a valid success, the evidence must choose a genuinely different semantic concern or an evidence-grounded boundary refinement rather than repeat the same test. The Plan Agent must propose stop as soon as a definitive failure witness has an evidence-backed diagnosis. If executable supported concerns become informationally saturated without such a witness, it must actively stop and answer only the tested scope.",
+      "base_task": "press_stapler",
+      "semantic_concern": "scene_robustness.initial_lateral_displacement: Translating the stapler's initial position by +0.03 m along the world x-axis will expose a policy weakness: the policy will not satisfy the combined predicate of official task success and terminal physical contact between the stapler and either robot gripper.",
       "scene_need": {
         "kind": "adapt",
-        "description": "Generate an executable expert-solvable scene by translating the roller exactly 0.05 m along the world x-axis from its official-scene position. Preserve unchanged: task identity; policy checkpoint; official core predicate as a required conjunct.",
+        "description": "Construct or adapt the official press_stapler scene by translating the stapler initial position from the official reset pose by +0.03 m along the world x-axis. Preserve unchanged: task identity; policy checkpoint.",
         "reuse_first": true
       },
       "checker_need": {
         "kind": "generate",
-        "description": "Evaluate the boolean conjunction of the official goal, left TCP distance to the left roller contact point being at most 0.025 m, and right TCP distance to the right roller contact point being at most 0.025 m, using terminal current simulator point positions only.",
+        "description": "Boolean terminal predicate: official goal AND the stapler is physically contacting either robot gripper in the terminal simulator state.",
         "reuse_first": true
       },
       "rule_tool_need": {
         "kind": "measure",
-        "description": "Report the terminal maximum of the left TCP-to-left-contact and right TCP-to-right-contact distances as one scalar.",
+        "description": "Report the terminal minimum Euclidean distance between the stapler position and either the left or right robot TCP.",
         "reuse_first": true
       },
-      "vqa_tool_need": {
-        "kind": "vqa",
-        "description": "Report the peak over the rollout of the larger of the left TCP-to-left-contact and right TCP-to-right-contact distances as one diagnostic trajectory scalar.",
-        "reuse_first": true
-      },
+      "vqa_tool_need": null,
       "tool_need": {
         "kind": "measure",
-        "description": "Report the terminal maximum of the left TCP-to-left-contact and right TCP-to-right-contact distances as one scalar.",
+        "description": "Report the terminal minimum Euclidean distance between the stapler position and either the left or right robot TCP.",
         "reuse_first": true
       },
       "evaluation_intent": {
         "schema_version": 1,
-        "intent_id": "intent.78fbce792af89034",
-        "source_query": "Relative to the official grab task, does there exist a newly generated executable scene challenge that exposes a terminal alignment weakness in this policy? After observing official-control evidence, let the Plan Agent choose the most informative supported scene change without an aspect or template from me. To avoid a trivial perturbation, the chosen geometric scene change must displace the manipulated roller by at least 0.05 m while remaining expert-solvable; the Plan Agent chooses the axis and exact magnitude. Define experimental success as the official task goal AND both terminal TCPs being within 0.025 m of their corresponding roller contact points, using only current simulator point positions; do not require episode history, accumulated contact, or a trajectory-derived success threshold. Independently report one scalar metric computed from the rollout trajectory that diagnoses the chosen hypothesis, but treat that scalar strictly as diagnostic evidence and never as the terminal success outcome.",
-        "original_concern": "scene_robustness.roller_translation.terminal_tcp_alignment",
-        "hypothesis": "Translating the roller by exactly 0.05 m along the world x-axis will expose a terminal TCP alignment weakness, causing the combined experimental checker to fail despite the successful official-control result.",
-        "requested_change": "Translate the manipulated roller exactly 0.05 m along the world x-axis from its official-scene position while retaining an expert-solvable arrangement.",
+        "intent_id": "intent.d2d4253a14ce9763",
+        "source_query": "Does there exist a bounded, executable scene concern beyond the unchanged official press_stapler task under which this policy exposes a measured weakness? Observe the control, then let the Plan Agent invent and refine the most informative concerns from evidence. I provide no aspect, object, axis, magnitude, relation, threshold, template, checker code, or metric. Generate only the scene, checker, Rule Tool, or VQA Tool actually required by each Proposal. A generated checker must preserve official success as a required conjunct and add only directly observable current-state semantics. A diagnostic Tool must remain separate from success. After a valid success, the evidence must choose a genuinely different semantic concern or an evidence-grounded boundary refinement rather than repeat the same test. The Plan Agent must propose stop as soon as a definitive failure witness has an evidence-backed diagnosis. If executable supported concerns become informationally saturated without such a witness, it must actively stop and answer only the tested scope.",
+        "original_concern": "scene_robustness.initial_lateral_displacement",
+        "hypothesis": "Translating the stapler's initial position by +0.03 m along the world x-axis will expose a policy weakness: the policy will not satisfy the combined predicate of official task success and terminal physical contact between the stapler and either robot gripper.",
+        "requested_change": "Translate the stapler initial position from the official reset pose by +0.03 m along the world x-axis.",
         "preserved_conditions": [
           "task identity",
-          "policy checkpoint",
-          "official core predicate as a required conjunct"
+          "policy checkpoint"
         ],
-        "required_observation": "Evaluate the boolean conjunction of the official goal, left TCP distance to the left roller contact point being at most 0.025 m, and right TCP distance to the right roller contact point being at most 0.025 m, using terminal current simulator point positions only. Report the terminal maximum of the left TCP-to-left-contact and right TCP-to-right-contact distances as one scalar. Report the peak over the rollout of the larger of the left TCP-to-left-contact and right TCP-to-right-contact distances as one diagnostic trajectory scalar."
+        "required_observation": "Boolean terminal predicate: official goal AND the stapler is physically contacting either robot gripper in the terminal simulator state. Report the terminal minimum Euclidean distance between the stapler position and either the left or right robot TCP."
       },
       "intent_alignment": {
         "schema_version": 1,
@@ -210,10 +200,10 @@
         "unmatched_intent_fields": []
       }
     },
-    "sub_aspect": "scene_robustness.roller_translation.terminal_tcp_alignment",
+    "sub_aspect": "scene_robustness.initial_lateral_displacement",
     "rationale": "Materialize only the Query-derived Task or Tool needs; no catalog template authorizes this round.",
-    "task_instruction": "Relative to the official grab task, does there exist a newly generated executable scene challenge that exposes a terminal alignment weakness in this policy? After observing official-control evidence, let the Plan Agent choose the most informative supported scene change without an aspect or template from me. To avoid a trivial perturbation, the chosen geometric scene change must displace the manipulated roller by at least 0.05 m while remaining expert-solvable; the Plan Agent chooses the axis and exact magnitude. Define experimental success as the official task goal AND both terminal TCPs being within 0.025 m of their corresponding roller contact points, using only current simulator point positions; do not require episode history, accumulated contact, or a trajectory-derived success threshold. Independently report one scalar metric computed from the rollout trajectory that diagnoses the chosen hypothesis, but treat that scalar strictly as diagnostic evidence and never as the terminal success outcome.\nScene need: Generate an executable expert-solvable scene by translating the roller exactly 0.05 m along the world x-axis from its official-scene position. Preserve unchanged: task identity; policy checkpoint; official core predicate as a required conjunct.\nChecker need: Evaluate the boolean conjunction of the official goal, left TCP distance to the left roller contact point being at most 0.025 m, and right TCP distance to the right roller contact point being at most 0.025 m, using terminal current simulator point positions only.",
-    "task_name": "grab_roller",
+    "task_instruction": "Does there exist a bounded, executable scene concern beyond the unchanged official press_stapler task under which this policy exposes a measured weakness? Observe the control, then let the Plan Agent invent and refine the most informative concerns from evidence. I provide no aspect, object, axis, magnitude, relation, threshold, template, checker code, or metric. Generate only the scene, checker, Rule Tool, or VQA Tool actually required by each Proposal. A generated checker must preserve official success as a required conjunct and add only directly observable current-state semantics. A diagnostic Tool must remain separate from success. After a valid success, the evidence must choose a genuinely different semantic concern or an evidence-grounded boundary refinement rather than repeat the same test. The Plan Agent must propose stop as soon as a definitive failure witness has an evidence-backed diagnosis. If executable supported concerns become informationally saturated without such a witness, it must actively stop and answer only the tested scope.\nScene need: Construct or adapt the official press_stapler scene by translating the stapler initial position from the official reset pose by +0.03 m along the world x-axis. Preserve unchanged: task identity; policy checkpoint.\nChecker need: Boolean terminal predicate: official goal AND the stapler is physically contacting either robot gripper in the terminal simulator state.",
+    "task_name": "press_stapler",
     "task_module": null,
     "telemetry_profile": "balanced_v1",
     "route": "generic_provider_scene_checker_codegen",
@@ -221,7 +211,7 @@
     "execution": {
       "backend": "act",
       "seeds": [
-        100401
+        1000
       ],
       "num_episodes": 1,
       "gates": [
@@ -232,7 +222,6 @@
         "smolvla",
         "toolkit",
         "planned_tool",
-        "dynamic_vqa",
         "aggregate"
       ],
       "policy_backend": "smolvla"
@@ -242,12 +231,11 @@
       "expert_solvable",
       "trusted_tools",
       "planned_tool",
-      "dynamic_vqa",
       "aggregate"
     ],
     "tool_request": {
       "schema_version": 1,
-      "task_name": "grab_roller",
+      "task_name": "press_stapler",
       "metric": "generated_check_success",
       "question": "Did the rollout satisfy the generated success predicate?"
     },
@@ -255,84 +243,83 @@
     "vqa_phenomenon_ids": [],
     "semantic_need_execution": {
       "schema_version": 2,
-      "candidate_id": "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff",
+      "candidate_id": "dynamic.press.stapler.scene.robustness.initial.lateral.displacement.translating.the.stapler.s.initial.position.by.0.03.m.along.the.world.x.axis.will.expose.a.policy.weakness.the.policy.will.not.satisfy.the.combined.predicate.of.official.task.success.and.terminal.physical.contact.between.the.stapler.and.either.robot.gripper.ee000124987f",
       "task": {
         "requested": true,
-        "description": "Generate an executable expert-solvable scene by translating the roller exactly 0.05 m along the world x-axis from its official-scene position. Preserve unchanged: task identity; policy checkpoint; official core predicate as a required conjunct.",
+        "description": "Construct or adapt the official press_stapler scene by translating the stapler initial position from the official reset pose by +0.03 m along the world x-axis. Preserve unchanged: task identity; policy checkpoint.",
         "route": "generic_provider_scene_checker_codegen",
         "status": "selected"
       },
       "checker": {
         "requested": true,
-        "description": "Evaluate the boolean conjunction of the official goal, left TCP distance to the left roller contact point being at most 0.025 m, and right TCP distance to the right roller contact point being at most 0.025 m, using terminal current simulator point positions only.",
+        "description": "Boolean terminal predicate: official goal AND the stapler is physically contacting either robot gripper in the terminal simulator state.",
         "route": "provider_written_python",
         "status": "selected"
       },
       "rule_tool": {
         "requested": true,
-        "description": "Report the terminal maximum of the left TCP-to-left-contact and right TCP-to-right-contact distances as one scalar.",
+        "description": "Report the terminal minimum Euclidean distance between the stapler position and either the left or right robot TCP.",
         "route": "after_executed_telemetry_schema",
         "status": "pending"
       },
       "vqa_tool": {
-        "requested": true,
-        "description": "Report the peak over the rollout of the larger of the left TCP-to-left-contact and right TCP-to-right-contact distances as one diagnostic trajectory scalar.",
-        "route": "task_owned_or_generated_question",
-        "status": "pending"
+        "requested": false,
+        "description": null,
+        "route": "not_requested",
+        "status": "not_requested"
       }
     }
   },
   "semantic_proposal": {
     "schema_version": 2,
     "action": "continue",
-    "sub_aspect": "scene_robustness.roller_translation.terminal_tcp_alignment",
-    "hypothesis": "Translating the roller by exactly 0.05 m along the world x-axis will expose a terminal TCP alignment weakness, causing the combined experimental checker to fail despite the successful official-control result.",
+    "sub_aspect": "scene_robustness.initial_lateral_displacement",
+    "hypothesis": "Translating the stapler's initial position by +0.03 m along the world x-axis will expose a policy weakness: the policy will not satisfy the combined predicate of official task success and terminal physical contact between the stapler and either robot gripper.",
     "requested_perturbation": {
-      "description": "Translate the manipulated roller exactly 0.05 m along the world x-axis from its official-scene position while retaining an expert-solvable arrangement.",
+      "description": "Translate the stapler initial position from the official reset pose by +0.03 m along the world x-axis.",
       "controlled_changes": [
-        "roller position: official-scene position -> official-scene position plus 0.05 m along world x"
+        "stapler initial position: official reset pose -> +0.03 m along world x-axis"
       ],
       "preserve": [
         "task identity",
-        "policy checkpoint",
-        "official core predicate as a required conjunct"
+        "policy checkpoint"
       ]
     },
     "scene_need": {
       "required": true,
-      "description": "Generate an executable expert-solvable scene by translating the roller exactly 0.05 m along the world x-axis from its official-scene position."
+      "description": "Construct or adapt the official press_stapler scene by translating the stapler initial position from the official reset pose by +0.03 m along the world x-axis."
     },
     "checker_need": {
       "required": true,
-      "description": "Evaluate the boolean conjunction of the official goal, left TCP distance to the left roller contact point being at most 0.025 m, and right TCP distance to the right roller contact point being at most 0.025 m, using terminal current simulator point positions only."
+      "description": "Boolean terminal predicate: official goal AND the stapler is physically contacting either robot gripper in the terminal simulator state."
     },
     "rule_tool_need": {
       "required": true,
-      "description": "Report the terminal maximum of the left TCP-to-left-contact and right TCP-to-right-contact distances as one scalar.",
+      "description": "Report the terminal minimum Euclidean distance between the stapler position and either the left or right robot TCP.",
       "reuse_first": true
     },
     "vqa_tool_need": {
-      "required": true,
-      "description": "Report the peak over the rollout of the larger of the left TCP-to-left-contact and right TCP-to-right-contact distances as one diagnostic trajectory scalar.",
+      "required": false,
+      "description": null,
       "reuse_first": true
     },
-    "rationale": "The official unchanged-scene control succeeded, so baseline task execution is not the remaining uncertainty. The next most informative test is the smallest permitted geometric displacement, exactly 0.05 m along one supported position axis, while preserving expert solvability. The checker directly tests the requested terminal alignment conjunction, and the separate rollout-peak distance diagnoses transient alignment weakness without replacing the terminal success verdict.",
+    "rationale": "The unchanged official-scene control succeeded with official_check_success=1.0, so repeating the baseline is no longer informative. The next priority is a bounded scene-level robustness concern using the advertised actor-position perturbation. A small lateral displacement tests whether the policy can reacquire and physically engage the stapler; the required checker gives a directly observable combined success predicate, while the Rule Tool independently diagnoses terminal TCP proximity.",
     "task_need": {
       "required": true,
-      "description": "Generate an executable expert-solvable scene by translating the roller exactly 0.05 m along the world x-axis from its official-scene position. | Evaluate the boolean conjunction of the official goal, left TCP distance to the left roller contact point being at most 0.025 m, and right TCP distance to the right roller contact point being at most 0.025 m, using terminal current simulator point positions only."
+      "description": "Construct or adapt the official press_stapler scene by translating the stapler initial position from the official reset pose by +0.03 m along the world x-axis. | Boolean terminal predicate: official goal AND the stapler is physically contacting either robot gripper in the terminal simulator state."
     },
     "tool_need": {
       "required": true,
-      "description": "Report the terminal maximum of the left TCP-to-left-contact and right TCP-to-right-contact distances as one scalar. | Report the peak over the rollout of the larger of the left TCP-to-left-contact and right TCP-to-right-contact distances as one diagnostic trajectory scalar.",
+      "description": "Report the terminal minimum Euclidean distance between the stapler position and either the left or right robot TCP.",
       "reuse_first": true
     }
   },
   "semantic_resolution": {
     "schema_version": 1,
-    "semantic_sub_aspect": "scene_robustness.roller_translation.terminal_tcp_alignment",
+    "semantic_sub_aspect": "scene_robustness.initial_lateral_displacement",
     "resolved_aspect_id": null,
     "resolved_template_id": null,
-    "resolved_candidate_id": "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff",
+    "resolved_candidate_id": "dynamic.press.stapler.scene.robustness.initial.lateral.displacement.translating.the.stapler.s.initial.position.by.0.03.m.along.the.world.x.axis.will.expose.a.policy.weakness.the.policy.will.not.satisfy.the.combined.predicate.of.official.task.success.and.terminal.physical.contact.between.the.stapler.and.either.robot.gripper.ee000124987f",
     "resolution": "proposal_reuse_or_generate",
     "hidden": false,
     "matched_tokens": [],

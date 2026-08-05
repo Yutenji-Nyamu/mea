@@ -54,7 +54,7 @@ def build_compact_flagship_acceptance(
     history_disabled: bool,
     cli_candidate_hint_used: bool = False,
 ) -> dict[str, Any]:
-    """Project a strict, scoped acceptance for one online 2-3 round run."""
+    """Project strict, scoped acceptance for one bounded online method run."""
 
     policy_rollouts = 0
     policy_round_pipeline_passed: list[bool] = []
@@ -327,7 +327,7 @@ def build_compact_flagship_acceptance(
     # control.  New production contracts state ``not_required`` explicitly.
     control_required = control_requirement != "not_required"
     method_round_sequence = bool(
-        2 <= len(round_routes) <= 3
+        len(round_routes) >= (2 if control_required else 1)
         and policy_rollouts == len(round_routes)
         and any(route != "official" for route in round_routes)
         and (
@@ -427,10 +427,14 @@ def build_compact_flagship_acceptance(
         "global_router_provider_calls": global_router_provider_calls,
         # Retained as a compatibility projection for historical readers.
         "act_rollouts": policy_rollouts,
-        "required_act_rollouts": 2,
-        "accepted_act_rollout_range": [2, 3],
+        # Rollout count is evidence, not an acceptance gate.  Older artifacts
+        # used a fixed 2--3 episode range; new runs keep those reader-facing
+        # keys nullable so the Plan Agent and QueryContract own termination.
+        "required_act_rollouts": None,
+        "accepted_act_rollout_range": None,
         "policy_rollouts": policy_rollouts,
-        "accepted_policy_rollout_range": [2, 3],
+        "accepted_policy_rollout_range": None,
+        "rollout_budget_policy": "soft_evidence_guardrail",
         "control_requirement": control_requirement,
         "control_requirement_satisfied": control_requirement_satisfied,
         "round_routes": round_routes,

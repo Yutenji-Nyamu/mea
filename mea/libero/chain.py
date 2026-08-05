@@ -309,6 +309,7 @@ def run_libero_method_chain(
     request: str,
     evaluation_id: str,
     checkpoint: str | Path = DEFAULT_CHECKPOINT,
+    backbone_metadata: str | Path | None = None,
     seed: int = DEFAULT_SEED,
     planner_model: str = "gpt-4o-2024-11-20",
     taskgen_model: str = "gpt-4o-2024-11-20",
@@ -416,6 +417,7 @@ def run_libero_method_chain(
         observation_size=OBSERVATION_SIZE,
         suite_name=official_contract.suite,
         task_id=official_contract.official_task_id,
+        backbone_metadata=backbone_metadata,
     )
     method_backend = LiberoMethodBackend(
         benchmark_adapter=benchmark,
@@ -1071,6 +1073,7 @@ def run_libero_agent_cli(args: Any) -> None:
         request=args.request,
         evaluation_id=evaluation_id,
         checkpoint=getattr(args, "libero_checkpoint", DEFAULT_CHECKPOINT),
+        backbone_metadata=getattr(args, "libero_backbone_metadata", None),
         seed=(
             args.start_seed
             if args.start_seed is not None

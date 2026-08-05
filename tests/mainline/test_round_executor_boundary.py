@@ -212,7 +212,6 @@ class RoundExecutorBoundaryTests(unittest.TestCase):
                             },
                             text_model="fixture-model",
                             vision_model="fixture-model",
-                            base_url=None,
                             gpu=0,
                             max_reflections=1,
                             provider=object(),

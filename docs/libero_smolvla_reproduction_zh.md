@@ -201,7 +201,42 @@ payload、586 份 metadata 和真实 rollout 均已通过；该 marker 保留，
 当前磁盘空间充足，runtime 所需 env/checkpoint/assets 不清理；约 8 GiB pip cache 仅在不再
 需要快速重装时单独处理。
 
-### 2.4 CPU contract gate
+### 2.4 离线 backbone metadata
+
+`smolvla_libero/config.json` 的 `vlm_model_name` 仍是 Hub 名称；即使
+`load_vlm_weights=false`，Transformers 也会先读取该基础模型的 config/tokenizer。
+因此仅有本地 finetuned 权重时，断网仍可能在 rollout 前失败。生产入口用
+`--libero-backbone-metadata` 显式绑定本地 metadata，并可同时启用
+`HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1`。当前服务器复用同一官方 backbone 的
+4.8 MiB metadata：
+
+```text
+/root/autodl-tmp/checkpoints/robotwin/SmolVLM2-500M-Video-Instruct-metadata
+```
+
+若该目录缺失，只在服务器下载 metadata，不重复下载基础权重：
+
+```bash
+env HF_ENDPOINT=https://hf-mirror.com HF_HUB_DISABLE_XET=1 \
+  /root/autodl-tmp/envs/mea-libero/bin/python - <<'PY'
+from huggingface_hub import snapshot_download
+snapshot_download(
+    repo_id="HuggingFaceTB/SmolVLM2-500M-Video-Instruct",
+    revision="7b375e1b73b11138ff12fe22c8f2822d8fe03467",
+    local_dir=(
+        "/root/autodl-tmp/checkpoints/robotwin/"
+        "SmolVLM2-500M-Video-Instruct-metadata"
+    ),
+    ignore_patterns=["*.safetensors", "*.bin", "*.onnx"],
+)
+PY
+```
+
+2026-08-05 的失败发生在 policy load、任何 rollout 之前：直连 Hub timeout 后
+`AutoConfig.from_pretrained()` 无法解析远程名称。显式本地绑定修复的是部署可复现性，
+不改变 checkpoint、task、seed、action processor 或评估语义。
+
+### 2.5 CPU contract gate
 
 下面是与已保存结果一致的等价命令；结果 artifact 是日志确认，原始调用字符串未单独保存：
 

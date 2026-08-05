@@ -1,0 +1,54 @@
+{
+  "base_task": "press_stapler",
+  "candidate_id": "dynamic.press.stapler.scene.robustness.initial.stapler.roll.orientation.applying.a.bounded.15.degree.roll.rotation.about.the.world.x.axis.to.the.stapler.from.its.official.reset.orientation.will.cause.the.policy.to.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.exposing.sensitivity.to.an.untested.press.surface.roll.alignment.concern.a60098bc03e2",
+  "checker_need": {
+    "description": "Retrieve the official checker and create an experimental terminal checker whose boolean predicate is: official core predicate as a required conjunct AND Euclidean distance(left_tcp_position, stapler_position) <= 0.07980 m.",
+    "kind": "generate",
+    "reuse_first": true
+  },
+  "evaluation_intent": {
+    "hypothesis": "Applying a bounded +15 degree roll rotation about the world-x axis to the stapler from its official reset orientation will cause the policy to fail the satisfiable terminal conjunction of the official core predicate and left-TCP-to-stapler distance less than or equal to 0.07980 m, exposing sensitivity to an untested press-surface roll alignment concern.",
+    "intent_id": "intent.6ecd39d3a2cb0a25",
+    "original_concern": "scene_robustness.initial_stapler_roll_orientation",
+    "preserved_conditions": [
+      "task identity",
+      "policy checkpoint",
+      "official core predicate as a required conjunct"
+    ],
+    "requested_change": "Alter only the stapler initial orientation by applying a +15 degree rotation about the world-x axis relative to the official reset orientation.",
+    "required_observation": "Retrieve the official checker and create an experimental terminal checker whose boolean predicate is: official core predicate as a required conjunct AND Euclidean distance(left_tcp_position, stapler_position) <= 0.07980 m. Report the terminal Euclidean distance between left_tcp_position and stapler_position in metres.",
+    "schema_version": 1,
+    "source_query": "Does there exist a bounded, executable scene concern beyond the unchanged official press_stapler task under which this policy exposes a measured weakness? Observe the control, then let the Plan Agent invent and refine the most informative concerns from evidence. I provide no aspect, object, axis, magnitude, relation, threshold, template, checker code, or metric. Generate only the scene, checker, Rule Tool, or VQA Tool actually required by each Proposal. A generated checker must preserve official success as a required conjunct and add only directly observable current-state semantics. A diagnostic Tool must remain separate from success. After a valid success, the evidence must choose a genuinely different semantic concern or an evidence-grounded boundary refinement rather than repeat the same test. The Plan Agent must propose stop as soon as a definitive failure witness has an evidence-backed diagnosis. If executable supported concerns become informationally saturated without such a witness, it must actively stop and answer only the tested scope."
+  },
+  "intent_alignment": {
+    "matched_intent_fields": [
+      "requested_change",
+      "preserved_conditions",
+      "hypothesis",
+      "required_observation"
+    ],
+    "rationale": "Candidate preserves the requested change, hypothesis, and observation semantics.",
+    "relationship": "direct",
+    "schema_version": 1,
+    "unmatched_intent_fields": []
+  },
+  "rule_tool_need": {
+    "description": "Report the terminal Euclidean distance between left_tcp_position and stapler_position in metres.",
+    "kind": "measure",
+    "reuse_first": true
+  },
+  "scene_need": {
+    "description": "Retrieve or adapt the official press_stapler scene and apply only a +15 degree world-x roll rotation to the stapler initial orientation relative to its official reset orientation. Preserve unchanged: task identity; policy checkpoint; official core predicate as a required conjunct.",
+    "kind": "adapt",
+    "reuse_first": true
+  },
+  "schema_version": 2,
+  "semantic_concern": "scene_robustness.initial_stapler_roll_orientation: Applying a bounded +15 degree roll rotation about the world-x axis to the stapler from its official reset orientation will cause the policy to fail the satisfiable terminal conjunction of the official core predicate and left-TCP-to-stapler distance less than or equal to 0.07980 m, exposing sensitivity to an untested press-surface roll alignment concern.",
+  "source_query": "Does there exist a bounded, executable scene concern beyond the unchanged official press_stapler task under which this policy exposes a measured weakness? Observe the control, then let the Plan Agent invent and refine the most informative concerns from evidence. I provide no aspect, object, axis, magnitude, relation, threshold, template, checker code, or metric. Generate only the scene, checker, Rule Tool, or VQA Tool actually required by each Proposal. A generated checker must preserve official success as a required conjunct and add only directly observable current-state semantics. A diagnostic Tool must remain separate from success. After a valid success, the evidence must choose a genuinely different semantic concern or an evidence-grounded boundary refinement rather than repeat the same test. The Plan Agent must propose stop as soon as a definitive failure witness has an evidence-backed diagnosis. If executable supported concerns become informationally saturated without such a witness, it must actively stop and answer only the tested scope.",
+  "tool_need": {
+    "description": "Report the terminal Euclidean distance between left_tcp_position and stapler_position in metres.",
+    "kind": "measure",
+    "reuse_first": true
+  },
+  "vqa_tool_need": null
+}

@@ -7,6 +7,8 @@ execution boundary, not an operation menu or prescribed test order.  Choose
 only the single most informative next experiment for the original Query, using
 the policy/simulator capabilities and completed evidence below.
 
+CURRENT QUERY CONTRACT: every action=continue Proposal MUST set checker_need.required=true and describe the directly observable experimental predicate; false is invalid.
+
 For action=continue, invent a precise semantic sub_aspect identifier and one
 falsifiable hypothesis.  Request a bounded perturbation supported by the
 capability cards.  Independently state whether the scene, success checker,
@@ -46,6 +48,14 @@ or an entity-pair contact condition with exactly the semantics the API
 supports.  If the exact relation is unavailable, choose a
 scene-only experiment with a Rule/VQA observation, or another informative
 sub-aspect, instead of asking TaskGen to implement a correlated proxy.
+The generated checker is an experimental success criterion, not a way to
+encode the predicted policy failure.  It must remain satisfiable by the expert
+on the proposed scene.  In particular, do not request an added relation that
+the controlled scene change itself makes deterministically false for both the
+expert and the policy; any weakness must be established by rollout evidence.
+If the original Query explicitly requires an experimental checker for every
+generated round, scene-only is not a valid fallback: choose another directly
+observable relation or stop with the unsupported limitation stated plainly.
 TaskGen may retrieve or generate scene and checker code; ToolGen may retrieve
 or generate Rule/VQA Tools.  These artifact primitives do not authorize policy
 or controller intervention: do not reduce gripper precision, inject action
@@ -61,11 +71,32 @@ the rationale must cite a concrete observed outcome or limitation and explain
 why it changed the priority of this sub-aspect.  Do not present a candidate
 that was already frozen before seeing that evidence as evidence-conditioned
 refinement.  If completed evidence contains a finite scalar, bracket the next
-intervention or falsifiable threshold around that observed scale; do not invent
-a distant numeric boundary unrelated to the measurement.  For a broad
+intervention or falsifiable threshold around that observed scale.  Never put a
+numeric boundary into a generated success checker unless that exact boundary
+comes from the original Query or from completed finite scalar/state evidence.
+A successful control alone is not numeric calibration.  After a checker
+fixture fails, use its expert-terminal actor/TCP coordinates to derive or
+bracket a new observable boundary; do not repeat the same arbitrary threshold
+with only an actor or robot-side relabel.  When no grounded boundary exists,
+choose an exact discrete relation supported by the current-state API, request
+scene-only diagnostic evidence, or report the need unsupported.  For a broad
 robustness Query, for example, a successful control
 can justify selecting the highest-risk supported perturbation, while a failed
 control should redirect to baseline reliability or failure diagnosis.
+For a pre-policy TaskGen failure, inspect `bounded_repair_evidence` as well as
+the terminal diagnosis.  If an earlier expert fixture gives concrete terminal
+state showing that the requested boolean relation is false, do not repeat that
+same relation merely because the local repair later violated the Proposal.
+Use the simulator state to correct the Proposal itself or switch concern.
+Failure example from prior runs: after a successful generated test whose live
+scalar shows a comfortable margin, merely increasing the same scene factor is
+not a new sub-aspect unless that value brackets a clear boundary.  When the
+scalar instead weakens the current hypothesis, switch to the most informative
+orthogonal concern that the capability card can execute.  State explicitly
+which observed Tool value or outcome caused the switch.  Conversely, do not
+manufacture another concern
+after the completed evidence already satisfies the Query contract: propose
+action=stop so the contract can validate the answer.
 
 Interpret completed evidence by its declared role.  The top-level `outcome`
 is the authoritative verdict for the tested hypothesis.  A
@@ -85,7 +116,7 @@ required=false/description=null, and express the evidence-supported conclusion
 in hypothesis.
 
 ORIGINAL QUERY:
-Relative to the official grab task, does there exist a newly generated executable scene challenge that exposes a terminal alignment weakness in this policy? After observing official-control evidence, let the Plan Agent choose the most informative supported scene change without an aspect or template from me. To avoid a trivial perturbation, the chosen geometric scene change must displace the manipulated roller by at least 0.05 m while remaining expert-solvable; the Plan Agent chooses the axis and exact magnitude. Define experimental success as the official task goal AND both terminal TCPs being within 0.025 m of their corresponding roller contact points, using only current simulator point positions; do not require episode history, accumulated contact, or a trajectory-derived success threshold. Independently report one scalar metric computed from the rollout trajectory that diagnoses the chosen hypothesis, but treat that scalar strictly as diagnostic evidence and never as the terminal success outcome.
+Does there exist a bounded, executable scene concern beyond the unchanged official press_stapler task under which this policy exposes a measured weakness? Observe the control, then let the Plan Agent invent and refine the most informative concerns from evidence. I provide no aspect, object, axis, magnitude, relation, threshold, template, checker code, or metric. Generate only the scene, checker, Rule Tool, or VQA Tool actually required by each Proposal. A generated checker must preserve official success as a required conjunct and add only directly observable current-state semantics. A diagnostic Tool must remain separate from success. After a valid success, the evidence must choose a genuinely different semantic concern or an evidence-grounded boundary refinement rather than repeat the same test. The Plan Agent must propose stop as soon as a definitive failure witness has an evidence-backed diagnosis. If executable supported concerns become informationally saturated without such a witness, it must actively stop and answer only the tested scope.
 
 
 POLICY AND SIMULATOR CAPABILITIES:
@@ -100,10 +131,10 @@ POLICY AND SIMULATOR CAPABILITIES:
     "language_conditioned": true,
     "single_task_checkpoint": false,
     "training_tasks": [
-      "grab_roller"
+      "press_stapler"
     ],
     "supports_unseen_tasks": false,
-    "task_name": "grab_roller",
+    "task_name": "press_stapler",
     "action_dimension": 14,
     "checkpoint_ready": true,
     "unknown_metadata": [
@@ -116,36 +147,107 @@ POLICY AND SIMULATOR CAPABILITIES:
   "simulator_card": {
     "schema_version": 1,
     "simulator_name": "RoboTwin",
-    "task_name": "grab_roller",
-    "task_family": "dual_arm_lift",
-    "physics_timestep_seconds": 0.004,
+    "task_name": "press_stapler",
+    "task_family": "robotwin_official_task",
+    "physics_timestep_seconds": 0.004000000189989805,
     "action_dimension": 14,
     "tracked_actors": [
       {
-        "id": "roller",
-        "task_attribute": "roller",
-        "scene_name": "102_roller",
+        "id": "stapler",
+        "task_attribute": "stapler",
+        "scene_name": "048_stapler",
         "functional_points": [],
-        "contact_points": [
-          0,
-          1
-        ]
+        "contact_points": []
       }
     ],
     "probe_task_attributes": [],
-    "semantic_roles": {
-      "manipulated_object_position": "roller_position",
-      "left_target_contact_position": "roller_left_contact_position",
-      "right_target_contact_position": "roller_right_contact_position",
-      "left_tcp_position": "left_tcp_position",
-      "right_tcp_position": "right_tcp_position"
-    },
+    "semantic_roles": {},
     "success_contract": {
       "type": "official_check_success",
-      "target_actor_id": "roller",
-      "minimum_height_m": 0.8,
-      "requires_left_gripper_closed": true,
-      "requires_right_gripper_closed": true
+      "authority": "official_check_success_runtime_callable",
+      "official_source_sha256": "69274cf09aa1d4ba51469621461683b5225b8f98cf7837f821e848196ce51f9c",
+      "semantic_telemetry_available": true
+    },
+    "semantic_fields": [
+      {
+        "name": "stapler_position",
+        "source": "actor_position",
+        "actor_id": "stapler"
+      },
+      {
+        "name": "left_tcp_position",
+        "source": "robot_tcp_position",
+        "side": "left"
+      },
+      {
+        "name": "right_tcp_position",
+        "source": "robot_tcp_position",
+        "side": "right"
+      }
+    ],
+    "telemetry_observables": {
+      "schema_version": 1,
+      "authority": "validated_task_schema_and_recorder_contract",
+      "simulation_clock": {
+        "available": true,
+        "signals": [
+          "physics_step",
+          "policy_step",
+          "simulation_time_seconds"
+        ]
+      },
+      "policy_action": {
+        "available": true,
+        "dimension": 14,
+        "signals": [
+          "action.0",
+          "action.1",
+          "action.2",
+          "action.3",
+          "action.4",
+          "action.5",
+          "action.6",
+          "action.7",
+          "action.8",
+          "action.9",
+          "action.10",
+          "action.11",
+          "action.12",
+          "action.13"
+        ]
+      },
+      "robot_tcp": {
+        "available_sides": [
+          "left",
+          "right"
+        ],
+        "signals": [
+          "left_tcp_position",
+          "right_tcp_position"
+        ]
+      },
+      "contact_events": {
+        "available": true,
+        "scope": "declared_contact_focus_actors",
+        "signals": [
+          "contact_pair",
+          "physical_contact",
+          "start_simulation_time_seconds",
+          "end_simulation_time_seconds"
+        ]
+      },
+      "actor_pose_signals": [
+        "stapler_position"
+      ]
+    },
+    "task_context_authority": {
+      "schema_origin": "runtime_probe",
+      "official_source_sha256": "69274cf09aa1d4ba51469621461683b5225b8f98cf7837f821e848196ce51f9c",
+      "authority": {
+        "official_source": "repository_source_sha256",
+        "actor_telemetry": "fresh_simulator_reset_probe",
+        "success": "official_check_success_runtime_callable"
+      }
     }
   },
   "generation_card": {
@@ -167,7 +269,7 @@ COMPLETED ROUND EVIDENCE (chronological; empty means first proposal):
     "schema_version": 1,
     "round_id": "round_1",
     "tested_sub_aspect": "task_execution.official_baseline",
-    "tested_hypothesis": "Relative to the official grab task, does there exist a newly generated executable scene challenge that exposes a terminal alignment weakness in this policy? After observing official-control evidence, let the Plan Agent choose the most informative supported scene change without an aspect or template from me. To avoid a trivial perturbation, the chosen geometric scene change must displace the manipulated roller by at least 0.05 m while remaining expert-solvable; the Plan Agent chooses the axis and exact magnitude. Define experimental success as the official task goal AND both terminal TCPs being within 0.025 m of their corresponding roller contact points, using only current simulator point positions; do not require episode history, accumulated contact, or a trajectory-derived success threshold. Independently report one scalar metric computed from the rollout trajectory that diagnoses the chosen hypothesis, but treat that scalar strictly as diagnostic evidence and never as the terminal success outcome.",
+    "tested_hypothesis": "Does there exist a bounded, executable scene concern beyond the unchanged official press_stapler task under which this policy exposes a measured weakness? Observe the control, then let the Plan Agent invent and refine the most informative concerns from evidence. I provide no aspect, object, axis, magnitude, relation, threshold, template, checker code, or metric. Generate only the scene, checker, Rule Tool, or VQA Tool actually required by each Proposal. A generated checker must preserve official success as a required conjunct and add only directly observable current-state semantics. A diagnostic Tool must remain separate from success. After a valid success, the evidence must choose a genuinely different semantic concern or an evidence-grounded boundary refinement rather than repeat the same test. The Plan Agent must propose stop as soon as a definitive failure witness has an evidence-backed diagnosis. If executable supported concerns become informationally saturated without such a witness, it must actively stop and answer only the tested scope.",
     "tested_perturbation": "unchanged official-scene control",
     "outcome": "success",
     "evidence_summary": "EvidencePacket strength=sufficient; authoritative_candidate_outcome=success; success_predicate_metric=official_check_success; success_predicate_value=1.0; success_predicate_authority=official_check_success; success_predicate_semantics=official_only; policy_success_rate=1.0; Rule metric=official_check_success; VQA status=skipped; diagnostic_tool_role=supporting_measurement_not_success_authority; diagnostic_tool_measurements=[{\"metric\": \"official_check_success\", \"null_reason\": null, \"passed\": true, \"provider_called\": false, \"route\": \"reuse\", \"unit\": null, \"value\": true}].",
@@ -178,15 +280,16 @@ COMPLETED ROUND EVIDENCE (chronological; empty means first proposal):
   {
     "schema_version": 1,
     "round_id": "round_2",
-    "tested_sub_aspect": "scene_robustness.roller_translation.terminal_tcp_alignment",
-    "tested_hypothesis": "Relative to the official grab task, does there exist a newly generated executable scene challenge that exposes a terminal alignment weakness in this policy? After observing official-control evidence, let the Plan Agent choose the most informative supported scene change without an aspect or template from me. To avoid a trivial perturbation, the chosen geometric scene change must displace the manipulated roller by at least 0.05 m while remaining expert-solvable; the Plan Agent chooses the axis and exact magnitude. Define experimental success as the official task goal AND both terminal TCPs being within 0.025 m of their corresponding roller contact points, using only current simulator point positions; do not require episode history, accumulated contact, or a trajectory-derived success threshold. Independently report one scalar metric computed from the rollout trajectory that diagnoses the chosen hypothesis, but treat that scalar strictly as diagnostic evidence and never as the terminal success outcome.\nScene need: Generate an executable expert-solvable scene by translating the roller exactly 0.05 m along the world x-axis from its official-scene position. Preserve unchanged: task identity; policy checkpoint; official core predicate as a required conjunct.\nChecker need: Evaluate the boolean conjunction of the official goal, left TCP distance to the left roller contact point being at most 0.025 m, and right TCP distance to the right roller contact point being at most 0.025 m, using terminal current simulator point positions only.",
-    "tested_perturbation": "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff",
-    "outcome": "failure",
-    "evidence_summary": "EvidencePacket strength=sufficient; authoritative_candidate_outcome=failure; success_predicate_metric=generated_check_success; success_predicate_value=0.0; success_predicate_authority=llm_generated_python_ast_validated; success_predicate_semantics=expected_semantic_extension; policy_success_rate=0.0; Rule metric=terminal_max_tcp_contact_distance; VQA status=passed; diagnostic_tool_role=supporting_measurement_not_success_authority; diagnostic_tool_measurements=[{\"metric\": \"terminal_max_tcp_contact_distance\", \"null_reason\": \"measured\", \"passed\": null, \"provider_called\": true, \"returns_diagnostic_not_success\": true, \"route\": \"provider_python_codegen\", \"unit\": \"m\", \"value\": 0.24384725093841553}].",
+    "tested_sub_aspect": "scene_robustness.initial_lateral_displacement",
+    "tested_hypothesis": "Does there exist a bounded, executable scene concern beyond the unchanged official press_stapler task under which this policy exposes a measured weakness? Observe the control, then let the Plan Agent invent and refine the most informative concerns from evidence. I provide no aspect, object, axis, magnitude, relation, threshold, template, checker code, or metric. Generate only the scene, checker, Rule Tool, or VQA Tool actually required by each Proposal. A generated checker must preserve official success as a required conjunct and add only directly observable current-state semantics. A diagnostic Tool must remain separate from success. After a valid success, the evidence must choose a genuinely different semantic concern or an evidence-grounded boundary refinement rather than repeat the same test. The Plan Agent must propose stop as soon as a definitive failure witness has an evidence-backed diagnosis. If executable supported concerns become informationally saturated without such a witness, it must actively stop and answer only the tested scope.\nScene need: Construct or adapt the official press_stapler scene by translating the stapler initial position from the official reset pose by +0.03 m along the world x-axis. Preserve unchanged: task identity; policy checkpoint.\nChecker need: Boolean terminal predicate: official goal AND the stapler is physically contacting either robot gripper in the terminal simulator state.",
+    "tested_perturbation": "dynamic.press.stapler.scene.robustness.initial.lateral.displacement.translating.the.stapler.s.initial.position.by.0.03.m.along.the.world.x.axis.will.expose.a.policy.weakness.the.policy.will.not.satisfy.the.combined.predicate.of.official.task.success.and.terminal.physical.contact.between.the.stapler.and.either.robot.gripper.ee000124987f",
+    "outcome": "ambiguous",
+    "evidence_summary": "EvidencePacket strength=pipeline_invalid; authoritative_candidate_outcome=ambiguous; success_predicate_metric=None; success_predicate_value=None; success_predicate_authority=None; success_predicate_semantics=non_comparable; policy_success_rate=None; Rule metric=generated_check_success; VQA status=skipped; diagnostic_tool_role=supporting_measurement_not_success_authority; diagnostic_tool_measurements=[]. planning_observation=taskgen_materialization_failed; policy_sample_count=0; diagnosis=generated checker failed live negative/positive fixtures: {\"expert_terminal_actor_xyz_m\": {\"stapler\": [-0.097097, 0.011531, 0.741]}, \"expert_terminal_actor_z_m\": {\"stapler\": 0.741}, \"expert_terminal_robot_tcp_xyz_m\": {\"left\": [-0.127417, 0.022307, 0.810949], \"right\": [0.305233, -0.192807, 0.941005]}, \"failed_fixtures\": [{\"expected\": true, \"fixture_id\": \"official_expert_terminal_positive\", \"observed\": false}], \"initial_actor_xyz_m\": {\"stapler\": [-0.097097, 0.011531, 0.741]}, \"initial_actor_z_m\": {\"stapler\": 0.741}, \"initial_robot_tcp_xyz_m\": {\"left\": [-0.300323, -0.193828, 0.941998], \"right\": [0.305233, -0.192806, 0.940998]}}. bounded_repair_evidence=[{\"failure_kind\": \"invalid_candidate\", \"message\": \"generated checker must enforce self.mea_official_check_success() as a required boolean conjunct when the Proposal preserves or composes the official task goal\", \"stage\": \"scene_codegen\"}].",
     "limitations": [
       "One bounded runtime round is not a statistical generalization estimate.",
-      "This round is judged by the bounded generated_check_success predicate and is not an official RoboTwin success result.",
-      "The generated checker has not been certified as equivalent to the official core predicate; its verdict must be treated as experimental."
+      "The typed Rule/VQA/pipeline evidence is not sufficient: latest_pipeline_failed",
+      "Policy success was not reported for this round.",
+      "TaskGen rejected this candidate before policy execution; it is planning evidence only and contributes N=0 policy samples."
     ]
   }
 ]

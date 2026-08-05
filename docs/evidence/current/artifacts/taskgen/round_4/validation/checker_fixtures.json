@@ -1,0 +1,16 @@
+[
+  {
+    "authority": "fresh_simulator_state_before_action",
+    "expected": false,
+    "fixture_id": "simulator_initial_negative",
+    "observed": false,
+    "passed": true
+  },
+  {
+    "authority": "official_expert_terminal_state",
+    "expected": true,
+    "fixture_id": "official_expert_terminal_positive",
+    "observed": true,
+    "passed": true
+  }
+]

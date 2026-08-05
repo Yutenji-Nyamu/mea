@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "render_usable": true,
+  "key_task_actors_visible": true,
+  "requested_change_assessment": "consistent",
+  "visual_physical_plausibility": "plausible",
+  "unexpected_changes": [],
+  "diagnosis": "The generated scene is visible and physically plausible, with the stapler remaining visible and showing a subtle orientation change consistent with the request.",
+  "repair_instructions": [],
+  "confidence": 0.78
+}

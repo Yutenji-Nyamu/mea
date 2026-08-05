@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "render_usable": true,
+  "key_task_actors_visible": true,
+  "requested_change_assessment": "not_visually_decidable",
+  "visual_physical_plausibility": "plausible",
+  "unexpected_changes": [],
+  "diagnosis": "The stapler is visible in both scenes and the generated scene appears physically plausible, but the exact +15-degree world-z yaw change cannot be verified reliably from the RGB images.",
+  "repair_instructions": [],
+  "confidence": 0.78
+}

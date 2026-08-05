@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "source": "provider_plan_agent_open_query",
-  "input_digest": "13b8ab7802f883e4f89394e7f66130e43007f58d907cee74a1f0f4bb4dd86063",
+  "input_digest": "a5ccd96d1ec66199a6d70fd1e7cf29d2002455edac0efbecf2c5693fa35107c3",
   "planning_lineage": {
     "schema_version": 1,
     "decision_kind": "evidence_conditioned_refinement",
@@ -10,68 +10,71 @@
       "round_1"
     ],
     "completed_round_count": 1,
-    "input_digest": "13b8ab7802f883e4f89394e7f66130e43007f58d907cee74a1f0f4bb4dd86063"
+    "input_digest": "a5ccd96d1ec66199a6d70fd1e7cf29d2002455edac0efbecf2c5693fa35107c3"
   },
   "proposal": {
     "schema_version": 2,
     "action": "continue",
-    "sub_aspect": "scene_robustness.roller_translation.terminal_tcp_alignment",
-    "hypothesis": "Translating the roller by exactly 0.05 m along the world x-axis will expose a terminal TCP alignment weakness, causing the combined experimental checker to fail despite the successful official-control result.",
+    "sub_aspect": "scene_robustness.initial_lateral_displacement",
+    "hypothesis": "Translating the stapler's initial position by +0.03 m along the world x-axis will expose a policy weakness: the policy will not satisfy the combined predicate of official task success and terminal physical contact between the stapler and either robot gripper.",
     "requested_perturbation": {
-      "description": "Translate the manipulated roller exactly 0.05 m along the world x-axis from its official-scene position while retaining an expert-solvable arrangement.",
+      "description": "Translate the stapler initial position from the official reset pose by +0.03 m along the world x-axis.",
       "controlled_changes": [
-        "roller position: official-scene position -> official-scene position plus 0.05 m along world x"
+        "stapler initial position: official reset pose -> +0.03 m along world x-axis"
       ],
       "preserve": [
         "task identity",
-        "policy checkpoint",
-        "official core predicate as a required conjunct"
+        "policy checkpoint"
       ]
     },
     "scene_need": {
       "required": true,
-      "description": "Generate an executable expert-solvable scene by translating the roller exactly 0.05 m along the world x-axis from its official-scene position."
+      "description": "Construct or adapt the official press_stapler scene by translating the stapler initial position from the official reset pose by +0.03 m along the world x-axis."
     },
     "checker_need": {
       "required": true,
-      "description": "Evaluate the boolean conjunction of the official goal, left TCP distance to the left roller contact point being at most 0.025 m, and right TCP distance to the right roller contact point being at most 0.025 m, using terminal current simulator point positions only."
+      "description": "Boolean terminal predicate: official goal AND the stapler is physically contacting either robot gripper in the terminal simulator state."
     },
     "rule_tool_need": {
       "required": true,
-      "description": "Report the terminal maximum of the left TCP-to-left-contact and right TCP-to-right-contact distances as one scalar.",
+      "description": "Report the terminal minimum Euclidean distance between the stapler position and either the left or right robot TCP.",
       "reuse_first": true
     },
     "vqa_tool_need": {
-      "required": true,
-      "description": "Report the peak over the rollout of the larger of the left TCP-to-left-contact and right TCP-to-right-contact distances as one diagnostic trajectory scalar.",
+      "required": false,
+      "description": null,
       "reuse_first": true
     },
-    "rationale": "The official unchanged-scene control succeeded, so baseline task execution is not the remaining uncertainty. The next most informative test is the smallest permitted geometric displacement, exactly 0.05 m along one supported position axis, while preserving expert solvability. The checker directly tests the requested terminal alignment conjunction, and the separate rollout-peak distance diagnoses transient alignment weakness without replacing the terminal success verdict.",
+    "rationale": "The unchanged official-scene control succeeded with official_check_success=1.0, so repeating the baseline is no longer informative. The next priority is a bounded scene-level robustness concern using the advertised actor-position perturbation. A small lateral displacement tests whether the policy can reacquire and physically engage the stapler; the required checker gives a directly observable combined success predicate, while the Rule Tool independently diagnoses terminal TCP proximity.",
     "task_need": {
       "required": true,
-      "description": "Generate an executable expert-solvable scene by translating the roller exactly 0.05 m along the world x-axis from its official-scene position. | Evaluate the boolean conjunction of the official goal, left TCP distance to the left roller contact point being at most 0.025 m, and right TCP distance to the right roller contact point being at most 0.025 m, using terminal current simulator point positions only."
+      "description": "Construct or adapt the official press_stapler scene by translating the stapler initial position from the official reset pose by +0.03 m along the world x-axis. | Boolean terminal predicate: official goal AND the stapler is physically contacting either robot gripper in the terminal simulator state."
     },
     "tool_need": {
       "required": true,
-      "description": "Report the terminal maximum of the left TCP-to-left-contact and right TCP-to-right-contact distances as one scalar. | Report the peak over the rollout of the larger of the left TCP-to-left-contact and right TCP-to-right-contact distances as one diagnostic trajectory scalar.",
+      "description": "Report the terminal minimum Euclidean distance between the stapler position and either the left or right robot TCP.",
       "reuse_first": true
     }
   },
   "provider": {
-    "model_requested": "gpt-5.6-luna",
+    "model_requested": "gpt-5.6-terra",
     "called": true,
     "attempt_count": 1,
     "errors": [],
     "last_metadata": {
-      "id": "resp_020f0b242beab371016a6c5fd15b608190958b99bbba99e5f5",
-      "model": "gpt-5.6-luna",
+      "id": "chatcmpl-9bce8251-e7af-4021-979b-c4d85d4d3ef3",
+      "model": "gpt-5.6-terra",
       "finish_reason": "stop",
       "usage": {
-        "prompt_tokens": 7890,
-        "completion_tokens": 939,
-        "total_tokens": 8829,
+        "prompt_tokens": 3692,
+        "completion_tokens": 2438,
+        "total_tokens": 6130,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0
+        },
         "completion_tokens_details": {
-          "reasoning_tokens": 516
+          "reasoning_tokens": 2070
         }
       },
       "retry_count": 0

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "intent_id": "intent.24ec0d5539e241aa",
+  "candidate_id": "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.proximity.boundary.with.the.stapler.translated.by.0.030.m.along.world.x.from.the.official.reset.pose.the.policy.will.fail.the.experimental.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07992.m.revealing.that.its.previously.successful.spatial.retargeting.margin.is.below.the.evidence.grounded.boundary.0946283b238c",
+  "stage": "taskgen",
+  "relationship": "direct",
+  "rationale": "Candidate preserves the requested change, hypothesis, and observation semantics.",
+  "covered_intent_fields": [
+    "requested_change",
+    "preserved_conditions",
+    "hypothesis"
+  ],
+  "uncovered_intent_fields": [],
+  "pending_intent_fields": [
+    "required_observation"
+  ],
+  "coverage_status": "partial",
+  "repair_required": false,
+  "validation_evidence": {
+    "scene_change_passed": true,
+    "checker_fixtures_passed": true,
+    "visual_diagnosis_passed": true,
+    "preserved_conditions_verified": true,
+    "tool_evaluation_passed": null
+  }
+}

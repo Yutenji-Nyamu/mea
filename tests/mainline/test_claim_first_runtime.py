@@ -2351,30 +2351,161 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
 
         self.assertEqual(len(planner.histories), 1)
 
-    def test_plan_agent_stop_is_rejected_before_query_contract_is_sufficient(self):
+    def test_plan_agent_may_stop_inconclusively_with_completed_evidence(self):
         query = "Where does this policy first expose a weakness?"
         controller = ClaimFirstRuntimeController(query, target())
         control = round_plan(
             1, "performance.completion_time_stability.official"
         )
-        state = controller.observe([control], [summary(control, 1.0)])
+        candidate = round_plan(2, "object_position.left_fixed")
+        state = controller.observe(
+            [control, candidate],
+            [summary(control, 1.0), summary(candidate, 1.0)],
+        )
         capabilities = open_query_capabilities()
+        original_recommended = list(
+            state["assessment"]["recommended_candidate_ids"]
+        )
         bundle = semantic_stop_bundle(
             query,
             capabilities,
             state["open_query_evidence_history"],
         )
 
-        with self.assertRaisesRegex(
-            ClaimFirstRuntimeError,
-            "stop rejected by QueryContract",
-        ):
-            controller.bind_evidence_conditioned_semantic_step(
-                bundle,
-                state,
-                capabilities=capabilities,
-                executed_candidate_ids=[control["template_id"]],
-            )
+        bound = controller.bind_evidence_conditioned_semantic_step(
+            bundle,
+            state,
+            capabilities=capabilities,
+            executed_candidate_ids=[
+                control["template_id"],
+                candidate["template_id"],
+            ],
+        )
+
+        self.assertEqual(bound["plan_step"]["action"], "stop")
+        self.assertFalse(bound["plan_step"]["answered_query"])
+        self.assertEqual(
+            bound["plan_step"]["stop_reason"],
+            "agent_inconclusive_stop",
+        )
+        self.assertEqual(
+            bound["resolution"]["resolution"],
+            "plan_agent_inconclusive_stop",
+        )
+        self.assertTrue(bound["query_assessment"]["should_stop"])
+        self.assertFalse(bound["query_assessment"]["evidence_sufficient"])
+        self.assertEqual(
+            bound["query_assessment"]["claim_verdict"], "inconclusive"
+        )
+        self.assertFalse(bound["query_answer"]["answered"])
+        self.assertEqual(
+            bound["query_assessment"]["recommended_candidate_ids"],
+            original_recommended,
+        )
+        self.assertIn(
+            "candidate universe is open",
+            " ".join(bound["query_answer"]["limitations"]),
+        )
+
+    def test_inconclusive_stop_is_applied_by_execution_transport(self):
+        query = "Where does this policy first expose a weakness?"
+        controller = ClaimFirstRuntimeController(query, target())
+        control = round_plan(
+            1, "performance.completion_time_stability.official"
+        )
+        candidate = round_plan(2, "object_position.left_fixed")
+        state = controller.observe(
+            [control, candidate],
+            [summary(control, 1.0), summary(candidate, 1.0)],
+        )
+        capabilities = open_query_capabilities()
+        bundle = semantic_stop_bundle(
+            query,
+            capabilities,
+            state["open_query_evidence_history"],
+        )
+        bound = controller.bind_evidence_conditioned_semantic_step(
+            bundle,
+            state,
+            capabilities=capabilities,
+            executed_candidate_ids=[
+                control["template_id"],
+                candidate["template_id"],
+            ],
+        )
+
+        runtime_target = {
+            "schema_version": 3,
+            "binding_mode": "single_task_single_checkpoint_open_world",
+            "policy_task_binding": build_policy_task_binding(
+                task_name="click_bell",
+                task_family="runtime_discovered",
+                policy={"name": "ACT", "language_conditioned": False},
+                checkpoint={
+                    "checkpoint_id": "act-click_bell/demo_clean-50",
+                    "checkpoint_setting": "demo_clean",
+                    "expert_data_num": 50,
+                    "ready": True,
+                },
+            ),
+            "max_rounds": 3,
+        }
+        runtime_control = deepcopy(control)
+        runtime_control["template_id"] = "task_execution.official_baseline"
+        runtime_control["sub_aspect"] = "task_execution.official_baseline"
+        runtime_candidate = deepcopy(candidate)
+        runtime_candidate["proposal"] = {
+            "schema_version": 1,
+            "candidate_id": "object_position.left_fixed",
+            "source_query": query,
+            "base_task": "click_bell",
+            "semantic_concern": "object_position",
+            "scene_need": "Move the bell to the left position.",
+            "checker_need": "Reuse the official click success predicate.",
+            "tool_need": "Measure time to success.",
+        }
+        runtime_candidate["candidate_id"] = "object_position.left_fixed"
+        runtime_candidate["template_id"] = None
+        transport_session = PlanAgentSession(
+            query,
+            runtime_target,
+            query_contract=bound["query_contract"],
+            control_round=runtime_control,
+        )
+        binding = transport_session.execution_binding
+        plan = {
+            "schema_version": 1,
+            "task_name": "click_bell",
+            "policy": binding["policy"],
+            "checkpoint": binding["checkpoint"],
+            "max_rounds": 3,
+            "evaluation_goal": query,
+            "rounds": [runtime_control, runtime_candidate],
+            "round_decisions": [],
+            "planning_state": "awaiting_round_1_observation",
+            "query_contract": bound["query_contract"],
+        }
+
+        plan, decision, directive = transport_session.apply_plan_step(
+            plan,
+            [
+                summary(runtime_control, 1.0),
+                summary(runtime_candidate, 1.0),
+            ],
+            bound["plan_step"],
+            query_contract=bound["query_contract"],
+        )
+
+        self.assertTrue(plan["planning_state"].startswith("stopped_after_round_"))
+        self.assertEqual(decision["action"], "stop")
+        self.assertFalse(decision["answered_query"])
+        self.assertEqual(
+            decision["query_assessment"]["stop_reason"],
+            "agent_inconclusive_stop",
+        )
+        self.assertEqual(
+            directive["query_assessment"]["claim_verdict"], "inconclusive"
+        )
 
     def test_chinese_failure_query_requires_a_failing_witness(self):
         controller = ClaimFirstRuntimeController(

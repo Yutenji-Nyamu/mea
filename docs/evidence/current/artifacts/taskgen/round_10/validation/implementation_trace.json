@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "intent_id": "intent.a551bcfed4e0a46f",
+  "candidate_id": "dynamic.press.stapler.scene.robustness.initial.stapler.pitch.alignment.rotating.the.stapler.by.15.degrees.about.the.world.y.axis.from.its.official.reset.orientation.will.cause.the.policy.to.fail.the.satisfiable.terminal.conjunction.of.the.official.core.predicate.and.left.tcp.to.stapler.distance.less.than.or.equal.to.0.07980.m.exposing.sensitivity.to.press.surface.pitch.alignment.d77104b18bec",
+  "stage": "taskgen",
+  "relationship": "direct",
+  "rationale": "Candidate preserves the requested change, hypothesis, and observation semantics.",
+  "covered_intent_fields": [
+    "requested_change",
+    "preserved_conditions",
+    "hypothesis"
+  ],
+  "uncovered_intent_fields": [],
+  "pending_intent_fields": [
+    "required_observation"
+  ],
+  "coverage_status": "partial",
+  "repair_required": false,
+  "validation_evidence": {
+    "scene_change_passed": true,
+    "checker_fixtures_passed": true,
+    "visual_diagnosis_passed": true,
+    "preserved_conditions_verified": true,
+    "tool_evaluation_passed": null
+  }
+}

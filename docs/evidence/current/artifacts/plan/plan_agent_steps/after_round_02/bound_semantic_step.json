@@ -3,7 +3,7 @@
   "semantic_proposal_bundle": {
     "schema_version": 1,
     "source": "provider_plan_agent_open_query",
-    "input_digest": "ff92771b30a348d23664d484bb2ccaf504aafe781329b4e7503aa2beac59aaa2",
+    "input_digest": "b5fb02c0bd75a968400cd80bf8b10d3a92d543c458a7922a9454807e164831cd",
     "planning_lineage": {
       "schema_version": 1,
       "decision_kind": "evidence_conditioned_refinement",
@@ -13,25 +13,35 @@
         "round_2"
       ],
       "completed_round_count": 2,
-      "input_digest": "ff92771b30a348d23664d484bb2ccaf504aafe781329b4e7503aa2beac59aaa2"
+      "input_digest": "b5fb02c0bd75a968400cd80bf8b10d3a92d543c458a7922a9454807e164831cd"
     },
     "proposal": {
       "schema_version": 2,
-      "action": "stop",
-      "sub_aspect": null,
-      "hypothesis": "Yes. The newly generated executable scene translating the roller exactly 0.05 m along the world x-axis exposed a terminal alignment weakness: official control succeeded, but the combined experimental predicate failed, with terminal maximum TCP-to-contact distance measured at 0.24384725093841553 m.",
-      "requested_perturbation": null,
+      "action": "continue",
+      "sub_aspect": "scene_robustness.lateral_shift_terminal_left_tcp_proximity",
+      "hypothesis": "After translating the stapler initial position by +0.03 m along the world x-axis, the policy will fail the satisfiable combined terminal criterion of official press_stapler success and left-TCP-to-stapler distance no greater than 0.080 m, exposing a spatial-retargeting weakness.",
+      "requested_perturbation": {
+        "description": "Translate the stapler initial position from the official reset pose by +0.03 m along the world x-axis.",
+        "controlled_changes": [
+          "stapler initial world x position: official reset value -> official reset value + 0.03 m"
+        ],
+        "preserve": [
+          "task identity",
+          "policy checkpoint",
+          "official core predicate as a required conjunct"
+        ]
+      },
       "scene_need": {
-        "required": false,
-        "description": null
+        "required": true,
+        "description": "Construct or adapt the official press_stapler scene by translating the stapler initial position by +0.03 m along the world x-axis."
       },
       "checker_need": {
-        "required": false,
-        "description": null
+        "required": true,
+        "description": "Boolean terminal predicate: official core predicate as a required conjunct AND Euclidean distance between left_tcp_position and stapler_position is less than or equal to 0.080 m."
       },
       "rule_tool_need": {
-        "required": false,
-        "description": null,
+        "required": true,
+        "description": "Report the terminal Euclidean distance in meters between left_tcp_position and stapler_position; the primary observation is this terminal scalar distance.",
         "reuse_first": true
       },
       "vqa_tool_need": {
@@ -39,51 +49,78 @@
         "description": null,
         "reuse_first": true
       },
-      "rationale": "The official-scene control succeeded, while the bounded 0.05 m roller translation produced a sufficient experimental failure under the required official-goal-and-terminal-alignment predicate. This answers the existence question; the trajectory-independent terminal diagnostic also showed a 0.24384725093841553 m maximum TCP-to-contact distance.",
+      "rationale": "The unchanged official control succeeded, so the next test should be an executable bounded concern beyond baseline. The prior +0.03 m lateral-shift attempt produced no policy rollout because TaskGen rejected its checker, making that outcome ambiguous rather than evidence of robustness or failure. Its expert positive fixture provides a grounded directly observable terminal geometry: stapler [-0.097097, 0.011531, 0.741] and left TCP [-0.127417, 0.022307, 0.810949], approximately 0.077 m apart. This proposal corrects the invalid checker by explicitly requiring the official predicate as a boolean conjunct and uses a nearby evidence-bracketed 0.080 m terminal distance condition that remains satisfiable by that expert fixture. The Rule Tool separately diagnoses the same terminal scalar.",
       "task_need": {
-        "required": false,
-        "description": null
+        "required": true,
+        "description": "Construct or adapt the official press_stapler scene by translating the stapler initial position by +0.03 m along the world x-axis. | Boolean terminal predicate: official core predicate as a required conjunct AND Euclidean distance between left_tcp_position and stapler_position is less than or equal to 0.080 m."
       },
       "tool_need": {
-        "required": false,
-        "description": null,
+        "required": true,
+        "description": "Report the terminal Euclidean distance in meters between left_tcp_position and stapler_position; the primary observation is this terminal scalar distance.",
         "reuse_first": true
       }
     },
     "provider": {
-      "model_requested": "gpt-5.6-luna",
+      "model_requested": "gpt-5.6-terra",
       "called": true,
       "attempt_count": 1,
       "errors": [],
       "last_metadata": {
-        "id": "chatcmpl-E7dBvxKdmEWzt0fyP9mYx0oZV4Pge",
-        "model": "gpt-5.6-luna-2026-07-09",
+        "id": "chatcmpl-202608051103092254252898268d9d6MvOMH9BT",
+        "model": "gpt-5.6-terra",
         "finish_reason": "stop",
         "usage": {
-          "completion_tokens": 405,
-          "completion_tokens_details": {
-            "accepted_prediction_tokens": 0,
-            "audio_tokens": 0,
-            "reasoning_tokens": 185,
-            "rejected_prediction_tokens": 0
+          "prompt_tokens": 4583,
+          "completion_tokens": 954,
+          "total_tokens": 5537,
+          "billing_usage": {
+            "source": "oai_responses",
+            "semantic": "openai",
+            "openai_usage": {
+              "prompt_tokens": 0,
+              "completion_tokens": 0,
+              "total_tokens": 5537,
+              "prompt_tokens_details": {
+                "cached_tokens": 0,
+                "text_tokens": 0,
+                "audio_tokens": 0,
+                "image_tokens": 0
+              },
+              "completion_tokens_details": {
+                "text_tokens": 0,
+                "audio_tokens": 0,
+                "image_tokens": 0,
+                "reasoning_tokens": 0
+              },
+              "input_tokens": 4583,
+              "output_tokens": 954,
+              "input_tokens_details": {
+                "cached_tokens": 0,
+                "text_tokens": 0,
+                "audio_tokens": 0,
+                "image_tokens": 0
+              },
+              "claude_cache_creation_5_m_tokens": 0,
+              "claude_cache_creation_1_h_tokens": 0
+            }
           },
-          "latency_checkpoint": {
-            "engine_tbt_ms": 10,
-            "engine_ttft_ms": 114,
-            "engine_ttlt_ms": 3996,
-            "pre_inference_ms": 81,
-            "service_tbt_ms": 10,
-            "service_ttft_ms": 477,
-            "service_ttlt_ms": 4354,
-            "total_duration_ms": 4282,
-            "user_visible_ttft_ms": 396
-          },
-          "prompt_tokens": 3439,
           "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "text_tokens": 0,
             "audio_tokens": 0,
-            "cached_tokens": 0
+            "image_tokens": 0
           },
-          "total_tokens": 3844
+          "completion_tokens_details": {
+            "text_tokens": 0,
+            "audio_tokens": 0,
+            "image_tokens": 0,
+            "reasoning_tokens": 0
+          },
+          "input_tokens": 4583,
+          "output_tokens": 954,
+          "input_tokens_details": null,
+          "claude_cache_creation_5_m_tokens": 0,
+          "claude_cache_creation_1_h_tokens": 0
         },
         "retry_count": 0
       }
@@ -91,16 +128,16 @@
   },
   "semantic_needs": {
     "scene_need": {
-      "required": false,
-      "description": null
+      "required": true,
+      "description": "Construct or adapt the official press_stapler scene by translating the stapler initial position by +0.03 m along the world x-axis. Preserve unchanged: task identity; policy checkpoint; official core predicate as a required conjunct."
     },
     "checker_need": {
-      "required": false,
-      "description": null
+      "required": true,
+      "description": "Boolean terminal predicate: official core predicate as a required conjunct AND Euclidean distance between left_tcp_position and stapler_position is less than or equal to 0.080 m."
     },
     "rule_tool_need": {
-      "required": false,
-      "description": null,
+      "required": true,
+      "description": "Report the terminal Euclidean distance in meters between left_tcp_position and stapler_position; the primary observation is this terminal scalar distance.",
       "reuse_first": true
     },
     "vqa_tool_need": {
@@ -109,26 +146,26 @@
       "reuse_first": true
     },
     "task_need": {
-      "required": false,
-      "description": null
+      "required": true,
+      "description": "Construct or adapt the official press_stapler scene by translating the stapler initial position by +0.03 m along the world x-axis. | Boolean terminal predicate: official core predicate as a required conjunct AND Euclidean distance between left_tcp_position and stapler_position is less than or equal to 0.080 m."
     },
     "tool_need": {
-      "required": false,
-      "description": null,
+      "required": true,
+      "description": "Report the terminal Euclidean distance in meters between left_tcp_position and stapler_position; the primary observation is this terminal scalar distance.",
       "reuse_first": true
     }
   },
   "resolution": {
     "schema_version": 1,
-    "semantic_sub_aspect": null,
+    "semantic_sub_aspect": "scene_robustness.lateral_shift_terminal_left_tcp_proximity",
     "resolved_aspect_id": null,
     "resolved_template_id": null,
-    "resolved_candidate_id": null,
-    "resolution": "query_contract_validated_stop",
+    "resolved_candidate_id": "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.left.tcp.proximity.after.translating.the.stapler.initial.position.by.0.03.m.along.the.world.x.axis.the.policy.will.fail.the.satisfiable.combined.terminal.criterion.of.official.press.stapler.success.and.left.tcp.to.stapler.distance.no.greater.than.0.080.m.exposing.a.spatial.retargeting.weakness.5536913db934",
+    "resolution": "proposal_reuse_or_generate",
     "hidden": false,
     "matched_tokens": [],
     "catalog_was_model_visible": false,
-    "catalog_resolution_error": null,
+    "catalog_resolution_error": "no unexecuted non-control template remains in the bound task",
     "retrieval_aspect_id": null,
     "retrieval_template_id": null,
     "retrieval_resolution": null
@@ -137,238 +174,85 @@
     "schema_version": 3,
     "claim_type": "existential",
     "candidate_universe": [
-      "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff"
+      "dynamic.press.stapler.scene.robustness.initial.lateral.displacement.translating.the.stapler.s.initial.position.by.0.03.m.along.the.world.x.axis.will.expose.a.policy.weakness.the.policy.will.not.satisfy.the.combined.predicate.of.official.task.success.and.terminal.physical.contact.between.the.stapler.and.either.robot.gripper.ee000124987f",
+      "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.left.tcp.proximity.after.translating.the.stapler.initial.position.by.0.03.m.along.the.world.x.axis.the.policy.will.fail.the.satisfiable.combined.terminal.criterion.of.official.press.stapler.success.and.left.tcp.to.stapler.distance.no.greater.than.0.080.m.exposing.a.spatial.retargeting.weakness.5536913db934"
     ],
     "required_coverage": {
       "candidate_ids": [
-        "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff"
+        "dynamic.press.stapler.scene.robustness.initial.lateral.displacement.translating.the.stapler.s.initial.position.by.0.03.m.along.the.world.x.axis.will.expose.a.policy.weakness.the.policy.will.not.satisfy.the.combined.predicate.of.official.task.success.and.terminal.physical.contact.between.the.stapler.and.either.robot.gripper.ee000124987f",
+        "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.left.tcp.proximity.after.translating.the.stapler.initial.position.by.0.03.m.along.the.world.x.axis.the.policy.will.fail.the.satisfiable.combined.terminal.criterion.of.official.press.stapler.success.and.left.tcp.to.stapler.distance.no.greater.than.0.080.m.exposing.a.spatial.retargeting.weakness.5536913db934"
       ],
-      "minimum_evaluated": 1,
+      "minimum_evaluated": 2,
       "minimum_per_group": null
     },
-    "round_budget": 2,
+    "round_budget": 19,
     "comparison_groups": null,
     "candidate_universe_closed": false,
     "existential_witness_outcome": "fail",
     "control_requirement": "required"
   },
-  "query_assessment": {
-    "schema_version": 1,
-    "contract": {
-      "schema_version": 3,
-      "claim_type": "existential",
-      "candidate_universe": [
-        "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff"
-      ],
-      "required_coverage": {
-        "candidate_ids": [
-          "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff"
-        ],
-        "minimum_evaluated": 1,
-        "minimum_per_group": null
-      },
-      "round_budget": 2,
-      "comparison_groups": null,
-      "candidate_universe_closed": false,
-      "existential_witness_outcome": "fail",
-      "control_requirement": "required"
-    },
-    "should_stop": true,
-    "stop_reason": "evidence_sufficient",
-    "claim_verdict": "counterexample_found",
-    "evidence_sufficient": true,
-    "completed_rounds": 1,
-    "round_budget": 2,
-    "budget_remaining": 1,
-    "candidate_universe_closed": false,
-    "candidate_discovery_required": false,
-    "observed_candidate_ids": [
-      "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff"
-    ],
-    "decisive_candidate_ids": [
-      "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff"
-    ],
-    "conflict_candidate_ids": [],
-    "unknown_candidate_ids": [],
-    "untested_required_candidate_ids": [],
-    "untested_candidate_ids": [],
-    "recommended_candidate_ids": [],
-    "rationale": "A definitive fail candidate witnesses the existential claim.",
-    "statistics": {
-      "existential_witness_outcome": "fail",
-      "witness_candidate_ids": [
-        "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff"
-      ]
-    },
-    "limitations": [
-      "This is a finite-domain stopping prototype, not a statistical generalization guarantee.",
-      "The candidate universe is open; exhaustive, no-counterexample, and worst-case conclusions are not licensed."
-    ]
-  },
-  "query_answer": {
-    "schema_version": 1,
-    "original_query": "Relative to the official grab task, does there exist a newly generated executable scene challenge that exposes a terminal alignment weakness in this policy? After observing official-control evidence, let the Plan Agent choose the most informative supported scene change without an aspect or template from me. To avoid a trivial perturbation, the chosen geometric scene change must displace the manipulated roller by at least 0.05 m while remaining expert-solvable; the Plan Agent chooses the axis and exact magnitude. Define experimental success as the official task goal AND both terminal TCPs being within 0.025 m of their corresponding roller contact points, using only current simulator point positions; do not require episode history, accumulated contact, or a trajectory-derived success threshold. Independently report one scalar metric computed from the rollout trajectory that diagnoses the chosen hypothesis, but treat that scalar strictly as diagnostic evidence and never as the terminal success outcome.",
-    "answered": true,
-    "answer_scope": "bounded_experimental_query_semantics",
-    "official_benchmark_answered": false,
-    "stop_reason": "evidence_sufficient",
-    "claim_type": "existential",
-    "claim_verdict": "counterexample_found",
-    "answer": "For the finite registered candidate domain, the Query verdict is counterexample_found.",
-    "tested_candidate_ids": [
-      "dynamic.grab.roller.scene.robustness.roller.translation.terminal.tcp.alignment.translating.the.roller.by.exactly.0.05.m.along.the.world.x.axis.will.expose.a.terminal.tcp.alignment.weakness.causing.the.combined.experimental.checker.to.fail.despite.the.successful.official.control.result.f7e3639e20ff"
-    ],
-    "untested_candidate_ids": [],
-    "limitations": [
-      "This is a finite-domain stopping prototype, not a statistical generalization guarantee.",
-      "The candidate universe is open; exhaustive, no-counterexample, and worst-case conclusions are not licensed.",
-      "This answer is limited to the bound task, checkpoint, variants, and recorded seeds.",
-      "A finite-domain N-small result is not a broad generalization guarantee.",
-      "At least one candidate verdict uses generated_check_success; it must not be interpreted as official benchmark success.",
-      "At least one generated checker has not been certified as official-equivalent; its verdict must be treated as experimental."
-    ],
-    "evidence_refs": [
-      {
-        "kind": "child_manifest",
-        "path": "mea/generated_tasks/run_native_smolvla_4ddb336ae71c/manifest.json"
-      },
-      {
-        "kind": "evidence_aggregate",
-        "path": "mea/evaluation_runs/eval_20260731_batch32_clean_flagship_live_v18/execution/round_1/evidence_aggregate.json"
-      },
-      {
-        "kind": "round_aggregate",
-        "path": "mea/evaluation_runs/eval_20260731_batch32_clean_flagship_live_v18/execution/round_1/aggregate_result.json"
-      },
-      {
-        "kind": "tool_execution",
-        "path": "mea/evaluation_runs/eval_20260731_batch32_clean_flagship_live_v18/execution/round_1/planned_tool/tool_execution.json"
-      },
-      {
-        "kind": "child_manifest",
-        "path": "mea/generated_tasks/run_native_smolvla_eb2c94d8bd06/manifest.json"
-      },
-      {
-        "kind": "evidence_aggregate",
-        "path": "mea/evaluation_runs/eval_20260731_batch32_clean_flagship_live_v18/execution/round_2/evidence_aggregate.json"
-      },
-      {
-        "kind": "round_aggregate",
-        "path": "mea/evaluation_runs/eval_20260731_batch32_clean_flagship_live_v18/execution/round_2/aggregate_result.json"
-      },
-      {
-        "kind": "tool_execution",
-        "path": "mea/evaluation_runs/eval_20260731_batch32_clean_flagship_live_v18/execution/round_2/planned_tool/tool_execution.json"
-      },
-      {
-        "kind": "execution_vqa_result",
-        "path": "mea/evaluation_runs/eval_20260731_batch32_clean_flagship_live_v18/execution/round_2/execution_vqa/execution_vqa.json"
-      }
-    ],
-    "evaluation_outcomes": [
-      {
-        "metric": "official_check_success",
-        "authority": "official_check_success",
-        "binding": null,
-        "value": 1.0,
-        "official_equivalent": true,
-        "execution_scope": "official_check_success",
-        "outcome_semantics": {
-          "schema_version": 1,
-          "status": "official_only",
-          "evidence_conflict": false,
-          "official_equivalent": true,
-          "outcome_authority": "official_check_success",
-          "episodes": [],
-          "reason_codes": [
-            "official_outcome_has_no_generated_checker"
-          ]
-        }
-      },
-      {
-        "metric": "generated_check_success",
-        "authority": "llm_generated_python_ast_validated",
-        "binding": {
-          "metric": "generated_check_success",
-          "authority": "llm_generated_python_ast_validated",
-          "module_sha256": "df6a1e76e42a95db0323d6442ed51f40c533c98e2962b51f096c2a6832d1f09e",
-          "task_module": "mea.generated_tasks.run_native_smolvla_eb2c94d8bd06.task"
-        },
-        "value": 0.0,
-        "official_equivalent": false,
-        "execution_scope": "provider_generated_checker",
-        "outcome_semantics": {
-          "schema_version": 1,
-          "status": "expected_semantic_extension",
-          "evidence_conflict": false,
-          "official_equivalent": false,
-          "outcome_authority": "llm_generated_python_ast_validated",
-          "episodes": [
-            {
-              "seed": 100401,
-              "generated_checker_success": false,
-              "official_success": true,
-              "official_core_predicate_satisfied": true,
-              "official_equivalent": false,
-              "status": "expected_semantic_extension",
-              "reason": "generated_checker_adds_constraints_beyond_official_core"
-            }
-          ],
-          "reason_codes": [
-            "generated_checker_adds_constraints_beyond_official_core"
-          ]
-        }
-      }
-    ],
-    "outcome_semantics": [
-      {
-        "schema_version": 1,
-        "status": "official_only",
-        "evidence_conflict": false,
-        "official_equivalent": true,
-        "outcome_authority": "official_check_success",
-        "episodes": [],
-        "reason_codes": [
-          "official_outcome_has_no_generated_checker"
-        ]
-      },
-      {
-        "schema_version": 1,
-        "status": "expected_semantic_extension",
-        "evidence_conflict": false,
-        "official_equivalent": false,
-        "outcome_authority": "llm_generated_python_ast_validated",
-        "episodes": [
-          {
-            "seed": 100401,
-            "generated_checker_success": false,
-            "official_success": true,
-            "official_core_predicate_satisfied": true,
-            "official_equivalent": false,
-            "status": "expected_semantic_extension",
-            "reason": "generated_checker_adds_constraints_beyond_official_core"
-          }
-        ],
-        "reason_codes": [
-          "generated_checker_adds_constraints_beyond_official_core"
-        ]
-      }
-    ],
-    "evidence_conflict": false
-  },
   "plan_step": {
     "schema_version": 2,
-    "action": "stop",
-    "aspect_id": null,
-    "candidate_id": null,
-    "execution_mode": "none",
-    "proposal": null,
-    "rationale": "The official-scene control succeeded, while the bounded 0.05 m roller translation produced a sufficient experimental failure under the required official-goal-and-terminal-alignment predicate. This answers the existence question; the trajectory-independent terminal diagnostic also showed a 0.24384725093841553 m maximum TCP-to-contact distance.",
-    "hypothesis": "Yes. The newly generated executable scene translating the roller exactly 0.05 m along the world x-axis exposed a terminal alignment weakness: official control succeeded, but the combined experimental predicate failed, with terminal maximum TCP-to-contact distance measured at 0.24384725093841553 m.",
-    "answered_query": true,
-    "claim_verdict": "counterexample_found",
-    "stop_reason": "evidence_sufficient",
-    "next_round": null,
+    "action": "propose",
+    "aspect_id": "scene_robustness.lateral_shift_terminal_left_tcp_proximity",
+    "candidate_id": "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.left.tcp.proximity.after.translating.the.stapler.initial.position.by.0.03.m.along.the.world.x.axis.the.policy.will.fail.the.satisfiable.combined.terminal.criterion.of.official.press.stapler.success.and.left.tcp.to.stapler.distance.no.greater.than.0.080.m.exposing.a.spatial.retargeting.weakness.5536913db934",
+    "execution_mode": "reuse_or_generate",
+    "proposal": {
+      "schema_version": 2,
+      "candidate_id": "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.left.tcp.proximity.after.translating.the.stapler.initial.position.by.0.03.m.along.the.world.x.axis.the.policy.will.fail.the.satisfiable.combined.terminal.criterion.of.official.press.stapler.success.and.left.tcp.to.stapler.distance.no.greater.than.0.080.m.exposing.a.spatial.retargeting.weakness.5536913db934",
+      "source_query": "Does there exist a bounded, executable scene concern beyond the unchanged official press_stapler task under which this policy exposes a measured weakness? Observe the control, then let the Plan Agent invent and refine the most informative concerns from evidence. I provide no aspect, object, axis, magnitude, relation, threshold, template, checker code, or metric. Generate only the scene, checker, Rule Tool, or VQA Tool actually required by each Proposal. A generated checker must preserve official success as a required conjunct and add only directly observable current-state semantics. A diagnostic Tool must remain separate from success. After a valid success, the evidence must choose a genuinely different semantic concern or an evidence-grounded boundary refinement rather than repeat the same test. The Plan Agent must propose stop as soon as a definitive failure witness has an evidence-backed diagnosis. If executable supported concerns become informationally saturated without such a witness, it must actively stop and answer only the tested scope.",
+      "base_task": "press_stapler",
+      "semantic_concern": "scene_robustness.lateral_shift_terminal_left_tcp_proximity: After translating the stapler initial position by +0.03 m along the world x-axis, the policy will fail the satisfiable combined terminal criterion of official press_stapler success and left-TCP-to-stapler distance no greater than 0.080 m, exposing a spatial-retargeting weakness.",
+      "scene_need": {
+        "kind": "adapt",
+        "description": "Construct or adapt the official press_stapler scene by translating the stapler initial position by +0.03 m along the world x-axis. Preserve unchanged: task identity; policy checkpoint; official core predicate as a required conjunct.",
+        "reuse_first": true
+      },
+      "checker_need": {
+        "kind": "generate",
+        "description": "Boolean terminal predicate: official core predicate as a required conjunct AND Euclidean distance between left_tcp_position and stapler_position is less than or equal to 0.080 m.",
+        "reuse_first": true
+      },
+      "rule_tool_need": {
+        "kind": "measure",
+        "description": "Report the terminal Euclidean distance in meters between left_tcp_position and stapler_position; the primary observation is this terminal scalar distance.",
+        "reuse_first": true
+      },
+      "vqa_tool_need": null,
+      "tool_need": {
+        "kind": "measure",
+        "description": "Report the terminal Euclidean distance in meters between left_tcp_position and stapler_position; the primary observation is this terminal scalar distance.",
+        "reuse_first": true
+      },
+      "evaluation_intent": {
+        "schema_version": 1,
+        "intent_id": "intent.edab2ae2bc7173a5",
+        "source_query": "Does there exist a bounded, executable scene concern beyond the unchanged official press_stapler task under which this policy exposes a measured weakness? Observe the control, then let the Plan Agent invent and refine the most informative concerns from evidence. I provide no aspect, object, axis, magnitude, relation, threshold, template, checker code, or metric. Generate only the scene, checker, Rule Tool, or VQA Tool actually required by each Proposal. A generated checker must preserve official success as a required conjunct and add only directly observable current-state semantics. A diagnostic Tool must remain separate from success. After a valid success, the evidence must choose a genuinely different semantic concern or an evidence-grounded boundary refinement rather than repeat the same test. The Plan Agent must propose stop as soon as a definitive failure witness has an evidence-backed diagnosis. If executable supported concerns become informationally saturated without such a witness, it must actively stop and answer only the tested scope.",
+        "original_concern": "scene_robustness.lateral_shift_terminal_left_tcp_proximity",
+        "hypothesis": "After translating the stapler initial position by +0.03 m along the world x-axis, the policy will fail the satisfiable combined terminal criterion of official press_stapler success and left-TCP-to-stapler distance no greater than 0.080 m, exposing a spatial-retargeting weakness.",
+        "requested_change": "Translate the stapler initial position from the official reset pose by +0.03 m along the world x-axis.",
+        "preserved_conditions": [
+          "task identity",
+          "policy checkpoint",
+          "official core predicate as a required conjunct"
+        ],
+        "required_observation": "Boolean terminal predicate: official core predicate as a required conjunct AND Euclidean distance between left_tcp_position and stapler_position is less than or equal to 0.080 m. Report the terminal Euclidean distance in meters between left_tcp_position and stapler_position; the primary observation is this terminal scalar distance."
+      },
+      "intent_alignment": {
+        "schema_version": 1,
+        "relationship": "direct",
+        "rationale": "Candidate preserves the requested change, hypothesis, and observation semantics.",
+        "matched_intent_fields": [
+          "requested_change",
+          "preserved_conditions",
+          "hypothesis",
+          "required_observation"
+        ],
+        "unmatched_intent_fields": []
+      }
+    },
+    "rationale": "The unchanged official control succeeded, so the next test should be an executable bounded concern beyond baseline. The prior +0.03 m lateral-shift attempt produced no policy rollout because TaskGen rejected its checker, making that outcome ambiguous rather than evidence of robustness or failure. Its expert positive fixture provides a grounded directly observable terminal geometry: stapler [-0.097097, 0.011531, 0.741] and left TCP [-0.127417, 0.022307, 0.810949], approximately 0.077 m apart. This proposal corrects the invalid checker by explicitly requiring the official predicate as a boolean conjunct and uses a nearby evidence-bracketed 0.080 m terminal distance condition that remains satisfiable by that expert fixture. The Rule Tool separately diagnoses the same terminal scalar.",
+    "answered_query": false,
     "planning_lineage": {
       "schema_version": 1,
       "decision_kind": "evidence_conditioned_refinement",
@@ -378,7 +262,7 @@
         "round_2"
       ],
       "completed_round_count": 2,
-      "input_digest": "ff92771b30a348d23664d484bb2ccaf504aafe781329b4e7503aa2beac59aaa2"
+      "input_digest": "b5fb02c0bd75a968400cd80bf8b10d3a92d543c458a7922a9454807e164831cd"
     }
   },
   "planning_lineage": {
@@ -390,6 +274,15 @@
       "round_2"
     ],
     "completed_round_count": 2,
-    "input_digest": "ff92771b30a348d23664d484bb2ccaf504aafe781329b4e7503aa2beac59aaa2"
+    "input_digest": "b5fb02c0bd75a968400cd80bf8b10d3a92d543c458a7922a9454807e164831cd"
+  },
+  "execution_binding": {
+    "schema_version": 2,
+    "candidate_id": "dynamic.press.stapler.scene.robustness.lateral.shift.terminal.left.tcp.proximity.after.translating.the.stapler.initial.position.by.0.03.m.along.the.world.x.axis.the.policy.will.fail.the.satisfiable.combined.terminal.criterion.of.official.press.stapler.success.and.left.tcp.to.stapler.distance.no.greater.than.0.080.m.exposing.a.spatial.retargeting.weakness.5536913db934",
+    "materialization_path": "plan/proposal_materialization/round_03",
+    "taskgen_route": "generic_provider_scene_checker_codegen",
+    "toolgen_route": "deferred_until_executed_telemetry_schema",
+    "catalog_template_used": false,
+    "retrieval_template_hint": null
   }
 }

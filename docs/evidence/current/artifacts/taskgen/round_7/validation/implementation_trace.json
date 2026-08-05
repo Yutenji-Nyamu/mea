@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "intent_id": "intent.17b28cba7174aa17",
+  "candidate_id": "dynamic.press.stapler.scene.robustness.vertical.reach.displacement.terminal.tcp.proximity.translating.the.stapler.initial.position.by.0.030.m.along.the.world.z.axis.will.cause.the.policy.to.fail.the.terminal.conjunction.of.the.official.core.predicate.and.a.left.tcp.to.stapler.distance.of.at.most.0.080.m.while.the.expert.can.satisfy.that.criterion.8b06bca69155",
+  "stage": "taskgen",
+  "relationship": "direct",
+  "rationale": "Candidate preserves the requested change, hypothesis, and observation semantics.",
+  "covered_intent_fields": [
+    "requested_change",
+    "preserved_conditions",
+    "hypothesis"
+  ],
+  "uncovered_intent_fields": [],
+  "pending_intent_fields": [
+    "required_observation"
+  ],
+  "coverage_status": "partial",
+  "repair_required": false,
+  "validation_evidence": {
+    "scene_change_passed": true,
+    "checker_fixtures_passed": true,
+    "visual_diagnosis_passed": true,
+    "preserved_conditions_verified": true,
+    "tool_evaluation_passed": null
+  }
+}

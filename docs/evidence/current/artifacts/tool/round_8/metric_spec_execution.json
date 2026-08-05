@@ -1,0 +1,124 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "route": "run_local_reuse",
+  "provider_called": false,
+  "generation": null,
+  "source_path": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/evaluation_runs/eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7/tool_registry/entries/runlocal_ddd5707e7b99bf44dd5e/generated_tool.py",
+  "tool_spec": {
+    "schema_version": 1,
+    "task_name": "press_stapler",
+    "metric": "terminal_left_tcp_to_stapler_distance",
+    "question": "Reuse the validated terminal_left_tcp_to_stapler_distance measurement.",
+    "route": "force_codegen",
+    "reference_tool": null,
+    "required_signals": [
+      "semantic_trace.left_tcp_position",
+      "semantic_trace.stapler_position",
+      "semantic_trace.physics_step"
+    ],
+    "output_contract": {
+      "source": "typed_metric_spec_v2",
+      "metric_spec": {
+        "description": "Terminal Euclidean distance between left_tcp_position and stapler_position.",
+        "null_semantics": "null_if_no_finite_sample",
+        "observable_id": "terminal_left_tcp_to_stapler_distance",
+        "operation": "derived_observable",
+        "required_signals": [
+          "left_tcp_position",
+          "stapler_position"
+        ],
+        "schema_version": 2,
+        "unit": "m"
+      },
+      "value_type": "number_or_null",
+      "unit": "m",
+      "passed": null,
+      "evidence": "caller_supplied_oracle_evidence_steps"
+    },
+    "validation_requirements": {
+      "min_episodes": 1,
+      "distinct_reference_values": false,
+      "required_reference_values": []
+    }
+  },
+  "task_code_context_consumed": true,
+  "validation_authority": "toolgen_semantic_review_runtime",
+  "semantic_review": {
+    "schema_version": 1,
+    "status": "approved",
+    "checks": {
+      "implements_metric_description": true,
+      "uses_only_declared_signals": true,
+      "preserves_requested_unit": true,
+      "returns_diagnostic_not_success": true
+    },
+    "reason": "The tool computes the terminal finite Euclidean distance between the declared positions, reports meters, and returns passed as null."
+  },
+  "fixtures": [],
+  "episodes": [
+    {
+      "episode_dir": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_native_smolvla_df88556d12ac/evaluation/telemetry/act/episode_000_seed_1000",
+      "policy_name": "SmolVLA",
+      "seed": 1000,
+      "generated_result": {
+        "tool": "terminal_left_tcp_to_stapler_distance",
+        "version": 1,
+        "generated": true,
+        "tool_sha256": "5823cfc21ea60689e1ac32d6fb3b8838faa40674992fcd44f90049e4b94e72a5",
+        "value": 0.0796477768203362,
+        "unit": "m",
+        "passed": null,
+        "evidence_steps": [
+          11224
+        ],
+        "details": {
+          "operation": "derived_observable",
+          "reason": "measured"
+        }
+      },
+      "oracle_projection": {
+        "value": 0.0796477768203362,
+        "unit": "m",
+        "passed": null,
+        "evidence_steps": [
+          11224
+        ],
+        "details": {
+          "operation": "derived_observable",
+          "reason": "measured"
+        }
+      },
+      "deterministic": true,
+      "oracle_agreement": null,
+      "semantic_contract_valid": true,
+      "validation_authority": "toolgen_semantic_review_runtime",
+      "artifacts_unchanged": true
+    }
+  ],
+  "registration": {
+    "registration_id": "runlocal_ddd5707e7b99bf44dd5e",
+    "scope": "run_local",
+    "status": "validated",
+    "tool_id": "terminal_left_tcp_to_stapler_distance",
+    "version": 1,
+    "target_metric": "terminal_left_tcp_to_stapler_distance",
+    "contract_sha256": "e8e75287a29e31693d2c4dce0baf2c26c306eaf1dd22232c8362fa010382bd5c",
+    "telemetry_schema_sha256": "464bf9320ecf756f05779da727328b3934d53429bf9d219f07ee54d5d6b8434f",
+    "code_sha256": "5823cfc21ea60689e1ac32d6fb3b8838faa40674992fcd44f90049e4b94e72a5",
+    "promotion": {
+      "current_scope": "run_local",
+      "candidate": {
+        "status": "not_requested"
+      },
+      "trusted": {
+        "status": "not_requested"
+      }
+    }
+  },
+  "limitations": [
+    "provider-defined derived observable over declared telemetry",
+    "reused validated generated Python",
+    "semantic review plus declared-signal, deterministic, finite-result, evidence-step, and artifact-immutability gates; no success or reward authority"
+  ]
+}

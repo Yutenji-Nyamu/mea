@@ -1,0 +1,36 @@
+{
+  "schema_version": 2,
+  "action": "continue",
+  "sub_aspect": "scene_robustness.lateral_shift_boundary_refinement",
+  "hypothesis": "Increasing the stapler initial world-x displacement from +0.030 m to +0.031 m relative to the official reset pose will cause the policy to fail the terminal conjunction of the official core predicate and left-TCP-to-stapler distance less than or equal to 0.080 m, exposing a bounded spatial-retargeting weakness.",
+  "requested_perturbation": {
+    "description": "Alter the official scene by translating the stapler initial position by +0.031 m along the world x-axis relative to its official reset pose, refining the +0.030 m lateral-shift boundary where the prior terminal left-TCP-to-stapler distance was 0.07994672000122097 m against the 0.080 m criterion.",
+    "controlled_changes": [
+      "stapler initial world-x offset relative to official reset pose: +0.030 m -> +0.031 m"
+    ],
+    "preserve": [
+      "task identity",
+      "policy checkpoint",
+      "official core predicate as a required conjunct"
+    ]
+  },
+  "scene_need": {
+    "required": true,
+    "description": "Alter the retrieved official press_stapler scene by setting the stapler initial world-x offset to +0.031 m relative to the official reset pose; no other scene modification is requested."
+  },
+  "checker_need": {
+    "required": true,
+    "description": "Retrieve the official checker and create an experimental terminal checker whose boolean predicate is: official core predicate as a required conjunct AND Euclidean distance(left_tcp_position, stapler_position) <= 0.080 m."
+  },
+  "rule_tool_need": {
+    "required": true,
+    "description": "Retrieve first, otherwise generate, a Rule Tool reporting the terminal Euclidean distance between left_tcp_position and stapler_position in metres as its single primary scalar observation.",
+    "reuse_first": true
+  },
+  "vqa_tool_need": {
+    "required": false,
+    "description": null,
+    "reuse_first": true
+  },
+  "rationale": "Round 3 succeeded, but its terminal left-TCP-to-stapler distance was 0.07994672000122097 m, only 0.00005327999877903 m below the retained 0.080 m terminal criterion. This finite observation grounds a narrowly bracketed lateral-displacement boundary refinement rather than an unsupported new magnitude. The prior +0.030 m shift therefore does not establish weakness, while the additional +0.001 m displacement is the most informative executable test of whether that near-threshold terminal retargeting margin is robust."
+}

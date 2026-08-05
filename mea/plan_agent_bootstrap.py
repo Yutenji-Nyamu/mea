@@ -465,7 +465,6 @@ def run_plan_agent_application(
         provider=provider,
         round_executor=build_production_round_executor(),
         models=models,
-        base_url=args.base_url,
         gpu=args.gpu,
         max_reflections=args.max_reflections,
         telemetry_profile=args.telemetry_profile,

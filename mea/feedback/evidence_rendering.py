@@ -26,6 +26,7 @@ def render_report_header(
     session: Mapping[str, Any],
     plan: Mapping[str, Any],
     rounds: list[dict[str, Any]],
+    episode_counts: list[int],
     semantic_dir: Path,
     report_path: Path,
 ) -> list[str]:
@@ -42,9 +43,9 @@ def render_report_header(
         f"- Task: `{target.get('task_name')}`",
         f"- Policy: `{(target.get('policy') or {}).get('name')}`",
         f"- Checkpoint: `{(target.get('checkpoint') or {}).get('checkpoint_id')}`",
-        "- Round budget / episodes: "
+        "- Round budget / evidence episodes per round: "
         f"`{session.get('round_budget') or plan.get('max_rounds')}` / "
-        f"`{[(item.get('execution') or {}).get('num_episodes') for item in rounds]}`",
+        f"`{episode_counts}`",
         "",
         "## 2. Paper-level data flow",
         "",

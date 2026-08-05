@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "source": "provider_plan_agent_open_query",
+  "input_digest": "64c0d16db7cd7f233d3ab651a0b5edc2898584d56120d1aca2a48f1c02687c22",
+  "planning_lineage": {
+    "schema_version": 1,
+    "decision_kind": "evidence_conditioned_refinement",
+    "evidence_conditioned": true,
+    "completed_round_ids": [
+      "round_1",
+      "round_2",
+      "round_3",
+      "round_4",
+      "round_5",
+      "round_6",
+      "round_7",
+      "round_8",
+      "round_9",
+      "round_10",
+      "round_11"
+    ],
+    "completed_round_count": 11,
+    "input_digest": "64c0d16db7cd7f233d3ab651a0b5edc2898584d56120d1aca2a48f1c02687c22"
+  },
+  "proposal": {
+    "schema_version": 2,
+    "action": "stop",
+    "sub_aspect": null,
+    "hypothesis": "No definitive measured policy weakness was established within the tested executable scope. The unchanged official control and bounded stapler translations and rotations all succeeded under the experimental terminal proximity predicates; the reported terminal left-TCP-to-stapler distances remained within the tested evidence-grounded bounds. Untested scene concerns may remain, but the advertised runtime capabilities provide no further distinct, semantically grounded executable concern beyond the already tested stapler pose transformations.",
+    "requested_perturbation": null,
+    "scene_need": {
+      "required": false,
+      "description": null
+    },
+    "checker_need": {
+      "required": false,
+      "description": null
+    },
+    "rule_tool_need": {
+      "required": false,
+      "description": null,
+      "reuse_first": true
+    },
+    "vqa_tool_need": {
+      "required": false,
+      "description": null,
+      "reuse_first": true
+    },
+    "rationale": "Rounds 3-11 successfully covered bounded initial stapler translations along world x, y, and z plus yaw, pitch, and roll orientation changes. The latest roll test succeeded with terminal distance 0.079618 m, and prior x-boundary refinements also succeeded down to a 0.07980 m predicate. These successful experimental outcomes do not supply a failure witness or a scene-factor boundary for further refinement. The simulator card exposes no tracked actors, semantic roles, probe attributes, or semantic telemetry from which to derive another distinct supported scene concern, so further candidate invention would be ungrounded.",
+    "task_need": {
+      "required": false,
+      "description": null
+    },
+    "tool_need": {
+      "required": false,
+      "description": null,
+      "reuse_first": true
+    }
+  },
+  "provider": {
+    "model_requested": "gpt-5.6-terra",
+    "called": true,
+    "attempt_count": 1,
+    "errors": [],
+    "last_metadata": {
+      "id": "resp_02858d456c45cd60016a732a86139c8197832131f97cdd8fec",
+      "model": "gpt-5.6-terra",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 10465,
+        "completion_tokens": 703,
+        "total_tokens": 11168,
+        "completion_tokens_details": {
+          "reasoning_tokens": 404
+        }
+      },
+      "retry_count": 1
+    }
+  }
+}

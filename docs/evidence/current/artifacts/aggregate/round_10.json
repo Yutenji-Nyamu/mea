@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "source_count": 2,
+  "episode_result_count": 2,
+  "unique_episode_count": 2,
+  "metric_ids": [
+    "generated_check_success",
+    "terminal_left_tcp_to_stapler_distance"
+  ],
+  "input_issue_count": 0,
+  "input_issues": [],
+  "metrics": [
+    {
+      "metric": "generated_check_success",
+      "tools": [
+        "generated_check_success"
+      ],
+      "unit": null,
+      "value_kind": "boolean",
+      "cohorts": [
+        {
+          "role": "policy_under_evaluation",
+          "policy_names": [
+            "SmolVLA"
+          ],
+          "summary": {
+            "episode_result_count": 1,
+            "quality": {
+              "invalid": {
+                "value": 0
+              },
+              "missing": {
+                "value": 0
+              },
+              "valid": {
+                "value": 1
+              }
+            },
+            "statistics": {
+              "false_count": {
+                "value": 0
+              },
+              "false_rate": {
+                "denominator": 1,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "true_count": {
+                "value": 1
+              },
+              "true_rate": {
+                "denominator": 1,
+                "numerator": 1,
+                "value": 1.0
+              }
+            },
+            "unit": null,
+            "value_kind": "boolean"
+          },
+          "passed_summary": {
+            "episode_result_count": 1,
+            "quality": {
+              "invalid": {
+                "value": 0
+              },
+              "missing": {
+                "value": 0
+              },
+              "valid": {
+                "value": 1
+              }
+            },
+            "statistics": {
+              "false_count": {
+                "value": 0
+              },
+              "false_rate": {
+                "denominator": 1,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "true_count": {
+                "value": 1
+              },
+              "true_rate": {
+                "denominator": 1,
+                "numerator": 1,
+                "value": 1.0
+              }
+            },
+            "unit": null,
+            "value_kind": "boolean"
+          }
+        }
+      ]
+    },
+    {
+      "metric": "terminal_left_tcp_to_stapler_distance",
+      "tools": [
+        "terminal_left_tcp_to_stapler_distance"
+      ],
+      "unit": "m",
+      "value_kind": "numeric",
+      "cohorts": [
+        {
+          "role": "policy_under_evaluation",
+          "policy_names": [
+            "SmolVLA"
+          ],
+          "summary": {
+            "episode_result_count": 1,
+            "quality": {
+              "invalid": {
+                "value": 0
+              },
+              "missing": {
+                "value": 0
+              },
+              "valid": {
+                "value": 1
+              }
+            },
+            "statistics": {
+              "max": {
+                "value": 0.07976609109967475
+              },
+              "mean": {
+                "value": 0.07976609109967475
+              },
+              "median": {
+                "value": 0.07976609109967475
+              },
+              "min": {
+                "value": 0.07976609109967475
+              },
+              "population_stddev": {
+                "value": 0.0
+              }
+            },
+            "unit": "m",
+            "value_kind": "numeric"
+          }
+        }
+      ]
+    }
+  ]
+}

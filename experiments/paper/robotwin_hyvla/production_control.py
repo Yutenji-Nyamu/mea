@@ -154,7 +154,6 @@ def main() -> int:
             round_plan=round_plan,
             text_model="not_used_for_official_control",
             vision_model="not_used_for_official_control",
-            base_url=None,
             gpu=0,
             max_reflections=1,
             provider=None,

@@ -1,0 +1,33 @@
+{
+  "comparison_image": "official_vs_generated.png",
+  "confidence": 0.94,
+  "diagnosis": "The generated scene is visible and physically plausible, with the stapler visibly displaced upward relative to the official scene and no obvious unintended changes.",
+  "key_task_actors_visible": true,
+  "model_requested": "gpt-5.6-luna",
+  "passed": true,
+  "provider_metadata": {
+    "finish_reason": "stop",
+    "id": "resp_0f6ae8f910538b9d016a731d4412208199b00a0cafc74cf201",
+    "model": "gpt-5.6-luna",
+    "retry_count": 0,
+    "usage": {
+      "completion_tokens": 224,
+      "completion_tokens_details": {
+        "reasoning_tokens": 111
+      },
+      "prompt_tokens": 1026,
+      "prompt_tokens_details": {
+        "cached_creation_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 1250
+    }
+  },
+  "render_usable": true,
+  "repair_instructions": [],
+  "requested_change_assessment": "consistent",
+  "scene_change_authority_available": true,
+  "schema_version": 1,
+  "unexpected_changes": [],
+  "visual_physical_plausibility": "plausible"
+}

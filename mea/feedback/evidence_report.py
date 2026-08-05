@@ -129,17 +129,7 @@ def write_evidence_report(
         evaluation=evaluation,
         round_count=len(rounds),
     )
-    lines = render_report_header(
-        evaluation_id=manifest.get("evaluation_id"),
-        evaluation_name=evaluation.name,
-        query=query,
-        target=target,
-        session=session,
-        plan=plan,
-        rounds=rounds,
-        semantic_dir=publisher.semantic_dir,
-        report_path=report_path,
-    )
+    round_lines: list[str] = []
     compact_rounds: list[dict[str, Any]] = []
     for index, round_plan in enumerate(rounds, start=1):
         round_id = safe_round_ids[index - 1]
@@ -168,7 +158,7 @@ def write_evidence_report(
             max_video_bytes=max_video_bytes,
         )
         compact_rounds.append(published_round.compact)
-        lines.extend(
+        round_lines.extend(
             render_round(
                 index=index,
                 round_id=round_id,
@@ -187,6 +177,28 @@ def write_evidence_report(
                 report_path=report_path,
             )
         )
+
+    episode_counts = [
+        (
+            len(item.get("seeds") or [])
+            if item.get("policy_success") is not None
+            else 0
+        )
+        for item in compact_rounds
+    ]
+    lines = render_report_header(
+        evaluation_id=manifest.get("evaluation_id"),
+        evaluation_name=evaluation.name,
+        query=query,
+        target=target,
+        session=session,
+        plan=plan,
+        rounds=rounds,
+        episode_counts=episode_counts,
+        semantic_dir=publisher.semantic_dir,
+        report_path=report_path,
+    )
+    lines.extend(round_lines)
 
     final = publish_final_evidence(
         publisher=publisher,

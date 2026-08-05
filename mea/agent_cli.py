@@ -46,6 +46,15 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=Path("/root/autodl-tmp/checkpoints/libero/smolvla_libero"),
     )
+    parser.add_argument(
+        "--libero-backbone-metadata",
+        type=Path,
+        help=(
+            "Optional local SmolVLM metadata/tokenizer directory. This keeps "
+            "LIBERO policy loading offline while the finetuned VLA weights "
+            "continue to come from --libero-checkpoint."
+        ),
+    )
     parser.add_argument("--libero-seed", type=int, default=100800)
     parser.add_argument(
         "--auto-route",

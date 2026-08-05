@@ -2,26 +2,26 @@
   "schema_version": 1,
   "source": "provider_plan_agent_query_interpretation",
   "concern": {
+    "measurement_need": "A terminal boolean indicating whether the added distractor is in contact with the robot or stapler.",
+    "source_query": "Does there exist a bounded, executable scene concern beyond the unchanged official press_stapler task under which this policy exposes a measured weakness? Observe the control, then let the Plan Agent invent and refine the most informative concerns from evidence. I provide no aspect, object, axis, magnitude, relation, threshold, template, checker code, or metric. Generate only the scene, checker, Rule Tool, or VQA Tool actually required by each Proposal. A generated checker must preserve official success as a required conjunct and add only directly observable current-state semantics. A diagnostic Tool must remain separate from success. After a valid success, the evidence must choose a genuinely different semantic concern or an evidence-grounded boundary refinement rather than repeat the same test. The Plan Agent must propose stop as soon as a definitive failure witness has an evidence-backed diagnosis. If executable supported concerns become informationally saturated without such a witness, it must actively stop and answer only the tested scope.",
+    "requested_variation": "Add one inert, visually similar distractor near the stapler without initial overlap or contact; keep the official press-stapler action and goal, task identity, and policy checkpoint unchanged.",
     "schema_version": 1,
-    "sub_aspect": "Terminal TCP alignment after geometric displacement of the manipulated roller",
-    "requested_variation": "Generate an expert-solvable scene that displaces the manipulated roller along one supported diagnostic axis by at least 0.05 m, with TaskGen selecting the smallest measurable exact magnitude and the axis after official-source retrieval; preserve task identity and policy checkpoint.",
-    "task_intent": "Use the robot's TCPs to grasp the roller and achieve the official grab-task goal.",
-    "measurement_need": "The terminal maximum of the two TCP-to-corresponding-roller-contact-point distances, reported as a scalar diagnostic from the rollout trajectory.",
-    "hypothesis": "After a supported single-axis roller displacement of at least 0.05 m, the policy can satisfy the official grab goal while at least one terminal TCP remains more than 0.025 m from its corresponding roller contact point.",
-    "source_query": "Relative to the official grab task, does there exist a newly generated executable scene challenge that exposes a terminal alignment weakness in this policy? After observing official-control evidence, let the Plan Agent choose the most informative supported scene change without an aspect or template from me. To avoid a trivial perturbation, the chosen geometric scene change must displace the manipulated roller by at least 0.05 m while remaining expert-solvable; the Plan Agent chooses the axis and exact magnitude. Define experimental success as the official task goal AND both terminal TCPs being within 0.025 m of their corresponding roller contact points, using only current simulator point positions; do not require episode history, accumulated contact, or a trajectory-derived success threshold. Independently report one scalar metric computed from the rollout trajectory that diagnoses the chosen hypothesis, but treat that scalar strictly as diagnostic evidence and never as the terminal success outcome."
+    "hypothesis": "With one nearby visually similar inert distractor, the policy will achieve the official press-stapler goal while ending in contact with the distractor, causing the augmented success condition to fail.",
+    "sub_aspect": "Susceptibility to unintended terminal contact with a nearby visually similar distractor during the press-stapler task",
+    "task_intent": "Press and operate the stapler to achieve the official press-stapler task goal."
   },
   "experiment_needs": {
     "scene_need": {
       "required": true,
-      "description": "Create an expert-solvable scene with the manipulated roller displaced along one supported axis by at least 0.05 m, selecting the smallest measurable exact displacement after official-source retrieval while preserving task identity and policy checkpoint."
+      "description": "Add one inert, visually similar distractor near the stapler without initial overlap or contact, while keeping the official press-stapler action and goal, task identity, and policy checkpoint unchanged."
     },
     "checker_need": {
       "required": true,
-      "description": "Require the official core predicate as a required conjunct and require both terminal TCPs to be within 0.025 m of their corresponding roller contact points using current simulator point positions."
+      "description": "Require official core predicate as a required conjunct AND require that the added distractor is not in contact with the robot or stapler in the terminal simulator state."
     },
     "rule_tool_need": {
       "required": true,
-      "description": "Report the terminal maximum TCP-to-corresponding-roller-contact-point distance from the rollout trajectory.",
+      "description": "Report the terminal boolean for whether the added distractor is in contact with the robot or stapler.",
       "reuse_first": true
     },
     "vqa_tool_need": {
@@ -31,23 +31,26 @@
     }
   },
   "provider": {
-    "model_requested": "gpt-5.6-luna",
+    "model_requested": "gpt-5.6-terra",
     "called": true,
-    "attempt_count": 1,
-    "errors": [],
+    "attempt_count": 2,
+    "errors": [
+      "OpenTaskResolutionError: the original Query explicitly defines experimental success semantics, so checker_need.required must be true"
+    ],
     "last_metadata": {
-      "id": "resp_01c229b3e412f729016a6c5f82381481959fa3fc3424ad8151",
-      "model": "gpt-5.6-luna",
+      "id": "chatcmpl-7886ea58-d99c-4379-8b70-fc65b2b729e0",
+      "model": "gpt-5.6-terra",
       "finish_reason": "stop",
       "usage": {
-        "prompt_tokens": 6802,
-        "completion_tokens": 1414,
-        "total_tokens": 8216,
+        "prompt_tokens": 1735,
+        "completion_tokens": 3434,
+        "total_tokens": 5169,
         "prompt_tokens_details": {
-          "cached_tokens": 4608
+          "cached_tokens": 0,
+          "cache_write_tokens": 0
         },
         "completion_tokens_details": {
-          "reasoning_tokens": 839
+          "reasoning_tokens": 2875
         }
       },
       "retry_count": 0
