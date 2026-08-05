@@ -158,12 +158,6 @@ def _validate_metric_source(
     return rows, values
 
 
-_DERIVED_STANDARD_TRACE_KEYS = {
-    "physics_step",
-    "policy_step",
-    "simulation_time_seconds",
-}
-
 def execute_metric_spec(
     *,
     task_name: str,

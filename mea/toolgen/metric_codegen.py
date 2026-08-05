@@ -18,6 +18,12 @@ from .metric_schema import (
     validate_metric_spec,
 )
 
+_DERIVED_STANDARD_TRACE_KEYS = {
+    "physics_step",
+    "policy_step",
+    "simulation_time_seconds",
+}
+
 def _compiled_event_filter(selector: Mapping[str, Any]) -> str:
     clauses = [f"item.get('type') == {selector['event_type']!r}"]
     if selector["physical_only"]:
