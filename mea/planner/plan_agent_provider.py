@@ -10,7 +10,10 @@ from mea.planner.open_task_resolver import (
     EXPERIMENTAL_SUCCESS_CHECKER_GUIDANCE,
     query_requires_experimental_checker,
 )
-from mea.planner.proposal_execution import ProposalExecutionError
+from mea.planner.proposal_execution import (
+    ProposalExecutionError,
+    validate_plan_agent_proposal_execution,
+)
 from mea.planner.semantic_coverage import (
     SemanticCoverageError,
     build_candidate_intent_alignment,
