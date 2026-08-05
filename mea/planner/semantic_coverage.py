@@ -222,6 +222,12 @@ def _extract_preserved_conditions(requested_change: str) -> list[str]:
             re.IGNORECASE,
         ),
         re.compile(
+            r"(?:^|(?<=[;:.!?]))\s*(?:the\s+)?([^;:.!?]+?)\s+"
+            r"(?:remain(?:s)?|stay(?:s)?)\s+"
+            r"(?:fixed|unchanged|constant)\b",
+            re.IGNORECASE,
+        ),
+        re.compile(
             r"\bwhile\s+(?:keeping|holding|leaving|maintaining|preserving)"
             r"\s+(.+?)"
             r"(?:\s+(?:fixed|unchanged|constant))?(?=[.!?]|$)",
@@ -286,6 +292,47 @@ def _extract_preserved_conditions(requested_change: str) -> list[str]:
                 match.group(1).strip(" ,.;"),
                 flags=re.IGNORECASE,
             )
+            if clause:
+                clauses.append(clause)
+    semantic_invariants = (
+        (
+            re.compile(
+                r"\b(?:preserve|preserves|preserving)\s+(.+?)\s+as\s+"
+                r"(?:a\s+)?required\s+conjunct\b",
+                re.IGNORECASE,
+            ),
+            lambda match: (
+                f"{match.group(1).strip(' ,.;')} as a required conjunct"
+            ),
+        ),
+        (
+            re.compile(
+                r"(?:^|(?<=[;:,.!?]))\s*(?:and\s+)?(?:the\s+)?"
+                r"([^;:,.!?]+?)\s+"
+                r"(?:is|are|must\s+be)\s+(?:a\s+)?required\s+conjunct\b",
+                re.IGNORECASE,
+            ),
+            lambda match: (
+                f"{match.group(1).strip(' ,.;')} as a required conjunct"
+            ),
+        ),
+        (
+            re.compile(
+                r"(?:^|(?<=[;:,.!?]))\s*(?:and\s+)?(?:the\s+)?"
+                r"([^;:,.!?]+?)\s+must\s+"
+                r"(?:remain|stay)\s+(uncontacted|untouched|contact-free|"
+                r"collision-free)\b",
+                re.IGNORECASE,
+            ),
+            lambda match: (
+                f"{match.group(1).strip(' ,.;')} remains {match.group(2)}"
+            ),
+        ),
+    )
+    for pattern, normalize in semantic_invariants:
+        for match in pattern.finditer(requested_change):
+            matched_spans.append(match.span())
+            clause = normalize(match)
             if clause:
                 clauses.append(clause)
     unmatched = list(requested_change)

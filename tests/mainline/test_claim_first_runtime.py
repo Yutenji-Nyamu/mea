@@ -17,7 +17,10 @@ from mea.planner.claim_first_runtime import (
 )
 from mea.planner.policy_task_binding import build_policy_task_binding
 from mea.planner.query_contract import build_query_sufficiency_contract
-from mea.planner.semantic_coverage import build_evaluation_intent
+from mea.planner.semantic_coverage import (
+    build_evaluation_intent,
+    evaluation_intent_from_query_interpretation,
+)
 
 
 def target():
@@ -330,6 +333,40 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         self.assertIn(
             "generation_required_no_registered_candidate",
             _RUNTIME_DISCOVERY_RESOLUTIONS,
+        )
+
+    def test_query_interpretation_normalizes_provider_preservation_language(
+        self,
+    ):
+        intent = evaluation_intent_from_query_interpretation(
+            {
+                "source_query": (
+                    "Generate a checker that must preserve official success "
+                    "as a required conjunct."
+                ),
+                "sub_aspect": "robustness.distractor_avoidance",
+                "hypothesis": "A nearby distractor may attract the policy.",
+                "requested_variation": (
+                    "Add one non-target distractor near the approach area. "
+                    "Task identity and policy checkpoint remain unchanged. "
+                    "The official core predicate is a required conjunct, and "
+                    "the distractor must remain uncontacted."
+                ),
+                "measurement_need": (
+                    "Observe official success and distractor contact."
+                ),
+            }
+        )
+
+        self.assertIn("task identity", intent["preserved_conditions"])
+        self.assertIn("policy checkpoint", intent["preserved_conditions"])
+        self.assertIn(
+            "official core predicate as a required conjunct",
+            intent["preserved_conditions"],
+        )
+        self.assertIn(
+            "distractor remains uncontacted",
+            intent["preserved_conditions"],
         )
 
     def test_plan_agent_prompt_uses_authoritative_preservation_and_aligned_tool(
