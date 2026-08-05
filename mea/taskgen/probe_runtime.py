@@ -17,7 +17,7 @@ JsonWriter = Callable[[Path, Any], None]
 def _write_json(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        json.dumps(value, ensure_ascii=False, indent=2) + "\\n",
+        json.dumps(value, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
 
@@ -387,4 +387,3 @@ def _checker_fixture_failure_diagnosis(
         + json.dumps(evidence, ensure_ascii=False, sort_keys=True)
     )
 __all__ = ["run_command", "run_probe"]
-

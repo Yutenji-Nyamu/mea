@@ -30,12 +30,25 @@ from mea.taskgen.provider_scene_checker import (
     validate_method_ast,
 )
 from mea.taskgen.probe import robot_tcp_xyz_summary
+from mea.taskgen.probe_runtime import _write_json as _write_probe_json
 from mea.taskgen.runtime import (
     _checker_fixture_failure_diagnosis,
     _generated_checker_execution_failure,
     build_preservation_report,
     record_generic_taskgen_generation_failure,
 )
+
+
+class ProbeRuntimeContractTests(unittest.TestCase):
+    def test_probe_json_writer_emits_json_whitespace_not_literal_escape(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output = Path(temp_dir) / "probe.json"
+            _write_probe_json(output, {"passed": True})
+
+            text = output.read_text(encoding="utf-8")
+            self.assertEqual(json.loads(text), {"passed": True})
+            self.assertTrue(text.endswith("\n"))
+            self.assertFalse(text.endswith("\\n"))
 
 
 class _Provider:
