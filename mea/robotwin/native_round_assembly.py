@@ -114,7 +114,7 @@ def assemble_robotwin_method_round(
             else None
         ),
         "method_runtime": {
-            "binding": binding.to_dict(),
+            "binding": prepared.binding.to_dict(),
             "candidate": candidate.to_dict(),
             "rollout": authoritative_rollout.to_dict(),
             "evidence": evidence.to_dict(),
