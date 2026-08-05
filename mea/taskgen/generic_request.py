@@ -439,7 +439,10 @@ def _core_prompt(
         "Those require an explicit runtime intervention and must not be "
         "simulated by relabelling a scene change. For a pose change, reuse the "
         "official pose construction and alter only the Proposal-named "
-        "component. When the candidate leaves the perturbation magnitude open, "
+        "component. For a fixed-angle rotation, the AST contract does not "
+        "admit np.sin, np.cos, np.deg2rad, or math trigonometry; emit a "
+        "normalized quaternion as numeric literals instead. When the "
+        "candidate leaves the perturbation magnitude open, "
         "derive the smallest measurable change from the retrieved spawn or "
         "workspace range, stay away from its boundary, and keep every "
         "task-critical actor fully inside the unchanged camera view. "
@@ -501,4 +504,3 @@ def _core_prompt(
 
 
 __all__ = ["generic_task_semantic_key"]
-

@@ -2288,6 +2288,9 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             self.assertIn(
                 "derive the smallest measurable change", prompt
             )
+            self.assertIn(
+                "emit a normalized quaternion as numeric literals", prompt
+            )
             self.assertIn("self.scene.get_contacts()", prompt)
             self.assertIn("self.robot.left_gripper", prompt)
             self.assertIn("do not invent a helper", prompt)
