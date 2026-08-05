@@ -10,6 +10,7 @@ from mea.planner.open_task_resolver import (
     EXPERIMENTAL_SUCCESS_CHECKER_GUIDANCE,
     query_requires_experimental_checker,
 )
+from mea.planner.proposal_execution import ProposalExecutionError
 from mea.planner.semantic_coverage import (
     SemanticCoverageError,
     build_candidate_intent_alignment,
@@ -394,4 +395,3 @@ Return strict JSON with exactly these fields:
 
 
 __all__ = ["PlanAgent"]
-
