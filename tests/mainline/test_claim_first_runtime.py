@@ -358,7 +358,7 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             }
         )
 
-        self.assertIn("task identity", intent["preserved_conditions"])
+        self.assertIn("Task identity", intent["preserved_conditions"])
         self.assertIn("policy checkpoint", intent["preserved_conditions"])
         self.assertIn(
             "official core predicate as a required conjunct",
