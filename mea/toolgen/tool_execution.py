@@ -82,18 +82,18 @@ def _discover_episodes(
                 )
         except Exception as exc:
             raise ToolOrchestrationError(
-                f"鏃犳硶鍔犺浇 telemetry episode {episode_dir}: {exc}"
+                f"无法加载 telemetry episode {episode_dir}: {exc}"
             ) from exc
         if trajectory.metadata.get("error") is not None:
             raise ToolOrchestrationError(
-                f"涓嶆帴鍙楀甫 error 鐨?telemetry episode: {episode_dir}"
+                f"不接受带 error 的 telemetry episode: {episode_dir}"
             )
         if (
             trajectory.metadata.get("task_name") != task_name
             or trajectory.schema.get("task_name") != task_name
         ):
             raise ToolOrchestrationError(
-                f"metadata/schema task 涓嶅尮閰? {episode_dir}"
+                f"metadata/schema task 不匹配: {episode_dir}"
             )
         episodes.append(
             {
@@ -106,7 +106,7 @@ def _discover_episodes(
         )
     if not episodes:
         raise ToolOrchestrationError(
-            f"娌℃湁鍦?{telemetry_root} 涓嬪彂鐜板畬鏁?telemetry episode"
+            f"没有在 {telemetry_root} 下发现完整 telemetry episode"
         )
     episodes.sort(
         key=lambda item: (
@@ -137,18 +137,18 @@ def _resolve(
     requirements = tool_spec["validation_requirements"]
     if len(episodes) < int(requirements["min_episodes"]):
         raise ToolOrchestrationError(
-            "telemetry episode 鏁伴噺涓嶈冻浠ユ弧瓒?ToolSpec validation"
+            "telemetry episode 数量不足以满足 ToolSpec validation"
         )
     if requirements["distinct_reference_values"] and len(
         set(reference_values)
     ) < 2:
         raise ToolOrchestrationError(
-            "telemetry 缂哄皯 ToolGen differential gate 鎵€闇€鐨勪笉鍚?reference 杈撳嚭"
+            "telemetry 缺少 ToolGen differential gate 所需的不同 reference 输出"
         )
     required_values = set(requirements["required_reference_values"])
     if not required_values.issubset(set(reference_values)):
         raise ToolOrchestrationError(
-            "telemetry 缂哄皯 contact Tool 鎵€闇€鐨?reference false/true 瀵圭収"
+            "telemetry 缺少 contact Tool 所需的 reference false/true 对照"
         )
     resolved = {
         "schema_version": 1,
@@ -190,7 +190,9 @@ def execute_tool_spec(
     child = Path(child_run_dir).expanduser().resolve()
     destination = Path(output_dir).expanduser().resolve()
     if destination.exists() and not _precreated_destination:
-        raise ToolOrchestrationError(f"tool output directory 宸插瓨鍦? {destination}")
+        raise ToolOrchestrationError(
+            f"tool output directory 已存在: {destination}"
+        )
     spec = validate_tool_spec(tool_spec)
     if _precreated_destination and not destination.is_dir():
         raise ToolOrchestrationError(
@@ -204,7 +206,7 @@ def execute_tool_spec(
     if spec["route"] == "reuse":
         if spec["reference_tool"] not in TOOL_CATALOG:
             raise ToolOrchestrationError(
-                "reuse route 蹇呴』瑙ｆ瀽鍒?Trusted catalog tool"
+                "reuse route 必须解析到 Trusted catalog tool"
             )
         normalized_episodes = [
             {
@@ -247,7 +249,7 @@ def execute_tool_spec(
     else:
         if provider is None or not model:
             raise ToolOrchestrationError(
-                "force_codegen route 蹇呴』鎻愪緵 provider 鍜?model"
+                "force_codegen route 必须提供 provider 和 model"
             )
         generated_dir = destination / "generated"
         try:
@@ -274,7 +276,7 @@ def execute_tool_spec(
             episode = episode_lookup.get(str(Path(raw["episode_dir"]).resolve()))
             if episode is None:
                 raise ToolOrchestrationError(
-                    f"ToolGen 杩斿洖鏈煡 episode: {raw['episode_dir']}"
+                    f"ToolGen 返回未知 episode: {raw['episode_dir']}"
                 )
             normalized_episodes.append(
                 {
@@ -303,7 +305,9 @@ def execute_tool_spec(
             )
         )
         if not all_gates_passed:
-            raise ToolOrchestrationError("ToolGen result 鏈€氳繃 deterministic gates")
+            raise ToolOrchestrationError(
+                "ToolGen result 未通过 deterministic gates"
+            )
         execution = {
             "schema_version": 1,
             "status": "passed",

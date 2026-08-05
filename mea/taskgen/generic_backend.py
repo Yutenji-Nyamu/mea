@@ -59,6 +59,7 @@ from .generic_validation import (
     _GENERIC_READ_ONLY_METHOD_CALLS,
     _official_class,
     _official_task_methods,
+    _validate_preservation_feasibility,
     build_generic_task_subclass_module,
     validate_generic_task_methods,
 )

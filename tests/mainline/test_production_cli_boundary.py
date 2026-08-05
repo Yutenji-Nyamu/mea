@@ -225,32 +225,37 @@ class ProductionCliBoundaryTests(unittest.TestCase):
         )
 
     def test_control_path_plans_next_subaspect_after_evidence(self) -> None:
-        source = (
+        decision_source = (
             REPO_ROOT / "mea/plan_agent_runtime_decisions.py"
         ).read_text(
             encoding="utf-8"
         )
+        application_source = (
+            REPO_ROOT / "mea/plan_agent_application.py"
+        ).read_text(encoding="utf-8")
         self.assertIn(
             "self.session.propose_semantic_step(",
-            source,
+            decision_source,
         )
         self.assertIn(
             "self.session.bind_evidence_conditioned_semantic_step(",
-            source,
+            decision_source,
         )
-        self.assertNotIn("claim_first_controller =", source)
-        self.assertNotIn("pending_first_semantic_bundle", source)
-        self.assertNotIn("use_pending_first", source)
+        self.assertNotIn("claim_first_controller =", decision_source)
+        self.assertNotIn("pending_first_semantic_bundle", decision_source)
+        self.assertNotIn("use_pending_first", decision_source)
         self.assertIn(
             'assessment.get("evidence_sufficient") is not True',
-            source,
+            application_source,
         )
-        self.assertIn('if plan_step["action"] == "stop":', source)
-        self.assertIn("materialized_round = None", source)
+        self.assertIn(
+            'if plan_step["action"] == "stop":', decision_source
+        )
+        self.assertIn("materialized_round = None", decision_source)
         self.assertNotIn(
             "QueryContract accepted stopping but the Plan Agent did not "
             "propose action=stop",
-            source,
+            decision_source + application_source,
         )
 
     def test_plan_agent_decides_before_the_external_hard_cap(self) -> None:
