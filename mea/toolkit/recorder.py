@@ -134,6 +134,7 @@ class EpisodeRecorder(
         self.finished = False
         self._task: Any = None
         self.visual_frames: list[dict[str, Any]] = []
+        self.temporal_visual_frame_count = 0
         self.visual_capture_errors: list[dict[str, str]] = []
         self.first_physical_contact_seen = False
         self.initial_physical_contacts: set[tuple[str, str]] = set()

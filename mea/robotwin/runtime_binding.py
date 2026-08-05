@@ -15,6 +15,7 @@ from mea.robotwin_task_context import (
     resolve_robotwin_task_context,
 )
 from mea.taskgen.generic_backend import GenericRoboTwinTaskAdapter
+from mea.visual_capture import EVENT_KEYFRAMES_PROFILE
 
 from .runtime_contracts import _RoboTwinNativeCandidate, _required_text
 from .task_identity import RoboTwinTaskIdentity
@@ -84,6 +85,7 @@ def bind_task(
             "task_schema_available": adapter.task_schema is not None,
             "task_context": adapter_context,
             "policy": policy_contract,
+            "visual_capture_profile_id": EVENT_KEYFRAMES_PROFILE,
         },
         native_task=adapter,
         artifacts={

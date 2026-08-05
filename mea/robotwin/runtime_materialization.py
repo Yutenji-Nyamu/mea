@@ -22,6 +22,7 @@ from mea.robotwin_task_context import (
 from mea.taskgen.attempts import CandidateUnexecutableError
 from mea.taskgen.generic_backend import GenericRoboTwinTaskAdapter, GenericTaskGenError
 from mea.taskgen.runtime import record_generic_taskgen_generation_failure
+from mea.visual_capture import visual_capture_profile_for_proposal
 
 from .runtime_contracts import _RoboTwinNativeCandidate, _write_json
 from .runtime_taskgen_manifest import (
@@ -336,6 +337,9 @@ def materialize_candidate(
                 deepcopy(dict(task_context_value))
                 if isinstance(task_context_value, Mapping)
                 else None
+            ),
+            "visual_capture_profile_id": (
+                visual_capture_profile_for_proposal(candidate)
             ),
         },
         native_task=native,

@@ -22,6 +22,7 @@ from mea.robotwin_task_context import (
     resolve_robotwin_task_context,
 )
 from mea.taskgen.generic_backend import GenericRoboTwinTaskAdapter
+from mea.visual_capture import visual_capture_profile_for_proposal
 from mea.taskgen.semantic_review import (
     CheckerSemanticReviewError,
     validate_checker_semantic_review_binding,
@@ -350,6 +351,9 @@ def bind_validated_taskgen_candidate(
             "task_schema": deepcopy(dict(execution_schema)),
             "task_schema_available": True,
             "task_context": task_context_value,
+            "visual_capture_profile_id": (
+                visual_capture_profile_for_proposal(candidate)
+            ),
         },
         native_task=native,
         artifacts={

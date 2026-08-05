@@ -10,6 +10,11 @@ from typing import Any
 
 import numpy as np
 
+from mea.visual_capture import (
+    EVENT_KEYFRAMES_PROFILE,
+    VISUAL_CAPTURE_PROFILE_CONFIGS,
+)
+
 from .recorder_contracts import RecorderError
 from .recorder_visual import VISUAL_CAPTURE_FPS
 
@@ -84,6 +89,11 @@ class RecorderArtifactMixin:
                 "camera": "head_camera",
                 "frame_count": len(self.visual_frames),
                 "nominal_frame_rate_hz": VISUAL_CAPTURE_FPS,
+                "sampling": dict(
+                    VISUAL_CAPTURE_PROFILE_CONFIGS[
+                        self.visual_capture_profile_id
+                    ]
+                ),
                 "frames": self.visual_frames,
                 "errors": self.visual_capture_errors,
             }
@@ -192,12 +202,20 @@ class RecorderArtifactMixin:
                 {
                     "video_alignment": {
                         "schema_version": 1,
-                        "mode": "event_keyframes",
+                        "mode": VISUAL_CAPTURE_PROFILE_CONFIGS[
+                            self.visual_capture_profile_id
+                        ]["mode"],
                         "nominal_frame_rate_hz": VISUAL_CAPTURE_FPS,
                         "frame_manifest": "visual_keyframes.json",
                         "frame_semantics": (
                             "ordered sparse event evidence; not continuous-time "
                             "video"
+                            if self.visual_capture_profile_id
+                            == EVENT_KEYFRAMES_PROFILE
+                            else (
+                                "ordered sparse event and bounded policy-step "
+                                "evidence; not continuous-time video"
+                            )
                         ),
                     }
                 }
@@ -316,4 +334,3 @@ class RecorderArtifactMixin:
 
 
 __all__ = ["RecorderArtifactMixin"]
-

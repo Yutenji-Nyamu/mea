@@ -275,6 +275,10 @@ def test_method_backend_allows_schema_less_official_control(tmp_path):
     assert candidate.task_contract["task_module"] == "envs.alpha_task"
     assert candidate.task_contract["task_schema_available"] is True
     assert (
+        candidate.task_contract["visual_capture_profile_id"]
+        == "event_keyframes_v1"
+    )
+    assert (
         candidate.task_contract["task_context"]["schema_origin"]
         == "runtime_probe"
     )
@@ -284,9 +288,9 @@ def test_method_backend_allows_schema_less_official_control(tmp_path):
         source_query="Can it solve only the official task?",
         base_task="alpha_task",
         semantic_concern="official task completion",
-        rule_tool_need={
+        vqa_tool_need={
             "kind": "reuse",
-            "description": "Reuse official check_success().",
+            "description": "Inspect whether the target visibly oscillates.",
             "reuse_first": True,
         },
     )
@@ -304,6 +308,10 @@ def test_method_backend_allows_schema_less_official_control(tmp_path):
     assert materialized.metadata["official_task_reused"] is True
     assert materialized.metadata["task_context_bound_before_rollout"] is True
     assert materialized.task_contract["task_schema_available"] is True
+    assert (
+        materialized.task_contract["visual_capture_profile_id"]
+        == "temporal_keyframes_v1"
+    )
 
 
 def test_runtime_task_context_refreshes_next_plan_agent_capabilities(
@@ -1024,6 +1032,7 @@ def test_smolvla_runner_enables_telemetry_only_for_schema_backed_candidate(
                 "task_instruction": "alpha task",
             },
             "task_schema_available": True,
+            "visual_capture_profile_id": "temporal_keyframes_v1",
         },
         native_task=object(),
     )
@@ -1050,6 +1059,10 @@ def test_smolvla_runner_enables_telemetry_only_for_schema_backed_candidate(
 
     assert rollout.call_args.kwargs["repo_root"] == tmp_path.resolve()
     assert rollout.call_args.kwargs["telemetry_profile"] == "balanced_v1"
+    assert (
+        rollout.call_args.kwargs["visual_capture_profile_id"]
+        == "temporal_keyframes_v1"
+    )
     assert (
         rollout.call_args.kwargs["outcome_metric"]
         == "official_check_success"

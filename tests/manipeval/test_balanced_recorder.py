@@ -348,7 +348,10 @@ class BalancedRecorderTests(unittest.TestCase):
             Path(command[-1]).write_bytes(b"mp4")
             return SimpleNamespace(returncode=0, stderr="")
 
-        with patch("mea.toolkit.recorder_visual.subprocess.run", side_effect=encode):
+        with patch(
+            "mea.toolkit.recorder_visual.subprocess.run",
+            side_effect=encode,
+        ):
             recorder.start(self.task)
             contacts["value"] = [support_contact, contact]
             success["value"] = True
@@ -398,6 +401,79 @@ class BalancedRecorderTests(unittest.TestCase):
         self.assertIsNone(support_event["first_physical_video_frame_index"])
         with np.load(self.episode / "semantic_trace.npz") as archive:
             self.assertEqual(archive["video_frame_index"].tolist(), [0, 1, 1])
+
+    def test_temporal_keyframes_are_fixed_rate_and_bounded(self):
+        success = {"value": False}
+        self.task.check_success = lambda: success["value"]
+
+        def save_camera_rgb(path, *, camera_name):
+            self.assertEqual(camera_name, "head_camera")
+            Path(path).write_bytes(b"png")
+
+        self.task.save_camera_rgb = save_camera_rgb
+        recorder = EpisodeRecorder(
+            self.root,
+            self.episode,
+            task_name="generic_task",
+            seed=7,
+            episode_index=0,
+            policy_name="SmolVLA",
+            visual_capture_profile_id="temporal_keyframes_v1",
+        )
+
+        def encode(command, **kwargs):
+            Path(command[-1]).write_bytes(b"mp4")
+            return SimpleNamespace(returncode=0, stderr="")
+
+        with patch("mea.toolkit.recorder_visual.subprocess.run", side_effect=encode):
+            recorder.start(self.task)
+            for step in range(1, 101):
+                recorder.on_policy_action_start(
+                    self.task,
+                    action=[0.0, 0.0],
+                    action_type="joint",
+                )
+                self.task.target.step = step
+                success["value"] = step == 125
+                recorder.on_physics_step(self.task)
+                recorder.on_policy_action_end(
+                    self.task,
+                    success=success["value"],
+                )
+            metadata = recorder.finish(self.task, success=False)
+
+        capture = metadata["visual_capture"]
+        periodic = [
+            frame
+            for frame in capture["frames"]
+            if "periodic_policy_step" in frame["reasons"]
+        ]
+        self.assertEqual(capture["profile_id"], "temporal_keyframes_v1")
+        self.assertEqual(
+            capture["sampling"],
+            {
+                "mode": "temporal_keyframes",
+                "policy_step_period": 10,
+                "max_periodic_frames": 8,
+            },
+        )
+        self.assertEqual(
+            [frame["policy_step"] + 1 for frame in periodic],
+            [10, 20, 30, 40, 50, 60, 70, 80],
+        )
+        self.assertEqual(len(periodic), 8)
+        self.assertIn("initial", capture["frames"][0]["reasons"])
+        self.assertTrue(
+            any(
+                "success_transition" in frame["reasons"]
+                for frame in capture["frames"]
+            )
+        )
+        self.assertIn("final", capture["frames"][-1]["reasons"])
+        self.assertEqual(
+            metadata["video_alignment"]["mode"],
+            "temporal_keyframes",
+        )
 
     def test_visual_capture_failure_preserves_numeric_telemetry(self):
         def fail_capture(path, *, camera_name):

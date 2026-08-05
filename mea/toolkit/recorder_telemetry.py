@@ -381,6 +381,7 @@ class RecorderTelemetryMixin:
         )
         if success:
             self._record_success(task)
+        self._capture_temporal_keyframe_if_due(task)
         self.pending_action = None
 
 
@@ -391,4 +392,3 @@ __all__ = [
     "_body_name",
     "_numbers",
 ]
-

@@ -7,10 +7,14 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from mea.visual_capture import (
+    VISUAL_CAPTURE_PROFILE_CONFIGS,
+    VISUAL_CAPTURE_PROFILES,
+)
+
 from .recorder_contracts import RecorderError
 
 
-VISUAL_CAPTURE_PROFILES = {"event_keyframes_v1"}
 VISUAL_CAPTURE_FPS = 2
 
 
@@ -75,12 +79,39 @@ class RecorderVisualMixin:
         self.visual_frames.append(
             {
                 "frame_index": frame_index,
+                "policy_step": self.policy_step,
                 "physics_step": self.physics_step,
                 "simulation_time_seconds": self.physics_step * self.physics_dt,
                 "reasons": [reason],
                 "image": relative_image.as_posix(),
             }
         )
+        return frame_index
+
+    def _capture_temporal_keyframe_if_due(self, task: Any) -> int | None:
+        """Capture a bounded fixed-policy-step sample for temporal VQA."""
+
+        if self.visual_capture_profile_id is None:
+            return None
+        profile = VISUAL_CAPTURE_PROFILE_CONFIGS[
+            self.visual_capture_profile_id
+        ]
+        period = profile["policy_step_period"]
+        limit = int(profile["max_periodic_frames"])
+        completed_policy_steps = self.policy_step + 1
+        if (
+            period is None
+            or completed_policy_steps <= 0
+            or completed_policy_steps % int(period) != 0
+            or self.temporal_visual_frame_count >= limit
+        ):
+            return None
+        frame_index = self._capture_visual_keyframe(
+            task,
+            reason="periodic_policy_step",
+        )
+        if frame_index is not None:
+            self.temporal_visual_frame_count += 1
         return frame_index
 
     def _finalize_visual_capture(self) -> dict[str, Any] | None:
@@ -152,6 +183,11 @@ class RecorderVisualMixin:
             "camera": "head_camera",
             "frame_count": len(self.visual_frames),
             "nominal_frame_rate_hz": VISUAL_CAPTURE_FPS,
+            "sampling": dict(
+                VISUAL_CAPTURE_PROFILE_CONFIGS[
+                    self.visual_capture_profile_id
+                ]
+            ),
             "frames": self.visual_frames,
             "errors": self.visual_capture_errors,
         }

@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from mea.method_runtime import MaterializedCandidate, RolloutRequest
+from mea.visual_capture import EVENT_KEYFRAMES_PROFILE
 
 
 class SmolVLARolloutError(RuntimeError):
@@ -275,6 +276,7 @@ def run_smolvla_robotwin_episode(
     repo_root: str | Path | None = None,
     telemetry_profile: str | None = None,
     task_schema: Mapping[str, Any] | None = None,
+    visual_capture_profile_id: str = EVENT_KEYFRAMES_PROFILE,
     outcome_metric: str = "official_check_success",
 ) -> dict[str, Any]:
     """Execute one importable RoboTwin task module with SmolVLA.
@@ -347,7 +349,7 @@ def run_smolvla_robotwin_episode(
                 task_config="demo_clean",
                 checkpoint_setting="shared_official",
                 telemetry_profile_id=telemetry_profile,
-                visual_capture_profile_id="event_keyframes_v1",
+                visual_capture_profile_id=visual_capture_profile_id,
                 task_schema=task_schema,
             )
             task._mea_recorder = recorder
@@ -620,6 +622,10 @@ class SmolVLARobotwinRolloutRunner:
                 if semantic_telemetry
                 and isinstance(runtime_schema, Mapping)
                 else None
+            ),
+            visual_capture_profile_id=str(
+                candidate.task_contract.get("visual_capture_profile_id")
+                or EVENT_KEYFRAMES_PROFILE
             ),
             outcome_metric=outcome_metric,
         )
