@@ -23,6 +23,7 @@ from mea.toolgen import (
     validate_tool_spec,
 )
 from mea.toolgen.examples import hammer_block_contact_example
+from mea.toolgen.tool_execution import _same_projection
 
 
 class NeverCalledProvider:
@@ -47,6 +48,34 @@ class FakeProvider:
             "usage": {"prompt_tokens": 20, "completion_tokens": 20},
         }
         return self.response
+
+
+class ToolOracleProjectionTests(unittest.TestCase):
+    def test_auxiliary_oracle_diagnostics_do_not_break_exact_reuse(self):
+        generated = {
+            "value": 0.089,
+            "unit": "m",
+            "passed": None,
+            "evidence_steps": [9393],
+            "details": {
+                "operation": "terminal_minimum_distance",
+                "reason": "measured",
+            },
+        }
+        typed_oracle = {
+            **generated,
+            "details": {
+                **generated["details"],
+                "left_signals": ["left_tcp_position"],
+                "right_signal": "stapler_position",
+                "terminal_index": 9393,
+            },
+        }
+
+        self.assertTrue(_same_projection(generated, typed_oracle))
+        self.assertFalse(
+            _same_projection(generated, {**typed_oracle, "value": 0.099})
+        )
 
 
 def generated_contact_source():

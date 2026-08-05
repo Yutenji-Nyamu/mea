@@ -35,6 +35,7 @@ from mea.agent_runtime_setup import (
     create_agent_run_context,
     prepare_task_runtime_and_history,
 )
+from mea.evaluation_identity import make_evaluation_id
 from mea.plan_agent_application import update_manifest
 from mea.plan_agent_bootstrap import (
     bind_ready_task_after_query_interpretation,
@@ -45,7 +46,6 @@ from mea.plan_agent_bootstrap import (
     finish_unsupported_open_task_resolution,
     persist_query_contract,
 )
-from mea.planner import GlobalQueryRouter, build_act_catalog, make_evaluation_id
 from mea.providers import OpenAICompatibleProvider
 
 
@@ -57,13 +57,12 @@ def write_json(path: Path, value: Any) -> None:
     )
 
 
-# Historical import spellings remain readers only; new artifacts use Plan Agent
-# terminology.
-discover_ready_claim_first_targets = discover_ready_plan_agent_targets
-build_bound_claim_first_handoff = build_bound_plan_agent_handoff
-bind_ready_task_after_free_concern = (
-    bind_ready_task_after_query_interpretation
-)
+def build_act_catalog(repo_root: Path) -> dict[str, Any]:
+    """Lazy compatibility hook for registered paper protocols."""
+
+    from mea.planner.catalog import build_act_catalog as build_legacy_catalog
+
+    return build_legacy_catalog(repo_root)
 
 
 def initialize_registered_dynamic_runtime(
@@ -107,14 +106,15 @@ def bound_target_task_name(target: Mapping[str, Any]) -> str:
 def write_global_route_trace(
     evaluation_dir: Path,
     *,
-    catalog: dict[str, Any],
+    catalog: dict[str, Any] | None,
     route_result: dict[str, Any],
-    router: GlobalQueryRouter | None,
+    router: Any | None,
     history_retrieval: dict[str, Any],
 ) -> None:
     """Persist the bounded global route without leaking credentials."""
 
-    write_json(evaluation_dir / "plan/global_act_catalog.json", catalog)
+    if catalog is not None:
+        write_json(evaluation_dir / "plan/global_act_catalog.json", catalog)
     write_json(
         evaluation_dir / "plan/global_query_route.json",
         {**route_result, "history_retrieval": history_retrieval},
@@ -141,7 +141,7 @@ def finish_unsupported_global_route(
     user_request: str,
     catalog: dict[str, Any],
     route_result: dict[str, Any],
-    router: GlobalQueryRouter,
+    router: Any,
     history_retrieval: dict[str, Any],
 ) -> dict[str, Any]:
     """Create an auditable no-execution result for an unsupported Query."""

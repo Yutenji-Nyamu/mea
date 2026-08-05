@@ -8,6 +8,7 @@ from typing import Any
 
 from mea.toolkit.tools import TOOL_CATALOG, TrajectoryView
 
+from .metric_oracle import _metric_semantic_differences
 from .prototype import ToolGenPrototype, execute_generated_tool
 from .registry import telemetry_schema_compatibility
 from .targets import COMPOSITE_TARGETS, evaluate_target_oracle, target_definition
@@ -359,28 +360,16 @@ def execute_tool_spec(
     return execution
 
 
-def _oracle_projection(result: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "value": result.get("value"),
-        "unit": result.get("unit"),
-        "passed": result.get("passed"),
-        "evidence_steps": list(result.get("evidence_steps", [])),
-        "details": dict(result.get("details", {})),
-    }
-
-
 def _same_projection(left: dict[str, Any], right: dict[str, Any]) -> bool:
-    return json.dumps(
-        _oracle_projection(left),
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    ) == json.dumps(
-        _oracle_projection(right),
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    )
+    """Use the same semantic oracle contract as initial Tool validation.
+
+    Independent typed oracles may attach richer diagnostic details than the
+    provider-authored Tool.  Only value/unit/pass/evidence and the declared
+    operation/reason define executable equivalence; auxiliary diagnostics do
+    not change the metric result.
+    """
+
+    return not _metric_semantic_differences(left, right)
 
 
 def _execute_registry_match(

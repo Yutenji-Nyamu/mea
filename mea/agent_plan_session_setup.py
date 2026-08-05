@@ -50,7 +50,7 @@ def prepare_plan_session(
     plan_agent = None
     plan_agent_capabilities = None
 
-    if context.global_catalog is not None:
+    if context.plan_agent_mode or context.global_catalog is not None:
         initial_failure_stage = "initial_plan_session_validation"
         try:
             raw_round_budget = plan.get("max_rounds")

@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import re
 import subprocess
-import uuid
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
@@ -16,6 +15,7 @@ from experiments.paper.compat_capability_adapter import (
     resolve_capability_contract,
     taskgen_route,
 )
+from mea.evaluation_identity import make_evaluation_id
 from mea.planner.evidence_policy import assess_evidence
 from mea.proposals import (
     ProposalError,
@@ -221,11 +221,6 @@ def _git_head(repo_root: Path) -> str | None:
         check=False,
     )
     return process.stdout.strip() if process.returncode == 0 else None
-
-
-def make_evaluation_id() -> str:
-    timestamp = datetime.now().astimezone().strftime("%Y%m%d_%H%M%S")
-    return f"eval_{timestamp}_{uuid.uuid4().hex[:8]}"
 
 
 def _require_string(value: Any, field: str) -> str:

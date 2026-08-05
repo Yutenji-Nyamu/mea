@@ -7,8 +7,8 @@ from typing import Any, Callable
 
 from mea.agent_cli import load_query_sufficiency_contract
 from mea.agent_run_context import AgentRunContext
+from mea.evaluation_identity import make_evaluation_id
 from mea.history import EvaluationHistoryDB
-from mea.planner import make_evaluation_id
 from mea.planner.runtime_task_binding import (
     build_hyvla_policy_spec,
     build_smolvla_policy_spec,

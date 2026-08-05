@@ -17,6 +17,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Mapping
 
+from mea.evaluation_identity import make_evaluation_id
 from mea.history import EvaluationHistoryDB
 from mea.plan_artifacts import (
     QUERY_INTERPRETATION,
@@ -28,7 +29,6 @@ from mea.planner import (
     PlanAgent,
     PlanAgentQueryInterpreter,
     PlanAgentSession,
-    make_evaluation_id,
     policy_task_binding_from_target,
 )
 from mea.planner.open_task_resolver import rank_official_tasks
@@ -350,7 +350,7 @@ def finish_unsupported_open_task_resolution(
     *,
     evaluation_id: str | None,
     user_request: str,
-    catalog: dict[str, Any],
+    catalog: dict[str, Any] | None,
     concern_bundle: dict[str, Any],
     task_inventory: list[dict[str, Any]],
     task_resolution: dict[str, Any],
@@ -371,7 +371,8 @@ def finish_unsupported_open_task_resolution(
         evaluation_dir / "request.json",
         {"user_request": user_request},
     )
-    _write_json(evaluation_dir / "plan/global_act_catalog.json", catalog)
+    if catalog is not None:
+        _write_json(evaluation_dir / "plan/global_act_catalog.json", catalog)
     write_open_task_resolution_trace(
         evaluation_dir,
         concern_bundle=concern_bundle,
@@ -396,7 +397,6 @@ def finish_unsupported_open_task_resolution(
         "auto_route": True,
         "query_interpretation_path": QUERY_INTERPRETATION.as_posix(),
         "open_task_resolution_path": "plan/open_task_resolution.json",
-        "global_act_catalog_path": "plan/global_act_catalog.json",
         "route": task_resolution,
         "limitations": [
             (
@@ -407,6 +407,8 @@ def finish_unsupported_open_task_resolution(
             )
         ],
     }
+    if catalog is not None:
+        manifest["global_act_catalog_path"] = "plan/global_act_catalog.json"
     if candidate_resolution is not None:
         manifest.update(
             {

@@ -14,7 +14,6 @@ from mea.planner import (
     PlanAgentInitialPlanBuilder,
     build_dynamic_experiment_candidate,
     build_initial_semantic_proposal_bundle,
-    build_open_world_evaluation_target,
     evaluation_intent_from_query_interpretation,
 )
 from mea.planner.experiment_candidate import build_experiment_candidate
@@ -49,9 +48,9 @@ def prepare_initial_plan(
     initial_target = None
 
     if context.plan_agent_mode:
-        if context.global_catalog is None:
+        if not context.runtime_plan_agent_targets:
             raise RuntimeError(
-                "Plan Agent runtime requires a trusted policy-task binding index"
+                "Plan Agent runtime requires source/checkpoint-ready bindings"
             )
         semantic_context = (
             context.query_interpretation_bundle.get("concern")
@@ -189,20 +188,13 @@ def prepare_initial_plan(
                     [initial_candidate["candidate_id"]],
                     candidate_universe_closed=False,
                 )
-        if args.task_module is not None and context.runtime_policy_spec is None:
-            initial_target = build_open_world_evaluation_target(
-                context.global_catalog,
-                args.task_name,
-                max_rounds=round_budget,
-                task_module=args.task_module,
-            )
-        else:
-            initial_target = build_runtime_open_world_evaluation_target(
-                context.repo_root,
-                args.task_name,
-                max_rounds=round_budget,
-                policy_spec=context.runtime_policy_spec,
-            )
+        initial_target = build_runtime_open_world_evaluation_target(
+            context.repo_root,
+            args.task_name,
+            max_rounds=round_budget,
+            task_module=args.task_module,
+            policy_spec=context.runtime_policy_spec,
+        )
 
     if context.plan_agent_mode:
         if initial_target is None:
@@ -239,10 +231,7 @@ def prepare_initial_plan(
     evaluation_dir = (
         context.repo_root / "mea/evaluation_runs" / evaluation_id
     )
-    if (
-        context.global_catalog is not None
-        and context.global_route_result is not None
-    ):
+    if context.global_route_result is not None:
         write_global_route_trace(
             evaluation_dir,
             catalog=context.global_catalog,
@@ -250,15 +239,18 @@ def prepare_initial_plan(
             router=context.global_router,
             history_retrieval=context.global_history_retrieval,
         )
-        update_manifest(
-            evaluation_dir,
-            global_query_route_path="plan/global_query_route.json",
-            global_act_catalog_path="plan/global_act_catalog.json",
-            global_route_selection=context.global_route_result["selection"],
-            task_resolution_scope=context.global_route_result[
+        route_manifest = {
+            "global_query_route_path": "plan/global_query_route.json",
+            "global_route_selection": context.global_route_result["selection"],
+            "task_resolution_scope": context.global_route_result[
                 "task_resolution_scope"
             ],
-        )
+        }
+        if context.global_catalog is not None:
+            route_manifest["global_act_catalog_path"] = (
+                "plan/global_act_catalog.json"
+            )
+        update_manifest(evaluation_dir, **route_manifest)
         if (
             context.query_interpreter is not None
             and context.query_interpretation_bundle is not None

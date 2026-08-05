@@ -78,11 +78,7 @@ def finalize_manifest_and_dispatch(
             context.registered_execution["route"],
         )
 
-    if (
-        context.global_catalog is not None
-        and context.global_route_result is not None
-        and context.global_router is not None
-    ):
+    if context.global_route_result is not None and context.global_router is not None:
         write_global_route_trace(
             evaluation_dir,
             catalog=context.global_catalog,
@@ -98,7 +94,9 @@ def finalize_manifest_and_dispatch(
             "plan/global_query_route.json" if args.auto_route else None
         ),
         global_act_catalog_path=(
-            "plan/global_act_catalog.json" if args.auto_route else None
+            "plan/global_act_catalog.json"
+            if args.auto_route and context.global_catalog is not None
+            else None
         ),
         global_route_selection=(
             context.global_route_result["selection"]

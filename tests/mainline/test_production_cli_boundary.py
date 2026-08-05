@@ -129,9 +129,14 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             "mea.evidence_manifest",
             "experiments.paper.registered_execution_adapter",
             "experiments.paper.legacy_planner_factory",
+            "experiments.paper.compat_capability_adapter",
+            "mea.planner.catalog",
             "mea.planner.catalog_plan",
             "mea.planner.click_bell",
+            "mea.planner.click_bell_catalog",
             "mea.planner.official",
+            "mea.planner.prototype",
+            "mea.planner.session",
         ]
         probe = (
             "import importlib.util,json,pathlib,sys;"
@@ -143,6 +148,20 @@ class ProductionCliBoundaryTests(unittest.TestCase):
         )
         loaded = run_import_probe(probe)
         self.assertEqual(loaded, {name: False for name in modules})
+
+    def test_plan_agent_routing_uses_runtime_inventory_without_legacy_catalog(
+        self,
+    ) -> None:
+        source = (
+            REPO_ROOT / "mea/agent_query_routing.py"
+        ).read_text(encoding="utf-8")
+        production_branch = source.index("if context.plan_agent_mode:")
+        compat_catalog = source.index(
+            "from mea.planner.catalog import build_act_catalog"
+        )
+        self.assertLess(production_branch, compat_catalog)
+        self.assertIn("capability_catalog=None", source)
+        self.assertNotIn("capability_catalog=global_catalog", source)
 
     def _cold_legacy_factory_still_loads_compatibility_planners(self) -> None:
         modules = [

@@ -15,18 +15,13 @@ from mea.plan_agent_bootstrap import (
     discover_ready_plan_agent_targets,
     finish_unsupported_open_task_resolution,
 )
-from mea.planner import (
-    GlobalQueryRouter,
-    PlanAgentQueryInterpreter,
-    build_act_catalog,
-    build_planning_context,
-    resolve_concern_candidate_domain,
-    resolve_open_task,
-    route_to_planner_proposal,
-)
+from mea.planner.context import build_planning_context
 from mea.planner.open_task_resolver import (
+    PlanAgentQueryInterpreter,
     discover_robotwin_runtime_task_inventory,
+    resolve_open_task,
 )
+from mea.planner.query_interpretation import resolve_concern_candidate_domain
 from mea.providers import OpenAICompatibleProvider
 
 
@@ -54,10 +49,12 @@ def route_agent_query(
     routed_task_profile = context.routed_task_profile
 
     if context.bound_plan_only:
-        global_catalog = build_act_catalog(context.repo_root)
+        if not context.plan_agent_mode:
+            raise RuntimeError("bound plan-only requires the Plan Agent")
+        global_catalog = None
         open_task_inventory = discover_robotwin_runtime_task_inventory(
             context.repo_root,
-            capability_catalog=global_catalog,
+            capability_catalog=None,
             schema_backed_only=(args.policy_backend == "act"),
         )
         runtime_discovery = discover_ready_plan_agent_targets(
@@ -95,11 +92,11 @@ def route_agent_query(
             vision_model=context.models["vision"],
             timeout=180.0,
         )
-        global_catalog = build_act_catalog(context.repo_root)
         if context.plan_agent_mode:
+            global_catalog = None
             open_task_inventory = discover_robotwin_runtime_task_inventory(
                 context.repo_root,
-                capability_catalog=global_catalog,
+                capability_catalog=None,
                 schema_backed_only=(args.policy_backend == "act"),
             )
             runtime_discovery = discover_ready_plan_agent_targets(
@@ -116,6 +113,9 @@ def route_agent_query(
             runtime_binding_excluded = runtime_discovery["excluded"]
             ready_tasks = sorted(runtime_targets)
         else:
+            from mea.planner.catalog import build_act_catalog
+
+            global_catalog = build_act_catalog(context.repo_root)
             ready_tasks = [
                 task["task_name"] for task in global_catalog.get("tasks", [])
             ]
@@ -375,6 +375,13 @@ def route_agent_query(
                 ),
             }
         else:
+            from mea.planner.global_query import (
+                GlobalQueryRouter,
+                route_to_planner_proposal,
+            )
+
+            if global_catalog is None:
+                raise RuntimeError("compat global route requires an ACT catalog")
             global_router = GlobalQueryRouter(
                 provider,
                 model=context.models["planner"],

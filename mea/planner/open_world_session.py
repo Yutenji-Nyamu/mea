@@ -21,7 +21,6 @@ from typing import Any, Iterable, Mapping
 
 from mea.artifact_retrieval_index import resolve_task_retrieval_index
 
-from .catalog import catalog_task, validate_act_catalog
 from .context import build_planning_context
 from .experiment_candidate import (
     ExperimentCandidateError,
@@ -213,6 +212,8 @@ def build_open_world_evaluation_target(
     copied into the production target.
     """
 
+    from .catalog import catalog_task, validate_act_catalog
+
     trusted_catalog = validate_act_catalog(catalog)
     task = catalog_task(trusted_catalog, _text(task_name, "task_name"))
     budget = _positive_int(max_rounds, "max_rounds")
@@ -306,9 +307,12 @@ class _FrozenExecutionTransport:
         control_round: Mapping[str, Any] | None = None,
         query_contract: Mapping[str, Any] | None = None,
     ):
-        self.catalog = (
-            validate_act_catalog(catalog) if catalog is not None else None
-        )
+        if catalog is not None:
+            from .catalog import validate_act_catalog
+
+            self.catalog = validate_act_catalog(catalog)
+        else:
+            self.catalog = None
         self.target = validate_open_world_evaluation_target(
             target, self.catalog
         )

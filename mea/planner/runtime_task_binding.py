@@ -234,6 +234,7 @@ def build_runtime_policy_task_binding(
     repo_root: str | Path,
     task_name: str,
     *,
+    task_module: str | None = None,
     checkpoint_setting: str = "demo_clean",
     expert_data_num: int = 50,
     language_conditioned: bool = False,
@@ -304,7 +305,11 @@ def build_runtime_policy_task_binding(
         return build_policy_task_binding(
             task_name=identity.task_name,
             task_family=identity.task_family,
-            task_module=f"envs.{identity.task_name}",
+            task_module=(
+                task_module
+                if task_module is not None
+                else f"envs.{identity.task_name}"
+            ),
             task_schema_available=identity.task_schema_available,
             policy={
                 "name": spec.policy_name,
@@ -385,6 +390,7 @@ def build_runtime_open_world_evaluation_target(
     task_name: str,
     *,
     max_rounds: int,
+    task_module: str | None = None,
     checkpoint_setting: str = "demo_clean",
     expert_data_num: int = 50,
     language_conditioned: bool = False,
@@ -396,6 +402,7 @@ def build_runtime_open_world_evaluation_target(
     binding = build_runtime_policy_task_binding(
         repo_root,
         task_name,
+        task_module=task_module,
         checkpoint_setting=checkpoint_setting,
         expert_data_num=expert_data_num,
         language_conditioned=language_conditioned,

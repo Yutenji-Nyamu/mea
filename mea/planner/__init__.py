@@ -5,6 +5,8 @@ from __future__ import annotations
 from importlib import import_module
 from typing import Any
 
+from mea.evaluation_identity import make_evaluation_id
+
 from .context import (
     PlanningContextError,
     build_planning_context,
@@ -18,50 +20,6 @@ from .evidence_policy import (
     build_evidence_packet,
     validate_evidence_aggregate,
     validate_evidence_packet,
-)
-from .prototype import (
-    BLUE_TASK_INSTRUCTION,
-    MAX_ROUNDS,
-    POSITION_TASK_INSTRUCTION,
-    SCALE_TASK_INSTRUCTION,
-    SAFETY_TASK_INSTRUCTION,
-    SUB_ASPECT_CATALOG,
-    TIMING_TASK_INSTRUCTION,
-    PlanAgentError,
-    PlanAgentPrototype,
-    make_evaluation_id,
-    validate_evaluation_plan,
-    validate_next_round_decision,
-)
-from .catalog import (
-    ACTCatalogError,
-    ACT_ROUTE_TASKS,
-    build_act_catalog,
-    catalog_task,
-    validate_act_catalog,
-)
-from .global_query import (
-    GlobalQueryRouter,
-    GlobalRouteError,
-    build_global_route_prompt,
-    route_to_bbh_proposal,
-    route_to_click_proposal,
-    route_to_official_proposal,
-    route_to_planner_proposal,
-    validate_route_selection,
-)
-from .session import (
-    BoundTaskPlanSession,
-    PlanSessionError,
-    build_adaptive_directive,
-    build_evaluation_target,
-    validate_adaptive_choice,
-    validate_evaluation_target,
-)
-from .adaptive_step import (
-    AdaptivePlanStepAgent,
-    AdaptiveStepError,
-    validate_plan_step_proposal,
 )
 from .query_contract import (
     CLAIM_TYPES,
@@ -153,6 +111,39 @@ from .policy_task_binding import (
 # Preserve the public import API while keeping normal Plan Agent imports free of
 # their modules and construction side effects.
 _LEGACY_EXPORTS = {
+    "BLUE_TASK_INSTRUCTION": (".prototype", "BLUE_TASK_INSTRUCTION"),
+    "MAX_ROUNDS": (".prototype", "MAX_ROUNDS"),
+    "POSITION_TASK_INSTRUCTION": (".prototype", "POSITION_TASK_INSTRUCTION"),
+    "SCALE_TASK_INSTRUCTION": (".prototype", "SCALE_TASK_INSTRUCTION"),
+    "SAFETY_TASK_INSTRUCTION": (".prototype", "SAFETY_TASK_INSTRUCTION"),
+    "SUB_ASPECT_CATALOG": (".prototype", "SUB_ASPECT_CATALOG"),
+    "TIMING_TASK_INSTRUCTION": (".prototype", "TIMING_TASK_INSTRUCTION"),
+    "PlanAgentError": (".prototype", "PlanAgentError"),
+    "PlanAgentPrototype": (".prototype", "PlanAgentPrototype"),
+    "validate_evaluation_plan": (".prototype", "validate_evaluation_plan"),
+    "validate_next_round_decision": (".prototype", "validate_next_round_decision"),
+    "ACTCatalogError": (".catalog", "ACTCatalogError"),
+    "ACT_ROUTE_TASKS": (".catalog", "ACT_ROUTE_TASKS"),
+    "build_act_catalog": (".catalog", "build_act_catalog"),
+    "catalog_task": (".catalog", "catalog_task"),
+    "validate_act_catalog": (".catalog", "validate_act_catalog"),
+    "GlobalQueryRouter": (".global_query", "GlobalQueryRouter"),
+    "GlobalRouteError": (".global_query", "GlobalRouteError"),
+    "build_global_route_prompt": (".global_query", "build_global_route_prompt"),
+    "route_to_bbh_proposal": (".global_query", "route_to_bbh_proposal"),
+    "route_to_click_proposal": (".global_query", "route_to_click_proposal"),
+    "route_to_official_proposal": (".global_query", "route_to_official_proposal"),
+    "route_to_planner_proposal": (".global_query", "route_to_planner_proposal"),
+    "validate_route_selection": (".global_query", "validate_route_selection"),
+    "BoundTaskPlanSession": (".session", "BoundTaskPlanSession"),
+    "PlanSessionError": (".session", "PlanSessionError"),
+    "build_adaptive_directive": (".session", "build_adaptive_directive"),
+    "build_evaluation_target": (".session", "build_evaluation_target"),
+    "validate_adaptive_choice": (".session", "validate_adaptive_choice"),
+    "validate_evaluation_target": (".session", "validate_evaluation_target"),
+    "AdaptivePlanStepAgent": (".adaptive_step", "AdaptivePlanStepAgent"),
+    "AdaptiveStepError": (".adaptive_step", "AdaptiveStepError"),
+    "validate_plan_step_proposal": (".adaptive_step", "validate_plan_step_proposal"),
     "OFFICIAL_GATES": (".official", "OFFICIAL_GATES"),
     "OFFICIAL_TEMPLATE_ID": (".official", "OFFICIAL_TEMPLATE_ID"),
     "OfficialTaskPlanAgent": (".official", "OfficialTaskPlanAgent"),
