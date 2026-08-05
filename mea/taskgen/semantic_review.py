@@ -50,6 +50,11 @@ _ROBOTWIN_RUNTIME_API_AUTHORITY = """\
   link entity.
 - `self.robot.get_left_tcp_pose()[:3]` and
   `self.robot.get_right_tcp_pose()[:3]` are the current TCP positions.
+- For a tracked RoboTwin Actor, the exact TaskContext expression ending in
+  `.get_pose().p` returns that actor's current position. The TaskContext access
+  path, which may be `self.<attribute>` or a nested actor collection, is the
+  authority; do not reject an exact supplied expression merely because it is
+  task-specific.
 - For a tracked RoboTwin Actor, `get_contact_point(i, "pose").p` and
   `get_functional_point(i, "pose").p` return the current TaskSchema point
   positions.

@@ -395,7 +395,10 @@ def _semantic_field_access_guide(adapter: Mapping[str, Any]) -> str:
         + "\nWhen checker_need names one of these semantic fields, use its "
         "exact expression. Do not invent a similarly named helper such as "
         "get_contact_position, and do not replace a declared actor point "
-        "identity with an arbitrary PhysX collision point."
+        "identity with an arbitrary PhysX collision point. Semantic field "
+        "names describe evidence; they are not necessarily Python attributes. "
+        "For example, do not rewrite `stapler_position` as an assumed "
+        "`self.stapler` access unless that exact expression is listed above."
     )
 
 

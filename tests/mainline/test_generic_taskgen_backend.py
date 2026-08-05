@@ -2291,6 +2291,9 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             self.assertIn(
                 "emit a normalized quaternion as numeric literals", prompt
             )
+            self.assertIn(
+                "Semantic field names describe evidence", prompt
+            )
             self.assertIn("self.scene.get_contacts()", prompt)
             self.assertIn("self.robot.left_gripper", prompt)
             self.assertIn("do not invent a helper", prompt)
@@ -2419,6 +2422,10 @@ class GenericTaskGenBackendTests(unittest.TestCase):
         )
         self.assertIn(
             'get_contact_point(i, "pose").p',
+            provider.review_prompts[1],
+        )
+        self.assertIn(
+            "exact TaskContext expression ending in",
             provider.review_prompts[1],
         )
         self.assertEqual(review["status"], "approved")
