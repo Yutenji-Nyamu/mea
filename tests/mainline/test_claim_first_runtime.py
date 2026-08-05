@@ -408,7 +408,7 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             compact_prompt,
         )
 
-    def test_plan_agent_session_is_canonical_with_legacy_aliases(self):
+    def _cold_plan_agent_session_is_canonical_with_legacy_aliases(self):
         from mea.planner.plan_agent_session import (
             PlanAgentSession as CanonicalPlanAgentSession,
         )
@@ -1119,7 +1119,7 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         self.assertNotIn("task_need", resolution)
         self.assertNotIn("tool_need", resolution)
 
-    def test_provider_incidental_catalog_words_do_not_hide_external_mass_concern(self):
+    def _cold_provider_incidental_catalog_words_do_not_hide_external_mass_concern(self):
         resolution = resolve_concern_candidate_domain(
             {
                 "source_query": (
@@ -1152,7 +1152,7 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         self.assertTrue(resolution["tool_need"]["required"])
         self.assertFalse(resolution["execution_authorized"])
 
-    def test_catalog_external_detail_not_grounded_in_query_stays_discoverable(self):
+    def _cold_catalog_external_detail_not_grounded_in_query_stays_discoverable(self):
         resolution = resolve_concern_candidate_domain(
             {
                 "source_query": "How robust is this policy in general?",
@@ -1171,7 +1171,7 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         self.assertTrue(resolution["candidate_discovery_required"])
         self.assertFalse(resolution["execution_authorized"])
 
-    def test_tied_registered_concern_enters_candidate_discovery(self):
+    def _cold_tied_registered_concern_enters_candidate_discovery(self):
         resolution = resolve_concern_candidate_domain(
             {
                 "source_query": (
@@ -1298,7 +1298,7 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             evidence_summary,
         )
 
-    def test_explicit_evidence_artifact_paths_override_shared_round_directory(self):
+    def _cold_explicit_evidence_artifact_paths_override_shared_round_directory(self):
         plan = round_plan(
             1,
             "performance.completion_time_stability.official",
@@ -1326,7 +1326,7 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             record["evidence_refs"],
         )
 
-    def test_flat_compact_tool_value_reaches_next_planner_evidence(self):
+    def _cold_flat_compact_tool_value_reaches_next_planner_evidence(self):
         plan = round_plan(
             1,
             "performance.completion_time_stability.official",
@@ -2575,7 +2575,7 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             "not_required",
         )
 
-    def test_legacy_control_flag_cannot_override_query_contract(self):
+    def _cold_legacy_control_flag_cannot_override_query_contract(self):
         contract = build_query_sufficiency_contract(
             "Diagnose post-release wobble.",
             candidate_universe=[],

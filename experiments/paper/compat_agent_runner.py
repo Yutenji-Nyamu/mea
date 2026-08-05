@@ -12,7 +12,13 @@ import subprocess
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any, Mapping
+
+from experiments.paper.compat_bounded_proposals import (
+    adjudicate_bounded_transition,
+    apply_bounded_round_proposal,
+    persist_adaptive_step_selection,
+)
 
 from mea.agent_evidence import build_evidence_bundle, compact_aggregate_result
 from mea.feedback import (
@@ -200,9 +206,6 @@ def run_legacy_catalog_agent(
     history_database: Any,
     history_retrieval: Mapping[str, Any],
     history_context_count: int,
-    apply_bounded_round_proposal: Callable[..., Any],
-    adjudicate_bounded_transition: Callable[..., Any],
-    persist_adaptive_step_selection: Callable[..., str],
 ) -> dict[str, Any]:
     """Execute the retained legacy/catalog loop after explicit CLI dispatch."""
 

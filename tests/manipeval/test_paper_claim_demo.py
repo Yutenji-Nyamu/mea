@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import unittest
 
-from mea.paper_claim_demo import (
+from experiments.paper.paper_claim_demo import (
     CODEGEN_ABLATION_PROTOCOL,
     EFFICIENCY_PROTOCOL,
     ERROR_DISTRIBUTION_PROTOCOL,

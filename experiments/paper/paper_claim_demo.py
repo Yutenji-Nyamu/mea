@@ -1,4 +1,4 @@
-"""Artifact-only aggregators for small, real ManipEvalAgent claim demos.
+"""Cold artifact-only aggregators for small paper-claim experiments.
 
 The functions in this module do not start policies, providers, simulators, or
 annotation agents.  They import explicitly labelled live manifests or

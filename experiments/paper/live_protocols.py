@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from mea.paper_claim_demo import evaluate_policy_ranking
+from experiments.paper.paper_claim_demo import evaluate_policy_ranking
 from mea.planner.query_contract import (
     assess_query_sufficiency,
     build_query_sufficiency_contract,

@@ -48,7 +48,7 @@ def build_taskgen_command(
     # Keep its task-menu imports local so the production ExperimentCandidate
     # materializer below does not load compatibility planning state.
     from mea.agent_evidence import round_execution_backend
-    from mea.capability_adapter import taskgen_route
+    from experiments.paper.compat_capability_adapter import taskgen_route
     from mea.proposals import ProposalError, validate_task_proposal
     from mea.round_contract import validate_round_capability_contract
 

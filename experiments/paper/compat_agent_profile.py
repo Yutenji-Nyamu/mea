@@ -169,9 +169,32 @@ def resolve_task_specific_runtime_profile(
     }
 
 
+def resolve_compat_agent_services(
+    args: Any,
+    *,
+    requested_open_query_planner: str | None,
+) -> tuple[Any | None, tuple[type[Exception], ...]]:
+    """Resolve the cold CLI profile and its Proposal services together."""
+
+    profile = resolve_compat_agent_profile(
+        args,
+        requested_open_query_planner=requested_open_query_planner,
+    )
+    args.open_query_planner = profile["open_query_planner"]
+    if profile["claim_first_mode"]:
+        return None, (ValueError,)
+    from experiments.paper import compat_bounded_proposals
+
+    return (
+        compat_bounded_proposals,
+        (ValueError, *compat_bounded_proposals.COMPAT_PROPOSAL_ERRORS),
+    )
+
+
 __all__ = [
     "CompatAgentProfileError",
     "compat_agent_profile_requested",
     "resolve_compat_agent_profile",
+    "resolve_compat_agent_services",
     "resolve_task_specific_runtime_profile",
 ]

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 from copy import deepcopy
 from pathlib import Path
@@ -19,7 +18,10 @@ from .query import (
     ExecutionVQAQueryError,
     build_execution_vqa_query,
     validate_run_local_question_spec,
+    vqa_need_semantic_key,
 )
+from .reviewed_generated_questions import find_reviewed_generated_vqa_question
+from .reviewed_registry import ReviewedVQAQuerySpecError
 
 
 class OpenVQAQuestionError(ValueError):
@@ -51,23 +53,6 @@ def _text(value: Any, field: str) -> str:
 
 def _normalized_semantic_text(value: Any, field: str) -> str:
     return " ".join(_text(value, field).casefold().split())
-
-
-def vqa_need_semantic_key(*, task_name: str, vqa_need: str) -> str:
-    """Return the exact normalized identity used for run-local VQA reuse."""
-
-    payload = {
-        "task_name": _normalized_semantic_text(task_name, "task_name"),
-        "vqa_need": _normalized_semantic_text(vqa_need, "vqa_need"),
-    }
-    return hashlib.sha256(
-        json.dumps(
-            payload,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode("utf-8")
-    ).hexdigest()
 
 
 def _need_description(
@@ -443,6 +428,61 @@ class OpenVQAQuestionAgent:
                 "question_spec": deepcopy(exact_reuse["question_spec"]),
                 "artifact_context": context,
                 "matched_registration": exact_reuse,
+                "provider": {
+                    "model_requested": self.model,
+                    "called": False,
+                    "attempt_count": 0,
+                    "errors": [],
+                    "last_metadata": {},
+                },
+            }
+        reviewed_reuse = None
+        if reviewed_registry_dir is not None:
+            try:
+                reviewed_reuse = find_reviewed_generated_vqa_question(
+                    reviewed_registry_dir,
+                    task_name=context["task_name"],
+                    vqa_need=need,
+                )
+            except ReviewedVQAQuerySpecError as exc:
+                raise OpenVQAQuestionError(
+                    f"invalid reviewed generated VQA registry: {exc}"
+                ) from exc
+        if reviewed_reuse is not None:
+            question_spec = reviewed_reuse["question_spec"]
+            try:
+                query = build_execution_vqa_query(
+                    task_name=context["task_name"],
+                    template_id=template_id,
+                    sub_aspect=proposal.get("semantic_concern"),
+                    tool_contract=tool_contract,
+                    proposed_phenomenon_ids=[question_spec["id"]],
+                    proposed_question_specs=[question_spec],
+                )
+            except ExecutionVQAQueryError as exc:
+                raise OpenVQAQuestionError(str(exc)) from exc
+            return {
+                "schema_version": 1,
+                "status": "reused",
+                "artifact_kind": "vqa_question",
+                "source": "reviewed_persistent_exact_vqa_need_reuse",
+                "semantic_key": semantic_key,
+                "vqa_need": need,
+                "query": query,
+                "question_spec": deepcopy(question_spec),
+                "artifact_context": context,
+                "matched_registration": deepcopy(
+                    reviewed_reuse["registration"]
+                ),
+                "validation": {
+                    "scope": "reviewed_persistent",
+                    "exact_semantic_need_match": True,
+                    "question_spec_sha256": reviewed_reuse[
+                        "question_spec_sha256"
+                    ],
+                    "review_sha256": reviewed_reuse["review_sha256"],
+                    "current_rollout_vqa_execution_required": True,
+                },
                 "provider": {
                     "model_requested": self.model,
                     "called": False,

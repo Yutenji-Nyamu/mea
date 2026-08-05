@@ -17,8 +17,8 @@ PLANNER_RETRIEVAL_BOUNDARIES = (
     REPO_ROOT / "mea" / "planner" / "open_world_session.py",
     REPO_ROOT / "mea" / "planner" / "query_interpretation.py",
 )
-LEGACY_MODULES = {
-    "mea.capability_adapter",
+COMPAT_COMMAND_MODULES = {
+    "experiments.paper.compat_capability_adapter",
     "mea.proposals",
     "mea.round_contract",
 }
@@ -48,7 +48,7 @@ class ProductionTaskIndependenceTests(unittest.TestCase):
             ROUND_MATERIALIZATION.read_text(encoding="utf-8")
         )
         top_level_imports = _imported_modules(module.body)
-        self.assertTrue(LEGACY_MODULES.isdisjoint(top_level_imports))
+        self.assertTrue(COMPAT_COMMAND_MODULES.isdisjoint(top_level_imports))
 
         functions = {
             node.name: node
@@ -67,8 +67,18 @@ class ProductionTaskIndependenceTests(unittest.TestCase):
             if isinstance(node, (ast.Import, ast.ImportFrom))
             for imported in _imported_modules([node])
         }
-        self.assertTrue(LEGACY_MODULES.issubset(command_imports))
-        self.assertTrue(LEGACY_MODULES.isdisjoint(production_imports))
+        self.assertTrue(COMPAT_COMMAND_MODULES.issubset(command_imports))
+        self.assertTrue(COMPAT_COMMAND_MODULES.isdisjoint(production_imports))
+
+    def test_production_tree_does_not_read_the_deprecated_adapter(self):
+        for source_root in (REPO_ROOT / "mea", REPO_ROOT / "scripts"):
+            for source_path in source_root.rglob("*.py"):
+                source = source_path.read_text(encoding="utf-8")
+                self.assertNotIn(
+                    "from mea.capability_adapter import",
+                    source,
+                    source_path.relative_to(REPO_ROOT).as_posix(),
+                )
 
     def test_unregistered_task_materializes_without_legacy_proposal_fields(self):
         candidate = {

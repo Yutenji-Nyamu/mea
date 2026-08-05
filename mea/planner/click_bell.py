@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from mea.aspects import AspectError, canonicalize_aspect_id, canonicalize_aspect_ids
-from mea.capability_adapter import (
+from experiments.paper.compat_capability_adapter import (
     build_contract_tool_request,
     resolve_capability_contract,
     taskgen_route,

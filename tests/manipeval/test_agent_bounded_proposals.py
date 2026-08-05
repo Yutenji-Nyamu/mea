@@ -16,7 +16,7 @@ from mea.proposals import (
     tool_proposal_from_contract,
 )
 from mea.proposal_agent import ProposalAgentError
-from scripts.manipeval_agent import (
+from experiments.paper.compat_bounded_proposals import (
     apply_bounded_round_proposal,
     persist_adaptive_step_selection,
 )

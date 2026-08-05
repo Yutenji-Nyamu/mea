@@ -742,7 +742,7 @@ def test_native_taskgen_failure_becomes_n_zero_planning_evidence(tmp_path):
         raise AssertionError("policy rollout must not start")
 
     with patch(
-        "mea.robotwin.native_agent_round.policy_task_binding_from_target",
+        "mea.robotwin.native_round_materialization.policy_task_binding_from_target",
         return_value=contract,
     ):
         result = _execute_robotwin_method_round(
@@ -867,7 +867,7 @@ def test_native_taskgen_system_failures_remain_fatal(tmp_path):
             raise GenericTaskGenError("fixture system failure")
 
         with patch(
-            "mea.robotwin.native_agent_round.policy_task_binding_from_target",
+            "mea.robotwin.native_round_materialization.policy_task_binding_from_target",
             return_value=contract,
         ), pytest.raises(NativeAgentRoundError):
             _execute_robotwin_method_round(
@@ -959,7 +959,7 @@ def test_candidate_unexecutable_returns_planning_evidence_without_rollout(
         raise AssertionError("policy rollout must not start")
 
     with patch(
-        "mea.robotwin.native_agent_round.policy_task_binding_from_target",
+        "mea.robotwin.native_round_materialization.policy_task_binding_from_target",
         return_value=contract,
     ):
         result = _execute_robotwin_method_round(

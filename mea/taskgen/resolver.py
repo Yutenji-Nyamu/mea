@@ -20,9 +20,9 @@ import json
 from copy import deepcopy
 from typing import Any, Callable, Mapping
 
-from mea.capability_adapter import (
-    CapabilityAdapterError,
-    taskgen_route,
+from experiments.paper.compat_capability_adapter import taskgen_route
+from mea.artifact_retrieval_index import (
+    ArtifactRetrievalIndexError,
     validate_capability_contract,
     validate_contract_changes,
 )
@@ -66,7 +66,7 @@ def task_semantic_key(
         proposal["changes"] = validate_contract_changes(
             contract, proposal["changes"]
         )
-    except (CapabilityAdapterError, ProposalError, ValueError) as exc:
+    except (ArtifactRetrievalIndexError, ProposalError, ValueError) as exc:
         raise TaskResolutionError(
             f"invalid TaskProposal resolution input: {exc}"
         ) from exc
@@ -149,7 +149,7 @@ def resolve_task_proposal(
         proposal = validate_task_proposal(
             task_proposal, expected_task_name=contract["task_name"]
         )
-    except (CapabilityAdapterError, ProposalError, ValueError) as exc:
+    except (ArtifactRetrievalIndexError, ProposalError, ValueError) as exc:
         raise TaskResolutionError(
             f"invalid TaskProposal resolution input: {exc}"
         ) from exc

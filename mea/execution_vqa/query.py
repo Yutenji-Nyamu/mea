@@ -10,17 +10,19 @@ then a bounded task-neutral tracked-object question.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from mea.capability_adapter import (
-    CapabilityAdapterError,
-    registered_task_vqa_questions,
-    resolve_capability_contract,
+from mea.artifact_retrieval_index import (
+    ArtifactRetrievalIndexError,
+    registered_vqa_questions,
+    resolve_artifact_contract,
     resolve_task_retrieval_index,
-    task_vqa_metric_phenomena,
+    task_vqa_metric_questions,
 )
 
 
@@ -28,7 +30,7 @@ class ExecutionVQAQueryError(ValueError):
     """Raised when a dynamic Execution VQA query violates its contract."""
 
 
-_TASK_VQA_QUESTIONS = registered_task_vqa_questions()
+_TASK_VQA_QUESTIONS = registered_vqa_questions()
 QUESTION_CATALOG: dict[str, dict[str, Any]] = {
     "block_color_blue": {
         "question_type": "categorical_attribute_match",
@@ -273,6 +275,28 @@ def is_run_local_phenomenon_id(value: Any) -> bool:
     )
 
 
+def vqa_need_semantic_key(*, task_name: str, vqa_need: str) -> str:
+    """Return the task-scoped identity shared by VQA question registries."""
+
+    def normalized(value: Any, *, field: str) -> str:
+        if not isinstance(value, str) or not value.strip():
+            raise ExecutionVQAQueryError(f"{field} must be a non-empty string")
+        return " ".join(value.casefold().split())
+
+    payload = {
+        "task_name": normalized(task_name, field="task_name"),
+        "vqa_need": normalized(vqa_need, field="vqa_need"),
+    }
+    return hashlib.sha256(
+        json.dumps(
+            payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+
+
 def validate_run_local_question_spec(value: Any) -> dict[str, Any]:
     """Validate one self-contained visual question generated for this run.
 
@@ -350,7 +374,7 @@ def _task_owned_fallback_phenomena(task_name: str | None) -> list[str]:
         return []
     try:
         retrieval_index = resolve_task_retrieval_index(task_name)
-    except CapabilityAdapterError:
+    except ArtifactRetrievalIndexError:
         return []
     return list(retrieval_index["vqa_questions"])
 
@@ -452,8 +476,8 @@ def build_execution_vqa_query(
     adapter_matched = False
     if not explicit_proposal and task is not None and template is not None:
         try:
-            contract = resolve_capability_contract(task, template)
-        except CapabilityAdapterError:
+            contract = resolve_artifact_contract(task, template)
+        except ArtifactRetrievalIndexError:
             contract = None
         if contract is not None:
             adapter_ids = list(contract["vqa"]["phenomenon_ids"])
@@ -478,8 +502,8 @@ def build_execution_vqa_query(
     adapter_metric_ids: list[str] = []
     if not explicit_proposal and task is not None and metric is not None:
         try:
-            adapter_metric_ids = task_vqa_metric_phenomena(task, metric)
-        except CapabilityAdapterError:
+            adapter_metric_ids = task_vqa_metric_questions(task, metric)
+        except ArtifactRetrievalIndexError:
             adapter_metric_ids = []
     if not explicit_proposal and adapter_metric_ids:
         _append_unique(selected, adapter_metric_ids)

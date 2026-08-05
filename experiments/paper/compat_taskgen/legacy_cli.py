@@ -25,7 +25,7 @@ if str(REPO_ROOT) in sys.path:
     sys.path.remove(str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT))
 
-from mea.capability_adapter import (
+from experiments.paper.compat_capability_adapter import (
     CapabilityAdapterError,
     taskgen_route,
     validate_capability_contract,

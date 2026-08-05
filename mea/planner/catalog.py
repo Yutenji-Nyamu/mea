@@ -13,7 +13,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping
 
-from mea.capability_adapter import (
+from experiments.paper.compat_capability_adapter import (
     registered_task_names,
     resolve_capability_contract,
     resolve_task_adapter,

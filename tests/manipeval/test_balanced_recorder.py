@@ -348,7 +348,7 @@ class BalancedRecorderTests(unittest.TestCase):
             Path(command[-1]).write_bytes(b"mp4")
             return SimpleNamespace(returncode=0, stderr="")
 
-        with patch("mea.toolkit.recorder.subprocess.run", side_effect=encode):
+        with patch("mea.toolkit.recorder_visual.subprocess.run", side_effect=encode):
             recorder.start(self.task)
             contacts["value"] = [support_contact, contact]
             success["value"] = True
@@ -446,7 +446,7 @@ class BalancedRecorderTests(unittest.TestCase):
             visual_capture_profile_id="event_keyframes_v1",
         )
         with patch(
-            "mea.toolkit.recorder.subprocess.run",
+            "mea.toolkit.recorder_visual.subprocess.run",
             return_value=SimpleNamespace(returncode=1, stderr="encoder failed"),
         ):
             recorder.start(self.task)
@@ -479,7 +479,7 @@ class BalancedRecorderTests(unittest.TestCase):
 
         recorder.start(self.task)
         with patch(
-            "mea.toolkit.recorder.subprocess.run", side_effect=encode
+            "mea.toolkit.recorder_visual.subprocess.run", side_effect=encode
         ), patch.object(
             EpisodeRecorder,
             "_write_visual_manifest",

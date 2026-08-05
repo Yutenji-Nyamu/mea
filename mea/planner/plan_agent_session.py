@@ -7,28 +7,23 @@ outside this module.
 
 from __future__ import annotations
 
+import re
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from .claim_first import (
-    ClaimFirstPlanError,
-    validate_open_query_capabilities,
-    validate_open_query_evidence,
-    validate_open_query_plan_proposal,
-    validate_open_query_proposal_lineage,
-)
+from mea.method_runtime import BackendTaskBinding
+
 from .experiment_candidate import validate_experiment_candidate
 from .open_world_session import _FrozenExecutionTransport
 from .plan_agent_errors import ClaimFirstRuntimeError, PlanAgentSessionError
+from .plan_agent_decisions import PlanAgentDecisionMixin
+from .plan_agent_evidence_session import PlanAgentEvidenceMixin
 from .plan_agent_evidence import (
     _attach_planning_lineage,
-    _current_planning_evidence,
-    build_claim_first_evidence_record,
-    render_query_answer,
 )
+from .plan_agent_schema import validate_open_query_plan_proposal
 from .query_contract import (
-    assess_query_sufficiency,
     build_query_sufficiency_contract,
     extend_query_candidate_universe,
     infer_claim_type,
@@ -40,13 +35,11 @@ from .query_interpretation import (
     _nonempty_text,
     _target_task_name,
     _template_aspect,
-    build_dynamic_experiment_candidate,
     control_template_id,
-    resolve_semantic_proposal,
 )
-from .semantic_coverage import SemanticCoverageError, validate_evaluation_intent
 
-class PlanAgentSession:
+
+class PlanAgentSession(PlanAgentEvidenceMixin, PlanAgentDecisionMixin):
     """Own one complete Plan Agent session.
 
     The public session owns both semantic decisions and the frozen execution
@@ -58,8 +51,10 @@ class PlanAgentSession:
     def __init__(
         self,
         user_query: str,
-        target: Mapping[str, Any],
+        target: Mapping[str, Any] | None = None,
         *,
+        method_binding: BackendTaskBinding | None = None,
+        method_max_rounds: int | None = None,
         query_contract: Mapping[str, Any] | None = None,
         candidate_aspect_ids: Sequence[str] | None = None,
         require_control_anchor: bool | None = None,
@@ -67,15 +62,51 @@ class PlanAgentSession:
         control_round: Mapping[str, Any] | None = None,
     ):
         self.user_query = _nonempty_text(user_query, "user_query")
-        self.target = deepcopy(dict(target))
-        self.task_name = _target_task_name(self.target)
-        if retrieval_aspects is None:
+        if method_binding is not None:
+            if target is not None:
+                raise ClaimFirstRuntimeError(
+                    "target and method_binding are mutually exclusive"
+                )
+            if (
+                isinstance(method_max_rounds, bool)
+                or not isinstance(method_max_rounds, int)
+                or method_max_rounds < 1
+            ):
+                raise ClaimFirstRuntimeError(
+                    "method_max_rounds must be a positive integer"
+                )
+            raw_task_name = str(
+                method_binding.metadata.get("task_name")
+                or method_binding.binding_id
+            ).casefold()
+            method_task_name = re.sub(
+                r"[^a-z0-9_]+", "_", raw_task_name
+            ).strip("_")
+            if not method_task_name or not method_task_name[0].isalpha():
+                method_task_name = f"task_{method_task_name or 'bound'}"
+            self.target = {
+                "schema_version": 1,
+                "task_name": method_task_name,
+                "method_binding": method_binding.to_dict(),
+                "max_rounds": method_max_rounds,
+            }
+            self.task_name = method_task_name
+            raw_retrieval_aspects: list[Mapping[str, Any]] = []
+        else:
+            if target is None:
+                raise ClaimFirstRuntimeError(
+                    "target or method_binding is required"
+                )
+            self.target = deepcopy(dict(target))
+            self.task_name = _target_task_name(self.target)
+            raw_retrieval_aspects = []
+        if method_binding is None and retrieval_aspects is None:
             raw_retrieval_aspects = self.target.get("aspects")
             if not isinstance(raw_retrieval_aspects, list):
                 raw_retrieval_aspects = _adapter_retrieval_aspects(
                     self.task_name
                 )
-        else:
+        elif retrieval_aspects is not None:
             raw_retrieval_aspects = list(retrieval_aspects)
         if any(
             not isinstance(aspect, Mapping)
@@ -86,6 +117,7 @@ class PlanAgentSession:
             )
         if (
             not raw_retrieval_aspects
+            and method_binding is None
             and "policy_task_binding" not in self.target
         ):
             raise ClaimFirstRuntimeError(
@@ -100,7 +132,11 @@ class PlanAgentSession:
             raise ClaimFirstRuntimeError(
                 "require_control_anchor must be bool or None"
             )
-        self.control_template = control_template_id(self.target)
+        self.control_template = (
+            "official_control"
+            if method_binding is not None
+            else control_template_id(self.target)
+        )
         if candidate_aspect_ids is not None:
             allowed_aspects = {
                 _nonempty_text(item, "candidate_aspect_ids[]")
@@ -532,535 +568,6 @@ class PlanAgentSession:
             require_direct=True,
         )
         return _attach_planning_lineage(bound, lineage)
-
-    def observe(
-        self,
-        round_plans: Sequence[Mapping[str, Any]],
-        round_summaries: Sequence[Mapping[str, Any]],
-    ) -> dict[str, Any]:
-        """Normalize all completed rounds and decide whether execution stops."""
-
-        if len(round_plans) != len(round_summaries):
-            raise ClaimFirstRuntimeError(
-                "completed plans and summaries must be aligned"
-            )
-        if self.require_control_anchor and not round_plans:
-            raise ClaimFirstRuntimeError(
-                "control-first observation requires one completed control round"
-            )
-        records = [
-            build_claim_first_evidence_record(plan, summary)
-            for plan, summary in zip(round_plans, round_summaries)
-        ]
-        control_semantics: Mapping[str, Any] = {}
-        control_authority_valid = True
-        control_pipeline_valid = True
-        baseline_valid = True
-        if self.require_control_anchor:
-            if records[0]["template_id"] != self.control_template:
-                raise ClaimFirstRuntimeError(
-                    "Plan Agent property attribution requires the control "
-                    "template first"
-                )
-            control_packet = records[0]["evidence_packet"]
-            control_outcome = records[0]["evaluation_outcome"]
-            control_semantics = records[0].get("outcome_semantics") or {}
-            control_authority_valid = bool(
-                control_outcome.get("metric") == "official_check_success"
-                and control_outcome.get("official_equivalent") is not False
-                and control_semantics.get("status") != "conflict"
-            )
-            control_pipeline_valid = bool(
-                control_packet["pipeline"]["passed"]
-                and control_packet["policy"]["reported"]
-                and control_packet["policy"]["success_rate"] is not None
-            )
-            baseline_valid = bool(
-                control_authority_valid
-                and control_pipeline_valid
-                and float(control_packet["policy"]["success_rate"]) >= 1.0
-            )
-        candidate_records = (
-            records[1:] if self.require_control_anchor else records
-        )
-        outside_candidate_ids = [
-            record["candidate_id"]
-            for record in candidate_records
-            if record["candidate_id"]
-            not in self.query_contract["candidate_universe"]
-        ]
-        if outside_candidate_ids:
-            raise ClaimFirstRuntimeError(
-                "completed candidate evidence is outside the active "
-                "QueryContract universe: "
-                f"{list(dict.fromkeys(outside_candidate_ids))}"
-            )
-        policy_candidate_records = [
-            record
-            for record in candidate_records
-            if record.get("planning_observation") is None
-        ]
-        candidate_evidence = [
-            deepcopy(record["candidate_evidence"])
-            for record in policy_candidate_records
-        ]
-        assessment = assess_query_sufficiency(
-            self.query_contract,
-            candidate_evidence,
-            completed_rounds=len(policy_candidate_records),
-        )
-        transport_conflict_ids = [
-            record["candidate_id"]
-            for record in candidate_records
-            if (
-                record["candidate_id"]
-                in self.query_contract["candidate_universe"]
-                and (
-                    record.get("candidate_evidence", {}).get("outcome")
-                    == "conflict"
-                    or record.get("evidence_packet", {}).get(
-                        "evidence_strength"
-                    )
-                    == "conflicting"
-                )
-            )
-        ]
-        if transport_conflict_ids:
-            assessment = {
-                **assessment,
-                "should_stop": True,
-                "stop_reason": "evidence_conflict",
-                "evidence_sufficient": False,
-                "claim_verdict": "inconclusive",
-                "rationale": (
-                    "Rule, VQA, or execution evidence conflicts for a "
-                    "completed candidate; the Query cannot be answered from "
-                    "this evidence."
-                ),
-                "conflict_candidate_ids": list(
-                    dict.fromkeys(
-                        list(assessment.get("conflict_candidate_ids") or [])
-                        + transport_conflict_ids
-                    )
-                ),
-                "recommended_candidate_ids": [],
-            }
-        semantic_conflict_ids = [
-            record["candidate_id"]
-            for record in candidate_records
-            if (
-                record["candidate_id"]
-                in self.query_contract["candidate_universe"]
-                and record.get("outcome_semantics", {}).get("status")
-                == "conflict"
-            )
-        ]
-        if semantic_conflict_ids:
-            assessment = {
-                **assessment,
-                "should_stop": True,
-                "stop_reason": "outcome_semantics_conflict",
-                "evidence_sufficient": False,
-                "claim_verdict": "inconclusive",
-                "rationale": (
-                    "Generated and official/core success semantics disagree for "
-                    "a completed candidate; the Query cannot be answered from "
-                    "this evidence."
-                ),
-                "conflict_candidate_ids": list(
-                    dict.fromkeys(
-                        list(assessment.get("conflict_candidate_ids") or [])
-                        + semantic_conflict_ids
-                    )
-                ),
-                "recommended_candidate_ids": [],
-            }
-        semantic_non_comparable_ids = [
-            record["candidate_id"]
-            for record in candidate_records
-            if (
-                record["candidate_id"]
-                in self.query_contract["candidate_universe"]
-                and record.get("evaluation_outcome", {}).get("metric")
-                == "generated_check_success"
-                and record.get("outcome_semantics", {}).get("status")
-                == "non_comparable"
-            )
-        ]
-        if semantic_non_comparable_ids:
-            assessment = {
-                **assessment,
-                "should_stop": True,
-                "stop_reason": "outcome_semantics_non_comparable",
-                "evidence_sufficient": False,
-                "claim_verdict": "inconclusive",
-                "rationale": (
-                    "The generated checker lacks a comparable official/core "
-                    "projection, so this Query cannot be answered from the "
-                    "completed evidence."
-                ),
-                "non_comparable_candidate_ids": list(
-                    dict.fromkeys(semantic_non_comparable_ids)
-                ),
-                "recommended_candidate_ids": [],
-            }
-        if self.require_control_anchor and not baseline_valid:
-            reason = (
-                "control_baseline_semantics_conflict"
-                if control_semantics.get("status") == "conflict"
-                else
-                "control_baseline_non_official_outcome"
-                if not control_authority_valid
-                else
-                "control_baseline_pipeline_invalid"
-                if not control_pipeline_valid
-                else "control_baseline_policy_failed"
-            )
-            assessment = {
-                **assessment,
-                "should_stop": True,
-                "stop_reason": reason,
-                "evidence_sufficient": False,
-                "claim_verdict": "inconclusive",
-                "rationale": (
-                    "The unchanged-scene control must pass before property "
-                    "attribution; no candidate experiment is authorized."
-                ),
-                "recommended_candidate_ids": [],
-            }
-        answer = (
-            render_query_answer(
-                self.user_query,
-                assessment,
-                records,
-                baseline_valid=baseline_valid,
-                baseline_stop_reason=assessment["stop_reason"],
-            )
-            if assessment["should_stop"]
-            else None
-        )
-        return {
-            "schema_version": 1,
-            "control_template_id": self.control_template,
-            "control_required": self.require_control_anchor,
-            "control_passed": (
-                baseline_valid if self.require_control_anchor else None
-            ),
-            "query_contract": deepcopy(self.query_contract),
-            "assessment": assessment,
-            "records": records,
-            "open_query_evidence_history": validate_open_query_evidence(
-                [record["open_query_evidence"] for record in records]
-            ),
-            "query_answer": answer,
-        }
-
-    def bind_evidence_conditioned_semantic_step(
-        self,
-        proposal_bundle: Mapping[str, Any],
-        observation: Mapping[str, Any],
-        *,
-        capabilities: Mapping[str, Any],
-        executed_candidate_ids: Sequence[str],
-        evaluation_intent: Mapping[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        """Bind a proposal only if it consumed the current evidence history.
-
-        This is the auditable boundary for cached/provider proposals.  A bundle
-        authored before the latest completed round fails its input digest or
-        completed-round lineage check instead of being released as the next
-        sub-aspect.
-        """
-
-        try:
-            trusted_capabilities = validate_open_query_capabilities(
-                capabilities
-            )
-            history = _current_planning_evidence(observation)
-            if self.require_control_anchor and not history:
-                raise ClaimFirstRuntimeError(
-                    "control-required Plan Agent needs observed control evidence "
-                    "before binding the next sub-aspect"
-                )
-            trusted_intent = (
-                validate_evaluation_intent(evaluation_intent)
-                if evaluation_intent is not None
-                else None
-            )
-            lineage = validate_open_query_proposal_lineage(
-                proposal_bundle,
-                user_query=self.user_query,
-                capabilities=trusted_capabilities,
-                evidence_history=history,
-                evaluation_intent=trusted_intent,
-            )
-        except (ClaimFirstPlanError, SemanticCoverageError) as exc:
-            raise ClaimFirstRuntimeError(str(exc)) from exc
-        bound = self.bind_semantic_step(
-            proposal_bundle,
-            observation,
-            executed_template_ids=executed_candidate_ids,
-            evaluation_intent=trusted_intent,
-        )
-        return _attach_planning_lineage(bound, lineage)
-
-    def propose_semantic_step(
-        self,
-        planner: Any,
-        observation: Mapping[str, Any],
-        *,
-        capabilities: Mapping[str, Any],
-        evaluation_intent: Mapping[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        """Read completed evidence, then author one validated next decision.
-
-        Keeping the provider call inside the session makes the temporal order
-        explicit: round evidence is validated first; only then may the Plan
-        Agent choose stop or a next semantic concern.  Binding a continuing
-        Proposal remains a separate step so an outer execution cap can reject
-        it without pre-empting an evidence-backed stop decision.
-        """
-
-        assessment = observation.get("assessment")
-        if not isinstance(assessment, Mapping):
-            raise ClaimFirstRuntimeError(
-                "Plan Agent observation has no assessment"
-            )
-        if (
-            assessment.get("should_stop")
-            and assessment.get("evidence_sufficient") is not True
-        ):
-            raise ClaimFirstRuntimeError(
-                "cannot propose a semantic step after the query contract stopped"
-            )
-        if (
-            self.require_control_anchor
-            and observation.get("control_passed") is not True
-        ):
-            raise ClaimFirstRuntimeError(
-                "cannot propose a property experiment before the control passes"
-            )
-        history = _current_planning_evidence(observation)
-        if self.require_control_anchor and not history:
-            raise ClaimFirstRuntimeError(
-                "control-required Plan Agent needs observed control evidence "
-                "before authoring the next sub-aspect"
-            )
-        try:
-            trusted_capabilities = validate_open_query_capabilities(
-                capabilities
-            )
-            trusted_intent = (
-                validate_evaluation_intent(evaluation_intent)
-                if evaluation_intent is not None
-                else None
-            )
-        except (ClaimFirstPlanError, SemanticCoverageError) as exc:
-            raise ClaimFirstRuntimeError(str(exc)) from exc
-        propose = getattr(planner, "propose", None)
-        if not callable(propose):
-            raise ClaimFirstRuntimeError(
-                "Plan Agent must expose a callable propose()"
-            )
-        try:
-            proposal_bundle = propose(
-                self.user_query,
-                capabilities=trusted_capabilities,
-                evidence_history=history,
-                evaluation_intent=trusted_intent,
-            )
-        except Exception as exc:
-            if isinstance(exc, ClaimFirstRuntimeError):
-                raise
-            raise ClaimFirstRuntimeError(
-                "evidence-conditioned Plan Agent failed after completed "
-                f"rounds {[item['round_id'] for item in history]}: "
-                f"{type(exc).__name__}: {exc}"
-            ) from exc
-        if not isinstance(proposal_bundle, Mapping):
-            raise ClaimFirstRuntimeError(
-                "Plan Agent returned no proposal bundle"
-            )
-        try:
-            validate_open_query_proposal_lineage(
-                proposal_bundle,
-                user_query=self.user_query,
-                capabilities=trusted_capabilities,
-                evidence_history=history,
-                evaluation_intent=trusted_intent,
-            )
-        except ClaimFirstPlanError as exc:
-            raise ClaimFirstRuntimeError(str(exc)) from exc
-        return deepcopy(dict(proposal_bundle))
-
-    def propose_and_bind_semantic_step(
-        self,
-        planner: Any,
-        observation: Mapping[str, Any],
-        *,
-        capabilities: Mapping[str, Any],
-        executed_candidate_ids: Sequence[str],
-        evaluation_intent: Mapping[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        """Author from completed evidence, then bind exactly one next step."""
-
-        proposal_bundle = self.propose_semantic_step(
-            planner,
-            observation,
-            capabilities=capabilities,
-            evaluation_intent=evaluation_intent,
-        )
-        return self.bind_evidence_conditioned_semantic_step(
-            proposal_bundle,
-            observation,
-            capabilities=capabilities,
-            executed_candidate_ids=executed_candidate_ids,
-            evaluation_intent=evaluation_intent,
-        )
-
-    def bind_semantic_step(
-        self,
-        proposal_bundle: Mapping[str, Any],
-        observation: Mapping[str, Any],
-        *,
-        executed_template_ids: Sequence[str],
-        evaluation_intent: Mapping[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        """Validate and bind one semantic Proposal to the generic runtime.
-
-        Retrieval may identify an exact historical artifact, but it is only a
-        reuse hint.  It never changes the Proposal into a catalog-authorized
-        execution step.  Consequently every production Plan Agent round has
-        the same typed Proposal boundary and the generic TaskGen/ToolGen
-        materializer decides whether to reuse or generate each requested
-        artifact.
-        """
-
-        assessment = observation.get("assessment")
-        if not isinstance(assessment, Mapping):
-            raise ClaimFirstRuntimeError("Plan Agent observation has no assessment")
-        raw_proposal = proposal_bundle.get("proposal")
-        if not isinstance(raw_proposal, Mapping):
-            raise ClaimFirstRuntimeError(
-                "Plan Agent proposal bundle has no proposal object"
-            )
-        try:
-            proposal = validate_open_query_plan_proposal(
-                raw_proposal,
-                has_evidence=bool(observation.get("records")),
-            )
-        except ClaimFirstPlanError as exc:
-            raise ClaimFirstRuntimeError(str(exc)) from exc
-
-        if proposal["action"] == "stop":
-            query_answer = observation.get("query_answer")
-            if not (
-                assessment.get("should_stop") is True
-                and assessment.get("evidence_sufficient") is True
-                and assessment.get("stop_reason") == "evidence_sufficient"
-                and isinstance(query_answer, Mapping)
-                and query_answer.get("answered") is True
-            ):
-                raise ClaimFirstRuntimeError(
-                    "Plan Agent stop rejected by QueryContract: completed "
-                    "evidence does not yet support an answer to the original "
-                    "Query"
-                )
-            return {
-                "schema_version": 2,
-                "semantic_proposal_bundle": deepcopy(dict(proposal_bundle)),
-                "semantic_needs": {
-                    "scene_need": deepcopy(proposal["scene_need"]),
-                    "checker_need": deepcopy(proposal["checker_need"]),
-                    "rule_tool_need": deepcopy(proposal["rule_tool_need"]),
-                    "vqa_tool_need": deepcopy(proposal["vqa_tool_need"]),
-                    "task_need": deepcopy(proposal["task_need"]),
-                    "tool_need": deepcopy(proposal["tool_need"]),
-                },
-                "resolution": {
-                    "schema_version": 1,
-                    "semantic_sub_aspect": None,
-                    "resolved_aspect_id": None,
-                    "resolved_template_id": None,
-                    "resolved_candidate_id": None,
-                    "resolution": "query_contract_validated_stop",
-                    "hidden": False,
-                    "matched_tokens": [],
-                    "catalog_was_model_visible": False,
-                    "catalog_resolution_error": None,
-                    "retrieval_aspect_id": None,
-                    "retrieval_template_id": None,
-                    "retrieval_resolution": None,
-                },
-                "query_contract": deepcopy(self.query_contract),
-                "query_assessment": deepcopy(dict(assessment)),
-                "query_answer": deepcopy(dict(query_answer)),
-                "plan_step": {
-                    "schema_version": 2,
-                    "action": "stop",
-                    "aspect_id": None,
-                    "candidate_id": None,
-                    "execution_mode": "none",
-                    "proposal": None,
-                    "rationale": proposal["rationale"],
-                    "hypothesis": proposal["hypothesis"],
-                    "answered_query": True,
-                    "claim_verdict": assessment.get("claim_verdict"),
-                    "stop_reason": assessment.get("stop_reason"),
-                    "next_round": None,
-                },
-            }
-
-        budget_remaining = assessment.get("budget_remaining")
-        may_continue_after_sufficiency = bool(
-            assessment.get("should_stop") is True
-            and assessment.get("evidence_sufficient") is True
-            and assessment.get("stop_reason") == "evidence_sufficient"
-            and isinstance(budget_remaining, int)
-            and not isinstance(budget_remaining, bool)
-            and budget_remaining > 0
-        )
-        if assessment.get("should_stop") and not may_continue_after_sufficiency:
-            raise ClaimFirstRuntimeError(
-                "cannot bind a semantic step after the query contract stopped"
-            )
-        if (
-            self.require_control_anchor
-            and observation.get("control_passed") is not True
-        ):
-            raise ClaimFirstRuntimeError(
-                "cannot attribute a property before the control passes"
-            )
-        retrieval_hint: dict[str, Any] | None = None
-        retrieval_error: str | None = None
-        try:
-            retrieval_hint = resolve_semantic_proposal(
-                proposal,
-                target={"aspects": self.retrieval_aspects},
-                executed_template_ids=executed_template_ids,
-                control_template=self.control_template,
-            )
-        except ClaimFirstRuntimeError as catalog_error:
-            retrieval_error = str(catalog_error)
-        candidate = build_dynamic_experiment_candidate(
-            user_query=self.user_query,
-            task_name=self.task_name,
-            proposal=proposal,
-            evaluation_intent=evaluation_intent,
-        )
-        return self._bind_dynamic_candidate(
-            proposal_bundle=proposal_bundle,
-            proposal=proposal,
-            candidate=candidate,
-            executed_candidate_ids=executed_template_ids,
-            resolution=(
-                "retrieval_hint_then_reuse_or_generate"
-                if retrieval_hint is not None
-                else "proposal_reuse_or_generate"
-            ),
-            catalog_resolution_error=retrieval_error,
-            retrieval_hint=retrieval_hint,
-        )
 
 # Compatibility aliases retain object identity for historical callers.
 ClaimFirstRuntimeController = PlanAgentSession

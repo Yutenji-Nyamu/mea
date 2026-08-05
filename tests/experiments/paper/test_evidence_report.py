@@ -17,7 +17,7 @@ def _write_text(path: Path, value: str) -> None:
     path.write_text(value, encoding="utf-8")
 
 
-class EvidenceReportTests(unittest.TestCase):
+class PaperEvidenceReportTests(unittest.TestCase):
     def test_publish_bundle_renders_real_code_images_video_and_decisions(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

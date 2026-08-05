@@ -21,6 +21,15 @@ from mea.planner.query_contract import (
 from mea.providers import available_model_profiles
 
 
+def _positive_planning_allowance(raw: str) -> int:
+    """Parse an execution allowance without turning it into method semantics."""
+
+    value = int(raw)
+    if value < 1:
+        raise argparse.ArgumentTypeError("planning allowance must be positive")
+    return value
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--request", required=True)
@@ -116,8 +125,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--generated-rounds",
-        type=int,
-        choices=[1, 2, 3, 4, 5, 6, 7, 8],
+        type=_positive_planning_allowance,
         default=5,
         help=(
             "Planning allowance for evidence-conditioned generated rounds. "
@@ -127,8 +135,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--max-agent-rounds",
-        type=int,
-        choices=[1, 2, 3, 4, 5, 6, 7, 8],
+        type=_positive_planning_allowance,
         help=(
             "Optional emergency execution ceiling. Normal method runs should "
             "omit it and stop through the evidence-sufficiency contract."

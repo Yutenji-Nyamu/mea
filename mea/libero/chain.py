@@ -20,6 +20,7 @@ from mea.method_runtime import (
     BackendBindingRequest,
 )
 from mea.planner.claim_first import PlanAgent
+from mea.planner.plan_agent_session import PlanAgentSession
 from mea.providers import OpenAICompatibleProvider
 from mea.toolkit.aggregate import aggregate_tool_executions
 
@@ -255,7 +256,7 @@ def _method_chain_is_valid(
     compatibility_probe_passed: bool,
     aggregate_status: str,
     exact_reuse: bool,
-    final_planner_bundle_present: bool,
+    validated_final_decision_present: bool,
     episode_protocol_matches: bool,
 ) -> bool:
     """Mechanism validity is independent of the custom policy outcome."""
@@ -267,7 +268,7 @@ def _method_chain_is_valid(
         and compatibility_probe_passed
         and aggregate_status == "passed"
         and exact_reuse
-        and final_planner_bundle_present
+        and validated_final_decision_present
         and episode_protocol_matches
     )
 
@@ -334,8 +335,18 @@ def run_libero_method_chain(
             task_reference={"suite": bound_suite, "task_id": bound_task_id}
         )
     )
+    plan_session = PlanAgentSession(
+        request,
+        method_binding=official_binding,
+        method_max_rounds=2,
+        require_control_anchor=True,
+    )
     official_contract = official_binding.native_task
     _write_json(root / "runtime" / "task_binding.json", official_binding.to_dict())
+    _write_json(
+        root / "planner" / "query_contract.json",
+        plan_session.query_contract,
+    )
     compatibility, query_retrieval, pending_change = _open_query_retrieval(
         request=request,
         checkpoint=checkpoint_path,
@@ -364,6 +375,7 @@ def run_libero_method_chain(
             "retrieval": query_retrieval.to_dict(),
             "policy_task_compatibility": compatibility.to_dict(),
             "controlled_change_contract": pending_change.to_dict(),
+            "query_contract": plan_session.query_contract,
         }
         _write_json(root / "compact_result.json", result)
         return result
@@ -470,7 +482,48 @@ def run_libero_method_chain(
         )
         control_evidence = control_evidence_record.to_planner_dict()
         _write_json(root / "round_01_official" / "evidence.json", control_evidence)
+        answer_records = [
+            {
+                "round_id": control_evidence["round_id"],
+                "evidence_refs": [
+                    {
+                        "kind": "method_runtime_evidence",
+                        "path": "runtime/round_01_evidence.json",
+                    }
+                ],
+                "evaluation_outcome": {
+                    "metric": "official_check_success",
+                    "authority": "libero_goal_predicate",
+                    "value": bool(official_record.success),
+                    "official_equivalent": True,
+                },
+                "outcome_semantics": {
+                    "status": "equivalent_agreement",
+                    "evidence_conflict": False,
+                    "official_equivalent": True,
+                },
+            }
+        ]
+        plan_state = plan_session.observe_method_evidence(
+            [control_evidence],
+            candidate_evidence=[],
+            baseline_valid=bool(official_record.success),
+            records=answer_records,
+            baseline_stop_reason=(
+                None
+                if official_record.success
+                else "control_baseline_policy_failed"
+            ),
+        )
+        _write_json(
+            root / "planner" / "state_after_control.json",
+            plan_state,
+        )
         if not official_record.success:
+            _write_json(
+                root / "query_answer.json",
+                plan_state["query_answer"],
+            )
             result = {
                 "schema_version": 1,
                 "status": "control_failed",
@@ -488,22 +541,35 @@ def run_libero_method_chain(
                 "retrieval": query_retrieval.to_dict(),
                 "policy_task_compatibility": compatibility.to_dict(),
                 "controlled_change_contract": pending_change.to_dict(),
+                "query_contract": plan_state["query_contract"],
+                "query_answer": plan_state["query_answer"],
                 "raw_run_dir": str(root),
             }
             _write_json(root / "compact_result.json", result)
             return result
 
         planner = PlanAgent(provider, model=planner_model)
-        first_bundle = planner.propose(
-            request,
-            capabilities=_capabilities(checkpoint_path, official_contract),
-            evidence_history=[control_evidence],
+        capabilities = _capabilities(checkpoint_path, official_contract)
+        first_bundle = plan_session.propose_semantic_step(
+            planner,
+            plan_state,
+            capabilities=capabilities,
         )
         _persist_planner_bundle(root, "after_control", planner, first_bundle)
         if first_bundle["proposal"]["action"] != "continue":
             raise RuntimeError(
                 "Plan Agent stopped after control; no provider-authored custom task was authorized"
             )
+        bound_first = plan_session.bind_evidence_conditioned_semantic_step(
+            first_bundle,
+            plan_state,
+            capabilities=capabilities,
+            executed_candidate_ids=["official_control"],
+        )
+        _write_json(
+            root / "planner" / "after_control" / "bound_step.json",
+            bound_first,
+        )
         proposal = first_bundle["proposal"]
         planner_concern = " ".join(
             str(item)
@@ -556,7 +622,9 @@ def run_libero_method_chain(
         custom_candidate = custom_runtime.materialize_candidate(
             official_binding,
             CandidateRequest(
-                candidate_id="generated_custom_task",
+                candidate_id=str(
+                    bound_first["plan_step"]["candidate_id"]
+                ),
                 source_query=request,
                 proposal_bundle=first_bundle,
                 output_dir=root / "round_02_custom" / "taskgen",
@@ -673,20 +741,107 @@ def run_libero_method_chain(
         custom_evidence = custom_evidence_record.to_planner_dict()
         _write_json(root / "round_02_custom" / "evidence.json", custom_evidence)
 
+        answer_records.append(
+            {
+                "round_id": custom_evidence["round_id"],
+                "evidence_refs": [
+                    {
+                        "kind": "method_runtime_evidence",
+                        "path": "runtime/round_02_evidence.json",
+                    },
+                    {
+                        "kind": "tool_execution",
+                        "path": "round_02_custom/tool/toolgen_result.json",
+                    },
+                ],
+                "evaluation_outcome": {
+                    "metric": "generated_check_success",
+                    "authority": "generated_predicate_tool",
+                    "value": tool_value,
+                    "official_equivalent": False,
+                },
+                "outcome_semantics": {
+                    "status": "expected_semantic_extension",
+                    "evidence_conflict": False,
+                    "official_equivalent": False,
+                },
+            }
+        )
+        plan_state = plan_session.observe_method_evidence(
+            [control_evidence, custom_evidence],
+            candidate_evidence=[
+                {
+                    "candidate_id": custom_candidate.candidate_id,
+                    "outcome": "pass" if tool_value else "fail",
+                    "score": 1.0 if tool_value else 0.0,
+                    "diagnosis": (
+                        None
+                        if tool_value
+                        else "The generated LIBERO goal predicate was not satisfied."
+                    ),
+                }
+            ],
+            baseline_valid=True,
+            records=answer_records,
+        )
+        _write_json(
+            root / "planner" / "state_after_custom.json",
+            plan_state,
+        )
+        _write_json(
+            root / "query_answer.json",
+            plan_state["query_answer"],
+        )
+
         second_bundle: dict[str, Any] | None = None
         second_error: str | None = None
-        try:
-            second_bundle = planner.propose(
-                request,
-                capabilities=_capabilities(checkpoint_path, official_contract),
-                evidence_history=[control_evidence, custom_evidence],
-            )
-            _persist_planner_bundle(root, "after_custom", planner, second_bundle)
-        except Exception as exc:
-            second_error = f"{type(exc).__name__}: {exc}"
+        active_stop_validated = False
+        if plan_state["assessment"]["evidence_sufficient"]:
+            try:
+                second_bundle = plan_session.propose_semantic_step(
+                    planner,
+                    plan_state,
+                    capabilities=capabilities,
+                )
+                _persist_planner_bundle(
+                    root, "after_custom", planner, second_bundle
+                )
+                bound_final = (
+                    plan_session.bind_evidence_conditioned_semantic_step(
+                        second_bundle,
+                        plan_state,
+                        capabilities=capabilities,
+                        executed_candidate_ids=[
+                            "official_control",
+                            custom_candidate.candidate_id,
+                        ],
+                    )
+                )
+                _write_json(
+                    root / "planner" / "after_custom" / "bound_step.json",
+                    bound_final,
+                )
+                active_stop_validated = (
+                    bound_final["plan_step"]["action"] == "stop"
+                )
+                if not active_stop_validated:
+                    raise RuntimeError(
+                        "QueryContract was sufficient but the Plan Agent did not stop"
+                    )
+            except Exception as exc:
+                second_error = f"{type(exc).__name__}: {exc}"
+                _write_json(
+                    root / "planner" / "after_custom" / "error.json",
+                    {"status": "failed", "error": second_error},
+                )
+        else:
             _write_json(
-                root / "planner" / "after_custom" / "error.json",
-                {"status": "failed", "error": second_error},
+                root / "planner" / "after_custom" / "contract_stop.json",
+                {
+                    "status": "stopped_by_query_contract",
+                    "assessment": plan_state["assessment"],
+                    "provider_called": False,
+                },
             )
 
         alternative_objects = sorted(
@@ -695,36 +850,7 @@ def run_libero_method_chain(
             for item in values
             if item not in {"basket_1", "alphabet_soup_1", taskgen_result["selected_object"]}
         )
-        if second_bundle is not None and second_bundle["proposal"]["action"] == "stop":
-            sufficiency = {
-                "evidence_sufficient": True,
-                "should_stop": True,
-                "stop_reason": "evidence_sufficient",
-                "claim_verdict": str(second_bundle["proposal"]["hypothesis"]),
-            }
-        else:
-            sufficiency = {
-                "evidence_sufficient": False,
-                "should_stop": True,
-                "stop_reason": "budget_exhausted",
-                "claim_verdict": (
-                    "The official control and one generated variation are "
-                    "insufficient to establish object-identity robustness."
-                ),
-            }
-        sufficiency.update(
-            {
-                "observed_candidate_ids": [
-                    "official_control",
-                    custom_candidate.candidate_id,
-                ],
-                "untested_candidate_ids": alternative_objects,
-                # A control/custom outcome difference is the tested effect, not
-                # an evidence-source conflict. Reserve this field for genuine
-                # Rule/VQA disagreement.
-                "conflict_candidate_ids": [],
-            }
-        )
+        sufficiency = dict(plan_state["assessment"])
         evidence_packet = {
             "schema_version": 1,
             "request": request,
@@ -746,12 +872,18 @@ def run_libero_method_chain(
             "rollout_budget": {"used": rollouts_executed, "maximum": 2},
             "tool_exact_reuse": reuse,
             "planner_after_custom_error": second_error,
+            "plan_agent_active_stop_validated": active_stop_validated,
+            "query_answer": plan_state["query_answer"],
+            "open_candidate_examples_not_executed": alternative_objects,
         }
         _write_json(root / "evidence_packet.json", evidence_packet)
         answer_scope = build_answer_scope(evidence_packet)
         _write_json(root / "answer_scope.json", answer_scope)
 
-        conclusion = sufficiency["claim_verdict"]
+        conclusion = str(
+            (plan_state["query_answer"] or {}).get("answer")
+            or sufficiency["rationale"]
+        )
         compatibility_probe_passed = all(
             bool(probe.get(key))
             for key in (
@@ -777,7 +909,13 @@ def run_libero_method_chain(
             compatibility_probe_passed=compatibility_probe_passed,
             aggregate_status=str(aggregate["status"]),
             exact_reuse=exact_reuse,
-            final_planner_bundle_present=second_bundle is not None,
+            validated_final_decision_present=bool(
+                sufficiency["should_stop"]
+                and (
+                    not sufficiency["evidence_sufficient"]
+                    or active_stop_validated
+                )
+            ),
             episode_protocol_matches=episode_protocol_matches,
         )
         compact = {
@@ -802,8 +940,11 @@ def run_libero_method_chain(
             "reuse_additional_rollouts": reuse["additional_rollouts"],
             "aggregate_status": aggregate["status"],
             "planner_final_action": (
-                second_bundle["proposal"]["action"] if second_bundle else None
+                second_bundle["proposal"]["action"]
+                if second_bundle
+                else "query_contract_stop"
             ),
+            "plan_agent_active_stop_validated": active_stop_validated,
             "planner_taskgen_alignment": bool(
                 taskgen_result["planner_taskgen_alignment"]
             ),
@@ -815,6 +956,8 @@ def run_libero_method_chain(
             "scientific_evidence_eligible": False,
             "paper_performance_evidence": False,
             "query_sufficiency": sufficiency,
+            "query_contract": plan_state["query_contract"],
+            "query_answer": plan_state["query_answer"],
             "answer_scope": answer_scope,
             "elapsed_seconds": round(time.monotonic() - started, 3),
             "raw_run_dir": str(root),
@@ -844,6 +987,16 @@ def run_libero_method_chain(
                 "reuse": str(root / "reuse_query" / "tool_reuse_result.json"),
                 "evidence_packet": str(root / "evidence_packet.json"),
                 "answer_scope": str(root / "answer_scope.json"),
+                "query_answer": str(root / "query_answer.json"),
+                "query_contract": str(
+                    root / "planner" / "query_contract.json"
+                ),
+                "planner_state_after_control": str(
+                    root / "planner" / "state_after_control.json"
+                ),
+                "planner_state_after_custom": str(
+                    root / "planner" / "state_after_custom.json"
+                ),
                 "runtime_task_binding": str(
                     root / "runtime" / "task_binding.json"
                 ),

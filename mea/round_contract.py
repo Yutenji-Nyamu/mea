@@ -4,13 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from mea.capability_adapter import (
-    CapabilityAdapterError,
-    build_contract_tool_request,
-    taskgen_route,
-    validate_capability_contract,
-    validate_contract_changes,
-)
 from mea.execution_vqa.query import is_run_local_phenomenon_id
 from mea.proposals import (
     ProposalError,
@@ -29,10 +22,18 @@ def validate_round_capability_contract(
     raw = round_plan.get("capability_contract")
     if raw is None:
         return None
+    from experiments.paper.compat_capability_adapter import taskgen_route
+    from mea.artifact_retrieval_index import (
+        ArtifactRetrievalIndexError,
+        build_contract_tool_request,
+        validate_capability_contract,
+        validate_contract_changes,
+    )
+
     try:
         contract = validate_capability_contract(raw)
         registered_tool = build_contract_tool_request(contract)
-    except (CapabilityAdapterError, ValueError) as exc:
+    except (ArtifactRetrievalIndexError, ValueError) as exc:
         raise ValueError(f"invalid round capability contract: {exc}") from exc
     taskgen = contract["taskgen"]
     task_proposal = round_plan.get("task_proposal")
@@ -52,7 +53,7 @@ def validate_round_capability_contract(
             proposal_changes = validate_contract_changes(
                 contract, task_proposal["changes"]
             )
-        except (ProposalError, CapabilityAdapterError) as exc:
+        except (ProposalError, ArtifactRetrievalIndexError) as exc:
             raise ValueError(f"invalid round proposal: {exc}") from exc
         if task_proposal["capability_id"] != taskgen["capability_id"]:
             raise ValueError("TaskProposal capability differs from capability envelope")

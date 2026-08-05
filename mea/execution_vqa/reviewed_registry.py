@@ -72,7 +72,6 @@ LOADED_ENTRY_KEYS = {
     "review_artifact",
 }
 
-
 class ReviewedVQAQuerySpecError(RuntimeError):
     """Raised when a reviewed VQAQuerySpec registry is not trustworthy."""
 

@@ -14,13 +14,6 @@ from copy import deepcopy
 from typing import Any, Mapping
 
 from mea.aspects import AspectError, canonicalize_aspect_id
-from mea.capability_adapter import (
-    CapabilityAdapterError,
-    registered_capability_contracts,
-    taskgen_route,
-    validate_capability_contract,
-    validate_contract_changes,
-)
 from mea.taskgen.capabilities import CapabilityError, get_capability
 
 
@@ -377,7 +370,7 @@ def tool_proposal_from_contract(
     """Lift the selected Rule/VQA assignment into one ToolProposal."""
 
     try:
-        from mea.capability_adapter import build_contract_tool_request
+        from mea.artifact_retrieval_index import build_contract_tool_request
 
         request = build_contract_tool_request(contract)
     except (RuntimeError, ValueError) as exc:
@@ -459,6 +452,14 @@ def materialize_round_proposals(
     new variation was already a registry template.
     """
 
+    from experiments.paper.compat_capability_adapter import taskgen_route
+    from mea.artifact_retrieval_index import (
+        ArtifactRetrievalIndexError,
+        registered_capability_contracts,
+        validate_capability_contract,
+        validate_contract_changes,
+    )
+
     result = deepcopy(dict(round_plan))
     task_name = _text(result.get("task_name"), "round.task_name")
     task = validate_task_proposal(task_proposal, expected_task_name=task_name)
@@ -506,7 +507,7 @@ def materialize_round_proposals(
     )
     try:
         task["changes"] = validate_contract_changes(contract, task["changes"])
-    except CapabilityAdapterError as exc:
+    except ArtifactRetrievalIndexError as exc:
         raise ProposalError(f"TaskProposal exceeds its capability envelope: {exc}") from exc
     if task_name == "click_bell" and task["capability_id"] == "object_position.fixed_xy":
         try:

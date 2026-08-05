@@ -21,7 +21,7 @@ from mea.proposals import (
     task_proposal_from_contract,
     tool_proposal_from_contract,
 )
-from scripts.manipeval_agent import (
+from experiments.paper.compat_bounded_proposals import (
     adjudicate_bounded_transition,
     apply_bounded_round_proposal,
 )

@@ -13,7 +13,7 @@ import math
 from copy import deepcopy
 from typing import Any, Mapping
 
-from mea.capability_adapter import registered_capability_contracts
+from mea.artifact_retrieval_index import registered_capability_contracts
 from mea.execution_vqa.query import (
     QUESTION_CATALOG,
     validate_run_local_question_spec,
