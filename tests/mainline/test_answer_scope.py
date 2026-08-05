@@ -7,6 +7,7 @@ from pathlib import Path
 from mea.feedback import (
     AnswerScopeError,
     PlanAgentFinalSummary,
+    build_scoped_plan_agent_answer,
     build_answer_scope,
     project_answer_scope,
     validate_answer_scope_projection,
@@ -287,6 +288,32 @@ class AnswerScopeTests(unittest.TestCase):
         self.assertIn(
             "termination_budget_exhausted", feedback["limitation_codes"]
         )
+        validate_answer_scope_projection(
+            feedback, build_answer_scope(evidence())
+        )
+
+    def test_session_query_answer_uses_the_same_scope_without_provider(self):
+        query_answer = {
+            "answer": (
+                "The bounded evidence does not yet satisfy the truth conditions "
+                "needed to answer the original Query."
+            ),
+            "claim_verdict": "inconclusive",
+            "tested_candidate_ids": ["position.left"],
+            "untested_candidate_ids": ["position.right"],
+            "limitations": ["This is a bounded Plan Agent session answer."],
+            "evaluation_outcomes": [{"authority": "official_check_success"}],
+        }
+
+        feedback = build_scoped_plan_agent_answer(evidence(), query_answer)
+
+        self.assertEqual(feedback["answer"], query_answer["answer"])
+        self.assertEqual(feedback["answer_scope"]["sample_count"], 1)
+        self.assertEqual(
+            feedback["answer_scope"]["termination"], "budget_exhausted"
+        )
+        self.assertEqual(feedback["provider_metadata"]["called"], False)
+        self.assertEqual(feedback["consistency_validation"]["attempts_used"], 0)
         validate_answer_scope_projection(
             feedback, build_answer_scope(evidence())
         )

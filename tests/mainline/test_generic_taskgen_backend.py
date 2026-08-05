@@ -590,7 +590,7 @@ def _adapter() -> GenericRoboTwinTaskAdapter:
 
 
 class GenericTaskGenBackendTests(unittest.TestCase):
-    def _cold_semantic_field_access_guide_exposes_exact_read_only_apis(
+    def test_semantic_field_access_guide_exposes_exact_read_only_apis(
         self,
     ) -> None:
         guide = _semantic_field_access_guide(
@@ -625,6 +625,7 @@ class GenericTaskGenBackendTests(unittest.TestCase):
         )
         self.assertIn("self.robot.get_left_tcp_pose()[:3]", guide)
         self.assertIn("Do not invent", guide)
+        self.assertIn("Semantic field names describe evidence", guide)
         self.assertIn(
             "get_contact_point",
             _GENERIC_READ_ONLY_METHOD_CALLS,
@@ -2290,9 +2291,6 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             )
             self.assertIn(
                 "emit a normalized quaternion as numeric literals", prompt
-            )
-            self.assertIn(
-                "Semantic field names describe evidence", prompt
             )
             self.assertIn("self.scene.get_contacts()", prompt)
             self.assertIn("self.robot.left_gripper", prompt)

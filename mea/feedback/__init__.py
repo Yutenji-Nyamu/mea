@@ -2,6 +2,7 @@
 
 from .prototype import (
     apply_deterministic_consistency_guard,
+    answer_markdown,
     PlanAgentFinalSummary,
     PlanAgentFinalSummaryError,
     FeedbackAgent,
@@ -9,6 +10,7 @@ from .prototype import (
     render_evaluation_report,
     validate_feedback,
 )
+from .session_answer import build_scoped_plan_agent_answer
 from .evidence_report import EvidenceReportError, write_evidence_report
 from .answer_scope import (
     AnswerScopeError,
@@ -20,6 +22,8 @@ from .answer_scope import (
 
 __all__ = [
     "apply_deterministic_consistency_guard",
+    "answer_markdown",
+    "build_scoped_plan_agent_answer",
     "PlanAgentFinalSummary",
     "PlanAgentFinalSummaryError",
     "FeedbackAgent",

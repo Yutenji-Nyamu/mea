@@ -434,7 +434,9 @@ class BalancedRecorderTests(unittest.TestCase):
                     action_type="joint",
                 )
                 self.task.target.step = step
-                success["value"] = step == 125
+                # Fire after the periodic-frame cap to prove event frames are
+                # retained independently of bounded temporal sampling.
+                success["value"] = step == 95
                 recorder.on_physics_step(self.task)
                 recorder.on_policy_action_end(
                     self.task,

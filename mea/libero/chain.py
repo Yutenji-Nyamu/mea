@@ -11,7 +11,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from mea.feedback.answer_scope import build_answer_scope
+from mea.feedback import answer_markdown, build_scoped_plan_agent_answer
 from mea.method_runtime import (
     CandidateRequest,
     EvidenceRequest,
@@ -877,13 +877,18 @@ def run_libero_method_chain(
             "open_candidate_examples_not_executed": alternative_objects,
         }
         _write_json(root / "evidence_packet.json", evidence_packet)
-        answer_scope = build_answer_scope(evidence_packet)
-        _write_json(root / "answer_scope.json", answer_scope)
-
-        conclusion = str(
-            (plan_state["query_answer"] or {}).get("answer")
-            or sufficiency["rationale"]
+        final_answer = build_scoped_plan_agent_answer(
+            evidence_packet,
+            plan_state["query_answer"],
         )
+        answer_scope = final_answer["answer_scope"]
+        _write_json(root / "answer_scope.json", answer_scope)
+        _write_json(root / "answer" / "answer.json", final_answer)
+        (root / "answer" / "answer.md").write_text(
+            answer_markdown(final_answer),
+            encoding="utf-8",
+        )
+        conclusion = final_answer["answer"]
         compatibility_probe_passed = all(
             bool(probe.get(key))
             for key in (
@@ -958,6 +963,7 @@ def run_libero_method_chain(
             "query_sufficiency": sufficiency,
             "query_contract": plan_state["query_contract"],
             "query_answer": plan_state["query_answer"],
+            "answer": final_answer,
             "answer_scope": answer_scope,
             "elapsed_seconds": round(time.monotonic() - started, 3),
             "raw_run_dir": str(root),
@@ -987,6 +993,7 @@ def run_libero_method_chain(
                 "reuse": str(root / "reuse_query" / "tool_reuse_result.json"),
                 "evidence_packet": str(root / "evidence_packet.json"),
                 "answer_scope": str(root / "answer_scope.json"),
+                "answer": str(root / "answer" / "answer.json"),
                 "query_answer": str(root / "query_answer.json"),
                 "query_contract": str(
                     root / "planner" / "query_contract.json"
