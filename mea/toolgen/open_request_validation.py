@@ -9,7 +9,6 @@ from .metric_spec import MetricSpecError, metric_spec_tool_spec
 from .open_request_contract import OpenToolRequestError, _text
 from .router import ToolRouterError, route_tool_request, validate_tool_request
 
-
 def validate_open_tool_request(
     value: Mapping[str, Any],
     *,
@@ -128,8 +127,8 @@ def validate_open_tool_request(
                     "active-arm",
                     "active gripper",
                     "active tcp",
-                    "涓诲姩鑷?,
-                    "娲诲姩鑷?,
+                    "主动臂",
+                    "活动臂",
                 )
             )
             sided_signals = {
@@ -222,15 +221,15 @@ def _validate_terminal_signal_alignment(
             "terminal",
             "end-of-rollout",
             "end of rollout",
-            "鏈€缁?,
-            "缁堢",
-            "缁撴潫鏃?,
+            "最终",
+            "终端",
+            "结束时",
         )
     )
     component_cues = {
-        "x": (" x ", "x-axis", "x axis", "x-coordinate", "x coordinate", "x鍒嗛噺", "x杞?),
-        "y": (" y ", "y-axis", "y axis", "y-coordinate", "y coordinate", "y鍒嗛噺", "y杞?),
-        "z": (" z ", "z-axis", "z axis", "z-coordinate", "z coordinate", "height", "楂樺害", "z鍒嗛噺", "z杞?),
+        "x": (" x ", "x-axis", "x axis", "x-coordinate", "x coordinate", "x分量", "x轴"),
+        "y": (" y ", "y-axis", "y axis", "y-coordinate", "y coordinate", "y分量", "y轴"),
+        "z": (" z ", "z-axis", "z axis", "z-coordinate", "z coordinate", "height", "高度", "z分量", "z轴"),
     }
     padded_need = f" {need} "
     requested_components = {
@@ -355,10 +354,10 @@ def _validate_terminal_signal_alignment(
             f"absolute-{requested_component}",
             f"{requested_component} magnitude",
             f"{requested_component}-magnitude",
-            f"{requested_component} 缁濆",
-            f"{requested_component}缁濆",
-            f"缁濆 {requested_component}",
-            f"缁濆{requested_component}",
+            f"{requested_component} 绝对",
+            f"{requested_component}绝对",
+            f"绝对 {requested_component}",
+            f"绝对{requested_component}",
         )
     )
     if absolute_requested and metric_spec.get("absolute") is not True:

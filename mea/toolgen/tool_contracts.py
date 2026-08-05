@@ -18,7 +18,7 @@ class ToolOrchestrationError(RuntimeError):
 
 
 CONTACT_METRIC = "hammer_block_contact_ever"
-CONTACT_QUESTION = "钃濊壊鏂瑰潡鍦烘櫙涓紝閿ゅ瓙鏄惁涓庢柟鍧楀彂鐢熻繃涓ユ牸鐗╃悊鎺ヨЕ锛?
+CONTACT_QUESTION = "蓝色方块场景中，锤子是否与方块发生过严格物理接触？"
 CONTACT_REQUIRED_SIGNALS = [
     "hammer_block_contact_intervals",
     "physics_step_index",
@@ -42,8 +42,8 @@ CONTACT_VALIDATION_REQUIREMENTS = {
     },
 }
 PICKUP_TO_CONTACT_QUESTION = (
-    "钃濊壊鏂瑰潡鍦烘櫙涓紝浠庨敜瀛愰娆℃姮鍗囪揪鍒?pickup 闃堝€煎埌棣栨涓ユ牸鐗╃悊鎺ヨЕ鏂瑰潡锛?
-    "缁忚繃澶氬皯绉掞紵"
+    "蓝色方块场景中，从锤子首次抬升达到 pickup 阈值到首次严格物理接触方块，"
+    "经过多少秒？"
 )
 PICKUP_TO_CONTACT_REQUIRED_SIGNALS = [
     "semantic_trace.hammer_position",
@@ -215,7 +215,7 @@ def pickup_to_contact_tool_spec(route: str = "force_codegen") -> dict[str, Any]:
 
     if route != "force_codegen":
         raise ToolOrchestrationError(
-            "pickup_to_first_contact_time 灏氭湭杩涘叆 Trusted catalog锛屽彧鍏佽 force_codegen"
+            "pickup_to_first_contact_time 尚未进入 Trusted catalog，只允许 force_codegen"
         )
     return {
         "schema_version": 1,
@@ -307,25 +307,25 @@ def validate_tool_spec(
     """Validate the intentionally narrow ToolSpec emitted by the Plan Agent."""
 
     if not isinstance(value, dict):
-        raise ToolOrchestrationError("ToolSpec 蹇呴』鏄?JSON object")
+        raise ToolOrchestrationError("ToolSpec 必须是 JSON object")
     keys = set(value)
     if keys != TOOL_SPEC_KEYS:
         missing = sorted(TOOL_SPEC_KEYS - keys)
         extra = sorted(keys - TOOL_SPEC_KEYS)
         raise ToolOrchestrationError(
-            f"ToolSpec fields 涓嶅尮閰嶏紝missing={missing}, extra={extra}"
+            f"ToolSpec fields 不匹配，missing={missing}, extra={extra}"
         )
     route = value.get("route")
     if route not in {"reuse", "force_codegen"}:
-        raise ToolOrchestrationError("ToolSpec.route 鍙厑璁?reuse 鎴?force_codegen")
+        raise ToolOrchestrationError("ToolSpec.route 只允许 reuse 或 force_codegen")
     if expected_route is not None and route != expected_route:
         raise ToolOrchestrationError(
-            f"ToolSpec.route 蹇呴』鏄湰杞害瀹氱殑 {expected_route}"
+            f"ToolSpec.route 必须是本轮约定的 {expected_route}"
         )
     metric = value.get("metric")
     if expected_metric is not None and metric != expected_metric:
         raise ToolOrchestrationError(
-            f"ToolSpec.metric 蹇呴』鏄湰杞害瀹氱殑 {expected_metric}"
+            f"ToolSpec.metric 必须是本轮约定的 {expected_metric}"
         )
     if metric == CONTACT_METRIC:
         expected = contact_tool_spec(route)
@@ -357,7 +357,7 @@ def validate_tool_spec(
             metric, question.strip(), task_name.strip()
         )
     else:
-        raise ToolOrchestrationError(f"褰撳墠鏈敞鍐?ToolSpec metric: {metric}")
+        raise ToolOrchestrationError(f"当前未注册 ToolSpec metric: {metric}")
     question = value.get("question")
     if not isinstance(question, str) or not question.strip():
         raise ToolOrchestrationError("ToolSpec.question must be non-empty")
@@ -365,6 +365,6 @@ def validate_tool_spec(
     for field in TOOL_SPEC_KEYS - {"route", "question"}:
         if value.get(field) != expected[field]:
             raise ToolOrchestrationError(
-                f"ToolSpec.{field} 蹇呴』绛変簬宸查獙璇佺殑 {metric} contract"
+                f"ToolSpec.{field} 必须等于已验证的 {metric} contract"
             )
     return expected
