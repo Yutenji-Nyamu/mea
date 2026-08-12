@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from mea.toolkit.schema import load_task_schema, validate_task_schema
+from mea.task_guide import load_task_guide
 
 from .artifact_context import build_tool_artifact_context, validate_tool_artifact_context
 from .open_request_contract import _text
@@ -124,6 +125,7 @@ def tool_generation_context(
     return {
         "schema_version": 1,
         "task_name": task,
+        "task_implementation_guide": load_task_guide(root, task) or None,
         "telemetry_schema": {
             "tracked_actors": [
                 {

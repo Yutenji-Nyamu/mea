@@ -8,6 +8,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping
 
+from mea.task_guide import load_task_guide
 from mea.toolkit.tools import TrajectoryView
 
 from .metric_evaluation import _event_fields
@@ -292,6 +293,7 @@ def build_task_code_context(
     child_run_dir: str | Path,
     *,
     task_proposal: Mapping[str, Any] | None = None,
+    repo_root: str | Path | None = None,
 ) -> dict[str, Any]:
     """Build the compact TaskGen-code context consumed by typed ToolGen."""
 
@@ -307,9 +309,16 @@ def build_task_code_context(
         if bundle_path.is_file()
         else None
     )
+    task_name = manifest.get("task_name")
+    guide = (
+        load_task_guide(repo_root, task_name)
+        if repo_root is not None and isinstance(task_name, str)
+        else ""
+    )
     return {
         "schema_version": 1,
-        "task_name": manifest.get("task_name"),
+        "task_name": task_name,
+        "task_implementation_guide": guide or None,
         "task_module": manifest.get("task_module"),
         "generation_kind": manifest.get("generation_kind"),
         "task_proposal": deepcopy(dict(task_proposal)) if task_proposal else None,
@@ -335,6 +344,7 @@ def _provider_codegen_prompt(
     trajectory: TrajectoryView,
     task_code_context: Mapping[str, Any] | None,
     previous_error: str | None,
+    previous_source: str | None = None,
 ) -> str:
     """Build the compact prompt for a real Python ToolGen attempt."""
 
@@ -371,10 +381,32 @@ def _provider_codegen_prompt(
         }
         for key, value in sorted(trajectory.trace.items())
     }
+    task_guide = (
+        str(task_code_context.get("task_implementation_guide") or "").strip()
+        if isinstance(task_code_context, Mapping)
+        else ""
+    )
+    compact_task_context = (
+        {
+            key: value
+            for key, value in task_code_context.items()
+            if key != "task_implementation_guide"
+        }
+        if isinstance(task_code_context, Mapping)
+        else task_code_context
+    )
     repair = (
         "\nPREVIOUS VALIDATION FAILURE:\n"
         + previous_error
-        + "\nRepair only the reported failure and return the complete function.\n"
+        + (
+            "\nFAILURE STAGE: generated Tool validation/oracle execution.\n"
+            "PREVIOUS FUNCTION:\n```python\n"
+            + previous_source.strip()
+            + "\n```\n"
+            if previous_source
+            else "\n"
+        )
+        + "Repair only the reported failure and return the complete function.\n"
         if previous_error
         else ""
     )
@@ -407,7 +439,10 @@ REAL TELEMETRY SURFACE:
 {json.dumps(telemetry, ensure_ascii=False, indent=2)}
 
 TASKGEN CONTEXT:
-{json.dumps(task_code_context, ensure_ascii=False, indent=2)}
+{json.dumps(compact_task_context, ensure_ascii=False, indent=2)}
+
+BOUND TASK IMPLEMENTATION GUIDE:
+{task_guide or "No task-local implementation guide is available."}
 
 TOOL CONTRACT:
 {contract}

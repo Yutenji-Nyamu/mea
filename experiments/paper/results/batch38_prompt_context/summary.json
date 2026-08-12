@@ -1,0 +1,111 @@
+{
+  "schema_version": "batch38_prompt_context_summary_v1",
+  "classification": "development_regression_not_current_flagship",
+  "current_flagship_unchanged": "eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7",
+  "server": {
+    "endpoint_label": "seetacloud_bjb2",
+    "repo_root": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime",
+    "base_commit": "1a0841eb0b380f89c81027cbdc30a3ba9e53540a",
+    "execution_location": "AutoDL server"
+  },
+  "method_changes": [
+    "task_guide_shared_by_plan_taskgen_and_toolgen",
+    "previous_output_and_exact_failure_in_local_repair_prompts",
+    "short_agent_rules_and_task_local_guide_without_failure_index",
+    "vqa_unknown_or_conflict_maps_to_abstained",
+    "compact_answer_evidence_projection_added_after_v5",
+    "flagship_acceptance_and_default_receipt_disconnected_from_production_finalize"
+  ],
+  "live_protocol": {
+    "task": "grab_roller",
+    "policy_backend": "smolvla",
+    "scene_seed": 1000,
+    "episodes_per_round": 1,
+    "max_agent_rounds": 4,
+    "history_enabled": false
+  },
+  "live_runs": [
+    {
+      "version": "v1",
+      "policy_episodes": 0,
+      "outcome": "system_error",
+      "fact": "Plan Agent repo_root NameError"
+    },
+    {
+      "version": "v2",
+      "policy_episodes": 1,
+      "outcome": "completed_inconclusive",
+      "fact": "official control policy negative"
+    },
+    {
+      "version": "v3",
+      "policy_episodes": 2,
+      "outcome": "terminal_materialization_error",
+      "live_tool_value_m": 0.0606393,
+      "fact": "control and lateral scene succeeded; target_pose=None was terminal"
+    },
+    {
+      "version": "v4",
+      "policy_episodes": 2,
+      "outcome": "completed_inconclusive_hard_cap",
+      "live_tool_value_m": 0.0248231,
+      "fact": "candidate-unexecutable evidence returned to Plan; later y scene succeeded"
+    },
+    {
+      "version": "v5",
+      "evaluation_id": "eval_20260812_batch38_grab_roller_prompt_vertical_s1000_v5",
+      "policy_episodes": 2,
+      "executed_rounds": 4,
+      "outcome": "completed_inconclusive_hard_cap",
+      "live_tool_value_m": 0.0606393,
+      "answer_prompt_tokens": 56150,
+      "evidence_conditioned_transitions": [
+        "lateral",
+        "orientation",
+        "longitudinal"
+      ],
+      "fact": "last two candidates were expert-gate unexecutable and consumed zero rollout"
+    }
+  ],
+  "policy_episode_total": 7,
+  "confirmed_server_checks": [
+    "38 passed, 5 subtests passed",
+    "48 passed",
+    "63 passed, 6 subtests passed",
+    "60 passed, 5 subtests passed",
+    "121 passed, 5 subtests passed",
+    "313 passed, 22 subtests passed"
+  ],
+  "final_precommit_validation": {
+    "status": "passed",
+    "execution_location": "AutoDL server",
+    "targeted": "159 passed, 21 subtests passed",
+    "default_mainline": "272 passed, 12 subtests passed",
+    "windows_source_check": "git diff --check passed; no project tests run"
+  },
+  "answer_evidence_projection": {
+    "source": "v5 frozen evidence",
+    "raw_evidence_bytes": 248226,
+    "projection_bytes": 18601,
+    "answer_scope_bytes": 3586,
+    "combined_bytes": 22187,
+    "applied_to_v5_live_answer": false
+  },
+  "claim_boundary": {
+    "proves": [
+      "failure_context_can_change_the_next_proposal",
+      "candidate_unexecutable_can_be_returned_as_typed_zero_rollout_evidence",
+      "a_generated_rule_tool_can_produce_a_finite_live_value"
+    ],
+    "does_not_prove": [
+      "agent_initiated_evidence_sufficient_stop",
+      "grab_roller_generalization",
+      "paper_level_sample_efficiency_or_policy_ranking"
+    ]
+  },
+  "artifact_locations": {
+    "server_run_root": "/root/autodl-tmp/mea-run-logs/batch38_grab_roller_prompt_vertical_v5",
+    "server_stage_logs": "/root/autodl-tmp/mea-run-logs/batch38_prompt_context",
+    "xvla_ledger": "experiments/paper/robotwin_xvla/deployment_ledger.md"
+  }
+}

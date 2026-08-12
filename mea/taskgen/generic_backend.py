@@ -106,7 +106,6 @@ def _discover_task_documents(
     repo_root: Path, *, task_name: str
 ) -> tuple[str, ...]:
     candidates = (
-        f"description/task_instruction/{task_name}.json",
         f"mea/knowledge/tasks/{task_name}.md",
         f"envs/{task_name}/README.Agent.md",
         f"envs/{task_name}.README.Agent.md",

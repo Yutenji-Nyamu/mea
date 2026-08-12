@@ -12,7 +12,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping
 
-from mea.agent_acceptance import _episode_tool_results
+from mea.tool_results import episode_tool_results
 from mea.planner.experiment_candidate import validate_experiment_candidate
 from mea.toolgen import (
     OpenToolRequestAgent,
@@ -324,7 +324,7 @@ def reuse_bound_child_checker_tool(
     for episode in episodes:
         if not isinstance(episode, Mapping):
             raise RuntimeError("provider checker Tool episode must be an object")
-        results = _episode_tool_results(episode)
+        results = episode_tool_results(episode)
         if len(results) != 1:
             raise RuntimeError(
                 "provider checker Tool episode must contain exactly one result"

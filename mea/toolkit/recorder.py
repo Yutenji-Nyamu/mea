@@ -12,11 +12,6 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping
 
-from mea.execution_receipt import (
-    validate_execution_invocation,
-    validate_imported_task_binding,
-)
-
 from .profiles import load_telemetry_profile, telemetry_profile_sha256
 from .recorder_artifacts import RecorderArtifactMixin
 from .recorder_contracts import (
@@ -72,8 +67,13 @@ class EpisodeRecorder(
         self.task_module = task_module
         self.task_config = task_config
         self.checkpoint_setting = checkpoint_setting
-        self.execution_receipt = (
-            validate_execution_invocation(
+        if execution_receipt is not None:
+            # Frozen paper protocols may still supply an execution receipt.
+            # Import its heavy hash/checkpoint validator only for that explicit
+            # compatibility path; native production rollouts pass ``None``.
+            from mea.execution_receipt import validate_execution_invocation
+
+            self.execution_receipt = validate_execution_invocation(
                 execution_receipt,
                 task_name=task_name,
                 task_module=task_module,
@@ -90,9 +90,8 @@ class EpisodeRecorder(
                 ),
                 verify_checkpoint_files=True,
             )
-            if execution_receipt is not None
-            else None
-        )
+        else:
+            self.execution_receipt = None
         self.executed_binding: dict[str, Any] | None = None
         self.telemetry_profile = load_telemetry_profile(telemetry_profile_id)
         self.telemetry_profile_id = telemetry_profile_id
@@ -177,6 +176,8 @@ class EpisodeRecorder(
             encoding="utf-8",
         )
         if self.execution_receipt is not None:
+            from mea.execution_receipt import validate_imported_task_binding
+
             self.executed_binding = validate_imported_task_binding(
                 self.execution_receipt,
                 task,

@@ -245,6 +245,7 @@ class AdaptiveEvidencePolicyTests(unittest.TestCase):
         plan = current_plan([planned])
         for status, expected_reason in (
             (None, "execution_vqa_missing"),
+            ("abstained", "execution_vqa_abstained"),
             ("failed", "execution_vqa_failed"),
             ("skipped", "execution_vqa_skipped"),
         ):

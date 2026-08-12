@@ -245,7 +245,7 @@ def _rebuild_application(
         user_request=user_request,
         plan=normalized_plan,
         session=session,
-        agent=PlanAgent(provider, model=planner_model),
+        agent=PlanAgent(provider, model=planner_model, repo_root=root),
         capabilities=capabilities,
         provider=provider,
         round_executor=round_executor,

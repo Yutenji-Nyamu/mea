@@ -238,6 +238,8 @@ class OpenToolRequestTest(unittest.TestCase):
             "null_semantics must be exactly null_if_no_finite_sample",
             provider.prompts[1],
         )
+        self.assertIn("PREVIOUS COMPLETE TOOL REQUEST JSON", provider.prompts[1])
+        self.assertIn('"description": "' + ("x" * 241), provider.prompts[1])
 
     def test_derived_observable_identity_matches_the_tool_metric(self):
         request = _derived()

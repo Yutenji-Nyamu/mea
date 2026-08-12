@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 from typing import Any, Mapping
 
-from mea.agent_acceptance import _episode_tool_results
+from mea.tool_results import episode_tool_results
 
 
 def round_execution_backend(round_plan: dict[str, Any]) -> str:
@@ -34,7 +34,7 @@ def compact_trusted_tools(
     evaluation = child_manifest.get("trusted_tool_evaluation") or {}
     episodes = []
     for episode in evaluation.get("episodes", []):
-        raw_results = _episode_tool_results(episode)
+        raw_results = episode_tool_results(episode)
         episodes.append(
             {
                 "episode_dir": episode.get("episode_dir"),

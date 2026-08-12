@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
+from mea.tool_results import episode_tool_results as _episode_tool_results
+
 
 _RUNTIME_DISCOVERY_RESOLUTIONS = frozenset(
     {
@@ -12,16 +14,6 @@ _RUNTIME_DISCOVERY_RESOLUTIONS = frozenset(
         "generation_required_no_registered_candidate",
     }
 )
-
-
-def _episode_tool_results(episode: Mapping[str, Any]) -> list[dict[str, Any]]:
-    """Normalize legacy and current episode Tool-result envelopes."""
-
-    raw_results = episode.get("tool_results")
-    if not isinstance(raw_results, list):
-        direct_result = episode.get("result")
-        raw_results = [direct_result] if isinstance(direct_result, dict) else []
-    return [result for result in raw_results if isinstance(result, dict)]
 
 
 def _valid_query_interpretation_provider_trace(

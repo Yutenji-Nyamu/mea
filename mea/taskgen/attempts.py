@@ -27,7 +27,7 @@ class TaskGenerationRecoveryError(RuntimeError):
 
 
 class CandidateUnexecutableError(TaskGenerationRecoveryError):
-    """A generated candidate remained infeasible after local TaskGen repair.
+    """A candidate cannot be evaluated under the validated simulator context.
 
     This is a pre-policy method observation.  Callers may return it to the
     Plan Agent as evidence for choosing a different Proposal, but must not

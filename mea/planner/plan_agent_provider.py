@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
+from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from mea.planner.open_task_resolver import (
@@ -20,6 +21,7 @@ from mea.planner.semantic_coverage import (
     validate_evaluation_intent,
 )
 from mea.providers.json_response import extract_json_response
+from mea.task_guide import task_guide_from_capabilities
 
 from .plan_agent_schema import (
     ClaimFirstPlanError,
@@ -34,12 +36,29 @@ from .plan_agent_schema import (
 class PlanAgent:
     """Ask a provider to discover the next sub-aspect from evidence."""
 
-    def __init__(self, provider: Any, *, model: str):
+    def __init__(
+        self,
+        provider: Any,
+        *,
+        model: str,
+        repo_root: str | Path | None = None,
+    ):
         self.provider = provider
         self.model = _text(model, "model")
+        self.repo_root = (
+            Path(repo_root).expanduser().resolve()
+            if repo_root is not None
+            else Path(__file__).resolve().parents[2]
+        )
         self.last_prompt: str | None = None
         self.last_responses: list[str] = []
         self.last_errors: list[str] = []
+
+    @staticmethod
+    def _shared_contract() -> str:
+        return Path(__file__).with_name("README.Agent.md").read_text(
+            encoding="utf-8"
+        ).strip()
 
     @staticmethod
     def _prompt(
@@ -47,6 +66,7 @@ class PlanAgent:
         capabilities: Mapping[str, Any],
         evidence_history: Sequence[Mapping[str, Any]],
         evaluation_intent: Mapping[str, Any] | None = None,
+        task_guide: str = "",
     ) -> str:
         checker_required = query_requires_experimental_checker(user_query)
         example = {
@@ -107,126 +127,55 @@ requested change, preserved conditions, hypothesis, and required observation.
                 "experimental success predicate."
             )
         )
+        guide_section = (
+            "\nBOUND TASK IMPLEMENTATION GUIDE "
+            "(source-backed execution knowledge, not a concern menu):\n"
+            + task_guide.strip()
+            + "\n"
+            if task_guide.strip()
+            else ""
+        )
+        last_feedback = ""
+        if evidence_history:
+            latest = evidence_history[-1]
+            last_feedback = (
+                "\nLAST ROUND FEEDBACK (read before proposing; do not repeat "
+                "the same failed or saturated test without new observability):\n"
+                + json.dumps(
+                    {
+                        key: latest.get(key)
+                        for key in (
+                            "round_id",
+                            "tested_sub_aspect",
+                            "tested_hypothesis",
+                            "tested_perturbation",
+                            "outcome",
+                            "evidence_summary",
+                            "limitations",
+                        )
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                + "\n"
+            )
+        shared_contract = PlanAgent._shared_contract()
         return f"""You are the Plan Agent in ManipEvalAgent.
-Discover a small set of evaluation sub-aspects online.  There is no predeclared
-candidate/template-ID itinerary, success-then-switch script, or fallback route.
-The capability card exposes only backend primitives such as scene/checker
-generation, telemetry, Rule/VQA Tools, and artifact retrieval.  It is an
-execution boundary, not an operation menu or prescribed test order.  Choose
-only the single most informative next experiment for the original Query, using
-the policy/simulator capabilities and completed evidence below.
+PLAN AGENT CONTRACT:
+{shared_contract}
+
+Apply the contract above to choose exactly one next action. The capability card
+is an execution boundary, not an experiment menu. For action=continue, fill one
+falsifiable sub-aspect and only the independent Task/Tool needs required for
+that experiment; keep both reuse_first fields true. State one concrete bounded
+delta and preserve only conditions backed by an advertised authority. For
+action=stop, clear the perturbation and all artifact needs and state the
+evidence-supported answer or explicit inconclusive limitation. When completed
+evidence is non-empty, rationale must name the outcome, Tool value, abstention,
+or failure that changed this decision.
 
 {checker_contract}
-
-For action=continue, invent a precise semantic sub_aspect identifier and one
-falsifiable hypothesis.  Request a bounded perturbation supported by the
-capability cards.  Independently state whether the scene, success checker,
-Rule Tool, and VQA Tool must be retrieved, created, or altered.  Do not request
-a scene or checker merely because a Tool is needed, and do not couple scene
-and checker needs.  A new Tool need may be named even when it is not in an
-existing metric/question list.  Avoid repeating a tested perturbation unless
-ambiguous evidence requires a more observable version.
-Each Rule/VQA need must name one primary scalar or boolean observation for this
-round.  Leave independent measurements for a later evidence-conditioned round
-instead of bundling them into one Tool request.
-For both rule_tool_need and vqa_tool_need, reuse_first MUST always be true,
-including when required=false: retrieve-first is the ToolGen method contract,
-not a choice to bypass reuse.
-State the intentional delta in requested_perturbation.description and
-controlled_changes with an explicit operation and concrete value or direction;
-put unchanged conditions only in preserve.  When scene_need.required is true,
-repeat that same explicit delta in scene_need.description.  Preserve only the
-isolation-critical factors supported by a current preservation authority.
-Fields merely listed as observable in the simulator card are measurement
-capabilities, not preservation authorities.  Use "task identity" and "policy
-checkpoint" as the default preserve set; add another condition only when the
-current input identifies an authority that can compare it.  Do not add actor
-identity, physics timestep, or object-to-target binding merely because those
-fields appear in simulator metadata.  When an additional experimental checker
-must retain the official goal, add exactly "official core predicate as a
-required conjunct" to preserve.  Do not call the extended checker "official
-success semantics" or claim full equivalence.
-Request a generated checker only when every added relation is directly
-observable from the advertised current-state simulator API.  Gripper closure
-is not target contact, sequential events are not simultaneous events, and
-height is not placement.  A declared actor contact point is a geometric
-reference, not a PhysX contact-event identity: do not request that "point i is
-physically contacted" unless the runtime explicitly binds collision contacts
-to that point ID.  Prefer a directly observable point/TCP distance condition
-or an entity-pair contact condition with exactly the semantics the API
-supports.  If the exact relation is unavailable, choose a
-scene-only experiment with a Rule/VQA observation, or another informative
-sub-aspect, instead of asking TaskGen to implement a correlated proxy.
-The generated checker is an experimental success criterion, not a way to
-encode the predicted policy failure.  It must remain satisfiable by the expert
-on the proposed scene.  In particular, do not request an added relation that
-the controlled scene change itself makes deterministically false for both the
-expert and the policy; any weakness must be established by rollout evidence.
-If the original Query explicitly requires an experimental checker for every
-generated round, scene-only is not a valid fallback: choose another directly
-observable relation or stop with the unsupported limitation stated plainly.
-TaskGen may retrieve or generate scene and checker code; ToolGen may retrieve
-or generate Rule/VQA Tools.  These artifact primitives do not authorize policy
-or controller intervention: do not reduce gripper precision, inject action
-noise or latency, or change policy weights.  After successful evidence, refine
-to another executable scene/checker/tool concern instead of relabelling a scene
-change as an unavailable policy intervention.
 {EXPERIMENTAL_SUCCESS_CHECKER_GUIDANCE}
-
-Use success to probe the most consequential remaining uncertainty; use failure
-to discriminate a causal failure hypothesis; use ambiguous evidence to improve
-observability or isolate the confound.  When completed evidence is non-empty,
-the rationale must cite a concrete observed outcome or limitation and explain
-why it changed the priority of this sub-aspect.  Do not present a candidate
-that was already frozen before seeing that evidence as evidence-conditioned
-refinement.  If completed evidence contains a finite scalar, bracket the next
-intervention or falsifiable threshold around that observed scale.  Never put a
-numeric boundary into a generated success checker unless that exact boundary
-comes from the original Query or from completed finite scalar/state evidence.
-A successful control alone is not numeric calibration.  After a checker
-fixture fails, use its expert-terminal actor/TCP coordinates to derive or
-bracket a new observable boundary; do not repeat the same arbitrary threshold
-with only an actor or robot-side relabel.  When no grounded boundary exists,
-choose an exact discrete relation supported by the current-state API, request
-scene-only diagnostic evidence, or report the need unsupported.  For a broad
-robustness Query, for example, a successful control
-can justify selecting the highest-risk supported perturbation, while a failed
-control should redirect to baseline reliability or failure diagnosis.
-For a pre-policy TaskGen failure, inspect `bounded_repair_evidence` as well as
-the terminal diagnosis.  If an earlier expert fixture gives concrete terminal
-state showing that the requested boolean relation is false, do not repeat that
-same relation merely because the local repair later violated the Proposal.
-Use the simulator state to correct the Proposal itself or switch concern.
-Failure example from prior runs: after a successful generated test whose live
-scalar shows a comfortable margin, merely increasing the same scene factor is
-not a new sub-aspect unless that value brackets a clear boundary.  When the
-scalar instead weakens the current hypothesis, switch to the most informative
-orthogonal concern that the capability card can execute.  State explicitly
-which observed Tool value or outcome caused the switch.  Conversely, do not
-manufacture another concern
-after the completed evidence already satisfies the Query contract: propose
-action=stop so the contract can validate the answer.
-
-Interpret completed evidence by its declared role.  The top-level `outcome`
-is the authoritative verdict for the tested hypothesis.  A
-`diagnostic_tool_measurements` value is supporting diagnosis only and never
-rewrites that verdict.  Preserve the Tool's temporal semantics exactly:
-`peak`/`maximum over the rollout` is not a terminal/current-state value.
-Failure example: if `outcome="success"` for a terminal checker while a
-trajectory-peak distance is large, do not call that a terminal failure or a
-failing existential witness.  The correct next step may diagnose the large
-transient or choose a stronger scene challenge, but it must retain the
-successful terminal-checker result.
-
-Stop when the completed evidence answers the original Query.  You may also
-stop when the candidate universe remains open but the advertised runtime
-capabilities contain no further distinct informative executable concern.  In
-that case state explicitly that the result is inconclusive and that untested
-concerns may remain; information saturation is not evidence sufficiency.  For
-action=stop set sub_aspect and
-requested_perturbation to null, all four needs to
-required=false/description=null, and express the evidence-supported conclusion
-in hypothesis.
 
 ORIGINAL QUERY:
 {user_query}
@@ -234,9 +183,11 @@ ORIGINAL QUERY:
 
 POLICY AND SIMULATOR CAPABILITIES:
 {json.dumps(capabilities, ensure_ascii=False, indent=2)}
+{guide_section}
 
 COMPLETED ROUND EVIDENCE (chronological; empty means first proposal):
 {json.dumps(evidence_history, ensure_ascii=False, indent=2)}
+{last_feedback}
 
 Return strict JSON with exactly these fields:
 {json.dumps(example, ensure_ascii=False, indent=2)}
@@ -258,11 +209,16 @@ Return strict JSON with exactly these fields:
             if evaluation_intent is not None
             else None
         )
+        task_guide = task_guide_from_capabilities(
+            self.repo_root,
+            trusted_capabilities,
+        )
         prompt = self._prompt(
             query,
             trusted_capabilities,
             trusted_evidence,
             trusted_intent,
+            task_guide,
         )
         self.last_prompt = prompt
         self.last_responses = []
@@ -275,7 +231,15 @@ Return strict JSON with exactly these fields:
                 attempt_prompt += (
                     "\nPREVIOUS VALIDATION ERROR:\n"
                     + self.last_errors[-1]
-                    + "\nReturn one complete corrected JSON object.\n"
+                    + (
+                        "\nPREVIOUS COMPLETE PROPOSAL JSON:\n"
+                        + self.last_responses[-1]
+                        if self.last_responses
+                        else ""
+                    )
+                    + "\nCorrect the field named by the error and return one "
+                    "complete JSON object. Preserve valid fields unless the "
+                    "error requires changing them.\n"
                 )
             try:
                 response = self.provider.text(

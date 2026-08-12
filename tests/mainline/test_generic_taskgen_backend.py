@@ -271,7 +271,7 @@ class ProviderSceneCheckerRepairTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             with self.assertRaisesRegex(
-                GenericTaskGenError, "recovery failed after 1 attempt"
+                CandidateUnexecutableError, "recovery failed after 1 attempt"
             ) as caught:
                 run_provider_codegen(
                     attempt_root=Path(temp_dir) / "attempts",
@@ -1478,7 +1478,7 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                 adapter.official_source,
                 f"envs/{task_name}.py",
             )
-            self.assertIn(
+            self.assertNotIn(
                 f"description/task_instruction/{task_name}.json",
                 adapter.documentation_paths,
             )
@@ -1616,7 +1616,16 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                     adapter.task_schema["task_name"],
                     task_name,
                 )
-                self.assertTrue(adapter.documentation_paths)
+                # Language-only task_instruction JSON is not implementation
+                # authority. A short task guide is optional and is added only
+                # after a source-backed Agent/runtime failure.
+                if task_name == "grab_roller":
+                    self.assertIn(
+                        "mea/knowledge/tasks/grab_roller.md",
+                        adapter.documentation_paths,
+                    )
+                else:
+                    self.assertEqual(adapter.documentation_paths, ())
                 self.assertTrue(adapter.asset_paths)
                 self.assertEqual(
                     semantic_key["base_task"],
@@ -2270,35 +2279,7 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             self.assertIn("assets/cold_target.asset", prompt)
             self.assertNotIn("template_id", prompt)
             self.assertNotIn("aspect_id", prompt)
-            self.assertIn("increasing size by 50% uses 1.5", prompt)
-            self.assertIn("reducing size by 50% (or to 50%) uses 0.5", prompt)
-            self.assertIn(
-                "tracked automatically even when their pose or instance is "
-                "replaced",
-                prompt,
-            )
-            self.assertIn(
-                "Assign it only when adding an entirely new actor",
-                prompt,
-            )
-            self.assertIn(
-                "do not cache initial poses, heights, thresholds, or flags "
-                "on self",
-                prompt,
-            )
-            self.assertIn(
-                "derive the smallest measurable change", prompt
-            )
-            self.assertIn(
-                "emit a normalized quaternion as numeric literals", prompt
-            )
-            self.assertIn("self.scene.get_contacts()", prompt)
-            self.assertIn("self.robot.left_gripper", prompt)
-            self.assertIn("do not invent a helper", prompt)
-            self.assertIn(
-                "check_success cannot read the completed trajectory",
-                prompt,
-            )
+            self.assertIn("README.AGENT CONTEXT", prompt)
 
     def test_semantic_review_rejects_proxy_and_repairs_only_checker(
         self,
@@ -2760,7 +2741,7 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                         "changed" if scene_need is not None else "preserved",
                     )
                     self.assertIn(
-                        "runtime ignores that text",
+                        "runtime injects the exact official method",
                         provider.prompts[0],
                     )
 

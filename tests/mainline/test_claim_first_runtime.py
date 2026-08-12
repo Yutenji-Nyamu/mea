@@ -379,69 +379,16 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         )
         compact_prompt = " ".join(prompt.split())
 
-        self.assertIn("current preservation authority", compact_prompt)
+        self.assertIn("PLAN AGENT CONTRACT", compact_prompt)
+        self.assertIn("advertised authority", compact_prompt)
         self.assertIn(
-            "simulator card are measurement capabilities, not preservation",
+            "official core predicate as a required conjunct",
             compact_prompt,
         )
-        self.assertIn(
-            '"task identity" and "policy checkpoint" as the default preserve set',
-            compact_prompt,
-        )
-        self.assertIn(
-            "actor identity, physics timestep, or object-to-target binding",
-            compact_prompt,
-        )
-        self.assertIn(
-            '"official core predicate as a required conjunct"',
-            compact_prompt,
-        )
-        self.assertIn("terminal-state distance threshold", compact_prompt)
-        self.assertIn("terminal value of that same", compact_prompt)
         self.assertIn("trajectory peak or maximum", compact_prompt)
-        self.assertIn(
-            "must not use its scale to relax, replace",
-            compact_prompt,
-        )
-        self.assertIn(
-            "`diagnostic_tool_measurements` value is supporting diagnosis only",
-            compact_prompt,
-        )
-        self.assertIn(
-            "`peak`/`maximum over the rollout` is not a terminal/current-state value",
-            compact_prompt,
-        )
-        self.assertIn(
-            '`outcome="success"` for a terminal checker',
-            compact_prompt,
-        )
-        self.assertIn(
-            "A successful control alone is not numeric calibration",
-            compact_prompt,
-        )
-        self.assertIn(
-            "expert-terminal actor/TCP coordinates",
-            compact_prompt,
-        )
-        self.assertIn(
-            "do not repeat the same arbitrary threshold",
-            compact_prompt,
-        )
         self.assertIn("`bounded_repair_evidence`", compact_prompt)
         self.assertIn(
-            "do not repeat that same relation",
-            compact_prompt,
-        )
-        self.assertIn(
             "scene-only is not a valid fallback",
-            compact_prompt,
-        )
-        self.assertIn(
-            "must remain satisfiable by the expert",
-            compact_prompt,
-        )
-        self.assertIn(
-            "controlled scene change itself makes deterministically false",
             compact_prompt,
         )
 

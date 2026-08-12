@@ -498,6 +498,18 @@ def run_provider_codegen(
                         "the official action sequence can still reach its "
                         "required contact or functional points."
                     )
+                if previous_methods is not None:
+                    current_prompt += (
+                        "\n\nPREVIOUS METHOD PAIR:\n"
+                        + json.dumps(
+                            previous_methods,
+                            ensure_ascii=False,
+                            sort_keys=True,
+                            indent=2,
+                        )
+                        + "\nUse the validation diagnosis to modify only the "
+                        "method statements responsible for the failure."
+                    )
             current_prompt += " Do not return a patch or explanation."
         (attempt_dir / "provider_prompt.md").write_text(
             current_prompt, encoding="utf-8"
@@ -678,7 +690,7 @@ def run_provider_codegen(
         if (
             final_failure.get("stage") == "expert_gate"
             and final_failure.get("failure_kind")
-            == "candidate_unexecutable"
+            in {"candidate_unexecutable", "official_baseline_unsolvable"}
         ):
             raise CandidateUnexecutableError(
                 str(exc), summary=exc.summary

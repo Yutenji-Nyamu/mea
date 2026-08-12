@@ -538,8 +538,15 @@ class OpenVQAQuestionAgent:
                 attempt_prompt += (
                     "\n\nPREVIOUS VALIDATION ERROR:\n"
                     + self.last_errors[-1]
+                    + (
+                        "\nPREVIOUS COMPLETE VQA QUESTION SPEC JSON:\n"
+                        + self.last_responses[-1]
+                        if self.last_responses
+                        else ""
+                    )
                     + "\nReturn one corrected complete JSON object. This is "
-                    "the only repair attempt."
+                    "the only repair attempt. Preserve valid fields and only "
+                    "correct the field named by the error."
                 )
             try:
                 response = self.provider.text(

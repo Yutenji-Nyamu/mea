@@ -6,7 +6,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping
 
-from mea.agent_acceptance import _episode_tool_results
+from mea.tool_results import episode_tool_results
 from mea.agent_evidence import (
     compact_aggregate_result,
     compact_trusted_tools,
@@ -23,6 +23,9 @@ from mea.planner import (
 )
 from mea.round_contract import validate_round_capability_contract
 from mea.round_evidence import compact_tool_evaluation
+
+
+_STRUCTURALLY_COMPLETED_VQA_STATUSES = {"passed", "skipped", "abstained"}
 
 
 def read_policy_success(result_path: Path) -> float | None:
@@ -81,7 +84,7 @@ def normalize_outcome_semantics(
     for episode in trusted_tool_evaluation.get("episodes", []):
         if not isinstance(episode, Mapping):
             continue
-        for result in _episode_tool_results(episode):
+        for result in episode_tool_results(episode):
             details = result.get("details")
             if not isinstance(details, Mapping):
                 continue
@@ -301,7 +304,7 @@ def summarize_round(
         "execution_vqa": bool(
             execution_vqa
             and (
-                execution_vqa.get("status") == "passed"
+                execution_vqa.get("status") in {"passed", "abstained"}
                 or (
                     (not uses_act or vqa_explicitly_omitted)
                     and execution_vqa.get("status") == "skipped"
@@ -337,7 +340,7 @@ def summarize_round(
             and aggregate_result
             and str(aggregate_result.get("status", "")).startswith("passed")
             and execution_vqa
-            and execution_vqa.get("status") in {"passed", "skipped"}
+            and execution_vqa.get("status") in _STRUCTURALLY_COMPLETED_VQA_STATUSES
         )
     elif is_generic_provider:
         preflight = scene.get("generic_preflight") or {}
@@ -371,7 +374,7 @@ def summarize_round(
             and aggregate_result
             and str(aggregate_result.get("status", "")).startswith("passed")
             and execution_vqa
-            and execution_vqa.get("status") in {"passed", "skipped"}
+            and execution_vqa.get("status") in _STRUCTURALLY_COMPLETED_VQA_STATUSES
         )
     else:
         # Generated rounds keep their expert, visual, and task-specific
@@ -389,7 +392,7 @@ def summarize_round(
             and aggregate_result
             and str(aggregate_result.get("status", "")).startswith("passed")
             and execution_vqa
-            and execution_vqa.get("status") in {"passed", "skipped"}
+            and execution_vqa.get("status") in _STRUCTURALLY_COMPLETED_VQA_STATUSES
         )
     if capability_contract is not None:
         pipeline_passed = bool(pipeline_passed and required_gate_status["passed"])
@@ -536,4 +539,3 @@ __all__ = [
     "summarize_round",
     "taskgen_ast_gate_passed",
 ]
-

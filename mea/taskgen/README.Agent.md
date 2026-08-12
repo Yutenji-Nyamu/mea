@@ -16,6 +16,8 @@
   dynamic execution, dunder attributes, or `super()`.
 - Use wrapper-provided `np`, `sapien`, `create_actor`, `create_box`, and
   `rand_pose`.
+- For a fixed-angle rotation, write the numeric quaternion explicitly; generated
+  methods must not call `np.sin`, `np.cos`, or `np.deg2rad`.
 - The ordinary scene-only route must not replace `check_success()`.
 - Actors already listed in the task telemetry/execution schema remain tracked
   when a generated scene moves or replaces the same public actor. Do not
@@ -29,6 +31,10 @@
 - When a Proposal requests both scene and checker, generate `load_actors()` and
   `check_success()` together. The checker is experimental and must never be
   relabeled as official success.
+- When the Proposal requires the official goal as a conjunct, call
+  `self.mea_official_check_success()` and combine its boolean result with the
+  added directly observable condition. Never replace that official conjunct
+  with a correlated proxy.
 - Every added checker conjunct must be false initially and true in the supplied
   official-expert terminal state. Do not require instantaneous PhysX contact
   when the official terminal state may release contact; use the repair
@@ -39,6 +45,8 @@
   predicate is unavailable from current simulator state or cannot pass the
   supplied expert fixture, leave the candidate rejected/unsupported rather
   than weakening its semantics during repair.
+- `check_success()` reads current simulator state only. Trajectory deviation,
+  smoothness, jerk, path length, and rollout clearance belong to ToolGen.
 - A generated challenge must preserve at least one feasible official action
   path to every required contact or functional point. A fixed center offset is
   not proof of approach clearance, and `add_prohibit_area()` is not a robot

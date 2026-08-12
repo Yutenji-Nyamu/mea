@@ -1598,6 +1598,42 @@ class CrossTaskEntrypointTests(unittest.TestCase):
         self.assertEqual(summary["observations"]["requested_seeds"], [7])
         self.assertEqual(summary["observations"]["actual_seeds"], [8])
 
+    def test_official_vqa_abstention_is_not_pipeline_failure(self):
+        round_plan = official_round("act")
+        child_manifest = {
+            "run_id": "run_click_abstained",
+            "status": "completed",
+            "scene_validation": {
+                "render_success": True,
+                "rule_check": {"passed": True},
+            },
+            "act_evaluation": {"passed": True, "actual_seeds": [7]},
+            "trusted_tool_evaluation": {"episode_count": 1, "episodes": []},
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            child_dir = Path(temporary) / "mea/generated_tasks/run_click_abstained"
+            evaluation_dir = child_dir / "evaluation"
+            evaluation_dir.mkdir(parents=True)
+            (evaluation_dir / "_result.txt").write_text("1.0\n", encoding="utf-8")
+            summary = summarize_round(
+                round_plan,
+                child_manifest,
+                child_dir,
+                {"status": "passed", "episodes": []},
+                {"status": "passed", "metrics": []},
+                {
+                    "status": "abstained",
+                    "reason": "visual evidence is insufficient",
+                    "evidence_conflict": False,
+                },
+                0,
+            )
+
+        self.assertTrue(summary["pipeline_passed"])
+        self.assertEqual(
+            summary["observations"]["execution_vqa"]["status"], "abstained"
+        )
+
     def test_official_episode_index_is_forwarded_to_recorder_probe(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

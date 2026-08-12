@@ -323,11 +323,13 @@ def execute_metric_spec(
         fixture_rows = []
         values = []
         source_text: str | None = None
+        previous_candidate_source: str | None = None
         successful_attempt: int | None = None
         attempt_limit = max(1, min(int(max_attempts), 3))
         for attempt_index in range(attempt_limit):
             attempt_dir = attempts_dir / f"attempt_{attempt_index}"
             attempt_dir.mkdir()
+            candidate: str | None = None
             prompt = _provider_codegen_prompt(
                 repo_root=Path(__file__).resolve().parents[2],
                 metric=metric,
@@ -338,9 +340,13 @@ def execute_metric_spec(
                 previous_error=(
                     failures[-1]["message"] if failures else None
                 ),
+                previous_source=(
+                    previous_candidate_source if failures else None
+                ),
             )
             (attempt_dir / "prompt.md").write_text(prompt, encoding="utf-8")
             try:
+                failure_stage = "provider_call"
                 response = provider.text(
                     prompt,
                     model=model.strip(),
@@ -354,11 +360,13 @@ def execute_metric_spec(
                 (attempt_dir / "response.txt").write_text(
                     response + "\n", encoding="utf-8"
                 )
+                failure_stage = "response_parse"
                 candidate = extract_generated_tool(response)
                 (attempt_dir / "generated_tool.py").write_text(
                     candidate, encoding="utf-8"
                 )
                 candidate_review = None
+                failure_stage = "generated_source_validation"
                 if automatic_derived_validation:
                     validate_generated_tool(candidate)
                     _validate_derived_signal_access(candidate, spec)
@@ -371,6 +379,7 @@ def execute_metric_spec(
                         review_prompt,
                         encoding="utf-8",
                     )
+                    failure_stage = "semantic_review"
                     review_response = provider.text(
                         review_prompt,
                         model=model.strip(),
@@ -389,6 +398,7 @@ def execute_metric_spec(
                         attempt_dir / "semantic_review.json",
                         candidate_review,
                     )
+                failure_stage = "live_validation_oracle"
                 (
                     candidate_rows,
                     candidate_fixture_rows,
@@ -397,10 +407,17 @@ def execute_metric_spec(
                     candidate
                 )
             except Exception as exc:
+                if isinstance(candidate, str) and candidate.strip():
+                    previous_candidate_source = candidate
                 failure = {
                     "attempt_index": attempt_index,
                     "type": type(exc).__name__,
                     "message": str(exc),
+                    "failure_stage": failure_stage,
+                    "required": (
+                        "The complete generated_tool must satisfy the typed "
+                        "MetricSpec, static checks, and live telemetry oracle."
+                    ),
                     "provider": deepcopy(
                         dict(getattr(provider, "last_metadata", {}))
                     ),

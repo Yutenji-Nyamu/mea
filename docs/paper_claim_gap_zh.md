@@ -28,6 +28,21 @@
 这个旗舰关闭了“只能靠 hard cap 停止”和“typed `N=0` 被误算成 policy failure”的方法 gap；
 它没有证明 broad open-world Query 已取得 `evidence_sufficient=true`。
 
+## Batch38 开发回归（未晋升旗舰）
+
+Batch38 用 `grab_roller` 的历史失败做 prompt/context 纵向修复；它不替换上述 Batch37
+旗舰，也不更新 `docs/evidence/current/`。v5 完成 4 个 round、2 个 SmolVLA episode：
+official control 与 lateral scene 均成功，新 Rule Tool 得到 `0.0606393 m` live 值；随后
+evidence 使 Plan 从 lateral 转向 orientation，再转向 longitudinal，后二者被 expert gate
+判定为不可执行且未消耗 rollout。运行最终仍因四轮上限停止并返回 inconclusive，因此新增的
+只是“失败上下文改变下一 Proposal”的开发证据，不是主动充分停止正例。
+
+本批还让 Plan、TaskGen 与 ToolGen 共用短任务卡和“上一输出 + 具体错误”的一次局部 repair，
+并让 VQA 的证据不足/冲突进入 `abstained`。v5 的最终 Answer prompt 仍有 56,150 tokens；其后
+新增的紧凑 evidence projection 未被 v5 live Answer 使用；服务器已在冻结 v5 evidence 上完成
+离线回归并保留关键字段，因此只能评价上下文压缩本身，不能回写 v5 的 token 记录。完整冷流水见
+[`experiments/paper/results/batch38_prompt_context/`](../experiments/paper/results/batch38_prompt_context/README.md)。
+
 ## Batch37 补充证据
 
 - **Rule Tool 跨 evaluation 复用。** 一个新 evaluation 以 **0 rollout、0 provider call** 从

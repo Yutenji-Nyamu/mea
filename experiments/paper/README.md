@@ -29,22 +29,22 @@
 | [`manipeval_portfolio.py`](manipeval_portfolio.py) | 规划或审计历史 cross-task portfolio | 否 |
 | [`libero_adapter_smoke.py`](libero_adapter_smoke.py) | LIBERO/SmolVLA adapter feasibility smoke | 显式调用时可能 |
 | [`generic_method_matrix.py`](generic_method_matrix.py) | 只读聚合冻结的跨任务方法 bundle，并分离方法、policy 与 Answer 状态 | 否 |
+| [`robotwin_breadth.py`](robotwin_breadth.py) | 动态发现 RoboTwin task；可续跑地分开 TaskContext/Plan 预检、TaskGen materialization 与 SmolVLA official N=1 | 仅 `official` phase |
 
-RoboTwin/SmolVLA 的早期独立 adapter 位于
-[`robotwin_smolvla/`](robotwin_smolvla/README.md)；当前共享 runtime backend 为
-[`mea/robotwin/smolvla_rollout.py`](../../mea/robotwin/smolvla_rollout.py)，已通过
-`MethodRuntime` 接入生产 Plan Agent；v18 已在同一方法链运行 generic
-scene/checker、请求型 Rule Tool 与 VQA。runtime TaskContext 已通过跨任务 reset 验收，
-reviewed TaskSchema 不再是准入表；Batch35 又完成一次无 reviewed schema 的真实
-scene/checker + SmolVLA rollout，但仍是单任务、单 seed，simulator hook 仍是真实边界。
-逐命令部署流水和早期测试 runner 位于其
-[`history/20260729/`](robotwin_smolvla/history/20260729/README.md)，属于冷归档，
-默认不递归读取。
+X-VLA installation commands and unresolved blockers are kept in the cold
+[`robotwin_xvla/deployment_ledger.md`](robotwin_xvla/deployment_ledger.md).
+The bounded failure-to-prompt workflow and its active vertical cases live in
+[`prompt_learning/README.md`](prompt_learning/README.md); task queues do not
+belong in the production README or hot architecture document.
 
-RoboTwin/Hy-VLA 的显式实验 adapter 位于
-[`robotwin_hyvla/`](robotwin_hyvla/README.md)。它只验证 official wrapper、隔离双进程
-transport 与 official rollout；不是第二套 MEA 外层。短复现说明见
-[`docs/robotwin_hyvla_reproduction_zh.md`](../../docs/robotwin_hyvla_reproduction_zh.md)。
+部署与 prompt 迭代均为按需读取的 cold reference：
+
+| 主题 | 索引 |
+| --- | --- |
+| SmolVLA | [`robotwin_smolvla/`](robotwin_smolvla/README.md)；[短复现说明](../../docs/robotwin_smolvla_reproduction_zh.md) |
+| Hy-VLA | [`robotwin_hyvla/`](robotwin_hyvla/README.md)；[短复现说明](../../docs/robotwin_hyvla_reproduction_zh.md) |
+| X-VLA | [`robotwin_xvla/`](robotwin_xvla/README.md)；[短复现说明](../../docs/robotwin_xvla_reproduction_zh.md) |
+| failure-to-prompt | [`prompt_learning/`](prompt_learning/README.md) |
 
 ## 2. Compatibility-only protocols
 
@@ -106,6 +106,7 @@ transport 与 official rollout；不是第二套 MEA 外层。短复现说明见
 | [`results/batch33_open_cross_task/`](results/batch33_open_cross_task/README.md) | PressStapler evidence refinement、candidate rejection、SmolVLA 五任务 breadth 与 Hy-VLA N=1 |
 | [`results/batch34_task_independent_context/`](results/batch34_task_independent_context/probe_summary.json) | 无 policy 的跨任务 reset TaskContext 与嵌套 actor 发现 |
 | [`results/batch35_generic_method_matrix/`](results/batch35_generic_method_matrix/README.md) | 五任务通用方法矩阵与 schema-free scene/checker live 补充验收 |
+| [`results/batch38_prompt_context/`](results/batch38_prompt_context/README.md) | `grab_roller` 失败驱动 prompt/context 纵向回归；未晋升当前旗舰 |
 
 旧运行的简短结论与边界另见
 [`docs/evidence/history.jsonl`](../../docs/evidence/history.jsonl)。若两处描述冲突，

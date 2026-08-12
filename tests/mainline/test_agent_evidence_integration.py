@@ -10,6 +10,7 @@ from mea.execution_vqa.runtime import (
     _same_telemetry_episode,
     run_round_execution_vqa,
 )
+from mea.planner.evidence_policy import build_evidence_aggregate
 from mea.toolkit import aggregate_tool_executions
 from mea.feedback.answer_scope import build_answer_scope
 
@@ -348,6 +349,111 @@ class AgentEvidenceIntegrationTests(unittest.TestCase):
             )
             self.assertEqual(duration["value"], 1.0)
             self.assertIsNone(captured["reference_scene"])
+
+    def test_execution_vqa_abstains_when_visual_evidence_is_insufficient(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            repo_root = Path(temporary)
+            child_dir = repo_root / "mea/generated_tasks/run"
+            episode_dir = child_dir / "evaluation/telemetry/act/episode_0"
+            episode_dir.mkdir(parents=True)
+            (episode_dir / "video.mp4").write_bytes(b"video")
+            (episode_dir / "episode.json").write_text(
+                json.dumps({"artifacts": {"video": "video.mp4"}}),
+                encoding="utf-8",
+            )
+            execution_dir = repo_root / "mea/evaluation_runs/e/execution/round_1"
+            manifest = {
+                "trusted_tool_evaluation": {
+                    "episodes": [
+                        {
+                            "episode_dir": "act/episode_0",
+                            "policy_name": "ACT",
+                            "seed": 1,
+                            "tool_results": [],
+                        }
+                    ]
+                }
+            }
+
+            with patch(
+                "mea.execution_vqa.runtime.run_execution_vqa",
+                return_value={
+                    "schema_version": 1,
+                    "observation": {
+                        "phenomena": [
+                            {"phenomenon_id": "contact", "observed": None}
+                        ],
+                        "numeric_consistency": "uncertain",
+                    },
+                    "evidence_conflict": False,
+                    "artifacts": {},
+                },
+            ):
+                result = run_round_execution_vqa(
+                    repo_root=repo_root,
+                    child_manifest=manifest,
+                    child_dir=child_dir,
+                    tool_evaluation=None,
+                    execution_dir=execution_dir,
+                    provider=object(),
+                    model="vision",
+                )
+
+            self.assertEqual(result["status"], "abstained")
+            self.assertIn("insufficient evidence", result["reason"])
+
+    def test_required_vqa_abstention_is_insufficient_planning_evidence(self):
+        round_plan = {
+            "round_id": "round_1",
+            "template_id": "dynamic.visual_check",
+            "observations": ["aggregate", "execution_vqa"],
+            "execution": {"num_episodes": 1},
+            "tool_request": {"metric": "official_check_success"},
+            "semantic_need_execution": {
+                "rule_tool": {"requested": False},
+                "vqa_tool": {"requested": True},
+            },
+        }
+        summary = {
+            "round_id": "round_1",
+            "pipeline_passed": True,
+            "observations": {
+                "aggregate": {
+                    "status": "passed",
+                    "input_issues": [],
+                    "metrics": [
+                        {
+                            "metric": "official_check_success",
+                            "cohorts": [
+                                {
+                                    "role": "policy_under_evaluation",
+                                    "summary": {
+                                        "quality": {
+                                            "valid": 1,
+                                            "missing": 0,
+                                            "invalid": 0,
+                                        }
+                                    },
+                                }
+                            ],
+                        }
+                    ],
+                },
+                "execution_vqa": {
+                    "status": "abstained",
+                    "evidence_conflict": False,
+                },
+            },
+        }
+
+        evidence = build_evidence_aggregate(round_plan, summary)
+
+        self.assertEqual(evidence["vqa"]["status"], "abstained")
+        self.assertFalse(evidence["coverage"]["vqa_observed"])
+        self.assertEqual(evidence["evidence_strength"], "uncertain")
+        self.assertEqual(
+            evidence["reason_codes"], ["execution_vqa_abstained"]
+        )
 
     def test_completed_act_without_video_is_failed_not_skipped(self):
         with tempfile.TemporaryDirectory() as temporary:

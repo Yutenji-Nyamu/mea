@@ -156,6 +156,7 @@ def prepare_plan_session(
                     plan_agent = PlanAgent(
                         context.provider,
                         model=context.models["planner"],
+                        repo_root=context.repo_root,
                     )
                 write_json(
                     context.evaluation_dir / PLAN_AGENT_CAPABILITIES,

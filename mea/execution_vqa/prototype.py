@@ -778,6 +778,9 @@ Return JSON only, with exactly this schema:
 }}
 Use conflicts=[] when no conflict is visible. Never invent frame ids.
 Use observed=null when the selected visual evidence is insufficient.
+For a temporal question, use observed=null unless the selected frames directly
+establish the requested ordering. Never infer an unseen intermediate event or
+turn ambiguity into a boolean because confidence is high.
 Return exactly one phenomena item for each requested id, in this exact order:
 {json.dumps(phenomenon_ids, ensure_ascii=False)}
 """

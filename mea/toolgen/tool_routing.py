@@ -211,7 +211,9 @@ def _execute_typed_metric_request(
         return execution
     try:
         context = build_task_code_context(
-            child_run_dir, task_proposal=task_proposal
+            child_run_dir,
+            task_proposal=task_proposal,
+            repo_root=repo,
         )
         raw = execute_metric_spec(
             task_name=request["task_name"],

@@ -51,7 +51,7 @@ _RULE_KEYS = {
     "reasons",
 }
 _VQA_KEYS = {"required", "status", "evidence_conflict"}
-_VQA_STATUSES = {"passed", "failed", "skipped", "missing"}
+_VQA_STATUSES = {"passed", "abstained", "failed", "skipped", "missing"}
 _EVIDENCE_STRENGTHS = {
     "sufficient",
     "uncertain",
@@ -978,8 +978,8 @@ def build_evidence_packet(
     vqa_status = vqa.get("status", "missing")
     if vqa_status not in _VQA_STATUSES:
         raise EvidencePacketError(
-            "observation.execution_vqa.status must be passed, failed, skipped, "
-            "or missing"
+            "observation.execution_vqa.status must be passed, abstained, "
+            "failed, skipped, or missing"
         )
     if not pipeline_passed:
         strength = "pipeline_invalid"

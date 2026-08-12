@@ -26,9 +26,11 @@ class _Provider:
     def __init__(self, *payloads):
         self.payloads = list(payloads)
         self.calls = 0
+        self.prompts = []
         self.last_metadata = {"provider": "fixture"}
 
-    def text(self, *_args, **_kwargs):
+    def text(self, *args, **_kwargs):
+        self.prompts.append(args[0] if args else kwargs.get("prompt", ""))
         payload = self.payloads[min(self.calls, len(self.payloads) - 1)]
         self.calls += 1
         return json.dumps(payload)
@@ -267,6 +269,8 @@ class OpenToolArtifactTest(unittest.TestCase):
         self.assertEqual(provider.calls, 2)
         self.assertEqual(bundle["provider"]["attempt_count"], 2)
         self.assertEqual(len(bundle["provider"]["errors"]), 1)
+        self.assertIn("PREVIOUS COMPLETE VQA QUESTION SPEC JSON", provider.prompts[1])
+        self.assertIn("simulator_pose_is_authoritative", provider.prompts[1])
 
     def test_catalog_hit_with_different_need_is_not_exact_reuse(self):
         proposal = _proposal("beat_block_hammer")

@@ -323,21 +323,14 @@ class ClaimFirstOpenQueryTest(unittest.TestCase):
             _capabilities(),
             [],
         )
-        self.assertIn("candidate/template-ID itinerary", prompt)
-        self.assertIn("backend primitives", prompt)
-        self.assertIn("not an operation menu", prompt)
+        self.assertIn("PLAN AGENT CONTRACT", prompt)
+        self.assertIn("not a menu of", prompt)
+        self.assertIn("execution boundary, not an experiment menu", prompt)
+        self.assertIn("CURRENT QUERY CONTRACT", prompt)
         self.assertIn(
             "official core predicate as a required conjunct", prompt
         )
-        self.assertIn("Gripper closure", prompt)
-        self.assertIn("is not target contact", prompt)
-        self.assertIn(
-            "contact-event identity",
-            prompt,
-        )
-        self.assertIn("point/TCP distance condition", prompt)
-        self.assertIn("scene-only experiment with a Rule/VQA observation", prompt)
-        self.assertIn("bracket the next", prompt)
+        self.assertIn("COMPLETED ROUND EVIDENCE", prompt)
         self.assertNotIn("There is no candidate\naspect list", prompt)
 
     def test_capabilities_reject_predeclared_navigation(self):
@@ -498,7 +491,7 @@ class ClaimFirstOpenQueryTest(unittest.TestCase):
         )
         self.assertNotIn("claim-first Plan Agent", provider.prompts[0])
         self.assertIn(
-            "reuse_first MUST always be true",
+            "keep both reuse_first fields true",
             provider.prompts[0],
         )
         self.assertEqual(
@@ -720,6 +713,8 @@ class ClaimFirstOpenQueryTest(unittest.TestCase):
             "silently pivots to a diagnostic proxy",
             provider.prompts[1],
         )
+        self.assertIn("PREVIOUS COMPLETE PROPOSAL JSON", provider.prompts[1])
+        self.assertIn("robustness.visual_distractor", provider.prompts[1])
         self.assertEqual(
             result["proposal"]["sub_aspect"],
             "motion.precontact_jitter",

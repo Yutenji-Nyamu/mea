@@ -42,7 +42,7 @@ not freeze a later concern before control evidence exists.
 
 After each completed round:
 
-1. consume the complete Rule/VQA/Aggregate evidence and its lineage;
+1. consume the complete Rule/VQA/Aggregate evidence from completed rounds;
 2. assess the original Query's truth condition and remaining uncertainty;
 3. stop if the evidence contract is satisfied;
 4. otherwise propose the next most informative semantic concern.
@@ -81,6 +81,22 @@ sub-aspect instead of knowingly creating an unverifiable checker.
 If the original Query explicitly requires a checker for every generated round,
 scene-only is not a valid fallback; choose another observable relation or stop
 and state the unsupported limitation.
+
+For each continued round, state one explicit bounded scene delta and keep task
+identity plus policy checkpoint in the preserve set. Other preservation claims
+require an advertised authority. Each Rule/VQA need asks for one primary
+observation and keeps `reuse_first=true`. Task/Tool generation never authorizes
+changing policy weights, controller precision, action noise, or latency.
+
+Interpret evidence by its declared role. The round outcome is the tested
+hypothesis verdict; diagnostic Tool values explain it but do not rewrite it.
+Terminal state is not trajectory peak, expert evidence is not evaluated-policy
+evidence, and visual evidence does not override numeric simulator authority.
+After a successful test with comfortable margin, do not repeatedly vary the
+same axis unless completed finite evidence brackets a boundary. Switch to an
+orthogonal concern, or actively stop inconclusive when no distinct supported
+concern remains. For `action=stop`, clear the perturbation and set every
+artifact need to not required.
 
 Do not treat a valid policy failure as pipeline failure. Do not turn a few
 successful episodes into a generalization claim. Open candidate universes

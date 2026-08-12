@@ -16,6 +16,23 @@
 
 ## 核心约束
 
+普通生产运行只表达论文主链：
+
+```text
+Query → Plan → Task/Tool 检索或生成 → 执行 → 证据回流 → 继续或回答
+```
+
+新增或保留机制时先回答：它对应论文的哪一步；若论文没有，它解决了哪个已经真实发生、
+且不能靠更精确的 prompt 或更小真实性边界解决的问题。两问都答不上来的机制不进入生产链；
+只为旧实验有价值的实现迁入 `experiments/paper/`，caller 清零后依靠 Git 历史恢复，不长期保留
+生产 feature flag。不要为 failure exemplar 再建立审批、哈希、晋升或恢复系统。
+
+生产实现只保留三层：论文方法；生成代码可执行、simulator authority、official goal 忠实、
+unknown/abstain 等最小真实性边界；以及默认不加载的冷复现资料。SHA/checksum、receipt、
+多级 reviewed/promotion、flagship acceptance、复杂 resume/attempt ledger、legacy protocol 等概念
+不得继续穿透普通 CLI/Application/RoundExecutor。迁移必须先断 caller、再迁冷、最后删除，不能
+仅凭文件名批量裁剪。
+
 - 只扩展
   `Query interpretation → Query contract → PlanAgentInitialPlanBuilder → Plan Agent session`
   主链。生产 Plan Agent 不得实例化 `CatalogPlanAgent` 或任务专属 legacy planner；旧 planner
@@ -48,8 +65,8 @@
   fixture 失败时可保持已验证 scene、只修 checker；policy failure 不自动重跑。
 - 生产运行只写一份 `manifest.json`；实验 hash 放在 `experiments/paper/`。
 - control-required Query 在 control evidence 完成前不得生成、缓存或冻结下一
-  Proposal。后续 Proposal 必须由 Plan Agent session 使用完整
-  completed-round evidence 生成，并携带 round lineage 与 input digest。
+  Proposal。后续 Proposal 必须由 Plan Agent session 使用 completed-round evidence 生成；
+  直接传递 round id 与相关 evidence，不在生产语义中增加 lineage hash 或 input digest gate。
 - `mea/round_executor.py` 是生产单轮执行边界；RoboTwin policy backend 不得再先运行
   旧 child bundle 后做事后 projection。
 - feedback、retrieval、taskgen、toolgen 的 `README.Agent.md` 是生成上下文；planner
@@ -146,6 +163,8 @@ Hy-VLA 的具体范例见
 - 新代码是否直接支撑论文 claim？
 - 是否已有主链能力覆盖它？
 - 是否引入第二套 Plan Agent/recovery/registry/manifest？
+- 该机制对应论文哪一步，或解决了哪个已观察且不能由 prompt/更小边界处理的故障？
+- hash、receipt、approval/promotion、compat 或恢复状态是否仍穿透生产构造器？
 - 是否把 retrieval catalog 的成员关系误当成 Proposal 执行许可？
 - Tool-only/scene-only/checker-only Proposal 是否只运行实际需要的生成阶段？
 - 动态 VQA 是否出现与当前 task 无关的对象或现象？

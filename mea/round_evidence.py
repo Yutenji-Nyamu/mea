@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any, Mapping
 
-from mea.agent_acceptance import _episode_tool_results
+from mea.tool_results import episode_tool_results
 from mea.toolkit import aggregate_tool_executions
 
 
@@ -29,7 +29,7 @@ def compact_tool_evaluation(
     for item in tool_evaluation.get("episodes", []):
         if not isinstance(item, Mapping):
             continue
-        for result in _episode_tool_results(item):
+        for result in episode_tool_results(item):
             compact_episodes.append(
                 {
                     "policy_name": item.get("policy_name"),
@@ -77,7 +77,7 @@ def aggregate_sources(
         result.get("tool")
         for episode in trusted.get("episodes", [])
         if isinstance(episode, Mapping)
-        for result in _episode_tool_results(episode)
+        for result in episode_tool_results(episode)
         if result.get("tool")
     }
     if trusted.get("episodes"):

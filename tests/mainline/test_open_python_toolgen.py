@@ -347,6 +347,10 @@ class OpenPythonToolGenTests(unittest.TestCase):
             self.assertTrue(
                 (root / "generated/attempts/attempt_1/prompt.md").is_file()
             )
+            repaired_prompt = provider.prompts[1]
+            self.assertIn("PREVIOUS FUNCTION", repaired_prompt)
+            self.assertIn("def generated_tool(trajectory)", repaired_prompt)
+            self.assertIn("generated Tool validation/oracle", repaired_prompt)
             self.assertEqual(generated["registration"]["scope"], "run_local")
 
             replay = execute_metric_spec(

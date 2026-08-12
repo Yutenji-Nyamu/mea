@@ -29,6 +29,23 @@ def _write_json(path: Path, value: Any) -> None:
     )
 
 
+def _execution_vqa_result_status(result: Mapping[str, Any]) -> str:
+    """Abstain when Vision explicitly says that its evidence is insufficient."""
+
+    observation = result.get("observation")
+    if not isinstance(observation, Mapping):
+        return "passed"
+    if observation.get("numeric_consistency") == "uncertain":
+        return "abstained"
+    phenomena = observation.get("phenomena")
+    if isinstance(phenomena, list) and any(
+        isinstance(item, Mapping) and item.get("observed") is None
+        for item in phenomena
+    ):
+        return "abstained"
+    return "passed"
+
+
 def _execution_vqa_video_contract(
     episode_dir: Path,
     *,
@@ -424,7 +441,12 @@ def run_round_execution_vqa(
         }
         _write_json(execution_dir / "execution_vqa_error.json", result)
         return result
-    result["status"] = "passed"
+    result["status"] = _execution_vqa_result_status(result)
+    if result["status"] == "abstained":
+        result["reason"] = (
+            "Vision reported insufficient evidence for at least one requested "
+            "phenomenon or for numeric consistency."
+        )
     result["representative_episode"] = representative_path
     result["artifacts"] = {
         key: (
@@ -459,4 +481,3 @@ def compact_execution_vqa(
 
 
 __all__ = ["compact_execution_vqa", "run_round_execution_vqa"]
-

@@ -293,6 +293,7 @@ def _read_generation_context(
             indent=2,
         ),
     ]
+    guide_relative = f"mea/knowledge/tasks/{adapter['task_name']}.md"
     for relative in adapter["documentation_paths"]:
         path = _resolve_repo_file(
             repo_root, str(relative), label="adapter documentation"
@@ -303,9 +304,16 @@ def _read_generation_context(
             raise GenericTaskGenError(
                 f"adapter documentation is not UTF-8 text: {relative}"
             ) from exc
-        sections.append(
-            f"DOCUMENTATION `{relative}`:\n{content.strip()}"
-        )
+        if str(relative) == guide_relative:
+            label = "BOUND TASK IMPLEMENTATION GUIDE"
+        elif str(relative).startswith("description/task_instruction/"):
+            label = (
+                "LANGUAGE PARAPHRASE DATA (language wording only; not "
+                "implementation authority)"
+            )
+        else:
+            label = "RETRIEVED DOCUMENTATION"
+        sections.append(f"{label} `{relative}`:\n{content.strip()}")
     asset_descriptors: list[dict[str, Any]] = []
     for relative in adapter["asset_paths"]:
         path = _resolve_repo_file(
@@ -408,6 +416,13 @@ def _core_prompt(
     *,
     prompt_constraints: str,
 ) -> str:
+    """Render only request-specific data and the stable transport contract.
+
+    Cross-task semantics live in README.Agent; task-local facts arrive through
+    the bound implementation guide and a repair receives its previous output
+    plus the concrete error. Keeping those rules out of this function prevents
+    a second drifting copy of the TaskGen prompt.
+    """
     constraint_section = (
         "\n\nSIMULATOR-SPECIFIC API CONSTRAINTS:\n"
         + prompt_constraints.strip()
@@ -426,83 +441,17 @@ def _core_prompt(
         + _semantic_field_access_guide(adapter)
         + constraint_section
         + "\n\nOUTPUT CONTRACT:\n"
-        "Return one strict JSON object with exactly two string fields, "
-        "load_actors and check_success. Each field must contain one complete "
-        "Python method with only self when its corresponding need is non-null. "
-        "A non-null scene_need requires a changed load_actors method. A "
-        "non-null checker_need requires a changed check_success method. Both "
-        "JSON fields remain required for transport, but when a need is null "
-        "return an empty string for that field: the runtime ignores that text "
-        "and injects the exact official method before AST, fixture, render, "
-        "and expert validation. "
-        "A changed load_actors method must directly implement the requested "
-        "scene change. Comments or an unrelated actor/pose change are not "
-        "implementation evidence. load_actors cannot alter policy weights, "
-        "controller or gripper precision, action noise, latency, or inference. "
-        "Those require an explicit runtime intervention and must not be "
-        "simulated by relabelling a scene change. For a pose change, reuse the "
-        "official pose construction and alter only the Proposal-named "
-        "component. For a fixed-angle rotation, the AST contract does not "
-        "admit np.sin, np.cos, np.deg2rad, or math trigonometry; emit a "
-        "normalized quaternion as numeric literals instead. When the "
-        "candidate leaves the perturbation magnitude open, "
-        "derive the smallest measurable change from the retrieved spawn or "
-        "workspace range, stay away from its boundary, and keep every "
-        "task-critical actor fully inside the unchanged camera view. "
-        "Actors already present in "
-        "the TASK "
-        "TELEMETRY/EXECUTION SCHEMA are tracked automatically even when their "
-        "pose or instance is replaced. Do not assign "
-        "self.mea_telemetry_tracked_actors merely to repeat one of those base "
-        "actors. Do not add helper state beyond self assignments already "
-        "present in the official method and new actor handles/telemetry; in "
-        "particular, do not cache initial poses, heights, thresholds, or flags "
-        "on self. Compute checker values from current simulator state and "
-        "literal or Query-specified thresholds. "
-        "check_success cannot read the completed trajectory or invoke a "
-        "derived Rule metric such as trajectory deviation, smoothness, jerk, "
-        "path length, or minimum clearance. Leave that scalar observation to "
-        "ToolGen and never invent calculate_* or measure_* helper methods. "
-        "Implement every checker_need relation literally. Do not replace an "
-        "exact relation with a correlated proxy: a closed gripper is not "
-        "target contact, height is not placement, and sequential contacts "
-        "are not simultaneous contacts. If the requested predicate is not "
-        "available from current simulator state or is false in the supplied "
-        "expert terminal fixture, let validation reject the candidate rather "
-        "than weakening its meaning. "
-        "When checker_need composes the official task goal with an additional "
-        "experimental condition, call self.mea_official_check_success() "
-        "directly and use its result as a required conjunct; do not copy or "
-        "reimplement the official predicate. This preserves the official core "
-        "without claiming that the extended checker is official-equivalent. "
-        "For a simulator-verifiable robot-contact condition, inspect "
-        "self.scene.get_contacts(). A SAPIEN PhysxContact exposes bodies, not "
-        "actor0/actor1; each body.entity is the scene entity, while a "
-        "RoboTwin Actor wrapper exposes its scene entity as .actor. The "
-        "RoboTwin Robot wrapper has no get_links() method; when robot link "
-        "entities are needed, combine "
-        "self.robot.left_entity.get_links() and "
-        "self.robot.right_entity.get_links(). When the Proposal specifically "
-        "requires left/right gripper contact, use "
-        "tuple(item[0].child_link for item in self.robot.left_gripper) and "
-        "the corresponding right_gripper expression; all arm links are not "
-        "equivalent to gripper links; do not invent a helper such as "
-        "self.check_contact unless that exact method appears in the retrieved "
-        "official source. Build checker-local entity collections with `+` or "
-        "tuple literals; do not call `.append()` or `.extend()`. These APIs "
-        "are read-only and must not mutate simulator state. "
-        "self.mea_telemetry_tracked_actors is the metadata exception. Assign "
-        "it only when adding an entirely new actor, include "
-        "only new actors, and give every entry exactly id, task_attribute, "
-        "scene_name, functional_points, contact_points, and a boolean "
-        "contact_focus. When adding a distractor or obstacle, inspect the "
-        "retrieved asset scale/collision geometry and place it initially "
-        "disjoint from the target and the official expert contact path. A "
-        "small center offset is not sufficient when reused asset extents "
-        "overlap. Do not return Markdown, a template id, or an "
-        "explanation. When the retrieved API supports scale_multiplier, it "
-        "is the final-size/original-size ratio: increasing size by 50% uses "
-        "1.5, while reducing size by 50% (or to 50%) uses 0.5."
+        "Return one strict JSON object with exactly string fields "
+        "load_actors and check_success. Each non-empty field is one complete "
+        "Python method whose only parameter is self. A non-null scene_need "
+        "requires a changed load_actors; a non-null checker_need requires a "
+        "changed check_success. For a null need return an empty string: the "
+        "runtime injects the exact official method before validation. "
+        "Implement the Proposal literally using only retrieved APIs and "
+        "current simulator state. Do not change the policy/controller, weaken "
+        "a relation into a proxy, move trajectory metrics into check_success, "
+        "or return prose/Markdown. The README.Agent contract supplies the "
+        "shared cross-task rules; the bound task guide supplies local facts."
     )
 
 

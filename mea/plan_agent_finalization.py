@@ -6,7 +6,6 @@ from copy import deepcopy
 from datetime import datetime
 from typing import Any, Mapping
 
-from mea.agent_acceptance import build_compact_flagship_acceptance
 from mea.agent_evidence import build_evidence_bundle, compact_aggregate_result
 from mea.feedback import (
     PlanAgentFinalSummary,
@@ -132,20 +131,6 @@ class PlanAgentFinalizationMixin:
                 ),
             },
         }
-        flagship_acceptance = build_compact_flagship_acceptance(
-            round_runs,
-            global_route_result=self.global_route_result,
-            claim_first_runtime_state=runtime_state,
-            claim_first_query_answer=final_query_answer,
-            free_concern_bundle=self.free_concern_bundle,
-            open_task_resolution=self.open_task_resolution,
-            concern_candidate_resolution=self.concern_candidate_resolution,
-            history_disabled=self.history_disabled,
-            cli_candidate_hint_used=self.cli_candidate_hint_used,
-        )
-        if flagship_acceptance is not None:
-            summary["flagship_acceptance"] = flagship_acceptance
-            evidence["flagship_acceptance"] = flagship_acceptance
         _write_json(self.evaluation_dir / "summary/summary.json", summary)
         _write_json(
             self.evaluation_dir / "summary/evidence_bundle.json",
@@ -188,7 +173,6 @@ class PlanAgentFinalizationMixin:
             ],
             summary=summary,
             answer=feedback,
-            flagship_acceptance=flagship_acceptance,
         )
         compact_evidence_report = write_evidence_report(
             self.repo_root,

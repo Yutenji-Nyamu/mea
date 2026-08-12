@@ -9,6 +9,7 @@ from typing import Any
 
 from mea.providers.json_response import extract_json_response
 
+from .answer_evidence import project_answer_evidence
 from .answer_scope import (
     build_answer_scope,
     project_answer_scope,
@@ -202,6 +203,7 @@ def _feedback_prompt(repo_root: Path, evidence: dict[str, Any]) -> str:
         encoding="utf-8"
     )
     answer_scope = build_answer_scope(evidence)
+    answer_evidence = project_answer_evidence(evidence)
     return f"""你是 MEA Plan Agent 的最终总结阶段。请基于证据回答原始 Query，不要补充未经测试的结论。
 
 EVIDENCE INTERPRETATION CONTRACT:
@@ -218,8 +220,8 @@ EVIDENCE INTERPRETATION CONTRACT:
 AGENT RULES:
 {instructions}
 
-EVIDENCE BUNDLE:
-{json.dumps(evidence, ensure_ascii=False, indent=2)}
+ANSWER EVIDENCE PROJECTION:
+{json.dumps(answer_evidence, ensure_ascii=False, indent=2)}
 
 ANSWER SCOPE:
 {json.dumps(answer_scope, ensure_ascii=False, indent=2)}

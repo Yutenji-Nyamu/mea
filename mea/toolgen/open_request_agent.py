@@ -219,8 +219,16 @@ class OpenToolRequestAgent:
                 attempt_prompt += (
                     "\n\nPREVIOUS VALIDATION ERROR:\n"
                     + self.last_errors[-1]
+                    + (
+                        "\nPREVIOUS COMPLETE TOOL REQUEST JSON:\n"
+                        + self.last_responses[-1]
+                        if self.last_responses
+                        else ""
+                    )
                     + "\nReturn one corrected complete JSON object. Preserve "
-                    "every required key from the output example. For a "
+                    "unrelated valid fields and change the field implicated "
+                    "by the validation error. Preserve every required key "
+                    "from the output example. For a "
                     "derived_observable, description must contain 1-240 "
                     "characters and null_semantics must be exactly "
                     "null_if_no_finite_sample."
