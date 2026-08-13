@@ -1,0 +1,119 @@
+{
+  "schema_version": "batch40_paper_mainline_cleanup_summary_v1",
+  "classification": "development_method_positive_not_current_evidence_promotion",
+  "current_evidence_unchanged": "docs/evidence/current",
+  "execution_location": "AutoDL server",
+  "policy_backend": "smolvla",
+  "task": "grab_roller",
+  "scene_seed": 1000,
+  "method_changes": [
+    "separate_pipeline_completion_from_valid_for_planning",
+    "plan_agent_owns_continue_or_stop_and_query_contract_only_validates",
+    "structured_actor_property_axis_relation_preservation",
+    "structural_proposal_to_artifact_owner_alignment",
+    "remove_reviewed_task_registry_from_ordinary_production_transport",
+    "move_flagship_acceptance_to_cold_paper_layer"
+  ],
+  "live_runs": [
+    {
+      "version": "v1",
+      "policy_episodes": 1,
+      "outcome": "official_control_policy_failure_exposed_pre_agent_stop_precheck"
+    },
+    {
+      "version": "v2",
+      "policy_episodes": 0,
+      "outcome": "official_check_success_reference_false_positive_in_custom_checker_regex"
+    },
+    {
+      "version": "v3",
+      "policy_episodes": 1,
+      "outcome": "official_success_then_false_diagnostic_proxy_rejection_before_generated_rollout"
+    },
+    {
+      "version": "v4",
+      "evaluation_id": "eval_20260813_batch40_grab_roller_evidence_sufficient_s1000_v4",
+      "policy_episodes": 2,
+      "outcome": "live_evidence_sufficient_stop_then_verdict_hidden_frozen_plan_replay",
+      "official_control_success": true,
+      "generated_scene_success": true,
+      "proposal_relationship": "intent_transport_direct_with_simulator_x_confirmation",
+      "preservation": "structured_complete",
+      "taskgen_attempts": 1,
+      "taskgen_fixtures": "2/2_passed",
+      "taskgen_vlm": "passed",
+      "taskgen_expert": "passed",
+      "rule_tool": {
+        "metric_id": "query_terminal_roller_z_position",
+        "route": "provider_python_codegen",
+        "provider_called": true,
+        "independent_oracle": true,
+        "live_value_m": 0.8000384569168091
+      },
+      "aggregate": {
+        "schema_version": 2,
+        "pipeline_passed": true,
+        "valid_for_planning": true,
+        "intent_complete": true,
+        "preservation_complete": true,
+        "sufficient": true,
+        "frozen_artifact_replay_unique_policy_episodes": 2,
+        "frozen_artifact_replay_policy_rollouts_started": 0
+      },
+      "plan_agent_decision": {
+        "action": "stop",
+        "stop_reason": "evidence_sufficient",
+        "claim_verdict": "supported",
+        "answered_query": true,
+        "live_prompt_exposed_precomputed_contract_verdict": true,
+        "independent_stop_ownership_validated_by_frozen_replay": true
+      },
+      "evidence_sufficient": true,
+      "answered_query": true,
+      "manifest_status": "completed",
+      "frozen_plan_replay": {
+        "simulator_calls": 0,
+        "policy_rollouts_started": 0,
+        "provider_attempts": 1,
+        "provider_retry_count": 0,
+        "contract_verdict_keys_hidden": true,
+        "raw_action": "stop",
+        "resolution": "query_contract_validated_stop",
+        "claim_verdict": "supported",
+        "answered_query": true
+      }
+    }
+  ],
+  "claim_boundary": {
+    "proves": [
+      "one_broad_query_can_complete_plan_taskgen_rollout_tool_aggregate_stop_and_answer",
+      "plan_agent_can_author_a_stop_that_current_evidence_supports_as_sufficient",
+      "query_contract_can_validate_without_preempting_plan_agent_reasoning"
+    ],
+    "does_not_prove": [
+      "cold_discovery_without_a_retrieved_positive_task_anchor",
+      "cross_task_or_cross_seed_generality",
+      "cross_evaluation_tool_exact_reuse",
+      "vqa_robustness",
+      "sample_efficiency_or_policy_ranking",
+      "generic_exact_requested_scene_delta_entailment"
+    ]
+  },
+  "artifact_locations": {
+    "server_evaluation_root": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/evaluation_runs/eval_20260813_batch40_grab_roller_evidence_sufficient_s1000_v4",
+    "server_log_root_pattern": "/root/autodl-tmp/mea-run-logs/batch40_grab_roller_evidence_sufficient_v*",
+    "frozen_plan_replay_root": "/root/autodl-tmp/mea-run-logs/batch40_final_validation/v4_plan_stop_replay_v2",
+    "final_validation_root": "/root/autodl-tmp/mea-run-logs/batch40_final_validation"
+  },
+  "final_server_validation": {
+    "targeted": {
+      "passed": 226,
+      "subtests_passed": 13
+    },
+    "default_mainline": {
+      "passed": 287,
+      "subtests_passed": 12
+    },
+    "windows_tests_run": false
+  }
+}

@@ -9,7 +9,10 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from mea.agent_acceptance import build_compact_flagship_acceptance
+from experiments.paper.flagship_acceptance import (
+    _valid_query_interpretation_provider_trace,
+    build_compact_flagship_acceptance,
+)
 from mea.agent_evidence import build_evidence_bundle
 from mea.planner import (
     BoundTaskPlanSession,
@@ -92,6 +95,31 @@ def official_round(execution_backend: str | None = None) -> dict:
 
 
 class CrossTaskEntrypointTests(unittest.TestCase):
+    def test_flagship_acceptance_allows_one_schema_repair(self):
+        self.assertTrue(
+            _valid_query_interpretation_provider_trace(
+                {"called": True, "attempt_count": 1, "errors": []}
+            )
+        )
+        self.assertTrue(
+            _valid_query_interpretation_provider_trace(
+                {
+                    "called": True,
+                    "attempt_count": 2,
+                    "errors": ["Query interpretation schema mismatch"],
+                }
+            )
+        )
+        self.assertFalse(
+            _valid_query_interpretation_provider_trace(
+                {
+                    "called": True,
+                    "attempt_count": 3,
+                    "errors": ["first", "second"],
+                }
+            )
+        )
+
     class FrozenConcernProvider:
         last_metadata = {"provider": "fixture"}
 

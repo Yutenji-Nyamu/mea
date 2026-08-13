@@ -30,7 +30,7 @@ def _positive_planning_allowance(raw: str) -> int:
     return value
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--request", required=True)
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
@@ -269,15 +269,6 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--history-limit", type=int, default=3)
     parser.add_argument(
-        "--reviewed-task-registry",
-        type=Path,
-        help=(
-            "Optional explicit reviewed generated-Task registry. Exact semantic "
-            "and artifact-hash matches may be materialized without TaskGen text "
-            "generation."
-        ),
-    )
-    parser.add_argument(
         "--reviewed-tool-registry",
         type=Path,
         help=(
@@ -316,7 +307,7 @@ def parse_args() -> argparse.Namespace:
         choices=["fixed_predeclared_v1", "dynamic_evidence_v1"],
         help=argparse.SUPPRESS,
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def resolve_default_open_query_planner(args: argparse.Namespace) -> str:

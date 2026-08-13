@@ -197,7 +197,6 @@ def run_legacy_catalog_agent(
     legacy_click_bell: bool,
     provider: Any,
     models: Mapping[str, str],
-    reviewed_task_registry: Path | None,
     reviewed_tool_registry: Path | None,
     reviewed_vqa_registry: Path | None,
     registration_identity: dict[str, Any] | None,

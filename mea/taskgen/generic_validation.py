@@ -205,69 +205,6 @@ def _requested_scale_multiplier(scene_need: Any) -> float | None:
     return None
 
 
-def _validate_preservation_feasibility(
-    candidate: Mapping[str, Any],
-) -> None:
-    """Reject one impossible scale contract before retrieval or generation."""
-
-    multiplier = _requested_scale_multiplier(candidate.get("scene_need"))
-    if multiplier is None or abs(multiplier - 1.0) <= 1e-9:
-        return
-    scene_need = candidate.get("scene_need")
-    scene_description = (
-        str(scene_need.get("description") or "")
-        if isinstance(scene_need, Mapping)
-        else str(scene_need or "")
-    )
-    if re.search(
-        r"\bcustom[\s-]+pivot(?:\s+capability)?\b",
-        scene_description,
-        re.IGNORECASE,
-    ):
-        return
-    intent = candidate.get("evaluation_intent")
-    conditions = (
-        intent.get("preserved_conditions")
-        if isinstance(intent, Mapping)
-        else None
-    )
-    if not isinstance(conditions, list):
-        return
-    normalized = [
-        str(condition).casefold()
-        for condition in conditions
-        if isinstance(condition, str)
-    ]
-    preserves_contact_world_position = any(
-        re.search(r"\bcontact[\s-]+point\b", condition)
-        for condition in normalized
-    )
-    preserves_center_or_origin_position = any(
-        re.search(
-            r"\b(?:center|centre|origin)(?:[\s-]+world)?"
-            r"[\s-]+(?:position|location|coordinate)s?\b",
-            condition,
-        )
-        or re.search(
-            r"\b(?:actor|object|target)(?:[\s-]+center)?"
-            r"(?:[\s-]+world)?[\s-]+position\b",
-            condition,
-        )
-        for condition in normalized
-    )
-    if (
-        preserves_contact_world_position
-        and preserves_center_or_origin_position
-    ):
-        raise GenericTaskGenError(
-            "preservation feasibility conflict: the current "
-            "origin-centered uniform scale backend cannot guarantee both "
-            "contact-point world position and actor/object center/origin "
-            "position; Planner must revise the candidate to preserve one "
-            "condition or declare a custom pivot capability"
-        )
-
-
 def _validate_literal_scale_alignment(
     load_actors: ast.AST,
     *,

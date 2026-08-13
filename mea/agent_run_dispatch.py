@@ -156,10 +156,6 @@ def finalize_manifest_and_dispatch(
             context.reviewed_tool_registry,
             repo_root=context.repo_root,
         ),
-        reviewed_task_registry=_display_path(
-            context.reviewed_task_registry,
-            repo_root=context.repo_root,
-        ),
         reviewed_vqa_registry=_display_path(
             context.reviewed_vqa_registry,
             repo_root=context.repo_root,
@@ -279,7 +275,6 @@ def finalize_manifest_and_dispatch(
         legacy_click_bell=context.legacy_click_bell,
         provider=context.provider,
         models=context.models,
-        reviewed_task_registry=context.reviewed_task_registry,
         reviewed_tool_registry=context.reviewed_tool_registry,
         reviewed_vqa_registry=context.reviewed_vqa_registry,
         registration_identity=registration_identity,

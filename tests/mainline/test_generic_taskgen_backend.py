@@ -34,6 +34,7 @@ from mea.taskgen.provider_scene_checker import (
 )
 from mea.taskgen.probe import robot_tcp_xyz_summary
 from mea.taskgen.probe_runtime import _write_json as _write_probe_json
+from mea.taskgen.preservation_facts import normalize_preservation_facts
 from mea.taskgen.runtime import (
     _checker_fixture_failure_diagnosis,
     _generated_checker_execution_failure,
@@ -52,6 +53,81 @@ class ProbeRuntimeContractTests(unittest.TestCase):
             self.assertEqual(json.loads(text), {"passed": True})
             self.assertTrue(text.endswith("\n"))
             self.assertFalse(text.endswith("\\n"))
+
+
+class PreservationFactBoundaryTests(unittest.TestCase):
+    def test_canonical_string_becomes_typed_fact(self) -> None:
+        self.assertEqual(
+            normalize_preservation_facts("roller y position"),
+            [
+                {
+                    "actor": "roller",
+                    "property": "position",
+                    "axis": "y",
+                    "relation": "preserve",
+                }
+            ],
+        )
+
+    def test_actor_identifier_may_contain_underscores(self) -> None:
+        self.assertEqual(
+            normalize_preservation_facts("target_actor y position")[0][
+                "actor"
+            ],
+            "target_actor",
+        )
+
+    def test_unknown_prose_is_unverified_not_guessed(self) -> None:
+        report = build_preservation_report(
+            ["keep it basically the same"],
+            scene_generated=True,
+            checker_generated=False,
+            visual_self_check_enabled=True,
+            visual={"passed": True, "unexpected_changes": []},
+        )
+
+        self.assertIsNone(report["verified"])
+        self.assertEqual(report["checks"][0]["kind"], "unverified")
+        self.assertEqual(
+            report["checks"][0]["fact"]["property"], "unknown"
+        )
+
+    def test_structured_fact_dispatches_without_text_classification(self) -> None:
+        report = build_preservation_report(
+            [
+                {
+                    "actor": "roller",
+                    "property": "position",
+                    "axis": "y",
+                    "relation": "preserve",
+                }
+            ],
+            scene_generated=True,
+            checker_generated=False,
+            visual_self_check_enabled=False,
+            visual={},
+            official_setup={
+                "seed": 3,
+                "tracked_actors": [
+                    {"id": "roller", "position": [0.0, 0.1, 0.2]}
+                ],
+            },
+            generated_setup={
+                "seed": 3,
+                "tracked_actors": [
+                    {"id": "roller", "position": [0.4, 0.1, 0.2]}
+                ],
+            },
+        )
+
+        self.assertIn('"property":"position"', report["checks"][0]["condition"])
+
+        self.assertTrue(report["verified"])
+        self.assertEqual(report["schema_version"], 2)
+        self.assertEqual(
+            report["checks"][0]["authority"],
+            "same_seed_simulator_state:tracked_actors.position_y",
+        )
 
 
 class _Provider:
@@ -112,7 +188,7 @@ class ProviderSceneCheckerRepairTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            with self.assertRaises(GenericTaskGenError):
+            with self.assertRaises((GenericTaskGenError, FileNotFoundError)):
                 run_provider_codegen(
                     attempt_root=root / "attempts",
                     proposal={"task_name": "fixture"},
@@ -705,7 +781,7 @@ class GenericTaskGenBackendTests(unittest.TestCase):
 
         self.assertIsInstance(tree, ast.Module)
 
-    def test_infeasible_uniform_scale_preservation_fails_before_lookup(
+    def test_free_form_preservation_does_not_preempt_taskgen_authority(
         self,
     ) -> None:
         query = "Does uniform target scaling expose a policy weakness?"
@@ -740,14 +816,10 @@ class GenericTaskGenBackendTests(unittest.TestCase):
         def find_exact(_query: Mapping[str, Any]) -> Mapping[str, Any]:
             nonlocal lookup_calls
             lookup_calls += 1
-            raise AssertionError("infeasible candidate must not be looked up")
+            return {"artifact_path": "missing.py"}
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            with self.assertRaisesRegex(
-                GenericTaskGenError,
-                r"origin-centered uniform scale backend cannot guarantee "
-                r"both.*Planner must revise",
-            ):
+            with self.assertRaises(GenericTaskGenError) as caught:
                 GenericRoboTwinTaskGenBackend(
                     Path(temp_dir),
                     provider,
@@ -759,8 +831,12 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                     run_id="run_infeasible_uniform_scale",
                 )
 
-        self.assertEqual(lookup_calls, 0)
-        self.assertEqual(provider.calls, 0)
+        # Free-form prose is no longer a pre-generation permission gate.  The
+        # fixture may fail later while discovering the cold task or asking the
+        # empty provider; it must not resurrect the retired lexical verdict.
+        self.assertNotIn(
+            "preservation feasibility conflict", str(caught.exception)
+        )
 
     def test_tool_only_candidate_bypasses_generic_taskgen(self) -> None:
         candidate = build_experiment_candidate(
@@ -838,12 +914,8 @@ class GenericTaskGenBackendTests(unittest.TestCase):
         checks = {
             item["condition"]: item for item in report["checks"]
         }
-        self.assertTrue(
+        self.assertIsNone(
             checks["task identity and policy checkpoint"]["verified"]
-        )
-        self.assertEqual(
-            checks["task identity and policy checkpoint"]["kind"],
-            "frozen_runtime_binding",
         )
         self.assertTrue(checks["target color"]["verified"])
         self.assertEqual(checks["target color"]["kind"], "visual")
@@ -869,8 +941,8 @@ class GenericTaskGenBackendTests(unittest.TestCase):
         self.assertFalse(report["verified"])
         self.assertEqual(report["status"], "failed")
         self.assertEqual(
-            report["checks"][0]["kind"],
-            "visual+frozen_runtime_binding",
+            [item["kind"] for item in report["checks"]],
+            ["visual", "unverified"],
         )
 
     def test_exact_center_uses_same_seed_simulator_state(self) -> None:
@@ -967,6 +1039,7 @@ class GenericTaskGenBackendTests(unittest.TestCase):
         )
 
     def test_batch39_axis_contact_and_model_preservation_passes(self) -> None:
+        """Canonical typed facts replace the historical prose matrix."""
         official_actor = {
             "id": "roller",
             "position": [-0.14362009, -0.06900436, 0.74150085],
@@ -1013,8 +1086,30 @@ class GenericTaskGenBackendTests(unittest.TestCase):
         }
         report = build_preservation_report(
             [
-                "roller model identity, sampled y position, and orientation",
-                "declared roller contact points 0 and 1",
+                {
+                    "actor": "roller",
+                    "property": "model_identity",
+                    "axis": None,
+                    "relation": "preserve",
+                },
+                {
+                    "actor": "roller",
+                    "property": "position",
+                    "axis": "y",
+                    "relation": "preserve",
+                },
+                {
+                    "actor": "roller",
+                    "property": "orientation",
+                    "axis": None,
+                    "relation": "preserve",
+                },
+                {
+                    "actor": "roller",
+                    "property": "contact_point",
+                    "axis": None,
+                    "relation": "preserve_local_offsets",
+                },
             ],
             scene_generated=True,
             checker_generated=False,
@@ -1027,51 +1122,12 @@ class GenericTaskGenBackendTests(unittest.TestCase):
         self.assertTrue(report["verified"])
         self.assertEqual(report["status"], "verified")
 
-        v4_wording = build_preservation_report(
-            [
-                "roller model instance: 0",
-                "sampled roller y coordinate",
-                "roller orientation",
-                "official roller actor and declared contact references",
-                "official lift goal and official check_success predicate",
-            ],
-            scene_generated=True,
-            checker_generated=False,
-            visual_self_check_enabled=True,
-            visual={"passed": True, "unexpected_changes": []},
-            official_setup=official_setup,
-            generated_setup=generated_setup,
-        )
-
-        self.assertTrue(v4_wording["verified"])
-        self.assertEqual(v4_wording["status"], "verified")
-        round_2_wording = build_preservation_report(
-            [
-                "official grab_roller task identity",
-                "SmolVLA shared_official policy checkpoint",
-                "roller declared contact reference point 0",
-                "roller declared contact reference point 1",
-                "sampled roller y coordinate",
-                "sampled roller model instance",
-                "sampled roller orientation",
-                "official lift success predicate",
-            ],
-            scene_generated=True,
-            checker_generated=False,
-            visual_self_check_enabled=True,
-            visual={"passed": True, "unexpected_changes": []},
-            official_setup=official_setup,
-            generated_setup=generated_setup,
-        )
-
-        self.assertTrue(round_2_wording["verified"])
-        self.assertEqual(round_2_wording["status"], "verified")
         self.assertIn("model_identity", report["checks"][0]["authority"])
-        self.assertIn("position_y", report["checks"][0]["authority"])
-        self.assertIn("quaternion", report["checks"][0]["authority"])
+        self.assertIn("position_y", report["checks"][1]["authority"])
+        self.assertIn("quaternion", report["checks"][2]["authority"])
         self.assertIn(
             "contact_point_references",
-            report["checks"][1]["authority"],
+            report["checks"][3]["authority"],
         )
 
     def test_explicit_y_preservation_rejects_y_change_only(self) -> None:
@@ -1081,7 +1137,7 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             "contact_points": {},
         }
         report = build_preservation_report(
-            ["sampled y position"],
+            ["roller y position"],
             scene_generated=True,
             checker_generated=False,
             visual_self_check_enabled=True,
@@ -1172,9 +1228,8 @@ class GenericTaskGenBackendTests(unittest.TestCase):
         self.assertFalse(report["verified"])
         self.assertEqual(report["status"], "failed")
         self.assertEqual(
-            report["checks"][0]["authority"],
-            "same_seed_simulator_state:"
-            "tracked_actors.contact_point_references+position",
+            [item["fact"]["property"] for item in report["checks"]],
+            ["contact_point", "position"],
         )
 
     def _cold_compound_position_and_orientation_checks_both(self) -> None:
@@ -1293,9 +1348,8 @@ class GenericTaskGenBackendTests(unittest.TestCase):
         self.assertFalse(report["verified"])
         self.assertEqual(report["status"], "failed")
         self.assertEqual(
-            report["checks"][0]["authority"],
-            "same_seed_simulator_state:"
-            "tracked_actors.contact_point_references+position+quaternion",
+            [item["fact"]["property"] for item in report["checks"]],
+            ["contact_point", "position", "orientation"],
         )
 
     def test_geometry_without_simulator_or_ast_authority_is_partial(
@@ -1557,19 +1611,14 @@ class GenericTaskGenBackendTests(unittest.TestCase):
 
         self.assertTrue(report["verified"])
         self.assertEqual(report["status"], "verified")
+        check = report["checks"][0]
+        self.assertEqual(check["kind"], "official_core_conjunct")
+        self.assertTrue(check["verified"])
         self.assertEqual(
-            report["checks"][0],
-            {
-                "condition": (
-                    "official core predicate as a required conjunct"
-                ),
-                "kind": "official_core_conjunct",
-                "verified": True,
-                "authority": (
-                    "generated_checker_direct_official_core_reference"
-                ),
-            },
+            check["authority"],
+            "generated_checker_direct_official_core_reference",
         )
+        self.assertEqual(check["fact"]["property"], "official_goal")
 
     def test_generated_checker_cannot_claim_official_core_without_reference(
         self,

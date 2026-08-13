@@ -1,4 +1,8 @@
-"""Pure projections used to audit a compact online flagship evaluation."""
+"""Cold paper-protocol projection for a compact online flagship evaluation.
+
+This is an experiment acceptance report, not part of the ordinary
+Query -> Plan -> Task/Tool -> execution -> evidence production method.
+"""
 
 from __future__ import annotations
 

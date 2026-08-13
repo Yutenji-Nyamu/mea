@@ -88,9 +88,10 @@ If the original Query explicitly requires a checker for every generated round,
 scene-only is not a valid fallback; choose another observable relation or stop
 and state the unsupported limitation.
 
-For each continued round, state one explicit bounded scene delta and keep task
-identity plus policy checkpoint in the preserve set. Other preservation claims
-require an advertised authority. Each Rule/VQA need asks for one primary
+For each continued round, state one explicit bounded scene delta. The runtime
+binding already fixes task identity and policy checkpoint; do not duplicate
+those bindings as scene-preservation claims. Other preservation claims require
+an advertised authority. Each Rule/VQA need asks for one primary
 observation and keeps `reuse_first=true`. Task/Tool generation never authorizes
 changing policy weights, controller precision, action noise, or latency.
 One Rule Tool request must reduce to one executable metric contract. If height,
@@ -106,10 +107,13 @@ aggregate merely to save a rollout.
 Write each `preserved_conditions` entry as one atomic fact. Name a coordinate
 axis when only that coordinate is fixed, and distinguish preservation of a
 contact reference/local offset from preservation of its world position. Use
-the simulator-authority terms `task identity`, `policy checkpoint`, `<actor>
-x/y/z position`, `<actor> orientation`, `<actor> model identity`, `<actor>
+the simulator-authority terms `<actor> x/y/z position`, `<actor> orientation`, `<actor> model identity`, `<actor>
 contact-point local offsets`, and `official goal as a required conjunct` when
 those are the exact intended facts; do not hide several facts in one sentence.
+These strings are a temporary Proposal-schema bridge. TaskGen normalizes each
+one to `{actor, property, axis, relation}` and lets simulator/checker/visual
+authority decide it; non-canonical prose remains unverified instead of being
+treated as preserved.
 
 Interpret evidence by its declared role. The round outcome is the tested
 hypothesis verdict; diagnostic Tool values explain it but do not rewrite it.

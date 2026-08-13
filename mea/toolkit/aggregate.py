@@ -48,6 +48,14 @@ def _stable_key(value: Any) -> tuple[str, str]:
     return type(value).__name__, _canonical(value)
 
 
+def _episode_identity(value: Any) -> Any:
+    """Normalize short and repository-relative paths to one episode id."""
+
+    if not isinstance(value, str) or not value.strip():
+        return value
+    return Path(value.replace("\\", "/")).name
+
+
 def _role(policy_name: Any) -> str:
     normalized = str(policy_name or "").casefold()
     if normalized in {"act", "smolvla", "hy-vla", "hyvla"}:
@@ -580,8 +588,9 @@ def aggregate_tool_executions(
         "unique_episode_count": len(
             {
                 (
-                    row.get("episode_dir"),
+                    _episode_identity(row.get("episode_dir")),
                     row.get("role"),
+                    row.get("policy_name"),
                     row.get("seed"),
                     row.get("round_id"),
                     row.get("variant"),

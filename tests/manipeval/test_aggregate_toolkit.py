@@ -240,6 +240,31 @@ class AggregateToolkitTests(unittest.TestCase):
         self.assertEqual(aggregate["episode_result_count"], 2)
         self.assertEqual(aggregate["unique_episode_count"], 1)
 
+    def test_short_and_repository_episode_paths_share_physical_identity(self):
+        first = execution(
+            "official_check_success",
+            [episode(True, metric="official_check_success", seed=1)],
+        )
+        first["episodes"][0]["episode_dir"] = "act/episode_000_seed_1"
+        second = execution(
+            "terminal_height",
+            [episode(0.8, metric="terminal_height", seed=1, unit="m")],
+        )
+        second["episodes"][0]["episode_dir"] = (
+            "mea/generated_tasks/run_1/evaluation/telemetry/act/"
+            "episode_000_seed_1"
+        )
+
+        aggregate = aggregate_tool_executions([first, second])
+
+        self.assertEqual(aggregate["source_count"], 2)
+        self.assertEqual(aggregate["episode_result_count"], 2)
+        self.assertEqual(aggregate["unique_episode_count"], 1)
+
+        second["episodes"][0]["policy_name"] = "expert"
+        distinct_policy = aggregate_tool_executions([first, second])
+        self.assertEqual(distinct_policy["unique_episode_count"], 2)
+
     def test_policy_name_prevents_role_spoofing(self):
         metric = "pickup_to_first_contact_time"
         mislabeled_expert = episode(

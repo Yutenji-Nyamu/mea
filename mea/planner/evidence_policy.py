@@ -23,7 +23,7 @@ class EvidencePacketError(ValueError):
     """Raised when one typed evidence packet is incomplete or inconsistent."""
 
 
-_EVIDENCE_PACKET_KEYS = {
+_EVIDENCE_PACKET_V1_KEYS = {
     "schema_version",
     "round_id",
     "template_id",
@@ -33,6 +33,9 @@ _EVIDENCE_PACKET_KEYS = {
     "vqa",
     "evidence_strength",
     "reason_codes",
+}
+_EVIDENCE_PACKET_V2_KEYS = _EVIDENCE_PACKET_V1_KEYS | {
+    "valid_for_planning",
 }
 _PIPELINE_KEYS = {"passed", "failure_stage"}
 _POLICY_KEYS = {"success_rate", "reported"}
@@ -58,7 +61,7 @@ _EVIDENCE_STRENGTHS = {
     "conflicting",
     "pipeline_invalid",
 }
-_EVIDENCE_AGGREGATE_KEYS = {
+_EVIDENCE_AGGREGATE_V1_KEYS = {
     "schema_version",
     "round_id",
     "execution_id",
@@ -72,6 +75,9 @@ _EVIDENCE_AGGREGATE_KEYS = {
     "evidence_conflict",
     "evidence_strength",
     "reason_codes",
+}
+_EVIDENCE_AGGREGATE_V2_KEYS = _EVIDENCE_AGGREGATE_V1_KEYS | {
+    "valid_for_planning",
 }
 _TOOL_EVIDENCE_KEYS = {
     "requested",
@@ -108,17 +114,46 @@ def _external_uncertainty_from_reason_codes(reason_codes: list[str]) -> bool:
     )
 
 
+def _valid_pre_policy_planning_observation(value: Any) -> bool:
+    """Recognize the small typed N=0 boundary that Plan may learn from."""
+
+    return bool(
+        isinstance(value, Mapping)
+        and value.get("kind")
+        in {
+            "candidate_unexecutable",
+            "expert_oracle_unavailable",
+            "taskgen_materialization_failed",
+        }
+        and value.get("policy_rollouts_started") == 0
+        and value.get("policy_sample_count") == 0
+    )
+
+
 def _expected_evidence_strength(
     *,
     pipeline_passed: bool,
+    valid_for_planning: bool | None = None,
     evidence_conflict: bool,
     rule_complete: bool,
     vqa_required: bool,
     vqa_status: str,
     additional_uncertainty: bool = False,
 ) -> str:
-    if not pipeline_passed:
+    # EvidencePacket v1 had no independent planning-validity bit, so its
+    # historical contract treated every failed pipeline as invalid evidence.
+    # Version 2 preserves that reader behavior while allowing a typed,
+    # zero-rollout pre-policy failure to be useful to Plan without rewriting
+    # the execution fact ``pipeline.passed``.
+    planning_valid = (
+        pipeline_passed
+        if valid_for_planning is None
+        else valid_for_planning
+    )
+    if not planning_valid:
         return "pipeline_invalid"
+    if not pipeline_passed:
+        return "uncertain"
     if evidence_conflict:
         return "conflicting"
     if (
@@ -314,14 +349,37 @@ def validate_evidence_aggregate(value: Mapping[str, Any]) -> dict[str, Any]:
     than independently re-reading Rule, Tool, and VQA fields.
     """
 
-    if not isinstance(value, Mapping) or set(value) != _EVIDENCE_AGGREGATE_KEYS:
+    if not isinstance(value, Mapping):
         raise EvidencePacketError(
-            "EvidenceAggregate fields must be exactly "
-            f"{sorted(_EVIDENCE_AGGREGATE_KEYS)}"
+            "EvidenceAggregate must be an object"
         )
     aggregate = deepcopy(dict(value))
-    if aggregate.get("schema_version") != 1:
-        raise EvidencePacketError("EvidenceAggregate.schema_version must be 1")
+    schema_version = aggregate.get("schema_version")
+    expected_keys = (
+        _EVIDENCE_AGGREGATE_V1_KEYS
+        if schema_version == 1
+        else _EVIDENCE_AGGREGATE_V2_KEYS
+        if schema_version == 2
+        else None
+    )
+    if expected_keys is None:
+        raise EvidencePacketError(
+            "EvidenceAggregate.schema_version must be 1 or 2"
+        )
+    if set(aggregate) != expected_keys:
+        raise EvidencePacketError(
+            "EvidenceAggregate fields must be exactly "
+            f"{sorted(expected_keys)}"
+        )
+    valid_for_planning = (
+        aggregate.get("valid_for_planning")
+        if schema_version == 2
+        else None
+    )
+    if schema_version == 2 and not isinstance(valid_for_planning, bool):
+        raise EvidencePacketError(
+            "EvidenceAggregate.valid_for_planning must be boolean"
+        )
     for field in ("round_id", "execution_id"):
         if not isinstance(aggregate.get(field), str) or not aggregate[field]:
             raise EvidencePacketError(
@@ -334,6 +392,14 @@ def validate_evidence_aggregate(value: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(pipeline.get("passed"), bool):
         raise EvidencePacketError(
             "EvidenceAggregate.pipeline.passed must be boolean"
+        )
+    if (
+        schema_version == 2
+        and pipeline["passed"] is True
+        and valid_for_planning is not True
+    ):
+        raise EvidencePacketError(
+            "a passed pipeline must be valid for planning"
         )
     failure_stage = pipeline.get("failure_stage")
     if failure_stage is not None and (
@@ -378,28 +444,27 @@ def validate_evidence_aggregate(value: Mapping[str, Any]) -> dict[str, Any]:
         vqa.get("evidence_conflict"), bool
     ):
         raise EvidencePacketError("EvidenceAggregate.vqa fields are invalid")
-    validate_evidence_packet(
-        {
-            "schema_version": 1,
-            "round_id": aggregate["round_id"],
-            "template_id": aggregate["execution_id"],
-            "pipeline": deepcopy(dict(pipeline)),
-            "policy": deepcopy(dict(policy)),
-            "rule": deepcopy(dict(rule)) if isinstance(rule, Mapping) else rule,
-            "vqa": deepcopy(dict(vqa)),
-            "evidence_strength": (
-                "pipeline_invalid"
-                if not pipeline["passed"]
-                else "conflicting"
-                if vqa["evidence_conflict"]
-                else "uncertain"
-                if (vqa["required"] and vqa["status"] != "passed")
-                or not bool((rule or {}).get("complete"))
-                else "sufficient"
-            ),
-            "reason_codes": [],
-        }
-    )
+    compatibility_packet = {
+        "schema_version": schema_version,
+        "round_id": aggregate["round_id"],
+        "template_id": aggregate["execution_id"],
+        "pipeline": deepcopy(dict(pipeline)),
+        "policy": deepcopy(dict(policy)),
+        "rule": deepcopy(dict(rule)) if isinstance(rule, Mapping) else rule,
+        "vqa": deepcopy(dict(vqa)),
+        "evidence_strength": _expected_evidence_strength(
+            pipeline_passed=pipeline["passed"],
+            valid_for_planning=valid_for_planning,
+            evidence_conflict=vqa["evidence_conflict"],
+            rule_complete=bool((rule or {}).get("complete")),
+            vqa_required=vqa["required"],
+            vqa_status=vqa["status"],
+        ),
+        "reason_codes": [],
+    }
+    if schema_version == 2:
+        compatibility_packet["valid_for_planning"] = valid_for_planning
+    validate_evidence_packet(compatibility_packet)
 
     tool = aggregate.get("tool")
     if not isinstance(tool, Mapping) or set(tool) != _TOOL_EVIDENCE_KEYS:
@@ -513,6 +578,7 @@ def validate_evidence_aggregate(value: Mapping[str, Any]) -> dict[str, Any]:
         )
     expected_strength = _expected_evidence_strength(
         pipeline_passed=pipeline["passed"],
+        valid_for_planning=valid_for_planning,
         evidence_conflict=conflict,
         rule_complete=rule["complete"],
         vqa_required=vqa["required"],
@@ -673,22 +739,13 @@ def build_evidence_aggregate(
             "EvidenceAggregate summary pipeline_passed must be boolean"
         )
     planning_observation = observations.get("planning_observation")
-    planning_evidence_valid = bool(
-        isinstance(planning_observation, Mapping)
-        and planning_observation.get("kind")
-        in {
-            "candidate_unexecutable",
-            "expert_oracle_unavailable",
-            "taskgen_materialization_failed",
-        }
-        and planning_observation.get("policy_rollouts_started") == 0
-        and planning_observation.get("policy_sample_count") == 0
+    planning_evidence_valid = _valid_pre_policy_planning_observation(
+        planning_observation
     )
-    # ``round_summary.pipeline_passed`` describes the rollout pipeline.  A
-    # typed, zero-rollout pre-policy observation is still a valid evidence
-    # transport: it must reach Plan as uncertain planning evidence rather than
-    # being mislabeled as a system/pipeline crash.
-    evidence_pipeline_passed = pipeline_passed or planning_evidence_valid
+    # ``round_summary.pipeline_passed`` is an execution fact and must never be
+    # upgraded merely because the failure is useful to Plan.  Version 2 keeps
+    # planning validity as an independent evidence property.
+    valid_for_planning = pipeline_passed or planning_evidence_valid
     failure_stage = round_summary.get("failure_stage")
     if isinstance(failure_stage, str):
         failure_stage = failure_stage.strip() or None
@@ -722,10 +779,10 @@ def build_evidence_aggregate(
         vqa_view["evidence_conflict"]
         or semantics_view["evidence_conflict"]
     )
-    if not evidence_pipeline_passed:
+    if not valid_for_planning:
         strength = "pipeline_invalid"
         reasons = ["latest_pipeline_failed"]
-    elif planning_evidence_valid:
+    elif not pipeline_passed:
         strength = "uncertain"
         reasons = [
             str(
@@ -764,13 +821,14 @@ def build_evidence_aggregate(
         reasons = []
     return validate_evidence_aggregate(
         {
-            "schema_version": 1,
+            "schema_version": 2,
             "round_id": round_id,
             "execution_id": execution_id,
             "pipeline": {
-                "passed": evidence_pipeline_passed,
+                "passed": pipeline_passed,
                 "failure_stage": failure_stage,
             },
+            "valid_for_planning": valid_for_planning,
             "policy": {
                 "success_rate": success_rate,
                 "reported": success_rate is not None,
@@ -790,14 +848,35 @@ def build_evidence_aggregate(
 def validate_evidence_packet(value: Mapping[str, Any]) -> dict[str, Any]:
     """Validate the compact Rule/VQA/policy evidence passed to Plan."""
 
-    if not isinstance(value, Mapping) or set(value) != _EVIDENCE_PACKET_KEYS:
+    if not isinstance(value, Mapping):
         raise EvidencePacketError(
-            "EvidencePacket fields must be exactly "
-            f"{sorted(_EVIDENCE_PACKET_KEYS)}"
+            "EvidencePacket must be an object"
         )
     packet = deepcopy(dict(value))
-    if packet.get("schema_version") != 1:
-        raise EvidencePacketError("EvidencePacket.schema_version must be 1")
+    schema_version = packet.get("schema_version")
+    expected_keys = (
+        _EVIDENCE_PACKET_V1_KEYS
+        if schema_version == 1
+        else _EVIDENCE_PACKET_V2_KEYS
+        if schema_version == 2
+        else None
+    )
+    if expected_keys is None:
+        raise EvidencePacketError(
+            "EvidencePacket.schema_version must be 1 or 2"
+        )
+    if set(packet) != expected_keys:
+        raise EvidencePacketError(
+            "EvidencePacket fields must be exactly "
+            f"{sorted(expected_keys)}"
+        )
+    valid_for_planning = (
+        packet.get("valid_for_planning") if schema_version == 2 else None
+    )
+    if schema_version == 2 and not isinstance(valid_for_planning, bool):
+        raise EvidencePacketError(
+            "EvidencePacket.valid_for_planning must be boolean"
+        )
     for field in ("round_id", "template_id"):
         if not isinstance(packet.get(field), str) or not packet[field]:
             raise EvidencePacketError(f"EvidencePacket.{field} must be non-empty")
@@ -807,6 +886,14 @@ def validate_evidence_packet(value: Mapping[str, Any]) -> dict[str, Any]:
         raise EvidencePacketError("EvidencePacket.pipeline fields changed")
     if not isinstance(pipeline.get("passed"), bool):
         raise EvidencePacketError("EvidencePacket.pipeline.passed must be boolean")
+    if (
+        schema_version == 2
+        and pipeline["passed"] is True
+        and valid_for_planning is not True
+    ):
+        raise EvidencePacketError(
+            "a passed pipeline must be valid for planning"
+        )
     failure_stage = pipeline.get("failure_stage")
     if failure_stage is not None and (
         not isinstance(failure_stage, str) or not failure_stage
@@ -901,6 +988,7 @@ def validate_evidence_packet(value: Mapping[str, Any]) -> dict[str, Any]:
         )
     expected_strength = _expected_evidence_strength(
         pipeline_passed=pipeline["passed"],
+        valid_for_planning=valid_for_planning,
         evidence_conflict=vqa["evidence_conflict"],
         rule_complete=rule["complete"],
         vqa_required=vqa["required"],
@@ -963,25 +1051,28 @@ def build_evidence_packet(
             raise EvidencePacketError(
                 "EvidenceAggregate.execution_id does not match the latest plan"
             )
-        # Preserve EvidencePacket v1 for every existing caller.  Its historical
-        # ``vqa.evidence_conflict`` slot carries the unified conflict bit so
-        # legacy planners cannot miss a generated/official semantic conflict.
-        return validate_evidence_packet(
-            {
-                "schema_version": 1,
-                "round_id": unified["round_id"],
-                "template_id": unified["execution_id"],
-                "pipeline": deepcopy(unified["pipeline"]),
-                "policy": deepcopy(unified["policy"]),
-                "rule": deepcopy(unified["rule"]),
-                "vqa": {
-                    **deepcopy(unified["vqa"]),
-                    "evidence_conflict": unified["evidence_conflict"],
-                },
-                "evidence_strength": unified["evidence_strength"],
-                "reason_codes": deepcopy(unified["reason_codes"]),
-            }
-        )
+        # Project the aggregate into the compact packet expected by existing
+        # planner callers.  Version 1 remains readable; new aggregates retain
+        # the independent planning-validity bit in a version 2 packet.
+        compatibility_packet = {
+            "schema_version": unified["schema_version"],
+            "round_id": unified["round_id"],
+            "template_id": unified["execution_id"],
+            "pipeline": deepcopy(unified["pipeline"]),
+            "policy": deepcopy(unified["policy"]),
+            "rule": deepcopy(unified["rule"]),
+            "vqa": {
+                **deepcopy(unified["vqa"]),
+                "evidence_conflict": unified["evidence_conflict"],
+            },
+            "evidence_strength": unified["evidence_strength"],
+            "reason_codes": deepcopy(unified["reason_codes"]),
+        }
+        if unified["schema_version"] == 2:
+            compatibility_packet["valid_for_planning"] = unified[
+                "valid_for_planning"
+            ]
+        return validate_evidence_packet(compatibility_packet)
 
     quality = _aggregate_quality(dict(latest_plan), dict(latest))
     raw_vqa = observations.get("execution_vqa")
@@ -1006,9 +1097,22 @@ def build_evidence_packet(
             "observation.execution_vqa.status must be passed, abstained, "
             "failed, skipped, or missing"
         )
-    if not pipeline_passed:
+    planning_observation = observations.get("planning_observation")
+    planning_evidence_valid = _valid_pre_policy_planning_observation(
+        planning_observation
+    )
+    valid_for_planning = pipeline_passed or planning_evidence_valid
+    if not valid_for_planning:
         strength = "pipeline_invalid"
         reasons = ["latest_pipeline_failed"]
+    elif not pipeline_passed:
+        strength = "uncertain"
+        reasons = [
+            str(
+                planning_observation.get("reason_code")
+                or "pre_policy_planning_observation"
+            )
+        ]
     elif conflict:
         strength = "conflicting"
         reasons = ["execution_vqa_conflicts_with_numeric_evidence"]
@@ -1026,7 +1130,7 @@ def build_evidence_packet(
     if isinstance(failure_stage, str):
         failure_stage = failure_stage.strip() or None
     packet = {
-        "schema_version": 1,
+        "schema_version": 2,
         "round_id": str(round_id or ""),
         "template_id": str(
             latest_plan.get("candidate_id")
@@ -1037,6 +1141,7 @@ def build_evidence_packet(
             "passed": pipeline_passed,
             "failure_stage": failure_stage,
         },
+        "valid_for_planning": valid_for_planning,
         "policy": {
             "success_rate": success_rate,
             "reported": success_rate is not None,

@@ -86,11 +86,6 @@ def create_agent_run_context(
         if args.history_database
         else repo_root / "mea/evaluation_runs/history.sqlite3"
     )
-    reviewed_task_registry = (
-        args.reviewed_task_registry.expanduser().resolve()
-        if args.reviewed_task_registry is not None
-        else None
-    )
     reviewed_tool_registry = (
         args.reviewed_tool_registry.expanduser().resolve()
         if args.reviewed_tool_registry is not None
@@ -127,7 +122,6 @@ def create_agent_run_context(
         registered_execution=registered_execution,
         models=models,
         history_path=history_path,
-        reviewed_task_registry=reviewed_task_registry,
         reviewed_tool_registry=reviewed_tool_registry,
         reviewed_vqa_registry=reviewed_vqa_registry,
         provider=provider,

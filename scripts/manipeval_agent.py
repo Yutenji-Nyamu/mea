@@ -182,10 +182,10 @@ def finish_unsupported_global_route(
     return manifest
 
 
-def main() -> None:
+def main(args: Any | None = None) -> None:
     """Parse, validate, and dispatch one Agent evaluation."""
 
-    args = parse_args()
+    args = args or parse_args()
     if args.benchmark == "libero":
         from mea.libero.chain import run_libero_agent_cli
 

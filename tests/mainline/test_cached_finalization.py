@@ -273,6 +273,51 @@ class CachedFinalizationTests(unittest.TestCase):
             self.assertIsNone(manifest["failure"])
             self.assertIsNone(manifest["failure_stage"])
 
+    def test_decision_resume_asks_agent_to_author_inconclusive_stop(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            evaluation = Path(temporary)
+            _write_json(evaluation / "manifest.json", {"status": "failed"})
+            app = PlanAgentApplication.__new__(PlanAgentApplication)
+            app.evaluation_dir = evaluation
+            app.evaluation_id = "eval_resume_inconclusive_stop"
+            app.plan = {"rounds": [{"round_id": "round_1"}]}
+            state = {
+                "assessment": {
+                    "should_stop": True,
+                    "evidence_sufficient": False,
+                    "stop_reason": "budget_exhausted",
+                }
+            }
+            app._observe = Mock(return_value=state)
+            app._decide_next_step = Mock(
+                return_value=(
+                    {**app.plan, "planning_state": "stopped_after_round_1"},
+                    {"action": "stop", "next_round": None},
+                    {"answered": False, "stop_reason": "agent_inconclusive_stop"},
+                )
+            )
+            app._finalize = Mock(
+                return_value={"evaluation_id": app.evaluation_id}
+            )
+
+            result = app.resume_decision(
+                round_runs=[
+                    {
+                        "round_plan": app.plan["rounds"][0],
+                        "round_summary": {},
+                    }
+                ]
+            )
+
+            self.assertEqual(result["decision_resume"]["action"], "stop")
+            app._decide_next_step.assert_called_once()
+            self.assertIs(
+                app._decide_next_step.call_args.kwargs["runtime_state"],
+                state,
+            )
+            self.assertFalse(hasattr(app, "_persist_contract_stop"))
+            app._finalize.assert_called_once()
+
     def test_pending_round_executes_once_without_replaying_history(self):
         with tempfile.TemporaryDirectory() as temporary:
             evaluation = Path(temporary)

@@ -1,7 +1,6 @@
 import unittest
 from copy import deepcopy
 
-from mea.agent_acceptance import _RUNTIME_DISCOVERY_RESOLUTIONS
 from mea.planner.claim_first import PlanAgent, build_open_query_planning_lineage
 from mea.planner.claim_first_runtime import (
     PlanAgentSession,
@@ -287,6 +286,7 @@ class EvidenceConditionedPlanner:
         capabilities,
         evidence_history,
         evaluation_intent=None,
+        decision_context=None,
     ):
         self.histories.append(list(evidence_history))
         latest = evidence_history[-1]["outcome"] if evidence_history else None
@@ -311,6 +311,7 @@ class EvidenceConditionedPlanner:
 class EvidenceConditionedStopPlanner:
     def __init__(self):
         self.histories = []
+        self.decision_contexts = []
 
     def propose(
         self,
@@ -319,8 +320,10 @@ class EvidenceConditionedStopPlanner:
         capabilities,
         evidence_history,
         evaluation_intent=None,
+        decision_context=None,
     ):
         self.histories.append(list(evidence_history))
+        self.decision_contexts.append(dict(decision_context or {}))
         return semantic_stop_bundle(
             user_query,
             capabilities,
@@ -329,12 +332,6 @@ class EvidenceConditionedStopPlanner:
 
 
 class ClaimFirstRuntimeTests(unittest.TestCase):
-    def test_acceptance_allows_unregistered_runtime_generation(self):
-        self.assertIn(
-            "generation_required_no_registered_candidate",
-            _RUNTIME_DISCOVERY_RESOLUTIONS,
-        )
-
     def test_query_interpretation_normalizes_provider_preservation_language(
         self,
     ):
@@ -421,6 +418,23 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             feedback_prompt.index("LAST ROUND FEEDBACK"),
             feedback_prompt.index("Return strict JSON"),
         )
+
+        stop_prompt = PlanAgent._prompt(
+            "Where does this policy first fail?",
+            open_query_capabilities(),
+            [],
+            decision_context={
+                "should_stop": True,
+                "evidence_sufficient": False,
+                "stop_reason": "budget_exhausted",
+                "claim_verdict": "inconclusive",
+            },
+        )
+        self.assertIn("CURRENT RUNTIME LIMITS", stop_prompt)
+        self.assertNotIn('"should_stop"', stop_prompt)
+        self.assertNotIn('"evidence_sufficient"', stop_prompt)
+        self.assertNotIn('"stop_reason"', stop_prompt)
+        self.assertNotIn('"claim_verdict"', stop_prompt)
 
     def test_plan_agent_stop_retry_receives_complete_stop_shape(self):
         invalid_stop = {
@@ -1683,6 +1697,7 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
                 capabilities,
                 evidence_history,
                 evaluation_intent=None,
+                decision_context=None,
             ):
                 assert self.expected_diagnosis in (
                     evidence_history[-1]["evidence_summary"]
@@ -1973,6 +1988,33 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
                 state,
                 executed_template_ids=[control["template_id"]],
             )
+
+    def test_failed_control_still_reaches_agent_for_inconclusive_stop(self):
+        query = "Where does this policy first expose a weakness?"
+        controller = ClaimFirstRuntimeController(query, target())
+        control = round_plan(
+            1, "performance.completion_time_stability.official"
+        )
+        state = controller.observe([control], [summary(control, 0.0)])
+        planner = EvidenceConditionedStopPlanner()
+
+        bound = controller.propose_and_bind_semantic_step(
+            planner,
+            state,
+            capabilities=open_query_capabilities(),
+            executed_candidate_ids=[control["template_id"]],
+        )
+
+        self.assertEqual(bound["plan_step"]["action"], "stop")
+        self.assertEqual(
+            bound["resolution"]["resolution"],
+            "plan_agent_inconclusive_stop",
+        )
+        self.assertEqual(len(planner.decision_contexts), 1)
+        self.assertEqual(
+            set(planner.decision_contexts[0]),
+            {"budget_remaining", "limitations"},
+        )
 
     def test_generated_checker_cannot_authorize_the_official_control(self):
         controller = ClaimFirstRuntimeController(
@@ -2444,6 +2486,49 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             )
 
         self.assertEqual(len(planner.histories), 1)
+
+    def test_agent_authors_inconclusive_stop_after_contract_boundary(self):
+        query = "Where does this policy first expose a weakness?"
+        limited_target = target()
+        limited_target["max_rounds"] = 2
+        controller = ClaimFirstRuntimeController(query, limited_target)
+        control = round_plan(
+            1, "performance.completion_time_stability.official"
+        )
+        candidate = round_plan(2, "object_position.left_fixed")
+        state = controller.observe(
+            [control, candidate],
+            [summary(control, 1.0), summary(candidate, 1.0)],
+        )
+        planner = EvidenceConditionedStopPlanner()
+
+        self.assertTrue(state["assessment"]["should_stop"])
+        self.assertFalse(state["assessment"]["evidence_sufficient"])
+        bound = controller.propose_and_bind_semantic_step(
+            planner,
+            state,
+            capabilities=open_query_capabilities(),
+            executed_candidate_ids=[
+                control["template_id"],
+                candidate["template_id"],
+            ],
+        )
+
+        self.assertEqual(bound["plan_step"]["action"], "stop")
+        self.assertEqual(
+            bound["resolution"]["resolution"],
+            "plan_agent_inconclusive_stop",
+        )
+        self.assertFalse(bound["query_answer"]["answered"])
+        self.assertEqual(len(planner.decision_contexts), 1)
+        self.assertEqual(
+            planner.decision_contexts[0]["budget_remaining"],
+            state["assessment"]["budget_remaining"],
+        )
+        self.assertEqual(
+            set(planner.decision_contexts[0]),
+            {"budget_remaining", "limitations"},
+        )
 
     def test_plan_agent_may_stop_inconclusively_with_completed_evidence(self):
         query = "Where does this policy first expose a weakness?"

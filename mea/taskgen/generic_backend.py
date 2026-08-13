@@ -59,7 +59,6 @@ from .generic_validation import (
     _GENERIC_READ_ONLY_METHOD_CALLS,
     _official_class,
     _official_task_methods,
-    _validate_preservation_feasibility,
     build_generic_task_subclass_module,
     validate_generic_task_methods,
 )
@@ -525,7 +524,6 @@ class GenericRoboTwinTaskGenBackend:
             )
         except ProposalExecutionError as exc:
             raise GenericTaskGenError(str(exc)) from exc
-        _validate_preservation_feasibility(normalized_candidate)
         if (
             normalized_candidate["scene_need"] is None
             and normalized_candidate["checker_need"] is None

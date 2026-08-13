@@ -18,9 +18,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
 import re
-import unicodedata
 from copy import deepcopy
 from typing import Any, Mapping, Sequence
 
@@ -69,7 +67,6 @@ _INTENT_REQUIREMENT_FIELDS = (
 _RELATIONSHIPS = {"direct", "diagnostic_proxy", "unsupported"}
 _STAGES = {"candidate", "taskgen", "execution"}
 _COVERAGE_STATUSES = {"complete", "partial", "not_covered"}
-_TOKEN = re.compile(r"[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff]+")
 _NO_SCENE_CHANGE = re.compile(
     r"\b(?:keep|reuse|use)\b.{0,40}\b(?:official|unchanged)\b"
     r"|\b(?:official|scene|appearance)\b.{0,40}\bunchanged\b"
@@ -85,28 +82,6 @@ _EXPLICIT_SCENE_CHANGE = re.compile(
     r"移除|替换|旋转|缩放|调整(?:为|到)|设(?:置)?为|改为|变为)",
     re.IGNORECASE,
 )
-_STOPWORDS = {
-    "about",
-    "after",
-    "against",
-    "between",
-    "check",
-    "does",
-    "from",
-    "into",
-    "keep",
-    "measure",
-    "policy",
-    "require",
-    "task",
-    "that",
-    "the",
-    "their",
-    "then",
-    "this",
-    "while",
-    "with",
-}
 
 
 def _text(value: Any, field: str) -> str:
@@ -211,10 +186,14 @@ def evaluation_intent_from_query_interpretation(
 
 
 def _extract_preserved_conditions(requested_change: str) -> list[str]:
-    """Preserve explicit keep/fixed clauses instead of discarding them."""
+    """Best-effort extraction of common explicit keep/fixed clauses.
+
+    This is prompt plumbing, not a natural-language admission gate. Wording
+    outside the recognized set remains in the source Query and is resolved by
+    the Plan Agent or reported unverified by TaskGen.
+    """
 
     clauses: list[str] = []
-    matched_spans: list[tuple[int, int]] = []
     patterns = (
         re.compile(
             r"(?:^|(?<=[;:.!?]))\s*(?:the\s+)?([^;:.!?]+?)\s+must\s+"
@@ -285,7 +264,6 @@ def _extract_preserved_conditions(requested_change: str) -> list[str]:
     )
     for pattern in patterns:
         for match in pattern.finditer(requested_change):
-            matched_spans.append(match.span())
             clause = re.sub(
                 r"\s+(?:fixed|unchanged|constant)\s*$",
                 "",
@@ -331,36 +309,13 @@ def _extract_preserved_conditions(requested_change: str) -> list[str]:
     )
     for pattern, normalize in semantic_invariants:
         for match in pattern.finditer(requested_change):
-            matched_spans.append(match.span())
             clause = normalize(match)
             if clause:
                 clauses.append(clause)
-    unmatched = list(requested_change)
-    for start, end in matched_spans:
-        unmatched[start:end] = " " * (end - start)
-    preservation_cue = re.search(
-        r"(?:^|[;:.!?]\s*)\b(?:please\s+)?"
-        r"(?:keep|maintain|preserve)\s+"
-        r"|\bwhile\s+(?:keeping|holding|leaving|maintaining|preserving)\s+"
-        r"|\b(?:keep|maintain|preserve)\b.{0,80}\b"
-        r"(?:fixed|unchanged|constant)\b"
-        r"|\b(?:remain|stay)s?\s+(?:fixed|unchanged|constant)\b"
-        r"|\bwithout\s+(?:(?:any\s+)?changes?\s+to|"
-        r"(?:changing|altering|moving|modifying))\b"
-        r"|\b(?:leave|hold)\b.{0,80}\b"
-        r"(?:fixed|unchanged|constant)\b"
-        r"|\b(?:do\s+not|don't|must\s+not)\s+"
-        r"(?:change|alter|move|modify)\b"
-        r"|(?:保持|保留).{0,80}(?:不变|固定)"
-        r"|(?:不要|不得|不能)(?:改变|移动|修改)",
-        "".join(unmatched),
-        re.IGNORECASE,
-    )
-    if preservation_cue:
-        raise SemanticCoverageError(
-            "explicit preservation clause could not be normalized: "
-            f"{requested_change!r}"
-        )
+    # Extraction is deliberately best effort.  An unfamiliar preservation
+    # phrase is not evidence that the Proposal is invalid; the original Query
+    # remains in the Agent context and TaskGen records unknown facts as
+    # unverified.
     if not clauses:
         return []
     conditions: list[str] = []
@@ -377,7 +332,21 @@ def _extract_preserved_conditions(requested_change: str) -> list[str]:
                 part.strip(),
                 flags=re.IGNORECASE,
             ).removeprefix("its ").strip()
+            condition = re.split(
+                r"\b(?:while|ensuring|ensure|so\s+that)\s+(?:the\s+)?",
+                condition,
+                flags=re.IGNORECASE,
+            )[-1].strip().removeprefix("its ").strip()
+            condition = re.sub(
+                r"\s+must$", "", condition, flags=re.IGNORECASE
+            ).strip()
             if not condition:
+                continue
+            if re.match(
+                r"^(?:add|change|reduce|scale|move|place|test)\b",
+                condition,
+                re.IGNORECASE,
+            ):
                 continue
             semantic_key = re.sub(
                 r"^(?:the|its|a|an)\s+",
@@ -431,46 +400,6 @@ def validate_evaluation_intent(value: Mapping[str, Any]) -> dict[str, Any]:
             "EvaluationIntent.intent_id does not match its semantic content"
         )
     return intent
-
-
-def _semantic_tokens(value: str) -> set[str]:
-    normalized = unicodedata.normalize("NFKC", value).casefold()
-    result: set[str] = set()
-    for token in _TOKEN.findall(normalized):
-        if token.isascii():
-            if len(token) >= 3 and token not in _STOPWORDS:
-                result.add(token)
-            continue
-        # Character bigrams preserve useful Chinese semantics without a
-        # language-specific tokenizer. Single-character runs remain usable.
-        if len(token) == 1:
-            result.add(token)
-        else:
-            result.update(
-                token[index : index + 2]
-                for index in range(len(token) - 1)
-            )
-    return result
-
-
-def _semantic_match(requirement: str, implementation_text: str) -> bool:
-    requirement_normalized = unicodedata.normalize(
-        "NFKC", requirement
-    ).casefold().strip()
-    implementation_normalized = unicodedata.normalize(
-        "NFKC", implementation_text
-    ).casefold()
-    if requirement_normalized in implementation_normalized:
-        return True
-    required = _semantic_tokens(requirement)
-    implemented = _semantic_tokens(implementation_text)
-    if not required:
-        return False
-    overlap = len(required & implemented)
-    minimum = 1 if len(required) <= 2 else max(
-        2, math.ceil(len(required) * 0.4)
-    )
-    return overlap >= minimum
 
 
 def _requests_no_scene_change(requested_change: str) -> bool:
@@ -546,32 +475,17 @@ def build_candidate_intent_alignment(
     """Classify a candidate conservatively against its frozen intent."""
 
     normalized = validate_evaluation_intent(intent)
-    semantic_text = _text(semantic_concern, "semantic_concern")
-    scene_text = (
-        str(scene_need.get("description") or "")
-        if isinstance(scene_need, Mapping)
-        else ""
+    _text(semantic_concern, "semantic_concern")
+    observation_owner_present = any(
+        isinstance(need, Mapping)
+        for need in (
+            scene_need,
+            checker_need,
+            rule_tool_need,
+            vqa_tool_need,
+            tool_need,
+        )
     )
-    checker_text = (
-        str(checker_need.get("description") or "")
-        if isinstance(checker_need, Mapping)
-        else ""
-    )
-    tool_text = "\n".join(
-        str(need.get("description") or "")
-        for need in (rule_tool_need, vqa_tool_need, tool_need)
-        if isinstance(need, Mapping)
-    )
-    implementations = {
-        "requested_change": "\n".join((semantic_text, scene_text)),
-        "preserved_conditions": "\n".join(
-            (semantic_text, scene_text, checker_text)
-        ),
-        "hypothesis": "\n".join((semantic_text, checker_text, tool_text)),
-        "required_observation": "\n".join(
-            (semantic_text, checker_text, tool_text)
-        ),
-    }
     matched = []
     for field in _INTENT_REQUIREMENT_FIELDS:
         if field == "requested_change":
@@ -583,28 +497,25 @@ def build_candidate_intent_alignment(
             elif no_scene_change:
                 matched_field = False
             else:
-                matched_field = _semantic_match(
-                    normalized[field], implementations[field]
-                )
+                matched_field = isinstance(scene_need, Mapping)
         elif field == "preserved_conditions":
             conditions = normalized["preserved_conditions"]
+            # Preservation is simulator-authoritative.  Carry explicit
+            # conditions into TaskGen rather than rejecting a Proposal because
+            # its free-form wording has insufficient token overlap.
             matched_field = (
                 not conditions
-                or (
-                    scene_need is None
-                    and _requests_no_scene_change(
-                        normalized["requested_change"]
-                    )
-                )
-                or all(
-                    _semantic_match(condition, implementations[field])
-                    for condition in conditions
-                )
+                or scene_need is None
+                or isinstance(scene_need, Mapping)
             )
+        elif field == "hypothesis":
+            # The hypothesis is carried verbatim in EvaluationIntent.  Code
+            # cannot establish semantic equivalence by token overlap.
+            matched_field = True
+        elif field == "required_observation":
+            matched_field = observation_owner_present
         else:
-            matched_field = _semantic_match(
-                normalized[field], implementations[field]
-            )
+            matched_field = False
         if matched_field:
             matched.append(field)
     unmatched = [

@@ -89,7 +89,7 @@ _EXPLICIT_SUCCESS_SEMANTICS = re.compile(
     r"|success\s+(?:means|requires|iff|if\s+and\s+only\s+if)"
     r"|(?:successful?\s+(?:sample|episode)|成功样本).{0,40}"
     r"(?:where|in\s+which|such\s+that|使|其中|要求|必须)"
-    r"|check_success"
+    r"|(?<!official_)check_success\s*(?:means|requires|iff)"
     r"|(?:experimental\s+checker|generated\s+checker).{0,80}"
     r"(?:must|shall|required).{0,80}"
     r"(?:official\s+(?:success|goal|predicate)|required\s+conjunct|"

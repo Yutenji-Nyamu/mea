@@ -1074,19 +1074,20 @@ def project_agent_inconclusive_stop(
         raise QuerySufficiencyError(
             "sufficient evidence must use the evidence_sufficient stop"
         )
-    if assessment.get("should_stop") is True:
-        raise QuerySufficiencyError(
-            "an existing QueryContract stop must not be relabelled as an "
-            "inconclusive Plan Agent stop"
-        )
     completed_rounds = assessment.get("completed_rounds")
     if (
         isinstance(completed_rounds, bool)
         or not isinstance(completed_rounds, int)
-        or completed_rounds < 1
+        or completed_rounds < 0
     ):
         raise QuerySufficiencyError(
-            "an inconclusive Plan Agent stop requires completed evidence"
+            "an inconclusive Plan Agent stop requires a valid evidence count"
+        )
+    if completed_rounds == 0 and not str(
+        assessment.get("stop_reason") or ""
+    ).startswith("control_baseline_"):
+        raise QuerySufficiencyError(
+            "a pre-candidate inconclusive stop requires completed control evidence"
         )
     limitations = list(assessment.get("limitations") or [])
     limitations.append(

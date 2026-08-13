@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from mea.feedback.answer_evidence import project_answer_evidence
+from mea.feedback.evidence_projection import _compact_decision
 from mea.feedback.prototype import _feedback_prompt
 
 
@@ -167,3 +168,21 @@ def test_feedback_prompt_uses_projection_but_scope_still_uses_raw_evidence():
     assert "ANSWER SCOPE:" in prompt
     assert "round_decisions" not in prompt
     assert "drop.mp4" not in prompt
+
+
+def test_compact_decision_reads_current_query_assessment():
+    projected = _compact_decision(
+        {
+            "action": "stop",
+            "answered_query": True,
+            "query_assessment": {
+                "evidence_sufficient": True,
+                "claim_verdict": "supported",
+                "stop_reason": "evidence_sufficient",
+            },
+        }
+    )
+
+    assert projected["evidence_sufficient"] is True
+    assert projected["claim_verdict"] == "supported"
+    assert projected["stop_reason"] == "evidence_sufficient"

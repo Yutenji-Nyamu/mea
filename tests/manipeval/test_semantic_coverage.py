@@ -171,7 +171,7 @@ class SemanticCoverageTests(unittest.TestCase):
 
         self.assertEqual(
             intent["preserved_conditions"],
-            ["the center position", "material", "scene layout"],
+            ["center position", "material", "scene layout"],
         )
 
     def test_direct_must_remain_clause_is_normalized(self):
@@ -266,23 +266,24 @@ class SemanticCoverageTests(unittest.TestCase):
             ["the target center", "material"],
         )
 
-    def test_unparsed_second_preservation_clause_fails_closed(self):
-        with self.assertRaisesRegex(
-            SemanticCoverageError,
-            "explicit preservation clause could not be normalized",
-        ):
-            evaluation_intent_from_free_concern(
-                {
-                    "source_query": (
-                        "Keep the target center fixed. Make the contact "
-                        "point remain unchanged."
-                    ),
-                    "sub_aspect": "bounded target appearance change",
-                    "hypothesis": "A bounded appearance change reduces success.",
-                    "requested_variation": "Change the target appearance.",
-                    "measurement_need": "Measure official success.",
-                }
-            )
+    def test_unfamiliar_preservation_wording_is_not_an_admission_gate(self):
+        intent = evaluation_intent_from_free_concern(
+            {
+                "source_query": (
+                    "Keep the target center fixed. Make the contact "
+                    "point remain unchanged."
+                ),
+                "sub_aspect": "bounded target appearance change",
+                "hypothesis": "A bounded appearance change reduces success.",
+                "requested_variation": "Change the target appearance.",
+                "measurement_need": "Measure official success.",
+            }
+        )
+        self.assertIn("the target center", intent["preserved_conditions"])
+        self.assertIn(
+            "Make the contact point remain unchanged",
+            intent["source_query"],
+        )
 
     def test_empty_preserve_set_is_vacuously_covered(self):
         intent = build_evaluation_intent(
@@ -645,7 +646,7 @@ class SemanticCoverageTests(unittest.TestCase):
         self.assertEqual(completed["coverage_status"], "complete")
         self.assertEqual(completed["uncovered_intent_fields"], [])
 
-    def test_nearby_margin_diagnosis_is_explicit_proxy(self):
+    def test_structured_needs_replace_lexical_proxy_classification(self):
         candidate = _candidate(
             semantic_concern="Decompose official height and x success margins.",
             scene_description="Keep the official scene unchanged.",
@@ -653,21 +654,10 @@ class SemanticCoverageTests(unittest.TestCase):
             tool_description="Measure height margin, x margin, and official success.",
         )
 
-        self.assertEqual(
-            candidate["intent_alignment"]["relationship"],
-            "diagnostic_proxy",
-        )
+        self.assertEqual(candidate["intent_alignment"]["relationship"], "direct")
         trace = build_implementation_trace(candidate)
-        self.assertEqual(trace["relationship"], "diagnostic_proxy")
-        self.assertEqual(
-            set(trace["uncovered_intent_fields"]),
-            {
-                "requested_change",
-                "preserved_conditions",
-                "hypothesis",
-                "required_observation",
-            },
-        )
+        self.assertEqual(trace["relationship"], "direct")
+        self.assertEqual(trace["uncovered_intent_fields"], [])
 
     def test_direct_taskgen_trace_waits_for_tool_execution(self):
         candidate = _candidate(

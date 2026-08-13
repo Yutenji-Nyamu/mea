@@ -67,6 +67,7 @@ class PlanAgent:
         evidence_history: Sequence[Mapping[str, Any]],
         evaluation_intent: Mapping[str, Any] | None = None,
         task_guide: str = "",
+        decision_context: Mapping[str, Any] | None = None,
     ) -> str:
         checker_required = query_requires_experimental_checker(user_query)
         continue_example = {
@@ -184,6 +185,27 @@ requested change, preserved conditions, hypothesis, and required observation.
                 )
                 + "\n"
             )
+        stop_state = ""
+        if decision_context is not None:
+            compact_stop_state = {
+                key: decision_context.get(key)
+                for key in (
+                    "budget_remaining",
+                    "limitations",
+                )
+                if decision_context.get(key) is not None
+            }
+            stop_state = (
+                "\nCURRENT RUNTIME LIMITS (not a stop verdict):\n"
+                + json.dumps(
+                    compact_stop_state,
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                + "\nJudge continue or stop from the completed evidence and "
+                "original Query. These limits contain no precomputed stop, "
+                "sufficiency, or verdict decision.\n"
+            )
         shared_contract = PlanAgent._shared_contract()
         return f"""You are the Plan Agent in ManipEvalAgent.
 PLAN AGENT CONTRACT:
@@ -213,6 +235,7 @@ POLICY AND SIMULATOR CAPABILITIES:
 COMPLETED ROUND EVIDENCE (chronological; empty means first proposal):
 {json.dumps(evidence_history, ensure_ascii=False, indent=2)}
 {last_feedback}
+{stop_state}
 
 Return strict JSON with exactly these fields. Use the first shape for continue
 and the second shape for stop; do not combine them.
@@ -231,6 +254,7 @@ STOP EXAMPLE:
         capabilities: Mapping[str, Any],
         evidence_history: Sequence[Mapping[str, Any]],
         evaluation_intent: Mapping[str, Any] | None = None,
+        decision_context: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         query = _text(user_query, "user_query")
         trusted_capabilities = validate_open_query_capabilities(capabilities)
@@ -250,6 +274,7 @@ STOP EXAMPLE:
             trusted_evidence,
             trusted_intent,
             task_guide,
+            decision_context,
         )
         self.last_prompt = prompt
         self.last_responses = []

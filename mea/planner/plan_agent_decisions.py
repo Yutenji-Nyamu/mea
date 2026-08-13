@@ -100,20 +100,6 @@ class PlanAgentDecisionMixin:
             raise ClaimFirstRuntimeError(
                 "Plan Agent observation has no assessment"
             )
-        if (
-            assessment.get("should_stop")
-            and assessment.get("evidence_sufficient") is not True
-        ):
-            raise ClaimFirstRuntimeError(
-                "cannot propose a semantic step after the query contract stopped"
-            )
-        if (
-            self.require_control_anchor
-            and observation.get("control_passed") is not True
-        ):
-            raise ClaimFirstRuntimeError(
-                "cannot propose a property experiment before the control passes"
-            )
         history = _current_planning_evidence(observation)
         if self.require_control_anchor and not history:
             raise ClaimFirstRuntimeError(
@@ -136,12 +122,22 @@ class PlanAgentDecisionMixin:
             raise ClaimFirstRuntimeError(
                 "Plan Agent must expose a callable propose()"
             )
+        # The Query contract validates a decision after the Agent authors it.
+        # Before that call, expose only concrete runtime limits; forwarding the
+        # contract's stop/verdict fields would let the validator pre-author the
+        # very decision that the Plan Agent is meant to make from evidence.
+        decision_context = {
+            key: deepcopy(assessment[key])
+            for key in ("budget_remaining", "limitations")
+            if assessment.get(key) is not None
+        }
         try:
             proposal_bundle = propose(
                 self.user_query,
                 capabilities=trusted_capabilities,
                 evidence_history=history,
                 evaluation_intent=trusted_intent,
+                decision_context=decision_context,
             )
         except Exception as exc:
             if isinstance(exc, ClaimFirstRuntimeError):

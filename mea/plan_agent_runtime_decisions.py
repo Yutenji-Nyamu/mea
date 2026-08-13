@@ -78,67 +78,6 @@ class PlanAgentRuntimeDecisionMixin:
         )
         return state
 
-    def _persist_contract_stop(
-        self,
-        *,
-        plan: dict[str, Any],
-        round_plan: Mapping[str, Any],
-        round_runs: list[dict[str, Any]],
-        runtime_state: Mapping[str, Any],
-        executed_rounds: int,
-    ) -> tuple[dict[str, Any], dict[str, Any]]:
-        assessment = runtime_state["assessment"]
-        query_answer = deepcopy(dict(runtime_state["query_answer"]))
-        decision = {
-            "schema_version": 3,
-            "action": "stop",
-            "transition": "stop",
-            "next_aspect_id": None,
-            "next_template_id": None,
-            "observation_summary": assessment["rationale"],
-            "decision_reason": "external_query_contract_stop",
-            "answered_query": bool(query_answer["answered"]),
-            "plan_step_source": "external_query_contract_stop",
-            "round_budget_before_decision": assessment["budget_remaining"],
-            "evidence_assessment": assessment,
-            "semantic_stop_step": None,
-            "next_round": None,
-        }
-        plan.setdefault("round_decisions", []).append(decision)
-        plan["planning_state"] = (
-            f"stopped_after_round_{executed_rounds}_"
-            f"{assessment['stop_reason']}"
-        )
-        _write_json(
-            self.evaluation_dir
-            / f"plan/decision_after_{round_plan['round_id']}.json",
-            decision,
-        )
-        _write_json(
-            self.evaluation_dir / PLAN_AGENT_SESSION / "query_answer.json",
-            query_answer,
-        )
-        _write_json(
-            self.evaluation_dir / "plan/evaluation_plan.json",
-            plan,
-        )
-        self._persist_session(plan, round_runs)
-        update_manifest(
-            self.evaluation_dir,
-            status=plan["planning_state"],
-            plan=plan,
-            plan_agent_stop={
-                "stop_reason": assessment["stop_reason"],
-                "evidence_sufficient": assessment["evidence_sufficient"],
-                "answered_query": query_answer["answered"],
-                "answer_path": (
-                    (PLAN_AGENT_SESSION / "query_answer.json").as_posix()
-                ),
-                "plan_agent_stop_proposed": False,
-            },
-        )
-        return decision, query_answer
-
     def _decide_next_step(
         self,
         *,

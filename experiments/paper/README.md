@@ -108,6 +108,7 @@ belong in the production README or hot architecture document.
 | [`results/batch35_generic_method_matrix/`](results/batch35_generic_method_matrix/README.md) | 五任务通用方法矩阵与 schema-free scene/checker live 补充验收 |
 | [`results/batch38_prompt_context/`](results/batch38_prompt_context/README.md) | `grab_roller` 失败驱动 prompt/context 纵向回归；未晋升当前旗舰 |
 | [`results/batch39_grab_roller_prompt_mainline/`](results/batch39_grab_roller_prompt_mainline/README.md) | prompt-first 修复后的 `grab_roller` 主链、live Tool 与主动 inconclusive stop；未晋升旗舰 |
+| [`results/batch40_paper_mainline_cleanup/`](results/batch40_paper_mainline_cleanup/README.md) | 生产语义清理与 `grab_roller` 两 episode `evidence_sufficient` 正例；作为冷补充，不替换 current evidence |
 
 旧运行的简短结论与边界另见
 [`docs/evidence/history.jsonl`](../../docs/evidence/history.jsonl)。若两处描述冲突，

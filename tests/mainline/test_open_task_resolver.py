@@ -399,6 +399,16 @@ class QueryInterpretationTests(unittest.TestCase):
             resolver.query_requires_experimental_checker(query)
         )
 
+    def test_official_check_success_reference_reuses_official_checker(self):
+        query = (
+            "Find one generated scene on which the policy succeeds according "
+            "to official_check_success and report a finite Rule measurement."
+        )
+
+        self.assertFalse(
+            resolver.query_requires_experimental_checker(query)
+        )
+
     def _cold_generated_checker_requirement_is_not_treated_as_optional(self):
         query = (
             "Every generated experimental checker must preserve the official "

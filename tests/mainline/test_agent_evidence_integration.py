@@ -10,7 +10,12 @@ from mea.execution_vqa.runtime import (
     _same_telemetry_episode,
     run_round_execution_vqa,
 )
-from mea.planner.evidence_policy import build_evidence_aggregate
+from mea.planner.evidence_policy import (
+    build_evidence_aggregate,
+    build_evidence_packet,
+    validate_evidence_aggregate,
+    validate_evidence_packet,
+)
 from mea.toolkit import aggregate_tool_executions
 from mea.feedback.answer_scope import build_answer_scope
 
@@ -534,12 +539,40 @@ class AgentEvidenceIntegrationTests(unittest.TestCase):
 
         evidence = build_evidence_aggregate(round_plan, summary)
 
-        self.assertTrue(evidence["pipeline"]["passed"])
+        self.assertEqual(evidence["schema_version"], 2)
+        self.assertFalse(evidence["pipeline"]["passed"])
+        self.assertTrue(evidence["valid_for_planning"])
         self.assertEqual(evidence["evidence_strength"], "uncertain")
         self.assertEqual(
             evidence["reason_codes"],
             ["taskgen_expert_gate_official_baseline_unsolvable"],
         )
+
+        summary["observations"]["evidence_aggregate"] = evidence
+        packet = build_evidence_packet(
+            {"rounds": [round_plan], "max_rounds": 2}, [summary]
+        )
+        self.assertFalse(packet["pipeline"]["passed"])
+        self.assertTrue(packet["valid_for_planning"])
+
+        # Old v1 artifacts encoded the same N=0 observation by upgrading
+        # pipeline.passed.  The v2 reader remains compatible with that shape.
+        legacy_aggregate = {
+            **evidence,
+            "schema_version": 1,
+            "pipeline": {**evidence["pipeline"], "passed": True},
+        }
+        legacy_aggregate.pop("valid_for_planning")
+        self.assertEqual(
+            validate_evidence_aggregate(legacy_aggregate), legacy_aggregate
+        )
+        legacy_packet = {
+            **packet,
+            "schema_version": 1,
+            "pipeline": {**packet["pipeline"], "passed": True},
+        }
+        legacy_packet.pop("valid_for_planning")
+        self.assertEqual(validate_evidence_packet(legacy_packet), legacy_packet)
 
     def test_official_act_without_act_candidate_is_failed(self):
         with tempfile.TemporaryDirectory() as temporary:

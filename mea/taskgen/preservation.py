@@ -3,186 +3,16 @@
 from __future__ import annotations
 
 import ast
+import json
 import math
-import re
 from collections.abc import Mapping
 from typing import Any
 
-_FROZEN_PRESERVATION_TERMS = (
-    "task identity",
-    "base task",
-    "official task",
-    "policy checkpoint",
-    "checkpoint",
-    "policy weights",
-    "random seed",
-    "seed",
-    "action schema",
-    "action interface",
-    "robot configuration",
-    "robot identity",
-    "gripper configuration",
-    "gripper identity",
-    "task instruction",
-    "language instruction",
-    "robot state",
-    "timing",
-    "策略检查点",
-    "随机种子",
-    "动作接口",
-    "机器人配置",
-    "任务指令",
-)
-_VISUAL_PRESERVATION_TERMS = (
-    "appearance",
-    "color",
-    "material",
-    "texture",
-    "lighting",
-    "background",
-    "surroundings",
-    "environment",
-    "camera",
-    "visible",
-    "layout",
-    "table",
-    "support",
-    "floor",
-    "wall",
-    "interaction target",
-    "target identity",
-    "外观",
-    "颜色",
-    "材质",
-    "纹理",
-    "光照",
-    "背景",
-    "环境",
-    "相机",
-    "布局",
-    "目标身份",
-)
-_SIMULATOR_STATE_PRESERVATION_TERMS = (
-    "spatial",
-    "contact point",
-    "contact-point",
-    "contact reference",
-    "contact-point reference",
-    "contact location",
-    "center",
-    "centre",
-    "world position",
-    "world-position",
-    "pose",
-    "position",
-    "placement",
-    "location",
-    "orientation",
-    "height",
-    "z coordinate",
-    "coordinate",
-    "model identity",
-    "model instance",
-    "asset identity",
-    "空间",
-    "接触点",
-    "接触位置",
-    "中心",
-    "世界位置",
-    "位姿",
-    "位置",
-    "姿态",
-    "高度",
-)
-_GEOMETRY_PRESERVATION_TERMS = (
-    "geometry",
-    "shape",
-    "size",
-    "scale",
-    "dimension",
-    "几何",
-    "形状",
-    "大小",
-    "尺寸",
-    "比例",
-)
-_CHECKER_PRESERVATION_TERMS = (
-    "success semantics",
-    "success predicate",
-    "success criterion",
-    "success criteria",
-    "checker",
-    "check_success",
-    "task goal",
-    "task objective",
-    "task semantics",
-    "goal semantics",
-    "outcome semantics",
-    "成功语义",
-    "成功判据",
-    "成功标准",
-    "任务目标",
-    "任务语义",
-    "目标语义",
-)
-_OFFICIAL_CORE_CONJUNCT_TERMS = (
-    "official core predicate",
-    "official goal as a required conjunct",
-    "official task goal as a required conjunct",
-    "official goal as a necessary condition",
-    "official task goal as a necessary condition",
-)
+from .preservation_facts import normalize_preservation_facts
 
 _POSITION_ABS_TOLERANCE_M = 1e-5
 _CONTACT_LOCAL_POSITION_ABS_TOLERANCE_M = 5e-4
 _QUATERNION_COMPONENT_ABS_TOLERANCE = 5e-4
-
-
-def _explicit_position_axes(condition: str) -> list[tuple[str, int]]:
-    """Return only axes explicitly named by a preservation condition."""
-
-    axes: list[tuple[str, int]] = []
-    for axis, index in (("x", 0), ("y", 1), ("z", 2)):
-        patterns = (
-            rf"\b(?:sampled[\s-]+)?(?:[a-z0-9_]+[\s-]+){{0,3}}"
-            rf"{axis}(?:[\s-]+axis)?"
-            rf"[\s-]+(?:position|coordinate)\b",
-            rf"\b(?:position|coordinate)[\s-]+(?:along[\s-]+)?"
-            rf"(?:the[\s-]+)?{axis}(?:[\s-]+axis)?\b",
-            rf"\b{axis}[\s-]+axis\b",
-        )
-        if any(re.search(pattern, condition) for pattern in patterns):
-            axes.append((axis, index))
-    if any(
-        marker in condition
-        for marker in (
-            "vertical axis",
-            "vertical coordinate",
-            "z-axis",
-            "z axis",
-            "z-coordinate",
-            "垂直轴",
-            "竖直轴",
-            "z轴",
-        )
-    ) and ("z", 2) not in axes:
-        axes.append(("z", 2))
-    return axes
-
-
-def _contact_world_position_requested(condition: str) -> bool:
-    return bool(
-        re.search(
-            r"\bcontact(?:[\s-]+point)?(?:s)?[\s-]+world"
-            r"[\s-]+(?:position|location|coordinate)s?\b",
-            condition,
-        )
-        or re.search(
-            r"\bworld[\s-]+(?:position|location|coordinate)s?"
-            r"[\s-]+(?:of[\s-]+)?(?:the[\s-]+)?contact",
-            condition,
-        )
-    )
 
 
 def _finite_numeric_vector(
@@ -338,6 +168,8 @@ def _same_seed_tracked_actor_state(
     official_setup: Mapping[str, Any] | None,
     generated_setup: Mapping[str, Any] | None,
     condition: str,
+    *,
+    fact: Mapping[str, Any] | None = None,
 ) -> tuple[bool | None, str]:
     """Compare spatial facts using same-seed simulator state, never RGB."""
 
@@ -382,54 +214,34 @@ def _same_seed_tracked_actor_state(
     ):
         return None, "no_comparable_tracked_actor_state"
 
-    lowered = condition.casefold()
-    requires_contact = "contact" in lowered
-    contact_world_position = _contact_world_position_requested(lowered)
-    position_axes = _explicit_position_axes(lowered)
-    requires_model_identity = any(
-        marker in lowered
-        for marker in ("model identity", "model instance", "asset identity")
+    if fact is None:
+        normalized = normalize_preservation_facts(condition)
+        if len(normalized) != 1:
+            return None, "non_atomic_preservation_fact"
+        fact = normalized[0]
+    property_name = fact.get("property")
+    actor = fact.get("actor")
+    axis = fact.get("axis") if property_name == "position" else None
+    requires_contact = property_name == "contact_point"
+    contact_world_position = fact.get("relation") == "preserve_world_position"
+    position_axes = (
+        [(str(axis), {"x": 0, "y": 1, "z": 2}[str(axis)])]
+        if axis in {"x", "y", "z"}
+        else []
     )
-    scoped_actor_ids = [
-        actor_id
-        for actor_id in official_actors
-        if actor_id.casefold() in lowered
-    ] or list(official_actors)
-    non_contact_spatial = re.sub(
-        r"\bcontact(?:[\s-]+point)?(?:[\s-]+world)?"
-        r"[\s-]+(?:position|location|coordinate)s?\b"
-        r"|\bcontact[\s-]+point\b",
-        "",
-        lowered,
-    )
-    requires_actor_position = (
-        any(
-            term in (
-                non_contact_spatial
-                if requires_contact
-                else lowered
-            )
-            for term in (
-                "position",
-                "location",
-                "coordinate",
-                "placement",
-                "spatial",
-            )
-        )
-    ) or any(
-        term in non_contact_spatial
-        for term in ("center", "centre", "origin", "pose")
-    )
-    requires_orientation = (
-        "orientation" in lowered or "pose" in lowered
-    )
-    requires_height = (
-        "height" in lowered
-        or "z coordinate" in lowered
-        or "高度" in lowered
-        or any(axis == "z" for axis, _index in position_axes)
-    )
+    requires_model_identity = property_name == "model_identity"
+    if isinstance(actor, str):
+        scoped_actor_ids = [actor] if actor in official_actors else []
+    else:
+        scoped_actor_ids = list(official_actors)
+    if not scoped_actor_ids:
+        return None, "preservation_actor_not_in_simulator_state"
+    requires_actor_position = property_name == "position" and axis in {
+        None,
+        "all",
+    }
+    requires_orientation = property_name == "orientation"
+    requires_height = property_name == "position" and axis == "z"
     if position_axes:
         # An explicitly named coordinate constrains only that axis. Treating
         # "sampled y position" as full xyz preservation would reject the x
@@ -660,7 +472,7 @@ def _same_seed_tracked_actor_geometry(
 
 
 def build_preservation_report(
-    conditions: list[str],
+    conditions: list[str | Mapping[str, Any]],
     *,
     scene_generated: bool,
     checker_generated: bool,
@@ -675,32 +487,45 @@ def build_preservation_report(
     checks: list[dict[str, Any]] = []
     exact_task_reuse = not scene_generated and not checker_generated
     for raw_condition in conditions:
-        condition = str(raw_condition).strip()
-        lowered = condition.casefold()
-        if exact_task_reuse:
-            kind = "exact_task_method_reuse"
-            verified: bool | None = True
-            authority = "exact_official_scene_and_checker_method_reuse"
-        else:
-            has_official_core_conjunct_term = any(
-                term in lowered for term in _OFFICIAL_CORE_CONJUNCT_TERMS
+        condition = (
+            str(raw_condition).strip()
+            if not isinstance(raw_condition, Mapping)
+            else json.dumps(
+                dict(raw_condition),
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
             )
-            has_checker_term = any(
-                term in lowered for term in _CHECKER_PRESERVATION_TERMS
-            ) and not has_official_core_conjunct_term
-            has_visual_term = any(
-                term in lowered for term in _VISUAL_PRESERVATION_TERMS
-            )
-            has_simulator_state_term = any(
-                term in lowered
-                for term in _SIMULATOR_STATE_PRESERVATION_TERMS
-            )
-            has_geometry_term = any(
-                term in lowered for term in _GEOMETRY_PRESERVATION_TERMS
-            )
-            has_frozen_term = any(
-                term in lowered for term in _FROZEN_PRESERVATION_TERMS
-            )
+        )
+        for fact in normalize_preservation_facts(raw_condition):
+            if exact_task_reuse:
+                kind = "exact_task_method_reuse"
+                verified: bool | None = True
+                authority = "exact_official_scene_and_checker_method_reuse"
+                checks.append(
+                    {
+                        "condition": condition,
+                        "fact": fact,
+                        "kind": kind,
+                        "verified": verified,
+                        "authority": authority,
+                    }
+                )
+                continue
+            else:
+                property_name = fact["property"]
+                has_official_core_conjunct_term = (
+                    property_name == "official_goal"
+                )
+                has_checker_term = property_name == "checker_semantics"
+                has_visual_term = property_name == "appearance"
+                has_simulator_state_term = property_name in {
+                    "contact_point",
+                    "model_identity",
+                    "orientation",
+                    "position",
+                }
+                has_geometry_term = property_name == "geometry"
             component_results: list[bool | None] = []
             authorities: list[str] = []
             kinds: list[str] = []
@@ -739,6 +564,7 @@ def build_preservation_report(
                         official_setup,
                         generated_setup,
                         condition,
+                        fact=fact,
                     )
                 )
                 component_results.append(simulator_verified)
@@ -775,12 +601,6 @@ def build_preservation_report(
                         )
                     )
                     authorities.append("same_seed_visual_diagnosis")
-            if has_frozen_term:
-                kinds.append("frozen_runtime_binding")
-                component_results.append(True)
-                authorities.append(
-                    "frozen_task_policy_seed_and_action_binding"
-                )
             if component_results:
                 kind = "+".join(kinds)
                 if any(item is False for item in component_results):
@@ -794,14 +614,15 @@ def build_preservation_report(
                 kind = "unverified"
                 verified = None
                 authority = "no_available_preservation_authority"
-        checks.append(
-            {
-                "condition": condition,
-                "kind": kind,
-                "verified": verified,
-                "authority": authority,
-            }
-        )
+            checks.append(
+                {
+                    "condition": condition,
+                    "fact": fact,
+                    "kind": kind,
+                    "verified": verified,
+                    "authority": authority,
+                }
+            )
     if not checks:
         verified_all: bool | None = True
         status = "not_required"
@@ -815,7 +636,7 @@ def build_preservation_report(
         verified_all = None
         status = "partially_unverified"
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "status": status,
         "verified": verified_all,
         "checks": checks,

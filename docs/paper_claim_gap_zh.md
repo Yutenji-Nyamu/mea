@@ -58,6 +58,41 @@ expert-oracle limitation 和 typed `N=0` evidence 返回 Plan。evidence 改变�
 距离来自两个不同 Tool，未证明同一 Tool exact reuse。完整冷记录见
 [`experiments/paper/results/batch39_grab_roller_prompt_mainline/`](../experiments/paper/results/batch39_grab_roller_prompt_mainline/README.md)。
 
+## Batch40 充分停止正例（冷补充，未替换 current evidence）
+
+Batch40 先修正三处会截断论文语义的运输层问题：原始 pipeline completion 与
+`valid_for_planning` 分离；Plan Agent 拥有 continue/stop 决策而 QueryContract 只核验；
+preservation 与 Proposal-to-artifact alignment 改用结构化事实而不再依赖词项重叠。
+
+最终 v4 从未指定 aspect、对象、轴、scene edit、checker、metric 或停止脚本的 Query 出发，
+完成两个 SmolVLA episode：unchanged official control 与一个 generated scene 均成功。通用
+TaskGen 一次生成并通过 2/2 fixtures、VLM 和 expert；provider Python Rule Tool
+`query_terminal_roller_z_position` 经独立 oracle 验证后，从 generated episode 返回
+`0.8000384569168091 m`。schema-v2 Aggregate 同时满足 `pipeline.passed=true`、
+`valid_for_planning=true`、intent/preservation complete 与 `sufficient=true`。Plan 原始响应
+给出 `stop/evidence_sufficient`、`claim_verdict=supported` 和 `answered_query=true`，
+QueryContract 随后验证通过。不过该次 live prompt 暴露了预计算的 sufficiency verdict，不能
+单独证明 Agent 独立判断停止。
+
+Plan 的候选选择使用了检索任务卡中已有的同 seed 正向锚点，然后 fresh 生成并重新通过全部
+验证；因此这是 retrieval-guided 选择与 live revalidation，不是只凭本次 control 冷发现全新
+concern。冻结 artifact 的 0-rollout 真值重算还将 3 条 metric result 正确归并为 2 个物理
+episode，并补齐 compact decision 的充分停止字段；它没有改写冻结 live 产物。
+
+当前代码随后同时收紧 Plan 调用合同与 prompt，只传预算和具体运行限制。对冻结的两轮 evidence
+进行一次 provider-only、0 simulator、0 policy rollout 回放时，prompt 不再含预计算的
+`should_stop/evidence_sufficient/stop_reason/claim_verdict` 字段；Agent 一次调用独立输出 stop，
+后置 QueryContract 验证为 `query_contract_validated_stop/supported/answered=true`。因此停止所有权
+由“live 执行 + 当前 prompt 的冻结回放”共同证明，而不是倒写原 live prompt 已经干净。
+
+v4 的实际 `x=0.15001997 m` 由 simulator state 直接确认；通用 matcher 仍只证明 scene owner
+和可观测变化，尚不能证明任意自然语言 requested delta 的 actor/axis/value 与 artifact 精确蕴含。
+
+这关闭了小范围“Agent 主动充分停止尚无正例”的 gap，但不替换 Batch37 较宽的多轮证据包：
+Batch40 只有 `grab_roller`、单 seed、`N=2`，没有证明同一运行中的多步 concern refinement、
+跨 evaluation Tool reuse、跨任务稳定性或任何统计实验结论。完整冷记录见
+[`experiments/paper/results/batch40_paper_mainline_cleanup/`](../experiments/paper/results/batch40_paper_mainline_cleanup/README.md)。
+
 ## Batch37 补充证据
 
 - **Rule Tool 跨 evaluation 复用。** 一个新 evaluation 以 **0 rollout、0 provider call** 从
@@ -81,7 +116,7 @@ expert-oracle limitation 和 typed `N=0` evidence 返回 Plan。evidence 改变�
 | 论文 claim | 当前项目 | 判断 |
 | --- | --- | --- |
 | Fig. 2/5：开放 Query 驱动 Plan Agent 自主提出 sub-aspect | Batch37 broad Query 未给实验菜单；上一轮 evidence 触发 position 数值细化及 position→orientation 转向 | **小范围 live 完成**；仍是单任务、单 seed，执行能力域有限 |
-| evidence 决定下一轮，并在充分时停止 | Batch37 的 evidence 改变下一 Proposal；Agent 最终声明没有进一步有根据的 Proposal，QueryContract 仅验证该终止保持 inconclusive | **主动终止完成，充分性正例未合一**；当前旗舰不是 `evidence_sufficient=true` |
+| evidence 决定下一轮，并在充分时停止 | Batch37 的 evidence 改变下一 Proposal并主动 inconclusive stop；Batch40 live 产出充分 evidence，当前 verdict-hidden prompt 又在冻结 evidence 回放中独立提出 stop，QueryContract 只作后置验证 | **两种语义均有小范围证据**；多步 refinement 与充分正结论尚未在同一 live 运行合一 |
 | Fig. 3：Proposal → retrieve/generate scene + `check_success()` → rollout | 通用 TaskGen 已在 reviewed-schema-free 的 `press_stapler` 中 materialize scene/checker，并实际裁决 SmolVLA episode；一个不忠实 checker 被 fixture fail-closed 拒绝 | **小范围完成**；跨任务稳定性和量词/关系语义忠实性仍是边界 |
 | 首帧视觉诊断与局部重新生成 | render/VLM 与一次有界局部 repair 已接入；数值 preservation 由 simulator state、AST 与 fixture 审计 | **组件完成**；视觉不能替代数值语义验证 |
 | Fig. 4：ToolGen retrieve/generate/validate/register/reuse | 新 Python Rule Tool 有独立验证、live finite 值、Planner 消费、run-local reuse，并新增 0-rollout reviewed cross-evaluation exact reuse | **Rule Tool 小范围闭合**；开放 VQA artifact 可复用但观测不稳定 |
@@ -102,9 +137,10 @@ expert-oracle limitation 和 typed `N=0` evidence 返回 Plan。evidence 改变�
 
 ## 当前主干 gap
 
-1. **在 broad open-world Query 中取得有证据约束的充分 Answer。** Batch37 已证明 Agent 可以
-   主动声明无进一步有根据的 Proposal，并诚实返回 inconclusive；下一步不是删除限制，而是让新的可执行 Proposal
-   扩展证据域，或选择具备有限可验证真值合同的 Query，形成 `evidence_sufficient=true` 正例。
+1. **把多步 evidence refinement 与充分 Answer 合在同一 broad Query。** Batch37 已证明
+   evidence 可改变后续 Proposal并主动返回 inconclusive；Batch40 已取得有界 existential Query 的
+   `evidence_sufficient=true` 正例。下一步不是继续增加停止协议，而是在同一运行中先由失败或测量
+   改变 concern，再让后续可执行 evidence 支持 Agent 的确定 Answer。
 2. **TaskGen 跨任务语义稳定性。** 不新增任务专属方言；用 runtime TaskContext、official source、
    simulator actors 与通用 fixture，在另外 2–3 个任务上验证 scene/checker 的量词、对象关系、
    同时性和 official-core preservation。

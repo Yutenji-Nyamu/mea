@@ -196,7 +196,9 @@ def _semantic_aggregate(aggregate: Mapping[str, Any]) -> dict[str, Any]:
 def _compact_decision(value: Any) -> dict[str, Any]:
     decision = dict(value) if isinstance(value, Mapping) else {}
     assessment = (
-        dict(decision.get("evidence_assessment"))
+        dict(decision.get("query_assessment"))
+        if isinstance(decision.get("query_assessment"), Mapping)
+        else dict(decision.get("evidence_assessment"))
         if isinstance(decision.get("evidence_assessment"), Mapping)
         else {}
     )

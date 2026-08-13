@@ -191,27 +191,14 @@ class PlanAgentApplication(
                 executed_rounds=executed_rounds,
             )
             round_plan = round_runs[-1]["round_plan"]
-            assessment = runtime_state["assessment"]
             query_answer: dict[str, Any] | None = None
-            if (
-                assessment["should_stop"]
-                and assessment.get("evidence_sufficient") is not True
-            ):
-                decision, query_answer = self._persist_contract_stop(
-                    plan=self.plan,
-                    round_plan=round_plan,
-                    round_runs=round_runs,
-                    runtime_state=runtime_state,
-                    executed_rounds=executed_rounds,
-                )
-            else:
-                self.plan, decision, query_answer = self._decide_next_step(
-                    plan=self.plan,
-                    round_plan=round_plan,
-                    round_runs=round_runs,
-                    runtime_state=runtime_state,
-                    executed_rounds=executed_rounds,
-                )
+            self.plan, decision, query_answer = self._decide_next_step(
+                plan=self.plan,
+                round_plan=round_plan,
+                round_runs=round_runs,
+                runtime_state=runtime_state,
+                executed_rounds=executed_rounds,
+            )
 
             if decision["action"] == "stop":
                 active_failure_stage = "evaluation_aggregation"
@@ -318,20 +305,6 @@ class PlanAgentApplication(
                     round_runs,
                     executed_rounds=executed_rounds,
                 )
-                assessment = runtime_state["assessment"]
-                if (
-                    assessment["should_stop"]
-                    and assessment.get("evidence_sufficient") is not True
-                ):
-                    _, query_answer = self._persist_contract_stop(
-                        plan=self.plan,
-                        round_plan=round_plan,
-                        round_runs=round_runs,
-                        runtime_state=runtime_state,
-                        executed_rounds=executed_rounds,
-                    )
-                    break
-
                 active_failure_stage = (
                     f"plan_agent_decision_after_round_{executed_rounds}"
                 )

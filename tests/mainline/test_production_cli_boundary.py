@@ -73,7 +73,9 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             "'bounded_transition_absent':"
             "not hasattr(module,'adjudicate_bounded_transition'),"
             "'adaptive_persist_absent':"
-            "not hasattr(module,'persist_adaptive_step_selection')}))"
+            "not hasattr(module,'persist_adaptive_step_selection'),"
+            "'flagship_acceptance_module_absent':"
+            "importlib.util.find_spec('mea.agent_acceptance') is None}))"
         )
         self.assertEqual(
             run_import_probe(probe),
@@ -89,38 +91,8 @@ class ProductionCliBoundaryTests(unittest.TestCase):
                 "bounded_proposal_absent": True,
                 "bounded_transition_absent": True,
                 "adaptive_persist_absent": True,
+                "flagship_acceptance_module_absent": True,
             },
-        )
-
-    def test_query_interpretation_acceptance_allows_one_bounded_schema_repair(
-        self,
-    ) -> None:
-        from mea.agent_acceptance import (
-            _valid_query_interpretation_provider_trace,
-        )
-
-        self.assertTrue(
-            _valid_query_interpretation_provider_trace(
-                {"called": True, "attempt_count": 1, "errors": []}
-            )
-        )
-        self.assertTrue(
-            _valid_query_interpretation_provider_trace(
-                {
-                    "called": True,
-                    "attempt_count": 2,
-                    "errors": ["FreeConcern schema mismatch"],
-                }
-            )
-        )
-        self.assertFalse(
-            _valid_query_interpretation_provider_trace(
-                {
-                    "called": True,
-                    "attempt_count": 3,
-                    "errors": ["first", "second"],
-                }
-            )
         )
 
     def test_agent_import_does_not_load_paper_or_task_specific_planners(self) -> None:
@@ -201,6 +173,24 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             self.assertNotIn(option, process.stdout)
         self.assertIn("--auto-route", process.stdout)
 
+    def test_reviewed_task_registry_is_owned_by_cold_taskgen_compat(self) -> None:
+        production_sources = "\n".join(
+            (REPO_ROOT / path).read_text(encoding="utf-8")
+            for path in (
+                "mea/agent_cli.py",
+                "mea/agent_run_context.py",
+                "mea/agent_runtime_setup.py",
+                "mea/agent_run_dispatch.py",
+            )
+        )
+        cold_sources = (
+            REPO_ROOT / "experiments/paper/compat_taskgen/legacy_cli.py"
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("reviewed_task_registry", production_sources)
+        self.assertNotIn("--reviewed-task-registry", production_sources)
+        self.assertIn("--reviewed-task-registry", cold_sources)
+
+
     def test_default_production_mode_is_plan_agent(self) -> None:
         probe = (
             "import argparse,importlib.util,json,pathlib;"
@@ -263,10 +253,7 @@ class ProductionCliBoundaryTests(unittest.TestCase):
         self.assertNotIn("claim_first_controller =", decision_source)
         self.assertNotIn("pending_first_semantic_bundle", decision_source)
         self.assertNotIn("use_pending_first", decision_source)
-        self.assertIn(
-            'assessment.get("evidence_sufficient") is not True',
-            application_source,
-        )
+        self.assertNotIn("_persist_contract_stop", application_source)
         self.assertIn(
             'if plan_step["action"] == "stop":', decision_source
         )

@@ -27,7 +27,6 @@ class AgentRunContext:
     registered_execution: dict[str, Any] | None
     models: dict[str, str]
     history_path: Path
-    reviewed_task_registry: Path | None
     reviewed_tool_registry: Path | None
     reviewed_vqa_registry: Path | None
 
