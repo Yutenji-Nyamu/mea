@@ -61,6 +61,7 @@ _RECOVERY_ACTIONS: dict[tuple[str, str], str] = {
     ("static_validation", "failed"): REGENERATE_CANDIDATE,
     ("render_probe", "failed"): REPAIR_SCENE,
     ("vision_validation", "failed"): REPAIR_SCENE,
+    ("preservation_validation", "failed"): REGENERATE_CANDIDATE,
     ("expert_gate", "candidate_unexecutable"): REGENERATE_CANDIDATE,
     ("expert_gate", "unsolvable"): REGENERATE_CANDIDATE,
 }

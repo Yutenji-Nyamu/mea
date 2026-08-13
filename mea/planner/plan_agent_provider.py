@@ -69,7 +69,7 @@ class PlanAgent:
         task_guide: str = "",
     ) -> str:
         checker_required = query_requires_experimental_checker(user_query)
-        example = {
+        continue_example = {
             "schema_version": 2,
             "action": "continue",
             "sub_aspect": "semantic.sub_aspect_discovered_now",
@@ -105,6 +105,31 @@ class PlanAgent:
                 "reuse_first": True,
             },
             "rationale": "Why this is the most informative next test for the Query.",
+        }
+        stop_example = {
+            "schema_version": 2,
+            "action": "stop",
+            "sub_aspect": None,
+            "hypothesis": (
+                "The bounded completed evidence supports this stop decision."
+            ),
+            "requested_perturbation": None,
+            "scene_need": {"required": False, "description": None},
+            "checker_need": {"required": False, "description": None},
+            "rule_tool_need": {
+                "required": False,
+                "description": None,
+                "reuse_first": True,
+            },
+            "vqa_tool_need": {
+                "required": False,
+                "description": None,
+                "reuse_first": True,
+            },
+            "rationale": (
+                "Answer the tested scope or explain why further supported "
+                "experiments are saturated or unsupported."
+            ),
         }
         intent_section = ""
         if evaluation_intent is not None:
@@ -189,8 +214,14 @@ COMPLETED ROUND EVIDENCE (chronological; empty means first proposal):
 {json.dumps(evidence_history, ensure_ascii=False, indent=2)}
 {last_feedback}
 
-Return strict JSON with exactly these fields:
-{json.dumps(example, ensure_ascii=False, indent=2)}
+Return strict JSON with exactly these fields. Use the first shape for continue
+and the second shape for stop; do not combine them.
+
+CONTINUE EXAMPLE:
+{json.dumps(continue_example, ensure_ascii=False, indent=2)}
+
+STOP EXAMPLE:
+{json.dumps(stop_example, ensure_ascii=False, indent=2)}
 """
 
     def propose(
@@ -239,7 +270,10 @@ Return strict JSON with exactly these fields:
                     )
                     + "\nCorrect the field named by the error and return one "
                     "complete JSON object. Preserve valid fields unless the "
-                    "error requires changing them.\n"
+                    "error requires changing them. If action=stop, copy the "
+                    "STOP EXAMPLE shape exactly: sub_aspect and "
+                    "requested_perturbation are null, and every artifact need "
+                    "has required=false and description=null.\n"
                 )
             try:
                 response = self.provider.text(

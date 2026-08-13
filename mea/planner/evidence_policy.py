@@ -672,6 +672,23 @@ def build_evidence_aggregate(
         raise EvidencePacketError(
             "EvidenceAggregate summary pipeline_passed must be boolean"
         )
+    planning_observation = observations.get("planning_observation")
+    planning_evidence_valid = bool(
+        isinstance(planning_observation, Mapping)
+        and planning_observation.get("kind")
+        in {
+            "candidate_unexecutable",
+            "expert_oracle_unavailable",
+            "taskgen_materialization_failed",
+        }
+        and planning_observation.get("policy_rollouts_started") == 0
+        and planning_observation.get("policy_sample_count") == 0
+    )
+    # ``round_summary.pipeline_passed`` describes the rollout pipeline.  A
+    # typed, zero-rollout pre-policy observation is still a valid evidence
+    # transport: it must reach Plan as uncertain planning evidence rather than
+    # being mislabeled as a system/pipeline crash.
+    evidence_pipeline_passed = pipeline_passed or planning_evidence_valid
     failure_stage = round_summary.get("failure_stage")
     if isinstance(failure_stage, str):
         failure_stage = failure_stage.strip() or None
@@ -705,9 +722,17 @@ def build_evidence_aggregate(
         vqa_view["evidence_conflict"]
         or semantics_view["evidence_conflict"]
     )
-    if not pipeline_passed:
+    if not evidence_pipeline_passed:
         strength = "pipeline_invalid"
         reasons = ["latest_pipeline_failed"]
+    elif planning_evidence_valid:
+        strength = "uncertain"
+        reasons = [
+            str(
+                planning_observation.get("reason_code")
+                or "pre_policy_planning_observation"
+            )
+        ]
     elif conflict:
         strength = "conflicting"
         reasons = [
@@ -743,7 +768,7 @@ def build_evidence_aggregate(
             "round_id": round_id,
             "execution_id": execution_id,
             "pipeline": {
-                "passed": pipeline_passed,
+                "passed": evidence_pipeline_passed,
                 "failure_stage": failure_stage,
             },
             "policy": {

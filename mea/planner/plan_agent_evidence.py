@@ -275,25 +275,48 @@ def build_claim_first_evidence_record(
         candidate_outcome = "fail"
 
     task_proposal = round_plan.get("task_proposal") or {}
+    dynamic_proposal = round_plan.get("proposal") or round_plan.get(
+        "experiment_candidate"
+    )
+    dynamic_proposal = (
+        dynamic_proposal if isinstance(dynamic_proposal, Mapping) else {}
+    )
+    evaluation_intent = dynamic_proposal.get("evaluation_intent")
+    evaluation_intent = (
+        evaluation_intent if isinstance(evaluation_intent, Mapping) else {}
+    )
     sub_aspect = str(
-        task_proposal.get("aspect_id")
+        evaluation_intent.get("original_concern")
+        or task_proposal.get("aspect_id")
         or round_plan.get("sub_aspect")
         or round_plan.get("aspect_id")
         or "unknown"
     )
     hypothesis = str(
-        task_proposal.get("intent")
+        evaluation_intent.get("hypothesis")
+        or task_proposal.get("intent")
+        or dynamic_proposal.get("semantic_concern")
         or round_plan.get("task_instruction")
         or f"Evaluate {sub_aspect}."
     ).strip()
     changes = task_proposal.get("changes")
-    perturbation = (
-        json.dumps(changes, ensure_ascii=False, sort_keys=True)
-        if isinstance(changes, Mapping) and changes
-        else "unchanged official-scene control"
-        if _uses_task_control_template(round_plan)
-        else candidate_id
+    scene_need = dynamic_proposal.get("scene_need")
+    scene_description = (
+        str(scene_need.get("description") or "").strip()
+        if isinstance(scene_need, Mapping)
+        else ""
     )
+    perturbation = str(
+        evaluation_intent.get("requested_change") or scene_description
+    ).strip()
+    if not perturbation:
+        perturbation = (
+            json.dumps(changes, ensure_ascii=False, sort_keys=True)
+            if isinstance(changes, Mapping) and changes
+            else "unchanged official-scene control"
+            if _uses_task_control_template(round_plan)
+            else candidate_id
+        )
     limitations = [
         "One bounded runtime round is not a statistical generalization estimate."
     ]
@@ -305,9 +328,15 @@ def build_claim_first_evidence_record(
     if success_rate is None:
         limitations.append("Policy success was not reported for this round.")
     if planning_observation is not None:
+        planning_kind = str(planning_observation.get("kind") or "")
         limitations.append(
-            "TaskGen rejected this candidate before policy execution; it is "
-            "planning evidence only and contributes N=0 policy samples."
+            (
+                "The scripted expert could not certify this candidate or its "
+                "same-seed comparator; the candidate outcome remains unknown. "
+                if planning_kind == "expert_oracle_unavailable"
+                else "TaskGen rejected this candidate before policy execution. "
+            )
+            + "This is planning evidence only and contributes N=0 policy samples."
         )
     if policy_outcome.get("official_equivalent") is False:
         limitations.append(
@@ -350,21 +379,41 @@ def build_claim_first_evidence_record(
         f"diagnostic_tool_measurements={tool_summary}."
     )
     if planning_observation is not None:
-        planning_kind = str(
-            planning_observation.get("kind") or "unknown"
-        )
-        summary_text += (
-            f" planning_observation={planning_kind}; "
-            "policy_sample_count=0; diagnosis="
-            f"{planning_observation.get('diagnosis')}."
-        )
+        planning_summary = {
+            key: planning_observation.get(key)
+            for key in (
+                "kind",
+                "failure_stage",
+                "reason_code",
+                "diagnosis",
+                "policy_rollouts_started",
+                "policy_sample_count",
+            )
+            if planning_observation.get(key) is not None
+        }
         repair_evidence = planning_observation.get("bounded_repair_evidence")
         if isinstance(repair_evidence, list) and repair_evidence:
-            summary_text += (
-                " bounded_repair_evidence="
-                + json.dumps(repair_evidence, ensure_ascii=False, sort_keys=True)
-                + "."
+            planning_summary["bounded_repair_evidence"] = repair_evidence[-1:]
+        failure_stage = str(
+            planning_observation.get("failure_stage")
+            or round_summary.get("failure_stage")
+            or ""
+        )
+        validation_label = (
+            "expert_certification_failed"
+            if "expert" in failure_stage
+            else "pre_policy_validation_failed"
+        )
+        summary_text += (
+            " planning_observation="
+            + json.dumps(
+                planning_summary,
+                ensure_ascii=False,
+                sort_keys=True,
+                allow_nan=False,
             )
+            + f"; {validation_label}; policy_not_executed; N=0."
+        )
     open_query = validate_open_query_evidence(
         [
             {

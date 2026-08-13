@@ -612,7 +612,8 @@ def create_generic_provider_taskgen_run(
             ]
             raise GenericTaskGenError(
                 "generated task violated a checked preservation condition: "
-                + ", ".join(failed_conditions)
+                + ", ".join(failed_conditions),
+                runtime=preflight_runtime,
             )
         accepted_preflight.clear()
         accepted_preflight.update(result)
@@ -1221,6 +1222,16 @@ def record_generic_taskgen_generation_failure(
         if isinstance(attempt_summary, Mapping)
         else {}
     )
+    expert_failure_kind = (
+        str(final_failure.get("failure_kind") or "").strip()
+        if candidate_unexecutable
+        else ""
+    )
+    if candidate_unexecutable and expert_failure_kind not in {
+        "candidate_unexecutable",
+        "official_baseline_unsolvable",
+    }:
+        expert_failure_kind = "candidate_unexecutable"
     policy_rollouts_started = (
         int(attempt_runtime.get("act_rollouts_started", 0))
         if isinstance(attempt_runtime, Mapping)
@@ -1254,7 +1265,7 @@ def record_generic_taskgen_generation_failure(
                 else "provider_scene_checker_generation"
             ),
             "failure_kind": (
-                "candidate_unexecutable"
+                expert_failure_kind
                 if candidate_unexecutable
                 else final_failure.get("failure_kind")
             ),

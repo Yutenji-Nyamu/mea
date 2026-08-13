@@ -43,6 +43,21 @@ evidence 使 Plan 从 lateral 转向 orientation，再转向 longitudinal，后�
 离线回归并保留关键字段，因此只能评价上下文压缩本身，不能回写 v5 的 token 记录。完整冷流水见
 [`experiments/paper/results/batch38_prompt_context/`](../experiments/paper/results/batch38_prompt_context/README.md)。
 
+## Batch39 方法回归（未晋升旗舰）
+
+Batch39 继续使用 `grab_roller` 的真实失败纵向迭代，而没有新增任务专属分支。v4 在一个
+broad Query 中完成 4 round、3 个 SmolVLA episode：official control 与同一正向 x 场景语义的
+两次 generated-scene episode 均成功（第二次改测右侧），两个新 Rule Tool 分别得到
+`0.04107694 m` 与 `0.04231440 m`；中间的 model-2
+candidate 因 generated 与 unchanged same-seed official expert 都得到 `target_pose=None`，作为
+expert-oracle limitation 和 typed `N=0` evidence 返回 Plan。evidence 改变后续 Proposal，Agent
+最终主动停止并诚实返回 inconclusive，而不是再次撞上 hard cap。
+
+这比 Batch38 前进了一步：prompt/task guide 和数值 preservation 边界的修正已经改变真实主链
+结果。但它仍不替换 Batch37 旗舰：`evidence_sufficient=false`、只有单 seed `N=3`，而且左右
+距离来自两个不同 Tool，未证明同一 Tool exact reuse。完整冷记录见
+[`experiments/paper/results/batch39_grab_roller_prompt_mainline/`](../experiments/paper/results/batch39_grab_roller_prompt_mainline/README.md)。
+
 ## Batch37 补充证据
 
 - **Rule Tool 跨 evaluation 复用。** 一个新 evaluation 以 **0 rollout、0 provider call** 从

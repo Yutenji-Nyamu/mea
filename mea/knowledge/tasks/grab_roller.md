@@ -18,7 +18,8 @@
 - Actor attribute: `self.roller`; actor pose: `self.roller.get_pose().p`.
 - Declared contact references: `self.roller.get_contact_point(0, ...)` and
   `self.roller.get_contact_point(1, ...)`.
-- `get_grasp_pose(...)` returns `None` when a requested contact point is absent;
+- `get_grasp_pose(...)` may return `None` because a contact reference is absent
+  or because grasp/IK/path planning cannot produce a reachable target pose;
   constructing a move `Action` with that value raises
   `target_pose cannot be None for move action`.
 - Available telemetry fields are `roller_position`,
@@ -29,8 +30,9 @@
 
 ## High-information executable variations
 
-- Change the sampled roller pose within the official reachable workspace while
-  retaining both declared contact points and the official lift goal.
+- Change the sampled roller pose within the official sampling support while
+  retaining both declared contact points and the official lift goal. Sampling
+  support is not a certificate that the inherited expert can solve that pose.
 - Compare model instances `0` and `2` without changing the policy or success
   threshold.
 - Measure each TCP-to-declared-contact-point distance and terminal roller
@@ -55,3 +57,11 @@
   not spend the next Proposal on another pose/model transform that relies on
   the same unverified expert grasp path; switch to an observably distinct
   concern or stop as inconclusive unless a positive expert probe is available.
+- At seed `1000`, the unchanged sampled pose was approximately
+  `(-0.14362, -0.069)`, model `0`: SmolVLA completed the official rollout, but
+  the separate official expert probe still returned no grasp pose. In contrast,
+  the generated `x=+0.15 m` artifact at the same sampled y/model passed both the
+  expert gate and SmolVLA rollout. Treat the latter as one positive solvability
+  anchor, not as a general reachability map. Repair generated scene code only
+  when the same-seed unchanged expert succeeds and the generated expert fails;
+  otherwise feed the expert-oracle limitation back to Plan or stop.

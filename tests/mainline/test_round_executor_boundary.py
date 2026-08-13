@@ -246,6 +246,16 @@ class RoundExecutorBoundaryTests(unittest.TestCase):
                         ]
                     )
                     self.assertEqual(
+                        observations["evidence_aggregate"][
+                            "evidence_strength"
+                        ],
+                        "uncertain",
+                    )
+                    self.assertEqual(
+                        observations["evidence_aggregate"]["reason_codes"],
+                        [scenario["reason_code"]],
+                    )
+                    self.assertEqual(
                         observations["evidence_aggregate"]["rule"][
                             "observed_policy_episodes"
                         ],

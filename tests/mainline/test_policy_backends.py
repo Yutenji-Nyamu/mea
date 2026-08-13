@@ -732,10 +732,13 @@ def test_native_taskgen_failure_becomes_n_zero_planning_evidence(tmp_path):
                         {
                             "status": "failed_terminal",
                             "failure": {
-                                "stage": "scene_codegen",
-                                "failure_kind": "invalid_candidate",
+                                "stage": "preservation_validation",
+                                "failure_kind": "failed",
                                 "type": "TaskGenerationStageError",
-                                "message": "checker validation failed",
+                                "message": (
+                                    "generated task violated a checked "
+                                    "preservation condition"
+                                ),
                             },
                             "recovery_action": "regenerate_candidate",
                             "runtime": {"act_rollouts_started": 0},
@@ -786,7 +789,10 @@ def test_native_taskgen_failure_becomes_n_zero_planning_evidence(tmp_path):
     assert rollout_calls == []
     assert result["taskgen_materialization_failed"] is True
     assert result["planning_observation"]["policy_sample_count"] == 0
-    assert result["planning_observation"]["failure_stage"] == "scene_codegen"
+    assert (
+        result["planning_observation"]["failure_stage"]
+        == "preservation_validation"
+    )
     assert result["planning_observation"]["bounded_repair_evidence"] == [
         {
             "stage": "success_spec",
@@ -842,6 +848,7 @@ def test_native_taskgen_system_failures_remain_fatal(tmp_path):
     scenarios = (
         ("missing_summary", None, None, None),
         ("system_stage", "task_generation", "unclassified_exception", 0),
+        ("provider_429", "provider_call", "http_429", 0),
         ("rollout_recorded", "scene_codegen", "invalid_candidate", 1),
         ("boolean_rollout", "scene_codegen", "invalid_candidate", False),
     )
@@ -911,8 +918,26 @@ def test_native_taskgen_system_failures_remain_fatal(tmp_path):
             )
 
 
+@pytest.mark.parametrize(
+    ("failure_kind", "observation_kind", "reason_code"),
+    (
+        (
+            "candidate_unexecutable",
+            "candidate_unexecutable",
+            "taskgen_expert_gate_candidate_unexecutable",
+        ),
+        (
+            "official_baseline_unsolvable",
+            "expert_oracle_unavailable",
+            "taskgen_expert_gate_official_baseline_unsolvable",
+        ),
+    ),
+)
 def test_candidate_unexecutable_returns_planning_evidence_without_rollout(
     tmp_path,
+    failure_kind,
+    observation_kind,
+    reason_code,
 ):
     _write_official_task(
         tmp_path,
@@ -950,7 +975,7 @@ def test_candidate_unexecutable_returns_planning_evidence_without_rollout(
             {
                 "failure": {
                     "stage": "expert_gate",
-                    "failure_kind": "candidate_unexecutable",
+                    "failure_kind": failure_kind,
                     "message": (
                         "generated scene/expert failed official terminal-state "
                         "authority: target_pose cannot be None"
@@ -1004,8 +1029,12 @@ def test_candidate_unexecutable_returns_planning_evidence_without_rollout(
     assert rollout_calls == []
     assert result["candidate_unexecutable"] is True
     assert result["semantic_telemetry_ready"] is False
+    assert result["evidence_outcome"] == observation_kind
+    assert result["planning_observation"]["kind"] == observation_kind
+    assert result["planning_observation"]["reason_code"] == reason_code
     manifest = result["child_manifest"]
     assert manifest["status"] == "candidate_unexecutable"
+    assert manifest["failure"]["failure_kind"] == failure_kind
     assert manifest["act_evaluation"]["actual_seeds"] == []
     assert manifest["policy_execution"] == {
         "started": False,
@@ -1013,7 +1042,7 @@ def test_candidate_unexecutable_returns_planning_evidence_without_rollout(
         "sample_count": 0,
     }
     assert (
-        manifest["candidate_unexecutable"]["policy_sample_count"] == 0
+        manifest["planning_observation"]["policy_sample_count"] == 0
     )
 
 

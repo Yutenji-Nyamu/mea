@@ -391,6 +391,92 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             "scene-only is not a valid fallback",
             compact_prompt,
         )
+        self.assertIn("CONTINUE EXAMPLE", prompt)
+        self.assertIn("STOP EXAMPLE", prompt)
+        self.assertIn('"requested_perturbation": null', prompt)
+        self.assertIn("sampling support is not evidence", compact_prompt)
+
+        feedback_marker = "expert_oracle_unavailable"
+        feedback_prompt = PlanAgent._prompt(
+            "Where does this policy first fail?",
+            open_query_capabilities(),
+            [
+                {
+                    "schema_version": 1,
+                    "round_id": "round_02",
+                    "tested_sub_aspect": "object_position.lateral_reach",
+                    "tested_hypothesis": "A lateral shift may expose weakness.",
+                    "tested_perturbation": "Move x by +0.15 m.",
+                    "outcome": "ambiguous",
+                    "evidence_summary": (
+                        '{"reason_code": "expert_oracle_unavailable"}'
+                    ),
+                    "limitations": ["N=0; expert certification unavailable."],
+                }
+            ],
+        )
+        self.assertIn("LAST ROUND FEEDBACK", feedback_prompt)
+        self.assertIn(feedback_marker, feedback_prompt)
+        self.assertLess(
+            feedback_prompt.index("LAST ROUND FEEDBACK"),
+            feedback_prompt.index("Return strict JSON"),
+        )
+
+    def test_plan_agent_stop_retry_receives_complete_stop_shape(self):
+        invalid_stop = {
+            "schema_version": 2,
+            "action": "stop",
+            "sub_aspect": "scene.more_pose_search",
+            "hypothesis": "The tested concerns are saturated.",
+            "requested_perturbation": None,
+            "scene_need": {"required": False, "description": None},
+            "checker_need": {"required": False, "description": None},
+            "rule_tool_need": {
+                "required": False,
+                "description": None,
+                "reuse_first": True,
+            },
+            "vqa_tool_need": {
+                "required": False,
+                "description": None,
+                "reuse_first": True,
+            },
+            "rationale": "Two expert-oracle failures make more pose guesses low value.",
+        }
+        valid_stop = {**invalid_stop, "sub_aspect": None}
+
+        class Provider:
+            last_metadata = {"model": "fixture"}
+
+            def __init__(self):
+                self.responses = [invalid_stop, valid_stop]
+                self.prompts = []
+
+            def text(self, prompt, **_kwargs):
+                self.prompts.append(prompt)
+                return __import__("json").dumps(self.responses.pop(0))
+
+        provider = Provider()
+        bundle = PlanAgent(provider, model="fixture").propose(
+            "Where does this policy first expose a weakness?",
+            capabilities=open_query_capabilities(),
+            evidence_history=[
+                {
+                    "schema_version": 1,
+                    "round_id": "round_01",
+                    "tested_sub_aspect": "task_execution.official_baseline",
+                    "tested_hypothesis": "The official baseline is executable.",
+                    "tested_perturbation": "No scene change.",
+                    "outcome": "success",
+                    "evidence_summary": "The official policy rollout succeeded.",
+                    "limitations": ["N=1"],
+                }
+            ],
+        )
+
+        self.assertEqual(bundle["proposal"]["action"], "stop")
+        self.assertIsNone(bundle["proposal"]["sub_aspect"])
+        self.assertIn("STOP EXAMPLE shape exactly", provider.prompts[1])
 
     def _cold_plan_agent_session_is_canonical_with_legacy_aliases(self):
         from mea.planner.plan_agent_session import (
@@ -1442,6 +1528,22 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             1, "performance.completion_time_stability.official"
         )
         rejected = round_plan(2, "object_position.left_fixed")
+        rejected["proposal"] = {
+            "semantic_concern": "workspace.edge_reach: dynamic concern",
+            "scene_need": {
+                "description": "Move only the bell to x=-0.15 m.",
+            },
+            "evaluation_intent": build_evaluation_intent(
+                source_query=query,
+                original_concern="workspace.edge_reach",
+                hypothesis=(
+                    "The policy may fail near the left workspace edge."
+                ),
+                requested_change="Move only the bell to x=-0.15 m.",
+                preserved_conditions=["Keep the official bell identity."],
+                required_observation="Official success and TCP distance.",
+            ),
+        }
         rejected_summary = summary(
             rejected,
             None,
@@ -1452,6 +1554,7 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             "kind": "candidate_unexecutable",
             "candidate_id": rejected["template_id"],
             "sub_aspect": rejected["sub_aspect"],
+            "failure_stage": "taskgen_expert_gate",
             "reason_code": "taskgen_expert_gate_candidate_unexecutable",
             "diagnosis": "target_pose cannot be None",
             "policy_rollouts_started": 0,
@@ -1471,9 +1574,35 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
         self.assertEqual(state["assessment"]["budget_remaining"], 2)
         self.assertEqual(state["assessment"]["observed_candidate_ids"], [])
         self.assertEqual(state["records"][1]["policy_sample_count"], 0)
+        rejected_evidence = state["open_query_evidence_history"][1]
+        self.assertEqual(
+            rejected_evidence["tested_sub_aspect"], "workspace.edge_reach"
+        )
+        self.assertEqual(
+            rejected_evidence["tested_hypothesis"],
+            "The policy may fail near the left workspace edge.",
+        )
+        self.assertEqual(
+            rejected_evidence["tested_perturbation"],
+            "Move only the bell to x=-0.15 m.",
+        )
+        self.assertNotIn(query, rejected_evidence["tested_hypothesis"])
+        self.assertNotIn(
+            rejected["template_id"], rejected_evidence["tested_perturbation"]
+        )
         self.assertIn(
-            "planning_observation=candidate_unexecutable",
-            state["open_query_evidence_history"][1]["evidence_summary"],
+            '"kind": "candidate_unexecutable"',
+            rejected_evidence["evidence_summary"],
+        )
+        self.assertIn(
+            '"reason_code": "taskgen_expert_gate_candidate_unexecutable"',
+            rejected_evidence["evidence_summary"],
+        )
+        self.assertIn("policy_not_executed", rejected_evidence["evidence_summary"])
+        self.assertIn("N=0", rejected_evidence["evidence_summary"])
+        self.assertIn(
+            "expert_certification_failed",
+            rejected_evidence["evidence_summary"],
         )
 
         materialization_summary = deepcopy(rejected_summary)
@@ -1513,13 +1642,31 @@ class ClaimFirstRuntimeTests(unittest.TestCase):
             materialization_state["records"][1]["policy_sample_count"], 0
         )
         self.assertIn(
-            "planning_observation=taskgen_materialization_failed",
+            '"kind": "taskgen_materialization_failed"',
+            materialization_state["open_query_evidence_history"][1][
+                "evidence_summary"
+            ],
+        )
+        self.assertIn(
+            '"failure_stage": "scene_codegen"',
             materialization_state["open_query_evidence_history"][1][
                 "evidence_summary"
             ],
         )
         self.assertIn(
             "expert terminal TCP relation was false",
+            materialization_state["open_query_evidence_history"][1][
+                "evidence_summary"
+            ],
+        )
+        self.assertIn(
+            "pre_policy_validation_failed",
+            materialization_state["open_query_evidence_history"][1][
+                "evidence_summary"
+            ],
+        )
+        self.assertNotIn(
+            "expert_certification_failed",
             materialization_state["open_query_evidence_history"][1][
                 "evidence_summary"
             ],

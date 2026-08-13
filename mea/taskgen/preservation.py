@@ -66,6 +66,8 @@ _SIMULATOR_STATE_PRESERVATION_TERMS = (
     "spatial",
     "contact point",
     "contact-point",
+    "contact reference",
+    "contact-point reference",
     "contact location",
     "center",
     "centre",
@@ -78,6 +80,10 @@ _SIMULATOR_STATE_PRESERVATION_TERMS = (
     "orientation",
     "height",
     "z coordinate",
+    "coordinate",
+    "model identity",
+    "model instance",
+    "asset identity",
     "空间",
     "接触点",
     "接触位置",
@@ -102,6 +108,7 @@ _GEOMETRY_PRESERVATION_TERMS = (
 )
 _CHECKER_PRESERVATION_TERMS = (
     "success semantics",
+    "success predicate",
     "success criterion",
     "success criteria",
     "checker",
@@ -127,7 +134,174 @@ _OFFICIAL_CORE_CONJUNCT_TERMS = (
 )
 
 _POSITION_ABS_TOLERANCE_M = 1e-5
+_CONTACT_LOCAL_POSITION_ABS_TOLERANCE_M = 5e-4
 _QUATERNION_COMPONENT_ABS_TOLERANCE = 5e-4
+
+
+def _explicit_position_axes(condition: str) -> list[tuple[str, int]]:
+    """Return only axes explicitly named by a preservation condition."""
+
+    axes: list[tuple[str, int]] = []
+    for axis, index in (("x", 0), ("y", 1), ("z", 2)):
+        patterns = (
+            rf"\b(?:sampled[\s-]+)?(?:[a-z0-9_]+[\s-]+){{0,3}}"
+            rf"{axis}(?:[\s-]+axis)?"
+            rf"[\s-]+(?:position|coordinate)\b",
+            rf"\b(?:position|coordinate)[\s-]+(?:along[\s-]+)?"
+            rf"(?:the[\s-]+)?{axis}(?:[\s-]+axis)?\b",
+            rf"\b{axis}[\s-]+axis\b",
+        )
+        if any(re.search(pattern, condition) for pattern in patterns):
+            axes.append((axis, index))
+    if any(
+        marker in condition
+        for marker in (
+            "vertical axis",
+            "vertical coordinate",
+            "z-axis",
+            "z axis",
+            "z-coordinate",
+            "垂直轴",
+            "竖直轴",
+            "z轴",
+        )
+    ) and ("z", 2) not in axes:
+        axes.append(("z", 2))
+    return axes
+
+
+def _contact_world_position_requested(condition: str) -> bool:
+    return bool(
+        re.search(
+            r"\bcontact(?:[\s-]+point)?(?:s)?[\s-]+world"
+            r"[\s-]+(?:position|location|coordinate)s?\b",
+            condition,
+        )
+        or re.search(
+            r"\bworld[\s-]+(?:position|location|coordinate)s?"
+            r"[\s-]+(?:of[\s-]+)?(?:the[\s-]+)?contact",
+            condition,
+        )
+    )
+
+
+def _finite_numeric_vector(
+    value: Any,
+    *,
+    minimum_length: int,
+) -> list[float] | None:
+    if not isinstance(value, list) or len(value) < minimum_length:
+        return None
+    try:
+        result = [float(item) for item in value]
+    except (TypeError, ValueError):
+        return None
+    return result if all(math.isfinite(item) for item in result) else None
+
+
+def _contact_points_preserved(
+    official_actor: Mapping[str, Any],
+    generated_actor: Mapping[str, Any],
+    *,
+    compare_world_positions: bool,
+) -> bool | None:
+    """Compare contact identity/local geometry unless world position is explicit."""
+
+    official_points = official_actor.get("contact_points")
+    generated_points = generated_actor.get("contact_points")
+    if not isinstance(official_points, Mapping) or not official_points:
+        return None
+    if not isinstance(generated_points, Mapping):
+        return False
+    if set(official_points) != set(generated_points):
+        return False
+    official_actor_position = _finite_numeric_vector(
+        official_actor.get("position"), minimum_length=3
+    )
+    generated_actor_position = _finite_numeric_vector(
+        generated_actor.get("position"), minimum_length=3
+    )
+    if not compare_world_positions:
+        official_quaternion = _finite_numeric_vector(
+            official_actor.get("quaternion"), minimum_length=4
+        )
+        generated_quaternion = _finite_numeric_vector(
+            generated_actor.get("quaternion"), minimum_length=4
+        )
+        if (
+            official_quaternion is not None
+            and generated_quaternion is not None
+            and not _numeric_vectors_close(
+                official_quaternion[:4],
+                generated_quaternion[:4],
+                absolute_tolerance=_QUATERNION_COMPONENT_ABS_TOLERANCE,
+                sign_invariant=True,
+            )
+        ):
+            # World contact positions can only be converted to actor-relative
+            # offsets by subtraction while orientation is preserved.  A
+            # rotated actor needs a body-frame transform that the probe does
+            # not currently publish, so report unknown rather than a false
+            # preservation verdict.
+            return None
+    for point_id in official_points:
+        official_point = official_points[point_id]
+        generated_point = generated_points[point_id]
+        if not isinstance(official_point, Mapping) or not isinstance(
+            generated_point, Mapping
+        ):
+            return False
+        official_position = _finite_numeric_vector(
+            official_point.get("position"), minimum_length=3
+        )
+        generated_position = _finite_numeric_vector(
+            generated_point.get("position"), minimum_length=3
+        )
+        if official_position is None or generated_position is None:
+            return False
+        if compare_world_positions:
+            left = official_position[:3]
+            right = generated_position[:3]
+            tolerance = _POSITION_ABS_TOLERANCE_M
+        elif official_actor_position is None or generated_actor_position is None:
+            # The declared IDs and finite contact values still establish the
+            # reference contract when an actor center is not published.
+            continue
+        else:
+            left = [
+                official_position[index] - official_actor_position[index]
+                for index in range(3)
+            ]
+            right = [
+                generated_position[index] - generated_actor_position[index]
+                for index in range(3)
+            ]
+            tolerance = _CONTACT_LOCAL_POSITION_ABS_TOLERANCE_M
+        if not _numeric_vectors_close(
+            left,
+            right,
+            absolute_tolerance=tolerance,
+        ):
+            return False
+    return True
+
+
+def _actor_model_identity(actor: Mapping[str, Any]) -> list[dict[str, Any]] | None:
+    geometry = actor.get("collision_geometry")
+    if not isinstance(geometry, list):
+        return None
+    identity: list[dict[str, Any]] = []
+    for item in geometry:
+        if not isinstance(item, Mapping):
+            continue
+        projected = {
+            field: item[field]
+            for field in ("modelname", "model_id", "collision_asset")
+            if field in item
+        }
+        if projected:
+            identity.append(projected)
+    return identity or None
 
 
 def _numeric_vectors_close(
@@ -210,25 +384,23 @@ def _same_seed_tracked_actor_state(
 
     lowered = condition.casefold()
     requires_contact = "contact" in lowered
+    contact_world_position = _contact_world_position_requested(lowered)
+    position_axes = _explicit_position_axes(lowered)
+    requires_model_identity = any(
+        marker in lowered
+        for marker in ("model identity", "model instance", "asset identity")
+    )
+    scoped_actor_ids = [
+        actor_id
+        for actor_id in official_actors
+        if actor_id.casefold() in lowered
+    ] or list(official_actors)
     non_contact_spatial = re.sub(
         r"\bcontact(?:[\s-]+point)?(?:[\s-]+world)?"
         r"[\s-]+(?:position|location|coordinate)s?\b"
         r"|\bcontact[\s-]+point\b",
         "",
         lowered,
-    )
-    requires_vertical_axis = any(
-        marker in lowered
-        for marker in (
-            "vertical axis",
-            "vertical coordinate",
-            "z-axis",
-            "z axis",
-            "z-coordinate",
-            "垂直轴",
-            "竖直轴",
-            "z轴",
-        )
     )
     requires_actor_position = (
         any(
@@ -256,38 +428,63 @@ def _same_seed_tracked_actor_state(
         "height" in lowered
         or "z coordinate" in lowered
         or "高度" in lowered
-        or requires_vertical_axis
+        or any(axis == "z" for axis, _index in position_axes)
     )
-    if requires_vertical_axis:
-        # "Position along the vertical axis" constrains only z.  Treating it
-        # as full xyz preservation would reject the horizontal perturbation
-        # that the same Proposal explicitly requests.
+    if position_axes:
+        # An explicitly named coordinate constrains only that axis. Treating
+        # "sampled y position" as full xyz preservation would reject the x
+        # perturbation requested by the same Proposal.
         requires_actor_position = False
     component_results: list[bool | None] = []
     components: list[str] = []
 
     if requires_contact:
-        comparable = [
-            (
-                official_actors[actor_id].get("contact_points"),
-                generated_actors[actor_id].get("contact_points"),
+        contact_results = [
+            _contact_points_preserved(
+                official_actors[actor_id],
+                generated_actors[actor_id],
+                compare_world_positions=contact_world_position,
             )
-            for actor_id in official_actors
+            for actor_id in scoped_actor_ids
         ]
-        if not any(
-            isinstance(official, Mapping) and bool(official)
-            for official, _generated in comparable
-        ):
+        defined_contact_results = [
+            result for result in contact_results if result is not None
+        ]
+        if not defined_contact_results:
             component_results.append(None)
-            components.append("contact_points")
+        elif any(result is False for result in defined_contact_results):
+            component_results.append(False)
+        else:
+            component_results.append(True)
+        components.append(
+            "contact_point_world_positions"
+            if contact_world_position
+            else "contact_point_references"
+        )
+
+    if requires_model_identity:
+        identities = [
+            (
+                _actor_model_identity(official_actors[actor_id]),
+                _actor_model_identity(generated_actors[actor_id]),
+            )
+            for actor_id in scoped_actor_ids
+        ]
+        comparable_identities = [
+            (official, generated)
+            for official, generated in identities
+            if official is not None
+        ]
+        if not comparable_identities:
+            component_results.append(None)
         else:
             component_results.append(
                 all(
-                    official == generated
-                    for official, generated in comparable
+                    generated is not None and official == generated
+                    for official, generated in comparable_identities
                 )
             )
-            components.append("contact_points")
+        components.append("model_identity")
 
     fields: list[str] = []
     if requires_actor_position:
@@ -299,10 +496,10 @@ def _same_seed_tracked_actor_state(
         if any(
             field not in actor
             for actor in (
-                *official_actors.values(),
+                *(official_actors[actor_id] for actor_id in scoped_actor_ids),
                 *(
                     generated_actors[actor_id]
-                    for actor_id in official_actors
+                    for actor_id in scoped_actor_ids
                 ),
             )
         ):
@@ -320,17 +517,49 @@ def _same_seed_tracked_actor_state(
                     ),
                     sign_invariant=(field == "quaternion"),
                 )
-                for actor_id in official_actors
+                for actor_id in scoped_actor_ids
             )
         )
-    if requires_height and not requires_actor_position:
+    for axis, index in position_axes:
+        components.append(f"position_{axis}")
+        positions = [
+            (
+                official_actors[actor_id].get("position"),
+                generated_actors[actor_id].get("position"),
+            )
+            for actor_id in scoped_actor_ids
+        ]
+        if any(
+            not isinstance(official, list)
+            or not isinstance(generated, list)
+            or len(official) <= index
+            or len(generated) <= index
+            for official, generated in positions
+        ):
+            component_results.append(None)
+        else:
+            component_results.append(
+                all(
+                    _numeric_vectors_close(
+                        [official[index]],
+                        [generated[index]],
+                        absolute_tolerance=_POSITION_ABS_TOLERANCE_M,
+                    )
+                    for official, generated in positions
+                )
+            )
+    if (
+        requires_height
+        and not requires_actor_position
+        and not any(axis == "z" for axis, _index in position_axes)
+    ):
         components.append("position_z")
         positions = [
             (
                 official_actors[actor_id].get("position"),
                 generated_actors[actor_id].get("position"),
             )
-            for actor_id in official_actors
+            for actor_id in scoped_actor_ids
         ]
         if any(
             not isinstance(official, list)
@@ -626,4 +855,3 @@ def _checker_references_official_core(module_source: str) -> bool:
 
 
 __all__ = ["build_preservation_report"]
-

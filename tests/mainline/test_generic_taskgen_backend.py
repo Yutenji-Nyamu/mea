@@ -10,7 +10,10 @@ from typing import Any, Mapping
 
 from mea.planner.experiment_candidate import build_experiment_candidate
 from mea.planner.semantic_coverage import build_evaluation_intent
-from mea.taskgen.attempts import CandidateUnexecutableError
+from mea.taskgen.attempts import (
+    CandidateUnexecutableError,
+    task_generation_recovery_action,
+)
 from mea.taskgen.generic_backend import (
     GenericRoboTwinTaskAdapter,
     GenericRoboTwinTaskGenBackend,
@@ -86,6 +89,58 @@ class _Provider:
 
 
 class ProviderSceneCheckerRepairTests(unittest.TestCase):
+    def test_preservation_failure_is_typed_and_keeps_probe_runtime(self):
+        responses = [
+            {
+                "load_actors": (
+                    "def load_actors(self):\n"
+                    '    self.target = "generated"\n'
+                ),
+                "check_success": (
+                    "def check_success(self):\n"
+                    "    return True\n"
+                ),
+            }
+        ]
+
+        def validate(_methods: Mapping[str, str]) -> dict[str, Any]:
+            raise GenericTaskGenError(
+                "generated task violated a checked preservation condition: "
+                "sampled y position",
+                runtime={"simulator_probes": 2, "expert_probes": 1},
+            )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            with self.assertRaises(GenericTaskGenError):
+                run_provider_codegen(
+                    attempt_root=root / "attempts",
+                    proposal={"task_name": "fixture"},
+                    prompt="generate methods",
+                    provider=_Provider(responses),
+                    model="fixture-model",
+                    validate=validate,
+                    error_type=GenericTaskGenError,
+                    max_regenerations=0,
+                )
+            summary = json.loads(
+                (root / "attempts/task_generation_attempt_summary.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+
+        failure = summary["attempts"][0]["failure"]
+        self.assertEqual(failure["stage"], "preservation_validation")
+        self.assertEqual(failure["failure_kind"], "failed")
+        self.assertEqual(summary["runtime"]["simulator_probes"], 2)
+        self.assertEqual(summary["runtime"]["expert_probes"], 1)
+        self.assertEqual(
+            task_generation_recovery_action(
+                failure["stage"], failure["failure_kind"]
+            ),
+            "regenerate_candidate",
+        )
+
     def test_unchanged_checker_repair_stops_before_revalidation(self):
         scene = (
             "def load_actors(self):\n"
@@ -907,8 +962,177 @@ class GenericTaskGenBackendTests(unittest.TestCase):
         self.assertEqual(report["status"], "failed")
         self.assertEqual(
             report["checks"][0]["authority"],
-            "same_seed_simulator_state:tracked_actors.contact_points",
+            "same_seed_simulator_state:"
+            "tracked_actors.contact_point_world_positions",
         )
+
+    def test_batch39_axis_contact_and_model_preservation_passes(self) -> None:
+        official_actor = {
+            "id": "roller",
+            "position": [-0.14362009, -0.06900436, 0.74150085],
+            "quaternion": [0.9999999, 0.0, 0.0, 0.0002],
+            "contact_points": {
+                "0": {"position": [-0.2171124, -0.1161990, 0.7585314]},
+                "1": {"position": [-0.0699741, -0.0218261, 0.7585396]},
+            },
+            "collision_geometry": [
+                {
+                    "geometry_type": "create_actor_asset",
+                    "modelname": "066_roller",
+                    "model_id": 0,
+                    "collision_asset": "base0.glb",
+                    "scale": [1.0, 1.0, 1.0],
+                }
+            ],
+        }
+        generated_actor = {
+            "id": "roller",
+            "position": [0.15001997, -0.06900253, 0.74150062],
+            "quaternion": [0.9999998, 0.0001, 0.0, 0.0001],
+            "contact_points": {
+                "0": {"position": [0.0765210, -0.1161838, 0.7585394]},
+                "1": {"position": [0.2236660, -0.0218243, 0.7585378]},
+            },
+            "collision_geometry": [
+                {
+                    "geometry_type": "create_actor_asset",
+                    "modelname": "066_roller",
+                    "model_id": 0,
+                    "collision_asset": "base0.glb",
+                    "scale": [1.0, 1.0, 1.0],
+                }
+            ],
+        }
+        official_setup = {
+            "seed": 1000,
+            "tracked_actors": [official_actor],
+        }
+        generated_setup = {
+            "seed": 1000,
+            "tracked_actors": [generated_actor],
+        }
+        report = build_preservation_report(
+            [
+                "roller model identity, sampled y position, and orientation",
+                "declared roller contact points 0 and 1",
+            ],
+            scene_generated=True,
+            checker_generated=False,
+            visual_self_check_enabled=True,
+            visual={"passed": True, "unexpected_changes": []},
+            official_setup=official_setup,
+            generated_setup=generated_setup,
+        )
+
+        self.assertTrue(report["verified"])
+        self.assertEqual(report["status"], "verified")
+
+        v4_wording = build_preservation_report(
+            [
+                "roller model instance: 0",
+                "sampled roller y coordinate",
+                "roller orientation",
+                "official roller actor and declared contact references",
+                "official lift goal and official check_success predicate",
+            ],
+            scene_generated=True,
+            checker_generated=False,
+            visual_self_check_enabled=True,
+            visual={"passed": True, "unexpected_changes": []},
+            official_setup=official_setup,
+            generated_setup=generated_setup,
+        )
+
+        self.assertTrue(v4_wording["verified"])
+        self.assertEqual(v4_wording["status"], "verified")
+        round_2_wording = build_preservation_report(
+            [
+                "official grab_roller task identity",
+                "SmolVLA shared_official policy checkpoint",
+                "roller declared contact reference point 0",
+                "roller declared contact reference point 1",
+                "sampled roller y coordinate",
+                "sampled roller model instance",
+                "sampled roller orientation",
+                "official lift success predicate",
+            ],
+            scene_generated=True,
+            checker_generated=False,
+            visual_self_check_enabled=True,
+            visual={"passed": True, "unexpected_changes": []},
+            official_setup=official_setup,
+            generated_setup=generated_setup,
+        )
+
+        self.assertTrue(round_2_wording["verified"])
+        self.assertEqual(round_2_wording["status"], "verified")
+        self.assertIn("model_identity", report["checks"][0]["authority"])
+        self.assertIn("position_y", report["checks"][0]["authority"])
+        self.assertIn("quaternion", report["checks"][0]["authority"])
+        self.assertIn(
+            "contact_point_references",
+            report["checks"][1]["authority"],
+        )
+
+    def test_explicit_y_preservation_rejects_y_change_only(self) -> None:
+        common = {
+            "id": "roller",
+            "quaternion": [1.0, 0.0, 0.0, 0.0],
+            "contact_points": {},
+        }
+        report = build_preservation_report(
+            ["sampled y position"],
+            scene_generated=True,
+            checker_generated=False,
+            visual_self_check_enabled=True,
+            visual={"passed": True, "unexpected_changes": []},
+            official_setup={
+                "seed": 1000,
+                "tracked_actors": [
+                    {**common, "position": [-0.14, -0.069, 0.74]}
+                ],
+            },
+            generated_setup={
+                "seed": 1000,
+                "tracked_actors": [
+                    {**common, "position": [0.15, -0.05, 0.74]}
+                ],
+            },
+        )
+
+        self.assertFalse(report["verified"])
+        self.assertIn("position_y", report["checks"][0]["authority"])
+
+    def test_contact_reference_and_model_identity_changes_fail(self) -> None:
+        base = {
+            "id": "roller",
+            "position": [0.0, 0.0, 0.0],
+            "quaternion": [1.0, 0.0, 0.0, 0.0],
+            "contact_points": {"0": {"position": [0.1, 0.0, 0.0]}},
+            "collision_geometry": [
+                {"modelname": "066_roller", "model_id": 0}
+            ],
+        }
+        changed = {
+            **base,
+            "contact_points": {},
+            "collision_geometry": [
+                {"modelname": "066_roller", "model_id": 1}
+            ],
+        }
+        report = build_preservation_report(
+            ["roller contact points", "roller model identity"],
+            scene_generated=True,
+            checker_generated=False,
+            visual_self_check_enabled=True,
+            visual={"passed": True, "unexpected_changes": []},
+            official_setup={"seed": 1000, "tracked_actors": [base]},
+            generated_setup={"seed": 1000, "tracked_actors": [changed]},
+        )
+
+        self.assertFalse(report["verified"])
+        self.assertFalse(report["checks"][0]["verified"])
+        self.assertFalse(report["checks"][1]["verified"])
 
     def test_compound_contact_and_center_condition_checks_both(self) -> None:
         report = build_preservation_report(
@@ -950,7 +1174,7 @@ class GenericTaskGenBackendTests(unittest.TestCase):
         self.assertEqual(
             report["checks"][0]["authority"],
             "same_seed_simulator_state:"
-            "tracked_actors.contact_points+position",
+            "tracked_actors.contact_point_references+position",
         )
 
     def _cold_compound_position_and_orientation_checks_both(self) -> None:
@@ -1071,7 +1295,7 @@ class GenericTaskGenBackendTests(unittest.TestCase):
         self.assertEqual(
             report["checks"][0]["authority"],
             "same_seed_simulator_state:"
-            "tracked_actors.contact_points+position+quaternion",
+            "tracked_actors.contact_point_references+position+quaternion",
         )
 
     def test_geometry_without_simulator_or_ast_authority_is_partial(

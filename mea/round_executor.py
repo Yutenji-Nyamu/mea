@@ -702,17 +702,27 @@ class RoundExecutor:
         if native is not None:
             planning_observation = native.get("planning_observation")
             if not isinstance(planning_observation, Mapping):
-                candidate_rejection = native.get("child_manifest", {}).get(
-                    "candidate_unexecutable"
+                native_manifest = native.get("child_manifest", {})
+                candidate_rejection = (
+                    native_manifest.get("planning_observation")
+                    if isinstance(native_manifest, Mapping)
+                    else None
                 )
+                if not isinstance(candidate_rejection, Mapping):
+                    candidate_rejection = (
+                        native_manifest.get("candidate_unexecutable")
+                        if isinstance(native_manifest, Mapping)
+                        else None
+                    )
                 planning_observation = (
                     candidate_rejection
                     if isinstance(candidate_rejection, Mapping)
                     else None
                 )
             method_status = (
-                "candidate_unexecutable"
-                if native.get("candidate_unexecutable") is True
+                str(planning_observation.get("kind"))
+                if isinstance(planning_observation, Mapping)
+                and planning_observation.get("kind")
                 else "taskgen_materialization_failed"
                 if native.get("taskgen_materialization_failed") is True
                 else "unsupported"

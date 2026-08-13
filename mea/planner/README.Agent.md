@@ -67,6 +67,12 @@ The next concern may be outside the retrieval inventory. It becomes an
 - `rule_tool_need`;
 - `vqa_tool_need`.
 
+A new concern is an independent official-base experiment unless the Proposal
+explicitly says it refines a prior validated scene. A refinement must restate
+every retained prior scene delta plus the new delta in the current
+`controlled_changes` and scene need. TaskGen does not silently inherit generated
+code or simulator state from an earlier round.
+
 A Tool-only Query must not be forced to generate a scene or checker. A
 scene-only request may reuse the official checker. A generated checker defines
 experimental success and must remain distinct from official benchmark success.
@@ -87,16 +93,41 @@ identity plus policy checkpoint in the preserve set. Other preservation claims
 require an advertised authority. Each Rule/VQA need asks for one primary
 observation and keeps `reuse_first=true`. Task/Tool generation never authorizes
 changing policy weights, controller precision, action noise, or latency.
+One Rule Tool request must reduce to one executable metric contract. If height,
+left distance, and right distance could all be diagnostic, select the single
+highest-information measurement now; later evidence may justify another Tool.
+When one hypothesis compares symmetric or grouped signals and the advertised
+capabilities include independent derived-observable validation, prefer one
+scalar aggregate observable (for example a maximum or absolute difference)
+over splitting left and right into duplicate scene rollouts. Otherwise request
+the single highest-information typed metric; do not invent an unvalidated
+aggregate merely to save a rollout.
+
+Write each `preserved_conditions` entry as one atomic fact. Name a coordinate
+axis when only that coordinate is fixed, and distinguish preservation of a
+contact reference/local offset from preservation of its world position. Use
+the simulator-authority terms `task identity`, `policy checkpoint`, `<actor>
+x/y/z position`, `<actor> orientation`, `<actor> model identity`, `<actor>
+contact-point local offsets`, and `official goal as a required conjunct` when
+those are the exact intended facts; do not hide several facts in one sentence.
 
 Interpret evidence by its declared role. The round outcome is the tested
 hypothesis verdict; diagnostic Tool values explain it but do not rewrite it.
 Terminal state is not trajectory peak, expert evidence is not evaluated-policy
 evidence, and visual evidence does not override numeric simulator authority.
 After a successful test with comfortable margin, do not repeatedly vary the
-same axis unless completed finite evidence brackets a boundary. Switch to an
-orthogonal concern, or actively stop inconclusive when no distinct supported
-concern remains. For `action=stop`, clear the perturbation and set every
-artifact need to not required.
+same axis unless completed finite evidence brackets a boundary. Simulator
+sampling support is not evidence that the official expert can solve every
+sampled pose. Do not claim expert executability as a preserved fact unless a
+positive expert probe supports it. If both the generated candidate and the
+unchanged same-seed expert fail through the same grasp/IK path, that is an
+expert-oracle limitation, not a policy weakness and not evidence that the
+generated scene broke a contact reference. Base another attempt on the nearest
+expert-positive artifact and one genuinely new observable; otherwise actively
+stop inconclusive instead of guessing another pose, orientation, or instance.
+Switch to an orthogonal concern, or actively stop inconclusive when no distinct
+supported concern remains. For `action=stop`, clear the perturbation and set
+every artifact need to not required.
 
 Do not treat a valid policy failure as pipeline failure. Do not turn a few
 successful episodes into a generalization claim. Open candidate universes

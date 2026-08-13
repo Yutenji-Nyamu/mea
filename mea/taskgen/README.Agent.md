@@ -1,5 +1,8 @@
 # TaskGen output rules
 
+- Generation starts from the retrieved official source. Implement every
+  retained and new scene delta explicitly stated by the current Proposal;
+  never infer or silently inherit an earlier round's generated code or state.
 - Return complete methods, never patches or prose.
 - Change only fields authorized by the validated Proposal.
 - Use only actors, poses, telemetry, thresholds, and assets declared by the

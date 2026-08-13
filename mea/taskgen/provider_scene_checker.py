@@ -595,6 +595,9 @@ def run_provider_codegen(
                 "generated scene/expert failed official terminal-state "
                 "authority"
             )
+            preservation_validation_failure = diagnosis.startswith(
+                "generated task violated a checked preservation condition"
+            )
             failure_runtime = {"provider_calls": 1}
             error_runtime = getattr(exc, "runtime", {})
             if isinstance(error_runtime, Mapping):
@@ -617,6 +620,8 @@ def run_provider_codegen(
                     if semantic_review_unavailable
                     else "expert_gate"
                     if official_baseline_failure or candidate_unexecutable
+                    else "preservation_validation"
+                    if preservation_validation_failure
                     else "success_spec"
                     if checker_validation_failure
                     else "scene_codegen"
@@ -628,6 +633,8 @@ def run_provider_codegen(
                     if official_baseline_failure
                     else "candidate_unexecutable"
                     if candidate_unexecutable
+                    else "failed"
+                    if preservation_validation_failure
                     else "invalid_spec"
                     if checker_validation_failure
                     else "invalid_candidate"

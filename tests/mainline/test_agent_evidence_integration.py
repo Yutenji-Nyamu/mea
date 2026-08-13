@@ -502,6 +502,45 @@ class AgentEvidenceIntegrationTests(unittest.TestCase):
             )
             self.assertIn("missing video.mp4", saved["reason"])
 
+    def test_typed_pre_policy_observation_is_uncertain_planning_evidence(self):
+        round_plan = {
+            "round_id": "round_2",
+            "candidate_id": "generated_candidate",
+            "execution": {"seeds": [1000]},
+            "semantic_need_execution": {
+                "rule_tool": {"requested": False},
+                "vqa_tool": {"requested": False},
+            },
+        }
+        summary = {
+            "round_id": "round_2",
+            "pipeline_passed": False,
+            "failure_stage": "taskgen_expert_gate",
+            "observations": {
+                "planning_observation": {
+                    "kind": "expert_oracle_unavailable",
+                    "reason_code": (
+                        "taskgen_expert_gate_official_baseline_unsolvable"
+                    ),
+                    "policy_rollouts_started": 0,
+                    "policy_sample_count": 0,
+                },
+                "outcome_semantics": {
+                    "status": "non_comparable",
+                    "evidence_conflict": False,
+                },
+            },
+        }
+
+        evidence = build_evidence_aggregate(round_plan, summary)
+
+        self.assertTrue(evidence["pipeline"]["passed"])
+        self.assertEqual(evidence["evidence_strength"], "uncertain")
+        self.assertEqual(
+            evidence["reason_codes"],
+            ["taskgen_expert_gate_official_baseline_unsolvable"],
+        )
+
     def test_official_act_without_act_candidate_is_failed(self):
         with tempfile.TemporaryDirectory() as temporary:
             repo_root = Path(temporary)

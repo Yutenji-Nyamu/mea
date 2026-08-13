@@ -120,7 +120,12 @@ def _candidate_unexecutable_round(
     policy_backend: str,
     policy_name: str,
 ) -> dict[str, Any]:
-    """Return one rejected TaskGen candidate as pre-policy planning evidence."""
+    """Return one expert-gate rejection as pre-policy planning evidence.
+
+    ``CandidateUnexecutableError`` is the compatibility exception envelope.
+    The preserved failure kind distinguishes a candidate-specific failure from
+    an unavailable same-seed official expert comparator.
+    """
 
     manifest_path = child_dir / "manifest.json"
     try:
@@ -136,10 +141,14 @@ def _candidate_unexecutable_round(
     child_manifest = deepcopy(dict(raw_manifest))
     failure = child_manifest.get("failure")
     policy_execution = child_manifest.get("policy_execution")
+    failure_kind = str(failure.get("failure_kind") or "") if isinstance(
+        failure, Mapping
+    ) else ""
     if not (
         child_manifest.get("status") == "candidate_unexecutable"
         and isinstance(failure, Mapping)
-        and failure.get("failure_kind") == "candidate_unexecutable"
+        and failure_kind
+        in {"candidate_unexecutable", "official_baseline_unsolvable"}
         and isinstance(policy_execution, Mapping)
         and _is_zero_rollout_count(policy_execution.get("rollouts_started"))
         and _is_zero_rollout_count(policy_execution.get("sample_count"))
@@ -148,12 +157,22 @@ def _candidate_unexecutable_round(
             "candidate-unexecutable TaskGen manifest changed its typed boundary"
         )
     candidate_id = str(proposal["candidate_id"])
+    oracle_unavailable = failure_kind == "official_baseline_unsolvable"
     planning_observation = {
         "schema_version": 1,
-        "kind": "candidate_unexecutable",
+        "kind": (
+            "expert_oracle_unavailable"
+            if oracle_unavailable
+            else "candidate_unexecutable"
+        ),
         "candidate_id": candidate_id,
         "sub_aspect": str(round_plan["sub_aspect"]),
-        "reason_code": "taskgen_expert_gate_candidate_unexecutable",
+        "failure_stage": "taskgen_expert_gate",
+        "reason_code": (
+            "taskgen_expert_gate_official_baseline_unsolvable"
+            if oracle_unavailable
+            else "taskgen_expert_gate_candidate_unexecutable"
+        ),
         "diagnosis": str(failure.get("diagnosis") or failure.get("message")),
         "policy_rollouts_started": 0,
         "policy_sample_count": 0,
@@ -163,7 +182,7 @@ def _candidate_unexecutable_round(
     }
     method_runtime = {
         "schema_version": 1,
-        "status": "candidate_unexecutable",
+        "status": planning_observation["kind"],
         "candidate_id": candidate_id,
         "proposal": deepcopy(dict(proposal)),
         "planning_observation": planning_observation,
@@ -171,6 +190,9 @@ def _candidate_unexecutable_round(
     child_manifest.update(
         {
             "policy_backend": policy_backend,
+            "planning_observation": planning_observation,
+            # Compatibility alias for readers that still use the historical
+            # pre-policy rejection envelope.
             "candidate_unexecutable": planning_observation,
             "act_evaluation": {
                 "passed": False,
@@ -209,7 +231,8 @@ def _candidate_unexecutable_round(
         "method_runtime_path": method_runtime_path,
         "semantic_telemetry_ready": False,
         "candidate_id": candidate_id,
-        "evidence_outcome": "candidate_unexecutable",
+        "evidence_outcome": planning_observation["kind"],
+        "planning_observation": planning_observation,
         "candidate_unexecutable": True,
     }
 
@@ -312,15 +335,7 @@ def _taskgen_materialization_failure_round(
         )
     failure_stage = str(terminal_failure.get("stage") or "")
     failure_kind = str(terminal_failure.get("failure_kind") or "")
-    planning_failures = {
-        ("scene_codegen", "invalid_candidate"),
-        ("success_spec", "invalid_spec"),
-    }
-    if (
-        (failure_stage, failure_kind) not in planning_failures
-        or task_generation_recovery_action(failure_stage, failure_kind)
-        == TERMINAL
-    ):
+    if task_generation_recovery_action(failure_stage, failure_kind) == TERMINAL:
         raise NativeAgentRoundError(
             "terminal TaskGen system failure cannot become planning evidence"
         )
