@@ -308,6 +308,11 @@ class ExecutionVQATests(unittest.TestCase):
             self.assertTrue(result["evidence_conflict"])
             self.assertEqual(provider.calls[0][2]["model"], "gpt-5.6-balanced")
             self.assertIn("authoritative", provider.calls[0][0])
+            self.assertIn('"observed": null', provider.calls[0][0])
+            self.assertIn("Merely not seeing an", provider.calls[0][0])
+            self.assertIn(
+                "event in sparse selected frames", provider.calls[0][0]
+            )
             self.assertTrue((root / "execution_vqa.json").is_file())
             self.assertTrue((root / "execution_vqa_prompt.md").is_file())
             self.assertTrue((root / "execution_vqa_response.txt").is_file())

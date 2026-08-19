@@ -109,6 +109,23 @@ simulator 或 policy rollout，因此只证明裁剪后的软件结构仍可运�
 identity、HistoryDB 的技术性摘要，以及 `RoundExecutor`/TaskGen 大文件的 owner 拆分。完整冷记录见
 [`experiments/paper/results/batch41_mainline_cleanup/`](../experiments/paper/results/batch41_mainline_cleanup/README.md)。
 
+## Batch42 cold transfer 与 Tool 复用（focused method regression）
+
+`move_playingcard_away` 在没有任务卡的情况下完成 fresh reset / TaskContext preflight，耗时
+`33.167731 s`，没有 provider 或 policy rollout；这只证明通用 source/runtime binding 可进入，
+真正 concern 冷发现与 live evidence loop 仍待 provider 可用时执行。
+
+Rule Tool 的轻量 semantic library 在真实冻结 telemetry 上完成一次跨 evaluation 精确复用：
+Batch40 的 `query_terminal_roller_z_position` artifact 在 Batch39 的另一真实 episode 上以
+`provider_called=false` 命中，并重新完成当前 telemetry、双执行、typed oracle 与 finite 验证；
+值从 `0.8000384569168091 m` 变为 `0.8001335859298706 m`。这关闭 Rule Tool executable
+artifact 的小范围跨 evaluation reuse gap，不是新 rollout 或 policy 稳定性证据。
+
+VQA observer 的二值示例已改成 `observed=null`，并明确稀疏 temporal frames 中“没看到”
+不能判 false。冻结 montage 五次 provider repeat 尚未执行，因而 Batch37 的稳定性负证据仍然
+有效。完整边界见
+[`experiments/paper/results/batch42_cold_transfer_and_tool_reuse/`](../experiments/paper/results/batch42_cold_transfer_and_tool_reuse/README.md)。
+
 ## Batch37 补充证据
 
 - **Rule Tool 跨 evaluation 复用。** 一个新 evaluation 以 **0 rollout、0 provider call** 从
@@ -135,7 +152,7 @@ identity、HistoryDB 的技术性摘要，以及 `RoundExecutor`/TaskGen 大文�
 | evidence 决定下一轮，并在充分时停止 | Batch37 的 evidence 改变下一 Proposal并主动 inconclusive stop；Batch40 live 产出充分 evidence，当前 verdict-hidden prompt 又在冻结 evidence 回放中独立提出 stop，后置 validator 只作核验 | **两种语义均有小范围证据**；多步 refinement 与充分正结论尚未在同一 live 运行合一 |
 | Fig. 3：Proposal → retrieve/generate scene + `check_success()` → rollout | 通用 TaskGen 已在 reviewed-schema-free 的 `press_stapler` 中 materialize scene/checker，并实际裁决 SmolVLA episode；一个不忠实 checker 被 fixture fail-closed 拒绝 | **小范围完成**；跨任务稳定性和量词/关系语义忠实性仍是边界 |
 | 首帧视觉诊断与局部重新生成 | render/VLM 与一次有界局部 repair 已接入；数值 preservation 由 simulator state、AST 与 fixture 审计 | **组件完成**；视觉不能替代数值语义验证 |
-| Fig. 4：ToolGen retrieve/generate/validate/register/reuse | 新 Python Rule Tool 有独立验证、live finite 值、Planner 消费、run-local reuse，并新增 0-rollout reviewed cross-evaluation exact reuse | **Rule Tool 小范围闭合**；开放 VQA artifact 可复用但观测不稳定 |
+| Fig. 4：ToolGen retrieve/generate/validate/register/reuse | 新 Python Rule Tool 有独立验证、live finite 值、Planner 消费、run-local reuse；Batch42 在真实冻结 telemetry 上完成 provider-free semantic-library 跨 evaluation exact reuse，并在 target episode 上重新验证 | **Rule Tool 小范围闭合**；开放 VQA artifact 可复用但观测不稳定 |
 | rollout → Rule/VQA → Aggregate → Plan Agent → Answer | RoboTwin 的 ACT、SmolVLA、Hy-VLA 已复用共享方法组件；Batch37 clean flagship 完成多轮真实反馈 | **RoboTwin 小范围完成**；LIBERO 仍仅 basic adaptation |
 | 回答原 Query 并约束确定性 | `AnswerScope` 报告 N、seed、候选域、typed `N=0`、冲突、停止原因与语义边界 | **完成度较高**；当前旗舰正确回答为 inconclusive |
 

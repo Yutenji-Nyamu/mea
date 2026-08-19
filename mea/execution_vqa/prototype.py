@@ -759,8 +759,8 @@ Return JSON only, with exactly this schema:
   "phenomena": [
     {{
       "id": "one id from the audited query contract",
-      "observed": true,
-      "description": "short observation",
+      "observed": null,
+      "description": "the selected frames are insufficient to decide",
       "confidence": 0.0,
       "frame_ids": ["initial"]
     }}
@@ -778,9 +778,12 @@ Return JSON only, with exactly this schema:
 }}
 Use conflicts=[] when no conflict is visible. Never invent frame ids.
 Use observed=null when the selected visual evidence is insufficient.
-For a temporal question, use observed=null unless the selected frames directly
-establish the requested ordering. Never infer an unseen intermediate event or
-turn ambiguity into a boolean because confidence is high.
+For a temporal question, observed=true requires ordered frames that directly
+show every necessary transition. observed=false requires frames dense enough to
+cover the bounded interval and directly exclude the event. Merely not seeing an
+event in sparse selected frames is insufficient and must produce observed=null.
+Never infer an unseen intermediate event or turn ambiguity into a boolean because
+confidence is high.
 Return exactly one phenomena item for each requested id, in this exact order:
 {json.dumps(phenomenon_ids, ensure_ascii=False)}
 """

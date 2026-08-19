@@ -502,6 +502,10 @@ def execute_metric_spec(
         "status": "passed",
         "route": route,
         "provider_called": generation is not None,
+        "current_telemetry_revalidated": (
+            route == "semantic_library_reuse"
+        ),
+        "current_episode_count": len(rows),
         "generation": generation,
         "source_path": str(source_path),
         "tool_spec": tool_spec,

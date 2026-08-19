@@ -234,6 +234,12 @@ def _execute_typed_metric_request(
                 raw.get("task_code_context_consumed")
             ),
             "episode_count": len(normalized_episodes),
+            "current_telemetry_revalidated": bool(
+                raw.get("current_telemetry_revalidated")
+            ),
+            "current_episode_count": int(
+                raw.get("current_episode_count") or 0
+            ),
             "validation_gates_passed": True,
             "independent_numeric_oracle": independent_numeric_oracle,
             "oracle_agreement": oracle_agreement,

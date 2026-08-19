@@ -105,6 +105,7 @@ belong in the production README or hot architecture document.
 | [`results/batch39_grab_roller_prompt_mainline/`](results/batch39_grab_roller_prompt_mainline/README.md) | prompt-first 修复后的 `grab_roller` 主链、live Tool 与主动 inconclusive stop；未晋升旗舰 |
 | [`results/batch40_paper_mainline_cleanup/`](results/batch40_paper_mainline_cleanup/README.md) | 生产语义清理与 `grab_roller` 两 episode `evidence_sufficient` 正例；作为冷补充，不替换 current evidence |
 | [`results/batch41_mainline_cleanup/`](results/batch41_mainline_cleanup/README.md) | Query/registry/receipt/attempt/compat 生产裁剪与全套服务器结构回归；不增加方法 evidence |
+| [`results/batch42_cold_transfer_and_tool_reuse/`](results/batch42_cold_transfer_and_tool_reuse/README.md) | 无任务卡 cold TaskContext preflight、真实冻结 telemetry 的 Rule Tool 跨 evaluation 复用与 VQA 弃答 prompt |
 
 旧运行的简短结论与边界另见
 [`docs/evidence/history.jsonl`](../../docs/evidence/history.jsonl)。若两处描述冲突，

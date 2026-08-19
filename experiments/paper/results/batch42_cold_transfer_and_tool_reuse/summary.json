@@ -1,0 +1,49 @@
+{
+  "schema_version": "batch42_cold_transfer_and_tool_reuse_v1",
+  "classification": "focused_method_regression_not_policy_benchmark",
+  "base_commit": "a2902760d5e2851c04438ece9e3cacd129f97ab0",
+  "cold_task_preflight": {
+    "task": "move_playingcard_away",
+    "task_card_present": false,
+    "seed": 1000,
+    "status": "passed",
+    "wall_seconds": 33.167731,
+    "provider_calls": 0,
+    "policy_rollouts": 0,
+    "artifact": "/root/autodl-tmp/mea-run-logs/batch42_move_playingcard_cold_preflight/summary.json"
+  },
+  "cross_evaluation_tool_reuse": {
+    "task": "grab_roller",
+    "metric": "query_terminal_roller_z_position",
+    "route": "semantic_library_reuse",
+    "provider_called": false,
+    "current_telemetry_revalidated": true,
+    "current_episode_count": 1,
+    "source_value_m": 0.8000384569168091,
+    "target_value_m": 0.8001335859298706,
+    "target_deterministic": true,
+    "target_oracle_agreement": true,
+    "policy_rollouts": 0,
+    "artifact": "/root/autodl-tmp/mea-run-logs/batch42_tool_cross_eval_replay_v3/summary.json"
+  },
+  "vqa": {
+    "prompt_example": "observed_null",
+    "sparse_temporal_absence_is_false": false,
+    "five_call_frozen_repeat": "pending_provider_credential",
+    "provider_calls": 0
+  },
+  "server_validation": {
+    "tool_cross_evaluation_focused_passed": 1,
+    "tool_related_mainline_passed": 29,
+    "execution_vqa_passed": 11,
+    "default_mainline_passed": 226,
+    "default_mainline_subtests_passed": 10,
+    "cold_compat_passed": 623,
+    "cold_compat_subtests_passed": 162
+  },
+  "next": [
+    "move_playingcard_away_provider_and_live_cold_transfer",
+    "press_stapler_distinct_concern_prompt_regression",
+    "frozen_vqa_five_call_repeat_without_majority_vote"
+  ]
+}

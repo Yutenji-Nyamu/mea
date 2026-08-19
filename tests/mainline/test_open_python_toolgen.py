@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -231,6 +232,127 @@ class OpenPythonToolGenTests(unittest.TestCase):
             self.assertFalse(validation["independent_numeric_oracle"])
             self.assertIsNone(validation["oracle_agreement"])
             self.assertNotIn("differential_gates_passed", validation)
+
+    def test_exact_reuse_crosses_evaluations_and_revalidates_current_episode(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            repo_root = Path(__file__).resolve().parents[2]
+            canonical_schema = (
+                repo_root / "mea/toolkit/schemas/beat_block_hammer.json"
+            ).read_text(encoding="utf-8")
+            children = []
+            for name, x_shift in (("source", 0.0), ("target", 0.25)):
+                child = root / "generated_tasks" / name
+                episode = (
+                    child
+                    / "evaluation/telemetry/act/episode_000_seed_100000"
+                )
+                write_episode(
+                    episode,
+                    policy_name="SmolVLA",
+                    physical_contact=True,
+                )
+                (episode / "schema.json").write_text(
+                    canonical_schema,
+                    encoding="utf-8",
+                )
+                if x_shift:
+                    trace = dict(np.load(episode / "semantic_trace.npz"))
+                    trace["right_tcp_position"] = (
+                        np.asarray(trace["right_tcp_position"])
+                        + [x_shift, 0.0, 0.0]
+                    )
+                    np.savez_compressed(
+                        episode / "semantic_trace.npz", **trace
+                    )
+                (child / "manifest.json").write_text(
+                    json.dumps(
+                        {
+                            "schema_version": 1,
+                            "task_name": "beat_block_hammer",
+                            "task_module": "beat_block_hammer",
+                            "generation_kind": "generated",
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                children.append(child)
+
+            request = {
+                "schema_version": 2,
+                "task_name": "beat_block_hammer",
+                "metric": "query_min_tcp_block_xy",
+                "question": "How close did the TCP get to the block?",
+                "metric_spec": SPEC,
+            }
+            provider = SequencedProvider(
+                [f"```python\n{compile_metric_spec_source(SPEC)}\n```"]
+            )
+            evaluations = root / "evaluations"
+            generated = execute_tool_request(
+                repo_root,
+                children[0],
+                evaluations
+                / "eval_source/execution/round_1/planned_tool",
+                request,
+                provider=provider,
+                model="test-model",
+            )
+            replay_provider = SequencedProvider([])
+            replay = execute_tool_request(
+                repo_root,
+                children[1],
+                evaluations
+                / "eval_target/execution/round_1/planned_tool",
+                {**request, "question": "Report the same metric again."},
+                provider=replay_provider,
+                model="must-not-be-used",
+            )
+
+            self.assertEqual(provider.calls, 1)
+            self.assertEqual(replay_provider.calls, 0)
+            self.assertEqual(generated["route"], "provider_python_codegen")
+            self.assertEqual(replay["route"], "semantic_library_reuse")
+            self.assertFalse(replay["validation"]["provider_called"])
+            self.assertFalse(replay["route_decision"]["provider_called"])
+            self.assertTrue(
+                replay["validation"]["current_telemetry_revalidated"]
+            )
+            self.assertEqual(
+                replay["source"]["registration_id"],
+                generated["source"]["registration_id"],
+            )
+            library = json.loads(
+                (
+                    evaluations / "generated_tool_library/index.json"
+                ).read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                library["entries"][0]["semantic_key"],
+                replay["source"]["registration_id"],
+            )
+            self.assertIn(
+                "generated_tool_library",
+                replay["source"]["artifact"],
+            )
+            current_value = replay["episodes"][0]["result"]["value"]
+            self.assertTrue(np.isfinite(current_value))
+            self.assertNotEqual(
+                current_value,
+                generated["episodes"][0]["result"]["value"],
+            )
+            raw = json.loads(
+                (
+                    evaluations
+                    / "eval_target/execution/round_1/planned_tool/"
+                    "typed_metric_spec/execution.json"
+                ).read_text(encoding="utf-8")
+            )
+            self.assertTrue(raw["current_telemetry_revalidated"])
+            self.assertEqual(raw["current_episode_count"], 1)
+            self.assertTrue(raw["episodes"][0]["deterministic"])
+            self.assertTrue(raw["episodes"][0]["oracle_agreement"])
+            self.assertTrue(raw["episodes"][0]["artifacts_unchanged"])
 
     def test_derived_observable_uses_semantic_review_then_exact_reuse(self):
         with tempfile.TemporaryDirectory() as temporary:

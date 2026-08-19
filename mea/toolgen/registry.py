@@ -71,6 +71,24 @@ def infer_registry_dir(output_dir: str | Path) -> Path | None:
     return None
 
 
+def _schema_signal_names(value: Any) -> set[str]:
+    """Read both mapping schemas and recorder ``[{name: ...}]`` fields."""
+
+    if isinstance(value, dict):
+        return {str(name) for name in value if str(name).strip()}
+    if not isinstance(value, list):
+        return set()
+    names: set[str] = set()
+    for item in value:
+        if isinstance(item, str) and item.strip():
+            names.add(item.strip())
+        elif isinstance(item, dict):
+            name = item.get("name")
+            if isinstance(name, str) and name.strip():
+                names.add(name.strip())
+    return names
+
+
 def telemetry_schema_compatibility(
     episode_dirs: Iterable[str | Path], *, required_signals: Iterable[str]
 ) -> dict[str, Any]:
@@ -84,8 +102,10 @@ def telemetry_schema_compatibility(
             schema = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise RunLocalRegistryError(f"invalid telemetry schema: {path}: {exc}") from exc
-        schema_signals = set(schema.get("signals", {}))
-        schema_signals.update(schema.get("semantic_fields", {}))
+        schema_signals = _schema_signal_names(schema.get("signals"))
+        schema_signals.update(
+            _schema_signal_names(schema.get("semantic_fields"))
+        )
         trace_signals: set[str] = set()
         trace_path = path.parent / "semantic_trace.npz"
         if trace_path.is_file():
