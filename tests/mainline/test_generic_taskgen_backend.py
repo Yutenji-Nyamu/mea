@@ -38,6 +38,7 @@ from mea.taskgen.preservation_facts import normalize_preservation_facts
 from mea.taskgen.runtime import (
     _checker_fixture_failure_diagnosis,
     _generated_checker_execution_failure,
+    _requested_position_delta_report,
     _tracked_actor_position_changes,
     build_preservation_report,
     record_generic_taskgen_generation_failure,
@@ -122,6 +123,77 @@ class ProbeRuntimeContractTests(unittest.TestCase):
                 {"seed": 1001, "tracked_actors": []},
             ),
             [],
+        )
+
+    def test_typed_position_delta_requires_the_requested_axis_and_value(self):
+        candidate = build_experiment_candidate(
+            source_query="Refine the previous scene exactly.",
+            base_task="move_playingcard_away",
+            semantic_concern="contact margin on a retained relocation",
+            scene_need={
+                "kind": "adapt",
+                "description": (
+                    "From the official reset, move playingcards by +0.03 m "
+                    "along y and make no other scene change."
+                ),
+                "reuse_first": True,
+                "controlled_changes": [
+                    {
+                        "actor": "playingcards",
+                        "property": "position",
+                        "axis": "y",
+                        "signed_delta": 0.03,
+                        "unit": "m",
+                        "reference": "same_seed_official_reset",
+                    }
+                ],
+            },
+            rule_tool_need={
+                "kind": "measure",
+                "description": "Measure terminal TCP-to-card distance.",
+                "reuse_first": True,
+            },
+        )
+        official = {
+            "seed": 1000,
+            "tracked_actors": [
+                {"id": "playingcards", "position": [-0.063549, -0.014115, 0.740855]}
+            ],
+        }
+        exact = {
+            "seed": 1000,
+            "tracked_actors": [
+                {"id": "playingcards", "position": [-0.063549, 0.015885, 0.740855]}
+            ],
+        }
+        wrong = {
+            "seed": 1000,
+            "tracked_actors": [
+                {"id": "playingcards", "position": [-0.063549, 0.005885, 0.740855]}
+            ],
+        }
+
+        verified = _requested_position_delta_report(candidate, official, exact)
+        self.assertTrue(verified["verified"])
+        self.assertAlmostEqual(
+            verified["checks"][0]["observed_signed_delta"], 0.03
+        )
+        rejected = _requested_position_delta_report(candidate, official, wrong)
+        self.assertFalse(rejected["verified"])
+        self.assertEqual(
+            rejected["checks"][0]["expected_signed_delta"], 0.03
+        )
+        self.assertAlmostEqual(
+            rejected["checks"][0]["observed_signed_delta"], 0.02
+        )
+        different_seed = _requested_position_delta_report(
+            candidate,
+            official,
+            {**exact, "seed": 1001},
+        )
+        self.assertFalse(different_seed["verified"])
+        self.assertIsNone(
+            different_seed["checks"][0]["observed_signed_delta"]
         )
 
 

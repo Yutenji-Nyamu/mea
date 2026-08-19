@@ -6,6 +6,10 @@ import re
 from copy import deepcopy
 from typing import Any, Mapping, Sequence
 
+from mea.planner.experiment_candidate import (
+    ExperimentCandidateError,
+    validate_scene_deltas,
+)
 from mea.planner.proposal_execution import validate_plan_agent_proposal_execution
 from mea.taskgen.preservation_facts import (
     PreservationFactError,
@@ -117,6 +121,23 @@ def _text_list(value: Any, field: str, *, allow_empty: bool = True) -> list[str]
     if len(result) != len(set(result)):
         raise ClaimFirstPlanError(f"{field} must not contain duplicates")
     return result
+
+
+def _controlled_changes(value: Any, field: str) -> list[str | dict[str, Any]]:
+    """Accept frozen prose readers but make new numeric scene edits typed."""
+
+    if not isinstance(value, list) or not value:
+        raise ClaimFirstPlanError(f"{field} must be a non-empty list")
+    if all(isinstance(item, str) for item in value):
+        return _text_list(value, field, allow_empty=False)
+    if not all(isinstance(item, Mapping) for item in value):
+        raise ClaimFirstPlanError(
+            f"{field} must contain either legacy strings or typed scene deltas"
+        )
+    try:
+        return validate_scene_deltas(value)
+    except ExperimentCandidateError as exc:
+        raise ClaimFirstPlanError(f"{field}: {exc}") from exc
 
 
 def _preservation_facts(value: Any, field: str) -> list[dict[str, str | None]]:
@@ -570,10 +591,9 @@ def validate_open_query_plan_proposal(
         "description": _text(
             perturbation.get("description"), "requested_perturbation.description"
         ),
-        "controlled_changes": _text_list(
+        "controlled_changes": _controlled_changes(
             perturbation.get("controlled_changes"),
             "requested_perturbation.controlled_changes",
-            allow_empty=False,
         ),
         "preserve": _preservation_facts(
             perturbation.get("preserve"),

@@ -117,6 +117,92 @@ def _tracked_actor_position_changes(
             )
     return changes
 
+
+def _requested_position_delta_report(
+    candidate: Mapping[str, Any],
+    official: Mapping[str, Any],
+    generated: Mapping[str, Any],
+    *,
+    tolerance_m: float = 1e-5,
+) -> dict[str, Any]:
+    """Check typed Plan position deltas against same-seed simulator state."""
+
+    scene_need = candidate.get("scene_need")
+    requested = (
+        scene_need.get("controlled_changes")
+        if isinstance(scene_need, Mapping)
+        else None
+    )
+    if not isinstance(requested, list) or not requested:
+        return {
+            "schema_version": 1,
+            "status": "not_required",
+            "verified": True,
+            "tolerance_m": tolerance_m,
+            "checks": [],
+        }
+
+    official_seed = official.get("seed")
+    generated_seed = generated.get("seed")
+    same_seed = bool(
+        not isinstance(official_seed, bool)
+        and isinstance(official_seed, int)
+        and not isinstance(generated_seed, bool)
+        and isinstance(generated_seed, int)
+        and official_seed == generated_seed
+    )
+    official_positions = _tracked_actor_positions(official)
+    generated_positions = _tracked_actor_positions(generated)
+    axis_indices = {"x": 0, "y": 1, "z": 2}
+    checks: list[dict[str, Any]] = []
+    for change in requested:
+        actor_id = str(change.get("actor") or "").strip()
+        axis = change.get("axis")
+        expected = change.get("signed_delta")
+        official_position = official_positions.get(actor_id)
+        generated_position = generated_positions.get(actor_id)
+        observed: float | None = None
+        if (
+            same_seed
+            and axis in axis_indices
+            and official_position is not None
+            and generated_position is not None
+        ):
+            index = axis_indices[str(axis)]
+            observed = generated_position[index] - official_position[index]
+        passed = bool(
+            observed is not None
+            and isinstance(expected, (int, float))
+            and not isinstance(expected, bool)
+            and abs(observed - float(expected)) <= tolerance_m
+        )
+        checks.append(
+            {
+                "actor_id": actor_id,
+                "property": "position",
+                "axis": axis,
+                "reference": change.get("reference"),
+                "expected_signed_delta": expected,
+                "observed_signed_delta": observed,
+                "unit": "m",
+                "comparison_seed": official_seed if same_seed else None,
+                "passed": passed,
+                "authority": (
+                    "same_seed_simulator_setup_state"
+                    if observed is not None
+                    else "requested_delta_simulator_state_unavailable"
+                ),
+            }
+        )
+    verified = bool(checks) and all(item["passed"] for item in checks)
+    return {
+        "schema_version": 1,
+        "status": "verified" if verified else "failed",
+        "verified": verified,
+        "tolerance_m": tolerance_m,
+        "checks": checks,
+    }
+
 def create_generic_provider_taskgen_run(
     repo_root: Path,
     *,
@@ -387,6 +473,22 @@ def create_generic_provider_taskgen_run(
             ),
         )
         preflight_runtime["simulator_probes"] += 1
+        requested_delta_report = _requested_position_delta_report(
+            candidate,
+            official_setup,
+            setup,
+        )
+        if requested_delta_report["verified"] is not True:
+            raise GenericTaskGenError(
+                "generated scene did not realize the typed controlled "
+                "position change: "
+                + json.dumps(
+                    requested_delta_report,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                ),
+                runtime=preflight_runtime,
+            )
         expert = probe_runner(
             repo_root,
             attempt_dir,
@@ -591,6 +693,7 @@ def create_generic_provider_taskgen_run(
             "expert_probes": preflight_runtime["expert_probes"],
             "scene_change_passed": scene_change["passed"],
             "scene_change": scene_change,
+            "requested_scene_change_validation": requested_delta_report,
             "vision_validation": visual,
             "preserved_conditions_verified": preservation_report["verified"],
             "preserved_conditions": preserved_conditions,

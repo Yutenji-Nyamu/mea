@@ -1,0 +1,148 @@
+{
+  "schema_version": "batch44_scene_delta_materialization_v1",
+  "classification": "focused_zero_policy_plan_taskgen_method_regression_not_current_evidence",
+  "current_evidence_unchanged": "docs/evidence/current",
+  "execution_location": "AutoDL server",
+  "base_commit": "af93e080aeac6ec18538967b4e74bf23206ebced",
+  "execution_code_states": {
+    "manual_preflight_and_frozen_tool_reuse": "base_plus_8_file_scene_delta_working_tree_diff",
+    "final_plan_taskgen_v2": "base_plus_scene_delta_and_prompt_owner_working_tree_diff"
+  },
+  "manual_typed_taskgen_preflight": {
+    "task": "move_playingcard_away",
+    "seed": 1000,
+    "run_id": "run_batch44_move_playingcard_y003_taskgen_preflight_v1",
+    "requested_scene_change": {
+      "actor": "playingcards",
+      "property": "position",
+      "axis": "y",
+      "signed_delta": 0.03,
+      "unit": "m",
+      "reference": "same_seed_official_reset"
+    },
+    "expected_signed_delta_m": 0.03,
+    "observed_signed_delta_m": 0.03,
+    "tolerance_m": 0.00001,
+    "requested_scene_change_verified": true,
+    "preservation_status": "verified",
+    "checker_fixtures": "2/2",
+    "vision_passed": true,
+    "expert_passed": true,
+    "taskgen_provider_calls": 1,
+    "taskgen_local_repairs": 0,
+    "vision_provider_calls": 1,
+    "simulator_probes": 2,
+    "expert_probes": 1,
+    "policy_rollouts": 0
+  },
+  "frozen_tool_reuse": {
+    "source_evaluation": "eval_20260819_batch43_move_playingcard_cold_mainline_s1000_v4",
+    "source_tool_round": "round_3",
+    "target_episode_round": "round_2",
+    "target_scene": "real_failed_same_seed_playingcards_y_plus_0.03_m",
+    "metric": "query_terminal_nearest_tcp_to_playingcard_distance",
+    "route": "semantic_library_reuse",
+    "provider_called": false,
+    "simulator_runs": 0,
+    "policy_rollouts": 0,
+    "current_telemetry_revalidated": true,
+    "independent_numeric_oracle": true,
+    "oracle_agreement": true,
+    "value_m": 0.17870217561721802,
+    "different_scene_round3_reference_value_m": 0.06134439632296562
+  },
+  "frozen_evidence_plan_taskgen_chain": {
+    "source_evaluation": "eval_20260819_batch43_move_playingcard_cold_mainline_s1000_v4",
+    "input_evidence": {
+      "official_control_success": true,
+      "failed_round": "round_2",
+      "failed_round_scene_axis": "y",
+      "failed_round_scene_signed_delta_m": 0.03000000212341547,
+      "failed_round_terminal_displacement_m": 0.007887560874223709
+    },
+    "plan_replay_v2": {
+      "model": "gpt-5.6-terra",
+      "provider_calls": 1,
+      "provider_retries": 0,
+      "simulator_runs": 0,
+      "taskgen_runs": 0,
+      "policy_rollouts": 0,
+      "selected_scene_change": {
+        "actor": "playingcards",
+        "property": "position",
+        "axis": "y",
+        "signed_delta": 0.015,
+        "unit": "m",
+        "reference": "same_seed_official_reset"
+      },
+      "bound_scene_need_preserved_typed_change": true
+    },
+    "v1_diagnostic": {
+      "scene_delta_materialized_exactly": true,
+      "checker_fixtures": "2/2",
+      "vision_passed": true,
+      "expert_passed": true,
+      "preservation_status": "partial",
+      "cause": "plan_example_repeated_task_identity_and_policy_checkpoint_as_scene_preservation"
+    },
+    "prompt_owner_fix": {
+      "removed_outer_binding_facts_from_scene_preservation": [
+        "task_identity",
+        "policy_checkpoint"
+      ],
+      "new_gate_or_registry_added": false
+    },
+    "plan_to_taskgen_preflight_v2": {
+      "run_id": "run_batch44_move_playingcard_y0015_plan_taskgen_preflight_v2",
+      "taskgen_provider_calls": 1,
+      "taskgen_local_repairs": 0,
+      "vision_provider_calls": 1,
+      "simulator_probes": 2,
+      "expert_probes": 1,
+      "policy_rollouts": 0,
+      "expected_signed_delta_m": 0.015,
+      "observed_signed_delta_m": 0.015000000000000001,
+      "tolerance_m": 0.00001,
+      "preservation_status": "verified",
+      "checker_fixtures": "2/2",
+      "vision_passed": true,
+      "expert_passed": true,
+      "final_positive_acceptance": true
+    }
+  },
+  "server_validation": {
+    "focused": {
+      "passed": 75,
+      "subtests_passed": 5
+    },
+    "default_mainline": {
+      "passed": 229,
+      "subtests_passed": 10
+    },
+    "windows_tests_run": false
+  },
+  "claim_boundary": {
+    "proves": [
+      "frozen_control_and_failure_evidence_can_make_plan_select_a_typed_numeric_midpoint",
+      "bound_scene_need_preserves_the_typed_delta_into_taskgen",
+      "plan_authored_numeric_scene_delta_materializes_with_simulator_agreement_before_policy",
+      "preservation_checker_vision_and_expert_gates_pass_on_the_materialized_scene",
+      "semantic_library_rule_tool_reexecutes_on_the_actual_failed_round2_episode",
+      "current_telemetry_and_independent_numeric_oracle_revalidation_pass"
+    ],
+    "does_not_prove": [
+      "batch43_round2_and_round3_are_the_same_scene",
+      "contact_margin_causes_policy_failure_or_success",
+      "post_patch_policy_outcome",
+      "policy_repeatability_or_cross_seed_generality",
+      "evidence_sufficient_answer_or_current_evidence_promotion"
+    ]
+  },
+  "artifact_locations": {
+    "manual_taskgen_preflight_summary": "/root/autodl-tmp/mea-run-logs/batch44_move_playingcard_y003_taskgen_preflight_v1/summary.json",
+    "manual_taskgen_manifest": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/generated_tasks/run_batch44_move_playingcard_y003_taskgen_preflight_v1/manifest.json",
+    "frozen_tool_reuse_summary": "/root/autodl-tmp/mea-run-logs/batch44_move_playingcard_r2_frozen_tool_reuse_v1/summary.json",
+    "plan_replay_v2_summary": "/root/autodl-tmp/mea-run-logs/batch44_move_playingcard_round2_plan_replay_v2/summary.json",
+    "plan_taskgen_preflight_v2_summary": "/root/autodl-tmp/mea-run-logs/batch44_move_playingcard_y0015_plan_taskgen_preflight_v2/summary.json"
+  }
+}

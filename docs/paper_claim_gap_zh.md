@@ -147,13 +147,37 @@ position 回到 official location，orientation 也发生改变，不是第二�
 authority 和 `1e-6 m` 比较容差送入 Plan；Planner 对 exact/prior/refinement 必须重述明确数值，
 否则改做独立 official-base concern 或停止。在 v4 R2 冻结 evidence 上的 Terra provider-only replay
 经过一次 schema repair 后，选择独立 official-base `x +0.030 m`，明确不保留 prior y delta；新增
-simulator 与 policy rollout 均为 0。该回放只证明 Plan handoff，补丁后尚未执行 TaskGen preflight
-或新 policy episode。
+simulator 与 policy rollout 均为 0。该回放当时只证明 Plan handoff；Batch43 收束时尚未执行
+TaskGen preflight 或新 policy episode。TaskGen preflight 的后续结果见 Batch44，policy 仍未重跑。
 
 同一 current prompt、冻结 montage 与 `gpt-5.6-sol` 的五次 temperature-0 VQA 调用均返回
 `observed=null`，没有多数投票。这是稳定弃答正例，不是 accuracy 证据，也不是原 Luna 矛盾输出的
 同模型复现。完整冷记录见
 [`experiments/paper/results/batch43_move_playingcard_cold_mainline/`](../experiments/paper/results/batch43_move_playingcard_cold_mainline/README.md)。
+
+## Batch44 typed scene materialization 与冻结 Tool 复用
+
+前置诊断先用手工 typed candidate 要求 same-seed official reset 的
+`playingcards y +0.03 m`。TaskGen 一次生成、0 repair，经过 2 次 simulator probe、1 次 vision
+和 1 次 expert；checker fixtures `2/2`、vision、expert 与 preservation 全部通过，simulator
+observed delta 与 expected delta 均为 `+0.03 m`，容差 `1e-5 m`。这只证明明确 scene request
+可以 materialize，尚未证明 Plan 能生成该结构。
+
+最终正验收从 Batch43 frozen R2 evidence 开始。Terra 单次、0-retry Plan replay 同时读取 control
+success、simulator-authoritative `y +0.03000000212341547 m` failure scene 与终态 displacement
+`0.007887560874223709 m`，自主选择 typed official-base `y +0.015 m` midpoint；bound scene need
+完整保留 actor、axis、signed delta、unit 与 reference。v1 示例曾重复写入外层已固定的
+`task_identity/policy_checkpoint`，导致 TaskGen 虽精确生成 `+0.015 m` 且通过 checker/vision/expert，
+preservation 仍为 partial；prompt owner 删除这两个重复 scene-preservation claim 后，v2 实际
+Plan→TaskGen preflight 一次生成、0 repair，expected=`0.015 m`、observed=
+`0.015000000000000001 m`，preservation verified，checker `2/2`、vision 与 expert 全部通过。
+整个闭环新增 policy rollout 为 0。
+
+另一项前置诊断将 Batch43 R3 的 nearest-TCP Rule Tool 通过 semantic library 复用到 R2 真实失败的
+`y +0.03 m` 冻结 episode；0 provider、0 simulator、0 policy，当前 telemetry 重验与 independent
+numeric oracle 均通过，得到 `0.17870217561721802 m`。R3 异场景成功 episode 的
+`0.06134439632296562 m` 只作对照，不能据此推断同 scene contact 因果。完整冷记录见
+[`experiments/paper/results/batch44_scene_delta_materialization/`](../experiments/paper/results/batch44_scene_delta_materialization/README.md)。
 
 ## Batch37 补充证据
 
@@ -177,11 +201,11 @@ simulator 与 policy rollout 均为 0。该回放只证明 Plan handoff，补丁
 
 | 论文 claim | 当前项目 | 判断 |
 | --- | --- | --- |
-| Fig. 2/5：开放 Query 驱动 Plan Agent 自主提出 sub-aspect | Batch37 broad Query 未给实验菜单；上一轮 evidence 触发 position 数值细化及 position→orientation 转向；Batch43 又在无任务卡的第二个 task 上 cold 提出未定量的 lateral relocation，TaskGen 随后 materialize 为 `y +0.03 m` | **小范围 live 完成**；仍是单 seed，执行能力域有限 |
+| Fig. 2/5：开放 Query 驱动 Plan Agent 自主提出 sub-aspect | Batch37 broad Query 未给实验菜单；Batch43 在无任务卡第二个 task 上提出未定量 lateral relocation；Batch44 frozen-evidence replay 又让 Plan 依据 `+0.03 m` failure 自主选择 typed `+0.015 m` midpoint | **live 小范围完成，数值 refinement 有 provider-only 正例**；仍是单 seed，执行能力域有限 |
 | evidence 决定下一轮，并在充分时停止 | Batch37 的 evidence 改变下一 Proposal并主动 inconclusive stop；Batch40 live 产出充分 evidence，当前 verdict-hidden prompt 又在冻结 evidence 回放中独立提出 stop；Batch43 在第二个 task 上完成三 episode refinement 并在 allowance 剩余时主动 inconclusive stop | **两种停止语义均有小范围证据**；多步 refinement 与充分正结论尚未在同一 live 运行合一 |
-| Fig. 3：Proposal → retrieve/generate scene + `check_success()` → rollout | 通用 TaskGen 已在 reviewed-schema-free 的 `press_stapler` 中 materialize scene/checker；Batch43 又在无任务卡 `move_playingcard_away` 完成两次 generated rollout，但 raw 第三轮没有保持声称的 same scene | **跨第二个 task 小范围完成**；精确 scene refinement、量词/关系语义忠实性仍是边界 |
+| Fig. 3：Proposal → retrieve/generate scene + `check_success()` → rollout | 通用 TaskGen 已在 reviewed-schema-free `press_stapler` 中 materialize scene/checker；Batch44 又把 Plan 自主给出的 typed `y +0.015 m` bound scene need 直接交给 TaskGen，simulator observed delta 精确一致且 preservation/checker/vision/expert 全通过 | **Plan→TaskGen 数值 handoff 小范围完成**；该精确 scene 尚无新 policy outcome，量词/关系语义仍是边界 |
 | 首帧视觉诊断与局部重新生成 | render/VLM 与一次有界局部 repair 已接入；数值 preservation 由 simulator state、AST 与 fixture 审计 | **组件完成**；视觉不能替代数值语义验证 |
-| Fig. 4：ToolGen retrieve/generate/validate/register/reuse | 新 Python Rule Tool 有独立验证、live finite 值、Planner 消费、run-local reuse；Batch42 完成 semantic-library 跨 evaluation exact reuse；Batch43 frozen VQA 在 current prompt+Sol 下 `5×null` | **Rule Tool 小范围闭合、VQA 有稳定弃答正例**；VQA accuracy 与原模型稳定性仍未证明 |
+| Fig. 4：ToolGen retrieve/generate/validate/register/reuse | 新 Python Rule Tool 有独立验证、live finite 值与 Planner 消费；Batch42 完成跨 evaluation exact reuse；Batch44 又把 R3 Tool semantic-library 复用到真实 R2 失败 episode 并重过 telemetry/oracle；Batch43 frozen VQA 为 `5×null` | **Rule Tool 小范围闭合、VQA 有稳定弃答正例**；VQA accuracy 与原模型稳定性仍未证明 |
 | rollout → Rule/VQA → Aggregate → Plan Agent → Answer | RoboTwin 的 ACT、SmolVLA、Hy-VLA 已复用共享方法组件；Batch37 完成较宽多轮反馈，Batch43 又完成无任务卡第二任务的三 episode cold feedback 与受限 Answer | **RoboTwin 小范围完成**；LIBERO 仍仅 basic adaptation |
 | 回答原 Query 并约束确定性 | `AnswerScope` 报告 N、seed、候选域、typed `N=0`、冲突、停止原因与语义边界 | **完成度较高**；当前旗舰正确回答为 inconclusive |
 
@@ -203,9 +227,9 @@ simulator 与 policy rollout 均为 0。该回放只证明 Plan handoff，补丁
    已在两个 task 上证明 evidence 改变后续 Proposal并主动返回 inconclusive；Batch40 单独取得
    有界 existential Query 的 `evidence_sufficient=true` 正例。下一步不是继续增加停止协议，而是
    让同一次 refinement 的后续可执行 evidence 支持 Agent 的确定 Answer。
-2. **TaskGen 精确 scene refinement。** Batch43 已扩到第二个无任务卡 task，但 raw R3 没有保留
-   R2 的 `y +0.03 m` scene。scene fact 已进入 Plan，下一项高信息验证是 0-policy TaskGen preflight
-   数值核对；通过后才运行一个新 policy round。其后再扩 1–2 个 task，不增加任务专属方言。
+2. **精确 scene 的新 policy outcome。** Batch44 已用 frozen evidence→Plan→TaskGen 0-policy
+   preflight 关闭 typed `y +0.015 m` request 的 simulator 数值 materialization；下一项高信息验证
+   是在该精确 scene 上运行一个新 policy round，再扩第三个无任务卡 task；不增加任务专属方言。
 3. **VQA 准确性与同模型稳定性。** current prompt+Sol 对一个冻结模糊输入已得到 `5×null`，但
    没有 independent gold，也不是原 Luna 输出的同模型复现。Aggregate 仍须显式保留跨 evaluation
    的相反观测，不能把 question artifact 复用或稳定弃答等同于 VQA accuracy。

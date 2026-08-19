@@ -81,6 +81,14 @@ retained prior delta is a current controlled change, not a
 official scene. Preserve only orthogonal official properties such as an
 unchanged z coordinate or orientation.
 
+For a numeric position change, `requested_perturbation.controlled_changes`
+must carry the executable typed fact
+`{actor, property="position", axis, signed_delta, unit="m",
+reference="same_seed_official_reset"}`. Description prose explains why the
+experiment matters; it is not the numerical execution contract. TaskGen must
+compare this signed delta with the same-seed official/generated simulator
+states before accepting the scene.
+
 A Tool-only Query must not be forced to generate a scene or checker. A
 scene-only request may reuse the official checker. A generated checker defines
 experimental success and must remain distinct from official benchmark success.
@@ -118,10 +126,17 @@ Write each `preserved_conditions` entry as one atomic object with exactly
 `{actor, property, axis, relation}`. Name a coordinate axis when only that
 coordinate is fixed, and distinguish `preserve_local_offsets` from
 `preserve_world_position` for contact points. Use `actor=null` for task-wide
-facts such as `task_identity`, `policy_checkpoint`, or `official_goal`; use
-`axis=null` unless `property=position`. TaskGen lets simulator, checker, or
-visual authority decide each fact. Frozen legacy prose that cannot be mapped
-to this shape remains unverified instead of being treated as preserved.
+facts such as `official_goal`; use `axis=null` unless `property=position`.
+TaskGen lets simulator, checker, or visual authority decide each fact. Frozen
+legacy prose that cannot be mapped to this shape remains unverified instead of
+being treated as preserved.
+
+Do not repeat `task_identity` or `policy_checkpoint` as per-candidate scene
+preservation facts. The outer runtime binding already freezes both, so listing
+them here creates a second owner that TaskGen cannot verify from scene probes.
+Preserve only actor properties that simulator state can compare and
+`official_goal` when exact official-checker reuse or a required conjunct can
+verify it.
 
 Interpret evidence by its declared role. The round outcome is the tested
 hypothesis verdict; diagnostic Tool values explain it but do not rewrite it.

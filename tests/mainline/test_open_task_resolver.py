@@ -24,20 +24,7 @@ def concern(task_intent: str) -> dict:
         "hypothesis": "A reflective target causes a pre-contact miss.",
         "task_intent": task_intent,
         "requested_variation": "change only target reflectivity",
-        "preserved_conditions": [
-            {
-                "actor": None,
-                "property": "task_identity",
-                "axis": None,
-                "relation": "preserve",
-            },
-            {
-                "actor": None,
-                "property": "policy_checkpoint",
-                "axis": None,
-                "relation": "preserve",
-            },
-        ],
+        "preserved_conditions": [],
         "measurement_need": "target contact and pre-contact trajectory",
     }
 
@@ -147,7 +134,11 @@ class QueryInterpretationTests(unittest.TestCase):
         self.assertIn("jointly realizable", prompt)
         self.assertIn("RGB is only", prompt)
         self.assertIn("Preservation is an authority claim", compact_prompt)
-        self.assertIn("task_identity and policy_checkpoint", compact_prompt)
+        self.assertIn(
+            "Task identity and policy checkpoint are already frozen",
+            compact_prompt,
+        )
+        self.assertIn("default preservation list is empty", compact_prompt)
         self.assertIn(
             "observable in policy or simulator metadata is a measurement",
             compact_prompt,

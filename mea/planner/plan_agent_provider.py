@@ -76,17 +76,38 @@ class PlanAgent:
                     "Set one advertised factor from its baseline to one "
                     "bounded diagnostic value."
                 ),
-                "controlled_changes": ["factor: baseline -> diagnostic value"],
+                "controlled_changes": [
+                    {
+                        "actor": "target_actor_id",
+                        "property": "position",
+                        "axis": "y",
+                        "signed_delta": 0.03,
+                        "unit": "m",
+                        "reference": "same_seed_official_reset",
+                    }
+                ],
                 "preserve": [
                     {
-                        "actor": None,
-                        "property": "task_identity",
+                        "actor": "target_actor_id",
+                        "property": "position",
+                        "axis": "x",
+                        "relation": "preserve",
+                    },
+                    {
+                        "actor": "target_actor_id",
+                        "property": "position",
+                        "axis": "z",
+                        "relation": "preserve",
+                    },
+                    {
+                        "actor": "target_actor_id",
+                        "property": "orientation",
                         "axis": None,
                         "relation": "preserve",
                     },
                     {
                         "actor": None,
-                        "property": "policy_checkpoint",
+                        "property": "official_goal",
                         "axis": None,
                         "relation": "preserve",
                     },
@@ -219,9 +240,15 @@ Apply the contract above to choose exactly one next action. The capability card
 is an execution boundary, not an experiment menu. For action=continue, fill one
 falsifiable sub-aspect and only the independent Task/Tool needs required for
 that experiment; keep both reuse_first fields true. State one concrete bounded
-delta and preserve only conditions backed by an advertised authority. For
+delta and preserve only conditions backed by an advertised authority. A numeric
+position edit must be one typed controlled_changes object with exactly actor,
+property="position", axis, signed_delta, unit="m", and
+reference="same_seed_official_reset"; do not encode it only in description. For
 every preserve entry, return exactly {{actor, property, axis, relation}}; use
 actor=null for task-wide facts and axis=null unless property is position. For
+scene preservation, do not restate task_identity or policy_checkpoint: the
+outer runtime binding already freezes them and TaskGen has no scene-level
+authority to re-prove them. State only simulator/checker-verifiable facts. For
 action=stop, clear the perturbation and all artifact needs. Set answer,
 claim_verdict, and evidence_sufficient from completed evidence: an answered
 stop needs supported/refuted plus a concise answer; an inconclusive stop uses

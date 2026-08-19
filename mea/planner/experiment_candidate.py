@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 from copy import deepcopy
 from typing import Any, Mapping
@@ -50,6 +51,15 @@ _TYPED_CANDIDATE_KEYS = _CANDIDATE_BASE_KEYS | {
 _CANONICAL_CANDIDATE_KEYS = _TYPED_CANDIDATE_KEYS | {"tool_need"}
 _SEMANTIC_CANDIDATE_KEYS = {"evaluation_intent", "intent_alignment"}
 _NEED_KEYS = {"kind", "description", "reuse_first"}
+_SCENE_NEED_KEYS = _NEED_KEYS | {"controlled_changes"}
+_SCENE_DELTA_KEYS = {
+    "actor",
+    "property",
+    "axis",
+    "signed_delta",
+    "unit",
+    "reference",
+}
 _NEED_KINDS = frozenset({"reuse", "adapt", "generate", "measure", "vqa"})
 _FIELD_KINDS = {
     "scene_need": frozenset({"reuse", "adapt", "generate"}),
@@ -86,6 +96,73 @@ def _candidate_id(value: Any) -> str:
     return candidate_id
 
 
+def validate_scene_delta(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate one executable same-seed position delta from the Plan Agent."""
+
+    if not isinstance(value, Mapping) or set(value) != _SCENE_DELTA_KEYS:
+        raise ExperimentCandidateError(
+            "controlled scene delta fields must be exactly "
+            f"{sorted(_SCENE_DELTA_KEYS)}"
+        )
+    actor = _text(value.get("actor"), "controlled scene delta.actor")
+    if value.get("property") != "position":
+        raise ExperimentCandidateError(
+            "controlled scene delta.property must be position"
+        )
+    axis = value.get("axis")
+    if axis not in {"x", "y", "z"}:
+        raise ExperimentCandidateError(
+            "controlled scene delta.axis must be x, y, or z"
+        )
+    signed_delta = value.get("signed_delta")
+    if (
+        isinstance(signed_delta, bool)
+        or not isinstance(signed_delta, (int, float))
+        or not math.isfinite(float(signed_delta))
+        or float(signed_delta) == 0.0
+    ):
+        raise ExperimentCandidateError(
+            "controlled scene delta.signed_delta must be a finite non-zero "
+            "number"
+        )
+    if value.get("unit") != "m":
+        raise ExperimentCandidateError(
+            "controlled scene delta.unit must be m"
+        )
+    if value.get("reference") != "same_seed_official_reset":
+        raise ExperimentCandidateError(
+            "controlled scene delta.reference must be "
+            "same_seed_official_reset"
+        )
+    return {
+        "actor": actor,
+        "property": "position",
+        "axis": axis,
+        "signed_delta": float(signed_delta),
+        "unit": "m",
+        "reference": "same_seed_official_reset",
+    }
+
+
+def validate_scene_deltas(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list) or not value:
+        raise ExperimentCandidateError(
+            "ExperimentCandidate.scene_need.controlled_changes must be a "
+            "non-empty list"
+        )
+    result = [validate_scene_delta(item) for item in value]
+    identities = [
+        (item["actor"], item["property"], item["axis"])
+        for item in result
+    ]
+    if len(identities) != len(set(identities)):
+        raise ExperimentCandidateError(
+            "controlled scene deltas must target unique actor/property/axis "
+            "tuples"
+        )
+    return result
+
+
 def _slug(value: str, *, field: str) -> str:
     slug = _SLUG_SEPARATOR.sub(".", _text(value, field).casefold()).strip(".")
     if not slug:
@@ -113,10 +190,16 @@ def _need(
             "reuse_first": field
             in {"tool_need", "rule_tool_need", "vqa_tool_need"},
         }
-    if not isinstance(value, Mapping) or set(value) != _NEED_KEYS:
+    allowed_shapes = (
+        (_NEED_KEYS, _SCENE_NEED_KEYS)
+        if field == "scene_need"
+        else (_NEED_KEYS,)
+    )
+    if not isinstance(value, Mapping) or set(value) not in allowed_shapes:
         raise ExperimentCandidateError(
             f"ExperimentCandidate.{field} must be null, a legacy string, or "
-            f"an object with exactly {sorted(_NEED_KEYS)}"
+            f"an object with exactly one of "
+            f"{[sorted(shape) for shape in allowed_shapes]}"
         )
     need = deepcopy(dict(value))
     kind = need.get("kind")
@@ -132,6 +215,10 @@ def _need(
     if not isinstance(need.get("reuse_first"), bool):
         raise ExperimentCandidateError(
             f"ExperimentCandidate.{field}.reuse_first must be bool"
+        )
+    if field == "scene_need" and "controlled_changes" in need:
+        need["controlled_changes"] = validate_scene_deltas(
+            need["controlled_changes"]
         )
     return need
 
@@ -413,5 +500,7 @@ __all__ = [
     "ExperimentCandidateError",
     "build_experiment_candidate",
     "experiment_candidate_need_kinds",
+    "validate_scene_delta",
+    "validate_scene_deltas",
     "validate_experiment_candidate",
 ]

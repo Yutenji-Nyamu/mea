@@ -68,17 +68,38 @@ def continue_bundle(sub_aspect: str = "object_position.left_fixed") -> dict:
             "hypothesis": "A left placement may expose a weakness.",
             "requested_perturbation": {
                 "description": "Place the bell at a safe left position.",
-                "controlled_changes": ["bell position"],
+                "controlled_changes": [
+                    {
+                        "actor": "bell",
+                        "property": "position",
+                        "axis": "y",
+                        "signed_delta": -0.03,
+                        "unit": "m",
+                        "reference": "same_seed_official_reset",
+                    }
+                ],
                 "preserve": [
                     {
-                        "actor": None,
-                        "property": "task_identity",
+                        "actor": "bell",
+                        "property": "position",
+                        "axis": "x",
+                        "relation": "preserve",
+                    },
+                    {
+                        "actor": "bell",
+                        "property": "position",
+                        "axis": "z",
+                        "relation": "preserve",
+                    },
+                    {
+                        "actor": "bell",
+                        "property": "orientation",
                         "axis": None,
                         "relation": "preserve",
                     },
                     {
                         "actor": None,
-                        "property": "policy_checkpoint",
+                        "property": "official_goal",
                         "axis": None,
                         "relation": "preserve",
                     },
@@ -463,14 +484,26 @@ class PlanAgentRuntimeTests(unittest.TestCase):
             candidate["evaluation_intent"]["preserved_conditions"],
             [
                 {
-                    "actor": None,
-                    "property": "task_identity",
+                    "actor": "bell",
+                    "property": "position",
+                    "axis": "x",
+                    "relation": "preserve",
+                },
+                {
+                    "actor": "bell",
+                    "property": "position",
+                    "axis": "z",
+                    "relation": "preserve",
+                },
+                {
+                    "actor": "bell",
+                    "property": "orientation",
                     "axis": None,
                     "relation": "preserve",
                 },
                 {
                     "actor": None,
-                    "property": "policy_checkpoint",
+                    "property": "official_goal",
                     "axis": None,
                     "relation": "preserve",
                 },
@@ -479,6 +512,19 @@ class PlanAgentRuntimeTests(unittest.TestCase):
         self.assertEqual(
             candidate["intent_alignment"]["relationship"],
             "direct",
+        )
+        self.assertEqual(
+            candidate["scene_need"]["controlled_changes"],
+            [
+                {
+                    "actor": "bell",
+                    "property": "position",
+                    "axis": "y",
+                    "signed_delta": -0.03,
+                    "unit": "m",
+                    "reference": "same_seed_official_reset",
+                }
+            ],
         )
 
 

@@ -272,20 +272,7 @@ def build_free_concern_prompt(user_query: str, policy_card: Mapping[str, Any]) -
         "hypothesis": "one falsifiable policy-behavior hypothesis",
         "task_intent": "invariant base manipulation action and goal in English",
         "requested_variation": "one bounded diagnostic change",
-        "preserved_conditions": [
-            {
-                "actor": None,
-                "property": "task_identity",
-                "axis": None,
-                "relation": "preserve",
-            },
-            {
-                "actor": None,
-                "property": "policy_checkpoint",
-                "axis": None,
-                "relation": "preserve",
-            },
-        ],
+        "preserved_conditions": [],
         "measurement_need": "the observation needed to decide the hypothesis",
         "scene_need": {
             "required": True,
@@ -328,13 +315,14 @@ preserved_conditions as one object with exactly actor, property, axis, and
 relation; do not encode preservation as prose in requested_variation and do
 not use catch-all claims such as "all other conditions unchanged", "all other
 object poses", or "the rest of the scene".
-Preservation is an authority claim. At this pre-retrieval stage use only typed
-task_identity and policy_checkpoint facts as the default invariants. A field
-listed as observable in policy or simulator metadata is a measurement
-capability, not a preservation authority. Add another invariant only after the
-current input names an authority that can compare it, such as exact method
-reuse, same-seed simulator state, a checker fixture, or a visual comparison for
-visible appearance. In particular, do not add actor identity, physics
+Preservation is an authority claim. Task identity and policy checkpoint are
+already frozen by the outer runtime binding, so do not repeat them as scene
+preservation facts. At this pre-retrieval stage the default preservation list
+is empty. A field listed as observable in policy or simulator metadata is a
+measurement capability, not a preservation authority. Add an invariant only
+after the current input names an authority that can compare it, such as exact
+method reuse, same-seed simulator state, a checker fixture, or a visual
+comparison for visible appearance. In particular, do not add actor identity, physics
 timestep, or object-to-target binding without such authority. Never emit vague
 preserve entries such as "target configuration", "intended goal", or "task
 semantics". When a new checker adds a condition to the official task goal,

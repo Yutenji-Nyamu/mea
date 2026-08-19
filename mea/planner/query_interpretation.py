@@ -158,6 +158,11 @@ def build_dynamic_experiment_candidate(
         if scene_need["required"]
         else ""
     )
+    typed_scene_deltas = [
+        deepcopy(item)
+        for item in perturbation["controlled_changes"]
+        if isinstance(item, Mapping)
+    ]
     # Typed preservation facts travel in EvaluationIntent. Do not translate
     # them back into prose and then attempt to recover them inside TaskGen.
     return build_experiment_candidate(
@@ -169,6 +174,11 @@ def build_dynamic_experiment_candidate(
                 "kind": "adapt",
                 "description": scene_description,
                 "reuse_first": True,
+                **(
+                    {"controlled_changes": typed_scene_deltas}
+                    if typed_scene_deltas
+                    else {}
+                ),
             }
             if scene_need["required"]
             else None
