@@ -127,9 +127,9 @@ Write each `preserved_conditions` entry as one atomic object with exactly
 coordinate is fixed, and distinguish `preserve_local_offsets` from
 `preserve_world_position` for contact points. Use `actor=null` for task-wide
 facts such as `official_goal`; use `axis=null` unless `property=position`.
-TaskGen lets simulator, checker, or visual authority decide each fact. Frozen
-legacy prose that cannot be mapped to this shape remains unverified instead of
-being treated as preserved.
+TaskGen lets simulator, checker, or visual authority decide each fact. A
+non-typed preservation entry is rejected at the Proposal boundary; historical
+prose conversion belongs only in cold reproduction code, not production.
 
 Do not repeat `task_identity` or `policy_checkpoint` as per-candidate scene
 preservation facts. The outer runtime binding already freezes both, so listing

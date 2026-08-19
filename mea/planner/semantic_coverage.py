@@ -101,7 +101,7 @@ def build_evaluation_intent(
     hypothesis: str,
     requested_change: str,
     required_observation: str,
-    preserved_conditions: Sequence[str | Mapping[str, Any]] = (),
+    preserved_conditions: Sequence[Mapping[str, Any]] = (),
 ) -> dict[str, Any]:
     """Freeze one Query-derived candidate before task/checkpoint binding."""
 
@@ -180,8 +180,7 @@ def validate_evaluation_intent(value: Mapping[str, Any]) -> dict[str, Any]:
         intent[field] = _text(intent.get(field), f"EvaluationIntent.{field}")
     try:
         intent["preserved_conditions"] = normalize_preservation_conditions(
-            intent.get("preserved_conditions"),
-            strict_mappings=True,
+            intent.get("preserved_conditions")
         )
     except PreservationFactError as exc:
         raise SemanticCoverageError(

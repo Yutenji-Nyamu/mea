@@ -34,7 +34,11 @@ from mea.taskgen.provider_scene_checker import (
 )
 from mea.taskgen.probe import robot_tcp_xyz_summary
 from mea.taskgen.probe_runtime import _write_json as _write_probe_json
-from mea.taskgen.preservation_facts import normalize_preservation_facts
+from mea.taskgen.preservation_facts import (
+    PreservationFactError,
+    normalize_preservation_conditions,
+    validate_preservation_fact,
+)
 from mea.taskgen.runtime import (
     _checker_fixture_failure_diagnosis,
     _generated_checker_execution_failure,
@@ -198,41 +202,34 @@ class ProbeRuntimeContractTests(unittest.TestCase):
 
 
 class PreservationFactBoundaryTests(unittest.TestCase):
-    def test_canonical_string_becomes_typed_fact(self) -> None:
+    def test_typed_fact_accepts_actor_identifier_with_underscores(self) -> None:
         self.assertEqual(
-            normalize_preservation_facts("roller y position"),
-            [
-                {
-                    "actor": "roller",
-                    "property": "position",
-                    "axis": "y",
-                    "relation": "preserve",
-                }
-            ],
-        )
-
-    def test_actor_identifier_may_contain_underscores(self) -> None:
-        self.assertEqual(
-            normalize_preservation_facts("target_actor y position")[0][
-                "actor"
-            ],
+            validate_preservation_fact(
+                _preservation("position", actor="target_actor", axis="y")
+            )["actor"],
             "target_actor",
         )
 
-    def test_unknown_prose_is_unverified_not_guessed(self) -> None:
-        report = build_preservation_report(
-            ["keep it basically the same"],
-            scene_generated=False,
-            checker_generated=False,
-            visual_self_check_enabled=True,
-            visual={"passed": True, "unexpected_changes": []},
-        )
+    def test_prose_and_outer_binding_properties_are_rejected(self) -> None:
+        with self.assertRaises(PreservationFactError):
+            normalize_preservation_conditions(["roller y position"])
+        for property_name in ("task_identity", "policy_checkpoint"):
+            with self.subTest(property_name=property_name):
+                with self.assertRaises(PreservationFactError):
+                    validate_preservation_fact(_preservation(property_name))
 
-        self.assertIsNone(report["verified"])
-        self.assertEqual(report["checks"][0]["kind"], "unverified")
-        self.assertEqual(
-            report["checks"][0]["fact"]["property"], "unknown"
+    def test_property_relation_axis_matrix_is_strict(self) -> None:
+        invalid = (
+            _preservation("contact_point", actor="roller"),
+            _preservation("orientation", actor="roller", axis="z"),
+            _preservation(
+                "official_goal", actor="roller", relation="required_conjunct"
+            ),
         )
+        for fact in invalid:
+            with self.subTest(fact=fact):
+                with self.assertRaises(PreservationFactError):
+                    validate_preservation_fact(fact)
 
     def test_structured_fact_dispatches_without_text_classification(self) -> None:
         report = build_preservation_report(
@@ -262,7 +259,10 @@ class PreservationFactBoundaryTests(unittest.TestCase):
             },
         )
 
-        self.assertIn('"property":"position"', report["checks"][0]["condition"])
+        self.assertEqual(
+            report["checks"][0]["condition"],
+            "roller position y (preserve)",
+        )
 
         self.assertTrue(report["verified"])
         self.assertEqual(report["schema_version"], 2)
@@ -923,63 +923,6 @@ class GenericTaskGenBackendTests(unittest.TestCase):
 
         self.assertIsInstance(tree, ast.Module)
 
-    def test_free_form_preservation_does_not_preempt_taskgen_authority(
-        self,
-    ) -> None:
-        query = "Does uniform target scaling expose a policy weakness?"
-        requested_change = (
-            "Uniformly reduce the target size by 20% while preserving "
-            "the contact-point world position and object center position."
-        )
-        intent = build_evaluation_intent(
-            source_query=query,
-            original_concern="uniform target scale robustness",
-            hypothesis="Uniform target scaling may reduce task success.",
-            requested_change=requested_change,
-            preserved_conditions=(
-                "contact-point world position",
-                "object center position",
-            ),
-            required_observation="Observe task success after uniform scaling.",
-        )
-        candidate = build_experiment_candidate(
-            source_query=query,
-            base_task="cold_unseen_task",
-            semantic_concern=(
-                "Uniform target scaling may reduce task success."
-            ),
-            scene_need=requested_change,
-            rule_tool_need="Observe task success after uniform scaling.",
-            evaluation_intent=intent,
-        )
-        provider = _Provider([])
-        lookup_calls = 0
-
-        def find_exact(_query: Mapping[str, Any]) -> Mapping[str, Any]:
-            nonlocal lookup_calls
-            lookup_calls += 1
-            return {"artifact_path": "missing.py"}
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            with self.assertRaises(GenericTaskGenError) as caught:
-                GenericRoboTwinTaskGenBackend(
-                    Path(temp_dir),
-                    provider,
-                    model="fixture-model",
-                    find_exact=find_exact,
-                ).materialize(
-                    candidate,
-                    _adapter(),
-                    run_id="run_infeasible_uniform_scale",
-                )
-
-        # Free-form prose is no longer a pre-generation permission gate.  The
-        # fixture may fail later while discovering the cold task or asking the
-        # empty provider; it must not resurrect the retired lexical verdict.
-        self.assertNotIn(
-            "preservation feasibility conflict", str(caught.exception)
-        )
-
     def test_tool_only_candidate_bypasses_generic_taskgen(self) -> None:
         candidate = build_experiment_candidate(
             source_query="Measure pre-contact jerk.",
@@ -1008,7 +951,7 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             original_concern="task_execution.gripper_precision",
             hypothesis="Reduced gripper precision may miss the target.",
             requested_change="Reduce the precision of the gripper.",
-            preserved_conditions=("task identity", "policy checkpoint"),
+            preserved_conditions=(),
             required_observation="Observe which object is lifted.",
         )
         candidate = build_experiment_candidate(
@@ -1042,10 +985,9 @@ class GenericTaskGenBackendTests(unittest.TestCase):
     def test_preservation_report_separates_available_authorities(self) -> None:
         report = build_preservation_report(
             [
-                "task identity and policy checkpoint",
-                "target color",
-                "official success semantics",
-                "target mass",
+                _preservation("appearance", actor="target"),
+                _preservation("checker_semantics"),
+                _preservation("geometry", actor="target"),
             ],
             scene_generated=True,
             checker_generated=True,
@@ -1053,27 +995,17 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             visual={"passed": True, "unexpected_changes": []},
         )
 
-        checks = {
-            item["condition"]: item for item in report["checks"]
-        }
-        self.assertIsNone(
-            checks["task identity and policy checkpoint"]["verified"]
-        )
-        self.assertTrue(checks["target color"]["verified"])
-        self.assertEqual(checks["target color"]["kind"], "visual")
-        self.assertIsNone(
-            checks["official success semantics"]["verified"]
-        )
-        self.assertIsNone(checks["target mass"]["verified"])
+        checks = {item["fact"]["property"]: item for item in report["checks"]}
+        self.assertTrue(checks["appearance"]["verified"])
+        self.assertEqual(checks["appearance"]["kind"], "visual")
+        self.assertIsNone(checks["checker_semantics"]["verified"])
+        self.assertIsNone(checks["geometry"]["verified"])
         self.assertIsNone(report["verified"])
         self.assertEqual(report["status"], "partially_unverified")
 
     def test_preservation_report_marks_checked_visual_drift_failed(self) -> None:
         report = build_preservation_report(
-            [
-                _preservation("appearance", actor="target"),
-                _preservation("policy_checkpoint"),
-            ],
+            [_preservation("appearance", actor="target")],
             scene_generated=True,
             checker_generated=False,
             visual_self_check_enabled=True,
@@ -1087,7 +1019,7 @@ class GenericTaskGenBackendTests(unittest.TestCase):
         self.assertEqual(report["status"], "failed")
         self.assertEqual(
             [item["kind"] for item in report["checks"]],
-            ["visual", "unverified"],
+            ["visual"],
         )
 
     def test_exact_center_uses_same_seed_simulator_state(self) -> None:
@@ -1738,27 +1670,10 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             "same_seed_simulator_state:tracked_actors.position_z",
         )
 
-    def _cold_legacy_visual_color_preservation_still_passes(self) -> None:
-        report = build_preservation_report(
-            ["target color"],
-            scene_generated=True,
-            checker_generated=False,
-            visual_self_check_enabled=True,
-            visual={"passed": True, "unexpected_changes": []},
-        )
-
-        self.assertTrue(report["verified"])
-        self.assertEqual(report["status"], "verified")
-        self.assertEqual(report["checks"][0]["kind"], "visual")
-        self.assertEqual(
-            report["checks"][0]["authority"],
-            "same_seed_visual_diagnosis",
-        )
-
     def test_exact_official_task_methods_verify_preservation(self) -> None:
         report = build_preservation_report(
             [
-                _preservation("task_identity"),
+                _preservation("model_identity", actor="target"),
                 _preservation("checker_semantics"),
             ],
             scene_generated=False,

@@ -391,8 +391,7 @@ def validate_free_concern(
         result[field] = _text(result.get(field), f"FreeConcern.{field}")
     try:
         result["preserved_conditions"] = normalize_preservation_conditions(
-            result.get("preserved_conditions", ()),
-            strict_mappings=True,
+            result.get("preserved_conditions", ())
         )
     except PreservationFactError as exc:
         raise OpenTaskResolutionError(

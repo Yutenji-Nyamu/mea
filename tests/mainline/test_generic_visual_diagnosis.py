@@ -63,7 +63,7 @@ class GenericVisualDiagnosisTests(unittest.TestCase):
                         },
                         {
                             "actor": None,
-                            "property": "policy_checkpoint",
+                            "property": "official_goal",
                             "axis": None,
                             "relation": "preserve",
                         },
@@ -73,7 +73,7 @@ class GenericVisualDiagnosisTests(unittest.TestCase):
         )
 
         self.assertIn("- background appearance (preserve)", prompt)
-        self.assertIn("- policy_checkpoint (preserve)", prompt)
+        self.assertIn("- official_goal (preserve)", prompt)
         self.assertIn("visible preservation violation", prompt)
         self.assertIn("mass, friction, identity", prompt)
         self.assertIn(

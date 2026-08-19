@@ -144,13 +144,7 @@ def _preservation_facts(value: Any, field: str) -> list[dict[str, str | None]]:
     if not isinstance(value, list):
         raise ClaimFirstPlanError(f"{field} must be a list")
     try:
-        # Provider-authored mappings are strict. Frozen legacy strings are
-        # read once and normalized; unknown prose remains an explicit
-        # unverified fact rather than becoming a lexical permission gate.
-        return normalize_preservation_conditions(
-            value,
-            strict_mappings=True,
-        )
+        return normalize_preservation_conditions(value)
     except PreservationFactError as exc:
         raise ClaimFirstPlanError(f"{field}: {exc}") from exc
 

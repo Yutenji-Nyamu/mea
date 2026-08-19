@@ -197,8 +197,6 @@ def build_generic_visual_prompt(candidate: Mapping[str, Any]) -> str:
     preserved_context = (
         "\n".join(
             "- " + describe_preservation_fact(item)
-            if isinstance(item, Mapping)
-            else "- unverified legacy condition: " + str(item)
             for item in preserved_conditions
         )
         if preserved_conditions

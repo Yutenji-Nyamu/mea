@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import ast
-import json
 import math
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
-from .preservation_facts import normalize_preservation_facts
+from .preservation_facts import (
+    describe_preservation_fact,
+    normalize_preservation_conditions,
+)
 
 _POSITION_ABS_TOLERANCE_M = 1e-5
 _CONTACT_LOCAL_POSITION_ABS_TOLERANCE_M = 5e-4
@@ -466,7 +468,7 @@ def _same_seed_tracked_actor_geometry(
 
 
 def build_preservation_report(
-    conditions: list[str | Mapping[str, Any]],
+    conditions: Sequence[Mapping[str, Any]],
     *,
     scene_generated: bool,
     checker_generated: bool,
@@ -481,31 +483,8 @@ def build_preservation_report(
     checks: list[dict[str, Any]] = []
     exact_task_reuse = not scene_generated and not checker_generated
     for raw_condition in conditions:
-        condition = (
-            str(raw_condition).strip()
-            if not isinstance(raw_condition, Mapping)
-            else json.dumps(
-                dict(raw_condition),
-                ensure_ascii=False,
-                sort_keys=True,
-                separators=(",", ":"),
-            )
-        )
-        for fact in normalize_preservation_facts(raw_condition):
-            if (
-                fact.get("property") == "unknown"
-                or fact.get("relation") == "unparsed"
-            ):
-                checks.append(
-                    {
-                        "condition": condition,
-                        "fact": fact,
-                        "kind": "unverified",
-                        "verified": None,
-                        "authority": "unstructured_legacy_condition",
-                    }
-                )
-                continue
+        condition = describe_preservation_fact(raw_condition)
+        for fact in normalize_preservation_conditions([raw_condition]):
             if exact_task_reuse:
                 kind = "exact_task_method_reuse"
                 verified: bool | None = True

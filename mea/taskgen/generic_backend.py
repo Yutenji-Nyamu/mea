@@ -68,7 +68,7 @@ from .provider_scene_checker import (
     validate_provider_run_id,
     write_candidate_artifacts,
 )
-from .preservation_facts import normalize_preservation_facts
+from .preservation_facts import normalize_preservation_conditions
 from .semantic_review import (
     CheckerSemanticReviewError,
     review_generated_checker,
@@ -212,11 +212,11 @@ def _candidate_requires_official_core_conjunct(
     preserved = intent.get("preserved_conditions")
     if not isinstance(preserved, list):
         return False
+    facts = normalize_preservation_conditions(preserved)
     return any(
         fact.get("property") == "official_goal"
         and fact.get("relation") == "required_conjunct"
-        for condition in preserved
-        for fact in normalize_preservation_facts(condition)
+        for fact in facts
     )
 
 

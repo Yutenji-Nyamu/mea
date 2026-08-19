@@ -454,6 +454,24 @@ class PlanAgentRuntimeTests(unittest.TestCase):
                 executed_template_ids=[],
             )
 
+    def test_plan_preservation_prose_is_rejected(self):
+        session = PlanAgentSession(
+            "Where does this policy first expose a weakness?",
+            target(),
+            require_control_anchor=False,
+        )
+        bundle = continue_bundle()
+        bundle["proposal"]["requested_perturbation"]["preserve"] = [
+            "task identity"
+        ]
+
+        with self.assertRaisesRegex(PlanAgentSessionError, "typed object"):
+            session.bind_semantic_step(
+                bundle,
+                observation(round_budget=3),
+                executed_template_ids=[],
+            )
+
     def test_preservation_is_carried_as_typed_taskgen_input(self):
         intent = build_evaluation_intent(
             source_query="Where does this policy first expose a weakness?",

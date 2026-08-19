@@ -172,6 +172,15 @@ class QueryInterpretationTests(unittest.TestCase):
         ):
             resolver.validate_free_concern(value, expected_query="another query")
 
+    def test_preservation_prose_is_rejected_at_the_provider_boundary(self):
+        value = concern("grab hammer and hit block")
+        value["preserved_conditions"] = ["task identity"]
+
+        with self.assertRaisesRegex(
+            resolver.OpenTaskResolutionError, "typed object"
+        ):
+            resolver.validate_free_concern(value)
+
     def test_agent_retries_without_ever_exposing_inventory(self):
         value = concern("grab a hammer and hit the target block")
         provider = self.Provider(["{}", json.dumps(value)])
