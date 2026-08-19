@@ -140,6 +140,14 @@ class QueryInterpretationTests(unittest.TestCase):
         )
         self.assertIn("default preservation list is empty", compact_prompt)
         self.assertIn(
+            'property=position requires relation="preserve"', compact_prompt
+        )
+        self.assertIn(
+            "property=orientation, appearance, geometry, or model_identity "
+            'requires relation="preserve" and axis=null',
+            compact_prompt,
+        )
+        self.assertIn(
             "observable in policy or simulator metadata is a measurement",
             compact_prompt,
         )
@@ -181,6 +189,31 @@ class QueryInterpretationTests(unittest.TestCase):
         ):
             resolver.validate_free_concern(value)
 
+    def test_agent_preserves_typed_preservation_facts(self):
+        value = concern("move the playing card away")
+        facts = [
+            {
+                "actor": "playingcards",
+                "property": "position",
+                "axis": "y",
+                "relation": "preserve",
+            },
+            {
+                "actor": "playingcards",
+                "property": "orientation",
+                "axis": None,
+                "relation": "preserve",
+            },
+        ]
+        value["preserved_conditions"] = facts
+        provider = self.Provider([json.dumps(value)])
+
+        result = resolver.PlanAgentQueryInterpreter(
+            provider, model="fixture"
+        ).propose(value["source_query"], policy_card=single_task_policy())
+
+        self.assertEqual(result["concern"]["preserved_conditions"], facts)
+
     def test_agent_retries_without_ever_exposing_inventory(self):
         value = concern("grab a hammer and hit the target block")
         provider = self.Provider(["{}", json.dumps(value)])
@@ -197,6 +230,9 @@ class QueryInterpretationTests(unittest.TestCase):
         self.assertEqual(result["provider"]["attempt_count"], 2)
         self.assertEqual(len(provider.prompts), 2)
         self.assertTrue(all("open_laptop" not in prompt for prompt in provider.prompts))
+        self.assertIn(
+            "not only the first reported error", provider.prompts[1]
+        )
 
     def test_agent_preserves_provider_authored_independent_experiment_needs(self):
         value = concern("locate the bell and click its top center")

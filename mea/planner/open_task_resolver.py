@@ -315,6 +315,14 @@ preserved_conditions as one object with exactly actor, property, axis, and
 relation; do not encode preservation as prose in requested_variation and do
 not use catch-all claims such as "all other conditions unchanged", "all other
 object poses", or "the rest of the scene".
+Use schema literals, not synonyms: property=position requires
+relation="preserve" and axis="x", "y", "z", or "all"; property=orientation,
+appearance, geometry, or model_identity requires relation="preserve" and
+axis=null. property=contact_point requires axis=null and relation either
+"preserve_local_offsets" or "preserve_world_position". Task-wide
+property=official_goal or checker_semantics requires actor=null and axis=null;
+official_goal allows relation="preserve" or "required_conjunct", while
+checker_semantics requires relation="preserve".
 Preservation is an authority claim. Task identity and policy checkpoint are
 already frozen by the outer runtime binding, so do not repeat them as scene
 preservation facts. At this pre-retrieval stage the default preservation list
@@ -438,7 +446,9 @@ class PlanAgentQueryInterpreter:
                 attempt_prompt += (
                     "\nPREVIOUS VALIDATION ERROR:\n"
                     + self.last_errors[-1]
-                    + "\nReturn one corrected JSON object.\n"
+                    + "\nRe-check every preserved_conditions object against "
+                    "all schema-literal rules above, not only the first "
+                    "reported error.\nReturn one corrected JSON object.\n"
                 )
             try:
                 response = self.provider.text(
