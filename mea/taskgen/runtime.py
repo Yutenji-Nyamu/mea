@@ -50,6 +50,7 @@ from .probe_runtime import (
     _expert_terminal_authority_failure,
     _generated_checker_execution_failure,
     _tracked_actor_heights,
+    _tracked_actor_positions,
     run_command,
     run_probe,
 )
@@ -70,6 +71,51 @@ def write_json(path: Path, value: Any) -> None:
         json.dumps(value, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+
+
+def _tracked_actor_position_changes(
+    official: Mapping[str, Any],
+    generated: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Return significant same-seed actor-position facts for later planning."""
+
+    official_seed = official.get("seed")
+    generated_seed = generated.get("seed")
+    if (
+        isinstance(official_seed, bool)
+        or not isinstance(official_seed, int)
+        or isinstance(generated_seed, bool)
+        or not isinstance(generated_seed, int)
+        or official_seed != generated_seed
+    ):
+        return []
+
+    official_positions = _tracked_actor_positions(official)
+    generated_positions = _tracked_actor_positions(generated)
+    changes: list[dict[str, Any]] = []
+    for actor_id in sorted(official_positions.keys() & generated_positions.keys()):
+        official_position = official_positions[actor_id]
+        generated_position = generated_positions[actor_id]
+        for axis_index, axis in enumerate(("x", "y", "z")):
+            signed_delta = (
+                generated_position[axis_index]
+                - official_position[axis_index]
+            )
+            if abs(signed_delta) <= 1e-6:
+                continue
+            changes.append(
+                {
+                    "actor_id": actor_id,
+                    "property": "position",
+                    "axis": axis,
+                    "signed_delta": signed_delta,
+                    "generated_value": generated_position[axis_index],
+                    "unit": "m",
+                    "comparison_seed": official_seed,
+                    "authority": "same_seed_simulator_setup_state",
+                }
+            )
+    return changes
 
 def create_generic_provider_taskgen_run(
     repo_root: Path,
@@ -241,6 +287,9 @@ def create_generic_provider_taskgen_run(
                 "same_seed_official_vs_generated_simulator_state_and_render"
             ),
             "changed_components": changed_components,
+            "tracked_actor_changes": _tracked_actor_position_changes(
+                official, generated
+            ),
             "render_changed": image_changed,
             "scene_need": candidate["scene_need"],
             "semantic_scope": (

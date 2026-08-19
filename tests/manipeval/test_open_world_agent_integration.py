@@ -6,6 +6,8 @@ import unittest
 from pathlib import Path
 
 from mea.planner.experiment_candidate import build_experiment_candidate
+from mea.planner.plan_agent_evidence import build_plan_agent_evidence_record
+from mea.planner.plan_agent_provider import PlanAgent
 from mea.round_evidence import compact_tool_evaluation
 from mea.round_summary import summarize_round
 from mea.round_tools import materialize_open_world_tool_request
@@ -350,6 +352,20 @@ class OpenWorldAgentIntegrationTest(unittest.TestCase):
                     "render_passed": True,
                     "expert_passed": True,
                     "scene_change_passed": True,
+                    "scene_change": {
+                        "tracked_actor_changes": [
+                            {
+                                "actor_id": "playingcards",
+                                "property": "position",
+                                "axis": "y",
+                                "signed_delta": 0.03,
+                                "generated_value": 0.016,
+                                "unit": "m",
+                                "comparison_seed": 1000,
+                                "authority": "same_seed_simulator_setup_state",
+                            }
+                        ],
+                    },
                     "checker_fixtures": [{"passed": True}, {"passed": True}],
                 },
             },
@@ -400,6 +416,25 @@ class OpenWorldAgentIntegrationTest(unittest.TestCase):
         self.assertTrue(result["pipeline_passed"])
         self.assertNotIn("gate_status", result)
         self.assertTrue(result["required_gate_status"]["passed"])
+        change = result["observations"]["scene_change"][
+            "tracked_actor_changes"
+        ][0]
+        self.assertEqual(change["axis"], "y")
+        self.assertEqual(change["signed_delta"], 0.03)
+
+        evidence = build_plan_agent_evidence_record(round_plan, result)
+        open_evidence = evidence["open_query_evidence"]
+        self.assertIn("simulator_scene_change=", open_evidence["evidence_summary"])
+        self.assertIn("0.03", open_evidence["evidence_summary"])
+        prompt = PlanAgent._prompt(
+            candidate["source_query"],
+            {},
+            [open_evidence],
+        )
+        self.assertIn("0.03", prompt)
+        self.assertIn("is not executable by itself", prompt)
+        self.assertIn("retained prior delta", prompt)
+        self.assertIn("preserve_world_position", prompt)
 
     def test_bound_checker_tool_results_keep_value_when_compacted(self):
         compact = compact_tool_evaluation(

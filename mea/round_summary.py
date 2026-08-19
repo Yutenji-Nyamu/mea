@@ -203,6 +203,24 @@ def normalize_outcome_semantics(
     }
 
 
+def _compact_scene_change(
+    scene_validation: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    """Expose only simulator-authoritative executable scene-change facts."""
+
+    preflight = scene_validation.get("generic_preflight")
+    preflight = preflight if isinstance(preflight, Mapping) else {}
+    scene_change = preflight.get("scene_change")
+    if not isinstance(scene_change, Mapping):
+        return None
+    changes = scene_change.get("tracked_actor_changes")
+    if not isinstance(changes, list) or not changes:
+        return None
+    return {
+        "tracked_actor_changes": deepcopy(changes),
+    }
+
+
 def summarize_round(
     round_plan: dict[str, Any],
     child_manifest: dict[str, Any],
@@ -214,6 +232,7 @@ def summarize_round(
 ) -> dict[str, Any]:
     capability_contract = validate_round_capability_contract(round_plan)
     scene = child_manifest.get("scene_validation", {})
+    scene_change = _compact_scene_change(scene)
     vision = child_manifest.get("vision_validation", {})
     act = child_manifest.get("act_evaluation", {})
     expert = scene.get("expert", {})
@@ -481,6 +500,7 @@ def summarize_round(
             ],
             "actual_seeds": actual_seeds,
             "scene_alignment": bool(scene.get("rule_check", {}).get("passed")),
+            "scene_change": scene_change,
             "observed_color": vision.get("observed_color"),
             "bell_visible": vision.get("bell_visible"),
             "position_authority": vision.get("position_authority"),

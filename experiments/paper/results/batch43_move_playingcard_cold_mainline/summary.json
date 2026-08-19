@@ -1,0 +1,196 @@
+{
+  "schema_version": "batch43_move_playingcard_cold_mainline_v1",
+  "classification": "focused_method_regression_not_policy_benchmark",
+  "current_evidence_unchanged": "docs/evidence/current",
+  "execution_location": "AutoDL server",
+  "task": "move_playingcard_away",
+  "task_card_present": false,
+  "policy_backend": "smolvla",
+  "checkpoint_setting": "shared_official",
+  "scene_seed": 1000,
+  "episodes_per_round": 1,
+  "runtime_limits": {
+    "control_requirement": "required",
+    "candidate_round_allowance": 3
+  },
+  "code_bases": {
+    "v1_v2": "0ea49a73bf433c89b713d089f27a31e9a25a4037",
+    "v3_v4": "b22ff9f6b2c30c71f69255548ff9baf065b2e572"
+  },
+  "live_runs": [
+    {
+      "version": "v1",
+      "policy_episodes": 0,
+      "outcome": "luna_empty_content_then_http_503_no_available_channel_before_evaluation",
+      "classification": "provider_availability_failure_not_method_failure"
+    },
+    {
+      "version": "v2",
+      "evaluation_id": "eval_20260819_batch43_move_playingcard_cold_mainline_s1000_v2",
+      "policy_episodes": 1,
+      "official_control_success": true,
+      "cold_plan_proposal_created": true,
+      "outcome": "required_control_evidence_miscounted_as_candidate_evidence_before_generated_round"
+    },
+    {
+      "version": "v3",
+      "evaluation_id": "eval_20260819_batch43_move_playingcard_cold_mainline_s1000_v3",
+      "policy_episodes": 1,
+      "official_control_success": true,
+      "outcome": "sol_returned_empty_content_twice_after_control",
+      "classification": "provider_availability_failure_not_method_failure"
+    },
+    {
+      "version": "v4",
+      "evaluation_id": "eval_20260819_batch43_move_playingcard_cold_mainline_s1000_v4",
+      "status": "completed",
+      "policy_episodes": 3,
+      "models": {
+        "planner": "gpt-5.6-terra",
+        "taskgen": "gpt-5.6-terra",
+        "toolgen": "gpt-5.6-terra",
+        "vision": "gpt-5.6-terra",
+        "answer": "gpt-5.6-sol"
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "kind": "unchanged_official_control",
+          "pipeline_passed": true,
+          "official_success": true,
+          "tool_metric": "official_check_success"
+        },
+        {
+          "round": 2,
+          "kind": "taskgen_materialized_playingcard_y_relocation_from_underdetermined_plan_concern",
+          "pipeline_passed": true,
+          "taskgen_provider_responses": 1,
+          "taskgen_repairs": 0,
+          "checker_fixtures": "2/2",
+          "vision_passed": true,
+          "expert_passed": true,
+          "official_success": false,
+          "simulator_scene_change": {
+            "actor": "playingcards",
+            "axis": "y",
+            "signed_delta_m": 0.03000000212341547,
+            "authority": "same_seed_simulator_setup_state"
+          },
+          "tool_metric": "terminal_playingcards_displacement_from_reset",
+          "tool_value_m": 0.007887560874223709
+        },
+        {
+          "round": 3,
+          "kind": "generated_contact_margin_followup_not_same_scene",
+          "pipeline_passed": true,
+          "taskgen_provider_responses": 2,
+          "taskgen_repairs": 1,
+          "checker_fixtures": "2/2",
+          "vision_passed": true,
+          "expert_passed": true,
+          "official_success": true,
+          "raw_same_scene_claim_valid": false,
+          "artifact_audit": "playingcard_position_returned_to_official_location_and_orientation_changed",
+          "tool_metric": "query_terminal_nearest_tcp_to_playingcard_distance",
+          "tool_value_m": 0.06134439632296562
+        }
+      ],
+      "plan_stop": {
+        "action": "stop",
+        "claim_verdict": "inconclusive",
+        "evidence_sufficient": false,
+        "answered_query": false,
+        "candidate_allowance_remaining": 1
+      }
+    }
+  ],
+  "control_budget_fix": {
+    "commit": "b22ff9f6b2c30c71f69255548ff9baf065b2e572",
+    "frozen_replay_provider_calls": 0,
+    "frozen_replay_simulator_runs": 0,
+    "frozen_replay_policy_rollouts": 0,
+    "candidate_completed_rounds": 0,
+    "candidate_budget_remaining": 3
+  },
+  "scene_context_fix": {
+    "comparison": "same_seed_official_vs_generated_simulator_setup_state",
+    "position_change_tolerance_m": 0.000001,
+    "fields_reaching_plan": [
+      "actor_id",
+      "property",
+      "axis",
+      "signed_delta",
+      "generated_value",
+      "unit",
+      "comparison_seed",
+      "authority"
+    ],
+    "planner_rule": "exact_prior_or_refinement_requires_explicit_actor_axis_numeric_delta_and_unit"
+  },
+  "frozen_scene_evidence_plan_replay": {
+    "source_evaluation": "eval_20260819_batch43_move_playingcard_cold_mainline_s1000_v4",
+    "model": "gpt-5.6-terra",
+    "provider_response_count": 2,
+    "schema_repairs": 1,
+    "simulator_runs": 0,
+    "policy_rollouts": 0,
+    "selected_scene": "independent_official_base_playingcards_x_plus_0.030_m",
+    "retains_prior_y_delta": false,
+    "taskgen_preflight_after_fix": false,
+    "policy_rollout_after_fix": false
+  },
+  "vqa_frozen_repeat": {
+    "source_evaluation": "eval_20260805_batch37_open_vqa_temporal_press_stapler_s1000_v2",
+    "model": "gpt-5.6-sol",
+    "temperature": 0.0,
+    "provider_max_retries": 0,
+    "provider_calls": 5,
+    "valid_responses": 5,
+    "observed_sequence": [null, null, null, null, null],
+    "classification": "stable_abstain",
+    "majority_vote_used": false,
+    "accuracy_claim": false,
+    "same_model_replay_of_original_luna_outputs": false,
+    "simulator_runs": 0,
+    "policy_rollouts": 0
+  },
+  "provider_boundary": {
+    "credential_storage": "process_only_not_persisted",
+    "v1_and_v3_failures": "model_channel_or_empty_content_not_authentication_failure"
+  },
+  "server_validation": {
+    "scene_context_related": {
+      "passed": 62,
+      "subtests_passed": 5
+    },
+    "default_mainline": {
+      "passed": 228,
+      "subtests_passed": 10
+    },
+    "windows_tests_run": false
+  },
+  "claim_boundary": {
+    "proves": [
+      "no_task_card_cold_concern_can_enter_a_second_task_live_mainline",
+      "taskgen_rule_evidence_refinement_and_active_inconclusive_stop_can_complete_in_one_run",
+      "simulator_scene_delta_facts_can_change_a_frozen_plan_proposal",
+      "current_prompt_and_sol_can_stably_abstain_on_the_frozen_ambiguous_vqa_input"
+    ],
+    "does_not_prove": [
+      "raw_v4_round3_same_scene_reuse",
+      "post_fix_taskgen_materialization_or_policy_execution",
+      "reproducible_policy_weakness",
+      "evidence_sufficient_supported_answer_after_refinement",
+      "cross_seed_or_cross_task_generality",
+      "tool_exact_reuse_in_v4",
+      "vqa_accuracy_or_original_luna_model_stability",
+      "sample_efficiency_or_policy_ranking"
+    ]
+  },
+  "artifact_locations": {
+    "v4_evaluation": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/evaluation_runs/eval_20260819_batch43_move_playingcard_cold_mainline_s1000_v4",
+    "live_log_pattern": "/root/autodl-tmp/mea-run-logs/batch43_move_playingcard_cold_mainline_v*",
+    "scene_evidence_plan_replay": "/root/autodl-tmp/mea-run-logs/batch43_v4_scene_evidence_plan_terra_replay",
+    "vqa_repeat": "/root/autodl-tmp/mea-run-logs/batch43_vqa_frozen_repeat_gpt56sol"
+  }
+}

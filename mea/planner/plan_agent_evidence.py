@@ -407,6 +407,22 @@ def build_plan_agent_evidence_record(
         "diagnostic_tool_role=supporting_measurement_not_success_authority; "
         f"diagnostic_tool_measurements={tool_summary}."
     )
+    scene_change = observations.get("scene_change")
+    if (
+        isinstance(scene_change, Mapping)
+        and isinstance(scene_change.get("tracked_actor_changes"), list)
+        and scene_change["tracked_actor_changes"]
+    ):
+        summary_text += (
+            " simulator_scene_change="
+            + json.dumps(
+                scene_change,
+                ensure_ascii=False,
+                sort_keys=True,
+                allow_nan=False,
+            )
+            + "."
+        )
     if planning_observation is not None:
         planning_summary = {
             key: planning_observation.get(key)

@@ -38,6 +38,7 @@ from mea.taskgen.preservation_facts import normalize_preservation_facts
 from mea.taskgen.runtime import (
     _checker_fixture_failure_diagnosis,
     _generated_checker_execution_failure,
+    _tracked_actor_position_changes,
     build_preservation_report,
     record_generic_taskgen_generation_failure,
 )
@@ -68,6 +69,60 @@ class ProbeRuntimeContractTests(unittest.TestCase):
             self.assertEqual(json.loads(text), {"passed": True})
             self.assertTrue(text.endswith("\n"))
             self.assertFalse(text.endswith("\\n"))
+
+    def test_scene_change_exposes_only_finite_executable_actor_positions(self):
+        changes = _tracked_actor_position_changes(
+            {
+                "seed": 1000,
+                "tracked_actors": [
+                    {
+                        "id": "playingcards",
+                        "position": [
+                            -0.06354869902133942,
+                            -0.014115148223936558,
+                            0.7408549785614014,
+                        ],
+                    },
+                    {"id": "noise", "position": [0.0, 0.0, 0.0]},
+                    {"id": "invalid", "position": [0.0, float("nan"), 0.0]},
+                ]
+            },
+            {
+                "seed": 1000,
+                "tracked_actors": [
+                    {
+                        "id": "playingcards",
+                        "position": [
+                            -0.06354869902133942,
+                            0.015884853899478912,
+                            0.7408549785614014,
+                        ],
+                    },
+                    {"id": "noise", "position": [5e-7, 0.0, 0.0]},
+                    {"id": "invalid", "position": [0.0, 0.03, 0.0]},
+                ]
+            },
+        )
+
+        self.assertEqual(len(changes), 1)
+        self.assertEqual(changes[0]["actor_id"], "playingcards")
+        self.assertEqual(changes[0]["axis"], "y")
+        self.assertAlmostEqual(
+            changes[0]["signed_delta"],
+            0.03,
+        )
+        self.assertEqual(changes[0]["unit"], "m")
+        self.assertEqual(changes[0]["comparison_seed"], 1000)
+        self.assertEqual(
+            changes[0]["authority"], "same_seed_simulator_setup_state"
+        )
+        self.assertEqual(
+            _tracked_actor_position_changes(
+                {"seed": 1000, "tracked_actors": []},
+                {"seed": 1001, "tracked_actors": []},
+            ),
+            [],
+        )
 
 
 class PreservationFactBoundaryTests(unittest.TestCase):

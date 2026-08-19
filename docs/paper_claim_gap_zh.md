@@ -113,7 +113,8 @@ identity、HistoryDB 的技术性摘要，以及 `RoundExecutor`/TaskGen 大文�
 
 `move_playingcard_away` 在没有任务卡的情况下完成 fresh reset / TaskContext preflight，耗时
 `33.167731 s`，没有 provider 或 policy rollout；这只证明通用 source/runtime binding 可进入，
-真正 concern 冷发现与 live evidence loop 仍待 provider 可用时执行。
+Batch42 当时尚未执行真正的 concern 冷发现与 live evidence loop；该缺口由下述 Batch43
+继续验证。
 
 Rule Tool 的轻量 semantic library 在真实冻结 telemetry 上完成一次跨 evaluation 精确复用：
 Batch40 的 `query_terminal_roller_z_position` artifact 在 Batch39 的另一真实 episode 上以
@@ -122,9 +123,37 @@ Batch40 的 `query_terminal_roller_z_position` artifact 在 Batch39 的另一真
 artifact 的小范围跨 evaluation reuse gap，不是新 rollout 或 policy 稳定性证据。
 
 VQA observer 的二值示例已改成 `observed=null`，并明确稀疏 temporal frames 中“没看到”
-不能判 false。冻结 montage 五次 provider repeat 尚未执行，因而 Batch37 的稳定性负证据仍然
-有效。完整边界见
+不能判 false。Batch42 当时未执行冻结 montage 五次 provider repeat；当前结果见 Batch43，
+Batch37 的原模型稳定性负证据不能被跨模型结果倒写。完整边界见
 [`experiments/paper/results/batch42_cold_transfer_and_tool_reuse/`](../experiments/paper/results/batch42_cold_transfer_and_tool_reuse/README.md)。
+
+## Batch43 无任务卡 cold live 与 scene-fact 修复
+
+`move_playingcard_away` v4 在没有任务卡、aspect、actor、axis、scene edit、checker、metric 或
+停止脚本时完成三个 SmolVLA episode：unchanged official control 成功；Plan cold 提出未定量的
+playing-card lateral relocation，TaskGen 将其 materialize 为 `y +0.03 m`，一次生成并通过
+2/2 fixtures、vision 与 expert，
+该 episode official failure，Rule Tool 得到相对 generated reset 的终态位移
+`0.007887560874223709 m`；随后又完成一个 contact-margin follow-up，official success，第二个
+Rule Tool 得到最近 TCP-card 距离 `0.06134439632296562 m`。Plan 在还剩一个 candidate allowance
+时主动停止并给出 inconclusive Answer。
+
+冻结 artifact 审查同时否定了 raw Plan/Answer 的“same-scene refinement”措辞：第三轮 card
+position 回到 official location，orientation 也发生改变，不是第二轮场景的重复。因而这次运行
+证明第二个 task 的 cold Proposal、TaskGen、两次 generated rollout、Rule evidence、refinement 与
+主动停止已经连通，但不证明可复现的位置弱点、精确 scene reuse 或充分正 Answer。
+
+最小修复把 same-seed simulator setup 的 actor position change 以 axis、signed delta、unit、seed、
+authority 和 `1e-6 m` 比较容差送入 Plan；Planner 对 exact/prior/refinement 必须重述明确数值，
+否则改做独立 official-base concern 或停止。在 v4 R2 冻结 evidence 上的 Terra provider-only replay
+经过一次 schema repair 后，选择独立 official-base `x +0.030 m`，明确不保留 prior y delta；新增
+simulator 与 policy rollout 均为 0。该回放只证明 Plan handoff，补丁后尚未执行 TaskGen preflight
+或新 policy episode。
+
+同一 current prompt、冻结 montage 与 `gpt-5.6-sol` 的五次 temperature-0 VQA 调用均返回
+`observed=null`，没有多数投票。这是稳定弃答正例，不是 accuracy 证据，也不是原 Luna 矛盾输出的
+同模型复现。完整冷记录见
+[`experiments/paper/results/batch43_move_playingcard_cold_mainline/`](../experiments/paper/results/batch43_move_playingcard_cold_mainline/README.md)。
 
 ## Batch37 补充证据
 
@@ -148,12 +177,12 @@ VQA observer 的二值示例已改成 `observed=null`，并明确稀疏 temporal
 
 | 论文 claim | 当前项目 | 判断 |
 | --- | --- | --- |
-| Fig. 2/5：开放 Query 驱动 Plan Agent 自主提出 sub-aspect | Batch37 broad Query 未给实验菜单；上一轮 evidence 触发 position 数值细化及 position→orientation 转向 | **小范围 live 完成**；仍是单任务、单 seed，执行能力域有限 |
-| evidence 决定下一轮，并在充分时停止 | Batch37 的 evidence 改变下一 Proposal并主动 inconclusive stop；Batch40 live 产出充分 evidence，当前 verdict-hidden prompt 又在冻结 evidence 回放中独立提出 stop，后置 validator 只作核验 | **两种语义均有小范围证据**；多步 refinement 与充分正结论尚未在同一 live 运行合一 |
-| Fig. 3：Proposal → retrieve/generate scene + `check_success()` → rollout | 通用 TaskGen 已在 reviewed-schema-free 的 `press_stapler` 中 materialize scene/checker，并实际裁决 SmolVLA episode；一个不忠实 checker 被 fixture fail-closed 拒绝 | **小范围完成**；跨任务稳定性和量词/关系语义忠实性仍是边界 |
+| Fig. 2/5：开放 Query 驱动 Plan Agent 自主提出 sub-aspect | Batch37 broad Query 未给实验菜单；上一轮 evidence 触发 position 数值细化及 position→orientation 转向；Batch43 又在无任务卡的第二个 task 上 cold 提出未定量的 lateral relocation，TaskGen 随后 materialize 为 `y +0.03 m` | **小范围 live 完成**；仍是单 seed，执行能力域有限 |
+| evidence 决定下一轮，并在充分时停止 | Batch37 的 evidence 改变下一 Proposal并主动 inconclusive stop；Batch40 live 产出充分 evidence，当前 verdict-hidden prompt 又在冻结 evidence 回放中独立提出 stop；Batch43 在第二个 task 上完成三 episode refinement 并在 allowance 剩余时主动 inconclusive stop | **两种停止语义均有小范围证据**；多步 refinement 与充分正结论尚未在同一 live 运行合一 |
+| Fig. 3：Proposal → retrieve/generate scene + `check_success()` → rollout | 通用 TaskGen 已在 reviewed-schema-free 的 `press_stapler` 中 materialize scene/checker；Batch43 又在无任务卡 `move_playingcard_away` 完成两次 generated rollout，但 raw 第三轮没有保持声称的 same scene | **跨第二个 task 小范围完成**；精确 scene refinement、量词/关系语义忠实性仍是边界 |
 | 首帧视觉诊断与局部重新生成 | render/VLM 与一次有界局部 repair 已接入；数值 preservation 由 simulator state、AST 与 fixture 审计 | **组件完成**；视觉不能替代数值语义验证 |
-| Fig. 4：ToolGen retrieve/generate/validate/register/reuse | 新 Python Rule Tool 有独立验证、live finite 值、Planner 消费、run-local reuse；Batch42 在真实冻结 telemetry 上完成 provider-free semantic-library 跨 evaluation exact reuse，并在 target episode 上重新验证 | **Rule Tool 小范围闭合**；开放 VQA artifact 可复用但观测不稳定 |
-| rollout → Rule/VQA → Aggregate → Plan Agent → Answer | RoboTwin 的 ACT、SmolVLA、Hy-VLA 已复用共享方法组件；Batch37 clean flagship 完成多轮真实反馈 | **RoboTwin 小范围完成**；LIBERO 仍仅 basic adaptation |
+| Fig. 4：ToolGen retrieve/generate/validate/register/reuse | 新 Python Rule Tool 有独立验证、live finite 值、Planner 消费、run-local reuse；Batch42 完成 semantic-library 跨 evaluation exact reuse；Batch43 frozen VQA 在 current prompt+Sol 下 `5×null` | **Rule Tool 小范围闭合、VQA 有稳定弃答正例**；VQA accuracy 与原模型稳定性仍未证明 |
+| rollout → Rule/VQA → Aggregate → Plan Agent → Answer | RoboTwin 的 ACT、SmolVLA、Hy-VLA 已复用共享方法组件；Batch37 完成较宽多轮反馈，Batch43 又完成无任务卡第二任务的三 episode cold feedback 与受限 Answer | **RoboTwin 小范围完成**；LIBERO 仍仅 basic adaptation |
 | 回答原 Query 并约束确定性 | `AnswerScope` 报告 N、seed、候选域、typed `N=0`、冲突、停止原因与语义边界 | **完成度较高**；当前旗舰正确回答为 inconclusive |
 
 ## 实验 claim
@@ -170,15 +199,16 @@ VQA observer 的二值示例已改成 `observed=null`，并明确稀疏 temporal
 
 ## 当前主干 gap
 
-1. **把多步 evidence refinement 与充分 Answer 合在同一 broad Query。** Batch37 已证明
-   evidence 可改变后续 Proposal并主动返回 inconclusive；Batch40 已取得有界 existential Query 的
-   `evidence_sufficient=true` 正例。下一步不是继续增加停止协议，而是在同一运行中先由失败或测量
-   改变 concern，再让后续可执行 evidence 支持 Agent 的确定 Answer。
-2. **TaskGen 跨任务语义稳定性。** 不新增任务专属方言；用 runtime TaskContext、official source、
-   simulator actors 与通用 fixture，在另外 2–3 个任务上验证 scene/checker 的量词、对象关系、
-   同时性和 official-core preservation。
-3. **VQA 可重复性与冲突处理。** 对同一冻结证据做少量重复判定或引入独立 gold；Aggregate 必须
-   显式标记跨 evaluation 的相反观测，不能把 question artifact 复用等同于 VQA 结论复现。
+1. **把多步 evidence refinement 与充分 Answer 合在同一 broad Query。** Batch37 和 Batch43
+   已在两个 task 上证明 evidence 改变后续 Proposal并主动返回 inconclusive；Batch40 单独取得
+   有界 existential Query 的 `evidence_sufficient=true` 正例。下一步不是继续增加停止协议，而是
+   让同一次 refinement 的后续可执行 evidence 支持 Agent 的确定 Answer。
+2. **TaskGen 精确 scene refinement。** Batch43 已扩到第二个无任务卡 task，但 raw R3 没有保留
+   R2 的 `y +0.03 m` scene。scene fact 已进入 Plan，下一项高信息验证是 0-policy TaskGen preflight
+   数值核对；通过后才运行一个新 policy round。其后再扩 1–2 个 task，不增加任务专属方言。
+3. **VQA 准确性与同模型稳定性。** current prompt+Sol 对一个冻结模糊输入已得到 `5×null`，但
+   没有 independent gold，也不是原 Luna 输出的同模型复现。Aggregate 仍须显式保留跨 evaluation
+   的相反观测，不能把 question artifact 复用或稳定弃答等同于 VQA accuracy。
 4. **LIBERO 外层对齐。** 保留独立 simulator/policy backend，但复用同一 Plan Agent session、
    RoundExecutor、stop validation 与 Answer；先让两回合案例由 Agent 主动 stop，再谈覆盖扩展。
 5. **方法稳定后补科学实验。** 先做小型三 seed dense/adaptive 保真；独立人工 Plan/VQA、
@@ -191,5 +221,7 @@ VQA observer 的二值示例已改成 `observed=null`，并明确稀疏 temporal
 - Task binding 只保存 task/checkpoint/schema/official-success/runtime hooks，不承载
   aspect、metric 或 Planner 菜单。
 - TaskGen、ToolGen 各只保留一次局部 repair；失败不触发中央 whole-round restart。
+- exact/prior/refinement scene 必须由 same-seed simulator fact 提供 actor、axis、数值和单位；
+  没有该事实时 Plan 只能改做独立 official-base concern 或停止。
 - 动态运行真值只维护在本文与 `docs/evidence/current/`；安装/网络故障放 cold runbook，
   历史结果放 `docs/evidence/history.jsonl`。

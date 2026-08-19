@@ -71,7 +71,15 @@ A new concern is an independent official-base experiment unless the Proposal
 explicitly says it refines a prior validated scene. A refinement must restate
 every retained prior scene delta plus the new delta in the current
 `controlled_changes` and scene need. TaskGen does not silently inherit generated
-code or simulator state from an earlier round.
+code or simulator state from an earlier round. "Reuse the previous/exact scene"
+is not executable by itself: an exact, prior, or refinement request must copy
+the simulator-observed actor value or signed delta with coordinate axis and
+units. If completed evidence contains no such value, do not call the next scene
+the same scene; choose an independent official-base experiment or stop. A
+retained prior delta is a current controlled change, not a
+`preserve_world_position` fact: preservation is checked against the same-seed
+official scene. Preserve only orthogonal official properties such as an
+unchanged z coordinate or orientation.
 
 A Tool-only Query must not be forced to generate a scene or checker. A
 scene-only request may reuse the official checker. A generated checker defines
@@ -88,10 +96,12 @@ If the original Query explicitly requires a checker for every generated round,
 scene-only is not a valid fallback; choose another observable relation or stop
 and state the unsupported limitation.
 
-For each continued round, state one explicit bounded scene delta. The runtime
-binding already fixes task identity and policy checkpoint; do not duplicate
-those bindings as scene-preservation claims. Other preservation claims require
-an advertised authority. Each Rule/VQA need asks for one primary
+For each continued round, state one explicit bounded scene delta. An independent
+official-base concern may let TaskGen choose a source-supported bounded magnitude;
+later refinements must use the numeric value reported by completed simulator
+evidence. The runtime binding already fixes task identity and policy checkpoint;
+do not duplicate those bindings as scene-preservation claims. Other preservation
+claims require an advertised authority. Each Rule/VQA need asks for one primary
 observation and keeps `reuse_first=true`. Task/Tool generation never authorizes
 changing policy weights, controller precision, action noise, or latency.
 One Rule Tool request must reduce to one executable metric contract. If height,
