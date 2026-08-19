@@ -534,6 +534,14 @@ def validate_evidence_aggregate(value: Mapping[str, Any]) -> dict[str, Any]:
         raise EvidencePacketError(
             "EvidenceAggregate intent cannot be complete when it is not required"
         )
+    execution_complete = bool(
+        rule["complete"]
+        and (
+            not coverage["tool_required"]
+            or coverage["tool_complete"]
+        )
+        and (not vqa["required"] or vqa["status"] == "passed")
+    )
     expected_coverage = {
         "expected_policy_episodes": rule["expected_policy_episodes"],
         "observed_policy_episodes": rule["observed_policy_episodes"],
@@ -546,20 +554,19 @@ def validate_evidence_aggregate(value: Mapping[str, Any]) -> dict[str, Any]:
         "vqa_observed": vqa["status"] == "passed",
         "intent_required": coverage["intent_required"],
         "intent_complete": coverage["intent_complete"],
+        "complete": execution_complete,
+    }
+    legacy_expected_coverage = {
+        **expected_coverage,
         "complete": bool(
-            rule["complete"]
-            and (
-                not coverage["tool_required"]
-                or coverage["tool_complete"]
-            )
-            and (not vqa["required"] or vqa["status"] == "passed")
+            execution_complete
             and (
                 not coverage["intent_required"]
                 or coverage["intent_complete"]
             )
         ),
     }
-    if dict(coverage) != expected_coverage:
+    if dict(coverage) not in (expected_coverage, legacy_expected_coverage):
         raise EvidencePacketError(
             "EvidenceAggregate.coverage disagrees with Rule/VQA evidence"
         )
@@ -772,7 +779,6 @@ def build_evidence_aggregate(
             quality["complete"]
             and (not tool_requested or tool_view["status"] == "passed")
             and (not vqa_required or vqa_status == "passed")
-            and (not intent_required or intent_complete)
         ),
     }
     conflict = bool(
@@ -810,9 +816,6 @@ def build_evidence_aggregate(
     elif tool_requested and tool_view["status"] != "passed":
         strength = "uncertain"
         reasons = [f"planned_tool_{tool_view['status'] or 'missing'}"]
-    elif intent_required and not intent_complete:
-        strength = "uncertain"
-        reasons = ["original_intent_incomplete"]
     elif not quality["complete"]:
         strength = "uncertain"
         reasons = list(quality["reasons"])

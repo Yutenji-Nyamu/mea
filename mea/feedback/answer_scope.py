@@ -418,7 +418,6 @@ def _canonical_limitations(
     sample_count: int | None,
     seeds: list[int],
     untested: list[str],
-    uncovered_intent: list[str],
     unsupported: list[str],
     conflict: bool,
     termination: str,
@@ -443,17 +442,6 @@ def _canonical_limitations(
             {
                 "code": "untested_candidates",
                 "text": f"Untested candidates remain: {untested}.",
-            }
-        )
-    if uncovered_intent:
-        limitations.append(
-            {
-                "code": "original_intent_uncovered",
-                "text": (
-                    "Tested Query-derived candidate contract requirements "
-                    "remain uncovered: "
-                    f"{uncovered_intent}."
-                ),
             }
         )
     if unsupported:
@@ -530,7 +518,6 @@ def build_answer_scope(evidence: Mapping[str, Any]) -> dict[str, Any]:
         sample_count=sample_count,
         seeds=seeds,
         untested=untested,
-        uncovered_intent=uncovered_intent,
         unsupported=unsupported,
         conflict=conflict,
         termination=termination,
@@ -649,7 +636,6 @@ def validate_answer_scope(value: Mapping[str, Any]) -> dict[str, Any]:
         sample_count=count,
         seeds=seeds,
         untested=scope["untested_candidate_ids"],
-        uncovered_intent=scope["uncovered_original_intent_fields"],
         unsupported=scope["unsupported_capabilities"],
         conflict=scope["evidence_conflict"],
         termination=scope["termination"],

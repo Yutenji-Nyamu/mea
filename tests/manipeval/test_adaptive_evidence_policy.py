@@ -127,7 +127,7 @@ class AdaptiveEvidencePolicyTests(unittest.TestCase):
         with self.assertRaisesRegex(EvidencePacketError, "coverage disagrees"):
             validate_evidence_aggregate(tampered)
 
-    def test_unified_aggregate_blocks_incomplete_original_intent(self):
+    def test_original_intent_trace_is_informational(self):
         planned = round_plan()
         observed = observation(planned)
         observed["observations"]["implementation_trace"] = {
@@ -138,17 +138,13 @@ class AdaptiveEvidencePolicyTests(unittest.TestCase):
 
         self.assertTrue(unified["coverage"]["intent_required"])
         self.assertFalse(unified["coverage"]["intent_complete"])
-        self.assertFalse(unified["coverage"]["complete"])
-        self.assertEqual(unified["evidence_strength"], "uncertain")
-        self.assertEqual(
-            unified["reason_codes"], ["original_intent_incomplete"]
-        )
+        self.assertTrue(unified["coverage"]["complete"])
+        self.assertEqual(unified["evidence_strength"], "sufficient")
+        self.assertEqual(unified["reason_codes"], [])
         observed["observations"]["evidence_aggregate"] = unified
         packet = build_evidence_packet(current_plan([planned]), [observed])
-        self.assertEqual(packet["evidence_strength"], "uncertain")
-        self.assertEqual(
-            packet["reason_codes"], ["original_intent_incomplete"]
-        )
+        self.assertEqual(packet["evidence_strength"], "sufficient")
+        self.assertEqual(packet["reason_codes"], [])
 
     def test_unified_aggregate_blocks_requested_tool_failure(self):
         planned = round_plan()

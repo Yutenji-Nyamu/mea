@@ -531,7 +531,7 @@ class SemanticCoverageTests(unittest.TestCase):
         )
         self.assertEqual(execution_trace["coverage_status"], "complete")
 
-    def test_answer_scope_exposes_uncovered_original_intent(self):
+    def test_answer_scope_keeps_original_intent_trace_informational(self):
         candidate = _candidate(
             semantic_concern="Decompose official height and x success margins.",
             scene_description="Keep the official scene unchanged.",
@@ -552,7 +552,7 @@ class SemanticCoverageTests(unittest.TestCase):
         )
         self.assertEqual(scope["covered_original_intent_fields"], [])
         self.assertEqual(len(scope["uncovered_original_intent_fields"]), 4)
-        self.assertIn(
+        self.assertNotIn(
             "original_intent_uncovered",
             [item["code"] for item in scope["required_limitations"]],
         )

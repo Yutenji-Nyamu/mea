@@ -992,14 +992,6 @@ def create_generic_provider_taskgen_run(
         raise GenericTaskGenError(
             f"invalid semantic implementation trace: {exc}"
         ) from exc
-    if (
-        implementation_trace is not None
-        and implementation_trace["repair_required"]
-    ):
-        raise GenericTaskGenError(
-            "current TaskGen artifact does not implement the direct "
-            "EvaluationIntent after simulator preflight"
-        )
     if implementation_trace is not None:
         write_json(
             run_dir / "validation/implementation_trace.json",

@@ -453,12 +453,6 @@ def _normalize_validation(
         ) from exc
     if implementation_trace is not None:
         report["implementation_trace"] = implementation_trace
-        if implementation_trace["repair_required"]:
-            raise GenericTaskGenError(
-                "generated TaskGen artifact does not implement the direct "
-                "EvaluationIntent; regenerate once or explicitly classify "
-                "the candidate as diagnostic_proxy/unsupported"
-            )
     return report
 
 
