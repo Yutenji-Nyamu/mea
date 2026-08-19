@@ -136,6 +136,7 @@ class MetricSpecTests(unittest.TestCase):
                 "derived_observable",
                 "event_count",
                 "minimum_distance",
+                "terminal_minimum_distance",
                 "terminal_signal_component",
                 "terminal_signal_difference",
                 "time_between_events",
@@ -303,7 +304,7 @@ class MetricSpecTests(unittest.TestCase):
             self.assertFalse(result["validation"]["provider_called"])
             self.assertTrue(result["validation"]["task_code_context_consumed"])
             self.assertTrue(result["validation"]["validation_gates_passed"])
-            self.assertFalse(
+            self.assertTrue(
                 result["validation"]["independent_numeric_oracle"]
             )
             self.assertTrue(result["validation"]["oracle_agreement"])
@@ -324,10 +325,10 @@ class MetricSpecTests(unittest.TestCase):
                 paraphrase,
                 task_proposal={"proposal_id": "round_1.task"},
             )
-            self.assertEqual(replay["route"], "run_local_reuse")
+            self.assertEqual(replay["route"], "semantic_library_reuse")
             self.assertEqual(
                 replay["route_decision"]["matched_registry"],
-                "evaluation_local_tool_registry",
+                "generated_tool_library",
             )
 
     def test_compile_validate_register_and_semantic_question_reuse(self):
@@ -363,7 +364,9 @@ class MetricSpecTests(unittest.TestCase):
             self.assertEqual(result["route"], "typed_metric_spec_compile")
             self.assertFalse(result["provider_called"])
             self.assertTrue(result["task_code_context_consumed"])
-            self.assertEqual(result["registration"]["scope"], "run_local")
+            self.assertEqual(
+                result["registration"]["scope"], "generated_artifact_library"
+            )
             reusable = compatible_run_local_tool_requests(
                 registry,
                 task_name="beat_block_hammer",
@@ -388,7 +391,7 @@ class MetricSpecTests(unittest.TestCase):
                 output_dir=root / "second",
                 registry_dir=registry,
             )
-            self.assertEqual(replay["route"], "run_local_reuse")
+            self.assertEqual(replay["route"], "semantic_library_reuse")
             self.assertFalse(replay["provider_called"])
             self.assertEqual(
                 replay["registration"]["registration_id"],
@@ -448,7 +451,7 @@ class MetricSpecTests(unittest.TestCase):
                 output_dir=root / "event_count_reuse",
                 registry_dir=registry,
             )
-            self.assertEqual(replay["route"], "run_local_reuse")
+            self.assertEqual(replay["route"], "semantic_library_reuse")
             self.assertEqual(
                 replay["registration"]["registration_id"],
                 result["registration"]["registration_id"],
@@ -480,7 +483,7 @@ class MetricSpecTests(unittest.TestCase):
             self.assertEqual(result["route"], "typed_metric_spec_compile")
             self.assertEqual(result["episodes"][0]["generated_result"]["value"], 0)
             self.assertEqual(
-                result["registration"]["scope"], "run_local"
+                result["registration"]["scope"], "generated_artifact_library"
             )
 
     def test_missing_trace_signal_is_reported_as_metric_spec_error(self):

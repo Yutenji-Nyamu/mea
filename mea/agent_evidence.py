@@ -643,7 +643,6 @@ def build_evidence_bundle(
             {
                 "selection": global_route.get("selection"),
                 "resolved": global_route.get("resolved"),
-                "catalog_sha256": global_route.get("catalog_sha256"),
                 "provider_called": global_route.get("provider_called"),
                 "attempt_count": global_route.get("attempt_count"),
             }

@@ -7,7 +7,6 @@ execution and CLI argument handling remain outside this module.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import shutil
 import subprocess
@@ -60,7 +59,6 @@ from .preservation import (
     _same_seed_tracked_actor_state,
     build_preservation_report,
 )
-from .reflection import protected_hashes
 
 
 ProbeRunner = Callable[..., dict[str, Any]]
@@ -217,20 +215,16 @@ def create_generic_provider_taskgen_run(
             for key in official_projection
             if official_projection[key] != generated_projection[key]
         ]
-        official_image_sha256 = (
-            hashlib.sha256(official_image.read_bytes()).hexdigest()
-            if official_image.is_file()
-            else None
+        official_image_bytes = (
+            official_image.read_bytes() if official_image.is_file() else None
         )
-        generated_image_sha256 = (
-            hashlib.sha256(generated_image.read_bytes()).hexdigest()
-            if generated_image.is_file()
-            else None
+        generated_image_bytes = (
+            generated_image.read_bytes() if generated_image.is_file() else None
         )
         image_changed = bool(
-            official_image_sha256
-            and generated_image_sha256
-            and official_image_sha256 != generated_image_sha256
+            official_image_bytes
+            and generated_image_bytes
+            and official_image_bytes != generated_image_bytes
         )
         scene_change_expected = candidate["scene_need"] is not None
         return {
@@ -248,8 +242,6 @@ def create_generic_provider_taskgen_run(
             ),
             "changed_components": changed_components,
             "render_changed": image_changed,
-            "official_render_sha256": official_image_sha256,
-            "generated_render_sha256": generated_image_sha256,
             "scene_need": candidate["scene_need"],
             "semantic_scope": (
                 "observable_scene_difference; exact natural-language "
@@ -716,7 +708,9 @@ def create_generic_provider_taskgen_run(
             "provider_response.txt": "generation/provider_response.txt",
             "proposal.json": "generation/proposal.json",
             "checker_fixtures.json": "validation/checker_fixtures.json",
-            "provider_attempts.json": "generation/provider_attempts.json",
+            "task_generation_result.json": (
+                "generation/task_generation_result.json"
+            ),
         }
         for source_name, destination_name in moves.items():
             source = run_dir / source_name
@@ -1015,7 +1009,6 @@ def create_generic_provider_taskgen_run(
         "mode": "generic_provider_scene_checker_codegen",
         "generation_kind": "generic_provider_scene_checker_codegen",
         "base_commit": base_commit,
-        "protected_hashes_before": protected_hashes(repo_root),
         "overlay": str((run_dir / "overlay.yml").relative_to(repo_root)).replace(
             "\\", "/"
         ),
@@ -1062,9 +1055,7 @@ def create_generic_provider_taskgen_run(
         "provider": {
             "model_requested": model,
             "called": True,
-            "local_regeneration_count": resolution[
-                "local_regeneration_count"
-            ],
+            "local_repair_count": resolution["local_repair_count"],
             "provider_call_count": resolution["provider_call_count"],
             "vision_provider_call_count": len(visual_attempts),
         },
@@ -1083,7 +1074,6 @@ def create_generic_provider_taskgen_run(
             else None
         ),
         "checker_contract": candidate_manifest["checker_contract"],
-        "candidate_module_sha256": candidate_manifest["module_sha256"],
         "candidate_manifest": "candidate_manifest.json",
         "generic_taskgen_resolution": "generic_taskgen_resolution.json",
         "task_generation_acceptance": {
@@ -1186,21 +1176,26 @@ def record_generic_taskgen_generation_failure(
         run_dir / "generation/proposal.json",
         candidate,
     )
-    attempt_source = (
+    result_source = (
         repo_root
         / "mea/generated_task_attempts"
         / run_id
-        / "task_generation_attempt_summary.json"
+        / "task_generation_result.json"
     )
-    attempt_artifact = None
-    if attempt_source.is_file():
-        attempt_target = (
-            run_dir / "validation/task_generation_attempt_summary.json"
+    result_artifact = None
+    generation_result: dict[str, Any] = {}
+    if result_source.is_file():
+        result_target = run_dir / "validation/task_generation_result.json"
+        shutil.copy2(result_source, result_target)
+        result_artifact = str(result_target.relative_to(repo_root)).replace(
+            "\\", "/"
         )
-        shutil.copy2(attempt_source, attempt_target)
-        attempt_artifact = str(
-            attempt_target.relative_to(repo_root)
-        ).replace("\\", "/")
+        try:
+            candidate_result = json.loads(result_source.read_text(encoding="utf-8"))
+            if isinstance(candidate_result, Mapping):
+                generation_result = dict(candidate_result)
+        except (OSError, json.JSONDecodeError):
+            pass
     try:
         base_commit = subprocess.check_output(
             ["git", "rev-parse", "HEAD"],
@@ -1211,16 +1206,14 @@ def record_generic_taskgen_generation_failure(
     except (OSError, subprocess.CalledProcessError):
         base_commit = None
     candidate_unexecutable = isinstance(error, CandidateUnexecutableError)
-    attempt_summary = getattr(error, "summary", {})
-    attempt_runtime = (
-        attempt_summary.get("runtime")
-        if isinstance(attempt_summary, Mapping)
-        else {}
-    )
+    error_result = getattr(error, "result", {})
+    if isinstance(error_result, Mapping) and error_result:
+        generation_result = dict(error_result)
+    attempt_runtime = generation_result.get("runtime") or {}
     final_failure = (
-        ((attempt_summary.get("attempts") or [{}])[-1].get("failure") or {})
-        if isinstance(attempt_summary, Mapping)
-        else {}
+        (generation_result.get("repair") or {}).get("failure")
+        or (generation_result.get("generation") or {}).get("failure")
+        or {}
     )
     expert_failure_kind = (
         str(final_failure.get("failure_kind") or "").strip()
@@ -1257,7 +1250,7 @@ def record_generic_taskgen_generation_failure(
         },
         "proposal": candidate,
         "proposal_path": "generation/proposal.json",
-        "task_generation_attempts": attempt_artifact,
+        "task_generation_result": result_artifact,
         "failure": {
             "stage": (
                 "taskgen_expert_gate"

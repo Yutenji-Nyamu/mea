@@ -65,20 +65,11 @@ Rules:
   independent human/model validation. The gates authorize trajectory
   measurement only; generated code never defines task success or reward.
 
-## Registry scopes
+## Generated Tool library
 
-- `run_local`: automatically registered only after static, schema,
-  determinism, and private-oracle validation; executable only inside the same
-  evaluation.
-- `reviewed_persistent`: installed only from an explicit `approved` review
-  manifest pinned to the source registration, code, ToolSpec, full contract,
-  and telemetry-schema hashes. It remains generated code and is not
-  automatically authoritative.
-
-Persistent lookup requires an exact task/metric/ToolSpec/contract/schema
-match. Every reuse executes the reviewed source twice on current trajectories
-and reapplies its stored semantic-validation contract; provider calls remain
-zero.
-Pending reviews, candidate promotion, tampered artifacts, path escape, and
-symlinks are never executable.  If a reviewed lookup misses, normal codegen
-may run only when a provider was explicitly supplied.
+- Register a generated Tool only after static validation, declared-signal
+  checks, deterministic execution, and the available independent oracle.
+- Retrieve by the readable task + metric + typed MetricSpec semantic key.
+- A retrieved artifact is only a candidate: statically validate its source,
+  execute it twice on the current episode, and compare it with the current
+  oracle before returning its value. A miss enters ordinary Tool generation.

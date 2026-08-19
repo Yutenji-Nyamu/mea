@@ -2,23 +2,13 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
-import re
 from pathlib import Path
 from typing import Any, Mapping
 
 from .retrieval import TrustedToolRetriever
 from .schema import validate_task_schema
 from .tools import TrajectoryView, run_trusted_tools
-
-
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
 
 
 def evaluate_telemetry_root(
@@ -32,21 +22,16 @@ def evaluate_telemetry_root(
 ) -> dict[str, Any]:
     normalized_outcome_binding: dict[str, str] | None = None
     if outcome_metric == "generated_check_success":
-        binding_fields = {
-            "compiled_success_spec_experimental_bounded": "success_spec_sha256",
-            "llm_generated_python_ast_validated": "module_sha256",
+        supported_authorities = {
+            "compiled_success_spec_experimental_bounded",
+            "llm_generated_python_ast_validated",
         }
         if not isinstance(outcome_binding, Mapping):
             raise RuntimeError(
                 "generated_check_success requires an exact outcome binding"
             )
         authority = str(outcome_binding.get("authority", "")).strip()
-        hash_field = binding_fields.get(authority)
-        expected = (
-            {"metric", "authority", hash_field, "task_module"}
-            if hash_field is not None
-            else set()
-        )
+        expected = {"metric", "authority", "task_module"}
         if set(outcome_binding) != expected:
             raise RuntimeError(
                 "generated_check_success requires an exact outcome binding"
@@ -56,11 +41,7 @@ def evaluate_telemetry_root(
         }
         if (
             normalized_outcome_binding["metric"] != "generated_check_success"
-            or normalized_outcome_binding["authority"] not in binding_fields
-            or not re.fullmatch(
-                r"[0-9a-f]{64}",
-                normalized_outcome_binding[hash_field],
-            )
+            or normalized_outcome_binding["authority"] not in supported_authorities
             or not normalized_outcome_binding["task_module"]
         ):
             raise RuntimeError("invalid generated outcome binding")
@@ -125,23 +106,9 @@ def evaluate_telemetry_root(
         results = run_trusted_tools(
             trajectory, selection["selected_tools"]
         )
-        artifact_names = (
-            "episode.json",
-            "states.csv",
-            "semantic_trace.npz",
-            "events.jsonl",
-            "dynamics_trace.npz",
-            "telemetry_profile.json",
-        )
-        artifact_hashes = {
-            name: _sha256(episode_dir / name)
-            for name in artifact_names
-            if (episode_dir / name).is_file()
-        }
         episode_result = {
             "episode_dir": str(episode_dir.relative_to(root)),
             "metadata": trajectory.metadata,
-            "artifact_sha256": artifact_hashes,
             "tool_results": results,
         }
         (episode_dir / "tool_results.json").write_text(

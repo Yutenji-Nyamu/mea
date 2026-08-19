@@ -55,15 +55,25 @@ class GenericVisualDiagnosisTests(unittest.TestCase):
                 "checker_need": None,
                 "evaluation_intent": {
                     "preserved_conditions": [
-                        "background appearance",
-                        "target mass",
+                        {
+                            "actor": "background",
+                            "property": "appearance",
+                            "axis": None,
+                            "relation": "preserve",
+                        },
+                        {
+                            "actor": None,
+                            "property": "policy_checkpoint",
+                            "axis": None,
+                            "relation": "preserve",
+                        },
                     ]
                 },
             }
         )
 
-        self.assertIn("- background appearance", prompt)
-        self.assertIn("- target mass", prompt)
+        self.assertIn("- background appearance (preserve)", prompt)
+        self.assertIn("- policy_checkpoint (preserve)", prompt)
         self.assertIn("visible preservation violation", prompt)
         self.assertIn("mass, friction, identity", prompt)
         self.assertIn(

@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from mea.evidence_manifest import (
+from experiments.paper.evidence_manifest import (
     EvidenceManifestError,
     prepare_evidence_manifest,
     validate_evidence_manifest,

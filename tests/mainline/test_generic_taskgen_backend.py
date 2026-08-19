@@ -43,6 +43,21 @@ from mea.taskgen.runtime import (
 )
 
 
+def _preservation(
+    property_name: str,
+    *,
+    actor: str | None = None,
+    axis: str | None = None,
+    relation: str = "preserve",
+) -> dict[str, str | None]:
+    return {
+        "actor": actor,
+        "property": property_name,
+        "axis": axis,
+        "relation": relation,
+    }
+
+
 class ProbeRuntimeContractTests(unittest.TestCase):
     def test_probe_json_writer_emits_json_whitespace_not_literal_escape(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -80,7 +95,7 @@ class PreservationFactBoundaryTests(unittest.TestCase):
     def test_unknown_prose_is_unverified_not_guessed(self) -> None:
         report = build_preservation_report(
             ["keep it basically the same"],
-            scene_generated=True,
+            scene_generated=False,
             checker_generated=False,
             visual_self_check_enabled=True,
             visual={"passed": True, "unexpected_changes": []},
@@ -199,17 +214,17 @@ class ProviderSceneCheckerRepairTests(unittest.TestCase):
                     error_type=GenericTaskGenError,
                     max_regenerations=0,
                 )
-            summary = json.loads(
-                (root / "attempts/task_generation_attempt_summary.json").read_text(
+            result = json.loads(
+                (root / "attempts/task_generation_result.json").read_text(
                     encoding="utf-8"
                 )
             )
 
-        failure = summary["attempts"][0]["failure"]
+        failure = result["generation"]["failure"]
         self.assertEqual(failure["stage"], "preservation_validation")
         self.assertEqual(failure["failure_kind"], "failed")
-        self.assertEqual(summary["runtime"]["simulator_probes"], 2)
-        self.assertEqual(summary["runtime"]["expert_probes"], 1)
+        self.assertEqual(result["runtime"]["simulator_probes"], 2)
+        self.assertEqual(result["runtime"]["expert_probes"], 1)
         self.assertEqual(
             task_generation_recovery_action(
                 failure["stage"], failure["failure_kind"]
@@ -255,7 +270,7 @@ class ProviderSceneCheckerRepairTests(unittest.TestCase):
                     max_regenerations=1,
                 )
             terminal = json.loads(
-                (attempt_root / "attempt_02/attempt_result.json").read_text(
+                (attempt_root / "task_generation_result.json").read_text(
                     encoding="utf-8"
                 )
             )
@@ -263,7 +278,7 @@ class ProviderSceneCheckerRepairTests(unittest.TestCase):
         self.assertEqual(validations, 1)
         self.assertIn(
             "repeated the failing checker unchanged",
-            terminal["failure"]["message"],
+            terminal["repair"]["failure"]["message"],
         )
 
     def test_live_checker_failure_preserves_simulator_validated_scene(self):
@@ -319,7 +334,7 @@ class ProviderSceneCheckerRepairTests(unittest.TestCase):
             repair_scope = json.loads(
                 (
                     Path(temp_dir)
-                    / "attempts/attempt_02/repair_scope.json"
+                    / "attempts/repair/repair_scope.json"
                 ).read_text(encoding="utf-8")
             )
 
@@ -402,7 +417,7 @@ class ProviderSceneCheckerRepairTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             with self.assertRaisesRegex(
-                CandidateUnexecutableError, "recovery failed after 1 attempt"
+                CandidateUnexecutableError, "did not validate"
             ) as caught:
                 run_provider_codegen(
                     attempt_root=Path(temp_dir) / "attempts",
@@ -415,9 +430,9 @@ class ProviderSceneCheckerRepairTests(unittest.TestCase):
                     max_regenerations=1,
                 )
         self.assertEqual(baseline_provider.calls, 1)
-        summary = caught.exception.__cause__.summary
-        self.assertEqual(summary["runtime"]["simulator_probes"], 2)
-        self.assertEqual(summary["runtime"]["expert_probes"], 6)
+        result = caught.exception.__cause__.result
+        self.assertEqual(result["runtime"]["simulator_probes"], 2)
+        self.assertEqual(result["runtime"]["expert_probes"], 6)
         checker_error = _generated_checker_execution_failure(
             {
                 "error": {
@@ -469,16 +484,16 @@ class ProviderSceneCheckerRepairTests(unittest.TestCase):
                     max_regenerations=1,
                 )
 
-        summary = raised.exception.summary
-        self.assertEqual(summary["attempt_count"], 2)
-        self.assertEqual(summary["regenerations_used"], 1)
-        self.assertEqual(summary["runtime"]["act_rollouts_started"], 0)
+        result = raised.exception.result
+        self.assertEqual(result["status"], "failed")
+        self.assertEqual(result["repair"]["action"], "regenerate_candidate")
+        self.assertEqual(result["runtime"]["act_rollouts_started"], 0)
         self.assertTrue(
             all(
                 item["failure"]["stage"] == "expert_gate"
                 and item["failure"]["failure_kind"]
                 == "candidate_unexecutable"
-                for item in summary["attempts"]
+                for item in (result["generation"], result["repair"])
             )
         )
         self.assertIn(
@@ -928,7 +943,10 @@ class GenericTaskGenBackendTests(unittest.TestCase):
 
     def test_preservation_report_marks_checked_visual_drift_failed(self) -> None:
         report = build_preservation_report(
-            ["target color and policy checkpoint"],
+            [
+                _preservation("appearance", actor="target"),
+                _preservation("policy_checkpoint"),
+            ],
             scene_generated=True,
             checker_generated=False,
             visual_self_check_enabled=True,
@@ -947,7 +965,7 @@ class GenericTaskGenBackendTests(unittest.TestCase):
 
     def test_exact_center_uses_same_seed_simulator_state(self) -> None:
         report = build_preservation_report(
-            ["exact target center position"],
+            [_preservation("position", actor="target", axis="all")],
             scene_generated=True,
             checker_generated=False,
             visual_self_check_enabled=True,
@@ -991,7 +1009,13 @@ class GenericTaskGenBackendTests(unittest.TestCase):
 
     def test_contact_point_mismatch_fails_simulator_state_check(self) -> None:
         report = build_preservation_report(
-            ["target contact point world position"],
+            [
+                _preservation(
+                    "contact_point",
+                    actor="target",
+                    relation="preserve_world_position",
+                )
+            ],
             scene_generated=True,
             checker_generated=False,
             visual_self_check_enabled=True,
@@ -1137,7 +1161,7 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             "contact_points": {},
         }
         report = build_preservation_report(
-            ["roller y position"],
+            [_preservation("position", actor="roller", axis="y")],
             scene_generated=True,
             checker_generated=False,
             visual_self_check_enabled=True,
@@ -1177,7 +1201,14 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             ],
         }
         report = build_preservation_report(
-            ["roller contact points", "roller model identity"],
+            [
+                _preservation(
+                    "contact_point",
+                    actor="roller",
+                    relation="preserve_local_offsets",
+                ),
+                _preservation("model_identity", actor="roller"),
+            ],
             scene_generated=True,
             checker_generated=False,
             visual_self_check_enabled=True,
@@ -1192,7 +1223,13 @@ class GenericTaskGenBackendTests(unittest.TestCase):
 
     def test_compound_contact_and_center_condition_checks_both(self) -> None:
         report = build_preservation_report(
-            ["contact point and object center position"],
+            [
+                _preservation(
+                    "contact_point",
+                    relation="preserve_local_offsets",
+                ),
+                _preservation("position", axis="all"),
+            ],
             scene_generated=True,
             checker_generated=False,
             visual_self_check_enabled=True,
@@ -1273,7 +1310,10 @@ class GenericTaskGenBackendTests(unittest.TestCase):
 
     def test_same_seed_pose_probe_jitter_is_not_a_semantic_change(self) -> None:
         report = build_preservation_report(
-            ["target position and orientation"],
+            [
+                _preservation("position", actor="target", axis="all"),
+                _preservation("orientation", actor="target"),
+            ],
             scene_generated=True,
             checker_generated=False,
             visual_self_check_enabled=True,
@@ -1312,7 +1352,14 @@ class GenericTaskGenBackendTests(unittest.TestCase):
 
     def test_contact_target_position_and_orientation_checks_all(self) -> None:
         report = build_preservation_report(
-            ["contact point, target position, and orientation"],
+            [
+                _preservation(
+                    "contact_point",
+                    relation="preserve_local_offsets",
+                ),
+                _preservation("position", actor="target", axis="all"),
+                _preservation("orientation"),
+            ],
             scene_generated=True,
             checker_generated=False,
             visual_self_check_enabled=True,
@@ -1356,7 +1403,7 @@ class GenericTaskGenBackendTests(unittest.TestCase):
         self,
     ) -> None:
         report = build_preservation_report(
-            ["target geometry and shape"],
+            [_preservation("geometry", actor="target")],
             scene_generated=True,
             checker_generated=False,
             visual_self_check_enabled=True,
@@ -1394,7 +1441,7 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             "collision_geometry": geometry,
         }
         report = build_preservation_report(
-            ["target shape and size"],
+            [_preservation("geometry", actor="target")],
             scene_generated=True,
             checker_generated=False,
             visual_self_check_enabled=True,
@@ -1447,7 +1494,7 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             ],
         }
         report = build_preservation_report(
-            ["target geometry"],
+            [_preservation("geometry", actor="target")],
             scene_generated=True,
             checker_generated=False,
             visual_self_check_enabled=True,
@@ -1539,7 +1586,7 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             "collision_geometry": [],
         }
         report = build_preservation_report(
-            ["center position along the vertical axis"],
+            [_preservation("position", axis="z")],
             scene_generated=True,
             checker_generated=False,
             visual_self_check_enabled=True,
@@ -1583,7 +1630,10 @@ class GenericTaskGenBackendTests(unittest.TestCase):
 
     def test_exact_official_task_methods_verify_preservation(self) -> None:
         report = build_preservation_report(
-            ["target mass", "goal semantics"],
+            [
+                _preservation("task_identity"),
+                _preservation("checker_semantics"),
+            ],
             scene_generated=False,
             checker_generated=False,
             visual_self_check_enabled=False,
@@ -1601,7 +1651,12 @@ class GenericTaskGenBackendTests(unittest.TestCase):
 
     def test_generated_checker_can_preserve_official_core_conjunct(self) -> None:
         report = build_preservation_report(
-            ["official core predicate as a required conjunct"],
+            [
+                _preservation(
+                    "official_goal",
+                    relation="required_conjunct",
+                )
+            ],
             scene_generated=True,
             checker_generated=True,
             checker_references_official_core=True,
@@ -1624,7 +1679,12 @@ class GenericTaskGenBackendTests(unittest.TestCase):
         self,
     ) -> None:
         report = build_preservation_report(
-            ["official core predicate as a required conjunct"],
+            [
+                _preservation(
+                    "official_goal",
+                    relation="required_conjunct",
+                )
+            ],
             scene_generated=True,
             checker_generated=True,
             checker_references_official_core=False,
@@ -1643,8 +1703,8 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                 root / "mea/generated_task_attempts" / run_id
             )
             attempt_dir.mkdir(parents=True)
-            (attempt_dir / "task_generation_attempt_summary.json").write_text(
-                json.dumps({"status": "failed", "attempt_count": 2}) + "\n",
+            (attempt_dir / "task_generation_result.json").write_text(
+                json.dumps({"status": "failed"}) + "\n",
                 encoding="utf-8",
             )
 
@@ -1664,7 +1724,7 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             self.assertTrue(
                 (
                     run_dir
-                    / "validation/task_generation_attempt_summary.json"
+                    / "validation/task_generation_result.json"
                 ).is_file()
             )
             self.assertEqual(
@@ -1914,6 +1974,7 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                 )
                 self.assertNotIn("template_id", serialized)
                 self.assertNotIn("aspect_id", serialized)
+                self.assertNotIn("sha256", serialized)
 
     def test_loader_requires_real_preflight_hook(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1954,10 +2015,8 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                 official_class=task_name,
             )
             self.assertTrue(report["valid"])
-            self.assertTrue(
-                report["policy"].startswith(
-                    "generic_official_api_ast_v1:"
-                )
+            self.assertEqual(
+                report["policy"], "generic_official_api_ast_v2"
             )
             module = build_generic_task_subclass_module(
                 methods,
@@ -2253,7 +2312,12 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                     },
                     "evaluation_intent": {
                         "preserved_conditions": [
-                            "official core predicate as a required conjunct"
+                            {
+                                "actor": None,
+                                "property": "official_goal",
+                                "axis": None,
+                                "relation": "required_conjunct",
+                            }
                         ]
                     },
                 }
@@ -2399,11 +2463,10 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             def find_exact(query: Mapping[str, Any]) -> Mapping[str, Any]:
                 observed_queries.append(dict(query))
                 return {
-                    "schema_version": 1,
-                    "status": "approved",
+                    "schema_version": 2,
+                    "status": "validated",
                     "artifact_id": "task_artifact_cold_exact",
                     "semantic_key": query["semantic_key"],
-                    "semantic_key_sha256": query["semantic_key_sha256"],
                 }
 
             backend = GenericRoboTwinTaskGenBackend(
@@ -2423,6 +2486,7 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             serialized = json.dumps(observed_queries[0], sort_keys=True)
             self.assertNotIn("template", serialized)
             self.assertNotIn("aspect_id", serialized)
+            self.assertNotIn("sha256", serialized)
             self.assertFalse(
                 (root / "mea/generated_tasks/run_cold_exact").exists()
             )
@@ -2513,7 +2577,7 @@ class GenericTaskGenBackendTests(unittest.TestCase):
 
             self.assertEqual(result["status"], "generated")
             self.assertEqual(result["provider_call_count"], 4)
-            self.assertEqual(result["local_regeneration_count"], 1)
+            self.assertEqual(result["local_repair_count"], 1)
             self.assertEqual(provider.calls, 2)
             self.assertEqual(provider.review_calls, 2)
             self.assertTrue(result["validation"]["preflight"]["render_passed"])
@@ -2532,19 +2596,16 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                     "generated_by_model"
                 ]
             )
-            attempt_summary = json.loads(
+            generation_result = json.loads(
                 (
                     root
                     / "mea/generated_task_attempts/run_cold_generated"
-                    / "task_generation_attempt_summary.json"
+                    / "task_generation_result.json"
                 ).read_text(encoding="utf-8")
             )
-            self.assertEqual(attempt_summary["attempt_count"], 2)
             self.assertEqual(
-                attempt_summary["attempts"][0]["recovery_action"],
-                "regenerate_candidate",
+                generation_result["repair"]["action"], "regenerate_candidate"
             )
-            self.assertEqual(attempt_summary["max_regenerations"], 1)
             prompt = provider.prompts[0]
             self.assertIn("cold_unseen_task", prompt)
             self.assertIn("TASK TELEMETRY/EXECUTION SCHEMA", prompt)
@@ -2652,7 +2713,7 @@ class GenericTaskGenBackendTests(unittest.TestCase):
         self.assertEqual(provider.method_calls, 2)
         self.assertEqual(provider.review_calls, 2)
         self.assertEqual(result["provider_call_count"], 4)
-        self.assertEqual(result["local_regeneration_count"], 1)
+        self.assertEqual(result["local_repair_count"], 1)
         self.assertIn('self.target = "generated"', task_source)
         self.assertNotIn("changed_scene", task_source)
         self.assertIn("correlated proxy", provider.method_prompts[1])
@@ -2738,18 +2799,17 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                     root
                     / "mea/generated_task_attempts/"
                     "run_preflight_exception_count/"
-                    "task_generation_attempt_summary.json"
+                    "task_generation_result.json"
                 ).read_text(encoding="utf-8")
             )
 
-        self.assertEqual(summary["attempt_count"], 1)
         self.assertEqual(summary["runtime"]["provider_calls"], 2)
         self.assertEqual(
-            summary["attempts"][0]["failure"]["stage"],
+            summary["generation"]["failure"]["stage"],
             "task_generation",
         )
         self.assertEqual(
-            summary["attempts"][0]["failure"]["failure_kind"],
+            summary["generation"]["failure"]["failure_kind"],
             "unclassified_exception",
         )
 
@@ -2790,11 +2850,10 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                     root
                     / "mea/generated_task_attempts/"
                     "run_semantic_review_unavailable/"
-                    "task_generation_attempt_summary.json"
+                    "task_generation_result.json"
                 ).read_text(encoding="utf-8")
             )
 
-        self.assertEqual(summary["attempt_count"], 1)
         self.assertEqual(summary["runtime"]["provider_calls"], 2)
         self.assertEqual(provider.calls, 1)
         self.assertEqual(provider.review_calls, 1)

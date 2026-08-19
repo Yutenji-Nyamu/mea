@@ -66,7 +66,6 @@ def evaluate_generic_task_rollout_telemetry(
         {
             "metric": outcome_metric,
             "authority": outcome_authority,
-            "module_sha256": manifest.get("candidate_module_sha256"),
             "task_module": manifest.get("task_module"),
         }
         if generated_checker

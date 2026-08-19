@@ -7,8 +7,6 @@ grant the vision model authority over coordinates, instance ids, or success.
 
 from __future__ import annotations
 
-import hashlib
-import json
 from copy import deepcopy
 from typing import Any, Mapping
 
@@ -17,17 +15,6 @@ from .success_spec import SuccessSpecError, success_spec_validation_report
 
 class SceneCheckSpecError(ValueError):
     """Raised when a scene-check contract is inconsistent with its task."""
-
-
-def _canonical_sha256(value: Any) -> str:
-    payload = json.dumps(
-        value,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-        allow_nan=False,
-    ).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()
 
 
 def _click_bell_authorities(changes: Mapping[str, Any]) -> list[str]:
@@ -225,14 +212,11 @@ def build_scene_check_spec(
         }
 
     result = {
-        "schema_version": 1,
+        "schema_version": 2,
         "task_name": task_name,
         "aspect_id": aspect_id,
         "source": source,
         "proposal_id": proposal_id,
-        "proposal_sha256": (
-            _canonical_sha256(task_proposal) if task_proposal is not None else None
-        ),
         "target_actor": target_actor,
         "requested_changes": deepcopy(dict(changes)),
         "visual_checks": visual_checks,
@@ -250,7 +234,6 @@ def validate_scene_check_spec(value: Mapping[str, Any]) -> dict[str, Any]:
         "aspect_id",
         "source",
         "proposal_id",
-        "proposal_sha256",
         "target_actor",
         "requested_changes",
         "visual_checks",
@@ -263,17 +246,15 @@ def validate_scene_check_spec(value: Mapping[str, Any]) -> dict[str, Any]:
             f"SceneCheckSpec fields must be exactly {sorted(required)}"
         )
     result = deepcopy(dict(value))
-    if result.get("schema_version") != 1:
-        raise SceneCheckSpecError("SceneCheckSpec.schema_version must be 1")
+    if result.get("schema_version") != 2:
+        raise SceneCheckSpecError("SceneCheckSpec.schema_version must be 2")
     for field in ("task_name", "aspect_id", "source", "target_actor"):
         if not isinstance(result.get(field), str) or not result[field].strip():
             raise SceneCheckSpecError(f"SceneCheckSpec.{field} must be non-empty")
     if result["source"] not in {"variant_spec", "task_proposal"}:
         raise SceneCheckSpecError("SceneCheckSpec.source is unsupported")
-    if result["source"] == "task_proposal" and (
-        not result.get("proposal_id") or not result.get("proposal_sha256")
-    ):
-        raise SceneCheckSpecError("proposal-derived SceneCheckSpec lacks identity")
+    if result["source"] == "task_proposal" and not result.get("proposal_id"):
+        raise SceneCheckSpecError("proposal-derived SceneCheckSpec lacks proposal_id")
     if not isinstance(result.get("requested_changes"), Mapping):
         raise SceneCheckSpecError("requested_changes must be an object")
     for field in ("visual_checks", "simulator_authorities"):
@@ -294,7 +275,6 @@ def validate_scene_check_spec(value: Mapping[str, Any]) -> dict[str, Any]:
     if result["success_semantics"] == "experimental_bounded_success_spec" and (
         result["task_name"] != "beat_block_hammer"
         or result["source"] != "task_proposal"
-        or not result.get("proposal_sha256")
         or "compiled_success_spec" not in result["simulator_authorities"]
     ):
         raise SceneCheckSpecError(
@@ -304,7 +284,6 @@ def validate_scene_check_spec(value: Mapping[str, Any]) -> dict[str, Any]:
         result["task_name"] not in {"beat_block_hammer", "click_bell"}
         or result["aspect_id"] != "robustness.distractor_avoidance"
         or result["source"] != "task_proposal"
-        or not result.get("proposal_sha256")
         or "provider_checker_semantic_fixtures"
         not in result["simulator_authorities"]
     ):

@@ -1,8 +1,8 @@
 """Verified, standalone few-shot examples for ToolGen prompts.
 
 Unlike the permanent Trusted Tools, these functions return only the payload a
-generated tool is allowed to return.  ToolGen adds provenance and source hashes
-after execution.
+generated tool is allowed to return. ToolGen validates these examples and the
+generated source against current telemetry before execution.
 """
 
 from __future__ import annotations

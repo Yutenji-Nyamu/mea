@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 from copy import deepcopy
 from pathlib import Path
@@ -93,16 +92,6 @@ def tool_generation_context(
             for item in tool_registry["composite_targets"]
             if item["metric"] not in forbidden
         ]
-    unhashed = dict(tool_registry)
-    unhashed.pop("snapshot_sha256", None)
-    tool_registry["snapshot_sha256"] = hashlib.sha256(
-        json.dumps(
-            unhashed,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode("utf-8")
-    ).hexdigest()
     reusable = []
     for item in reusable_tool_requests or []:
         if not isinstance(item, Mapping):

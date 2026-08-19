@@ -284,7 +284,7 @@ class OpenPythonToolGenTests(unittest.TestCase):
                 provider=replay_provider,
                 model="test-model",
             )
-            self.assertEqual(replay["route"], "run_local_reuse")
+            self.assertEqual(replay["route"], "semantic_library_reuse")
             self.assertFalse(replay["provider_called"])
             self.assertEqual(replay_provider.calls, 0)
 
@@ -351,7 +351,10 @@ class OpenPythonToolGenTests(unittest.TestCase):
             self.assertIn("PREVIOUS FUNCTION", repaired_prompt)
             self.assertIn("def generated_tool(trajectory)", repaired_prompt)
             self.assertIn("generated Tool validation/oracle", repaired_prompt)
-            self.assertEqual(generated["registration"]["scope"], "run_local")
+            self.assertEqual(
+                generated["registration"]["scope"],
+                "generated_artifact_library",
+            )
 
             replay = execute_metric_spec(
                 task_name="beat_block_hammer",
@@ -364,7 +367,7 @@ class OpenPythonToolGenTests(unittest.TestCase):
                 provider=SequencedProvider([]),
                 model="test-model",
             )
-            self.assertEqual(replay["route"], "run_local_reuse")
+            self.assertEqual(replay["route"], "semantic_library_reuse")
             self.assertFalse(replay["provider_called"])
             self.assertEqual(
                 replay["registration"]["registration_id"],
@@ -484,7 +487,7 @@ def generated_tool(trajectory):
                 provider=replay_provider,
                 model="test-model",
             )
-            self.assertEqual(replay["route"], "run_local_reuse")
+            self.assertEqual(replay["route"], "semantic_library_reuse")
             self.assertEqual(replay_provider.calls, 0)
             self.assertEqual(
                 replay["registration"]["registration_id"],

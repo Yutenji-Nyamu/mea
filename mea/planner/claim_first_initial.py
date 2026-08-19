@@ -2,7 +2,7 @@
 
 This module deliberately does not import ``CatalogPlanAgent`` or any
 task-specific planner.  The caller has already frozen a task/checkpoint target;
-the only remaining initial planning decision is whether the QueryContract
+the only remaining initial planning decision is whether the runtime limits
 requires an unchanged official control before Query-derived candidates.
 """
 
@@ -23,7 +23,7 @@ from .policy_task_binding import (
     PolicyTaskBindingError,
     policy_task_binding_from_target,
 )
-from .query_contract import validate_query_sufficiency_contract
+from .runtime_limits import validate_plan_runtime_limits
 
 
 _EXECUTION_BACKENDS = frozenset({"expert", "act", "both"})
@@ -33,10 +33,6 @@ _POST_EXECUTION_GATES = ("toolkit", "planned_tool", "aggregate")
 
 class PlanAgentInitialPlanError(ValueError):
     """Raised when a direct Plan Agent initial plan cannot be constructed."""
-
-
-# Compatibility name for existing callers and historical exception handlers.
-ClaimFirstInitialPlanError = PlanAgentInitialPlanError
 
 
 def _text(value: Any, *, field: str) -> str:
@@ -158,7 +154,7 @@ def build_plan_agent_control_round(
         "sub_aspect": "task_execution.official_baseline",
         "rationale": (
             "Establish the unchanged official-task control required by the "
-            "QueryContract before attributing evidence to a generated candidate."
+            "runtime limits before attributing evidence to a generated candidate."
         ),
         "task_instruction": query,
         "task_name": task_name,
@@ -233,7 +229,7 @@ class PlanAgentInitialPlanBuilder:
         *,
         evaluation_id: str,
         control_required: bool,
-        query_contract: Mapping[str, Any] | None = None,
+        runtime_limits: Mapping[str, Any] | None = None,
         history_context: list[dict[str, Any]] | None = None,
         history_metadata: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
@@ -254,24 +250,22 @@ class PlanAgentInitialPlanBuilder:
         if not isinstance(control_required, bool):
             raise PlanAgentInitialPlanError("control_required must be bool")
         contract = (
-            validate_query_sufficiency_contract(query_contract)
-            if query_contract is not None
+            validate_plan_runtime_limits(runtime_limits)
+            if runtime_limits is not None
             else None
         )
         if contract is not None:
-            contract_requires_control = (
-                contract["control_requirement"] == "required"
-            )
+            contract_requires_control = contract["control_requirement"] == "required"
             if contract_requires_control != control_required:
                 raise PlanAgentInitialPlanError(
-                    "control_required conflicts with QueryContract"
+                    "control_required conflicts with runtime limits"
                 )
             required_rounds = int(contract["round_budget"]) + int(
                 control_required
             )
             if required_rounds > self.max_rounds:
                 raise PlanAgentInitialPlanError(
-                    "QueryContract exceeds the initial Plan Agent round budget"
+                    "runtime limits exceed the initial Plan Agent round budget"
                 )
         elif control_required and self.max_rounds < 2:
             raise PlanAgentInitialPlanError(
@@ -339,7 +333,7 @@ class PlanAgentInitialPlanBuilder:
             ),
         }
         if contract is not None:
-            plan["query_contract"] = deepcopy(contract)
+            plan["runtime_limits"] = deepcopy(contract)
         manifest = {
             "schema_version": 5,
             "evaluation_id": resolved_id,
@@ -356,7 +350,7 @@ class PlanAgentInitialPlanBuilder:
                 "model_requested": None,
                 "provider_called": False,
                 "proposal_source": (
-                    "runtime_query_contract_control"
+                    "runtime_control_requirement"
                     if control_required
                     else "runtime_plan_agent_proposal_pending"
                 ),
@@ -378,16 +372,9 @@ class PlanAgentInitialPlanBuilder:
         return manifest
 
 
-# Compatibility class name; new callers should use
-# ``PlanAgentInitialPlanBuilder``.
-ClaimFirstInitialPlanBuilder = PlanAgentInitialPlanBuilder
-
-
 __all__ = [
     "PlanAgentInitialPlanBuilder",
     "PlanAgentInitialPlanError",
     "build_plan_agent_control_round",
     "build_plan_agent_execution_binding",
-    "ClaimFirstInitialPlanBuilder",
-    "ClaimFirstInitialPlanError",
 ]

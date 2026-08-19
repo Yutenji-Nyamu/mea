@@ -9,7 +9,6 @@ operations.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 from copy import deepcopy
@@ -32,7 +31,7 @@ from mea.planner import (
     policy_task_binding_from_target,
 )
 from mea.planner.open_task_resolver import rank_official_tasks
-from mea.planner.query_contract import validate_query_sufficiency_contract
+from mea.planner.runtime_limits import validate_plan_runtime_limits
 from mea.planner.runtime_task_binding import (
     RuntimePolicySpec,
     RuntimeTaskBindingError,
@@ -50,28 +49,17 @@ def _write_json(path: Path, value: Any) -> None:
     )
 
 
-def canonical_sha256(value: Any) -> str:
-    payload = json.dumps(
-        value,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-        allow_nan=False,
-    ).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()
-
-
-def persist_query_contract(
+def persist_runtime_limits(
     evaluation_dir: Path,
     plan: dict[str, Any],
     contract: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Keep the public contract artifact aligned with runtime discoveries."""
+    """Keep the readable runtime-limit artifact aligned with discoveries."""
 
-    normalized = validate_query_sufficiency_contract(contract)
-    plan["query_contract"] = deepcopy(normalized)
+    normalized = validate_plan_runtime_limits(contract)
+    plan["runtime_limits"] = deepcopy(normalized)
     _write_json(
-        evaluation_dir / "plan/query_sufficiency_contract.json",
+        evaluation_dir / "plan/runtime_limits.json",
         normalized,
     )
     return normalized
@@ -183,16 +171,6 @@ def build_bound_plan_agent_handoff(
             "checkpoint": deepcopy(target["checkpoint"]),
             "aspects": [],
         },
-        "catalog_sha256": (
-            catalog.get("catalog_sha256")
-            if isinstance(catalog, Mapping)
-            else None
-        ),
-        "runtime_binding_sha256": (
-            canonical_sha256(runtime_target)
-            if runtime_target is not None
-            else None
-        ),
         "provider_called": False,
         "attempt_count": 0,
         "validation_errors": [],
@@ -291,7 +269,7 @@ def concern_candidate_domain_is_executable(
     *,
     candidate_budget: int | None,
 ) -> bool:
-    """Admit a semantic domain without requiring a preselected template."""
+    """Admit the official shortcut or one Plan-owned generic Proposal."""
 
     if (
         resolution.get("resolution")
@@ -301,16 +279,11 @@ def concern_candidate_domain_is_executable(
         return candidate_budget is None or candidate_budget >= 0
     if candidate_budget is not None and candidate_budget < 1:
         return False
-    decision = resolution.get("decision")
-    if decision == "bind_single_aspect":
-        templates = resolution.get("selected_template_ids")
-        return isinstance(templates, list) and bool(templates)
-    if decision == "discover_candidates":
-        aspects = resolution.get("candidate_aspect_ids")
-        return isinstance(aspects, list) and bool(aspects)
-    if decision == "catalog_external":
-        return True
-    return False
+    return bool(
+        resolution.get("decision") == "proposal_reuse_or_generate"
+        and resolution.get("resolution") == "proposal_reuse_or_generate"
+        and resolution.get("execution_authorized") is True
+    )
 
 
 def write_open_task_resolution_trace(
@@ -436,8 +409,6 @@ def run_plan_agent_application(
     provider: OpenAICompatibleProvider,
     models: Mapping[str, str],
     runtime_target: Mapping[str, Any],
-    reviewed_tool_registry: Path | None,
-    reviewed_vqa_registry: Path | None,
     global_route_result: dict[str, Any] | None,
     concern_bundle: dict[str, Any] | None,
     open_task_resolution: dict[str, Any] | None,
@@ -471,8 +442,6 @@ def run_plan_agent_application(
         policy_backend=args.policy_backend,
         runtime_target=runtime_target,
         policy_server_port=policy_server_port,
-        reviewed_tool_registry=reviewed_tool_registry,
-        reviewed_vqa_registry=reviewed_vqa_registry,
         max_agent_rounds=args.max_agent_rounds,
         global_route_result=global_route_result,
         free_concern_bundle=concern_bundle,
@@ -482,9 +451,7 @@ def run_plan_agent_application(
         history_retrieval=history_retrieval,
         history_context_count=history_context_count,
         history_disabled=bool(args.no_history),
-        cli_candidate_hint_used=(
-            args.bound_requested_aspect_ids is not None
-        ),
+        cli_candidate_hint_used=False,
     ).run()
 
 
@@ -492,11 +459,10 @@ __all__ = [
     "bind_ready_task_after_query_interpretation",
     "build_bound_plan_agent_handoff",
     "build_pending_task_binding_policy_card",
-    "canonical_sha256",
     "concern_candidate_domain_is_executable",
     "discover_ready_plan_agent_targets",
     "finish_unsupported_open_task_resolution",
-    "persist_query_contract",
+    "persist_runtime_limits",
     "run_plan_agent_application",
     "write_open_task_resolution_trace",
 ]

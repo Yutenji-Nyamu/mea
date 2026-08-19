@@ -5,7 +5,6 @@ from __future__ import annotations
 import csv
 import json
 import time
-from copy import deepcopy
 from typing import Any
 
 import numpy as np
@@ -164,10 +163,8 @@ class RecorderArtifactMixin:
             "semantic_trace_rows": len(self.semantic_rows),
             "dynamics_trace_rows": len(self.dynamics_rows),
             "telemetry_profile_id": self.telemetry_profile_id,
-            "telemetry_profile_sha256": self.telemetry_profile_hash,
             "telemetry": {
                 "profile_id": self.telemetry_profile_id,
-                "profile_sha256": self.telemetry_profile_hash,
                 "profile_artifact": "telemetry_profile.json",
                 "streams": stream_metadata,
             },
@@ -175,24 +172,6 @@ class RecorderArtifactMixin:
                 item.get("type") == "contact_interval" for item in self.events
             ),
             "error": error,
-            **(
-                {
-                    "execution_receipt": deepcopy(self.execution_receipt),
-                    "execution_receipt_sha256": self.execution_receipt[
-                        "receipt_sha256"
-                    ],
-                    "executed_binding": deepcopy(self.executed_binding),
-                    "executed_task_module_sha256": self.executed_binding[
-                        "task_source_sha256"
-                    ],
-                    "executed_checkpoint_bundle_sha256": (
-                        self.executed_binding["checkpoint_bundle_sha256"]
-                    ),
-                }
-                if self.execution_receipt is not None
-                and self.executed_binding is not None
-                else {}
-            ),
             **(
                 {"visual_capture": visual_capture}
                 if visual_capture is not None
@@ -233,11 +212,6 @@ class RecorderArtifactMixin:
                 "events": "events.jsonl",
                 "task_schema": "schema.json",
                 "telemetry_profile": "telemetry_profile.json",
-                **(
-                    {"execution_receipt": "execution_receipt.json"}
-                    if self.execution_receipt is not None
-                    else {}
-                ),
                 **(
                     {"visual_keyframes": "visual_keyframes.json"}
                     if (self.output_dir / "visual_keyframes.json").is_file()

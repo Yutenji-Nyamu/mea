@@ -167,9 +167,8 @@ def _numeric_vectors_close(
 def _same_seed_tracked_actor_state(
     official_setup: Mapping[str, Any] | None,
     generated_setup: Mapping[str, Any] | None,
-    condition: str,
     *,
-    fact: Mapping[str, Any] | None = None,
+    fact: Mapping[str, Any],
 ) -> tuple[bool | None, str]:
     """Compare spatial facts using same-seed simulator state, never RGB."""
 
@@ -214,11 +213,6 @@ def _same_seed_tracked_actor_state(
     ):
         return None, "no_comparable_tracked_actor_state"
 
-    if fact is None:
-        normalized = normalize_preservation_facts(condition)
-        if len(normalized) != 1:
-            return None, "non_atomic_preservation_fact"
-        fact = normalized[0]
     property_name = fact.get("property")
     actor = fact.get("actor")
     axis = fact.get("axis") if property_name == "position" else None
@@ -498,6 +492,20 @@ def build_preservation_report(
             )
         )
         for fact in normalize_preservation_facts(raw_condition):
+            if (
+                fact.get("property") == "unknown"
+                or fact.get("relation") == "unparsed"
+            ):
+                checks.append(
+                    {
+                        "condition": condition,
+                        "fact": fact,
+                        "kind": "unverified",
+                        "verified": None,
+                        "authority": "unstructured_legacy_condition",
+                    }
+                )
+                continue
             if exact_task_reuse:
                 kind = "exact_task_method_reuse"
                 verified: bool | None = True
@@ -563,7 +571,6 @@ def build_preservation_report(
                     _same_seed_tracked_actor_state(
                         official_setup,
                         generated_setup,
-                        condition,
                         fact=fact,
                     )
                 )

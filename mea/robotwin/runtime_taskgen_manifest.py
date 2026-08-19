@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 from copy import deepcopy
 from pathlib import Path
@@ -25,7 +24,7 @@ from mea.taskgen.generic_backend import GenericRoboTwinTaskAdapter
 from mea.visual_capture import visual_capture_profile_for_proposal
 from mea.taskgen.semantic_review import (
     CheckerSemanticReviewError,
-    validate_checker_semantic_review_binding,
+    validate_checker_semantic_review,
 )
 
 from .runtime_contracts import _RoboTwinNativeCandidate, _json_object, _required_text
@@ -39,7 +38,7 @@ def _validate_taskgen_checker_artifacts(
     candidate_manifest_path: Path,
     task_source_path: Path,
 ) -> dict[str, Any] | None:
-    """Bind an approved checker review to current Proposal and source bytes."""
+    """Validate checker-review structure and current source syntax."""
 
     try:
         candidate_manifest = json.loads(
@@ -58,38 +57,44 @@ def _validate_taskgen_checker_artifacts(
             )
         return None
     try:
-        source_sha256 = hashlib.sha256(
-            task_source_path.read_bytes()
-        ).hexdigest()
-    except OSError as exc:
-        raise ValueError("TaskGen task source is unavailable") from exc
-    if source_sha256 != candidate_manifest.get("module_sha256"):
-        raise ValueError(
-            "TaskGen task source differs from its candidate manifest"
-        )
+        source = task_source_path.read_text(encoding="utf-8")
+        compile(source, str(task_source_path), "exec")
+    except (OSError, UnicodeError, SyntaxError) as exc:
+        raise ValueError("TaskGen task source is unavailable or invalid") from exc
     try:
-        review = validate_checker_semantic_review_binding(
-            candidate_manifest.get("checker_semantic_review"),
-            candidate=candidate,
-            checker_sha256=str(
-                candidate_manifest.get("success_method_sha256") or ""
-            ),
+        review = validate_checker_semantic_review(
+            candidate_manifest.get("checker_semantic_review")
         )
     except CheckerSemanticReviewError as exc:
         raise ValueError(
             f"TaskGen checker semantic review is invalid: {exc}"
         ) from exc
-    if manifest.get("checker_semantic_review") not in (None, review):
-        raise ValueError(
-            "TaskGen manifest checker review differs from candidate manifest"
-        )
+    manifest_review = manifest.get("checker_semantic_review")
+    if manifest_review is not None:
+        try:
+            manifest_review = validate_checker_semantic_review(manifest_review)
+        except CheckerSemanticReviewError as exc:
+            raise ValueError(
+                "TaskGen manifest checker review is invalid"
+            ) from exc
+        if manifest_review != review:
+            raise ValueError(
+                "TaskGen manifest checker review differs from candidate manifest"
+            )
     acceptance = manifest.get("task_generation_acceptance")
-    if isinstance(acceptance, Mapping) and (
-        acceptance.get("checker_semantic_review") != review
-    ):
-        raise ValueError(
-            "TaskGen acceptance checker review differs from source binding"
-        )
+    if isinstance(acceptance, Mapping):
+        try:
+            acceptance_review = validate_checker_semantic_review(
+                acceptance.get("checker_semantic_review")
+            )
+        except CheckerSemanticReviewError as exc:
+            raise ValueError(
+                "TaskGen acceptance checker review is invalid"
+            ) from exc
+        if acceptance_review != review:
+            raise ValueError(
+                "TaskGen acceptance checker review differs from the candidate"
+            )
     return review
 
 
@@ -249,14 +254,6 @@ def bind_validated_taskgen_candidate(
         candidate_manifest_path=candidate_manifest,
         task_source_path=task_source,
     )
-    if generated_checker and (
-        acceptance.get("checker_semantic_review")
-        != checker_semantic_review
-    ):
-        raise ValueError(
-            "TaskGen checker semantic review was not accepted before "
-            "policy rollout"
-        )
     execution_schema = binding.task_contract.get("task_schema")
     task_context_artifact: Path | None = None
     task_context_value: dict[str, Any] | None = None
@@ -301,8 +298,10 @@ def bind_validated_taskgen_candidate(
                 f"TaskGen TaskContext authority is invalid: {exc}"
             ) from exc
         if (
-            task_context_value.get("official_source_sha256")
-            != verified_context.official_source_sha256
+            task_context_value.get("task_name")
+            != verified_context.task_name
+            or task_context_value.get("official_source")
+            != verified_context.official_source
             or task_context_value.get("task_schema")
             != verified_context.task_schema
             or verified_context.task_schema is None

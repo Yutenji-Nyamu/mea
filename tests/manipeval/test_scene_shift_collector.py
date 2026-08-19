@@ -4,8 +4,8 @@ import unittest
 from pathlib import Path
 
 from mea.execution_vqa import build_execution_vqa_query
-from mea.scene_shift_collector import collect_scene_shift_candidates
-from mea.scene_shift_vqa_validation import CONDITION_CONTRACTS
+from experiments.paper.validation.scene_shift_collector import collect_scene_shift_candidates
+from experiments.paper.validation.scene_shift_vqa_validation import CONDITION_CONTRACTS
 
 
 class SceneShiftCollectorTests(unittest.TestCase):

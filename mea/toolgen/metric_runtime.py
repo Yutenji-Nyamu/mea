@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
 from copy import deepcopy
@@ -30,7 +29,6 @@ from .metric_schema import (
     MetricSpecError,
     _CORE_ARTIFACTS,
     _canonical,
-    _file_sha256,
     _write_json,
     metric_spec_tool_spec,
     validate_metric_spec,
@@ -65,7 +63,7 @@ def _validate_metric_source(
     values: list[Any] = []
     for episode, trajectory in zip(episodes, trajectories):
         before = {
-            name: _file_sha256(episode / name)
+            name: (episode / name).stat().st_mtime_ns
             for name in _CORE_ARTIFACTS
             if (episode / name).is_file()
         }
@@ -111,7 +109,7 @@ def _validate_metric_source(
         )
         semantic_contract_valid = not semantic_differences
         after = {
-            name: _file_sha256(episode / name)
+            name: (episode / name).stat().st_mtime_ns
             for name in _CORE_ARTIFACTS
             if (episode / name).is_file()
         }
@@ -308,7 +306,7 @@ def execute_metric_spec(
             registry_match = None
     if registry_match is not None:
         source_path = registry_match["source_path"]
-        route = "run_local_reuse"
+        route = "semantic_library_reuse"
         generation: dict[str, Any] | None = None
         rows, fixture_rows, values = validate_source(
             source_path.read_text(encoding="utf-8")
@@ -494,46 +492,8 @@ def execute_metric_spec(
             tool_spec=tool_spec,
             episode_dirs=episodes,
             source_path=source_path,
-            generation_registration={
-                "tool": metric,
-                "validated_episode_count": len(rows) + len(fixture_rows),
-                "validated_property_scenario_count": len(fixture_rows),
-                "oracle_kind": (
-                    "toolgen_semantic_review_runtime_v1"
-                    if automatic_derived_validation
-                    else f"typed_metric_spec_v{spec['schema_version']}"
-                ),
-                "oracle_agreement_required": not automatic_derived_validation,
-                "semantic_review_required": automatic_derived_validation,
-            },
-            generation_manifest={
-                "successful_attempt": (
-                    generation.get("successful_attempt")
-                    if generation is not None
-                    else None
-                ),
-                "model_requested": (
-                    generation.get("model_requested")
-                    if generation is not None
-                    else None
-                ),
-                "generator_source_sha256": _file_sha256(source_path),
-                "contract_sha256": hashlib.sha256(_canonical(spec).encode()).hexdigest(),
-                "example_validation": [
-                    _metric_semantic_projection(row["oracle_projection"])
-                    for row in fixture_rows
-                ],
-                "semantic_review": semantic_review,
-            },
-            validation_episodes=[
-                {
-                    "episode_dir": str(episode),
-                    "policy_name": row["policy_name"],
-                    "seed": row["seed"],
-                    "oracle_value": row["oracle_projection"].get("value"),
-                }
-                for episode, row in zip(episodes, rows)
-            ],
+            tool_id=metric,
+            semantic_review=semantic_review,
         )
     elif registry_match is not None:
         registration = registry_match
@@ -569,7 +529,7 @@ def execute_metric_spec(
                 "provider-generated Python"
                 if generation is not None
                 else "reused validated generated Python"
-                if route == "run_local_reuse"
+                if route == "semantic_library_reuse"
                 else "provider-free compatibility compiler"
             ),
             (

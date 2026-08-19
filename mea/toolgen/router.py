@@ -7,7 +7,6 @@ catalog or a registered composite target.
 
 from __future__ import annotations
 
-import hashlib
 import json
 from copy import deepcopy
 from typing import Any
@@ -91,16 +90,6 @@ def validate_tool_request(
     return result
 
 
-def _with_snapshot_hash(snapshot: dict[str, Any]) -> dict[str, Any]:
-    unhashed = dict(snapshot)
-    unhashed.pop("snapshot_sha256", None)
-    encoded = json.dumps(
-        unhashed, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-    ).encode("utf-8")
-    snapshot["snapshot_sha256"] = hashlib.sha256(encoded).hexdigest()
-    return snapshot
-
-
 def catalog_snapshot() -> dict[str, Any]:
     """Return the compact executable registries used for one route decision."""
 
@@ -134,14 +123,13 @@ def catalog_snapshot() -> dict[str, Any]:
             "execution": "retrieve_or_provider_codegen_validate_register",
         },
     }
-    return _with_snapshot_hash(snapshot)
+    return snapshot
 
 
 def route_tool_request(
     value: Any,
     *,
     run_local_registration: dict[str, Any] | None = None,
-    reviewed_registration: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Resolve an exact Tool request to reuse, force-codegen, or unsupported."""
 
@@ -173,24 +161,13 @@ def route_tool_request(
 
     if run_local_registration is not None:
         if (
-            run_local_registration.get("scope") != "run_local"
-            or run_local_registration.get("status") != "validated"
+            run_local_registration.get("scope") != "generated_artifact_library"
+            or run_local_registration.get("status")
+            != "validated_on_registration"
             or run_local_registration.get("target_metric") != metric
         ):
-            raise ToolRouterError("invalid run-local registration match")
+            raise ToolRouterError("invalid generated Tool library match")
         snapshot["run_local_match"] = deepcopy(run_local_registration)
-        _with_snapshot_hash(snapshot)
-
-    if reviewed_registration is not None:
-        if (
-            reviewed_registration.get("scope") != "reviewed_persistent"
-            or reviewed_registration.get("status") != "approved"
-            or reviewed_registration.get("target_metric") != metric
-            or reviewed_registration.get("task_name") != task_name
-        ):
-            raise ToolRouterError("invalid reviewed persistent registration match")
-        snapshot["reviewed_match"] = deepcopy(reviewed_registration)
-        _with_snapshot_hash(snapshot)
 
     if metric_spec is not None:
         status = "resolved"
@@ -221,25 +198,12 @@ def route_tool_request(
         and run_local_registration is not None
     ):
         status = "resolved"
-        route = "run_local_reuse"
-        registry = "evaluation_local_tool_registry"
+        route = "semantic_library_reuse"
+        registry = "generated_tool_library"
         reference_tool = run_local_registration["tool_id"]
         reason = (
-            "exact ToolSpec, code, and telemetry schema hashes matched a "
-            "validated evaluation-local Tool"
-        )
-    elif (
-        composite_task_supported
-        and metric in COMPOSITE_TARGETS
-        and reviewed_registration is not None
-    ):
-        status = "resolved"
-        route = "reviewed_persistent_reuse"
-        registry = "reviewed_tool_registry"
-        reference_tool = reviewed_registration["tool_id"]
-        reason = (
-            "explicit approval plus exact ToolSpec, code, and telemetry schema "
-            "hashes matched a reviewed persistent Tool"
+            "the semantic key matched a generated Tool and current-episode "
+            "revalidation remains required"
         )
     elif composite_task_supported and metric in COMPOSITE_TARGETS:
         status = "resolved"
@@ -271,14 +235,11 @@ def route_tool_request(
         "reference_tool": reference_tool,
         "provider_required": route == "force_codegen",
         "reason": reason,
-        "catalog_snapshot_sha256": snapshot["snapshot_sha256"],
     }
-    if run_local_registration is not None and route == "run_local_reuse":
+    if run_local_registration is not None and route == "semantic_library_reuse":
         decision["run_local_registration"] = deepcopy(
             run_local_registration
         )
-    if reviewed_registration is not None and route == "reviewed_persistent_reuse":
-        decision["reviewed_registration"] = deepcopy(reviewed_registration)
     return {
         "tool_request": request,
         "catalog_snapshot": deepcopy(snapshot),

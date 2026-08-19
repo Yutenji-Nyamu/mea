@@ -1,17 +1,17 @@
-"""Schemas and lineage validation for open-Query Plan Agent decisions."""
+"""Small schemas for open-Query Plan Agent decisions."""
 
 from __future__ import annotations
 
-import hashlib
-import json
 import re
 from copy import deepcopy
 from typing import Any, Mapping, Sequence
 
 from mea.planner.proposal_execution import validate_plan_agent_proposal_execution
-from mea.planner.semantic_coverage import (
-    validate_evaluation_intent,
+from mea.taskgen.preservation_facts import (
+    PreservationFactError,
+    normalize_preservation_conditions,
 )
+
 
 class PlanAgentError(ValueError):
     """Raised when open-Query inputs or a semantic proposal are invalid."""
@@ -66,6 +66,9 @@ _PROPOSAL_BASE_KEYS = {
     "hypothesis",
     "requested_perturbation",
     "rationale",
+    "answer",
+    "claim_verdict",
+    "evidence_sufficient",
 }
 _LEGACY_PROPOSAL_KEYS = _PROPOSAL_BASE_KEYS | {
     "task_need",
@@ -93,16 +96,6 @@ _FORBIDDEN_CAPABILITY_KEYS = {
     "fallback_step",
     "navigation_options",
 }
-_PLANNING_LINEAGE_KEYS = {
-    "schema_version",
-    "decision_kind",
-    "evidence_conditioned",
-    "completed_round_ids",
-    "completed_round_count",
-    "input_digest",
-}
-
-
 def _text(value: Any, field: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ClaimFirstPlanError(f"{field} must be a non-empty string")
@@ -124,6 +117,21 @@ def _text_list(value: Any, field: str, *, allow_empty: bool = True) -> list[str]
     if len(result) != len(set(result)):
         raise ClaimFirstPlanError(f"{field} must not contain duplicates")
     return result
+
+
+def _preservation_facts(value: Any, field: str) -> list[dict[str, str | None]]:
+    if not isinstance(value, list):
+        raise ClaimFirstPlanError(f"{field} must be a list")
+    try:
+        # Provider-authored mappings are strict. Frozen legacy strings are
+        # read once and normalized; unknown prose remains an explicit
+        # unverified fact rather than becoming a lexical permission gate.
+        return normalize_preservation_conditions(
+            value,
+            strict_mappings=True,
+        )
+    except PreservationFactError as exc:
+        raise ClaimFirstPlanError(f"{field}: {exc}") from exc
 
 
 def _assert_no_navigation_keys(value: Any, *, field: str) -> None:
@@ -455,6 +463,15 @@ def validate_open_query_plan_proposal(
         raise ClaimFirstPlanError("OpenQueryPlanProposal.action must be continue or stop")
     result["hypothesis"] = _text(result.get("hypothesis"), "hypothesis")
     result["rationale"] = _text(result.get("rationale"), "rationale")
+    result["answer"] = _optional_text(result.get("answer"), "answer")
+    verdict = result.get("claim_verdict")
+    if verdict not in {None, "supported", "refuted", "inconclusive"}:
+        raise ClaimFirstPlanError(
+            "claim_verdict must be null, supported, refuted, or inconclusive"
+        )
+    result["claim_verdict"] = verdict
+    if not isinstance(result.get("evidence_sufficient"), bool):
+        raise ClaimFirstPlanError("evidence_sufficient must be bool")
     if "scene_need" in result:
         result["scene_need"] = _validate_need(
             result.get("scene_need"), field="scene_need", tool=False
@@ -513,7 +530,29 @@ def validate_open_query_plan_proposal(
             )
         ):
             raise ClaimFirstPlanError("stop cannot request TaskGen or ToolGen work")
+        if result["evidence_sufficient"]:
+            if result["claim_verdict"] not in {"supported", "refuted"}:
+                raise ClaimFirstPlanError(
+                    "an evidence-sufficient stop needs a supported or refuted verdict"
+                )
+            if result["answer"] is None:
+                raise ClaimFirstPlanError(
+                    "an evidence-sufficient stop needs an answer"
+                )
+        elif result["claim_verdict"] != "inconclusive":
+            raise ClaimFirstPlanError(
+                "an evidence-insufficient stop must use an inconclusive verdict"
+            )
         return result
+
+    if result["answer"] is not None or result["claim_verdict"] is not None:
+        raise ClaimFirstPlanError(
+            "continue must set answer and claim_verdict to null"
+        )
+    if result["evidence_sufficient"]:
+        raise ClaimFirstPlanError(
+            "continue must set evidence_sufficient to false"
+        )
 
     sub_aspect = _text(result.get("sub_aspect"), "sub_aspect")
     if not _IDENTIFIER.fullmatch(sub_aspect):
@@ -536,129 +575,18 @@ def validate_open_query_plan_proposal(
             "requested_perturbation.controlled_changes",
             allow_empty=False,
         ),
-        "preserve": _text_list(
-            perturbation.get("preserve"), "requested_perturbation.preserve"
+        "preserve": _preservation_facts(
+            perturbation.get("preserve"),
+            "requested_perturbation.preserve",
         ),
     }
     return result
 
 
-def open_query_input_digest(
-    user_query: str,
-    capabilities: Mapping[str, Any],
-    evidence_history: Sequence[Mapping[str, Any]],
-    evaluation_intent: Mapping[str, Any] | None = None,
-) -> str:
-    """Hash the exact semantic inputs used for one provider decision."""
-
-    payload = {
-        "user_query": _text(user_query, "user_query"),
-        "capabilities": validate_open_query_capabilities(capabilities),
-        "evidence_history": validate_open_query_evidence(evidence_history),
-    }
-    if evaluation_intent is not None:
-        payload["evaluation_intent"] = validate_evaluation_intent(
-            evaluation_intent
-        )
-    canonical = json.dumps(
-        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-    )
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-
-
-def build_open_query_planning_lineage(
-    user_query: str,
-    capabilities: Mapping[str, Any],
-    evidence_history: Sequence[Mapping[str, Any]],
-    evaluation_intent: Mapping[str, Any] | None = None,
-) -> dict[str, Any]:
-    """Describe the exact completed evidence used to author one proposal.
-
-    This is deliberately separate from execution provenance.  Its purpose is
-    to distinguish a Query-only first proposal from a later Fig. 5 refinement
-    that was authored only after the preceding Aggregate/Evidence was read.
-    """
-
-    trusted_evidence = validate_open_query_evidence(evidence_history)
-    digest = open_query_input_digest(
-        user_query,
-        capabilities,
-        trusted_evidence,
-        evaluation_intent,
-    )
-    completed_round_ids = [
-        item["round_id"] for item in trusted_evidence
-    ]
-    evidence_conditioned = bool(completed_round_ids)
-    return {
-        "schema_version": 1,
-        "decision_kind": (
-            "evidence_conditioned_refinement"
-            if evidence_conditioned
-            else "query_initial_candidate"
-        ),
-        "evidence_conditioned": evidence_conditioned,
-        "completed_round_ids": completed_round_ids,
-        "completed_round_count": len(completed_round_ids),
-        "input_digest": digest,
-    }
-
-
-def validate_open_query_proposal_lineage(
-    proposal_bundle: Mapping[str, Any],
-    *,
-    user_query: str,
-    capabilities: Mapping[str, Any],
-    evidence_history: Sequence[Mapping[str, Any]],
-    evaluation_intent: Mapping[str, Any] | None = None,
-) -> dict[str, Any]:
-    """Fail closed when a proposal was not authored from current evidence.
-
-    A provider response generated before round ``n`` completed must not be
-    relabelled as the decision for round ``n + 1``.  The digest covers the
-    original Query, capability boundary, complete evidence history, and an
-    optional frozen EvaluationIntent.
-    """
-
-    if not isinstance(proposal_bundle, Mapping):
-        raise ClaimFirstPlanError("proposal_bundle must be an object")
-    expected = build_open_query_planning_lineage(
-        user_query,
-        capabilities,
-        evidence_history,
-        evaluation_intent,
-    )
-    actual_digest = proposal_bundle.get("input_digest")
-    if actual_digest != expected["input_digest"]:
-        raise ClaimFirstPlanError(
-            "proposal input_digest does not match the current completed "
-            "Aggregate/Evidence history"
-        )
-    raw_lineage = proposal_bundle.get("planning_lineage")
-    if (
-        not isinstance(raw_lineage, Mapping)
-        or set(raw_lineage) != _PLANNING_LINEAGE_KEYS
-    ):
-        raise ClaimFirstPlanError(
-            "provider proposal must carry complete planning_lineage"
-        )
-    lineage = deepcopy(dict(raw_lineage))
-    if lineage != expected:
-        raise ClaimFirstPlanError(
-            "proposal planning_lineage does not match the current completed "
-            "rounds"
-        )
-    return lineage
-
-
 __all__ = [
     "PlanAgentError",
-    "ClaimFirstPlanError",
-    "build_open_query_planning_lineage",
-    "open_query_input_digest",
     "project_open_query_capabilities",
     "validate_open_query_capabilities",
     "validate_open_query_evidence",
     "validate_open_query_plan_proposal",
-    "validate_open_query_proposal_lineage",
 ]

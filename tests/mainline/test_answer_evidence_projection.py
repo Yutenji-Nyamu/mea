@@ -35,7 +35,7 @@ def _evidence():
                         "failure_stage": "expert_fixture",
                         "diagnosis": "The requested relation was unsatisfiable.",
                         "policy_sample_count": 0,
-                        "taskgen_attempt_summary": {"large": "drop"},
+                        "taskgen_result": {"large": "drop"},
                     },
                     "implementation_trace": {
                         "candidate_id": "dynamic.alpha",
@@ -153,7 +153,7 @@ def test_answer_projection_excludes_transport_and_repeated_payloads():
         "proposal",
         "source_code",
         "validation_evidence",
-        "taskgen_attempt_summary",
+        "taskgen_result",
         '"aggregate": {"duplicated"',
     ):
         assert excluded not in serialized

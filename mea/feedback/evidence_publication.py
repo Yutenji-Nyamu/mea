@@ -1,8 +1,7 @@
-"""Validated artifact publication and bundle-manifest writing."""
+"""Compact evidence publication with a readable artifact index."""
 
 from __future__ import annotations
 
-import hashlib
 import json
 import shutil
 from pathlib import Path
@@ -13,7 +12,7 @@ from .evidence_projection import EvidenceReportError
 
 MAX_PUBLIC_ARTIFACT_BYTES = 5_000_000
 PLAN_ARTIFACTS = (
-    "query_sufficiency_contract.json",
+    "runtime_limits.json",
     "global_query_route.json",
     "open_task_resolution.json",
 )
@@ -40,56 +39,16 @@ class EvidencePublisher:
         self.semantic_dir = bundle_root / "artifacts"
 
     def prepare(self) -> None:
+        """Create the bundle directory without maintaining replacement state.
+
+        Ordinary finalization writes a bundle once.  Re-running against paths
+        that already exist fails at the individual copy boundary instead of
+        consulting an append-only manifest or deleting prior artifacts.
+        """
+
         self.bundle_root.mkdir(parents=True, exist_ok=True)
-        previous_manifest_path = (
-            self.bundle_root / "evidence_bundle_manifest.json"
-        )
-        if previous_manifest_path.is_file():
-            previous = self.read_json(previous_manifest_path, required=True)
-            old_files = previous.get("files")
-            if not isinstance(old_files, list):
-                raise EvidenceReportError(
-                    "previous evidence manifest has no files list"
-                )
-            old_path_root = (
-                self.bundle_root
-                if previous.get("path_basis") == "bundle_relative"
-                else self.root
-            )
-            old_paths: list[Path] = []
-            for raw in old_files:
-                if not isinstance(raw, str) or not raw:
-                    raise EvidenceReportError(
-                        "previous evidence manifest has invalid path"
-                    )
-                old_path = old_path_root / raw
-                old_resolved = old_path.resolve()
-                if self.bundle_root not in old_resolved.parents:
-                    raise EvidenceReportError(
-                        "previous evidence manifest points outside its bundle"
-                    )
-                if old_path.is_symlink() or old_path.absolute() != old_resolved:
-                    raise EvidenceReportError(
-                        "refusing to clear a symlinked old artifact"
-                    )
-                old_paths.append(old_resolved)
-            current_files = {
-                path.resolve()
-                for path in self.bundle_root.rglob("*")
-                if path.is_file() or path.is_symlink()
-            }
-            if self.publish and current_files != set(old_paths):
-                raise EvidenceReportError(
-                    "previous manifest did not account for every published file"
-                )
-            for old_path in old_paths:
-                if old_path.is_file():
-                    old_path.unlink()
-        elif self.publish and any(self.bundle_root.iterdir()):
-            raise EvidenceReportError(
-                "publish destination must be fresh or contain its prior "
-                "evidence_bundle_manifest.json"
-            )
+        if self.publish and any(self.bundle_root.iterdir()):
+            raise EvidenceReportError("publish destination must be fresh")
 
     @staticmethod
     def read_json(path: Path, *, required: bool = False) -> dict[str, Any]:
@@ -236,14 +195,10 @@ class EvidencePublisher:
                 {
                     "path": relative,
                     "bytes": artifact_path.stat().st_size,
-                    "sha256": hashlib.sha256(
-                        artifact_path.read_bytes()
-                    ).hexdigest(),
                 }
             )
-        bundle_manifest = {
-            "schema_version": 3,
-            "path_basis": "bundle_relative",
+        artifact_index = {
+            "schema_version": 1,
             "evaluation_id": manifest.get("evaluation_id"),
             "source_evaluation": str(
                 evaluation.relative_to(self.root)
@@ -256,30 +211,17 @@ class EvidencePublisher:
                 self.bundle_root
             ).as_posix(),
             "publish_mode": self.publish,
-            "files": sorted(set(self.published_files)),
             "artifacts": artifact_inventory,
             "round_count": round_count,
             "video_size_limit_bytes": int(max_video_bytes),
             "included_repair_id": include_repair_id,
         }
-        manifest_path = self.bundle_root / "evidence_bundle_manifest.json"
-        manifest_path.write_text(
-            json.dumps(bundle_manifest, ensure_ascii=False, indent=2) + "\n",
+        index_path = self.bundle_root / "artifact_index.json"
+        index_path.write_text(
+            json.dumps(artifact_index, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
-        bundle_manifest["files"] = sorted(
-            set(
-                [
-                    *bundle_manifest["files"],
-                    manifest_path.relative_to(self.bundle_root).as_posix(),
-                ]
-            )
-        )
-        manifest_path.write_text(
-            json.dumps(bundle_manifest, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
-        return bundle_manifest
+        return artifact_index
 
 
 def publish_plan_artifacts(
@@ -365,10 +307,7 @@ def publish_plan_artifacts(
                 destination_root / f"response_{response_index}.txt",
             )
     publisher.publish_first(
-        (
-            evaluation / "plan/plan_agent_session/query_answer.json",
-            evaluation / "plan/claim_first_runtime/query_answer.json",
-        ),
+        (evaluation / "plan/plan_agent_session/query_answer.json",),
         publisher.semantic_dir / "answer/query_answer.json",
     )
 

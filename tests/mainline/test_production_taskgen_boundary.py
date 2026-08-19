@@ -5,6 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from mea.plan_agent_bootstrap import concern_candidate_domain_is_executable
+from mea.planner.query_interpretation import resolve_concern_candidate_domain
 from mea.taskgen.round_materialization import materialize_open_world_round
 
 
@@ -35,6 +37,97 @@ def _imported_modules(nodes: list[ast.stmt]) -> set[str]:
 
 
 class ProductionTaskIndependenceTests(unittest.TestCase):
+    @staticmethod
+    def _query_concern() -> dict[str, object]:
+        return {
+            "source_query": "Which change first exposes a policy weakness?",
+            "sub_aspect": "target appearance under a bounded variation",
+            "hypothesis": "The policy misses the changed target.",
+            "requested_variation": "Change only the target appearance.",
+            "measurement_need": "Observe target contact and task success.",
+        }
+
+    @staticmethod
+    def _experiment_needs(*, taskgen: bool) -> dict[str, object]:
+        return {
+            "scene_need": {
+                "required": taskgen,
+                "description": (
+                    "Change only the target appearance." if taskgen else None
+                ),
+            },
+            "checker_need": {"required": False, "description": None},
+            "rule_tool_need": {
+                "required": True,
+                "description": (
+                    "Measure contact and success."
+                    if taskgen
+                    else "Reuse the official check_success result."
+                ),
+                "reuse_first": True,
+            },
+            "vqa_tool_need": {
+                "required": False,
+                "description": None,
+                "reuse_first": True,
+            },
+        }
+
+    def test_typed_needs_go_directly_to_generic_proposal_work(self):
+        concern = self._query_concern()
+        needs = self._experiment_needs(taskgen=True)
+
+        resolution = resolve_concern_candidate_domain(
+            concern,
+            experiment_needs=needs,
+        )
+
+        self.assertEqual(
+            resolution,
+            {
+                "schema_version": 1,
+                "decision": "proposal_reuse_or_generate",
+                "resolution": "proposal_reuse_or_generate",
+                "concern": concern,
+                "experiment_needs": needs,
+                "taskgen_required": True,
+                "proposal_selection_required": True,
+                "execution_authorized": True,
+            },
+        )
+        self.assertTrue(
+            concern_candidate_domain_is_executable(
+                resolution,
+                candidate_budget=1,
+            )
+        )
+        self.assertFalse(
+            concern_candidate_domain_is_executable(
+                resolution,
+                candidate_budget=0,
+            )
+        )
+
+    def test_official_only_typed_needs_keep_the_direct_shortcut(self):
+        resolution = resolve_concern_candidate_domain(
+            self._query_concern(),
+            experiment_needs=self._experiment_needs(taskgen=False),
+        )
+
+        self.assertEqual(
+            resolution["resolution"],
+            "official_execution_from_typed_needs",
+        )
+        self.assertEqual(resolution["decision"], "official_execution")
+        self.assertFalse(resolution["taskgen_required"])
+        self.assertNotIn("ranked_aspects", resolution)
+        self.assertTrue(
+            concern_candidate_domain_is_executable(
+                resolution,
+                candidate_budget=0,
+            )
+        )
+
     def test_production_planners_use_retrieval_index_directly(self):
         for source_path in PLANNER_RETRIEVAL_BOUNDARIES:
             with self.subTest(source=source_path.name):

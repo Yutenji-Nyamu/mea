@@ -34,7 +34,7 @@ _INTENT_SCOPE_KEYS = {
 _LEGACY_SCOPE_KEYS = _SCOPE_KEYS - _INTENT_SCOPE_KEYS
 _LIMITATION_KEYS = {"code", "text"}
 _TERMINATIONS = {
-    "evidence_sufficient",
+    "agent_stop",
     "agent_inconclusive_stop",
     # Historical reader compatibility for Batch37 and earlier artifacts.
     "agent_saturation_inconclusive",
@@ -156,25 +156,7 @@ def _unsupported_capabilities(evidence: Mapping[str, Any]) -> list[str]:
 
 
 def _query_assessment(evidence: Mapping[str, Any]) -> Mapping[str, Any] | None:
-    for key in ("query_sufficiency", "query_sufficiency_assessment"):
-        value = evidence.get(key)
-        if isinstance(value, Mapping):
-            return value
-    plan = evidence.get("plan")
-    if isinstance(plan, Mapping):
-        value = plan.get("query_sufficiency")
-        if isinstance(value, Mapping):
-            return value
-    # New evidence uses the paper-aligned Plan Agent session name.  When both
-    # fields exist it is authoritative; the historical field is fallback-only.
-    if "plan_agent_session" in evidence:
-        session = evidence.get("plan_agent_session")
-        if isinstance(session, Mapping):
-            value = session.get("assessment")
-            if isinstance(value, Mapping):
-                return value
-        return None
-    session = evidence.get("claim_first_runtime")
+    session = evidence.get("plan_agent_session")
     if isinstance(session, Mapping):
         value = session.get("assessment")
         if isinstance(value, Mapping):
@@ -364,10 +346,29 @@ def _termination(evidence: Mapping[str, Any]) -> tuple[str, str | None]:
         verdict = assessment.get("claim_verdict")
         sufficient = assessment.get("evidence_sufficient")
         should_stop = assessment.get("should_stop")
-        valid_query_stop = (
+        # Batch37 and earlier evidence used ``evidence_sufficient`` as the
+        # stop reason.  Read it as the paper-aligned Agent-authored stop; do
+        # not carry the retired formal stop-contract state into current evidence.
+        if (
             reason == "evidence_sufficient"
             and sufficient is True
             and should_stop is True
+            and verdict in {"supported", "refuted"}
+        ):
+            reason = "agent_stop"
+        valid_query_stop = (
+            reason == "agent_stop"
+            and should_stop is True
+            and (
+                (
+                    sufficient is True
+                    and verdict in {"supported", "refuted"}
+                )
+                or (
+                    sufficient is False
+                    and verdict == "inconclusive"
+                )
+            )
         ) or (
             reason in {
                 "agent_inconclusive_stop",
@@ -471,28 +472,26 @@ def _canonical_limitations(
             }
         )
     termination_text = {
-        "evidence_sufficient": (
-            "The run stopped because the finite query-sufficiency contract was "
-            "satisfied; this is not a statistical generalization guarantee."
+        "agent_stop": (
+            "The Plan Agent stopped after reading the completed evidence. "
+            "The conclusion remains limited to the recorded task, policy, "
+            "variants, samples, and seeds."
         ),
         "agent_inconclusive_stop": (
             "The Plan Agent declared that it had no further grounded "
-            "Proposal. QueryContract did not independently prove capability-"
-            "space exhaustion; the Query remains inconclusive, the candidate "
-            "universe may remain open, and untested concerns may still exist."
+            "Proposal. The Query remains inconclusive and untested concerns "
+            "may still exist."
         ),
         "agent_saturation_inconclusive": (
-            "Historical Agent-declared saturation stop. QueryContract did not "
-            "independently prove capability-space exhaustion; the Query "
-            "remains inconclusive and untested concerns may still exist."
+            "Historical Agent-declared saturation stop. The Query remains "
+            "inconclusive and untested concerns may still exist."
         ),
         "budget_exhausted": (
-            "The run stopped because its round budget was exhausted before the "
-            "query-sufficiency contract was satisfied."
+            "The run stopped because its external round budget was exhausted "
+            "before the Plan Agent produced a supported answer."
         ),
         "continue": (
-            "The query-sufficiency contract requires more evidence; the current "
-            "answer is interim."
+            "The Plan Agent requested more evidence; the current answer is interim."
         ),
         "control_not_passed": (
             "The unchanged-scene control did not pass, so no property "
@@ -503,7 +502,7 @@ def _canonical_limitations(
             "performance conclusion."
         ),
         "unknown": (
-            "No validated query-sufficiency stop verdict is present in the evidence."
+            "No validated Agent-authored stop verdict is present in the evidence."
         ),
     }[termination]
     limitations.append(
@@ -730,7 +729,11 @@ def validate_answer_scope_projection(
         item for item in conclusion_parts if isinstance(item, str)
     )
     contradictions: list[str] = []
-    if scope["termination"] != "evidence_sufficient" and re.search(
+    decisive_agent_stop = (
+        scope["termination"] == "agent_stop"
+        and scope["claim_verdict"] in {"supported", "refuted"}
+    )
+    if not decisive_agent_stop and re.search(
         r"\b(?:the\s+)?evidence\s+(?:is|was)\s+sufficient\b"
         r"|\bsufficient\s+evidence\b"
         r"|证据(?:已经|已)?(?:充分|足够)"
@@ -739,13 +742,13 @@ def validate_answer_scope_projection(
         re.IGNORECASE,
     ):
         contradictions.append("claims evidence sufficiency without that stop verdict")
-    if scope["termination"] == "evidence_sufficient" and re.search(
+    if decisive_agent_stop and re.search(
         r"\bbudget\s+(?:was\s+)?exhausted\b|\bhard\s+cap\b"
         r"|预算(?:已经|已)?耗尽|达到.{0,8}(?:轮次|预算)上限",
         conclusion,
         re.IGNORECASE,
     ):
-        contradictions.append("claims budget exhaustion despite evidence sufficiency")
+        contradictions.append("claims budget exhaustion despite an Agent stop")
     if scope["untested_candidate_ids"] and re.search(
         r"\b(?:all|every)\s+(?:candidate|variant|condition)s?\s+"
         r"(?:was|were|has\s+been|have\s+been)?\s*tested\b"

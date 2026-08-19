@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 from copy import deepcopy
 from pathlib import Path
@@ -35,12 +34,7 @@ _CHECKS = {
     "does_not_substitute_correlated_proxy",
 }
 _RAW_FIELDS = {"schema_version", "status", "checks", "reason"}
-_BINDING_FIELDS = {
-    "authority",
-    "proposal_semantics_sha256",
-    "checker_sha256",
-    "official_checker_sha256",
-}
+_BINDING_FIELDS = {"authority"}
 _ROBOTWIN_RUNTIME_API_AUTHORITY = """\
 - `self.scene.get_contacts()` returns current PhysX contacts.
 - Each contact body exposes its scene entity as `.entity`.
@@ -63,26 +57,6 @@ _ROBOTWIN_RUNTIME_API_AUTHORITY = """\
 These are established read-only RoboTwin runtime APIs. Do not reject their
 use as unsupported; review whether the code uses them with the exact actor,
 side, simultaneity, and object identities required by the Proposal."""
-
-
-def _canonical_sha256(value: Any) -> str:
-    try:
-        payload = json.dumps(
-            value,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-            allow_nan=False,
-        ).encode("utf-8")
-    except (TypeError, ValueError) as exc:
-        raise CheckerSemanticReviewError(
-            f"semantic-review identity is not canonical JSON: {exc}"
-        ) from exc
-    return hashlib.sha256(payload).hexdigest()
-
-
-def _text_sha256(value: str) -> str:
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 def checker_review_identity(candidate: Mapping[str, Any]) -> dict[str, Any]:
@@ -111,12 +85,6 @@ def checker_review_identity(candidate: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def checker_review_identity_sha256(
-    candidate: Mapping[str, Any],
-) -> str:
-    return _canonical_sha256(checker_review_identity(candidate))
-
-
 def _validate_response(value: Any) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         raise CheckerSemanticReviewError(
@@ -142,13 +110,13 @@ def _validate_response(value: Any) -> dict[str, Any]:
     return review
 
 
-def validate_checker_semantic_review_binding(
-    value: Any,
-    *,
-    candidate: Mapping[str, Any],
-    checker_sha256: str,
-) -> dict[str, Any]:
-    """Fail closed when an approved review is stale or not Proposal-bound."""
+def validate_checker_semantic_review(value: Any) -> dict[str, Any]:
+    """Validate the independent review result itself.
+
+    The readable Task semantic key binds a reused artifact to its Proposal;
+    current simulator/checker/expert preflight validates the copied code.  The
+    review therefore remains a semantic opinion, not a cryptographic gate.
+    """
 
     if not isinstance(value, Mapping):
         raise CheckerSemanticReviewError(
@@ -166,16 +134,14 @@ def validate_checker_semantic_review_binding(
         normalized["status"] != "approved"
         or not all(normalized["checks"].values())
         or review.get("authority") != "development_agent_proxy"
-        or review.get("proposal_semantics_sha256")
-        != checker_review_identity_sha256(candidate)
-        or review.get("checker_sha256") != checker_sha256
-        or not isinstance(review.get("official_checker_sha256"), str)
-        or len(review["official_checker_sha256"]) != 64
     ):
         raise CheckerSemanticReviewError(
-            "generated checker semantic review is rejected or stale"
+            "generated checker semantic review is rejected"
         )
-    return review
+    return {
+        **normalized,
+        "authority": "development_agent_proxy",
+    }
 
 
 def _prompt(
@@ -293,11 +259,6 @@ def review_generated_checker(
     review = {
         **raw_review,
         "authority": "development_agent_proxy",
-        "proposal_semantics_sha256": (
-            checker_review_identity_sha256(candidate)
-        ),
-        "checker_sha256": _text_sha256(generated_checker),
-        "official_checker_sha256": _text_sha256(official_checker),
     }
     (attempt_dir / "checker_semantic_review.json").write_text(
         json.dumps(
@@ -324,7 +285,6 @@ __all__ = [
     "CheckerSemanticReviewError",
     "CheckerSemanticReviewUnavailableError",
     "checker_review_identity",
-    "checker_review_identity_sha256",
     "review_generated_checker",
-    "validate_checker_semantic_review_binding",
+    "validate_checker_semantic_review",
 ]

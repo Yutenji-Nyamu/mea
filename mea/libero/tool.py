@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Mapping
 
 from mea.toolgen.registry import (
@@ -16,21 +17,16 @@ from mea.toolgen.registry import (
 from .benchmark import EpisodeRecord
 
 
-_SOURCE = '''"""Deterministically compiled LIBERO predicate MetricSpec adapter."""
-
-def evaluate_episode(record):
-    if "goal_predicate_satisfied" not in record:
-        raise ValueError("missing goal_predicate_satisfied")
-    value = record["goal_predicate_satisfied"]
-    if not isinstance(value, bool):
-        raise TypeError("goal_predicate_satisfied must be boolean")
+_SOURCE = '''def generated_tool(trajectory):
+    value = trajectory.metadata.get("goal_predicate_satisfied")
+    executed_steps = trajectory.metadata.get("executed_steps", 1)
+    predicates = trajectory.metadata.get("goal_predicates", [])
     return {
-        "tool": "libero_goal_predicate_tool",
         "value": value,
         "unit": None,
         "passed": value,
-        "evidence_steps": [max(0, int(record.get("executed_steps", 1)) - 1)],
-        "details": {"predicate": record.get("goal_predicates", [])},
+        "evidence_steps": [max(0, int(executed_steps) - 1)],
+        "details": {"predicate": predicates},
     }
 '''
 
@@ -41,7 +37,19 @@ def _load_tool(path: Path):
         raise RuntimeError("cannot load compiled LIBERO predicate adapter")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module.evaluate_episode
+    generated_tool = module.generated_tool
+
+    def evaluate_episode(record: Mapping[str, Any]) -> dict[str, Any]:
+        if "goal_predicate_satisfied" not in record:
+            raise ValueError("missing goal_predicate_satisfied")
+        if not isinstance(record["goal_predicate_satisfied"], bool):
+            raise TypeError("goal_predicate_satisfied must be boolean")
+        return {
+            "tool": "libero_goal_predicate_tool",
+            **generated_tool(SimpleNamespace(metadata=dict(record))),
+        }
+
+    return evaluate_episode
 
 
 class LiberoPredicateToolBackend:
@@ -130,30 +138,12 @@ class LiberoPredicateToolBackend:
             raise RuntimeError("LIBERO predicate Tool oracle fixtures failed")
 
         spec = self.tool_spec(episode_record.task_id, goal_predicates)
-        generation_registration = {
-            "tool": "libero_goal_predicate_tool",
-            "validated_episode_count": 1,
-            "validated_property_scenario_count": len(validations) + 1,
-            "oracle_kind": "positive_negative_missing_fixture",
-        }
-        generation_manifest = {
-            "generation_mode": "deterministic_metric_spec_adapter",
-            "model_generated": False,
-            "model_requested": None,
-            "successful_attempt": None,
-            "generator_source_sha256": None,
-            "contract_sha256": None,
-            "example_validation": validations,
-            "source_query": source_query,
-        }
         match = register_run_local_tool(
             self.registry_dir,
             tool_spec=spec,
             episode_dirs=[episode_dir],
             source_path=source_path,
-            generation_registration=generation_registration,
-            generation_manifest=generation_manifest,
-            validation_episodes=validations,
+            tool_id="libero_goal_predicate_tool",
         )
         live = evaluate(
             {

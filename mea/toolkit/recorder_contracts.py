@@ -5,7 +5,11 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any, Mapping
 
-from .schema import actor_access_path_key, validate_task_schema
+from .schema import (
+    actor_access_path_key,
+    resolve_task_actor,
+    validate_task_schema,
+)
 
 
 class RecorderError(RuntimeError):
@@ -275,4 +279,3 @@ def extend_task_schema_with_generated_actors(
 
 
 __all__ = ["RecorderError", "extend_task_schema_with_generated_actors"]
-

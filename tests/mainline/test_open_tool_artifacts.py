@@ -3,17 +3,12 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
-from datetime import datetime, timezone
 from pathlib import Path
 
 from mea.execution_vqa.open_question import (
     OpenVQAQuestionAgent,
     load_run_local_vqa_questions,
     register_run_local_vqa_question,
-)
-from mea.execution_vqa.reviewed_generated_questions import (
-    build_generated_vqa_question_review_template,
-    install_reviewed_generated_vqa_question,
 )
 from mea.toolgen.artifact_context import (
     ToolArtifactContextError,
@@ -342,70 +337,6 @@ class OpenToolArtifactTest(unittest.TestCase):
         )
         self.assertEqual(second_provider.calls, 0)
         self.assertEqual(reused_registration["reuse_count"], 1)
-
-    def test_reviewed_generated_vqa_question_reuses_in_new_evaluation(self):
-        context = build_tool_artifact_context(
-            self.root,
-            task_name="adjust_bottle",
-            proposal=_proposal(),
-            task_artifact_summary=_task_artifact(),
-        )
-        generated = OpenVQAQuestionAgent(
-            _Provider(_question()), model="fixture-model"
-        ).propose(artifact_context=context)
-
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            source_registry = root / "evaluation_a/vqa_registry"
-            reviewed_registry = root / "reviewed_vqa_registry"
-            source = register_run_local_vqa_question(
-                source_registry,
-                generated,
-                artifact_path="evaluation_a/question_bundle.json",
-            )
-            review = build_generated_vqa_question_review_template(
-                source_registry,
-                source["semantic_key"],
-            )
-            review.update(
-                {
-                    "decision": "approved",
-                    "reviewer": {
-                        "id": "development-agent-test",
-                        "kind": "development_agent_proxy",
-                    },
-                    "reviewed_at": datetime.now(timezone.utc).isoformat(),
-                    "notes": "Fixture-only explicit review.",
-                }
-            )
-            review["checks"] = {
-                key: True for key in review["checks"]
-            }
-            install_reviewed_generated_vqa_question(
-                source_registry,
-                source["semantic_key"],
-                review,
-                reviewed_registry,
-            )
-
-            never_called = _Provider(_question())
-            reused = OpenVQAQuestionAgent(
-                never_called, model="fixture-model"
-            ).propose(
-                artifact_context=context,
-                reviewed_registry_dir=reviewed_registry,
-            )
-
-        self.assertEqual(reused["status"], "reused")
-        self.assertEqual(
-            reused["source"],
-            "reviewed_persistent_exact_vqa_need_reuse",
-        )
-        self.assertEqual(reused["question_spec"], generated["question_spec"])
-        self.assertEqual(never_called.calls, 0)
-        self.assertTrue(
-            reused["validation"]["current_rollout_vqa_execution_required"]
-        )
 
 
 if __name__ == "__main__":

@@ -227,8 +227,6 @@ def project_answer_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
     session = evidence.get("plan_agent_session")
     session = session if isinstance(session, dict) else {}
     assessment = session.get("assessment")
-    if not isinstance(assessment, dict):
-        assessment = evidence.get("query_sufficiency")
     query_answer = session.get("query_answer")
     query_answer = query_answer if isinstance(query_answer, dict) else {}
     plan = evidence.get("plan")

@@ -1,8 +1,7 @@
 """Legacy Agent profile parsing and validation for explicit paper protocols.
 
 The production entry point exposes the paper's Plan Agent.  This module owns
-only the hidden
-catalog/fixed/registered and task-specific compatibility surface retained for
+only the hidden catalog/fixed and task-specific compatibility surface retained for
 paper experiments.  Production code imports it lazily after such a profile is
 actually requested or resolved.
 """
@@ -23,19 +22,12 @@ def compat_agent_profile_requested(
 ) -> bool:
     """Return whether parsed arguments select the paper compatibility surface."""
 
-    registered_values = (
-        getattr(args, "evidence_manifest", None),
-        getattr(args, "command_plan", None),
-        getattr(args, "registered_route", None),
-        getattr(args, "registered_strategy", None),
-    )
     return bool(
         requested_open_query_planner == "catalog_step_v1"
         or getattr(args, "task_profile", "official") != "official"
         or getattr(args, "planning_policy", "dynamic_evidence_v1")
         != "dynamic_evidence_v1"
         or getattr(args, "proposal_mode", "catalog") != "catalog"
-        or any(value is not None for value in registered_values)
     )
 
 
@@ -77,38 +69,12 @@ def resolve_compat_agent_profile(
             "do not also select a predeclared --proposal-mode"
         )
 
-    registered_values = (
-        getattr(args, "evidence_manifest", None),
-        getattr(args, "command_plan", None),
-        getattr(args, "registered_route", None),
-        getattr(args, "registered_strategy", None),
-    )
-    if any(value is not None for value in registered_values) and not all(
-        value is not None for value in registered_values
-    ):
-        raise CompatAgentProfileError(
-            "registered execution requires --evidence-manifest, --command-plan, "
-            "--registered-route, and --registered-strategy together"
-        )
-    registered_strategy = getattr(args, "registered_strategy", None)
-    if registered_strategy is not None and getattr(args, "auto_route", False):
-        raise CompatAgentProfileError(
-            "registered execution forbids live --auto-route"
-        )
-    if (
-        registered_strategy is not None
-        and getattr(args, "evaluation_id", None) is None
-    ):
-        raise CompatAgentProfileError(
-            "registered execution requires an explicit --evaluation-id"
-        )
     return {
         "schema_version": 1,
         "open_query_planner": planner,
         "claim_first_mode": claim_first_mode,
         "proposal_mode": proposal_mode,
         "planning_policy": planning_policy,
-        "registered_strategy": registered_strategy,
     }
 
 

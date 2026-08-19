@@ -226,7 +226,7 @@ class GenericTrajectoryTests(unittest.TestCase):
             run_trusted_tools(trajectory, ["hammer_pickup_height"])
 
     def test_runner_rejects_mixed_requested_task(self):
-        with self.assertRaisesRegex(RuntimeError, "混入其他任务"):
+        with self.assertRaisesRegex(RuntimeError, "TaskSchema.task_name 不匹配"):
             evaluate_telemetry_root(
                 self.episode,
                 user_request="评估任务结果",

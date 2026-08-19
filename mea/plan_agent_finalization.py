@@ -98,7 +98,7 @@ class PlanAgentFinalizationMixin:
                 "claim_verdict": "inconclusive",
                 "rationale": (
                     "An external execution cap stopped the run before the "
-                    "query-sufficiency contract was satisfied."
+                    "the Plan Agent produced a supported answer."
                 ),
             }
             final_query_answer = render_query_answer(
@@ -115,7 +115,7 @@ class PlanAgentFinalizationMixin:
             )
         evidence["plan_agent_session"] = {
             "schema_version": 1,
-            "query_contract": runtime_state["query_contract"],
+            "runtime_limits": runtime_state["runtime_limits"],
             "assessment": runtime_state["assessment"],
             "query_answer": final_query_answer,
             "records": runtime_state["records"],

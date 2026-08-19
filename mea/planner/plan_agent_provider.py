@@ -9,7 +9,6 @@ from typing import Any, Mapping, Sequence
 
 from mea.planner.open_task_resolver import (
     EXPERIMENTAL_SUCCESS_CHECKER_GUIDANCE,
-    query_requires_experimental_checker,
 )
 from mea.planner.proposal_execution import (
     ProposalExecutionError,
@@ -24,10 +23,8 @@ from mea.providers.json_response import extract_json_response
 from mea.task_guide import task_guide_from_capabilities
 
 from .plan_agent_schema import (
-    ClaimFirstPlanError,
     PlanAgentError,
     _text,
-    build_open_query_planning_lineage,
     validate_open_query_capabilities,
     validate_open_query_evidence,
     validate_open_query_plan_proposal,
@@ -69,7 +66,6 @@ class PlanAgent:
         task_guide: str = "",
         decision_context: Mapping[str, Any] | None = None,
     ) -> str:
-        checker_required = query_requires_experimental_checker(user_query)
         continue_example = {
             "schema_version": 2,
             "action": "continue",
@@ -81,19 +77,28 @@ class PlanAgent:
                     "bounded diagnostic value."
                 ),
                 "controlled_changes": ["factor: baseline -> diagnostic value"],
-                "preserve": ["task identity", "policy checkpoint"],
+                "preserve": [
+                    {
+                        "actor": None,
+                        "property": "task_identity",
+                        "axis": None,
+                        "relation": "preserve",
+                    },
+                    {
+                        "actor": None,
+                        "property": "policy_checkpoint",
+                        "axis": None,
+                        "relation": "preserve",
+                    },
+                ],
             },
             "scene_need": {
                 "required": True,
                 "description": "Scene construction or adaptation needed.",
             },
             "checker_need": {
-                "required": checker_required,
-                "description": (
-                    "The additional experimental success predicate."
-                    if checker_required
-                    else None
-                ),
+                "required": False,
+                "description": None,
             },
             "rule_tool_need": {
                 "required": True,
@@ -106,6 +111,9 @@ class PlanAgent:
                 "reuse_first": True,
             },
             "rationale": "Why this is the most informative next test for the Query.",
+            "answer": None,
+            "claim_verdict": None,
+            "evidence_sufficient": False,
         }
         stop_example = {
             "schema_version": 2,
@@ -131,6 +139,9 @@ class PlanAgent:
                 "Answer the tested scope or explain why further supported "
                 "experiments are saturated or unsupported."
             ),
+            "answer": "A concise answer to the original Query, or null when inconclusive.",
+            "claim_verdict": "supported",
+            "evidence_sufficient": True,
         }
         intent_section = ""
         if evaluation_intent is not None:
@@ -143,15 +154,8 @@ Do not silently replace it with a nearby diagnostic proxy.  Preserve its
 requested change, preserved conditions, hypothesis, and required observation.
 """
         checker_contract = (
-            "CURRENT QUERY CONTRACT: every action=continue Proposal MUST set "
-            "checker_need.required=true and describe the directly observable "
-            "experimental predicate; false is invalid."
-            if checker_required
-            else (
-                "CURRENT QUERY CONTRACT: checker_need is optional and must be "
-                "requested only when the proposed hypothesis needs a new "
-                "experimental success predicate."
-            )
+            "checker_need is optional. Request it only when your Proposal "
+            "needs success semantics beyond the official task."
         )
         guide_section = (
             "\nBOUND TASK IMPLEMENTATION GUIDE "
@@ -216,8 +220,12 @@ is an execution boundary, not an experiment menu. For action=continue, fill one
 falsifiable sub-aspect and only the independent Task/Tool needs required for
 that experiment; keep both reuse_first fields true. State one concrete bounded
 delta and preserve only conditions backed by an advertised authority. For
-action=stop, clear the perturbation and all artifact needs and state the
-evidence-supported answer or explicit inconclusive limitation. When completed
+every preserve entry, return exactly {{actor, property, axis, relation}}; use
+actor=null for task-wide facts and axis=null unless property is position. For
+action=stop, clear the perturbation and all artifact needs. Set answer,
+claim_verdict, and evidence_sufficient from completed evidence: an answered
+stop needs supported/refuted plus a concise answer; an inconclusive stop uses
+answer=null, claim_verdict=inconclusive, evidence_sufficient=false. When completed
 evidence is non-empty, rationale must name the outcome, Tool value, abstention,
 or failure that changed this decision.
 
@@ -320,15 +328,6 @@ STOP EXAMPLE:
                     )
                 except ProposalExecutionError as exc:
                     raise PlanAgentError(str(exc)) from exc
-                if (
-                    proposal["action"] == "continue"
-                    and query_requires_experimental_checker(query)
-                    and proposal["checker_need"]["required"] is not True
-                ):
-                    raise PlanAgentError(
-                        "the original Query explicitly defines experimental "
-                        "success semantics, so checker_need.required must be true"
-                    )
                 if trusted_intent is not None and proposal["action"] == "continue":
                     scene_need = proposal["scene_need"]
                     checker_need = proposal["checker_need"]
@@ -348,15 +347,9 @@ STOP EXAMPLE:
                         ),
                         scene_need=(
                             {
-                                "description": (
-                                    trusted_intent["requested_change"]
-                                    + "\nPreserve: "
-                                    + "; ".join(
-                                        trusted_intent[
-                                            "preserved_conditions"
-                                        ]
-                                    )
-                                )
+                                "description": trusted_intent[
+                                    "requested_change"
+                                ]
                             }
                             if scene_need["required"]
                             else None
@@ -378,7 +371,7 @@ STOP EXAMPLE:
                         ),
                     )
                     if alignment["relationship"] != "direct":
-                        raise ClaimFirstPlanError(
+                        raise PlanAgentError(
                             "proposal silently pivots to a diagnostic proxy; "
                             "it must directly implement the frozen "
                             "EvaluationIntent. Unmatched intent fields: "
@@ -396,21 +389,13 @@ STOP EXAMPLE:
                 proposal = None
                 self.last_errors.append(f"{type(exc).__name__}: {exc}")
         if proposal is None:
-            raise ClaimFirstPlanError(
+            raise PlanAgentError(
                 "provider failed two open-Query proposal attempts: "
                 + " | ".join(self.last_errors)
             )
-        planning_lineage = build_open_query_planning_lineage(
-            query,
-            trusted_capabilities,
-            trusted_evidence,
-            trusted_intent,
-        )
         return {
             "schema_version": 1,
             "source": "provider_plan_agent_open_query",
-            "input_digest": planning_lineage["input_digest"],
-            "planning_lineage": planning_lineage,
             "proposal": proposal,
             "provider": {
                 "model_requested": self.model,

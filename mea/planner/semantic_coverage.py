@@ -6,7 +6,7 @@ nearby diagnostic before that concern is tested. ``EvaluationIntent`` freezes
 that first candidate's semantics before runtime task binding.
 ``ImplementationTrace`` records whether one generated candidate directly
 implements that intent, is only a diagnostic proxy, or is unsupported. Query
-answer sufficiency remains owned by ``QueryContract``.
+answer sufficiency remains owned by the Plan Agent.
 
 The contract is deliberately small.  It does not attempt to prove natural
 language equivalence; it combines explicit planner declarations with
@@ -16,11 +16,13 @@ the candidate wording does not preserve the requested change and observation.
 
 from __future__ import annotations
 
-import hashlib
-import json
-import re
 from copy import deepcopy
 from typing import Any, Mapping, Sequence
+
+from mea.taskgen.preservation_facts import (
+    PreservationFactError,
+    normalize_preservation_conditions,
+)
 
 
 class SemanticCoverageError(ValueError):
@@ -67,23 +69,6 @@ _INTENT_REQUIREMENT_FIELDS = (
 _RELATIONSHIPS = {"direct", "diagnostic_proxy", "unsupported"}
 _STAGES = {"candidate", "taskgen", "execution"}
 _COVERAGE_STATUSES = {"complete", "partial", "not_covered"}
-_NO_SCENE_CHANGE = re.compile(
-    r"\b(?:keep|reuse|use)\b.{0,40}\b(?:official|unchanged)\b"
-    r"|\b(?:official|scene|appearance)\b.{0,40}\bunchanged\b"
-    r"|\bno\b.{0,40}\b(?:scene|appearance)\b.{0,20}\bvariation\b"
-    r"|保持.{0,24}(?:官方场景|场景|外观).{0,12}不变"
-    r"|复用官方场景|不(?:生成|使用|需要).{0,12}(?:场景)?变体",
-    re.IGNORECASE,
-)
-_EXPLICIT_SCENE_CHANGE = re.compile(
-    r"\b(?:add|enlarge|increase|move|recolor|reduce|remove|replace|resize|"
-    r"rotate|scale|shift|shrink|swap|translate|offset|reposition)\w*\b"
-    r"|(?:增加|增大|放大|移动|偏移|重新定位|换色|重着色|减小|缩小|"
-    r"移除|替换|旋转|缩放|调整(?:为|到)|设(?:置)?为|改为|变为)",
-    re.IGNORECASE,
-)
-
-
 def _text(value: Any, field: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise SemanticCoverageError(f"{field} must be a non-empty string")
@@ -109,17 +94,6 @@ def _string_list(
     return result
 
 
-def _digest(value: Mapping[str, Any]) -> str:
-    return hashlib.sha256(
-        json.dumps(
-            value,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode("utf-8")
-    ).hexdigest()[:16]
-
-
 def build_evaluation_intent(
     *,
     source_query: str,
@@ -127,18 +101,24 @@ def build_evaluation_intent(
     hypothesis: str,
     requested_change: str,
     required_observation: str,
-    preserved_conditions: Sequence[str] = (),
+    preserved_conditions: Sequence[str | Mapping[str, Any]] = (),
 ) -> dict[str, Any]:
     """Freeze one Query-derived candidate before task/checkpoint binding."""
 
+    try:
+        preservation_facts = normalize_preservation_conditions(
+            preserved_conditions
+        )
+    except PreservationFactError as exc:
+        raise SemanticCoverageError(
+            f"preserved_conditions: {exc}"
+        ) from exc
     payload = {
         "source_query": _text(source_query, "source_query"),
         "original_concern": _text(original_concern, "original_concern"),
         "hypothesis": _text(hypothesis, "hypothesis"),
         "requested_change": _text(requested_change, "requested_change"),
-        "preserved_conditions": _string_list(
-            preserved_conditions, "preserved_conditions"
-        ),
+        "preserved_conditions": preservation_facts,
         "required_observation": _text(
             required_observation, "required_observation"
         ),
@@ -146,7 +126,10 @@ def build_evaluation_intent(
     return validate_evaluation_intent(
         {
             "schema_version": 1,
-            "intent_id": f"intent.{_digest(payload)}",
+            # Runtime evidence carries the concrete round/candidate ids.  The
+            # semantic intent needs only a readable local label, not a content
+            # hash or an immutable provenance contract.
+            "intent_id": "intent.query",
             **payload,
         }
     )
@@ -167,197 +150,14 @@ def evaluation_intent_from_query_interpretation(
         concern.get("requested_variation"),
         "query_interpretation.requested_variation",
     )
-    preserved_conditions = list(
-        dict.fromkeys(
-            [
-                *_extract_preserved_conditions(source_query),
-                *_extract_preserved_conditions(requested_variation),
-            ]
-        )
-    )
     return build_evaluation_intent(
         source_query=source_query,
         original_concern=concern.get("sub_aspect"),
         hypothesis=concern.get("hypothesis"),
         requested_change=requested_variation,
         required_observation=concern.get("measurement_need"),
-        preserved_conditions=preserved_conditions,
+        preserved_conditions=concern.get("preserved_conditions") or (),
     )
-
-
-def _extract_preserved_conditions(requested_change: str) -> list[str]:
-    """Best-effort extraction of common explicit keep/fixed clauses.
-
-    This is prompt plumbing, not a natural-language admission gate. Wording
-    outside the recognized set remains in the source Query and is resolved by
-    the Plan Agent or reported unverified by TaskGen.
-    """
-
-    clauses: list[str] = []
-    patterns = (
-        re.compile(
-            r"(?:^|(?<=[;:.!?]))\s*(?:the\s+)?([^;:.!?]+?)\s+must\s+"
-            r"(?:remain|stay)\s+(?:fixed|unchanged|constant)\b",
-            re.IGNORECASE,
-        ),
-        re.compile(
-            r"(?:^|(?<=[;:.!?]))\s*(?:the\s+)?([^;:.!?]+?)\s+"
-            r"(?:remain(?:s)?|stay(?:s)?)\s+"
-            r"(?:fixed|unchanged|constant)\b",
-            re.IGNORECASE,
-        ),
-        re.compile(
-            r"\bwhile\s+(?:keeping|holding|leaving|maintaining|preserving)"
-            r"\s+(.+?)"
-            r"(?:\s+(?:fixed|unchanged|constant))?(?=[.!?]|$)",
-            re.IGNORECASE,
-        ),
-        re.compile(
-            r"\b(?:keep|maintain|preserve)\s+(.+?)\s+"
-            r"(?:fixed|unchanged|constant)\b",
-            re.IGNORECASE,
-        ),
-        re.compile(
-            r"(?:^|(?<=[;:.!?]))\s*\b(?:please\s+)?"
-            r"(?:keep|maintain|preserve)"
-            r"\s+(.+?)(?=[.!?]|$)",
-            re.IGNORECASE,
-        ),
-        re.compile(
-            r"\bwhile\s+(.+?)\s+"
-            r"(?:remain(?:s)?|stay(?:s)?|is|are)\s+"
-            r"(?:fixed|unchanged|constant)\b",
-            re.IGNORECASE,
-        ),
-        re.compile(
-            r"\b(?:ensuring|ensure|so\s+that)\s+(.+?)\s+"
-            r"(?:remain(?:s)?|stay(?:s)?|is|are)\s+"
-            r"(?:fixed|unchanged|constant)\b",
-            re.IGNORECASE,
-        ),
-        re.compile(
-            r"\bwith\s+(.+?)\s+(?:fixed|unchanged|constant)\b",
-            re.IGNORECASE,
-        ),
-        re.compile(
-            r"\bwithout\s+(?:changing|altering|moving|modifying)\s+"
-            r"(.+?)(?=[.!?]|$)",
-            re.IGNORECASE,
-        ),
-        re.compile(
-            r"\bwithout\s+(?:any\s+)?changes?\s+to\s+"
-            r"(.+?)(?=[.!?]|$)",
-            re.IGNORECASE,
-        ),
-        re.compile(
-            r"\b(?:leave|hold)\s+(.+?)\s+"
-            r"(?:fixed|unchanged|constant)\b",
-            re.IGNORECASE,
-        ),
-        re.compile(
-            r"\b(?:do\s+not|don't|must\s+not)\s+"
-            r"(?:change|alter|move|modify)\s+(.+?)(?=[.!?]|$)",
-            re.IGNORECASE,
-        ),
-        re.compile(r"(?:保持|保留)(.+?)(?:不变|固定)"),
-        re.compile(r"(?:不要|不得|不能)(?:改变|移动|修改)(.+?)(?:[。！？]|$)"),
-    )
-    for pattern in patterns:
-        for match in pattern.finditer(requested_change):
-            clause = re.sub(
-                r"\s+(?:fixed|unchanged|constant)\s*$",
-                "",
-                match.group(1).strip(" ,.;"),
-                flags=re.IGNORECASE,
-            )
-            if clause:
-                clauses.append(clause)
-    semantic_invariants = (
-        (
-            re.compile(
-                r"\b(?:preserve|preserves|preserving)\s+(.+?)\s+as\s+"
-                r"(?:a\s+)?required\s+conjunct\b",
-                re.IGNORECASE,
-            ),
-            lambda match: (
-                f"{match.group(1).strip(' ,.;')} as a required conjunct"
-            ),
-        ),
-        (
-            re.compile(
-                r"(?:^|(?<=[;:,.!?]))\s*(?:and\s+)?(?:the\s+)?"
-                r"([^;:,.!?]+?)\s+"
-                r"(?:is|are|must\s+be)\s+(?:a\s+)?required\s+conjunct\b",
-                re.IGNORECASE,
-            ),
-            lambda match: (
-                f"{match.group(1).strip(' ,.;')} as a required conjunct"
-            ),
-        ),
-        (
-            re.compile(
-                r"(?:^|(?<=[;:,.!?]))\s*(?:and\s+)?(?:the\s+)?"
-                r"([^;:,.!?]+?)\s+must\s+"
-                r"(?:remain|stay)\s+(uncontacted|untouched|contact-free|"
-                r"collision-free)\b",
-                re.IGNORECASE,
-            ),
-            lambda match: (
-                f"{match.group(1).strip(' ,.;')} remains {match.group(2)}"
-            ),
-        ),
-    )
-    for pattern, normalize in semantic_invariants:
-        for match in pattern.finditer(requested_change):
-            clause = normalize(match)
-            if clause:
-                clauses.append(clause)
-    # Extraction is deliberately best effort.  An unfamiliar preservation
-    # phrase is not evidence that the Proposal is invalid; the original Query
-    # remains in the Agent context and TaskGen records unknown facts as
-    # unverified.
-    if not clauses:
-        return []
-    conditions: list[str] = []
-    seen: set[str] = set()
-    for clause in clauses:
-        parts = re.split(
-            r"\s*[,;]\s*|\s+\b(?:and|or)\b\s+|、|，|；|和|或",
-            clause,
-        )
-        for part in parts:
-            condition = re.sub(
-                r"^(?:and|or|及|和|或)\s+",
-                "",
-                part.strip(),
-                flags=re.IGNORECASE,
-            ).removeprefix("its ").strip()
-            condition = re.split(
-                r"\b(?:while|ensuring|ensure|so\s+that)\s+(?:the\s+)?",
-                condition,
-                flags=re.IGNORECASE,
-            )[-1].strip().removeprefix("its ").strip()
-            condition = re.sub(
-                r"\s+must$", "", condition, flags=re.IGNORECASE
-            ).strip()
-            if not condition:
-                continue
-            if re.match(
-                r"^(?:add|change|reduce|scale|move|place|test)\b",
-                condition,
-                re.IGNORECASE,
-            ):
-                continue
-            semantic_key = re.sub(
-                r"^(?:the|its|a|an)\s+",
-                "",
-                condition.casefold(),
-            )
-            if semantic_key in seen:
-                continue
-            seen.add(semantic_key)
-            conditions.append(condition)
-    return conditions
 
 
 def validate_evaluation_intent(value: Mapping[str, Any]) -> dict[str, Any]:
@@ -378,37 +178,16 @@ def validate_evaluation_intent(value: Mapping[str, Any]) -> dict[str, Any]:
         "required_observation",
     ):
         intent[field] = _text(intent.get(field), f"EvaluationIntent.{field}")
-    intent["preserved_conditions"] = _string_list(
-        intent.get("preserved_conditions"),
-        "EvaluationIntent.preserved_conditions",
-    )
-    expected_id = "intent." + _digest(
-        {
-            key: intent[key]
-            for key in (
-                "source_query",
-                "original_concern",
-                "hypothesis",
-                "requested_change",
-                "preserved_conditions",
-                "required_observation",
-            )
-        }
-    )
-    if intent["intent_id"] != expected_id:
-        raise SemanticCoverageError(
-            "EvaluationIntent.intent_id does not match its semantic content"
+    try:
+        intent["preserved_conditions"] = normalize_preservation_conditions(
+            intent.get("preserved_conditions"),
+            strict_mappings=True,
         )
+    except PreservationFactError as exc:
+        raise SemanticCoverageError(
+            f"EvaluationIntent.preserved_conditions: {exc}"
+        ) from exc
     return intent
-
-
-def _requests_no_scene_change(requested_change: str) -> bool:
-    """Distinguish an unchanged scene from a changed scene with invariants."""
-
-    return bool(
-        _NO_SCENE_CHANGE.search(requested_change)
-        and not _EXPLICIT_SCENE_CHANGE.search(requested_change)
-    )
 
 
 def validate_intent_alignment(value: Mapping[str, Any]) -> dict[str, Any]:
@@ -489,15 +268,9 @@ def build_candidate_intent_alignment(
     matched = []
     for field in _INTENT_REQUIREMENT_FIELDS:
         if field == "requested_change":
-            no_scene_change = (
-                _requests_no_scene_change(normalized["requested_change"])
-            )
-            if scene_need is None:
-                matched_field = no_scene_change
-            elif no_scene_change:
-                matched_field = False
-            else:
-                matched_field = isinstance(scene_need, Mapping)
+            # Whether a scene artifact is required is a typed Proposal choice.
+            # Do not second-guess it by classifying the Query wording.
+            matched_field = True
         elif field == "preserved_conditions":
             conditions = normalized["preserved_conditions"]
             # Preservation is simulator-authoritative.  Carry explicit

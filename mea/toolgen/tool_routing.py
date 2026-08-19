@@ -6,8 +6,6 @@ import json
 from pathlib import Path
 from typing import Any, Iterable
 
-from mea.toolkit.tools import TrajectoryView
-
 from .metric_spec import (
     MetricSpecError,
     build_task_code_context,
@@ -22,11 +20,6 @@ from .registry import (
     public_registration_summary,
     register_run_local_tool,
 )
-from .reviewed_registry import (
-    ReviewedRegistryError,
-    find_reviewed_registration,
-    public_reviewed_registration_summary,
-)
 from .router import ToolRouterError, route_tool_request
 from .targets import COMPOSITE_TARGETS
 from .tool_contracts import (
@@ -38,9 +31,7 @@ from .tool_contracts import (
 )
 from .tool_execution import (
     _discover_episodes,
-    _execute_reviewed_match,
     _execute_run_local_match,
-    _execute_registry_match,
     _relative,
     _result_projection,
     _role,
@@ -90,7 +81,6 @@ def _execute_typed_metric_request(
     decision: dict[str, Any],
     *,
     registry_root: Path | None,
-    reviewed_root: Path | None,
     task_proposal: dict[str, Any] | None,
     provider: Any | None,
     model: str | None,
@@ -115,100 +105,6 @@ def _execute_typed_metric_request(
         question=request["question"],
         metric_spec=request["metric_spec"],
     )
-    reviewed_match = None
-    typed_episodes: list[dict[str, Any]] = []
-    if reviewed_root is not None:
-        try:
-            reviewed_match = find_reviewed_registration(
-                reviewed_root,
-                tool_spec=typed_tool_spec,
-                episode_dirs=episode_dirs,
-            )
-        except (ReviewedRegistryError, RunLocalRegistryError) as exc:
-            decision["reviewed_lookup"] = {
-                "status": "invalid_registry",
-                "message": str(exc),
-            }
-        if reviewed_match is None and "reviewed_lookup" not in decision:
-            decision["reviewed_lookup"] = {
-                "status": "miss",
-                "registry_dir": _relative(reviewed_root, repo),
-            }
-    if reviewed_match is not None:
-        for episode_dir in episode_dirs:
-            trajectory = TrajectoryView(episode_dir)
-            if (
-                trajectory.metadata.get("error") is not None
-                or trajectory.metadata.get("task_name")
-                != request["task_name"]
-                or trajectory.schema.get("task_name")
-                != request["task_name"]
-            ):
-                raise ToolOrchestrationError(
-                    "reviewed typed Tool telemetry is invalid or task-mismatched"
-                )
-            typed_episodes.append(
-                {
-                    "episode_dir_path": episode_dir,
-                    "policy_name": trajectory.metadata.get("policy_name"),
-                    "seed": trajectory.metadata.get("seed"),
-                    "role": _role(trajectory.metadata.get("policy_name")),
-                    "oracle_result": evaluate_metric_spec(
-                        request["metric_spec"],
-                        trajectory,
-                    ),
-                }
-            )
-        decision.update(
-            {
-                "resolved_route": "reviewed_persistent_reuse",
-                "matched_registry": "reviewed_tool_registry",
-                "reason": (
-                    "exact reviewed typed MetricSpec and current telemetry "
-                    "schema matched"
-                ),
-                "provider_called": False,
-            }
-        )
-        _write_json(destination / "route_decision.json", decision)
-        execution = _execute_registry_match(
-            repo,
-            destination,
-            typed_tool_spec,
-            reviewed_match,
-            typed_episodes,
-            route="reviewed_persistent_reuse",
-            source_scope="reviewed_persistent_registry",
-            registration_id_field="reviewed_registration_id",
-            registry_artifact_key="reviewed_registry",
-            oracle_evaluator=lambda trajectory: evaluate_metric_spec(
-                request["metric_spec"],
-                trajectory,
-            ),
-        )
-        execution.update(
-            {
-                "requested_route": "auto",
-                "tool_request": request,
-                "route_decision": decision,
-            }
-        )
-        execution["validation"]["typed_metric_spec"] = True
-        execution["artifacts"].update(
-            {
-                "tool_request": _relative(
-                    destination / "tool_request.json", repo
-                ),
-                "catalog_snapshot": _relative(
-                    destination / "catalog_snapshot.json", repo
-                ),
-                "route_decision": _relative(
-                    destination / "route_decision.json", repo
-                ),
-            }
-        )
-        _write_json(destination / "tool_execution.json", execution)
-        return execution
     try:
         context = build_task_code_context(
             child_run_dir,
@@ -235,11 +131,11 @@ def _execute_typed_metric_request(
 
     actual_route = str(raw["route"])
     decision["resolved_route"] = actual_route
-    if actual_route == "run_local_reuse":
-        decision["matched_registry"] = "evaluation_local_tool_registry"
+    if actual_route == "semantic_library_reuse":
+        decision["matched_registry"] = "generated_tool_library"
         decision["reason"] = (
-            "exact typed MetricSpec, task, and telemetry schema matched a "
-            "validated evaluation-local Tool"
+            "the semantic key matched a generated Tool and the source was "
+            "revalidated on the current telemetry"
         )
     elif actual_route == "provider_python_codegen":
         decision["matched_registry"] = "query_induced_python_tool"
@@ -302,8 +198,8 @@ def _execute_typed_metric_request(
         "route_decision": decision,
         "source": {
             "scope": (
-                "run_local_registry"
-                if actual_route == "run_local_reuse"
+                "generated_tool_library"
+                if actual_route == "semantic_library_reuse"
                 else "run_local_generated"
             ),
             "tool": request["metric"],
@@ -386,50 +282,38 @@ def _register_generated_for_evaluation(
         spec["reference_tool"],
         spec["task_name"],
     )
-    validation_episodes = [
-        {
-            "episode_dir": _relative(item["episode_dir_path"], repo),
-            "policy_name": item["policy_name"],
-            "seed": item["seed"],
-            "role": item["role"],
-            "oracle_value": item["oracle_result"].get("value"),
-        }
-        for item in episodes
-    ]
     try:
         match = register_run_local_tool(
             registry_root,
             tool_spec=spec,
             episode_dirs=[item["episode_dir_path"] for item in episodes],
             source_path=generated_dir / "generated_tool.py",
-            generation_registration=generation_registration,
-            generation_manifest=manifest,
-            validation_episodes=validation_episodes,
+            tool_id=generation_registration.get("tool"),
         )
     except RunLocalRegistryError as exc:
         raise ToolOrchestrationError(
             f"failed to register generated Tool for this evaluation: {exc}"
         ) from exc
     registration = match["registration"]
-    # Preserve the legacy per-generation registration path while enriching its
-    # contents with the exact reusable contract and compatibility hashes.
+    # Keep the per-generation result readable while the shared library owns
+    # the reusable source.
     _write_json(generation_registration_path, registration)
     manifest["registration"] = registration
     _write_json(manifest_path, manifest)
     execution["source"].update(
         {
             "registration_id": registration["registration_id"],
-            "registration_scope": "run_local",
+            "registration_scope": "generated_artifact_library",
         }
     )
     execution["run_local_registration"] = public_registration_summary(match)
     execution["artifacts"].update(
         {
-            "run_local_registry": _relative(registry_root / "index.json", repo),
-            "run_local_registration": _relative(
+            "generated_tool_library": _relative(registry_root / "index.json", repo),
+            "generated_tool_spec": _relative(
                 match["registration_path"], repo
             ),
-            "run_local_generated_tool": _relative(match["source_path"], repo),
+            "generated_tool_artifact": _relative(match["source_path"], repo),
         }
     )
     return execution
@@ -445,7 +329,6 @@ def execute_tool_request(
     model: str | None = None,
     max_attempts: int = 2,
     run_local_registry_dir: str | Path | None = None,
-    reviewed_registry_dir: str | Path | None = None,
     task_proposal: dict[str, Any] | None = None,
     fixture_episode_dirs: Iterable[str | Path] = (),
     oracle_evaluator: Any | None = None,
@@ -485,11 +368,6 @@ def execute_tool_request(
         if run_local_registry_dir is not None
         else infer_registry_dir(destination)
     )
-    reviewed_root = (
-        Path(reviewed_registry_dir).expanduser().resolve()
-        if reviewed_registry_dir is not None
-        else None
-    )
     if decision["resolved_route"] in {
         "typed_metric_spec_compile",
         "typed_metric_spec_execute",
@@ -502,7 +380,6 @@ def execute_tool_request(
                 request,
                 decision,
                 registry_root=registry_root,
-                reviewed_root=reviewed_root,
                 task_proposal=task_proposal,
                 provider=provider,
                 model=model,
@@ -527,10 +404,9 @@ def execute_tool_request(
 
     spec = _resolved_spec_from_request(request, decision["resolved_route"])
     run_local_match = None
-    reviewed_match = None
     registry_episodes: list[dict[str, Any]] | None = None
     if decision["resolved_route"] == "force_codegen":
-        if registry_root is not None or reviewed_root is not None:
+        if registry_root is not None:
             try:
                 registry_episodes = _discover_episodes(
                     Path(child_run_dir).expanduser().resolve(),
@@ -563,33 +439,9 @@ def execute_tool_request(
                     "registry_dir": _relative(registry_root, repo),
                 }
 
-        if (
-            run_local_match is None
-            and reviewed_root is not None
-            and registry_episodes is not None
-        ):
-            try:
-                reviewed_match = find_reviewed_registration(
-                    reviewed_root,
-                    tool_spec=spec,
-                    episode_dirs=[
-                        item["episode_dir_path"] for item in registry_episodes
-                    ],
-                )
-            except (ReviewedRegistryError, RunLocalRegistryError) as exc:
-                decision["reviewed_lookup"] = {
-                    "status": "invalid_registry",
-                    "message": str(exc),
-                }
-            if reviewed_match is None and "reviewed_lookup" not in decision:
-                decision["reviewed_lookup"] = {
-                    "status": "miss",
-                    "registry_dir": _relative(reviewed_root, repo),
-                }
-
         lookup_audit = {
             key: decision[key]
-            for key in ("run_local_lookup", "reviewed_lookup")
+            for key in ("run_local_lookup",)
             if key in decision
         }
         if run_local_match is not None:
@@ -597,15 +449,6 @@ def execute_tool_request(
                 request,
                 run_local_registration=public_registration_summary(
                     run_local_match
-                ),
-            )
-            snapshot = routing["catalog_snapshot"]
-            decision = routing["route_decision"]
-        elif reviewed_match is not None:
-            routing = route_tool_request(
-                request,
-                reviewed_registration=public_reviewed_registration_summary(
-                    reviewed_match
                 ),
             )
             snapshot = routing["catalog_snapshot"]
@@ -620,14 +463,6 @@ def execute_tool_request(
                 destination,
                 spec,
                 run_local_match,
-                registry_episodes,
-            )
-        elif reviewed_match is not None and registry_episodes is not None:
-            execution = _execute_reviewed_match(
-                repo,
-                destination,
-                spec,
-                reviewed_match,
                 registry_episodes,
             )
         else:

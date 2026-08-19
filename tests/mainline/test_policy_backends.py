@@ -1,4 +1,3 @@
-import hashlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -88,14 +87,10 @@ def _write_official_task(root, task_name: str, description: str) -> None:
 
 
 def _task_context_probe(root, task_name: str) -> dict:
-    source = root / "envs" / f"{task_name}.py"
     return {
         "schema_version": 1,
         "task_name": task_name,
         "official_source": f"envs/{task_name}.py",
-        "official_source_sha256": hashlib.sha256(
-            source.read_bytes()
-        ).hexdigest(),
         "setup_success": True,
         "official_check_success_callable": True,
         "physics_timestep_seconds": 0.004,
@@ -118,7 +113,7 @@ def _task_context_probe(root, task_name: str) -> dict:
 def test_native_generated_task_run_id_is_stable_and_importable():
     run_id = _build_native_run_id("eval_open_query", "round_1", "act")
 
-    assert run_id.startswith("run_native_act_")
+    assert run_id == "run_native_act_eval_open_query_round_1"
     assert validate_provider_run_id(run_id) == run_id
     assert run_id == _build_native_run_id(
         "eval_open_query", "round_1", "act"
@@ -126,6 +121,12 @@ def test_native_generated_task_run_id_is_stable_and_importable():
     assert run_id != _build_native_run_id(
         "eval_open_query", "round_2", "act"
     )
+
+    with pytest.raises(NativeAgentRoundError, match="round_id must contain"):
+        _build_native_run_id("eval_open_query", "round-2", "act")
+
+    with pytest.raises(NativeAgentRoundError, match="path-component limit"):
+        _build_native_run_id("eval_" + "x" * 240, "round_1", "act")
 
 
 def test_legacy_act_binding_remains_readable_without_new_scope_fields():
@@ -371,6 +372,12 @@ def test_runtime_task_context_refreshes_next_plan_agent_capabilities(
     assert refreshed["simulator_card"]["task_context_authority"][
         "schema_origin"
     ] == "runtime_probe"
+    assert refreshed["simulator_card"]["task_context_authority"][
+        "official_source"
+    ] == "envs/alpha_task.py"
+    assert refreshed["simulator_card"]["task_context_authority"][
+        "official_class"
+    ] == "alpha_task"
     assert refreshed["policy_card"]["unknown_metadata"] == []
 
 
@@ -699,51 +706,38 @@ def test_native_taskgen_failure_becomes_n_zero_planning_evidence(tmp_path):
             / kwargs["run_id"]
         )
         attempt_root.mkdir(parents=True)
-        (attempt_root / "task_generation_attempt_summary.json").write_text(
+        (attempt_root / "task_generation_result.json").write_text(
             json.dumps(
                 {
                     "schema_version": 1,
-                    "recovery_scope": "task_generation_before_policy",
-                    "proposal_identity_sha256": hashlib.sha256(
-                        json.dumps(
-                            candidate,
-                            ensure_ascii=False,
-                            sort_keys=True,
-                            separators=(",", ":"),
-                            allow_nan=False,
-                        ).encode("utf-8")
-                    ).hexdigest(),
                     "status": "failed",
-                    "attempts": [
-                        {
-                            "status": "failed_retryable",
-                            "failure": {
-                                "stage": "success_spec",
-                                "failure_kind": "invalid_spec",
-                                "type": "TaskGenerationStageError",
-                                "message": (
-                                    "expert fixture failed with terminal "
-                                    "TCP coordinates"
-                                ),
-                            },
-                            "recovery_action": "repair_success_spec",
-                            "runtime": {"act_rollouts_started": 0},
+                    "generation": {
+                        "status": "failed",
+                        "failure": {
+                            "stage": "success_spec",
+                            "failure_kind": "invalid_spec",
+                            "type": "TaskGenerationStageError",
+                            "message": (
+                                "expert fixture failed with terminal "
+                                "TCP coordinates"
+                            ),
                         },
-                        {
-                            "status": "failed_terminal",
-                            "failure": {
-                                "stage": "preservation_validation",
-                                "failure_kind": "failed",
-                                "type": "TaskGenerationStageError",
-                                "message": (
-                                    "generated task violated a checked "
-                                    "preservation condition"
-                                ),
-                            },
-                            "recovery_action": "regenerate_candidate",
-                            "runtime": {"act_rollouts_started": 0},
-                        }
-                    ],
+                        "runtime": {"act_rollouts_started": 0},
+                    },
+                    "repair": {
+                        "action": "repair_success_spec",
+                        "status": "failed",
+                        "failure": {
+                            "stage": "preservation_validation",
+                            "failure_kind": "failed",
+                            "type": "TaskGenerationStageError",
+                            "message": (
+                                "generated task violated a checked "
+                                "preservation condition"
+                            ),
+                        },
+                        "runtime": {"act_rollouts_started": 0},
+                    },
                     "runtime": {"act_rollouts_started": 0},
                 }
             )
@@ -836,17 +830,8 @@ def test_native_taskgen_system_failures_remain_fatal(tmp_path):
         },
         "task_schema": {"available": True},
     }
-    proposal_sha256 = hashlib.sha256(
-        json.dumps(
-            candidate,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-            allow_nan=False,
-        ).encode("utf-8")
-    ).hexdigest()
     scenarios = (
-        ("missing_summary", None, None, None),
+        ("missing_result", None, None, None),
         ("system_stage", "task_generation", "unclassified_exception", 0),
         ("provider_429", "provider_call", "http_429", 0),
         ("rollout_recorded", "scene_codegen", "invalid_candidate", 1),
@@ -861,29 +846,24 @@ def test_native_taskgen_system_failures_remain_fatal(tmp_path):
                     / kwargs["run_id"]
                 )
                 attempt_root.mkdir(parents=True)
-                summary = {
+                result = {
                     "schema_version": 1,
-                    "recovery_scope": "task_generation_before_policy",
-                    "proposal_identity_sha256": proposal_sha256,
                     "status": "failed",
-                    "attempts": [
-                        {
-                            "status": "failed_terminal",
-                            "failure": {
-                                "stage": stage,
-                                "failure_kind": failure_kind,
-                                "type": "TaskGenerationStageError",
-                                "message": "fixture failure",
-                            },
-                            "runtime": {
-                                "act_rollouts_started": rollout_count
-                            },
-                        }
-                    ],
+                    "generation": {
+                        "status": "failed",
+                        "failure": {
+                            "stage": stage,
+                            "failure_kind": failure_kind,
+                            "type": "TaskGenerationStageError",
+                            "message": "fixture failure",
+                        },
+                        "runtime": {"act_rollouts_started": rollout_count},
+                    },
+                    "repair": None,
                     "runtime": {"act_rollouts_started": rollout_count},
                 }
-                (attempt_root / "task_generation_attempt_summary.json").write_text(
-                    json.dumps(summary) + "\n", encoding="utf-8"
+                (attempt_root / "task_generation_result.json").write_text(
+                    json.dumps(result) + "\n", encoding="utf-8"
                 )
             raise GenericTaskGenError("fixture system failure")
 
@@ -963,7 +943,8 @@ def test_candidate_unexecutable_returns_planning_evidence_without_rollout(
         },
         "task_schema": {"available": True},
     }
-    summary = {
+    generation_result = {
+        "schema_version": 1,
         "status": "failed",
         "runtime": {
             "provider_calls": 2,
@@ -971,24 +952,32 @@ def test_candidate_unexecutable_returns_planning_evidence_without_rollout(
             "expert_probes": 8,
             "act_rollouts_started": 0,
         },
-        "attempts": [
-            {
-                "failure": {
-                    "stage": "expert_gate",
-                    "failure_kind": failure_kind,
-                    "message": (
-                        "generated scene/expert failed official terminal-state "
-                        "authority: target_pose cannot be None"
-                    ),
-                }
-            }
-        ],
+        "generation": {
+            "status": "failed",
+            "runtime": {
+                "provider_calls": 2,
+                "simulator_probes": 4,
+                "expert_probes": 8,
+                "act_rollouts_started": 0,
+            },
+            "failure": {
+                "stage": "expert_gate",
+                "failure_kind": failure_kind,
+                "type": "TaskGenerationStageError",
+                "message": (
+                    "generated scene/expert failed official terminal-state "
+                    "authority: target_pose cannot be None"
+                ),
+                "diagnosis": {},
+            },
+        },
+        "repair": None,
     }
 
     def reject_candidate(*_args, **_kwargs):
         raise CandidateUnexecutableError(
             "TaskGen recovery failed after 2 attempt(s)",
-            summary=summary,
+            result=generation_result,
         )
 
     rollout_calls = []

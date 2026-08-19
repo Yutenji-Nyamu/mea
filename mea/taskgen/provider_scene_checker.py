@@ -15,7 +15,7 @@ from .attempts import (
     REPAIR_SUCCESS_SPEC,
     TaskGenerationRecoveryError,
     TaskGenerationStageError,
-    run_bounded_task_generation,
+    run_task_generation,
 )
 
 _RUN_ID_PATTERN = re.compile(r"run_[A-Za-z0-9_]+")
@@ -53,23 +53,9 @@ _FORBIDDEN_NAMES = {
 
 
 def text_sha256(value: str) -> str:
+    """Compatibility helper for historical task dialects."""
+
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
-
-
-def _canonical_sha256(value: Any) -> str:
-    payload = json.dumps(
-        value, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
-        allow_nan=False,
-    ).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()
-
-
-def _file_sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
 
 
 def _write_json(path: Path, value: Any) -> None:
@@ -229,7 +215,6 @@ def compose_prompt(
         "readme_agent_ref": (
             "mea/taskgen/README.Agent.md" if switches["readme_agent"] else None
         ),
-        "prompt_sha256": text_sha256(prompt),
     }
 
 
@@ -308,13 +293,16 @@ def retrieve_class_methods(
 
 
 def _compatibility_attempt_records(
-    summary: Mapping[str, Any],
+    result: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
-    for raw in summary["attempts"]:
+    for index, raw in enumerate(
+        (result.get("generation"), result.get("repair")), start=1
+    ):
+        if not isinstance(raw, Mapping):
+            continue
         attempt = dict(raw)
         failure = attempt.get("failure")
-        result = attempt.get("result")
         failure_diagnosis = (
             failure.get("diagnosis")
             if isinstance(failure, Mapping)
@@ -324,7 +312,7 @@ def _compatibility_attempt_records(
         accepted = attempt.get("status") == "accepted"
         records.append(
             {
-                "attempt": int(attempt["attempt_index"]),
+                "attempt": index,
                 "status": "validated" if accepted else "validation_failed",
                 "diagnosis": (
                     None
@@ -332,12 +320,7 @@ def _compatibility_attempt_records(
                     else str((failure or {}).get("message") or "validation failed")
                 ),
                 "provider_metadata": dict(
-                    (
-                        result.get("provider_metadata")
-                        if isinstance(result, Mapping)
-                        else None
-                    )
-                    or failure_diagnosis.get("provider_metadata")
+                    failure_diagnosis.get("provider_metadata")
                     or {}
                 ),
             }
@@ -349,19 +332,21 @@ def _write_compatibility_attempts(
     destination: Path,
     *,
     attempt_root: Path,
-    summary: Mapping[str, Any],
+    result: Mapping[str, Any],
 ) -> None:
     destination.mkdir(parents=True, exist_ok=False)
-    for record in _compatibility_attempt_records(summary):
+    for record in _compatibility_attempt_records(result):
         number = int(record["attempt"])
-        source = attempt_root / f"attempt_{number:02d}" / "provider_response.txt"
+        source = attempt_root / (
+            "generation" if number == 1 else "repair"
+        ) / "provider_response.txt"
         if not source.is_file():
             raise ValueError(f"provider attempt response is missing: {source}")
         (destination / f"attempt_{number:02d}_response.txt").write_text(
             source.read_text(encoding="utf-8").rstrip("\n") + "\n",
             encoding="utf-8",
         )
-    _write_json(destination / "attempts.json", _compatibility_attempt_records(summary))
+    _write_json(destination / "attempts.json", _compatibility_attempt_records(result))
 
 
 def _write_codegen_failure_artifacts(
@@ -371,7 +356,7 @@ def _write_codegen_failure_artifacts(
     prompt: str,
     model: str,
     attempt_root: Path,
-    summary: Mapping[str, Any],
+    result: Mapping[str, Any],
 ) -> None:
     if run_dir.exists():
         raise ValueError(f"candidate run directory already exists: {run_dir}")
@@ -381,9 +366,13 @@ def _write_codegen_failure_artifacts(
     _write_compatibility_attempts(
         run_dir / "provider_attempts",
         attempt_root=attempt_root,
-        summary=summary,
+        result=result,
     )
-    final_failure = summary["attempts"][-1].get("failure") or {}
+    final_failure = (
+        (result.get("repair") or {}).get("failure")
+        or (result.get("generation") or {}).get("failure")
+        or {}
+    )
     _write_json(
         run_dir / "failure_manifest.json",
         {
@@ -392,8 +381,8 @@ def _write_codegen_failure_artifacts(
             "run_id": run_dir.name,
             "task_name": proposal["task_name"],
             "model_requested": model,
-            "provider_call_count": summary["runtime"]["provider_calls"],
-            "local_regeneration_count": summary["regenerations_used"],
+            "provider_call_count": result["runtime"]["provider_calls"],
+            "local_repair_count": int(result.get("repair") is not None),
             "final_diagnosis": str(
                 final_failure.get("message") or "validation failed"
             ),
@@ -414,7 +403,7 @@ def run_provider_codegen(
     max_regenerations: int = 1,
     failure_run_dir: str | Path | None = None,
 ) -> dict[str, Any]:
-    """Use the existing TaskGenerationAttempt controller for provider retries."""
+    """Generate and validate once, with at most one diagnosis-guided repair."""
 
     attempt_path = Path(attempt_root)
     state: dict[str, Any] = {"attempt_root": str(attempt_path)}
@@ -675,11 +664,10 @@ def run_provider_codegen(
         }
 
     try:
-        summary = run_bounded_task_generation(
+        result = run_task_generation(
             attempt_path,
-            proposal_identity=proposal,
-            execute_attempt=execute_attempt,
-            max_regenerations=max_regenerations,
+            execute=execute_attempt,
+            allow_repair=max_regenerations == 1,
         )
     except TaskGenerationRecoveryError as exc:
         if failure_run_dir is not None:
@@ -689,10 +677,12 @@ def run_provider_codegen(
                 prompt=prompt,
                 model=model,
                 attempt_root=attempt_path,
-                summary=exc.summary,
+                result=exc.result,
             )
         final_failure = (
-            (exc.summary.get("attempts") or [{}])[-1].get("failure") or {}
+            (exc.result.get("repair") or {}).get("failure")
+            or (exc.result.get("generation") or {}).get("failure")
+            or {}
         )
         if (
             final_failure.get("stage") == "expert_gate"
@@ -700,10 +690,10 @@ def run_provider_codegen(
             in {"candidate_unexecutable", "official_baseline_unsolvable"}
         ):
             raise CandidateUnexecutableError(
-                str(exc), summary=exc.summary
+                str(exc), result=exc.result
             ) from exc
         raise error_type(str(exc)) from exc
-    state["attempt_summary"] = summary
+    state["generation_result"] = result
     return state
 
 
@@ -748,7 +738,7 @@ def write_candidate_artifacts(
         validation.get("official_reused_methods") or []
     )
     _write_json(root / "checker_fixtures.json", fixtures)
-    summary = dict(generated["attempt_summary"])
+    generation_result = dict(generated["generation_result"])
     checker_semantic_review = validation.get("checker_semantic_review")
     if isinstance(checker_semantic_review, Mapping):
         checker_semantic_review = dict(checker_semantic_review)
@@ -756,10 +746,9 @@ def write_candidate_artifacts(
             root / "checker_semantic_review.json",
             checker_semantic_review,
         )
-        accepted_attempt = int(summary["attempts"][-1]["attempt_index"])
         review_attempt = (
             Path(str(generated["attempt_root"]))
-            / f"attempt_{accepted_attempt:02d}"
+            / ("repair" if generation_result.get("repair") else "generation")
         )
         for source_name, destination_name in (
             (
@@ -787,21 +776,38 @@ def write_candidate_artifacts(
         _write_compatibility_attempts(
             root / "provider_attempts",
             attempt_root=Path(str(generated["attempt_root"])),
-            summary=summary,
+            result=generation_result,
         )
     else:
-        _write_json(root / "provider_attempts.json", summary)
+        _write_json(root / "task_generation_result.json", generation_result)
     run_id = root.name
+    legacy_hashes = (
+        {
+            "proposal_sha256": hashlib.sha256(
+                json.dumps(
+                    proposal,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    allow_nan=False,
+                ).encode("utf-8")
+            ).hexdigest(),
+            "module_sha256": hashlib.sha256(
+                (root / "task.py").read_bytes()
+            ).hexdigest(),
+            "scene_method_sha256": validation["scene_sha256"],
+            "success_method_sha256": validation["success_sha256"],
+        }
+        if compatibility_attempt_directory
+        else {}
+    )
     manifest = {
         "schema_version": 1,
         "status": "fixture_validated_candidate_not_production_accepted",
         "run_id": run_id,
         "task_name": task_name,
         "task_module": f"mea.generated_tasks.{run_id}.task",
-        "proposal_sha256": _canonical_sha256(proposal),
-        "module_sha256": _file_sha256(root / "task.py"),
-        "scene_method_sha256": validation["scene_sha256"],
-        "success_method_sha256": validation["success_sha256"],
+        **legacy_hashes,
         "codegen_provenance": {
             "source_kind": "provider_response_python",
             "provider_called": True,
@@ -810,14 +816,13 @@ def write_candidate_artifacts(
             "official_reused_methods": official_reused_methods,
             "model_requested": model,
             "provider_metadata": dict(generated["provider_metadata"]),
-            "provider_call_count": summary["runtime"]["provider_calls"],
-            "local_regeneration_count": summary["regenerations_used"],
-            "local_regeneration_limit": summary["max_regenerations"],
+            "provider_call_count": generation_result["runtime"]["provider_calls"],
+            "local_repair_count": int(generation_result.get("repair") is not None),
+            "local_repair_limit": 1,
             "restricted_success_spec_compiler_used": False,
             "ast_policy": validation["policy"],
             "taskgen_ablation_switches": dict(prompt_context["switches"]),
             "prompt_components": dict(prompt_context["components"]),
-            "prompt_sha256": prompt_context["prompt_sha256"],
             "readme_agent_ref": prompt_context["readme_agent_ref"],
         },
         "checker_semantic_review": checker_semantic_review,

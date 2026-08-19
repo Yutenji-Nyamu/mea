@@ -40,8 +40,6 @@ def build_taskgen_command(
     gpu: int,
     max_reflections: int,
     telemetry_profile: str = "balanced_v1",
-    reviewed_task_registry: Path | None = None,
-    registration_identity: dict[str, Any] | None = None,
     run_id_suffix: str = "",
 ) -> tuple[list[str], str]:
     # This command builder is the legacy capability/TaskProposal boundary.
@@ -198,20 +196,6 @@ def build_taskgen_command(
         command.extend(["--expert", "--vision-check", "--run-act"])
     if base_url:
         command.extend(["--base-url", base_url])
-    if reviewed_task_registry is not None:
-        command.extend(["--reviewed-task-registry", str(reviewed_task_registry)])
-    if registration_identity is not None:
-        command.extend(
-            [
-                "--registration-identity-json",
-                json.dumps(
-                    registration_identity,
-                    ensure_ascii=False,
-                    sort_keys=True,
-                    separators=(",", ":"),
-                ),
-            ]
-        )
     return command, run_id
 
 

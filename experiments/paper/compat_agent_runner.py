@@ -83,8 +83,7 @@ def run_logged(command: list[str], *, cwd: Path, log_path: Path) -> int:
 def _build_round_executor(
     *,
     native_act: bool,
-    reviewed_task_registry: Path | None = None,
-    registration_identity: dict[str, Any] | None = None,
+    base_url: str | None = None,
 ) -> RoundExecutor:
     """Build the compatibility executor used by the historical wrapper API."""
 
@@ -110,9 +109,8 @@ def _build_round_executor(
             build_taskgen_command=taskgen_round_materialization.build_taskgen_command,
             run_logged=run_logged,
             native_policy_rounds=native_policy_rounds,
+            base_url=base_url,
         ),
-        reviewed_task_registry=reviewed_task_registry,
-        registration_identity=registration_identity,
     )
 
 
@@ -130,10 +128,6 @@ def execute_round(
     provider: Any,
     toolgen_model: str,
     telemetry_profile: str = "balanced_v1",
-    reviewed_task_registry: Path | None = None,
-    reviewed_tool_registry: Path | None = None,
-    reviewed_vqa_registry: Path | None = None,
-    registration_identity: dict[str, Any] | None = None,
     policy_backend: str = "act",
     runtime_target: Mapping[str, Any] | None = None,
     smolvla_port: int = 18771,
@@ -153,8 +147,6 @@ def execute_round(
         provider=provider,
         toolgen_model=toolgen_model,
         telemetry_profile=telemetry_profile,
-        reviewed_tool_registry=reviewed_tool_registry,
-        reviewed_vqa_registry=reviewed_vqa_registry,
         policy_backend=policy_backend,
         runtime_target=runtime_target,
         policy_server_port=(
@@ -164,11 +156,7 @@ def execute_round(
     executor = (
         build_production_round_executor()
         if policy_backend != "act" or runtime_target is not None
-        else _build_round_executor(
-            native_act=False,
-            reviewed_task_registry=reviewed_task_registry,
-            registration_identity=registration_identity,
-        )
+        else _build_round_executor(native_act=False, base_url=base_url)
     )
     result = executor.execute(request)
     return (
@@ -191,15 +179,11 @@ def run_legacy_catalog_agent(
     plan_session: Any,
     adaptive_step_agent: Any,
     planning_context: dict[str, Any] | None,
-    registered_execution: dict[str, Any] | None,
     proposal_agent: Any,
     fixed_click_bell: bool,
     legacy_click_bell: bool,
     provider: Any,
     models: Mapping[str, str],
-    reviewed_tool_registry: Path | None,
-    reviewed_vqa_registry: Path | None,
-    registration_identity: dict[str, Any] | None,
     runtime_target: Mapping[str, Any] | None,
     history_database: Any,
     history_retrieval: Mapping[str, Any],
@@ -228,8 +212,6 @@ def run_legacy_catalog_agent(
                     provider=provider,
                     toolgen_model=models["toolgen"],
                     telemetry_profile=args.telemetry_profile,
-                    reviewed_tool_registry=reviewed_tool_registry,
-                    reviewed_vqa_registry=reviewed_vqa_registry,
                     policy_backend=args.policy_backend,
                     runtime_target=runtime_target,
                     policy_server_port=(
@@ -286,11 +268,7 @@ def run_legacy_catalog_agent(
                 navigation_options = plan_session.navigation_options(
                     plan_before_decision,
                     observation_history,
-                    allowed_template_ids=(
-                        registered_execution["expected_candidate_suite"]
-                        if registered_execution is not None
-                        else None
-                    ),
+                    allowed_template_ids=None,
                 )
                 step_bundle = adaptive_step_agent.propose(
                     args.request,

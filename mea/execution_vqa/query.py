@@ -10,7 +10,6 @@ then a bounded task-neutral tracked-object question.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 from copy import deepcopy
@@ -276,25 +275,18 @@ def is_run_local_phenomenon_id(value: Any) -> bool:
 
 
 def vqa_need_semantic_key(*, task_name: str, vqa_need: str) -> str:
-    """Return the task-scoped identity shared by VQA question registries."""
+    """Return a readable task-scoped key for generated VQA retrieval."""
 
     def normalized(value: Any, *, field: str) -> str:
         if not isinstance(value, str) or not value.strip():
             raise ExecutionVQAQueryError(f"{field} must be a non-empty string")
         return " ".join(value.casefold().split())
 
-    payload = {
-        "task_name": normalized(task_name, field="task_name"),
-        "vqa_need": normalized(vqa_need, field="vqa_need"),
-    }
-    return hashlib.sha256(
-        json.dumps(
-            payload,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode("utf-8")
-    ).hexdigest()
+    return (
+        normalized(task_name, field="task_name")
+        + " :: "
+        + normalized(vqa_need, field="vqa_need")
+    )
 
 
 def validate_run_local_question_spec(value: Any) -> dict[str, Any]:
@@ -387,7 +379,6 @@ def build_execution_vqa_query(
     tool_contract: Mapping[str, Any] | None = None,
     proposed_phenomenon_ids: list[str] | None = None,
     proposed_question_specs: list[Mapping[str, Any]] | None = None,
-    reviewed_registry_dir: str | Path | None = None,
 ) -> dict[str, Any]:
     """Build a deterministic, bounded visual query contract.
 
@@ -514,27 +505,6 @@ def build_execution_vqa_query(
     elif not explicit_proposal and metric in METRIC_QUESTION_RULES:
         _append_unique(selected, METRIC_QUESTION_RULES[metric])
         reasons.append(f"tool_metric:{metric}")
-
-    if reviewed_registry_dir is not None and not explicit_proposal:
-        from .reviewed_registry import (
-            load_reviewed_vqa_query_specs,
-            match_reviewed_vqa_query_spec,
-        )
-
-        reviewed_entries = load_reviewed_vqa_query_specs(reviewed_registry_dir)
-        reviewed = match_reviewed_vqa_query_spec(
-            reviewed_entries,
-            task_name=task,
-            template_id=template,
-            sub_aspect=aspect,
-            tool_metric=metric,
-        )
-        if reviewed is not None:
-            selected = list(reviewed["spec"]["phenomenon_ids"])
-            reasons = [
-                "reviewed_vqa_query_spec:"
-                f"{reviewed['spec']['spec_id']}:{reviewed['spec_sha256']}"
-            ]
 
     if not selected and context_supplied:
         task_owned_ids = _task_owned_fallback_phenomena(task)

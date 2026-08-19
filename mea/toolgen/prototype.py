@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import ast
-import hashlib
 import inspect
 import json
 import math
@@ -191,28 +190,16 @@ ALLOWED_VALUE_ATTRIBUTES = {
 }
 
 
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def _artifact_hashes(episode_dir: Path) -> dict[str, str]:
+def _require_core_artifacts(episode_dir: Path) -> None:
     missing = [
         name for name in CORE_ARTIFACTS if not (episode_dir / name).is_file()
     ]
     if missing:
         raise ToolGenError(f"trajectory 缺少 core artifacts: {missing}")
-    return {
-        name: _sha256(episode_dir / name)
-        for name in CORE_ARTIFACTS
-    }
 
 
 def _validate_episode_for_toolgen(episode_dir: Path) -> TrajectoryView:
-    _artifact_hashes(episode_dir)
+    _require_core_artifacts(episode_dir)
     trajectory = TrajectoryView(episode_dir)
     if trajectory.metadata.get("error") is not None:
         raise ToolGenError("ToolGen 不接受带 episode error 的不完整 trajectory")
@@ -237,7 +224,7 @@ def _validate_episode_for_toolgen(
 
     if supported_task_names is None or supported_task_names == {"beat_block_hammer"}:
         return _validate_bbh_episode_for_toolgen(episode_dir)
-    _artifact_hashes(episode_dir)
+    _require_core_artifacts(episode_dir)
     trajectory = TrajectoryView(episode_dir)
     if trajectory.metadata.get("error") is not None:
         raise ToolGenError("ToolGen does not accept an episode with an error")
@@ -250,10 +237,6 @@ def _validate_episode_for_toolgen(
             "ToolGen requires matching metadata/schema for a target-supported task"
         )
     return trajectory
-
-
-def _source_hash(source: str) -> str:
-    return hashlib.sha256(source.encode("utf-8")).hexdigest()
 
 
 def _write_json(path: Path, value: Any) -> None:
@@ -405,7 +388,6 @@ def validate_generated_tool(source: str) -> dict[str, Any]:
     return {
         "valid": True,
         "function_name": "generated_tool",
-        "source_sha256": _source_hash(source),
         "ast_node_count": sum(1 for _ in ast.walk(tree)),
     }
 
@@ -458,11 +440,11 @@ def _validate_payload(
 
 
 def _load_function(source: str):
-    validation = validate_generated_tool(source)
+    validate_generated_tool(source)
     globals_dict = {"__builtins__": SAFE_BUILTINS, "np": np}
     locals_dict: dict[str, Any] = {}
     exec(compile(source, "<generated_tool>", "exec"), globals_dict, locals_dict)
-    return locals_dict["generated_tool"], validation
+    return locals_dict["generated_tool"]
 
 
 def _execute_generated_tool_in_process(
@@ -473,14 +455,13 @@ def _execute_generated_tool_in_process(
 ) -> dict[str, Any]:
     """Execute one validated function on a fresh trajectory view."""
 
-    function, validation = _load_function(source)
+    function = _load_function(source)
     trajectory = TrajectoryView(episode_dir)
     payload = _validate_payload(function(trajectory), trajectory)
     return {
         "tool": tool_name,
         "version": 1,
         "generated": True,
-        "tool_sha256": validation["source_sha256"],
         **payload,
     }
 
@@ -656,13 +637,12 @@ def _execute_on_trajectory(
     *,
     tool_name: str,
 ) -> dict[str, Any]:
-    function, validation = _load_function(source)
+    function = _load_function(source)
     payload = _validate_payload(function(trajectory), trajectory)
     return {
         "tool": tool_name,
         "version": 1,
         "generated": True,
-        "tool_sha256": validation["source_sha256"],
         **payload,
     }
 
@@ -720,7 +700,6 @@ def retrieve_examples(
             "name": name,
             "description": item["description"],
             "matched_tags": matches,
-            "source_sha256": _source_hash(inspect.getsource(item["function"])),
             "source": inspect.getsource(item["function"]),
         }
         for _, name, matches, item in ranked[:effective_limit]
@@ -841,7 +820,6 @@ def _verify_examples(
         validations.append(
             {
                 "name": example["name"],
-                "source_sha256": _source_hash(source),
                 "episodes": episode_results,
             }
         )
@@ -982,10 +960,6 @@ class ToolGenPrototype:
             "status": "generating",
             "created_at": datetime.now().astimezone().isoformat(),
             "base_commit": _git_head(self.repo_root),
-            "generator_source_sha256": _sha256(Path(__file__)),
-            "contract_sha256": _sha256(
-                self.repo_root / "mea/toolgen/README.Agent.md"
-            ),
             "model_requested": self.model,
             "target_metric": target_metric,
             "reference_tool": reference_tool,
@@ -1053,7 +1027,10 @@ class ToolGenPrototype:
                 static_validation = validate_generated_tool(source)
                 episode_results = []
                 for episode in episodes:
-                    hashes_before = _artifact_hashes(episode)
+                    mtimes_before = {
+                        name: (episode / name).stat().st_mtime_ns
+                        for name in CORE_ARTIFACTS
+                    }
                     first = execute_generated_tool(
                         source, episode, tool_name=tool_name
                     )
@@ -1070,8 +1047,11 @@ class ToolGenPrototype:
                         key: first.get(key) for key in RESULT_KEYS
                     }
                     agreement = _equal(generated_payload, expected)
-                    hashes_after = _artifact_hashes(episode)
-                    artifacts_unchanged = hashes_before == hashes_after
+                    mtimes_after = {
+                        name: (episode / name).stat().st_mtime_ns
+                        for name in CORE_ARTIFACTS
+                    }
+                    artifacts_unchanged = mtimes_before == mtimes_after
                     result = {
                         "episode_dir": str(episode),
                         "policy_name": TrajectoryView(episode).metadata.get(
@@ -1088,7 +1068,6 @@ class ToolGenPrototype:
                         "deterministic": deterministic,
                         "oracle_agreement": agreement,
                         "artifacts_unchanged": artifacts_unchanged,
-                        "artifact_sha256": hashes_after,
                     }
                     episode_results.append(result)
                     if not deterministic:
@@ -1161,7 +1140,6 @@ class ToolGenPrototype:
                     "status": "validated",
                     "tool": tool_name,
                     "source": "generated_tool.py",
-                    "tool_sha256": static_validation["source_sha256"],
                     "target_metric": target_metric,
                     "reference_tool": reference_tool,
                     "oracle_kind": definition["oracle_kind"],
@@ -1174,7 +1152,6 @@ class ToolGenPrototype:
                         "status": "passed",
                         "completed_at": datetime.now().astimezone().isoformat(),
                         "successful_attempt": attempt_index,
-                        "tool_sha256": static_validation["source_sha256"],
                         "provider": provider_metadata,
                         "failures": failures,
                         "registration": registration,

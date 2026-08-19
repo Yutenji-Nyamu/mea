@@ -24,19 +24,22 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from mea.taskgen.preservation_facts import (
+    PreservationFactError,
+    normalize_preservation_conditions,
+)
 from mea.toolkit.schema import (
     TaskSchemaError,
     load_task_schema,
     task_schema_path,
 )
-from mea.planner.query_contract import query_is_official_only
 
 
 class OpenTaskResolutionError(ValueError):
     """Raised when an open concern or task-resolution contract is invalid."""
 
 
-_CONCERN_KEYS = {
+_LEGACY_CONCERN_KEYS = {
     "schema_version",
     "source_query",
     "sub_aspect",
@@ -45,6 +48,7 @@ _CONCERN_KEYS = {
     "requested_variation",
     "measurement_need",
 }
+_CONCERN_KEYS = _LEGACY_CONCERN_KEYS | {"preserved_conditions"}
 _EXPERIMENT_NEED_FIELDS = (
     "scene_need",
     "checker_need",
@@ -83,44 +87,15 @@ _STOPWORDS = {
     "using",
     "with",
 }
-_EXPLICIT_SUCCESS_SEMANTICS = re.compile(
-    r"(?:define|defined|definition)\s+(?:of\s+)?"
-    r"(?:(?:experimental|bounded|additional)\s+){0,2}success"
-    r"|success\s+(?:means|requires|iff|if\s+and\s+only\s+if)"
-    r"|(?:successful?\s+(?:sample|episode)|成功样本).{0,40}"
-    r"(?:where|in\s+which|such\s+that|使|其中|要求|必须)"
-    r"|(?<!official_)check_success\s*(?:means|requires|iff)"
-    r"|(?:experimental\s+checker|generated\s+checker).{0,80}"
-    r"(?:must|shall|required).{0,80}"
-    r"(?:official\s+(?:success|goal|predicate)|required\s+conjunct|"
-    r"additional\s+(?:relation|condition|predicate))"
-    r"|(?:generate|create)\s+(?:an?\s+)?"
-    r"(?:experimental|generated)\s+checker.{0,120}"
-    r"(?:official\s+(?:success|goal|predicate)|required\s+conjunct|"
-    r"additional\s+(?:relation|condition|predicate))"
-    r"|(?:把|将)?成功(?:条件)?定义为"
-    r"|以.{1,80}为成功(?:条件)?",
-    re.IGNORECASE,
-)
-_EXPLICIT_SCALAR_OBSERVATION = re.compile(
-    r"\b(?:scalar|numeric|distance|magnitude|continuous value)\b",
-    re.IGNORECASE,
-)
-_TRAJECTORY_DERIVED_CHECKER = re.compile(
-    r"\b(?:trajectory|path|motion)\b.{0,80}"
-    r"\b(?:smooth|deviation|jerk|oscillat|clearance|distance|length|threshold)\b"
-    r"|\b(?:smooth|deviation|jerk|oscillat|clearance|path length)\b.{0,80}"
-    r"\b(?:trajectory|path|motion)\b",
-    re.IGNORECASE,
-)
 EXPERIMENTAL_SUCCESS_CHECKER_GUIDANCE = (
     "If a Query calls an episode successful only when the official goal and "
     "any additional experimental condition both hold, request checker_need. A numeric "
     "difference Tool reports magnitude but cannot supply that pass/fail "
     "predicate. Mentioning the official goal or official predicate as one "
     "component of a combined condition does not make the Query official-only; "
-    "record that invariant as 'official core predicate as a required "
-    "conjunct', never as full official-success equivalence, and preserve every "
+    "record that invariant as a typed fact with property=official_goal and "
+    "relation=required_conjunct, never as full official-success equivalence, "
+    "and preserve every "
     "additional condition from the original Query. When both "
     "checker_need and rule_tool_need are required, keep their roles distinct: "
     "checker_need must describe a boolean conjunction such as 'official goal "
@@ -235,112 +210,34 @@ def _split_free_concern_response(
     """Accept legacy concern-only fixtures and the production typed response."""
 
     supplied = set(value) if isinstance(value, Mapping) else set()
-    if supplied == _CONCERN_KEYS:
+    if supplied == _CONCERN_KEYS or supplied == _LEGACY_CONCERN_KEYS:
         return (
             validate_free_concern(value, expected_query=expected_query),
             None,
         )
     expected = _CONCERN_KEYS | set(_EXPERIMENT_NEED_FIELDS)
-    if supplied != expected:
+    legacy_expected = _LEGACY_CONCERN_KEYS | set(_EXPERIMENT_NEED_FIELDS)
+    if supplied != expected and supplied != legacy_expected:
         raise OpenTaskResolutionError(
             "FreeConcern response fields must match the concern-only or typed "
             f"shape; received {sorted(supplied)}"
         )
     concern = {
         field: value[field]
-        for field in _CONCERN_KEYS
+        for field in (
+            _CONCERN_KEYS
+            if "preserved_conditions" in value
+            else _LEGACY_CONCERN_KEYS
+        )
     }
     needs = {
         field: value[field]
         for field in _EXPERIMENT_NEED_FIELDS
     }
-    if query_is_official_only(expected_query):
-        concern["requested_variation"] = (
-            "reuse the unchanged official scene and task"
-        )
-        concern["measurement_need"] = (
-            "Observe the official check_success() boolean result."
-        )
-        needs["rule_tool_need"] = {
-            "required": True,
-            "description": (
-                "Retrieve and reuse the official check_success() result as "
-                "the primary boolean observation."
-            ),
-            "reuse_first": True,
-        }
     return (
         validate_free_concern(concern, expected_query=expected_query),
         validate_free_concern_experiment_needs(needs),
     )
-
-
-def _validate_query_required_needs(
-    user_query: str,
-    needs: Mapping[str, Any] | None,
-) -> None:
-    """Reject a Proposal that drops explicit success semantics from the Query."""
-
-    if query_is_official_only(user_query):
-        if not isinstance(needs, Mapping):
-            raise OpenTaskResolutionError(
-                "an official-only Query requires explicit official Rule Tool reuse"
-            )
-        rule = needs.get("rule_tool_need")
-        forbidden = (
-            needs.get("scene_need"),
-            needs.get("checker_need"),
-            needs.get("vqa_tool_need"),
-        )
-        if (
-            not isinstance(rule, Mapping)
-            or rule.get("required") is not True
-            or any(
-                isinstance(need, Mapping) and need.get("required") is True
-                for need in forbidden
-            )
-        ):
-            raise OpenTaskResolutionError(
-                "an official-only Query must request only official Rule Tool reuse"
-            )
-    if _EXPLICIT_SUCCESS_SEMANTICS.search(user_query) is None:
-        return
-    checker = needs.get("checker_need") if isinstance(needs, Mapping) else None
-    if not isinstance(checker, Mapping) or checker.get("required") is not True:
-        raise OpenTaskResolutionError(
-            "the original Query explicitly defines experimental success "
-            "semantics, so checker_need.required must be true"
-        )
-    if _EXPLICIT_SCALAR_OBSERVATION.search(user_query) is not None:
-        rule = needs.get("rule_tool_need") if isinstance(needs, Mapping) else None
-        checker_description = checker.get("description")
-        rule_description = (
-            rule.get("description") if isinstance(rule, Mapping) else None
-        )
-        if (
-            isinstance(checker_description, str)
-            and isinstance(rule_description, str)
-            and (
-                checker_description.strip().casefold()
-                == rule_description.strip().casefold()
-                or _TRAJECTORY_DERIVED_CHECKER.search(checker_description)
-                is not None
-            )
-        ):
-            raise OpenTaskResolutionError(
-                "the Query separately requests a scalar observation, so "
-                "checker_need must state a simulator-state boolean success "
-                "predicate rather than duplicate or threshold a derived "
-                "rule_tool_need"
-            )
-
-
-def query_requires_experimental_checker(user_query: str) -> bool:
-    """Return whether the Query explicitly defines non-official success."""
-
-    return _EXPLICIT_SUCCESS_SEMANTICS.search(
-        _text(user_query, "user_query")
-    ) is not None
 
 
 def _extract_json_response(response: Any) -> dict[str, Any]:
@@ -368,44 +265,39 @@ def build_free_concern_prompt(user_query: str, policy_card: Mapping[str, Any]) -
 
     query = _text(user_query, "user_query")
     scope = policy_task_scope_from_card(policy_card)
-    checker_required = query_requires_experimental_checker(query)
-    official_only = query_is_official_only(query)
     example = {
         "schema_version": 1,
         "source_query": query,
         "sub_aspect": "a precise concern discovered from the Query",
         "hypothesis": "one falsifiable policy-behavior hypothesis",
         "task_intent": "invariant base manipulation action and goal in English",
-        "requested_variation": (
-            "reuse the unchanged official scene and task"
-            if official_only
-            else "one bounded diagnostic change"
-        ),
+        "requested_variation": "one bounded diagnostic change",
+        "preserved_conditions": [
+            {
+                "actor": None,
+                "property": "task_identity",
+                "axis": None,
+                "relation": "preserve",
+            },
+            {
+                "actor": None,
+                "property": "policy_checkpoint",
+                "axis": None,
+                "relation": "preserve",
+            },
+        ],
         "measurement_need": "the observation needed to decide the hypothesis",
         "scene_need": {
-            "required": not official_only,
-            "description": (
-                None
-                if official_only
-                else "the scene change needed to realize requested_variation"
-            ),
+            "required": True,
+            "description": "the scene change needed to realize requested_variation",
         },
         "checker_need": {
-            "required": checker_required,
-            "description": (
-                "the additional experimental success predicate"
-                if checker_required
-                else None
-            ),
+            "required": False,
+            "description": None,
         },
         "rule_tool_need": {
             "required": True,
-            "description": (
-                "retrieve and reuse the official check_success() result as "
-                "one primary boolean observation"
-                if official_only
-                else "one primary numeric or symbolic observation needed"
-            ),
+            "description": "one primary numeric or symbolic observation needed",
             "reuse_first": True,
         },
         "vqa_tool_need": {
@@ -431,12 +323,13 @@ asks to evaluate a different manipulation task.  Put distractors and all other
 diagnostic changes only in requested_variation.  Do not select from task names, task
 templates, aspect identifiers, or a capability catalog: those are deliberately
 not available until a later retrieval stage.
-When requested_variation changes a scene, explicitly state in that field which
-task conditions must remain unchanged; do not leave preservation implicit and
-do not use catch-all phrases such as "all other conditions unchanged",
-"all other object poses", or "the rest of the scene".
-Preservation is an authority claim. At this pre-retrieval stage use only
-"task identity" and "policy checkpoint" as the default invariants. A field
+When requested_variation changes a scene, put each unchanged condition in
+preserved_conditions as one object with exactly actor, property, axis, and
+relation; do not encode preservation as prose in requested_variation and do
+not use catch-all claims such as "all other conditions unchanged", "all other
+object poses", or "the rest of the scene".
+Preservation is an authority claim. At this pre-retrieval stage use only typed
+task_identity and policy_checkpoint facts as the default invariants. A field
 listed as observable in policy or simulator metadata is a measurement
 capability, not a preservation authority. Add another invariant only after the
 current input names an authority that can compare it, such as exact method
@@ -445,8 +338,8 @@ visible appearance. In particular, do not add actor identity, physics
 timestep, or object-to-target binding without such authority. Never emit vague
 preserve entries such as "target configuration", "intended goal", or "task
 semantics". When a new checker adds a condition to the official task goal,
-write exactly "official core predicate as a required conjunct"; do not claim
-that the extended checker preserves full "official success semantics".
+write property=official_goal and relation=required_conjunct; do not claim that
+the extended checker preserves full official success semantics.
 The requested change and preserved conditions must be jointly realizable:
 never request a size/shape/pose/contact change while also declaring that same
 quantity invariant. Prefer a bounded experiment whose invariants can be checked
@@ -492,15 +385,31 @@ def validate_free_concern(
 ) -> dict[str, Any]:
     """Validate one unconstrained semantic concern before task retrieval."""
 
-    if not isinstance(value, Mapping) or set(value) != _CONCERN_KEYS:
+    supplied = set(value) if isinstance(value, Mapping) else set()
+    if (
+        not isinstance(value, Mapping)
+        or (
+            supplied != _CONCERN_KEYS
+            and supplied != _LEGACY_CONCERN_KEYS
+        )
+    ):
         raise OpenTaskResolutionError(
             f"FreeConcern fields must be exactly {sorted(_CONCERN_KEYS)}"
         )
     result = deepcopy(dict(value))
     if result.get("schema_version") != 1:
         raise OpenTaskResolutionError("FreeConcern.schema_version must be 1")
-    for field in sorted(_CONCERN_KEYS - {"schema_version"}):
+    for field in sorted(_LEGACY_CONCERN_KEYS - {"schema_version"}):
         result[field] = _text(result.get(field), f"FreeConcern.{field}")
+    try:
+        result["preserved_conditions"] = normalize_preservation_conditions(
+            result.get("preserved_conditions", ()),
+            strict_mappings=True,
+        )
+    except PreservationFactError as exc:
+        raise OpenTaskResolutionError(
+            f"FreeConcern.preserved_conditions: {exc}"
+        ) from exc
     if expected_query is not None and result["source_query"] != _text(
         expected_query, "expected_query"
     ):
@@ -556,10 +465,6 @@ class PlanAgentQueryInterpreter:
                 candidate_concern, candidate_needs = _split_free_concern_response(
                     _extract_json_response(response),
                     expected_query=user_query,
-                )
-                _validate_query_required_needs(
-                    user_query,
-                    candidate_needs,
                 )
                 concern = candidate_concern
                 experiment_needs = candidate_needs
@@ -1044,7 +949,6 @@ __all__ = [
     "discover_robotwin_runtime_task_inventory",
     "discover_robotwin_task_inventory",
     "policy_task_scope_from_card",
-    "query_requires_experimental_checker",
     "rank_official_tasks",
     "resolve_open_task",
     "validate_free_concern",

@@ -1,7 +1,7 @@
-"""Canonical multi-round Plan Agent session.
+﻿"""Canonical multi-round Plan Agent session.
 
 The session owns evidence observation, Proposal authoring and binding, and the
-QueryContract stop-validation boundary. Simulator and policy execution remain
+post-Agent stop-validation boundary. Simulator and policy execution remain
 outside this module.
 """
 
@@ -16,25 +16,17 @@ from mea.method_runtime import BackendTaskBinding
 
 from .experiment_candidate import validate_experiment_candidate
 from .open_world_session import _FrozenExecutionTransport
-from .plan_agent_errors import ClaimFirstRuntimeError, PlanAgentSessionError
+from .plan_agent_errors import PlanAgentSessionError
 from .plan_agent_decisions import PlanAgentDecisionMixin
 from .plan_agent_evidence_session import PlanAgentEvidenceMixin
-from .plan_agent_evidence import (
-    _attach_planning_lineage,
-)
 from .plan_agent_schema import validate_open_query_plan_proposal
-from .query_contract import (
-    build_query_sufficiency_contract,
-    extend_query_candidate_universe,
-    infer_claim_type,
-    validate_query_sufficiency_contract,
+from .runtime_limits import (
+    build_plan_runtime_limits,
+    validate_plan_runtime_limits,
 )
 from .query_interpretation import (
-    _adapter_retrieval_aspects,
-    _failure_seeking_existential,
     _nonempty_text,
     _target_task_name,
-    _template_aspect,
     control_template_id,
 )
 
@@ -55,16 +47,14 @@ class PlanAgentSession(PlanAgentEvidenceMixin, PlanAgentDecisionMixin):
         *,
         method_binding: BackendTaskBinding | None = None,
         method_max_rounds: int | None = None,
-        query_contract: Mapping[str, Any] | None = None,
-        candidate_aspect_ids: Sequence[str] | None = None,
+        runtime_limits: Mapping[str, Any] | None = None,
         require_control_anchor: bool | None = None,
-        retrieval_aspects: Sequence[Mapping[str, Any]] | None = None,
         control_round: Mapping[str, Any] | None = None,
     ):
         self.user_query = _nonempty_text(user_query, "user_query")
         if method_binding is not None:
             if target is not None:
-                raise ClaimFirstRuntimeError(
+                raise PlanAgentSessionError(
                     "target and method_binding are mutually exclusive"
                 )
             if (
@@ -72,7 +62,7 @@ class PlanAgentSession(PlanAgentEvidenceMixin, PlanAgentDecisionMixin):
                 or not isinstance(method_max_rounds, int)
                 or method_max_rounds < 1
             ):
-                raise ClaimFirstRuntimeError(
+                raise PlanAgentSessionError(
                     "method_max_rounds must be a positive integer"
                 )
             raw_task_name = str(
@@ -91,45 +81,17 @@ class PlanAgentSession(PlanAgentEvidenceMixin, PlanAgentDecisionMixin):
                 "max_rounds": method_max_rounds,
             }
             self.task_name = method_task_name
-            raw_retrieval_aspects: list[Mapping[str, Any]] = []
         else:
             if target is None:
-                raise ClaimFirstRuntimeError(
+                raise PlanAgentSessionError(
                     "target or method_binding is required"
                 )
             self.target = deepcopy(dict(target))
             self.task_name = _target_task_name(self.target)
-            raw_retrieval_aspects = []
-        if method_binding is None and retrieval_aspects is None:
-            raw_retrieval_aspects = self.target.get("aspects")
-            if not isinstance(raw_retrieval_aspects, list):
-                raw_retrieval_aspects = _adapter_retrieval_aspects(
-                    self.task_name
-                )
-        elif retrieval_aspects is not None:
-            raw_retrieval_aspects = list(retrieval_aspects)
-        if any(
-            not isinstance(aspect, Mapping)
-            for aspect in raw_retrieval_aspects
-        ):
-            raise ClaimFirstRuntimeError(
-                "retrieval_aspects must contain only artifact-hint objects"
-            )
-        if (
-            not raw_retrieval_aspects
-            and method_binding is None
-            and "policy_task_binding" not in self.target
-        ):
-            raise ClaimFirstRuntimeError(
-                "legacy retrieval_aspects must contain artifact hints"
-            )
-        self.retrieval_aspects = [
-            deepcopy(dict(aspect)) for aspect in raw_retrieval_aspects
-        ]
         if require_control_anchor is not None and not isinstance(
             require_control_anchor, bool
         ):
-            raise ClaimFirstRuntimeError(
+            raise PlanAgentSessionError(
                 "require_control_anchor must be bool or None"
             )
         self.control_template = (
@@ -137,42 +99,9 @@ class PlanAgentSession(PlanAgentEvidenceMixin, PlanAgentDecisionMixin):
             if method_binding is not None
             else control_template_id(self.target)
         )
-        if candidate_aspect_ids is not None:
-            allowed_aspects = {
-                _nonempty_text(item, "candidate_aspect_ids[]")
-                for item in candidate_aspect_ids
-            }
-            known_aspects = {
-                str(aspect.get("aspect_id") or "")
-                for aspect in self.retrieval_aspects
-                if isinstance(aspect, Mapping)
-            }
-            unknown_aspects = allowed_aspects - known_aspects
-            if unknown_aspects:
-                raise ClaimFirstRuntimeError(
-                    "routed candidate aspects leave the bound task catalog: "
-                    f"{sorted(unknown_aspects)}"
-                )
-            self.retrieval_aspects = [
-                deepcopy(dict(aspect))
-                for aspect in self.retrieval_aspects
-                if isinstance(aspect, Mapping)
-                and (
-                    str(aspect.get("aspect_id") or "") in allowed_aspects
-                    or self.control_template
-                    in {str(item) for item in aspect.get("template_ids", [])}
-                )
-            ]
-        retrieval_target = {"aspects": self.retrieval_aspects}
-        self.template_to_aspect = _template_aspect(retrieval_target)
-        candidates = [
-            template_id
-            for template_id in self.template_to_aspect
-            if template_id != self.control_template
-        ]
         supplied_contract = (
-            validate_query_sufficiency_contract(query_contract)
-            if query_contract is not None
+            validate_plan_runtime_limits(runtime_limits)
+            if runtime_limits is not None
             else None
         )
         contract_requires_control = (
@@ -189,45 +118,22 @@ class PlanAgentSession(PlanAgentEvidenceMixin, PlanAgentDecisionMixin):
             and require_control_anchor is not None
             and require_control_anchor != contract_requires_control
         ):
-            raise ClaimFirstRuntimeError(
-                "require_control_anchor conflicts with QueryContract "
+            raise PlanAgentSessionError(
+                "require_control_anchor conflicts with runtime limits "
                 "control_requirement"
             )
         self.require_control_anchor = contract_requires_control
         round_budget = int(self.target.get("max_rounds") or 0) - (
             1 if self.require_control_anchor else 0
         )
-        # Legacy official-only adapters use max_rounds=1 because their catalog
-        # contains only the control.  That catalog size must not prohibit one
-        # Query-derived generation round.
-        if not candidates and round_budget < 1:
-            round_budget = 1
         if round_budget < 1:
-            raise ClaimFirstRuntimeError(
+            raise PlanAgentSessionError(
                 "Plan Agent runtime needs budget for at least one candidate round"
             )
-        if query_contract is None:
-            claim_type = infer_claim_type(self.user_query)
-            if claim_type == "comparative":
-                raise ClaimFirstRuntimeError(
-                    "comparative Query requires an explicit preregistered "
-                    "query-sufficiency contract with two groups"
-                )
-            failure_witness = bool(
-                claim_type == "existential"
-                and _failure_seeking_existential(self.user_query)
-            )
-            contract = build_query_sufficiency_contract(
+        if runtime_limits is None:
+            contract = build_plan_runtime_limits(
                 self.user_query,
-                candidate_universe=candidates,
                 round_budget=round_budget,
-                claim_type=claim_type,
-                # Bound-task templates are retrieval seeds, never proof that an
-                # open Query's semantic candidate universe is exhaustive.
-                candidate_universe_closed=False,
-                existential_witness_outcome=(
-                    "fail" if failure_witness else None
-                ),
                 control_requirement=(
                     "required"
                     if self.require_control_anchor
@@ -242,16 +148,16 @@ class PlanAgentSession(PlanAgentEvidenceMixin, PlanAgentDecisionMixin):
             # the registered template inventory; its executable Task/Tool needs
             # are validated later by the materialization and evidence gates.
             if int(contract["round_budget"]) > round_budget:
-                raise ClaimFirstRuntimeError(
-                    "query contract spends rounds reserved for the control anchor"
+                raise PlanAgentSessionError(
+                    "runtime limits spend rounds reserved for the control anchor"
                 )
-        self.query_contract = contract
+        self.runtime_limits = contract
         self.dynamic_candidates: dict[str, dict[str, Any]] = {}
         self._frozen_execution = (
             _FrozenExecutionTransport.from_target(
                 self.target,
                 control_round=control_round,
-                query_contract=self.query_contract,
+                runtime_limits=self.runtime_limits,
             )
             if "policy_task_binding" in self.target
             else None
@@ -262,7 +168,7 @@ class PlanAgentSession(PlanAgentEvidenceMixin, PlanAgentDecisionMixin):
     def _require_frozen_execution(self) -> _FrozenExecutionTransport:
         transport = self._frozen_execution
         if transport is None:
-            raise ClaimFirstRuntimeError(
+            raise PlanAgentSessionError(
                 "this legacy Plan Agent fixture has no frozen execution binding"
             )
         return transport
@@ -291,14 +197,14 @@ class PlanAgentSession(PlanAgentEvidenceMixin, PlanAgentDecisionMixin):
         *,
         materialized_round: Mapping[str, Any] | None = None,
         source: str = "provider",
-        query_contract: Mapping[str, Any] | None = None,
+        runtime_limits: Mapping[str, Any] | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
         """Apply one semantic decision to the frozen executable plan."""
 
         contract = (
-            query_contract
-            if query_contract is not None
-            else self.query_contract
+            runtime_limits
+            if runtime_limits is not None
+            else self.runtime_limits
         )
         result = self._require_frozen_execution().apply_plan_step(
             plan,
@@ -306,11 +212,11 @@ class PlanAgentSession(PlanAgentEvidenceMixin, PlanAgentDecisionMixin):
             proposal,
             materialized_round=materialized_round,
             source=source,
-            query_contract=contract,
+            runtime_limits=contract,
         )
-        normalized_contract = result[0].get("query_contract")
+        normalized_contract = result[0].get("runtime_limits")
         if isinstance(normalized_contract, Mapping):
-            self.query_contract = deepcopy(dict(normalized_contract))
+            self.runtime_limits = deepcopy(dict(normalized_contract))
         return result
 
     def snapshot(
@@ -339,7 +245,7 @@ class PlanAgentSession(PlanAgentEvidenceMixin, PlanAgentDecisionMixin):
             "target.task_name",
         )
         if trusted["base_task"] != expected_task:
-            raise ClaimFirstRuntimeError(
+            raise PlanAgentSessionError(
                 "frozen candidate base_task differs from the bound policy task"
             )
         if (
@@ -347,27 +253,16 @@ class PlanAgentSession(PlanAgentEvidenceMixin, PlanAgentDecisionMixin):
             and trusted.get("intent_alignment", {}).get("relationship")
             != "direct"
         ):
-            raise ClaimFirstRuntimeError(
+            raise PlanAgentSessionError(
                 "frozen candidate must directly implement its EvaluationIntent"
             )
         candidate_id = trusted["candidate_id"]
         existing = self.dynamic_candidates.get(candidate_id)
         if existing is not None and existing != trusted:
-            raise ClaimFirstRuntimeError(
+            raise PlanAgentSessionError(
                 f"dynamic candidate id collision: {candidate_id}"
             )
         self.dynamic_candidates[candidate_id] = trusted
-        if candidate_id not in self.query_contract["candidate_universe"]:
-            # A genuinely new evidence-conditioned Proposal reopens the
-            # candidate universe.  A Query-frozen candidate that is already
-            # present in a closed contract must not silently discard that
-            # caller-authored finite scope merely by being registered for
-            # execution.
-            self.query_contract = extend_query_candidate_universe(
-                self.query_contract,
-                [candidate_id],
-                candidate_universe_closed=False,
-            )
         return deepcopy(trusted)
 
     def register_frozen_candidate(
@@ -383,7 +278,7 @@ class PlanAgentSession(PlanAgentEvidenceMixin, PlanAgentDecisionMixin):
         """
 
         if self.require_control_anchor:
-            raise ClaimFirstRuntimeError(
+            raise PlanAgentSessionError(
                 "control-required Plan Agent cannot freeze a pre-evidence "
                 "candidate; author the next sub-aspect from observed control "
                 "evidence"
@@ -412,7 +307,7 @@ class PlanAgentSession(PlanAgentEvidenceMixin, PlanAgentDecisionMixin):
         )
         candidate_id = trusted["candidate_id"]
         if candidate_id in {str(item) for item in executed_candidate_ids}:
-            raise ClaimFirstRuntimeError(
+            raise PlanAgentSessionError(
                 f"dynamic candidate was already executed: {candidate_id}"
             )
         hint = dict(retrieval_hint or {})
@@ -473,7 +368,7 @@ class PlanAgentSession(PlanAgentEvidenceMixin, PlanAgentDecisionMixin):
                 "tool_need": deepcopy(proposal["tool_need"]),
             },
             "resolution": dynamic_resolution,
-            "query_contract": deepcopy(self.query_contract),
+            "runtime_limits": deepcopy(self.runtime_limits),
             "plan_step": {
                 "schema_version": 2,
                 "action": "propose",
@@ -496,36 +391,35 @@ class PlanAgentSession(PlanAgentEvidenceMixin, PlanAgentDecisionMixin):
     ) -> dict[str, Any]:
         """Authorize a no-control Query-only candidate without claiming refinement.
 
-        Its semantic choice predates rollout evidence.  The returned lineage
-        therefore remains ``pre_evidence`` and must not be counted as Fig. 5
-        evidence-conditioned sub-aspect selection.
+        Its semantic choice predates rollout evidence and must not be counted
+        as Fig. 5 evidence-conditioned sub-aspect selection.
         """
 
         if self.require_control_anchor:
-            raise ClaimFirstRuntimeError(
+            raise PlanAgentSessionError(
                 "control-required Plan Agent cannot bind a pre-evidence "
                 "candidate; author the next sub-aspect from observed control "
                 "evidence"
             )
         assessment = observation.get("assessment")
         if not isinstance(assessment, Mapping):
-            raise ClaimFirstRuntimeError(
+            raise PlanAgentSessionError(
                 "Plan Agent observation has no assessment"
             )
         if assessment.get("should_stop"):
-            raise ClaimFirstRuntimeError(
-                "cannot bind a frozen candidate after the query contract stopped"
+            raise PlanAgentSessionError(
+                "cannot bind a frozen candidate after a runtime stop"
             )
         if (
             self.require_control_anchor
             and observation.get("control_passed") is not True
         ):
-            raise ClaimFirstRuntimeError(
+            raise PlanAgentSessionError(
                 "cannot execute a frozen property candidate before control passes"
             )
         raw_proposal = proposal_bundle.get("proposal")
         if not isinstance(raw_proposal, Mapping):
-            raise ClaimFirstRuntimeError(
+            raise PlanAgentSessionError(
                 "frozen proposal bundle has no proposal object"
             )
         proposal = validate_open_query_plan_proposal(
@@ -533,32 +427,10 @@ class PlanAgentSession(PlanAgentEvidenceMixin, PlanAgentDecisionMixin):
             has_evidence=bool(observation.get("records")),
         )
         if proposal["action"] != "continue":
-            raise ClaimFirstRuntimeError(
+            raise PlanAgentSessionError(
                 "a frozen first candidate must be an action=continue proposal"
             )
-        raw_lineage = proposal_bundle.get("planning_lineage")
-        if not isinstance(raw_lineage, Mapping):
-            raw_lineage = {
-                "schema_version": 1,
-                "decision_kind": "pre_evidence_query_candidate",
-                "evidence_conditioned": False,
-                "completed_round_ids": [],
-                "completed_round_count": 0,
-                "input_digest": None,
-            }
-        lineage = deepcopy(dict(raw_lineage))
-        if (
-            lineage.get("decision_kind")
-            != "pre_evidence_query_candidate"
-            or lineage.get("evidence_conditioned") is not False
-            or lineage.get("completed_round_ids") != []
-            or lineage.get("completed_round_count") != 0
-        ):
-            raise ClaimFirstRuntimeError(
-                "bind_frozen_candidate accepts only an explicitly pre-evidence "
-                "Query candidate"
-            )
-        bound = self._bind_dynamic_candidate(
+        return self._bind_dynamic_candidate(
             proposal_bundle=proposal_bundle,
             proposal=proposal,
             candidate=candidate,
@@ -567,15 +439,9 @@ class PlanAgentSession(PlanAgentEvidenceMixin, PlanAgentDecisionMixin):
             catalog_resolution_error=None,
             require_direct=True,
         )
-        return _attach_planning_lineage(bound, lineage)
-
-# Compatibility aliases retain object identity for historical callers.
-ClaimFirstRuntimeController = PlanAgentSession
 
 
 __all__ = [
     "PlanAgentSession",
     "PlanAgentSessionError",
-    "ClaimFirstRuntimeController",
-    "ClaimFirstRuntimeError",
 ]

@@ -122,7 +122,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "TASKGEN_TERMINAL": (".attempts", "TERMINAL"),
     "TaskGenerationRecoveryError": (".attempts", "TaskGenerationRecoveryError"),
     "TaskGenerationStageError": (".attempts", "TaskGenerationStageError"),
-    "run_bounded_task_generation": (".attempts", "run_bounded_task_generation"),
+    "run_task_generation": (".attempts", "run_task_generation"),
     "task_generation_recovery_action": (
         ".attempts",
         "task_generation_recovery_action",

@@ -1,0 +1,49 @@
+{
+  "schema_version": "batch41_mainline_cleanup_summary_v1",
+  "classification": "production_structure_cleanup_not_method_evidence",
+  "base_commit": "1d567a92292067e9ab08cd5ad536e02c7ed9b8f5",
+  "execution_location": "AutoDL server",
+  "current_evidence_unchanged": "docs/evidence/current",
+  "removed_from_production": [
+    "formal_query_contract_and_candidate_universe",
+    "receipt_and_hash_pinned_evidence_manifest",
+    "reviewed_task_tool_vqa_approval_registries",
+    "registered_routes_and_strategies",
+    "cached_finalization_and_process_resume",
+    "append_only_taskgen_attempt_ledger",
+    "concern_token_alias_ontology_catalog_gate",
+    "telemetry_profile_checksum"
+  ],
+  "preserved_truth_boundaries": [
+    "typed_proposal_and_preservation_facts",
+    "simulator_and_official_success_authority",
+    "taskgen_fixture_render_vlm_and_expert_validation",
+    "rule_tool_static_deterministic_and_oracle_validation",
+    "vqa_abstain_and_conflict",
+    "readable_evaluation_lifecycle_manifest"
+  ],
+  "server_validation": {
+    "focused": {"passed": 65, "subtests_passed": 3},
+    "default_mainline": {"passed": 225, "subtests_passed": 10},
+    "cold_compat": {"passed": 623, "subtests_passed": 162, "warnings": 3},
+    "compileall": "passed"
+  },
+  "runtime_cost": {
+    "provider_calls": 0,
+    "simulator_calls": 0,
+    "policy_rollouts": 0,
+    "windows_tests_run": false
+  },
+  "remaining_debt": [
+    "legacy_artifact_retrieval_hint_menu",
+    "experiment_candidate_internal_name_and_identity_digest",
+    "history_database_record_digest",
+    "round_executor_and_taskgen_owner_file_size"
+  ],
+  "next_method_sequence": [
+    "second_and_third_task_same_mainline",
+    "cold_concern_discovery_without_positive_task_card_anchor",
+    "cross_evaluation_semantic_tool_reuse",
+    "frozen_vqa_repeat_stability"
+  ]
+}

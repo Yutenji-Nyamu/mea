@@ -20,11 +20,9 @@
 | [`live_protocols.py`](live_protocols.py) | fail-closed preregistration 与 receipt evaluator | 否 |
 | [`manipeval_run_live_paper_protocols.py`](manipeval_run_live_paper_protocols.py) | 显式执行已冻结的 paper-only live command | 可能；仅显式调用 |
 | [`manipeval_paper_evidence_protocols.py`](manipeval_paper_evidence_protocols.py) | 建立和审计论文证据协议 | 否 |
-| [`manipeval_plan_strategy_pair.py`](manipeval_plan_strategy_pair.py) | 生成 fixed/adaptive 成对命令计划 | 否 |
 | [`manipeval_annotation_replacement.py`](manipeval_annotation_replacement.py) | 用可替换人工标注重算 Plan/VQA 分数 | 否 |
 | [`manipeval_independent_validity.py`](manipeval_independent_validity.py) | 聚合多标注者与 VQA control | 否 |
 | [`manipeval_execution_vqa_replay.py`](manipeval_execution_vqa_replay.py) | 对完成 rollout 做有界 VQA replay | 否 |
-| [`manipeval_replay_completed_tool.py`](manipeval_replay_completed_tool.py) | 对完成 telemetry 做 Tool/Planner repair replay | 否 |
 | [`manipeval_evidence_manifest.py`](manipeval_evidence_manifest.py) | 建立或检查 hash-pinned evidence manifest | 否 |
 | [`manipeval_portfolio.py`](manipeval_portfolio.py) | 规划或审计历史 cross-task portfolio | 否 |
 | [`libero_adapter_smoke.py`](libero_adapter_smoke.py) | LIBERO/SmolVLA adapter feasibility smoke | 显式调用时可能 |
@@ -50,14 +48,11 @@ belong in the production README or hot architecture document.
 
 以下文件保留旧实验的可恢复性，不应成为新功能依赖：
 
-- [`compat_agent_profile.py`](compat_agent_profile.py)：集中解析生产 CLI
-  延迟加载的 catalog、fixed、registered 和 task-specific 兼容参数。
-- [`legacy_planner_factory.py`](legacy_planner_factory.py)：显式加载 catalog、fixed-suite
-  和 task-specific legacy Planner。
-- [`registered_execution_adapter.py`](registered_execution_adapter.py)：在 paper protocol
-  内延迟加载旧 strategy/receipt stack。
-- [`compat_taskgen/`](compat_taskgen/)：冻结 standalone TaskGen 的 BBH、ClickBell、
-  registered/reviewed 与 Table-3 兼容执行；生产 Agent 的 generic TaskGen 由
+- [`compat_agent_profile.py`](compat_agent_profile.py) 与
+  [`legacy_planner_factory.py`](legacy_planner_factory.py)：caller-zero 的冷兼容源码，暂留用于
+  迁移审计；当前生产 CLI 不解析或加载它们。
+- [`compat_taskgen/`](compat_taskgen/)：冻结 standalone TaskGen 的 BBH、ClickBell 与
+  Table-3 兼容执行；生产 Agent 的 generic TaskGen 由
   `mea.taskgen.runtime` / `MethodRuntime` 直接拥有。
 - [`manipeval_click_bell_open_taskgen.py`](manipeval_click_bell_open_taskgen.py)：历史
   ClickBell Gate-0 TaskGen 协议。
@@ -109,6 +104,7 @@ belong in the production README or hot architecture document.
 | [`results/batch38_prompt_context/`](results/batch38_prompt_context/README.md) | `grab_roller` 失败驱动 prompt/context 纵向回归；未晋升当前旗舰 |
 | [`results/batch39_grab_roller_prompt_mainline/`](results/batch39_grab_roller_prompt_mainline/README.md) | prompt-first 修复后的 `grab_roller` 主链、live Tool 与主动 inconclusive stop；未晋升旗舰 |
 | [`results/batch40_paper_mainline_cleanup/`](results/batch40_paper_mainline_cleanup/README.md) | 生产语义清理与 `grab_roller` 两 episode `evidence_sufficient` 正例；作为冷补充，不替换 current evidence |
+| [`results/batch41_mainline_cleanup/`](results/batch41_mainline_cleanup/README.md) | Query/registry/receipt/attempt/compat 生产裁剪与全套服务器结构回归；不增加方法 evidence |
 
 旧运行的简短结论与边界另见
 [`docs/evidence/history.jsonl`](../../docs/evidence/history.jsonl)。若两处描述冲突，

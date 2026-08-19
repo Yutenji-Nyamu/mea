@@ -195,7 +195,7 @@ def test_live_reset_probe_unlocks_generic_taskgen_without_hand_schema(
     assert adapter.task_context["schema_origin"] == "runtime_probe"
 
 
-def test_runtime_probe_cannot_invent_source_actor_or_rebind_source(
+def test_runtime_probe_cannot_invent_source_actor_or_rebind_source_path(
     tmp_path: Path,
 ) -> None:
     _write_source_only_task(tmp_path)
@@ -219,15 +219,15 @@ def test_runtime_probe_cannot_invent_source_actor_or_rebind_source(
             runtime_probe=forged_actor,
         )
 
-    forged_hash = {**probe, "official_source_sha256": "0" * 64}
+    forged_source = {**probe, "official_source": "envs/other_task.py"}
     with pytest.raises(
         RoboTwinTaskContextError,
-        match="source hash differs",
+        match="official_source differs",
     ):
         resolve_robotwin_task_context(
             tmp_path,
             "runtime_context_task",
-            runtime_probe=forged_hash,
+            runtime_probe=forged_source,
         )
 
 

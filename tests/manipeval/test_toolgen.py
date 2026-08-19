@@ -420,7 +420,7 @@ class ToolGenTests(unittest.TestCase):
 
         self.assertEqual(result["status"], "passed")
         self.assertEqual(result["successful_attempt"], 0)
-        self.assertRegex(result["generator_source_sha256"], r"^[0-9a-f]{64}$")
+        self.assertNotIn("generator_source_sha256", result)
         self.assertEqual(provider.calls, 1)
         execution = json.loads(
             (output_dir / "execution_results.json").read_text(encoding="utf-8")

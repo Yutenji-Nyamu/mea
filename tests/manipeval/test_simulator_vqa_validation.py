@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from mea.execution_vqa import build_execution_vqa_query
-from mea.simulator_vqa_validation import (
+from experiments.paper.validation.simulator_vqa_validation import (
     CLUTTER_ASPECT,
     CLUTTER_PHENOMENA,
     CLUTTER_TEMPLATE,

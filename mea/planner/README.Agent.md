@@ -104,16 +104,14 @@ over splitting left and right into duplicate scene rollouts. Otherwise request
 the single highest-information typed metric; do not invent an unvalidated
 aggregate merely to save a rollout.
 
-Write each `preserved_conditions` entry as one atomic fact. Name a coordinate
-axis when only that coordinate is fixed, and distinguish preservation of a
-contact reference/local offset from preservation of its world position. Use
-the simulator-authority terms `<actor> x/y/z position`, `<actor> orientation`, `<actor> model identity`, `<actor>
-contact-point local offsets`, and `official goal as a required conjunct` when
-those are the exact intended facts; do not hide several facts in one sentence.
-These strings are a temporary Proposal-schema bridge. TaskGen normalizes each
-one to `{actor, property, axis, relation}` and lets simulator/checker/visual
-authority decide it; non-canonical prose remains unverified instead of being
-treated as preserved.
+Write each `preserved_conditions` entry as one atomic object with exactly
+`{actor, property, axis, relation}`. Name a coordinate axis when only that
+coordinate is fixed, and distinguish `preserve_local_offsets` from
+`preserve_world_position` for contact points. Use `actor=null` for task-wide
+facts such as `task_identity`, `policy_checkpoint`, or `official_goal`; use
+`axis=null` unless `property=position`. TaskGen lets simulator, checker, or
+visual authority decide each fact. Frozen legacy prose that cannot be mapped
+to this shape remains unverified instead of being treated as preserved.
 
 Interpret evidence by its declared role. The round outcome is the tested
 hypothesis verdict; diagnostic Tool values explain it but do not rewrite it.

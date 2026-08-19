@@ -14,6 +14,8 @@ from mea.providers.json_response import (
     extract_json_response,
 )
 
+from .preservation_facts import describe_preservation_fact
+
 
 class GenericVisualDiagnosisError(ValueError):
     """Raised when a generic TaskGen visual observation is invalid."""
@@ -193,7 +195,12 @@ def build_generic_visual_prompt(candidate: Mapping[str, Any]) -> str:
         else []
     )
     preserved_context = (
-        "\n".join(f"- {item}" for item in preserved_conditions)
+        "\n".join(
+            "- " + describe_preservation_fact(item)
+            if isinstance(item, Mapping)
+            else "- unverified legacy condition: " + str(item)
+            for item in preserved_conditions
+        )
         if preserved_conditions
         else "- None declared."
     )

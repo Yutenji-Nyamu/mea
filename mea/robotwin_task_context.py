@@ -37,7 +37,6 @@ _PROBE_KEYS = {
     "schema_version",
     "task_name",
     "official_source",
-    "official_source_sha256",
     "setup_success",
     "official_check_success_callable",
     "physics_timestep_seconds",
@@ -64,7 +63,6 @@ class RoboTwinTaskContext:
     task_name: str
     official_source: str
     official_class: str
-    official_source_sha256: str
     declared_methods: tuple[str, ...]
     source_task_attributes: tuple[str, ...]
     task_schema: Mapping[str, Any] | None
@@ -82,7 +80,6 @@ class RoboTwinTaskContext:
             "task_name": self.task_name,
             "official_source": self.official_source,
             "official_class": self.official_class,
-            "official_source_sha256": self.official_source_sha256,
             "declared_methods": list(self.declared_methods),
             "source_task_attributes": list(self.source_task_attributes),
             "taskgen_ready": self.taskgen_ready,
@@ -101,10 +98,10 @@ class RoboTwinTaskContext:
                 dict(self.telemetry_observables)
             ),
             "authority": {
-                "official_source": "repository_source_sha256",
+                "official_source": "repository_source",
                 "actor_telemetry": (
-                    "reviewed_task_schema"
-                    if self.schema_origin == "reviewed_task_schema"
+                    "task_schema"
+                    if self.schema_origin == "task_schema"
                     else (
                         "fresh_simulator_reset_probe"
                         if self.schema_origin == "runtime_probe"
@@ -112,8 +109,8 @@ class RoboTwinTaskContext:
                     )
                 ),
                 "success": (
-                    "reviewed_task_schema"
-                    if self.schema_origin == "reviewed_task_schema"
+                    "task_schema"
+                    if self.schema_origin == "task_schema"
                     else (
                         "official_check_success_runtime_callable"
                         if self.schema_origin == "runtime_probe"
@@ -127,7 +124,7 @@ class RoboTwinTaskContext:
 def _source_facts(
     repo_root: Path,
     task_name: str,
-) -> tuple[str, Path, str, tuple[str, ...], tuple[str, ...]]:
+) -> tuple[str, tuple[str, ...], tuple[str, ...]]:
     if not isinstance(task_name, str) or _TASK_NAME.fullmatch(task_name) is None:
         raise RoboTwinTaskContextError(
             "task_name is not a RoboTwin identifier"
@@ -179,8 +176,6 @@ def _source_facts(
     )
     return (
         relative_source,
-        source,
-        hashlib.sha256(source_bytes).hexdigest(),
         methods,
         attributes,
     )
@@ -406,7 +401,6 @@ def _runtime_schema(
     *,
     task_name: str,
     relative_source: str,
-    source_sha256: str,
     source_attributes: tuple[str, ...],
 ) -> dict[str, Any]:
     probe_keys = set(probe) if isinstance(probe, Mapping) else set()
@@ -428,10 +422,6 @@ def _runtime_schema(
     if probe.get("official_source") != relative_source:
         raise RoboTwinTaskContextError(
             "runtime TaskContext probe official_source differs"
-        )
-    if probe.get("official_source_sha256") != source_sha256:
-        raise RoboTwinTaskContextError(
-            "runtime TaskContext probe source hash differs"
         )
     if probe.get("setup_success") is not True:
         raise RoboTwinTaskContextError(
@@ -602,7 +592,6 @@ def _runtime_schema(
         "success_contract": {
             "type": "official_check_success",
             "authority": "official_check_success_runtime_callable",
-            "official_source_sha256": source_sha256,
             "semantic_telemetry_available": True,
         },
     }
@@ -637,8 +626,6 @@ def resolve_robotwin_task_context(
     root = Path(repo_root).expanduser().resolve()
     (
         relative_source,
-        _source,
-        source_sha256,
         methods,
         attributes,
     ) = _source_facts(root, task_name)
@@ -648,16 +635,15 @@ def resolve_robotwin_task_context(
             schema: Mapping[str, Any] | None = load_task_schema(root, task_name)
         except TaskSchemaError as exc:
             raise RoboTwinTaskContextError(
-                f"reviewed TaskSchema is invalid: {schema_path}"
+                f"TaskSchema is invalid: {schema_path}"
             ) from exc
-        origin = "reviewed_task_schema"
+        origin = "task_schema"
         accepted_probe: Mapping[str, Any] | None = None
     elif runtime_probe is not None:
         schema = _runtime_schema(
             runtime_probe,
             task_name=task_name,
             relative_source=relative_source,
-            source_sha256=source_sha256,
             source_attributes=attributes,
         )
         origin = "runtime_probe"
@@ -670,7 +656,6 @@ def resolve_robotwin_task_context(
         task_name=task_name,
         official_source=relative_source,
         official_class=task_name,
-        official_source_sha256=source_sha256,
         declared_methods=methods,
         source_task_attributes=attributes,
         task_schema=deepcopy(schema),
@@ -769,7 +754,6 @@ def build_runtime_task_context_probe(
         "schema_version": 1,
         "task_name": task_name,
         "official_source": context.official_source,
-        "official_source_sha256": context.official_source_sha256,
         "setup_success": True,
         "official_check_success_callable": callable(
             getattr(task, "check_success", None)
@@ -789,7 +773,6 @@ def build_runtime_task_context_probe(
         probe,
         task_name=task_name,
         relative_source=context.official_source,
-        source_sha256=context.official_source_sha256,
         source_attributes=context.source_task_attributes,
     )
     return probe

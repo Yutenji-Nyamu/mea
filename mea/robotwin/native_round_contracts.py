@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
@@ -15,15 +15,36 @@ class NativeAgentRoundError(RuntimeError):
     """Raised when a native policy round exceeds validated capabilities."""
 
 
+_NATIVE_RUN_TOKEN = re.compile(r"[A-Za-z0-9_]+")
+_MAX_PATH_COMPONENT_LENGTH = 255
+
+
+def _native_run_token(value: Any, field: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise NativeAgentRoundError(f"{field} must be a non-empty string")
+    token = value.strip()
+    if _NATIVE_RUN_TOKEN.fullmatch(token) is None:
+        raise NativeAgentRoundError(
+            f"{field} must contain only letters, digits, or underscore"
+        )
+    return token
+
+
 def build_native_run_id(
     evaluation_id: str,
     round_id: str,
     policy_backend: str,
 ) -> str:
-    digest = hashlib.sha256(
-        f"{evaluation_id}:{round_id}".encode("utf-8")
-    ).hexdigest()[:12]
-    return f"run_native_{policy_backend}_{digest}"
+    run_id = "run_native_{}_{}_{}".format(
+        _native_run_token(policy_backend, "policy_backend"),
+        _native_run_token(evaluation_id, "evaluation_id"),
+        _native_run_token(round_id, "round_id"),
+    )
+    if len(run_id) > _MAX_PATH_COMPONENT_LENGTH:
+        raise NativeAgentRoundError(
+            "native run_id exceeds the filesystem path-component limit"
+        )
+    return run_id
 
 
 def write_json(path: Path, value: Any) -> None:
@@ -32,22 +53,6 @@ def write_json(path: Path, value: Any) -> None:
         json.dumps(value, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
-
-
-def canonical_sha256(value: Any) -> str:
-    try:
-        encoded = json.dumps(
-            value,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-            allow_nan=False,
-        ).encode("utf-8")
-    except (TypeError, ValueError) as exc:
-        raise NativeAgentRoundError(
-            "TaskGen proposal identity is not canonical JSON"
-        ) from exc
-    return hashlib.sha256(encoded).hexdigest()
 
 
 def is_zero_rollout_count(value: Any) -> bool:

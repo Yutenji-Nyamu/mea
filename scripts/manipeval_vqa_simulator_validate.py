@@ -12,7 +12,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from mea.simulator_vqa_validation import (
+from experiments.paper.validation.simulator_vqa_validation import (
     SimulatorVQAValidationError,
     summarize_simulator_vqa_suite,
 )

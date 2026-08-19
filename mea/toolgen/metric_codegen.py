@@ -15,7 +15,6 @@ from .metric_evaluation import _event_fields
 from .metric_schema import (
     MetricSpecError,
     _DIMENSION_INDEX,
-    _file_sha256,
     validate_metric_spec,
 )
 
@@ -325,7 +324,6 @@ def build_task_code_context(
         "task_source": (
             {
                 "path": "task.py",
-                "sha256": _file_sha256(source),
                 "excerpt": source.read_text(encoding="utf-8")[:4000],
             }
             if source.is_file()

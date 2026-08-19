@@ -50,7 +50,7 @@ def refresh_plan_agent_capabilities_from_runtime_context(
         context.get("schema_version") != 1
         or context.get("taskgen_ready") is not True
         or context.get("schema_origin")
-        not in {"runtime_probe", "reviewed_task_schema"}
+        not in {"runtime_probe", "task_schema"}
     ):
         raise ValueError(
             "runtime_task_context is not a validated execution context"
@@ -95,7 +95,8 @@ def refresh_plan_agent_capabilities_from_runtime_context(
             refreshed_simulator[field] = deepcopy(task_schema[field])
     refreshed_simulator["task_context_authority"] = {
         "schema_origin": context["schema_origin"],
-        "official_source_sha256": context.get("official_source_sha256"),
+        "official_source": context.get("official_source"),
+        "official_class": context.get("official_class"),
         "authority": deepcopy(dict(context.get("authority") or {})),
     }
     current["simulator_card"] = refreshed_simulator

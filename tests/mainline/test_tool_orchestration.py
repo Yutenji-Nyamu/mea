@@ -3,7 +3,6 @@ import inspect
 import json
 import tempfile
 import unittest
-from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -14,9 +13,6 @@ from mea.toolgen import (
     contact_tool_spec,
     execute_tool_request,
     execute_tool_spec,
-    build_review_manifest_template,
-    install_reviewed_registration,
-    load_registry,
     pickup_to_contact_tool_request,
     pickup_to_contact_tool_spec,
     validate_tool_request,
@@ -314,13 +310,9 @@ class ToolOrchestrationTests(unittest.TestCase):
             [item["result"]["tool"] for item in result["episodes"]],
             ["hammer_block_contact_ever", "hammer_block_contact_ever"],
         )
-        self.assertRegex(result["source"]["tool_sha256"], r"^[0-9a-f]{64}$")
+        self.assertNotIn("tool_sha256", result["source"])
         self.assertTrue(
-            all(
-                item["result"]["tool_sha256"]
-                == result["source"]["tool_sha256"]
-                for item in result["episodes"]
-            )
+            all("tool_sha256" not in item["result"] for item in result["episodes"])
         )
         for name in (
             "tool_request.json",
@@ -531,79 +523,6 @@ class ToolOrchestrationTests(unittest.TestCase):
         self.assertEqual(
             result["episodes"][1]["result"]["evidence_steps"],
             [1, 2],
-        )
-        self.assertTrue(result["validation"]["all_gates_passed"])
-
-    def test_reviewed_tool_revalidates_new_evaluation_telemetry(self):
-        source_evaluation = self.root / "evaluation_a"
-        source_registry = source_evaluation / "tool_registry"
-        provider = FakeProvider(
-            f"```python\n{generated_pickup_to_contact_source()}```"
-        )
-        execute_tool_request(
-            self.repo_root,
-            self.child_run,
-            source_evaluation / "execution/round_1/planned_tool",
-            pickup_to_contact_tool_request(),
-            provider=provider,
-            model="fixture-toolgen",
-        )
-        registration_id = load_registry(source_registry)["entries"][0][
-            "registration_id"
-        ]
-        review = build_review_manifest_template(
-            source_registry, registration_id
-        )
-        review.update(
-            {
-                "decision": "approved",
-                "reviewer": {
-                    "id": "development-agent-test",
-                    "kind": "development_agent",
-                },
-                "reviewed_at": datetime.now(timezone.utc).isoformat(),
-                "notes": "Fixture-only explicit review.",
-            }
-        )
-        review["checks"] = {key: True for key in review["checks"]}
-        reviewed_registry = self.root / "reviewed_tool_registry"
-        install_reviewed_registration(
-            source_registry,
-            registration_id,
-            review,
-            reviewed_registry,
-        )
-
-        new_child = self.root / "run_new_telemetry"
-        write_episode(
-            new_child / "evaluation/telemetry/act/episode_000_seed_2",
-            policy_name="ACT",
-            physical_contact=True,
-        )
-        write_episode(
-            new_child / "evaluation/telemetry/expert/episode_000_seed_2",
-            policy_name="expert",
-            physical_contact=True,
-        )
-        never_called = NeverCalledProvider()
-        result = execute_tool_request(
-            self.repo_root,
-            new_child,
-            self.root / "evaluation_b/execution/round_1/planned_tool",
-            pickup_to_contact_tool_request(),
-            provider=never_called,
-            model="fixture-toolgen",
-            reviewed_registry_dir=reviewed_registry,
-        )
-
-        self.assertEqual(result["route"], "reviewed_persistent_reuse")
-        self.assertEqual(never_called.calls, 0)
-        self.assertEqual(
-            [episode["result"]["value"] for episode in result["episodes"]],
-            [0.004, 0.004],
-        )
-        self.assertTrue(
-            result["validation"]["current_telemetry_revalidated"]
         )
         self.assertTrue(result["validation"]["all_gates_passed"])
 

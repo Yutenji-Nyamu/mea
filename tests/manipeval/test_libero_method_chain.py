@@ -37,10 +37,7 @@ from mea.libero.retrieval import (
 )
 from mea.libero.taskgen import LiberoTaskGenBackend
 from mea.libero.tool import LiberoPredicateToolBackend
-from mea.method_runtime import BackendTaskBinding
-from mea.planner.claim_first import validate_open_query_capabilities
-from mea.planner.plan_agent_session import PlanAgentSession
-from mea.planner.query_contract import build_query_sufficiency_contract
+from mea.planner.plan_agent_schema import validate_open_query_capabilities
 from mea.toolkit.aggregate import aggregate_tool_executions
 
 
@@ -376,70 +373,6 @@ def test_method_chain_valid_is_mechanism_not_custom_outcome() -> None:
             else False
         )
         assert _method_chain_is_valid(**broken) is False
-
-
-def test_libero_method_evidence_uses_shared_query_contract_and_answer() -> None:
-    binding = BackendTaskBinding(
-        benchmark="libero",
-        binding_id="libero_object/task0",
-        task_contract={"suite": "libero_object", "task_id": 0},
-        native_task=object(),
-        metadata={"task_name": "libero_object_task0"},
-    )
-    contract = build_query_sufficiency_contract(
-        "Does any generated object variation fail?",
-        candidate_universe=["variant_milk"],
-        round_budget=1,
-        claim_type="existential",
-        candidate_universe_closed=False,
-        existential_witness_outcome="fail",
-        control_requirement="required",
-    )
-    session = PlanAgentSession(
-        "Does any generated object variation fail?",
-        method_binding=binding,
-        method_max_rounds=2,
-        query_contract=contract,
-        require_control_anchor=True,
-    )
-    evidence = [
-        {
-            "schema_version": 1,
-            "round_id": "round_01_official_control",
-            "tested_sub_aspect": "official_control",
-            "tested_hypothesis": "The unchanged task succeeds.",
-            "tested_perturbation": "none",
-            "outcome": "success",
-            "evidence_summary": "The official control succeeded.",
-            "limitations": ["N=1"],
-        },
-        {
-            "schema_version": 1,
-            "round_id": "round_02_custom_bddl",
-            "tested_sub_aspect": "object_identity",
-            "tested_hypothesis": "The generated variation succeeds.",
-            "tested_perturbation": "change the goal object",
-            "outcome": "failure",
-            "evidence_summary": "The generated predicate failed.",
-            "limitations": ["N=1"],
-        },
-    ]
-    state = session.observe_method_evidence(
-        evidence,
-        candidate_evidence=[
-            {
-                "candidate_id": "variant_milk",
-                "outcome": "fail",
-                "score": 0.0,
-                "diagnosis": "generated predicate not satisfied",
-            }
-        ],
-        baseline_valid=True,
-    )
-    assert state["assessment"]["evidence_sufficient"] is True
-    assert state["assessment"]["stop_reason"] == "evidence_sufficient"
-    assert state["query_answer"]["answered"] is True
-    assert state["query_answer"]["claim_verdict"] == "counterexample_found"
 
 
 def test_planner_taskgen_misalignment_is_structured_and_rollout_bounded(

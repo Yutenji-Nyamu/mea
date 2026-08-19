@@ -19,7 +19,7 @@ from mea.method_runtime import (
     RolloutRequest,
     BackendBindingRequest,
 )
-from mea.planner.claim_first import PlanAgent
+from mea.planner.plan_agent_provider import PlanAgent
 from mea.planner.plan_agent_session import PlanAgentSession
 from mea.providers import OpenAICompatibleProvider
 from mea.toolkit.aggregate import aggregate_tool_executions
@@ -345,8 +345,8 @@ def run_libero_method_chain(
     official_contract = official_binding.native_task
     _write_json(root / "runtime" / "task_binding.json", official_binding.to_dict())
     _write_json(
-        root / "planner" / "query_contract.json",
-        plan_session.query_contract,
+        root / "planner" / "runtime_limits.json",
+        plan_session.runtime_limits,
     )
     compatibility, query_retrieval, pending_change = _open_query_retrieval(
         request=request,
@@ -376,7 +376,7 @@ def run_libero_method_chain(
             "retrieval": query_retrieval.to_dict(),
             "policy_task_compatibility": compatibility.to_dict(),
             "controlled_change_contract": pending_change.to_dict(),
-            "query_contract": plan_session.query_contract,
+            "runtime_limits": plan_session.runtime_limits,
         }
         _write_json(root / "compact_result.json", result)
         return result
@@ -543,7 +543,7 @@ def run_libero_method_chain(
                 "retrieval": query_retrieval.to_dict(),
                 "policy_task_compatibility": compatibility.to_dict(),
                 "controlled_change_contract": pending_change.to_dict(),
-                "query_contract": plan_state["query_contract"],
+                "runtime_limits": plan_state["runtime_limits"],
                 "query_answer": plan_state["query_answer"],
                 "raw_run_dir": str(root),
             }
@@ -828,7 +828,7 @@ def run_libero_method_chain(
                 )
                 if not active_stop_validated:
                     raise RuntimeError(
-                        "QueryContract was sufficient but the Plan Agent did not stop"
+                        "completed evidence supported an answer but the Plan Agent did not stop"
                     )
             except Exception as exc:
                 second_error = f"{type(exc).__name__}: {exc}"
@@ -840,7 +840,7 @@ def run_libero_method_chain(
             _write_json(
                 root / "planner" / "after_custom" / "contract_stop.json",
                 {
-                    "status": "stopped_by_query_contract",
+                    "status": "stopped_by_runtime_limit",
                     "assessment": plan_state["assessment"],
                     "provider_called": False,
                 },
@@ -863,8 +863,8 @@ def run_libero_method_chain(
                 {"num_episodes": 1, "episodes": [custom_record.to_dict()]},
             ],
             "aggregate": aggregate,
-            "query_sufficiency": sufficiency,
-            "query_contract_sufficient": bool(
+            "plan_evidence_summary": sufficiency,
+            "evidence_sufficient": bool(
                 sufficiency["evidence_sufficient"]
             ),
             "observations": {
@@ -949,21 +949,21 @@ def run_libero_method_chain(
             "planner_final_action": (
                 second_bundle["proposal"]["action"]
                 if second_bundle
-                else "query_contract_stop"
+                else "runtime_limit_stop"
             ),
             "plan_agent_active_stop_validated": active_stop_validated,
             "planner_taskgen_alignment": bool(
                 taskgen_result["planner_taskgen_alignment"]
             ),
-            "query_contract_sufficient": bool(
+            "evidence_sufficient": bool(
                 sufficiency["evidence_sufficient"]
             ),
             "method_chain_valid": method_chain_valid,
             "episode_protocol_matches": episode_protocol_matches,
             "scientific_evidence_eligible": False,
             "paper_performance_evidence": False,
-            "query_sufficiency": sufficiency,
-            "query_contract": plan_state["query_contract"],
+            "plan_evidence_summary": sufficiency,
+            "runtime_limits": plan_state["runtime_limits"],
             "query_answer": plan_state["query_answer"],
             "answer": final_answer,
             "answer_scope": answer_scope,
@@ -997,8 +997,8 @@ def run_libero_method_chain(
                 "answer_scope": str(root / "answer_scope.json"),
                 "answer": str(root / "answer" / "answer.json"),
                 "query_answer": str(root / "query_answer.json"),
-                "query_contract": str(
-                    root / "planner" / "query_contract.json"
+                "runtime_limits": str(
+                    root / "planner" / "runtime_limits.json"
                 ),
                 "planner_state_after_control": str(
                     root / "planner" / "state_after_control.json"

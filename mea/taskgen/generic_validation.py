@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import ast
-import hashlib
 import re
 import textwrap
 from collections.abc import Mapping
@@ -13,7 +12,6 @@ from typing import Any
 from .generic_contracts import GenericTaskGenError
 from .provider_scene_checker import (
     retrieve_class_methods,
-    text_sha256,
     validate_method_ast,
 )
 
@@ -241,7 +239,7 @@ def _derived_ast_policy(
 ) -> dict[str, Any]:
     """Derive allowed calls from the official task instead of a task menu."""
 
-    source, class_node = _official_class(
+    _source, class_node = _official_class(
         source_path, class_name=class_name
     )
     safe_direct_calls = set(_GENERIC_DIRECT_CALLS)
@@ -255,7 +253,6 @@ def _derived_ast_policy(
         if isinstance(node, ast.Attribute) and node.attr.startswith("_")
     }
     trusted_nodes: list[ast.AST] = [class_node]
-    policy_digest = hashlib.sha256(source.encode("utf-8"))
     utils_dir = source_path.parent / "utils"
     if utils_dir.is_dir():
         for utility_path in sorted(utils_dir.glob("*.py")):
@@ -270,11 +267,6 @@ def _derived_ast_policy(
                     f"trusted simulator utility is invalid: "
                     f"{utility_path}: {exc}"
                 ) from exc
-            policy_digest.update(
-                utility_path.name.encode("utf-8")
-                + b"\0"
-                + utility_source.encode("utf-8")
-            )
             trusted_nodes.append(utility_tree)
             safe_direct_calls.update(
                 node.name
@@ -297,10 +289,7 @@ def _derived_ast_policy(
                 safe_module_calls.add(parts)
             safe_method_calls.add(node.func.attr)
     return {
-        "policy_id": (
-            "generic_official_api_ast_v1:"
-            + policy_digest.hexdigest()[:16]
-        ),
+        "policy_id": "generic_official_api_ast_v2",
         "safe_direct_calls": safe_direct_calls,
         "safe_module_calls": safe_module_calls,
         "safe_method_calls": safe_method_calls,
@@ -572,8 +561,6 @@ def validate_generic_task_methods(
         "success_ast_nodes": sum(
             1 for _ in ast.walk(parsed["check_success"])
         ),
-        "scene_sha256": text_sha256(methods["load_actors"]),
-        "success_sha256": text_sha256(methods["check_success"]),
         "changed_from_official": changed_from_official,
         "required_method_changes": required_changes,
         "official_core_conjunct_required": bool(

@@ -342,7 +342,7 @@ def build_click_bell_distractor_module(methods: Mapping[str, Any]) -> str:
     return f'"""Provider-generated ClickBell distractor candidate."""\n\nimport numpy as np\nimport sapien\nfrom envs.click_bell import click_bell as OfficialClickBell\nfrom envs.utils import create_actor, rand_pose\n\nclass click_bell(OfficialClickBell):\n{tracked}\n\n{scene}\n\n{checker}\n'
 
 
-def materialize_click_bell_distractor_candidate(*, repo_root: str | Path, run_id: str, proposal: Mapping[str, Any], provider: TextProvider, model: str, max_regenerations: int = 1, ablation_switches: Mapping[str, Any] | None = None, compatibility_attempt_directory: bool = False) -> dict[str, Any]:
+def materialize_click_bell_distractor_candidate(*, repo_root: str | Path, run_id: str, proposal: Mapping[str, Any], provider: TextProvider, model: str, max_regenerations: int = 1, ablation_switches: Mapping[str, Any] | None = None, compatibility_attempt_directory: bool = True) -> dict[str, Any]:
     run_id = validate_provider_run_id(
         run_id, error_type=ClickBellDistractorTaskGenError
     )

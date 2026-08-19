@@ -17,7 +17,7 @@
 3. 可执行候选经过通用 TaskGen 的 scene/checker materialization、真实 rollout、Python Rule
    Tool、Aggregate 与下一轮 Plan Agent；Tool 得到非空 live 值并在后续轮复用。
 4. 第 11 个已执行 round 后，Plan Agent 声明没有进一步有根据的 Proposal，并以当时的历史
-   writer 名称 `agent_saturation_inconclusive` 主动停止。QueryContract 只验证该判断没有被
+   writer 名称 `agent_saturation_inconclusive` 主动停止。当时的后置 stop validator 只验证该判断没有被
    升级为充分证据或确定结论，并未独立证明开放能力空间已经饱和；新 writer 使用更诚实的
    `agent_inconclusive_stop`，同时强制保留 `evidence_sufficient=false`、
    `claim_verdict=inconclusive` 与 `answered_query=false`。
@@ -61,7 +61,7 @@ expert-oracle limitation 和 typed `N=0` evidence 返回 Plan。evidence 改变�
 ## Batch40 充分停止正例（冷补充，未替换 current evidence）
 
 Batch40 先修正三处会截断论文语义的运输层问题：原始 pipeline completion 与
-`valid_for_planning` 分离；Plan Agent 拥有 continue/stop 决策而 QueryContract 只核验；
+`valid_for_planning` 分离；Plan Agent 拥有 continue/stop 决策而后置 stop validator 只核验；
 preservation 与 Proposal-to-artifact alignment 改用结构化事实而不再依赖词项重叠。
 
 最终 v4 从未指定 aspect、对象、轴、scene edit、checker、metric 或停止脚本的 Query 出发，
@@ -71,7 +71,7 @@ TaskGen 一次生成并通过 2/2 fixtures、VLM 和 expert；provider Python Ru
 `0.8000384569168091 m`。schema-v2 Aggregate 同时满足 `pipeline.passed=true`、
 `valid_for_planning=true`、intent/preservation complete 与 `sufficient=true`。Plan 原始响应
 给出 `stop/evidence_sufficient`、`claim_verdict=supported` 和 `answered_query=true`，
-QueryContract 随后验证通过。不过该次 live prompt 暴露了预计算的 sufficiency verdict，不能
+后置 stop validator 随后验证通过。不过该次 live prompt 暴露了预计算的 sufficiency verdict，不能
 单独证明 Agent 独立判断停止。
 
 Plan 的候选选择使用了检索任务卡中已有的同 seed 正向锚点，然后 fresh 生成并重新通过全部
@@ -82,7 +82,7 @@ episode，并补齐 compact decision 的充分停止字段；它没有改写冻�
 当前代码随后同时收紧 Plan 调用合同与 prompt，只传预算和具体运行限制。对冻结的两轮 evidence
 进行一次 provider-only、0 simulator、0 policy rollout 回放时，prompt 不再含预计算的
 `should_stop/evidence_sufficient/stop_reason/claim_verdict` 字段；Agent 一次调用独立输出 stop，
-后置 QueryContract 验证为 `query_contract_validated_stop/supported/answered=true`。因此停止所有权
+后置 validator 验证为 `validated_stop/supported/answered=true`。因此停止所有权
 由“live 执行 + 当前 prompt 的冻结回放”共同证明，而不是倒写原 live prompt 已经干净。
 
 v4 的实际 `x=0.15001997 m` 由 simulator state 直接确认；通用 matcher 仍只证明 scene owner
@@ -93,10 +93,26 @@ Batch40 只有 `grab_roller`、单 seed、`N=2`，没有证明同一运行中的
 跨 evaluation Tool reuse、跨任务稳定性或任何统计实验结论。完整冷记录见
 [`experiments/paper/results/batch40_paper_mainline_cleanup/`](../experiments/paper/results/batch40_paper_mainline_cleanup/README.md)。
 
+## Batch41 生产主链裁剪（结构回归，不是方法正证据）
+
+Batch41 把普通运行中没有论文方法对应、也没有真实故障理由的运输层移出主链：formal
+QueryContract、receipt/evidence seal、reviewed Task/Tool/VQA 审批 registry、registered strategy、
+cached finalization/resume 与 append-only TaskGen attempt ledger 已删除或迁冷。TaskGen 现在只有
+generation、最多一次针对性 repair 与单一 result；Rule/VQA 复用缩成 semantic key 到 executable
+artifact，并在当前 telemetry/frames 上重验。Query interpretation 也不再用 token、alias、ontology
+或 catalog ranking 裁决 concern；typed needs 直接交给 Plan/Task/Tool。
+
+最终代码在 AutoDL server 通过 225 项默认 mainline（另 10 个 subtests）与 623 项 cold/compat
+回归（另 162 个 subtests）；3 条 warning 均来自 robosuite 上游弃用接口。本批没有 provider、
+simulator 或 policy rollout，因此只证明裁剪后的软件结构仍可运行，不增加论文 claim 证据。
+仍待迁移的明确债务是旧 `artifact_retrieval_index` 菜单提示、`ExperimentCandidate` 内部命名/
+identity、HistoryDB 的技术性摘要，以及 `RoundExecutor`/TaskGen 大文件的 owner 拆分。完整冷记录见
+[`experiments/paper/results/batch41_mainline_cleanup/`](../experiments/paper/results/batch41_mainline_cleanup/README.md)。
+
 ## Batch37 补充证据
 
 - **Rule Tool 跨 evaluation 复用。** 一个新 evaluation 以 **0 rollout、0 provider call** 从
-  reviewed persistent registry 精确复用 `terminal_minimum_tcp_to_stapler_distance`；代码 hash、
+  当时的 reviewed persistent registry 精确复用 `terminal_minimum_tcp_to_stapler_distance`；代码 hash、
   Tool contract 与 telemetry schema 均匹配，并在新的缓存 episode 上重新执行得到 finite 值。
   这关闭了“只在 run-local registry 内复用”的代码/证据 gap，但仍是单 Tool、单任务案例。
 - **开放 VQA ToolGen。** Query 自然诱发了“首次成功按压前，夹爪是否越过订书机再反向重对齐”
@@ -116,7 +132,7 @@ Batch40 只有 `grab_roller`、单 seed、`N=2`，没有证明同一运行中的
 | 论文 claim | 当前项目 | 判断 |
 | --- | --- | --- |
 | Fig. 2/5：开放 Query 驱动 Plan Agent 自主提出 sub-aspect | Batch37 broad Query 未给实验菜单；上一轮 evidence 触发 position 数值细化及 position→orientation 转向 | **小范围 live 完成**；仍是单任务、单 seed，执行能力域有限 |
-| evidence 决定下一轮，并在充分时停止 | Batch37 的 evidence 改变下一 Proposal并主动 inconclusive stop；Batch40 live 产出充分 evidence，当前 verdict-hidden prompt 又在冻结 evidence 回放中独立提出 stop，QueryContract 只作后置验证 | **两种语义均有小范围证据**；多步 refinement 与充分正结论尚未在同一 live 运行合一 |
+| evidence 决定下一轮，并在充分时停止 | Batch37 的 evidence 改变下一 Proposal并主动 inconclusive stop；Batch40 live 产出充分 evidence，当前 verdict-hidden prompt 又在冻结 evidence 回放中独立提出 stop，后置 validator 只作核验 | **两种语义均有小范围证据**；多步 refinement 与充分正结论尚未在同一 live 运行合一 |
 | Fig. 3：Proposal → retrieve/generate scene + `check_success()` → rollout | 通用 TaskGen 已在 reviewed-schema-free 的 `press_stapler` 中 materialize scene/checker，并实际裁决 SmolVLA episode；一个不忠实 checker 被 fixture fail-closed 拒绝 | **小范围完成**；跨任务稳定性和量词/关系语义忠实性仍是边界 |
 | 首帧视觉诊断与局部重新生成 | render/VLM 与一次有界局部 repair 已接入；数值 preservation 由 simulator state、AST 与 fixture 审计 | **组件完成**；视觉不能替代数值语义验证 |
 | Fig. 4：ToolGen retrieve/generate/validate/register/reuse | 新 Python Rule Tool 有独立验证、live finite 值、Planner 消费、run-local reuse，并新增 0-rollout reviewed cross-evaluation exact reuse | **Rule Tool 小范围闭合**；开放 VQA artifact 可复用但观测不稳定 |

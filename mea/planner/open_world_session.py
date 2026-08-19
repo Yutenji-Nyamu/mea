@@ -8,7 +8,7 @@ Query-derived Proposals rather than requiring an aspect or template
 registration.
 
 The transport freezes task, policy, checkpoint, and total rollout budget.  Its
-QueryContract decides whether an official control round is required.  It does
+Runtime limits record whether an official control round is required.  They do
 *not* make semantic Plan Agent decisions and is intentionally absent from the
 package-level public API.
 """
@@ -26,12 +26,11 @@ from .experiment_candidate import (
     ExperimentCandidateError,
     validate_experiment_candidate,
 )
-from .query_contract import (
-    QuerySufficiencyError,
-    assess_query_sufficiency,
-    extend_query_candidate_universe,
-    project_agent_inconclusive_stop,
-    validate_query_sufficiency_contract,
+from .runtime_limits import (
+    PlanRuntimeError,
+    summarize_plan_evidence,
+    validate_agent_stop,
+    validate_plan_runtime_limits,
 )
 from .policy_task_binding import (
     PolicyTaskBindingError,
@@ -62,106 +61,6 @@ def _positive_int(value: Any, field: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise OpenWorldSessionError(f"{field} must be a positive integer")
     return value
-
-
-def _decision_planning_lineage(
-    step: Mapping[str, Any],
-    observation_history: Iterable[Mapping[str, Any]],
-) -> dict[str, Any] | None:
-    """Validate round ordering for an auditable Plan Agent decision."""
-
-    raw = step.get("planning_lineage")
-    if raw is None:
-        if step.get("action") in {"propose", "refine"}:
-            raise OpenWorldSessionError(
-                "continuing open-world PlanStepProposal requires "
-                "planning_lineage"
-            )
-        return None
-    if not isinstance(raw, Mapping):
-        raise OpenWorldSessionError(
-            "PlanStepProposal.planning_lineage must be an object"
-        )
-    lineage = deepcopy(dict(raw))
-    required = {
-        "schema_version",
-        "decision_kind",
-        "evidence_conditioned",
-        "completed_round_ids",
-        "completed_round_count",
-        "input_digest",
-    }
-    if set(lineage) != required or lineage.get("schema_version") != 1:
-        raise OpenWorldSessionError(
-            "PlanStepProposal.planning_lineage has an invalid schema"
-        )
-    raw_ids = lineage.get("completed_round_ids")
-    if not isinstance(raw_ids, list) or any(
-        not isinstance(item, str) or not item.strip() for item in raw_ids
-    ):
-        raise OpenWorldSessionError(
-            "planning_lineage.completed_round_ids must contain round ids"
-        )
-    observations = list(observation_history)
-    observed_ids = [
-        _text(item.get("round_id"), "observation_history[].round_id")
-        for item in observations
-        if isinstance(item, Mapping)
-    ]
-    if len(observed_ids) != len(observations):
-        raise OpenWorldSessionError(
-            "observation history items must be objects"
-        )
-    if lineage.get("completed_round_count") != len(raw_ids):
-        raise OpenWorldSessionError(
-            "planning_lineage completed-round count is inconsistent"
-        )
-    decision_kind = lineage.get("decision_kind")
-    if decision_kind == "evidence_conditioned_refinement":
-        if lineage.get("evidence_conditioned") is not True:
-            raise OpenWorldSessionError(
-                "evidence-conditioned refinement must set "
-                "evidence_conditioned=true"
-            )
-        if raw_ids != observed_ids or not raw_ids:
-            raise OpenWorldSessionError(
-                "evidence-conditioned refinement must name every completed "
-                "round in order"
-            )
-        digest = lineage.get("input_digest")
-        if (
-            not isinstance(digest, str)
-            or len(digest) != 64
-            or any(character not in "0123456789abcdef" for character in digest)
-        ):
-            raise OpenWorldSessionError(
-                "evidence-conditioned refinement needs a sha256 input digest"
-            )
-    elif decision_kind == "query_initial_candidate":
-        if (
-            lineage.get("evidence_conditioned") is not False
-            or raw_ids
-            or observed_ids
-        ):
-            raise OpenWorldSessionError(
-                "query-initial planning is valid only before any round "
-                "evidence exists"
-            )
-    elif decision_kind == "pre_evidence_query_candidate":
-        if (
-            lineage.get("evidence_conditioned") is not False
-            or raw_ids
-            or observed_ids
-        ):
-            raise OpenWorldSessionError(
-                "pre-evidence planning is valid only before any round "
-                "evidence exists"
-            )
-    else:
-        raise OpenWorldSessionError(
-            "planning_lineage.decision_kind is not recognized"
-        )
-    return lineage
 
 
 def _catalog_templates(task: Mapping[str, Any]) -> set[str]:
@@ -306,7 +205,7 @@ class _FrozenExecutionTransport:
         target: Mapping[str, Any],
         *,
         control_round: Mapping[str, Any] | None = None,
-        query_contract: Mapping[str, Any] | None = None,
+        runtime_limits: Mapping[str, Any] | None = None,
     ):
         if catalog is not None:
             from .catalog import validate_act_catalog
@@ -327,13 +226,13 @@ class _FrozenExecutionTransport:
         )["control_template_id"]
         self.retrieval_aspects = _retrieval_aspects(self.task_name)
         self._control_round: dict[str, Any] | None = None
-        self._query_contract: dict[str, Any] | None = None
-        if query_contract is not None:
-            self._query_contract = self._validate_query_contract(query_contract)
+        self._runtime_limits: dict[str, Any] | None = None
+        if runtime_limits is not None:
+            self._runtime_limits = self._validate_runtime_limits(runtime_limits)
         if control_round is not None:
-            if not self._control_required(self._query_contract):
+            if not self._control_required(self._runtime_limits):
                 raise OpenWorldSessionError(
-                    "QueryContract does not require an official control round"
+                    "runtime limits do not require an official control round"
                 )
             self._control_round = self._validate_control_round(control_round)
 
@@ -343,7 +242,7 @@ class _FrozenExecutionTransport:
         target: Mapping[str, Any],
         *,
         control_round: Mapping[str, Any] | None = None,
-        query_contract: Mapping[str, Any] | None = None,
+        runtime_limits: Mapping[str, Any] | None = None,
     ) -> "_FrozenExecutionTransport":
         """Start from an already frozen runtime binding.
 
@@ -356,7 +255,7 @@ class _FrozenExecutionTransport:
             None,
             target,
             control_round=control_round,
-            query_contract=query_contract,
+            runtime_limits=runtime_limits,
         )
 
     def _validate_optional_binding(
@@ -433,26 +332,21 @@ class _FrozenExecutionTransport:
             )
         return control
 
-    def _validate_query_contract(
+    def _validate_runtime_limits(
         self, contract: Mapping[str, Any]
     ) -> dict[str, Any]:
         try:
-            normalized = validate_query_sufficiency_contract(contract)
-        except QuerySufficiencyError as exc:
+            normalized = validate_plan_runtime_limits(contract)
+        except PlanRuntimeError as exc:
             raise OpenWorldSessionError(
-                f"invalid open-world QueryContract: {exc}"
+                f"invalid open-world runtime limits: {exc}"
             ) from exc
-        if normalized["schema_version"] != 3:
-            raise OpenWorldSessionError(
-                "open-world session requires normalized QueryContract "
-                "schema_version=3"
-            )
         candidate_budget = self.target["max_rounds"] - (
             1 if self._control_required(normalized) else 0
         )
         if normalized["round_budget"] > candidate_budget:
             raise OpenWorldSessionError(
-                "QueryContract exceeds the candidate-round budget after its "
+                "runtime limits exceed the candidate-round budget after the "
                 "control requirement"
             )
         if (
@@ -460,27 +354,17 @@ class _FrozenExecutionTransport:
             and self._control_round is not None
         ):
             raise OpenWorldSessionError(
-                "QueryContract cannot disable an already bound control round"
+                "runtime limits cannot disable an already bound control round"
             )
-        if self._query_contract is not None:
-            old = self._query_contract
-            if normalized["claim_type"] != old["claim_type"]:
-                raise OpenWorldSessionError(
-                    "QueryContract cannot change claim_type during a session"
-                )
+        if self._runtime_limits is not None:
+            old = self._runtime_limits
             if (
                 normalized["control_requirement"]
                 != old["control_requirement"]
             ):
                 raise OpenWorldSessionError(
-                    "QueryContract cannot change control_requirement during a "
+                    "runtime limits cannot change control_requirement during a "
                     "session"
-                )
-            old_universe = list(old["candidate_universe"])
-            new_universe = list(normalized["candidate_universe"])
-            if new_universe[: len(old_universe)] != old_universe:
-                raise OpenWorldSessionError(
-                    "QueryContract cannot remove or reorder discovered candidates"
                 )
         return normalized
 
@@ -544,11 +428,11 @@ class _FrozenExecutionTransport:
         )
         if task_name != self.task_name:
             raise OpenWorldSessionError("plan cannot switch the bound task")
-        contract_value = normalized.get("query_contract")
+        contract_value = normalized.get("runtime_limits")
         contract = (
-            self._validate_query_contract(contract_value)
+            self._validate_runtime_limits(contract_value)
             if contract_value is not None
-            else deepcopy(self._query_contract)
+            else deepcopy(self._runtime_limits)
         )
         control_required = self._control_required(contract)
         rounds = normalized.get("rounds")
@@ -607,27 +491,7 @@ class _FrozenExecutionTransport:
             candidate_ids.append(candidate_id)
 
         if contract is not None:
-            missing = [
-                candidate_id
-                for candidate_id in candidate_ids
-                if candidate_id not in contract["candidate_universe"]
-            ]
-            if missing:
-                if contract["candidate_universe_closed"]:
-                    raise OpenWorldSessionError(
-                        "closed QueryContract cannot accept a runtime candidate"
-                    )
-                try:
-                    contract = extend_query_candidate_universe(
-                        contract,
-                        missing,
-                        candidate_universe_closed=False,
-                    )
-                except QuerySufficiencyError as exc:
-                    raise OpenWorldSessionError(
-                        f"cannot extend QueryContract: {exc}"
-                    ) from exc
-            self._query_contract = self._validate_query_contract(contract)
+            self._runtime_limits = self._validate_runtime_limits(contract)
 
         normalized["task_name"] = self.task_name
         normalized["policy"] = deepcopy(self.policy)
@@ -639,7 +503,7 @@ class _FrozenExecutionTransport:
         normalized["proposals"] = candidates
         normalized["requested_candidate_ids"] = candidate_ids
         if contract is not None:
-            normalized["query_contract"] = deepcopy(contract)
+            normalized["runtime_limits"] = deepcopy(contract)
         return normalized
 
     def normalize_plan(self, plan: Mapping[str, Any]) -> dict[str, Any]:
@@ -657,29 +521,29 @@ class _FrozenExecutionTransport:
 
         return build_planning_context(repo_root, self.target)
 
-    def assess_query_sufficiency(
+    def summarize_evidence(
         self,
         plan: Mapping[str, Any],
         candidate_evidence: Iterable[Mapping[str, Any]],
         *,
         completed_rounds: int | None = None,
     ) -> dict[str, Any]:
-        """Evaluate the plan's dynamically extended QueryContract."""
+        """Summarize completed evidence within the external runtime limits."""
 
         normalized = self._normalize_plan(plan)
-        contract = normalized.get("query_contract")
+        contract = normalized.get("runtime_limits")
         if not isinstance(contract, Mapping):
             raise OpenWorldSessionError(
-                "plan has no open-world QueryContract"
+                "plan has no open-world runtime limits"
             )
         evidence = [deepcopy(dict(item)) for item in candidate_evidence]
         try:
-            return assess_query_sufficiency(
+            return summarize_plan_evidence(
                 contract,
                 evidence,
                 completed_rounds=completed_rounds,
             )
-        except (QuerySufficiencyError, TypeError, ValueError) as exc:
+        except (PlanRuntimeError, TypeError, ValueError) as exc:
             raise OpenWorldSessionError(
                 f"invalid candidate evidence: {exc}"
             ) from exc
@@ -740,9 +604,9 @@ class _FrozenExecutionTransport:
         *,
         materialized_round: Mapping[str, Any] | None = None,
         source: str = "provider",
-        query_contract: Mapping[str, Any] | None = None,
+        runtime_limits: Mapping[str, Any] | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-        """Append one runtime candidate or stop under QueryContract evidence."""
+        """Append one runtime candidate or an Agent-authored stop."""
 
         current = self._normalize_plan(plan)
         if len(observation_history) != len(current["rounds"]):
@@ -757,15 +621,11 @@ class _FrozenExecutionTransport:
             raise OpenWorldSessionError(
                 "PlanStepProposal.action must be propose, refine, or stop"
             )
-        planning_lineage = _decision_planning_lineage(
-            step,
-            observation_history,
-        )
-        if query_contract is not None:
-            current["query_contract"] = self._validate_query_contract(
-                query_contract
+        if runtime_limits is not None:
+            current["runtime_limits"] = self._validate_runtime_limits(
+                runtime_limits
             )
-        contract = current.get("query_contract")
+        contract = current.get("runtime_limits")
         assessment: dict[str, Any] | None = None
         if isinstance(contract, Mapping):
             evidence = self._candidate_evidence_from_history(
@@ -777,7 +637,7 @@ class _FrozenExecutionTransport:
                     control_required=self._control_required(contract),
                 )
             )
-            assessment = self.assess_query_sufficiency(
+            assessment = self.summarize_evidence(
                 current,
                 evidence,
                 completed_rounds=completed_candidate_rounds,
@@ -791,20 +651,22 @@ class _FrozenExecutionTransport:
                 raise OpenWorldSessionError(
                     "stop PlanStepProposal cannot contain a materialized round"
                 )
-            if step.get("answered_query") is True and (
-                assessment is None
-                or assessment.get("evidence_sufficient") is not True
-            ):
-                raise OpenWorldSessionError(
-                    "answered_query=true requires sufficient QueryContract evidence"
-                )
-            if assessment is not None and not assessment["should_stop"]:
+            if assessment is not None:
                 try:
-                    assessment = project_agent_inconclusive_stop(
+                    answered = bool(step.get("answered_query", False))
+                    assessment = validate_agent_stop(
                         assessment,
                         rationale=str(step.get("rationale") or ""),
+                        answer=(
+                            str(step.get("answer") or "").strip() or None
+                        ),
+                        claim_verdict=str(
+                            step.get("claim_verdict")
+                            or ("inconclusive" if not answered else "")
+                        ),
+                        evidence_sufficient=answered,
                     )
-                except QuerySufficiencyError as exc:
+                except PlanRuntimeError as exc:
                     raise OpenWorldSessionError(str(exc)) from exc
         else:
             if len(current["rounds"]) >= self.target["max_rounds"]:
@@ -858,16 +720,6 @@ class _FrozenExecutionTransport:
                     "materialized round conflicts with PlanStepProposal candidate"
                 )
             updated["rounds"].append(next_round)
-            if isinstance(contract, Mapping):
-                if contract["candidate_universe_closed"]:
-                    raise OpenWorldSessionError(
-                        "closed QueryContract cannot accept a runtime candidate"
-                    )
-                updated["query_contract"] = extend_query_candidate_universe(
-                    contract,
-                    [candidate["candidate_id"]],
-                    candidate_universe_closed=False,
-                )
 
         transition = {
             "propose": "switch_concern",
@@ -889,7 +741,6 @@ class _FrozenExecutionTransport:
             ),
             "answered_query": bool(step.get("answered_query", False)),
             "plan_step_source": str(source),
-            "planning_lineage": deepcopy(planning_lineage),
             "plan_step_proposal": step,
             "round_budget_before_decision": (
                 self.target["max_rounds"] - len(current["rounds"])
@@ -929,24 +780,24 @@ class _FrozenExecutionTransport:
                 "observation history exceeds materialized rounds"
             )
         assessment = None
-        if isinstance(normalized.get("query_contract"), Mapping):
+        if isinstance(normalized.get("runtime_limits"), Mapping):
             candidate_evidence = self._candidate_evidence_from_history(history)
             completed_candidate_rounds = (
                 self._completed_policy_candidate_rounds(
                     history,
                     control_required=self._control_required(
-                        normalized["query_contract"]
+                        normalized["runtime_limits"]
                     ),
                 )
             )
-            assessment = self.assess_query_sufficiency(
+            assessment = self.summarize_evidence(
                 normalized,
                 candidate_evidence,
                 completed_rounds=completed_candidate_rounds,
             )
         control_required = self._control_required(
-            normalized.get("query_contract")
-            if isinstance(normalized.get("query_contract"), Mapping)
+            normalized.get("runtime_limits")
+            if isinstance(normalized.get("runtime_limits"), Mapping)
             else None
         )
         return {
@@ -969,7 +820,7 @@ class _FrozenExecutionTransport:
             "decisions": deepcopy(
                 list(normalized.get("round_decisions") or [])
             ),
-            "query_contract": deepcopy(normalized.get("query_contract")),
+            "runtime_limits": deepcopy(normalized.get("runtime_limits")),
             "query_assessment": assessment,
         }
 

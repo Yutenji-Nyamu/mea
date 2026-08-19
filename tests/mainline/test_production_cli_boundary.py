@@ -53,17 +53,8 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             "spec.loader.exec_module(module);"
             "print(json.dumps({"
             "'parse_args':module.parse_args is agent_cli.parse_args,"
-            "'compat_profile':module.paper_compat_profile_requested "
-            "is agent_cli.paper_compat_profile_requested,"
             "'argument_validation':module.validate_and_normalize_agent_args "
             "is agent_cli.validate_and_normalize_agent_args,"
-            "'contract_loader':module.load_query_sufficiency_contract "
-            "is agent_cli.load_query_sufficiency_contract,"
-            "'allowed_aspects':"
-            "module.resolve_plan_agent_allowed_aspects "
-            "is agent_cli.resolve_plan_agent_allowed_aspects,"
-            "'planner_default':module.resolve_default_open_query_planner "
-            "is agent_cli.resolve_default_open_query_planner,"
             "'candidate_budget':module.resolve_plan_agent_candidate_budget "
             "is agent_cli.resolve_plan_agent_candidate_budget,"
             "'episode_results_absent':"
@@ -81,11 +72,7 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             run_import_probe(probe),
             {
                 "parse_args": True,
-                "compat_profile": True,
                 "argument_validation": True,
-                "contract_loader": True,
-                "allowed_aspects": True,
-                "planner_default": True,
                 "candidate_budget": True,
                 "episode_results_absent": True,
                 "bounded_proposal_absent": True,
@@ -127,13 +114,10 @@ class ProductionCliBoundaryTests(unittest.TestCase):
         source = (
             REPO_ROOT / "mea/agent_query_routing.py"
         ).read_text(encoding="utf-8")
-        production_branch = source.index("if context.plan_agent_mode:")
-        compat_catalog = source.index(
-            "from mea.planner.catalog import build_act_catalog"
-        )
-        self.assertLess(production_branch, compat_catalog)
+        self.assertIn("discover_robotwin_runtime_task_inventory(", source)
         self.assertIn("capability_catalog=None", source)
-        self.assertNotIn("capability_catalog=global_catalog", source)
+        self.assertNotIn("mea.planner.catalog", source)
+        self.assertNotIn("run_legacy_catalog_agent", source)
 
     def _cold_legacy_factory_still_loads_compatibility_planners(self) -> None:
         modules = [
@@ -169,69 +153,40 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             "--command-plan",
             "--registered-route",
             "--registered-strategy",
+            "--execution-backend",
         ):
             self.assertNotIn(option, process.stdout)
         self.assertIn("--auto-route", process.stdout)
+        self.assertNotIn("legacy_v1", process.stdout)
 
-    def test_reviewed_task_registry_is_owned_by_cold_taskgen_compat(self) -> None:
-        production_sources = "\n".join(
-            (REPO_ROOT / path).read_text(encoding="utf-8")
-            for path in (
-                "mea/agent_cli.py",
-                "mea/agent_run_context.py",
-                "mea/agent_runtime_setup.py",
-                "mea/agent_run_dispatch.py",
+    def test_production_cli_rejects_retired_execution_options(self) -> None:
+        from mea.agent_cli import parse_args
+
+        with self.assertRaises(SystemExit):
+            parse_args(
+                [
+                    "--request",
+                    "q",
+                    "--execution-backend",
+                    "act",
+                ]
             )
-        )
-        cold_sources = (
-            REPO_ROOT / "experiments/paper/compat_taskgen/legacy_cli.py"
-        ).read_text(encoding="utf-8")
-        self.assertNotIn("reviewed_task_registry", production_sources)
-        self.assertNotIn("--reviewed-task-registry", production_sources)
-        self.assertIn("--reviewed-task-registry", cold_sources)
-
+        with self.assertRaises(SystemExit):
+            parse_args(
+                [
+                    "--request",
+                    "q",
+                    "--telemetry-profile",
+                    "legacy_v1",
+                ]
+            )
 
     def test_default_production_mode_is_plan_agent(self) -> None:
-        probe = (
-            "import argparse,importlib.util,json,pathlib;"
-            "from experiments.paper.compat_agent_profile "
-            "import resolve_compat_agent_profile;"
-            "path=pathlib.Path('scripts/manipeval_agent.py');"
-            "spec=importlib.util.spec_from_file_location('agent_defaults',path);"
-            "module=importlib.util.module_from_spec(spec);"
-            "spec.loader.exec_module(module);"
-            "base=dict(open_query_planner=None,registered_strategy=None,"
-            "task_profile='official',planning_policy='dynamic_evidence_v1',"
-            "proposal_mode='catalog');"
-            "production=module.resolve_default_open_query_planner("
-            "argparse.Namespace(**base));"
-            "base['planning_policy']='fixed_predeclared_v1';"
-            "paper=resolve_compat_agent_profile("
-            "argparse.Namespace(auto_route=False,evidence_manifest=None,"
-            "command_plan=None,registered_route=None,evaluation_id=None,**base),"
-            "requested_open_query_planner=None)['open_query_planner'];"
-            "print(json.dumps({'production':production,'paper':paper}))"
+        source = (REPO_ROOT / "mea/agent_run_dispatch.py").read_text(
+            encoding="utf-8"
         )
-        self.assertEqual(
-            run_import_probe(probe),
-            {
-                "production": "plan_agent_v1",
-                "paper": "catalog_step_v1",
-            },
-        )
-
-    def _cold_historical_claim_first_value_normalizes_to_plan_agent(self) -> None:
-        probe = (
-            "import argparse,json;"
-            "from mea.agent_cli import resolve_default_open_query_planner;"
-            "value=resolve_default_open_query_planner("
-            "argparse.Namespace(open_query_planner='claim_first_v1'));"
-            "print(json.dumps({'planner':value}))"
-        )
-        self.assertEqual(
-            run_import_probe(probe),
-            {"planner": "plan_agent_v1"},
-        )
+        self.assertIn('open_query_planner="plan_agent_v1"', source)
+        self.assertNotIn("run_legacy_catalog_agent", source)
 
     def test_control_path_plans_next_subaspect_after_evidence(self) -> None:
         decision_source = (
@@ -250,7 +205,6 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             "self.session.bind_evidence_conditioned_semantic_step(",
             decision_source,
         )
-        self.assertNotIn("claim_first_controller =", decision_source)
         self.assertNotIn("pending_first_semantic_bundle", decision_source)
         self.assertNotIn("use_pending_first", decision_source)
         self.assertNotIn("_persist_contract_stop", application_source)
@@ -259,7 +213,7 @@ class ProductionCliBoundaryTests(unittest.TestCase):
         )
         self.assertIn("materialized_round = None", decision_source)
         self.assertNotIn(
-            "QueryContract accepted stopping but the Plan Agent did not "
+            "runtime stop validation passed but the Plan Agent did not "
             "propose action=stop",
             decision_source + application_source,
         )
@@ -311,10 +265,8 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             encoding="utf-8"
         )
         execution = dispatch_source.index("run_plan_agent_application(")
-        compat_dispatch = dispatch_source.index(
-            "run_legacy_catalog_agent(", execution
-        )
-        self.assertLess(execution, compat_dispatch)
+        self.assertGreaterEqual(execution, 0)
+        self.assertNotIn("run_legacy_catalog_agent(", dispatch_source)
         self.assertIn("finalize_manifest_and_dispatch(", cli_source)
         self.assertNotIn(
             "run_plan_agent_application(",
@@ -331,25 +283,10 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             "the production decision loop must not remain duplicated in the CLI",
         )
 
-    def test_precontrol_concern_does_not_shrink_planner_domain(self) -> None:
-        probe = (
-            "import importlib.util,json,pathlib;"
-            "path=pathlib.Path('scripts/manipeval_agent.py');"
-            "spec=importlib.util.spec_from_file_location('agent_domain',path);"
-            "module=importlib.util.module_from_spec(spec);"
-            "spec.loader.exec_module(module);"
-            "print(json.dumps({"
-            "'open':module.resolve_plan_agent_allowed_aspects(None),"
-            "'explicit':module.resolve_plan_agent_allowed_aspects("
-            "['object_position','object_position','object_instance'])}))"
-        )
-        self.assertEqual(
-            run_import_probe(probe),
-            {
-                "open": None,
-                "explicit": ["object_position", "object_instance"],
-            },
-        )
+    def test_precontrol_concern_does_not_create_a_cli_aspect_menu(self) -> None:
+        source = (REPO_ROOT / "mea/agent_cli.py").read_text(encoding="utf-8")
+        self.assertNotIn("--bound-requested-aspect-id", source)
+        self.assertNotIn("resolve_plan_agent_allowed_aspects", source)
 
     def test_production_execution_uses_native_method_runtime(
         self,
@@ -385,23 +322,18 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             agent_source + executor_source,
         )
 
-    def test_no_control_query_keeps_its_only_candidate_round(self) -> None:
+    def test_candidate_budget_reserves_a_required_control_round(self) -> None:
         probe = (
             "import importlib.util,json,pathlib;"
             "path=pathlib.Path('scripts/manipeval_agent.py');"
             "spec=importlib.util.spec_from_file_location('agent_budget',path);"
             "module=importlib.util.module_from_spec(spec);"
             "spec.loader.exec_module(module);"
-            "context={'sub_aspect':'trajectory.terminal_height',"
-            "'hypothesis':'Measure the terminal telemetry field.',"
-            "'requested_variation':'none',"
-            "'measurement_need':'Measure terminal bottle telemetry height.'};"
             "budget=module.resolve_plan_agent_candidate_budget("
-            "1,user_request='What is the terminal bottle telemetry height?',"
-            "query_contract=None,semantic_context=context);"
+            "1,candidate_resolution=None);"
             "print(json.dumps({'budget':budget}))"
         )
-        self.assertEqual(run_import_probe(probe), {"budget": 1})
+        self.assertEqual(run_import_probe(probe), {"budget": 0})
 
     def test_typed_official_experiment_is_not_charged_two_rounds(self) -> None:
         from mea.agent_cli import (
@@ -413,37 +345,22 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             "resolution": "official_execution_from_typed_needs",
             "execution_authorized": True,
         }
-        query = (
-            "Run exactly one unchanged official control episode and answer "
-            "only from that evidence."
-        )
-
         self.assertFalse(
             resolve_plan_agent_control_required(
-                query,
-                query_contract=None,
-                semantic_context=None,
                 candidate_resolution=resolution,
             )
         )
         self.assertEqual(
             resolve_plan_agent_candidate_budget(
                 1,
-                user_request=query,
-                query_contract=None,
-                semantic_context=None,
                 candidate_resolution=resolution,
             ),
             1,
         )
 
-        broad_resolution = dict(resolution)
-        broad_query = "Does there exist a sub-aspect that exposes a weakness?"
+        broad_resolution = {"resolution": "proposal_reuse_or_generate"}
         self.assertTrue(
             resolve_plan_agent_control_required(
-                broad_query,
-                query_contract=None,
-                semantic_context=None,
                 candidate_resolution=broad_resolution,
             )
         )

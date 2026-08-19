@@ -3,8 +3,8 @@
 The production Agent materializes Query-derived Task artifacts through
 ``mea.taskgen.runtime`` and ``MethodRuntime``.  This script remains the stable
 standalone command used by historical paper protocols.  A generic provider
-Proposal is identified explicitly; every task-specific, registered, reviewed,
-Table-3 or LIBERO invocation is dispatched to the cold compatibility module.
+Proposal is identified explicitly; every task-specific, Table-3 or LIBERO
+invocation is dispatched to the cold compatibility module.
 
 Compatibility functions imported by older tests and paper scripts are exposed
 lazily.  They are not imported while the production Agent imports TaskGen.
@@ -30,8 +30,6 @@ _COMPAT_ONLY_FLAGS = frozenset(
     {
         "--benchmark",
         "--capability-contract-json",
-        "--registration-identity-json",
-        "--reviewed-task-registry",
         "--task-proposal-json",
         "--taskgen-ablation-json",
         "--variant-hint-json",
@@ -40,7 +38,6 @@ _COMPAT_ONLY_FLAGS = frozenset(
 )
 _PATCH_BRIDGE_NAMES = (
     "OpenAICompatibleProvider",
-    "find_reviewed_task",
     "require_task_artifact_act_runtime_eligible",
     "run_command",
     "run_probe",
@@ -49,14 +46,12 @@ _HISTORICAL_FUNCTIONS = (
     "_checker_fixture_failure_diagnosis",
     "_expert_terminal_authority_failure",
     "_tracked_actor_heights",
-    "bind_registration_to_episode_metadata",
     "collect_click_bell_position_samples",
     "collect_position_samples",
     "create_provider_scene_checker_taskgen_run",
     "evaluate_run_telemetry",
     "newest_eval_dir",
     "prepare_planner_capability_binding",
-    "reviewed_task_lookup_with_fallback",
     "run_act",
     "run_command",
     "run_official_expert_episodes",
@@ -65,7 +60,6 @@ _HISTORICAL_FUNCTIONS = (
     "task_artifact_summary",
     "update_manifest",
     "validate_planner_capability_binding",
-    "validate_registration_identity",
 )
 
 

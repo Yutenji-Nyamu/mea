@@ -171,63 +171,6 @@ class ExecutionVQAQueryTests(unittest.TestCase):
                 )
                 self.assertEqual(question["visual_scope"], "scene_appearance")
 
-    def test_reviewed_clutter_spec_is_hash_pinned_and_reused(self):
-        repo_root = Path(__file__).resolve().parents[2]
-        registry = repo_root / "mea/vqa_query_registry/reviewed"
-        query = build_execution_vqa_query(
-            task_name="click_bell",
-            template_id="robustness.scene_clutter.official_table",
-            sub_aspect="robustness.scene_clutter",
-            tool_contract={"metric": "official_check_success"},
-            reviewed_registry_dir=registry,
-        )
-        self.assertEqual(
-            query["phenomenon_ids"],
-            [
-                "bell_visibly_pressed",
-                "bell_target_selected_among_clutter",
-            ],
-        )
-        self.assertTrue(
-            query["selection_reasons"][0].startswith(
-                "reviewed_vqa_query_spec:vqa_click_bell_scene_clutter_v1:"
-            )
-        )
-
-    def test_reviewed_scene_specs_are_hash_pinned_and_reused(self):
-        repo_root = Path(__file__).resolve().parents[2]
-        registry = repo_root / "mea/vqa_query_registry/reviewed"
-        cases = {
-            "scene_background_texture.unseen": (
-                "scene_background_texture",
-                "bell_visible_with_unseen_background_texture",
-                "vqa_click_bell_background_texture_v1",
-            ),
-            "scene_lighting.static_random": (
-                "scene_lighting",
-                "bell_visible_under_random_lighting",
-                "vqa_click_bell_lighting_v1",
-            ),
-        }
-        for template_id, (aspect_id, phenomenon_id, spec_id) in cases.items():
-            with self.subTest(template_id=template_id):
-                query = build_execution_vqa_query(
-                    task_name="click_bell",
-                    template_id=template_id,
-                    sub_aspect=aspect_id,
-                    tool_contract={"metric": "official_check_success"},
-                    reviewed_registry_dir=registry,
-                )
-                self.assertEqual(
-                    query["phenomenon_ids"],
-                    ["bell_visibly_pressed", phenomenon_id],
-                )
-                self.assertTrue(
-                    query["selection_reasons"][0].startswith(
-                        f"reviewed_vqa_query_spec:{spec_id}:"
-                    )
-                )
-
     def test_new_official_tasks_select_their_own_visual_contracts(self):
         expected = {
             "adjust_bottle": "bottle_visibly_repositioned",

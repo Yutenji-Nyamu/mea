@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import csv
-import hashlib
-import inspect
 import json
 from pathlib import Path
 from typing import Any, Callable
@@ -166,10 +164,6 @@ class TrajectoryView:
         ]
 
 
-def _tool_hash(function: Callable[..., Any]) -> str:
-    return hashlib.sha256(inspect.getsource(function).encode("utf-8")).hexdigest()
-
-
 def _evidence(
     trajectory: TrajectoryView,
     index: int,
@@ -201,7 +195,6 @@ def _result(
     result = {
         "tool": name,
         "version": 1,
-        "tool_sha256": _tool_hash(function),
         "value": value,
         "unit": unit,
         "evidence_steps": [
@@ -511,8 +504,8 @@ def generated_check_success(trajectory: TrajectoryView) -> dict[str, Any]:
 
     binding = getattr(trajectory, "outcome_binding", None)
     supported_bindings = {
-        "compiled_success_spec_experimental_bounded": "success_spec_sha256",
-        "llm_generated_python_ast_validated": "module_sha256",
+        "compiled_success_spec_experimental_bounded",
+        "llm_generated_python_ast_validated",
     }
     if (
         not isinstance(binding, dict)
@@ -522,7 +515,6 @@ def generated_check_success(trajectory: TrajectoryView) -> dict[str, Any]:
         raise TrajectoryError(
             "generated_check_success requires a validated runtime outcome binding"
         )
-    hash_field = supported_bindings[binding["authority"]]
     generated_success = trajectory.metadata.get(
         "generated_checker_success"
     )
@@ -546,7 +538,6 @@ def generated_check_success(trajectory: TrajectoryView) -> dict[str, Any]:
             "latched_eval_success": latched_success,
             "success_transition_recorded": first is not None,
             "authority": binding["authority"],
-            hash_field: binding[hash_field],
             "task_module": binding["task_module"],
             "generated_checker_success": (
                 final_success
@@ -672,7 +663,6 @@ def public_tool_catalog() -> list[dict[str, Any]]:
             "tags": item["tags"],
             "supported_task_names": item["supported_task_names"],
             "version": 1,
-            "sha256": _tool_hash(item["function"]),
         }
         for name, item in TOOL_CATALOG.items()
     ]

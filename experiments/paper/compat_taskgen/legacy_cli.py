@@ -2,7 +2,7 @@
 
 The production method runtime materializes generic TaskGen candidates through
 ``mea.taskgen.runtime``.  This module preserves the historical BBH, ClickBell,
-registered-strategy, Table-3 and standalone CLI behavior while those paper
+Table-3 and standalone CLI behavior while those paper
 protocol callers remain supported.
 """
 
@@ -72,23 +72,17 @@ from mea.planner.experiment_candidate import (
     ExperimentCandidateError,
     validate_experiment_candidate,
 )
-from mea.taskgen.resolver import TaskResolutionError, resolve_task_proposal
 from mea.taskgen.prototype import (
     TaskGenError,
     validate_taskgen_ablation_switches,
 )
-from mea.taskgen.production_acceptance import (
+from experiments.paper.compat_taskgen.production_acceptance import (
     ProductionTaskAcceptanceError,
     record_production_task_acceptance,
     require_production_task_acceptance,
     require_task_artifact_act_runtime_eligible,
 )
 from mea.taskgen.reflection import protected_hashes
-from mea.taskgen.reviewed_registry import (
-    ReviewedTaskRegistryError,
-    copy_reviewed_task_artifacts,
-    find_reviewed_task,
-)
 from mea.taskgen.runtime import (
     _checker_fixture_failure_diagnosis,
     _expert_terminal_authority_failure,
@@ -107,111 +101,6 @@ from mea.taskgen.rollout_evidence import (
 from mea.taskgen import visual_validation
 
 
-def reviewed_task_lookup_with_fallback(
-    registry_root: Path,
-    query: dict[str, Any],
-    *,
-    repo_root: Path,
-) -> tuple[dict[str, Any] | None, dict[str, str] | None]:
-    """Never reuse an invalid registry entry; audit and generate instead."""
-
-    try:
-        return (
-            find_reviewed_task(
-                registry_root,
-                query,
-                repo_root=repo_root,
-            ),
-            None,
-        )
-    except ReviewedTaskRegistryError as exc:
-        return (
-            None,
-            {
-                "status": "invalid_registry_fallback_to_generation",
-                "error_type": type(exc).__name__,
-                "message": str(exc),
-            },
-        )
-
-
-
-
-_REGISTRATION_KEYS = {
-    "schema_version",
-    "registration_id",
-    "evidence_manifest_payload_sha256",
-    "command_plan_sha256",
-    "registered_route_sha256",
-    "checkpoint_file_set_sha256",
-    "source_artifact_file_set_sha256",
-    "base_commit",
-    "candidate_suite_sha256",
-    "trusted_catalog_sha256",
-    "trusted_template_contract_sha256",
-    "strategy",
-    "expected_evaluation_id",
-    "expected_child_run_prefix",
-}
-
-
-def validate_registration_identity(value: Any, *, run_id: str | None = None) -> dict[str, Any]:
-    if not isinstance(value, dict) or set(value) != _REGISTRATION_KEYS:
-        raise ValueError("registration identity fields changed")
-    if value.get("schema_version") != 1:
-        raise ValueError("registration identity schema_version must be 1")
-    for field in (
-        "evidence_manifest_payload_sha256",
-        "command_plan_sha256",
-        "registered_route_sha256",
-        "checkpoint_file_set_sha256",
-        "source_artifact_file_set_sha256",
-        "candidate_suite_sha256",
-        "trusted_catalog_sha256",
-        "trusted_template_contract_sha256",
-    ):
-        if not re.fullmatch(r"[0-9a-f]{64}", str(value.get(field) or "")):
-            raise ValueError(f"invalid registration hash: {field}")
-    if not re.fullmatch(r"[0-9a-f]{40}", str(value.get("base_commit") or "")):
-        raise ValueError("invalid registration base_commit")
-    if value.get("strategy") not in {
-        "fixed_predeclared_v1",
-        "dynamic_evidence_v1",
-    }:
-        raise ValueError("invalid registered strategy")
-    evaluation_id = value.get("expected_evaluation_id")
-    if not isinstance(evaluation_id, str) or not re.fullmatch(
-        r"eval_[A-Za-z0-9_]+", evaluation_id
-    ):
-        raise ValueError("invalid registered evaluation id")
-    expected_prefix = f"run_{evaluation_id.removeprefix('eval_')}_"
-    if value.get("expected_child_run_prefix") != expected_prefix:
-        raise ValueError("invalid registered child run prefix")
-    if run_id is not None and not run_id.startswith(expected_prefix):
-        raise ValueError("TaskGen run_id differs from registered parent")
-    return dict(value)
-
-
-def bind_registration_to_episode_metadata(
-    run_dir: Path, registration_identity: dict[str, Any]
-) -> None:
-    telemetry = (run_dir / "evaluation/telemetry").resolve()
-    if not telemetry.is_dir():
-        return
-    for path in sorted(telemetry.rglob("episode.json")):
-        if path.is_symlink():
-            raise RuntimeError("episode metadata may not be a symlink")
-        resolved = path.resolve(strict=True)
-        if not resolved.is_relative_to(telemetry):
-            raise RuntimeError("episode metadata path escapes telemetry root")
-        value = json.loads(resolved.read_text(encoding="utf-8"))
-        if not isinstance(value, dict):
-            raise RuntimeError("episode metadata must be an object")
-        existing = value.get("registration_identity")
-        if existing is not None and existing != registration_identity:
-            raise RuntimeError("episode registration identity already differs")
-        value["registration_identity"] = registration_identity
-        write_json(resolved, value)
 
 
 def write_json(path: Path, value: Any) -> None:
@@ -252,7 +141,6 @@ def run_probe(
     telemetry_dir: Path | None = None,
     telemetry_profile: str = "balanced_v1",
     visual_capture_profile_id: str | None = None,
-    execution_receipt: Path | None = None,
     discover_task_context: bool = False,
     task_context: Path | None = None,
     action_dimension: int = 0,
@@ -274,7 +162,6 @@ def run_probe(
         telemetry_dir=telemetry_dir,
         telemetry_profile=telemetry_profile,
         visual_capture_profile_id=visual_capture_profile_id,
-        execution_receipt=execution_receipt,
         discover_task_context=discover_task_context,
         task_context=task_context,
         action_dimension=action_dimension,
@@ -531,9 +418,9 @@ def create_provider_scene_checker_taskgen_run(
                 )
                 for index, item in enumerate(attempts)
             },
-            "local_regeneration_count": candidate[
+            "local_repair_count": candidate[
                 "codegen_provenance"
-            ]["local_regeneration_count"],
+            ]["local_repair_count"],
         },
         "taskgen_ablation_switches": candidate["codegen_provenance"][
             "taskgen_ablation_switches"
@@ -568,116 +455,6 @@ def create_provider_scene_checker_taskgen_run(
             "task_artifact_summary": task_artifact_summary(bundle),
         }
     )
-    write_json(run_dir / "manifest.json", manifest)
-    return manifest
-
-
-def materialize_reviewed_task_run(
-    repo_root: Path,
-    *,
-    user_request: str,
-    run_id: str,
-    reviewed_match: dict[str, Any],
-    text_model: str,
-) -> dict[str, Any]:
-    """Create a fresh executable run from one hash-verified reviewed Task."""
-
-    if not re.fullmatch(r"run_[A-Za-z0-9_]+", run_id):
-        raise ReviewedTaskRegistryError(
-            "run_id must be a safe Python package name starting with run_"
-        )
-    run_dir = repo_root / "mea/generated_tasks" / run_id
-    if run_dir.exists():
-        raise ReviewedTaskRegistryError(f"run directory already exists: {run_dir}")
-    copy_result = copy_reviewed_task_artifacts(
-        reviewed_match, run_dir, repo_root=repo_root
-    )
-    for relative in ("generation", "validation", "evidence", "evaluation"):
-        (run_dir / relative).mkdir(parents=True, exist_ok=True)
-    (run_dir / "__init__.py").write_text("", encoding="utf-8")
-    write_json(run_dir / "request.json", {"user_request": user_request})
-    spec = json.loads((run_dir / "variant_spec.json").read_text(encoding="utf-8"))
-    bundle = json.loads(
-        (run_dir / "generation/task_artifact_bundle.json").read_text(encoding="utf-8")
-    )
-    static = json.loads(
-        (run_dir / "validation/static.json").read_text(encoding="utf-8")
-    )
-    task_name = str(spec.get("task_name") or "")
-    if not task_name or task_name != reviewed_match["semantic_key"]["task_name"]:
-        raise ReviewedTaskRegistryError("reviewed task identity changed during copy")
-    try:
-        base_commit = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=repo_root, text=True
-        ).strip()
-    except (OSError, subprocess.CalledProcessError) as exc:
-        raise ReviewedTaskRegistryError("cannot resolve current Git HEAD") from exc
-    manifest: dict[str, Any] = {
-        "schema_version": 1,
-        "run_id": run_id,
-        "status": "generated",
-        "created_at": datetime.now().astimezone().isoformat(),
-        "user_request": user_request,
-        "task_name": task_name,
-        "mode": "force_codegen",
-        "generation_kind": "reviewed_generated_task_reuse",
-        "base_commit": base_commit,
-        "protected_hashes_before": protected_hashes(repo_root),
-        "provider": {
-            "model_requested": text_model,
-            "called": False,
-            "calls": {},
-            "reason": "exact_reviewed_generated_task_reuse",
-        },
-        "task_module": f"mea.generated_tasks.{run_id}.task",
-        "overlay": str((run_dir / "overlay.yml").relative_to(repo_root)),
-        "static_validation": static,
-        "task_retrieval": {
-            "status": "exact_reviewed_match",
-            "registration_id": reviewed_match["registration_id"],
-            "artifact_id": reviewed_match["artifact_id"],
-            "semantic_key_sha256": reviewed_match["semantic_key_sha256"],
-            "provider_called": False,
-        },
-        "knowledge_retrieval": None,
-        "variant_spec_authority": "reviewed_task_registry",
-        "task_artifact_bundle": "generation/task_artifact_bundle.json",
-        "scene_check_spec": "generation/scene_check_spec.json",
-        "task_artifact_summary": task_artifact_summary(bundle),
-        "reviewed_task_registration": {
-            "registration_id": reviewed_match["registration_id"],
-            "artifact_id": reviewed_match["artifact_id"],
-            "semantic_key_sha256": reviewed_match["semantic_key_sha256"],
-            "runtime_dependency_hashes": copy_result[
-                "runtime_dependency_hashes"
-            ],
-            "review_authority": copy_result["review_authority"],
-            "reviewed_at": copy_result["reviewed_at"],
-            "review_attestation_paper_eligible": copy_result[
-                "review_attestation_paper_eligible"
-            ],
-            "copied_files": copy_result["files"],
-            "immutable_copied_files": {
-                relative: digest
-                for relative, digest in copy_result["files"].items()
-                if relative
-                not in {
-                    "generation/task_artifact_bundle.json",
-                    "generation/scene_check_spec.json",
-                }
-            },
-            "run_local_derived_files": {
-                relative: {
-                    "source_reviewed_sha256": copy_result["files"][relative],
-                    "policy": "rebuild_and_revalidate_for_current_run_binding",
-                }
-                for relative in (
-                    "generation/task_artifact_bundle.json",
-                    "generation/scene_check_spec.json",
-                )
-            },
-        },
-    }
     write_json(run_dir / "manifest.json", manifest)
     return manifest
 
@@ -788,7 +565,6 @@ def validate_planner_capability_binding(
         if trusted_spec is not None
         else taskgen["task_variant_id"]
     )
-    reviewed_reuse = False
     if expected_variant is None:
         manifest_path = run_dir / "manifest.json"
         spec_path = run_dir / "variant_spec.json"
@@ -843,41 +619,11 @@ def validate_planner_capability_binding(
             "generation_mode": trusted_spec["generation_mode"],
             "changes": trusted_spec["changes"],
         }
-        reviewed_reuse = (
-            materialized_manifest.get("generation_kind")
-            == "reviewed_generated_task_reuse"
-        )
-        compared_fields = (
-            tuple(field for field in expected if field != "variant_id")
-            if reviewed_reuse
-            else tuple(expected)
-        )
-        observed = {field: spec.get(field) for field in compared_fields}
-        compared_expected = {field: expected[field] for field in compared_fields}
-        if observed != compared_expected:
+        observed = {field: spec.get(field) for field in expected}
+        if observed != expected:
             raise RuntimeError(
                 "materialized VariantSpec differs from planner capability contract"
             )
-        if reviewed_reuse:
-            registration = materialized_manifest.get("reviewed_task_registration")
-            copied_files = (
-                registration.get("copied_files")
-                if isinstance(registration, Mapping)
-                else None
-            )
-            pinned_variant_sha256 = (
-                copied_files.get("variant_spec.json")
-                if isinstance(copied_files, Mapping)
-                else None
-            )
-            actual_variant_sha256 = hashlib.sha256(spec_path.read_bytes()).hexdigest()
-            if (
-                not isinstance(pinned_variant_sha256, str)
-                or pinned_variant_sha256 != actual_variant_sha256
-            ):
-                raise RuntimeError(
-                    "reviewed VariantSpec differs from its registry-pinned artifact"
-                )
         if (
             materialized_manifest.get("task_name") != task_name
             or materialized_manifest.get("mode") != mode
@@ -896,14 +642,9 @@ def validate_planner_capability_binding(
                     "bounded TaskGen artifact differs from capability adapter"
                 )
         elif taskgen["operation"] == "force_codegen":
-            expected_authority = (
-                "reviewed_task_registry"
-                if reviewed_reuse
-                else "planner_capability_contract"
-            )
             if (
                 materialized_manifest.get("variant_spec_authority")
-                != expected_authority
+                != "planner_capability_contract"
                 or not str(materialized_manifest.get("task_module") or "").startswith(
                     "mea.generated_tasks."
                 )
@@ -950,8 +691,6 @@ def validate_planner_capability_binding(
         "variant_spec_authority": (
             "official_passthrough"
             if trusted_spec is None
-            else "reviewed_task_registry"
-            if reviewed_reuse
             else (
                 "planner_task_proposal"
                 if task_proposal is not None
@@ -1556,7 +1295,6 @@ def run_visual_self_reflection(
     is_provider_distractor = (
         scene_check.get("success_semantics") == "provider_generated_python"
     )
-    is_reviewed_reuse = isinstance(manifest.get("reviewed_task_registration"), Mapping)
     reflection_dir = run_dir / "reflection"
     reflection_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1659,11 +1397,6 @@ def run_visual_self_reflection(
         }
 
     def repair(repair_index: int, observation: dict[str, Any]) -> dict[str, Any]:
-        if is_reviewed_reuse:
-            raise VisualReflectionError(
-                "reviewed generated-Task reuse is validate-only; repair requires "
-                "a newly generated candidate and a new review"
-            )
         if is_click_bell and not is_provider_distractor:
             raise VisualReflectionError(
                 "click_bell bounded overlay is validate-only and does not support repair"
@@ -1727,9 +1460,7 @@ def run_visual_self_reflection(
         return result
 
     effective_max_repairs = min(
-        0
-        if is_reviewed_reuse or (is_provider_distractor and is_click_bell)
-        else max_repairs,
+        0 if is_provider_distractor and is_click_bell else max_repairs,
         int(scene_check["repair_policy"]["max_repairs_supported"]),
     )
     summary = execute_reflection_loop(
@@ -1750,10 +1481,6 @@ def run_visual_self_reflection(
         summary[
             "validation_mode"
         ] = "proposal_derived_target_distractor_visual_plausibility"
-    if is_reviewed_reuse:
-        summary["requested_max_repairs"] = max_repairs
-        summary["repair_supported"] = False
-        summary["reviewed_artifact_mutation_allowed"] = False
     summary["scene_check_spec"] = "generation/scene_check_spec.json"
     summary["scene_check_source"] = scene_check["source"]
     summary["repair_mode"] = scene_check["repair_policy"]["mode"]
@@ -1773,9 +1500,6 @@ def run_visual_self_reflection(
         task_proposal=current_task_proposal,
     )
     summary["task_artifact_bundle_refreshed"] = True
-    summary["final_scene_source_sha256"] = refreshed_bundle["scene_method"][
-        "source_sha256"
-    ]
     update_manifest(
         run_dir,
         task_artifact_bundle="generation/task_artifact_bundle.json",
@@ -1822,7 +1546,6 @@ def run_act(
     gpu: int,
     num_episodes: int,
     telemetry_profile: str = "balanced_v1",
-    execution_receipt: Path | None = None,
 ) -> dict[str, Any]:
     """Compatibility wrapper around the TaskGen ACT runtime boundary."""
 
@@ -1834,7 +1557,6 @@ def run_act(
         gpu=gpu,
         num_episodes=num_episodes,
         telemetry_profile=telemetry_profile,
-        execution_receipt=execution_receipt,
         command_runner=run_command,
         json_writer=write_json,
         python_executable=sys.executable,
@@ -2032,14 +1754,6 @@ def parse_args() -> argparse.Namespace:
         help=argparse.SUPPRESS,
     )
     parser.add_argument(
-        "--reviewed-task-registry",
-        type=Path,
-        help=(
-            "Explicit approved generated-Task registry. Only an exact semantic "
-            "and artifact-hash match can bypass TaskGen text generation."
-        ),
-    )
-    parser.add_argument(
         "--mode",
         choices=[
             "reuse",
@@ -2078,10 +1792,6 @@ def parse_args() -> argparse.Namespace:
             "Run the expert TaskGen gate and persist production Task acceptance "
             "without starting ACT."
         ),
-    )
-    parser.add_argument(
-        "--registration-identity-json",
-        help="Parent Agent registration identity propagated to child/episode artifacts.",
     )
     parser.add_argument(
         "--taskgen-ablation-json",
@@ -2132,16 +1842,6 @@ def main() -> None:
                 "visual_self_check switch"
             )
     repo_root = args.repo_root.expanduser().resolve()
-    registration_identity: dict[str, Any] | None = None
-    if args.registration_identity_json is not None:
-        if args.resume_run:
-            raise SystemExit("registered TaskGen execution cannot use --resume-run")
-        try:
-            registration_identity = validate_registration_identity(
-                json.loads(args.registration_identity_json)
-            )
-        except (json.JSONDecodeError, ValueError) as exc:
-            raise SystemExit(f"invalid --registration-identity-json: {exc}") from exc
     task_proposal: dict[str, Any] | None = None
     if args.task_proposal_json is not None:
         if args.resume_run:
@@ -2191,16 +1891,8 @@ def main() -> None:
             )
     elif args.mode == "generic_provider_scene_checker_codegen":
         raise SystemExit("generic provider mode requires --proposal-json")
-    reviewed_task_registry = (
-        args.reviewed_task_registry.expanduser().resolve()
-        if args.reviewed_task_registry is not None
-        else None
-    )
     capability_contract: dict[str, Any] | None = None
     trusted_variant_spec: dict[str, Any] | None = None
-    task_resolution: dict[str, Any] | None = None
-    reviewed_task_match: dict[str, Any] | None = None
-    reviewed_lookup_issue: dict[str, str] | None = None
     if args.capability_contract_json is not None:
         try:
             raw_contract = json.loads(args.capability_contract_json)
@@ -2233,49 +1925,6 @@ def main() -> None:
         ):
             raise SystemExit(
                 "capability-bound official execution cannot override --task-module"
-            )
-    if task_proposal is not None and capability_contract is not None:
-        try:
-            # This decision now runs before provider construction.  The v1
-            # integration has exact official/built-in reuse plus an injected
-            # reviewed-artifact lookup boundary; persistent reviewed task
-            # materialization remains a separate admission concern.
-            def reviewed_lookup(query: dict[str, Any]) -> dict[str, Any] | None:
-                nonlocal reviewed_task_match, reviewed_lookup_issue
-                if reviewed_task_registry is None:
-                    return None
-                (
-                    reviewed_task_match,
-                    reviewed_lookup_issue,
-                ) = reviewed_task_lookup_with_fallback(
-                    reviewed_task_registry,
-                    query,
-                    repo_root=repo_root,
-                )
-                return reviewed_task_match
-
-            task_resolution = resolve_task_proposal(
-                task_proposal,
-                capability_contract,
-                find_reviewed=(
-                    reviewed_lookup if reviewed_task_registry is not None else None
-                ),
-            )
-            if reviewed_lookup_issue is not None:
-                task_resolution = {
-                    **task_resolution,
-                    "reviewed_lookup_issue": reviewed_lookup_issue,
-                }
-        except (TaskResolutionError, ReviewedTaskRegistryError) as exc:
-            raise SystemExit(f"TaskGen reuse-first resolution failed: {exc}") from exc
-        materializable_route = task_resolution["resolved_route"] == args.mode or (
-            args.mode == "force_codegen"
-            and task_resolution["resolved_route"] == "reviewed_generated_reuse"
-        )
-        if not materializable_route:
-            raise SystemExit(
-                "resolved TaskGen route cannot be materialized by this invocation: "
-                f"{task_resolution['resolved_route']!r}"
             )
     if (
         task_proposal is not None
@@ -2329,10 +1978,6 @@ def main() -> None:
         and args.mode != "official"
         and not bounded_click_bell
         and not (trusted_variant_spec is not None and args.mode == "reuse")
-        and not (
-            task_resolution is not None
-            and task_resolution.get("provider_required") is False
-        )
     ) or args.vision_check:
         provider = OpenAICompatibleProvider(
             base_url=args.base_url,
@@ -2368,25 +2013,6 @@ def main() -> None:
                 variant_id=args.variant_id,
                 run_id=args.run_id,
                 telemetry_profile=args.telemetry_profile,
-            )
-        elif (
-            task_resolution is not None
-            and task_resolution["resolved_route"] == "reviewed_generated_reuse"
-        ):
-            if reviewed_task_match is None:
-                raise SystemExit(
-                    "reviewed TaskGen resolution did not retain a verified registry match"
-                )
-            if not args.run_id:
-                raise SystemExit(
-                    "reviewed generated-Task reuse requires an explicit --run-id"
-                )
-            manifest = materialize_reviewed_task_run(
-                repo_root,
-                user_request=args.request,
-                run_id=args.run_id,
-                reviewed_match=reviewed_task_match,
-                text_model=args.text_model,
             )
         elif args.mode == "provider_scene_checker_codegen":
             if (
@@ -2460,26 +2086,6 @@ def main() -> None:
             )
         run_dir = repo_root / "mea/generated_tasks" / manifest["run_id"]
 
-    if task_resolution is not None:
-        write_json(run_dir / "generation/task_resolution.json", task_resolution)
-        update_manifest(
-            run_dir,
-            task_resolution_path="generation/task_resolution.json",
-            task_resolution={
-                "requested_route": task_resolution["requested_route"],
-                "resolved_route": task_resolution["resolved_route"],
-                "materialization": task_resolution["materialization"],
-                "provider_required": task_resolution["provider_required"],
-                "reviewed_lookup_attempted": task_resolution[
-                    "reviewed_lookup_attempted"
-                ],
-                "reviewed_lookup_issue": task_resolution.get(
-                    "reviewed_lookup_issue"
-                ),
-            },
-        )
-        manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
-
     if task_proposal is not None:
         write_json(run_dir / "generation/task_proposal.json", task_proposal)
         bundle = write_task_artifact_bundle(
@@ -2517,18 +2123,6 @@ def main() -> None:
             )
             raise SystemExit(f"capability contract validation failed: {exc}") from exc
         manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
-
-    if registration_identity is not None:
-        try:
-            registration_identity = validate_registration_identity(
-                registration_identity, run_id=str(manifest["run_id"])
-            )
-        except ValueError as exc:
-            raise SystemExit(f"child registration binding failed: {exc}") from exc
-        update_manifest(
-            run_dir,
-            registration_identity=registration_identity,
-        )
 
     generic_provider_mode = (
         manifest.get("mode") == "generic_provider_scene_checker_codegen"
@@ -2694,18 +2288,12 @@ def main() -> None:
             manifest = json.loads(
                 (run_dir / "manifest.json").read_text(encoding="utf-8")
             )
-            effective_task_resolution = task_resolution
-            task_resolution_path = run_dir / "generation/task_resolution.json"
-            if effective_task_resolution is None and task_resolution_path.is_file():
-                effective_task_resolution = json.loads(
-                    task_resolution_path.read_text(encoding="utf-8")
-                )
             task_acceptance = record_production_task_acceptance(
                 run_dir,
                 manifest,
                 scene=scene,
                 position_samples=None,
-                task_resolution=effective_task_resolution,
+                task_resolution=None,
                 require_expert=True,
             )
             bundle = json.loads(
@@ -2739,7 +2327,7 @@ def main() -> None:
             require_production_task_acceptance(
                 run_dir,
                 manifest,
-                task_resolution=effective_task_resolution,
+                task_resolution=None,
             )
 
         if args.run_act:
@@ -2799,19 +2387,13 @@ def main() -> None:
             manifest = json.loads(
                 (run_dir / "manifest.json").read_text(encoding="utf-8")
             )
-            effective_task_resolution = task_resolution
-            task_resolution_path = run_dir / "generation/task_resolution.json"
-            if effective_task_resolution is None and task_resolution_path.is_file():
-                effective_task_resolution = json.loads(
-                    task_resolution_path.read_text(encoding="utf-8")
-                )
             if not generic_provider_mode:
                 task_acceptance = record_production_task_acceptance(
                     run_dir,
                     manifest,
                     scene=scene,
                     position_samples=position_samples,
-                    task_resolution=effective_task_resolution,
+                    task_resolution=None,
                     require_expert=bool(
                         args.expert or manifest.get("mode") != "official"
                     ),
@@ -2835,7 +2417,7 @@ def main() -> None:
                 require_production_task_acceptance(
                     run_dir,
                     manifest,
-                    task_resolution=effective_task_resolution,
+                    task_resolution=None,
                     for_act=True,
                 )
             act = run_act(
@@ -2889,10 +2471,6 @@ def main() -> None:
                     f"expert={alignment['expert_seeds']}, "
                     f"ACT={alignment['act_seeds']}"
                 )
-            if registration_identity is not None:
-                bind_registration_to_episode_metadata(
-                    run_dir, registration_identity
-                )
             trusted_tools = evaluate_run_telemetry(
                 repo_root,
                 run_dir,
@@ -2925,10 +2503,6 @@ def main() -> None:
             }
             if args.expert:
                 updates["execution_backends"] = ["expert"]
-                if registration_identity is not None:
-                    bind_registration_to_episode_metadata(
-                        run_dir, registration_identity
-                    )
                 if not args.accept_task_only:
                     updates["trusted_tool_evaluation"] = evaluate_run_telemetry(
                         repo_root,

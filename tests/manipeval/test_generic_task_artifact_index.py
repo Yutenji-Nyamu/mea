@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import tempfile
 import unittest
@@ -11,29 +10,16 @@ from mea.taskgen.artifact_index import (
     GenericTaskArtifactIndex,
     materialize_reused_generic_task,
 )
-from mea.taskgen.semantic_review import checker_review_identity_sha256
-
-
 def _semantic_key() -> dict:
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "base_task": "adjust_bottle",
         "semantic_concern": "object_pose.rotation",
         "scene_need": "rotate the bottle",
         "checker_need": "require upright placement",
-        "adapter_contract": {"official_source_sha256": "a" * 64},
+        "evaluation_intent": None,
+        "adapter_contract": {"official_source": "envs/adjust_bottle.py"},
     }
-
-
-def _digest(value: dict) -> str:
-    return hashlib.sha256(
-        json.dumps(
-            value,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode("utf-8")
-    ).hexdigest()
 
 
 class GenericTaskArtifactIndexTests(unittest.TestCase):
@@ -47,9 +33,6 @@ class GenericTaskArtifactIndexTests(unittest.TestCase):
             task_source = "class adjust_bottle:\n    pass\n"
             task_path = source / "task.py"
             task_path.write_text(task_source, encoding="utf-8")
-            module_hash = hashlib.sha256(
-                task_path.read_bytes()
-            ).hexdigest()
             (source / "overlay.yml").write_text("{}\n", encoding="utf-8")
             candidate = {
                 "schema_version": 1,
@@ -61,7 +44,6 @@ class GenericTaskArtifactIndexTests(unittest.TestCase):
                 "checker_need": "require upright placement",
                 "rule_tool_need": "measure contact",
             }
-            checker_hash = "b" * 64
             checker_review = {
                 "schema_version": 1,
                 "status": "approved",
@@ -73,11 +55,6 @@ class GenericTaskArtifactIndexTests(unittest.TestCase):
                 },
                 "reason": "The checker directly implements upright placement.",
                 "authority": "development_agent_proxy",
-                "proposal_semantics_sha256": (
-                    checker_review_identity_sha256(candidate)
-                ),
-                "checker_sha256": checker_hash,
-                "official_checker_sha256": "c" * 64,
             }
             (source / "candidate_manifest.json").write_text(
                 json.dumps(
@@ -86,8 +63,6 @@ class GenericTaskArtifactIndexTests(unittest.TestCase):
                         "task_module": (
                             "mea.generated_tasks.run_source.task"
                         ),
-                        "module_sha256": module_hash,
-                        "success_method_sha256": checker_hash,
                         "checker_semantic_review": checker_review,
                         "codegen_provenance": {},
                     }
@@ -107,7 +82,6 @@ class GenericTaskArtifactIndexTests(unittest.TestCase):
                 "mode": "generic_provider_scene_checker_codegen",
                 "task_name": "adjust_bottle",
                 "task_module": "mea.generated_tasks.run_source.task",
-                "candidate_module_sha256": module_hash,
                 "experiment_candidate": candidate,
                 "experiment_candidate_path": (
                     "generation/experiment_candidate.json"
@@ -140,7 +114,6 @@ class GenericTaskArtifactIndexTests(unittest.TestCase):
             resolution = {
                 "status": "generated",
                 "semantic_key": semantic_key,
-                "semantic_key_sha256": _digest(semantic_key),
             }
             index = GenericTaskArtifactIndex(root)
             index.register_generated(
@@ -150,8 +123,8 @@ class GenericTaskArtifactIndexTests(unittest.TestCase):
             )
             match = index.find_exact(
                 {
+                    "schema_version": 2,
                     "semantic_key": semantic_key,
-                    "semantic_key_sha256": _digest(semantic_key),
                 }
             )
             reused_resolution = {

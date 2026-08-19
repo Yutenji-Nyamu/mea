@@ -78,7 +78,6 @@ def build_act_command(
     seed: int,
     telemetry_root: Path,
     telemetry_profile: str,
-    execution_receipt: Path | None,
 ) -> list[str]:
     """Build the positional ``eval_mea.sh`` contract without launching it."""
 
@@ -100,12 +99,6 @@ def build_act_command(
         str(telemetry_root),
         telemetry_profile,
     ]
-    if execution_receipt is not None:
-        if num_episodes != 1:
-            raise RuntimeError("execution receipt ACT runs require num_episodes=1")
-        # Positions 13-15 remain the existing optional seed/result/output
-        # arguments. Empty placeholders preserve the legacy shell contract.
-        command.extend(["", "", "", str(execution_receipt)])
     return command
 
 
@@ -120,7 +113,6 @@ def run_act(
     command_runner: CommandRunner,
     json_writer: JsonWriter,
     telemetry_profile: str = "balanced_v1",
-    execution_receipt: Path | None = None,
     python_executable: str = sys.executable,
 ) -> dict[str, Any]:
     """Run a task-specific ACT checkpoint and attach videos to telemetry."""
@@ -178,7 +170,6 @@ def run_act(
         seed=seed,
         telemetry_root=telemetry_root,
         telemetry_profile=telemetry_profile,
-        execution_receipt=execution_receipt,
     )
     started = datetime.now().astimezone().isoformat()
     returncode = command_runner(
@@ -298,9 +289,6 @@ def run_act(
             ],
             "preflight_passed": True,
         },
-        "execution_receipt": (
-            str(execution_receipt) if execution_receipt is not None else None
-        ),
         "source_eval_dir": str(source_dir) if source_dir else None,
         "copied_artifacts": copied,
         "copied_video_count": len(copied_videos),

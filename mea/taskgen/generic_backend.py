@@ -44,7 +44,6 @@ from .generic_contracts import (
     GenericTaskGenHooks,
 )
 from .generic_request import (
-    _canonical_sha256,
     _core_prompt,
     _need_description,
     _normalize_adapter,
@@ -66,14 +65,14 @@ from .provider_scene_checker import (
     TextProvider,
     compose_prompt,
     run_provider_codegen,
-    text_sha256,
     validate_provider_run_id,
     write_candidate_artifacts,
 )
+from .preservation_facts import normalize_preservation_facts
 from .semantic_review import (
     CheckerSemanticReviewError,
     review_generated_checker,
-    validate_checker_semantic_review_binding,
+    validate_checker_semantic_review,
 )
 
 
@@ -207,30 +206,17 @@ def _candidate_requires_official_core_conjunct(
     untouched method is the only supported composition boundary.
     """
 
-    checker_need = candidate.get("checker_need")
-    if not isinstance(checker_need, Mapping):
-        return False
-    fragments = [str(checker_need.get("description") or "")]
     intent = candidate.get("evaluation_intent")
-    if isinstance(intent, Mapping):
-        preserved = intent.get("preserved_conditions")
-        if isinstance(preserved, list):
-            fragments.extend(str(item) for item in preserved)
-    text = " ".join(fragments).casefold()
+    if not isinstance(intent, Mapping):
+        return False
+    preserved = intent.get("preserved_conditions")
+    if not isinstance(preserved, list):
+        return False
     return any(
-        marker in text
-        for marker in (
-            "official core predicate",
-            "official task goal",
-            "official goal",
-            "official success",
-            "official check_success",
-            "untouched official",
-            "官方任务目标",
-            "官方目标",
-            "官方成功",
-            "官方 check_success",
-        )
+        fact.get("property") == "official_goal"
+        and fact.get("relation") == "required_conjunct"
+        for condition in preserved
+        for fact in normalize_preservation_facts(condition)
     )
 
 
@@ -371,7 +357,6 @@ def _normalize_validation(
     value: Mapping[str, Any],
     *,
     candidate: Mapping[str, Any],
-    methods: Mapping[str, str],
     preflight: Mapping[str, Any],
 ) -> dict[str, Any]:
     if not isinstance(value, Mapping):
@@ -430,15 +415,11 @@ def _normalize_validation(
             "preflight did not verify the expected scene state "
             f"{expected_scene_state!r} relative to the official control"
         )
-    report["scene_sha256"] = text_sha256(methods["load_actors"])
-    report["success_sha256"] = text_sha256(methods["check_success"])
     if candidate.get("checker_need") is not None:
         try:
             report["checker_semantic_review"] = (
-                validate_checker_semantic_review_binding(
-                    report.get("checker_semantic_review"),
-                    candidate=candidate,
-                    checker_sha256=report["success_sha256"],
+                validate_checker_semantic_review(
+                    report.get("checker_semantic_review")
                 )
             )
         except CheckerSemanticReviewError as exc:
@@ -536,11 +517,9 @@ class GenericRoboTwinTaskGenBackend:
         semantic_key = generic_task_semantic_key(
             normalized_candidate, adapter, repo_root=self.repo_root
         )
-        semantic_hash = _canonical_sha256(semantic_key)
         lookup_query = {
-            "schema_version": 1,
+            "schema_version": 2,
             "semantic_key": deepcopy(semantic_key),
-            "semantic_key_sha256": semantic_hash,
         }
         if ablation_switches is not None and (
             not isinstance(ablation_switches, Mapping)
@@ -575,14 +554,12 @@ class GenericRoboTwinTaskGenBackend:
                 "route": "exact_generated_task_reuse",
                 "candidate": normalized_candidate,
                 "semantic_key": semantic_key,
-                "semantic_key_sha256": semantic_hash,
                 "provider_required": False,
                 "provider_call_count": 0,
                 "implementation_trace": implementation_trace,
                 "exact_match": _validate_exact_match(
                     match,
                     semantic_key=semantic_key,
-                    semantic_key_sha256=semantic_hash,
                 ),
             }
 
@@ -664,8 +641,13 @@ class GenericRoboTwinTaskGenBackend:
                     f"<generic-taskgen-{run_id}-attempt-{validation_counter}>",
                     "exec",
                 )
-                attempt_dir = (
-                    attempt_root / f"attempt_{validation_counter:02d}"
+                # ``run_provider_codegen`` owns the only two lifecycle
+                # directories: the initial generation and, when needed, one
+                # targeted repair.  Keep simulator and semantic-review
+                # artifacts beside the provider prompt that produced them
+                # instead of recreating an independent numbered-attempt tree.
+                attempt_dir = attempt_root / (
+                    "generation" if validation_counter == 1 else "repair"
                 )
                 (attempt_dir / "candidate_task.py").write_text(
                     module_source, encoding="utf-8"
@@ -718,7 +700,6 @@ class GenericRoboTwinTaskGenBackend:
                         ),
                     },
                     candidate=normalized_candidate,
-                    methods=typed_methods,
                     preflight=preflight,
                 )
             except GenericTaskGenError as exc:
@@ -788,14 +769,13 @@ class GenericRoboTwinTaskGenBackend:
             "candidate": normalized_candidate,
             "adapter": normalized_adapter,
             "semantic_key": semantic_key,
-            "semantic_key_sha256": semantic_hash,
             "provider_required": True,
-            "provider_call_count": generated["attempt_summary"]["runtime"][
+            "provider_call_count": generated["generation_result"]["runtime"][
                 "provider_calls"
             ],
-            "local_regeneration_count": generated["attempt_summary"][
-                "regenerations_used"
-            ],
+            "local_repair_count": int(
+                generated["generation_result"].get("repair") is not None
+            ),
             "run_dir": str(run_dir),
             "candidate_manifest": manifest,
             "validation": deepcopy(dict(generated["validation"])),

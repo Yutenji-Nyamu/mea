@@ -1,14 +1,14 @@
-"""Evidence adaptation and QueryContract observation for Plan Agent sessions."""
+﻿"""Evidence adaptation and runtime-limit observation for Plan Agent sessions."""
 
 from __future__ import annotations
 
 from copy import deepcopy
 from typing import Any, Mapping, Sequence
 
-from .plan_agent_errors import ClaimFirstRuntimeError
-from .plan_agent_evidence import build_claim_first_evidence_record, render_query_answer
+from .plan_agent_errors import PlanAgentSessionError
+from .plan_agent_evidence import build_plan_agent_evidence_record, render_query_answer
 from .plan_agent_schema import validate_open_query_evidence
-from .query_contract import assess_query_sufficiency
+from .runtime_limits import summarize_plan_evidence
 from .query_interpretation import _nonempty_text
 
 
@@ -27,12 +27,12 @@ class PlanAgentEvidenceMixin:
         RoboTwin's production round summary carries a rich EvidencePacket.  A
         benchmark with a different native artifact format should not fabricate
         that transport merely to reuse the Plan Agent.  This boundary consumes
-        the simulator-neutral evidence schema, applies the same QueryContract,
+        the simulator-neutral evidence schema, applies the same runtime limits,
         and returns the same semantic state used by ``propose_semantic_step``.
         """
 
         if not isinstance(baseline_valid, bool):
-            raise ClaimFirstRuntimeError("baseline_valid must be bool")
+            raise PlanAgentSessionError("baseline_valid must be bool")
         history = validate_open_query_evidence(list(evidence_history))
         trusted_records = [deepcopy(dict(item)) for item in (records or [])]
         if trusted_records:
@@ -45,7 +45,7 @@ class PlanAgentEvidenceMixin:
             ]
             evidence_round_ids = [item["round_id"] for item in history]
             if record_round_ids != evidence_round_ids:
-                raise ClaimFirstRuntimeError(
+                raise PlanAgentSessionError(
                     "MethodRuntime evidence and answer records must have the "
                     "same ordered round ids"
                 )
@@ -55,8 +55,8 @@ class PlanAgentEvidenceMixin:
                 for item in history
             ]
 
-        assessment = assess_query_sufficiency(
-            self.query_contract,
+        assessment = summarize_plan_evidence(
+            self.runtime_limits,
             candidate_evidence,
             completed_rounds=len(candidate_evidence),
         )
@@ -93,7 +93,7 @@ class PlanAgentEvidenceMixin:
             "control_passed": (
                 baseline_valid if self.require_control_anchor else None
             ),
-            "query_contract": deepcopy(self.query_contract),
+            "runtime_limits": deepcopy(self.runtime_limits),
             "assessment": assessment,
             "records": trusted_records,
             "open_query_evidence_history": history,
@@ -108,15 +108,15 @@ class PlanAgentEvidenceMixin:
         """Normalize all completed rounds and decide whether execution stops."""
 
         if len(round_plans) != len(round_summaries):
-            raise ClaimFirstRuntimeError(
+            raise PlanAgentSessionError(
                 "completed plans and summaries must be aligned"
             )
         if self.require_control_anchor and not round_plans:
-            raise ClaimFirstRuntimeError(
+            raise PlanAgentSessionError(
                 "control-first observation requires one completed control round"
             )
         records = [
-            build_claim_first_evidence_record(plan, summary)
+            build_plan_agent_evidence_record(plan, summary)
             for plan, summary in zip(round_plans, round_summaries)
         ]
         control_semantics: Mapping[str, Any] = {}
@@ -125,7 +125,7 @@ class PlanAgentEvidenceMixin:
         baseline_valid = True
         if self.require_control_anchor:
             if records[0]["template_id"] != self.control_template:
-                raise ClaimFirstRuntimeError(
+                raise PlanAgentSessionError(
                     "Plan Agent property attribution requires the control "
                     "template first"
                 )
@@ -150,18 +150,6 @@ class PlanAgentEvidenceMixin:
         candidate_records = (
             records[1:] if self.require_control_anchor else records
         )
-        outside_candidate_ids = [
-            record["candidate_id"]
-            for record in candidate_records
-            if record["candidate_id"]
-            not in self.query_contract["candidate_universe"]
-        ]
-        if outside_candidate_ids:
-            raise ClaimFirstRuntimeError(
-                "completed candidate evidence is outside the active "
-                "QueryContract universe: "
-                f"{list(dict.fromkeys(outside_candidate_ids))}"
-            )
         policy_candidate_records = [
             record
             for record in candidate_records
@@ -171,8 +159,8 @@ class PlanAgentEvidenceMixin:
             deepcopy(record["candidate_evidence"])
             for record in policy_candidate_records
         ]
-        assessment = assess_query_sufficiency(
-            self.query_contract,
+        assessment = summarize_plan_evidence(
+            self.runtime_limits,
             candidate_evidence,
             completed_rounds=len(policy_candidate_records),
         )
@@ -180,9 +168,7 @@ class PlanAgentEvidenceMixin:
             record["candidate_id"]
             for record in candidate_records
             if (
-                record["candidate_id"]
-                in self.query_contract["candidate_universe"]
-                and (
+                (
                     record.get("candidate_evidence", {}).get("outcome")
                     == "conflict"
                     or record.get("evidence_packet", {}).get(
@@ -216,9 +202,7 @@ class PlanAgentEvidenceMixin:
             record["candidate_id"]
             for record in candidate_records
             if (
-                record["candidate_id"]
-                in self.query_contract["candidate_universe"]
-                and record.get("outcome_semantics", {}).get("status")
+                record.get("outcome_semantics", {}).get("status")
                 == "conflict"
             )
         ]
@@ -246,9 +230,7 @@ class PlanAgentEvidenceMixin:
             record["candidate_id"]
             for record in candidate_records
             if (
-                record["candidate_id"]
-                in self.query_contract["candidate_universe"]
-                and record.get("evaluation_outcome", {}).get("metric")
+                record.get("evaluation_outcome", {}).get("metric")
                 == "generated_check_success"
                 and record.get("outcome_semantics", {}).get("status")
                 == "non_comparable"
@@ -313,7 +295,7 @@ class PlanAgentEvidenceMixin:
             "control_passed": (
                 baseline_valid if self.require_control_anchor else None
             ),
-            "query_contract": deepcopy(self.query_contract),
+            "runtime_limits": deepcopy(self.runtime_limits),
             "assessment": assessment,
             "records": records,
             "open_query_evidence_history": validate_open_query_evidence(
@@ -321,7 +303,6 @@ class PlanAgentEvidenceMixin:
             ),
             "query_answer": answer,
         }
-
 
 
 __all__ = ["PlanAgentEvidenceMixin"]

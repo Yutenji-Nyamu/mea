@@ -270,7 +270,7 @@ class PaperEvidenceReportTests(unittest.TestCase):
                 evaluation / "plan/free_concern_response_1.txt",
                 "color robustness\n",
             )
-            claim_runtime = evaluation / "plan/claim_first_runtime"
+            plan_agent_runtime = evaluation / "plan/plan_agent_session"
             for name, value in {
                 "evidence_after_round_01.json": {
                     "assessment": {"should_stop": False}
@@ -280,7 +280,7 @@ class PaperEvidenceReportTests(unittest.TestCase):
                 },
                 "query_answer.json": {"answered": True, "answer": "mixed"},
             }.items():
-                _write_json(claim_runtime / name, value)
+                _write_json(plan_agent_runtime / name, value)
             _write_json(
                 evaluation / "plan/semantic_preservation_audit.json",
                 {"accepted": True},
@@ -397,15 +397,10 @@ class PaperEvidenceReportTests(unittest.TestCase):
                 ).read_text(encoding="utf-8"),
                 "find one concern",
             )
-            for relative in bundle["files"]:
+            for item in bundle["artifacts"]:
+                relative = item["path"]
                 self.assertTrue((destination.parent / relative).is_file(), relative)
-            self.assertEqual(
-                {item["path"] for item in bundle["artifacts"]},
-                set(bundle["files"])
-                - {"evidence_bundle_manifest.json"},
-            )
-            self.assertEqual(bundle["path_basis"], "bundle_relative")
-            self.assertEqual(bundle["schema_version"], 3)
+            self.assertEqual(bundle["schema_version"], 1)
             self.assertEqual(bundle["report"], "README.md")
             self.assertEqual(bundle["summary"], "run_summary.json")
             compact_summary = json.loads(
@@ -428,12 +423,9 @@ class PaperEvidenceReportTests(unittest.TestCase):
                 '"provenance"',
                 round_aggregate_path.read_text(encoding="utf-8"),
             )
-            self.assertTrue(
-                all(
-                    item["bytes"] > 0
-                    and re.fullmatch(r"[0-9a-f]{64}", item["sha256"])
-                    for item in bundle["artifacts"]
-                )
+            self.assertTrue(all(item["bytes"] > 0 for item in bundle["artifacts"]))
+            self.assertFalse(
+                any("sha256" in item for item in bundle["artifacts"])
             )
             self.assertFalse(
                 (
@@ -445,20 +437,16 @@ class PaperEvidenceReportTests(unittest.TestCase):
 
             for link in re.findall(r"\]\(([^)]+)\)", report):
                 self.assertTrue((destination.parent / link).resolve().is_file(), link)
-            replaced = write_evidence_report(
-                root, evaluation, destination=destination, publish=True
-            )
-            self.assertEqual(replaced["files"], bundle["files"])
             promoted = root / "promoted/current"
             promoted.parent.mkdir(parents=True)
             destination.parent.rename(promoted)
-            promoted_manifest = json.loads(
-                (promoted / "evidence_bundle_manifest.json").read_text(
+            promoted_index = json.loads(
+                (promoted / "artifact_index.json").read_text(
                     encoding="utf-8"
                 )
             )
-            for relative in promoted_manifest["files"]:
-                self.assertTrue((promoted / relative).is_file(), relative)
+            for item in promoted_index["artifacts"]:
+                self.assertTrue((promoted / item["path"]).is_file(), item["path"])
 
     def test_legacy_round_is_labeled_as_projection_not_as_proposal(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -505,13 +493,13 @@ class PaperEvidenceReportTests(unittest.TestCase):
                 publish=True,
             )
             report = destination.read_text(encoding="utf-8")
-            published_manifest = json.loads(
+            published_index = json.loads(
                 (
-                    destination.parent / "evidence_bundle_manifest.json"
+                    destination.parent / "artifact_index.json"
                 ).read_text(encoding="utf-8")
             )
             self.assertEqual(
-                published_manifest["source_server_path"],
+                published_index["source_server_path"],
                 str(evaluation.resolve()),
             )
             self.assertIn("### Plan → TaskGen", report)
@@ -662,7 +650,6 @@ class PaperEvidenceReportTests(unittest.TestCase):
                 ],
                 projection_artifact,
             )
-            self.assertIn(projection_artifact, bundle["files"])
             self.assertIn(
                 projection_artifact,
                 {

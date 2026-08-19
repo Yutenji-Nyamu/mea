@@ -284,8 +284,8 @@ def render_final(
         "## 7. Artifact index",
         "",
         f"- [Compact machine summary]({relative_link(run_summary_path, report_path)})",
-        "- [Published-file inventory with bytes and SHA-256]"
-        "(evidence_bundle_manifest.json)",
+        "- [Published artifact index with paths and byte sizes]"
+        "(artifact_index.json)",
         "- Complete raw source remains server-side at "
         f"`{str(evaluation.relative_to(root)).replace(chr(92), '/')}`.",
     ]

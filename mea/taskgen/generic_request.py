@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 from collections.abc import Mapping
 from copy import deepcopy
@@ -20,24 +19,8 @@ from .generic_contracts import (
     GenericTaskGenError,
     GenericTaskGenHooks,
 )
-from .generic_validation import _derived_ast_policy
-from .provider_scene_checker import retrieve_class_methods, text_sha256
+from .provider_scene_checker import retrieve_class_methods
 from .semantic_review import checker_review_identity
-
-def _canonical_sha256(value: Any) -> str:
-    try:
-        payload = json.dumps(
-            value,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-            allow_nan=False,
-        ).encode("utf-8")
-    except (TypeError, ValueError) as exc:
-        raise GenericTaskGenError(
-            f"TaskGen semantic identity is not canonical JSON: {exc}"
-        ) from exc
-    return hashlib.sha256(payload).hexdigest()
 
 
 def _text(value: Any, *, field: str) -> str:
@@ -131,7 +114,7 @@ def _normalize_adapter(
             "checker_semantic_review": "taskgen_checker_semantic_review_v1",
             "render_preflight": True,
             "expert_preflight": True,
-            "local_regeneration_limit": 1,
+            "local_repair_limit": 1,
         },
     }
 
@@ -167,44 +150,18 @@ def generic_task_semantic_key(
             "ExperimentCandidate.base_task differs from adapter.task_name"
         )
     root = Path(repo_root).expanduser().resolve()
-    official = _resolve_repo_file(
+    _resolve_repo_file(
         root,
         normalized_adapter["official_source"],
         label="adapter official source",
     )
-    asset_dependencies = []
     for relative in normalized_adapter["asset_paths"]:
-        path = _resolve_repo_file(
-            root, str(relative), label="adapter asset"
-        )
-        asset_dependencies.append(
-            {
-                "path": str(relative),
-                "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-            }
-        )
-    documentation_dependencies = []
+        _resolve_repo_file(root, str(relative), label="adapter asset")
     for relative in normalized_adapter["documentation_paths"]:
-        path = _resolve_repo_file(
-            root, str(relative), label="adapter documentation"
-        )
-        documentation_dependencies.append(
-            {
-                "path": str(relative),
-                "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-            }
-        )
-    taskgen_readme = _resolve_repo_file(
-        root,
-        "mea/taskgen/README.Agent.md",
-        label="TaskGen README.Agent",
-    )
-    ast_policy = _derived_ast_policy(
-        official, class_name=normalized_adapter["official_class"]
-    )
+        _resolve_repo_file(root, str(relative), label="adapter documentation")
     review_identity = checker_review_identity(normalized_candidate)
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "base_task": normalized_candidate["base_task"],
         "semantic_concern": normalized_candidate["semantic_concern"],
         "scene_need": normalized_candidate["scene_need"],
@@ -212,20 +169,12 @@ def generic_task_semantic_key(
         "evaluation_intent": review_identity["evaluation_intent"],
         "adapter_contract": {
             "official_source": normalized_adapter["official_source"],
-            "official_source_sha256": hashlib.sha256(
-                official.read_bytes()
-            ).hexdigest(),
             "official_class": normalized_adapter["official_class"],
             "task_schema": normalized_adapter["task_schema"],
-            "asset_dependencies": asset_dependencies,
-            "documentation_dependencies": documentation_dependencies,
-            "taskgen_readme_sha256": hashlib.sha256(
-                taskgen_readme.read_bytes()
-            ).hexdigest(),
-            "prompt_constraints_sha256": text_sha256(
-                adapter.hooks.prompt_constraints
+            "asset_paths": list(normalized_adapter["asset_paths"]),
+            "documentation_paths": list(
+                normalized_adapter["documentation_paths"]
             ),
-            "ast_policy": ast_policy["policy_id"],
             "generation_hook_contract": normalized_adapter[
                 "generation_hook_contract"
             ],
@@ -237,17 +186,14 @@ def _validate_exact_match(
     value: Mapping[str, Any],
     *,
     semantic_key: Mapping[str, Any],
-    semantic_key_sha256: str,
 ) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         raise GenericTaskGenError("exact task lookup must return an object or null")
     match = deepcopy(dict(value))
-    if match.get("schema_version") != 1 or match.get("status") != "approved":
-        raise GenericTaskGenError("exact task match is not approved")
+    if match.get("schema_version") != 2 or match.get("status") != "validated":
+        raise GenericTaskGenError("exact task match is not validated")
     if match.get("semantic_key") != dict(semantic_key):
         raise GenericTaskGenError("exact task match semantic key differs")
-    if match.get("semantic_key_sha256") != semantic_key_sha256:
-        raise GenericTaskGenError("exact task match semantic hash differs")
     artifact_id = match.get("artifact_id")
     if not isinstance(artifact_id, str) or not artifact_id.strip():
         raise GenericTaskGenError("exact task match lacks artifact_id")
@@ -323,7 +269,6 @@ def _read_generation_context(
             {
                 "path": str(relative),
                 "size_bytes": path.stat().st_size,
-                "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
             }
         )
     sections.append(

@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from mea.taskgen.production_acceptance import (
+from experiments.paper.compat_taskgen.production_acceptance import (
     ProductionTaskAcceptanceError,
     require_task_artifact_act_runtime_eligible,
 )
@@ -36,7 +36,10 @@ def proposal_v2() -> dict:
 
 
 class ExperimentalTaskGenRuntimeGateTests(unittest.TestCase):
-    @patch("mea.taskgen.production_acceptance._validate_current_candidate")
+    @patch(
+        "experiments.paper.compat_taskgen.production_acceptance."
+        "_validate_current_candidate"
+    )
     def test_generated_success_bundle_is_act_eligible(self, validate_candidate):
         with tempfile.TemporaryDirectory() as temporary:
             validate_candidate.return_value = (

@@ -1,4 +1,4 @@
-"""Initial Plan Agent proposal, QueryContract, and plan materialization."""
+"""Initial Plan Agent proposal, runtime limits, and plan materialization."""
 
 from __future__ import annotations
 
@@ -17,11 +17,7 @@ from mea.planner import (
     evaluation_intent_from_query_interpretation,
 )
 from mea.planner.experiment_candidate import build_experiment_candidate
-from mea.planner.query_contract import (
-    build_query_sufficiency_contract,
-    extend_query_candidate_universe,
-    infer_claim_type,
-)
+from mea.planner.runtime_limits import build_plan_runtime_limits
 from mea.planner.runtime_task_binding import (
     build_runtime_open_world_evaluation_target,
 )
@@ -37,7 +33,7 @@ def prepare_initial_plan(
     """Build the first executable plan without a catalog-authored concern."""
 
     args = context.args
-    query_contract = context.query_sufficiency_contract
+    runtime_limits = context.plan_runtime_limits
     semantic_bundle = None
     frozen_candidate = None
     initial_candidate = None
@@ -47,185 +43,136 @@ def prepare_initial_plan(
     control_required = True
     initial_target = None
 
-    if context.plan_agent_mode:
-        if not context.runtime_plan_agent_targets:
-            raise RuntimeError(
-                "Plan Agent runtime requires source/checkpoint-ready bindings"
-            )
-        semantic_context = (
-            context.query_interpretation_bundle.get("concern")
+    if not context.runtime_plan_agent_targets:
+        raise RuntimeError(
+            "Plan Agent runtime requires source/checkpoint-ready bindings"
+        )
+    semantic_context = (
+        context.query_interpretation_bundle.get("concern")
+        if isinstance(context.query_interpretation_bundle, Mapping)
+        and isinstance(
+            context.query_interpretation_bundle.get("concern"), Mapping
+        )
+        else None
+    )
+    if semantic_context is not None:
+        evaluation_intent = evaluation_intent_from_query_interpretation(
+            semantic_context
+        )
+        raw_experiment_needs = (
+            context.query_interpretation_bundle.get("experiment_needs")
             if isinstance(context.query_interpretation_bundle, Mapping)
-            and isinstance(
-                context.query_interpretation_bundle.get("concern"), Mapping
-            )
             else None
         )
-        if semantic_context is not None:
-            evaluation_intent = evaluation_intent_from_query_interpretation(
-                semantic_context
-            )
-            raw_experiment_needs = (
-                context.query_interpretation_bundle.get("experiment_needs")
-                if isinstance(context.query_interpretation_bundle, Mapping)
-                else None
-            )
-            if isinstance(raw_experiment_needs, Mapping):
-                semantic_bundle = build_initial_semantic_proposal_bundle(
-                    user_query=args.request,
-                    concern=semantic_context,
-                    experiment_needs=raw_experiment_needs,
-                    evaluation_intent=evaluation_intent,
-                    provider_record=context.query_interpretation_bundle.get(
-                        "provider"
-                    ),
-                )
-        direct_single_candidate_query = bool(
-            isinstance(context.concern_candidate_resolution, Mapping)
-            and context.concern_candidate_resolution.get("resolution")
-            == "official_execution_from_typed_needs"
-            and context.concern_candidate_resolution.get("execution_authorized")
-            is True
-            and infer_claim_type(args.request) == "diagnostic"
-        )
-        control_required = resolve_plan_agent_control_required(
-            args.request,
-            query_contract=query_contract,
-            semantic_context=semantic_context,
-            candidate_resolution=context.concern_candidate_resolution,
-        )
-        if not control_required and semantic_bundle is not None:
-            frozen_candidate = build_dynamic_experiment_candidate(
+        if isinstance(raw_experiment_needs, Mapping):
+            semantic_bundle = build_initial_semantic_proposal_bundle(
                 user_query=args.request,
-                task_name=args.task_name,
-                proposal=semantic_bundle["proposal"],
+                concern=semantic_context,
+                experiment_needs=raw_experiment_needs,
                 evaluation_intent=evaluation_intent,
-                official_success_reuse=bool(
-                    isinstance(context.concern_candidate_resolution, Mapping)
-                    and context.concern_candidate_resolution.get(
-                        "official_success_reuse"
-                    )
-                    is True
+                provider_record=context.query_interpretation_bundle.get(
+                    "provider"
                 ),
             )
-        round_budget = (
-            int(args.max_agent_rounds)
-            if args.max_agent_rounds is not None
-            else max(1 + int(control_required), int(args.generated_rounds))
-        )
-        minimum_rounds = 1 + int(control_required)
-        if round_budget < minimum_rounds:
-            raise SystemExit(
-                "Plan Agent round budget is smaller than the QueryContract "
-                "control plus candidate requirement"
-            )
-        if query_contract is None:
-            inferred_claim_type = infer_claim_type(args.request)
-            if inferred_claim_type == "comparative":
-                raise SystemExit(
-                    "comparative Query requires an explicit preregistered "
-                    "--query-sufficiency-contract"
+    direct_single_candidate_query = bool(
+        isinstance(context.concern_candidate_resolution, Mapping)
+        and context.concern_candidate_resolution.get("resolution")
+        == "official_execution_from_typed_needs"
+        and context.concern_candidate_resolution.get("execution_authorized")
+        is True
+    )
+    control_required = resolve_plan_agent_control_required(
+        candidate_resolution=context.concern_candidate_resolution,
+    )
+    if not control_required and semantic_bundle is not None:
+        frozen_candidate = build_dynamic_experiment_candidate(
+            user_query=args.request,
+            task_name=args.task_name,
+            proposal=semantic_bundle["proposal"],
+            evaluation_intent=evaluation_intent,
+            official_success_reuse=bool(
+                isinstance(context.concern_candidate_resolution, Mapping)
+                and context.concern_candidate_resolution.get(
+                    "official_success_reuse"
                 )
-            query_contract = build_query_sufficiency_contract(
-                args.request,
-                candidate_universe=(
-                    [frozen_candidate["candidate_id"]]
-                    if frozen_candidate is not None
-                    else []
-                ),
-                round_budget=round_budget - int(control_required),
-                claim_type=inferred_claim_type,
-                candidate_universe_closed=direct_single_candidate_query,
-                control_requirement=(
-                    "required" if control_required else "not_required"
-                ),
-            )
-        if not control_required:
-            if semantic_context is None:
-                raise SystemExit(
-                    "a no-control Plan Agent run requires online Query "
-                    "interpretation"
-                )
-            if semantic_bundle is not None:
-                assert frozen_candidate is not None
-                initial_candidate = frozen_candidate
-            else:
-                initial_candidate = build_experiment_candidate(
-                    source_query=args.request,
-                    base_task=args.task_name,
-                    semantic_concern=(
-                        f"{semantic_context['sub_aspect']}: "
-                        f"{semantic_context['hypothesis']}"
-                    ),
-                    scene_need=None,
-                    checker_need=None,
-                    tool_need={
-                        "kind": "measure",
-                        "description": semantic_context["measurement_need"],
-                        "reuse_first": True,
-                    },
-                    evaluation_intent=evaluation_intent,
-                )
-            if query_contract is None:
-                query_contract = build_query_sufficiency_contract(
-                    args.request,
-                    candidate_universe=[initial_candidate["candidate_id"]],
-                    round_budget=round_budget,
-                    claim_type=infer_claim_type(args.request),
-                    candidate_universe_closed=False,
-                    control_requirement="not_required",
-                )
-            elif (
-                initial_candidate["candidate_id"]
-                not in query_contract["candidate_universe"]
-            ):
-                if query_contract["candidate_universe_closed"]:
-                    raise SystemExit(
-                        "closed no-control QueryContract does not contain the "
-                        "runtime Query-derived Proposal"
-                    )
-                query_contract = extend_query_candidate_universe(
-                    query_contract,
-                    [initial_candidate["candidate_id"]],
-                    candidate_universe_closed=False,
-                )
-        initial_target = build_runtime_open_world_evaluation_target(
-            context.repo_root,
-            args.task_name,
-            max_rounds=round_budget,
-            task_module=args.task_module,
-            policy_spec=context.runtime_policy_spec,
-        )
-
-    if context.plan_agent_mode:
-        if initial_target is None:
-            raise RuntimeError("Plan Agent runtime target was not initialized")
-        initial_builder = PlanAgentInitialPlanBuilder(
-            context.repo_root,
-            target=initial_target,
-            max_rounds=int(round_budget),
-            start_seed=(
-                args.start_seed if args.start_seed is not None else 100000
+                is True
             ),
-            num_episodes=args.num_episodes,
-            execution_backend=context.execution_backend,
-            task_module=args.task_module,
-            telemetry_profile=args.telemetry_profile,
         )
-        manifest = initial_builder.plan(
+    round_budget = (
+        int(args.max_agent_rounds)
+        if args.max_agent_rounds is not None
+        else max(1 + int(control_required), int(args.generated_rounds))
+    )
+    minimum_rounds = 1 + int(control_required)
+    if round_budget < minimum_rounds:
+        raise SystemExit(
+            "Plan Agent round budget is smaller than the runtime "
+            "control plus candidate requirement"
+        )
+    if runtime_limits is None:
+        runtime_limits = build_plan_runtime_limits(
             args.request,
-            evaluation_id=str(args.evaluation_id),
-            control_required=control_required,
-            query_contract=query_contract,
-            history_context=context.history_context,
-            history_metadata=context.planner_kwargs["history_metadata"],
+            round_budget=round_budget - int(control_required),
+            control_requirement=(
+                "required" if control_required else "not_required"
+            ),
         )
-    else:
-        if context.planner is None:
-            raise RuntimeError("legacy planner was not initialized")
-        manifest = context.planner.plan(
-            args.request,
-            **context.planner_kwargs,
-        )
+    if not control_required:
+        if semantic_context is None:
+            raise SystemExit(
+                "a no-control Plan Agent run requires online Query "
+                "interpretation"
+            )
+        if semantic_bundle is not None:
+            assert frozen_candidate is not None
+            initial_candidate = frozen_candidate
+        else:
+            initial_candidate = build_experiment_candidate(
+                source_query=args.request,
+                base_task=args.task_name,
+                semantic_concern=(
+                    f"{semantic_context['sub_aspect']}: "
+                    f"{semantic_context['hypothesis']}"
+                ),
+                scene_need=None,
+                checker_need=None,
+                tool_need={
+                    "kind": "measure",
+                    "description": semantic_context["measurement_need"],
+                    "reuse_first": True,
+                },
+                evaluation_intent=evaluation_intent,
+            )
+    initial_target = build_runtime_open_world_evaluation_target(
+        context.repo_root,
+        args.task_name,
+        max_rounds=round_budget,
+        task_module=args.task_module,
+        policy_spec=context.runtime_policy_spec,
+    )
+
+    if initial_target is None:
+        raise RuntimeError("Plan Agent runtime target was not initialized")
+    initial_builder = PlanAgentInitialPlanBuilder(
+        context.repo_root,
+        target=initial_target,
+        max_rounds=int(round_budget),
+        start_seed=(
+            args.start_seed if args.start_seed is not None else 100000
+        ),
+        num_episodes=args.num_episodes,
+        execution_backend=context.execution_backend,
+        task_module=args.task_module,
+        telemetry_profile=args.telemetry_profile,
+    )
+    manifest = initial_builder.plan(
+        args.request,
+        evaluation_id=str(args.evaluation_id),
+        control_required=control_required,
+        runtime_limits=runtime_limits,
+        history_context=context.history_context,
+        history_metadata=context.planner_kwargs["history_metadata"],
+    )
 
     evaluation_id = manifest["evaluation_id"]
     evaluation_dir = (
@@ -234,9 +181,7 @@ def prepare_initial_plan(
     if context.global_route_result is not None:
         write_global_route_trace(
             evaluation_dir,
-            catalog=context.global_catalog,
             route_result=context.global_route_result,
-            router=context.global_router,
             history_retrieval=context.global_history_retrieval,
         )
         route_manifest = {
@@ -246,10 +191,6 @@ def prepare_initial_plan(
                 "task_resolution_scope"
             ],
         }
-        if context.global_catalog is not None:
-            route_manifest["global_act_catalog_path"] = (
-                "plan/global_act_catalog.json"
-            )
         update_manifest(evaluation_dir, **route_manifest)
         if (
             context.query_interpreter is not None
@@ -295,7 +236,7 @@ def prepare_initial_plan(
             )
         )
         plan["rounds"] = [initial_round]
-        plan["query_contract"] = deepcopy(query_contract)
+        plan["runtime_limits"] = deepcopy(runtime_limits)
         plan["planning_state"] = (
             "initial_query_derived_candidate_materialized"
         )
@@ -308,7 +249,7 @@ def prepare_initial_plan(
             initial_toolgen_route=initial_tool_bundle["source"],
         )
 
-    context.query_sufficiency_contract = query_contract
+    context.plan_runtime_limits = runtime_limits
     context.evaluation_intent = evaluation_intent
     context.initial_semantic_bundle = semantic_bundle
     context.frozen_first_candidate = frozen_candidate

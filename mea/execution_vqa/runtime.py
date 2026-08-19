@@ -200,7 +200,6 @@ def run_round_execution_vqa(
     provider: Any,
     model: str,
     round_plan: dict[str, Any] | None = None,
-    reviewed_vqa_registry: Path | None = None,
 ) -> dict[str, Any]:
     """Run VQA on official-expert or ACT evidence without mixing their roles."""
 
@@ -259,7 +258,6 @@ def run_round_execution_vqa(
             vqa_need=vqa_need,
             template_id=(round_plan or {}).get("template_id"),
             tool_contract=(round_plan or {}).get("tool_request"),
-            reviewed_registry_dir=reviewed_vqa_registry,
         )
         open_vqa_dir = execution_dir / "open_vqa_question"
         _write_json(open_vqa_dir / "question_bundle.json", open_vqa_bundle)
@@ -329,7 +327,6 @@ def run_round_execution_vqa(
                 if proposal_vqa_explicit
                 else None
             ),
-            reviewed_registry_dir=reviewed_vqa_registry,
         )
     )
     _write_json(execution_dir / "execution_vqa_query.json", query)

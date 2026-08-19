@@ -1,4 +1,4 @@
-"""Evidence-conditioned Proposal authoring and binding for Plan Agent sessions."""
+﻿"""Evidence-conditioned Proposal authoring and binding for Plan Agent sessions."""
 
 from __future__ import annotations
 
@@ -6,24 +6,15 @@ from copy import deepcopy
 from typing import Any, Mapping, Sequence
 
 from .plan_agent_schema import (
-    ClaimFirstPlanError,
+    PlanAgentError,
     validate_open_query_capabilities,
     validate_open_query_plan_proposal,
-    validate_open_query_proposal_lineage,
 )
-from .plan_agent_errors import ClaimFirstRuntimeError
-from .plan_agent_evidence import (
-    _attach_planning_lineage,
-    _current_planning_evidence,
-    render_query_answer,
-)
-from .query_contract import (
-    QuerySufficiencyError,
-    project_agent_inconclusive_stop,
-)
+from .plan_agent_errors import PlanAgentSessionError
+from .plan_agent_evidence import _current_planning_evidence, render_query_answer
+from .runtime_limits import PlanRuntimeError, validate_agent_stop
 from .query_interpretation import (
     build_dynamic_experiment_candidate,
-    resolve_semantic_proposal,
 )
 from .semantic_coverage import SemanticCoverageError, validate_evaluation_intent
 
@@ -38,13 +29,7 @@ class PlanAgentDecisionMixin:
         executed_candidate_ids: Sequence[str],
         evaluation_intent: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Bind a proposal only if it consumed the current evidence history.
-
-        This is the auditable boundary for cached/provider proposals.  A bundle
-        authored before the latest completed round fails its input digest or
-        completed-round lineage check instead of being released as the next
-        sub-aspect.
-        """
+        """Bind a proposal after validating the current evidence snapshot."""
 
         try:
             trusted_capabilities = validate_open_query_capabilities(
@@ -52,7 +37,7 @@ class PlanAgentDecisionMixin:
             )
             history = _current_planning_evidence(observation)
             if self.require_control_anchor and not history:
-                raise ClaimFirstRuntimeError(
+                raise PlanAgentSessionError(
                     "control-required Plan Agent needs observed control evidence "
                     "before binding the next sub-aspect"
                 )
@@ -61,22 +46,14 @@ class PlanAgentDecisionMixin:
                 if evaluation_intent is not None
                 else None
             )
-            lineage = validate_open_query_proposal_lineage(
-                proposal_bundle,
-                user_query=self.user_query,
-                capabilities=trusted_capabilities,
-                evidence_history=history,
-                evaluation_intent=trusted_intent,
-            )
-        except (ClaimFirstPlanError, SemanticCoverageError) as exc:
-            raise ClaimFirstRuntimeError(str(exc)) from exc
-        bound = self.bind_semantic_step(
+        except (PlanAgentError, SemanticCoverageError) as exc:
+            raise PlanAgentSessionError(str(exc)) from exc
+        return self.bind_semantic_step(
             proposal_bundle,
             observation,
             executed_template_ids=executed_candidate_ids,
             evaluation_intent=trusted_intent,
         )
-        return _attach_planning_lineage(bound, lineage)
 
     def propose_semantic_step(
         self,
@@ -97,12 +74,12 @@ class PlanAgentDecisionMixin:
 
         assessment = observation.get("assessment")
         if not isinstance(assessment, Mapping):
-            raise ClaimFirstRuntimeError(
+            raise PlanAgentSessionError(
                 "Plan Agent observation has no assessment"
             )
         history = _current_planning_evidence(observation)
         if self.require_control_anchor and not history:
-            raise ClaimFirstRuntimeError(
+            raise PlanAgentSessionError(
                 "control-required Plan Agent needs observed control evidence "
                 "before authoring the next sub-aspect"
             )
@@ -115,11 +92,11 @@ class PlanAgentDecisionMixin:
                 if evaluation_intent is not None
                 else None
             )
-        except (ClaimFirstPlanError, SemanticCoverageError) as exc:
-            raise ClaimFirstRuntimeError(str(exc)) from exc
+        except (PlanAgentError, SemanticCoverageError) as exc:
+            raise PlanAgentSessionError(str(exc)) from exc
         propose = getattr(planner, "propose", None)
         if not callable(propose):
-            raise ClaimFirstRuntimeError(
+            raise PlanAgentSessionError(
                 "Plan Agent must expose a callable propose()"
             )
         # The Query contract validates a decision after the Agent authors it.
@@ -140,27 +117,17 @@ class PlanAgentDecisionMixin:
                 decision_context=decision_context,
             )
         except Exception as exc:
-            if isinstance(exc, ClaimFirstRuntimeError):
+            if isinstance(exc, PlanAgentSessionError):
                 raise
-            raise ClaimFirstRuntimeError(
+            raise PlanAgentSessionError(
                 "evidence-conditioned Plan Agent failed after completed "
                 f"rounds {[item['round_id'] for item in history]}: "
                 f"{type(exc).__name__}: {exc}"
             ) from exc
         if not isinstance(proposal_bundle, Mapping):
-            raise ClaimFirstRuntimeError(
+            raise PlanAgentSessionError(
                 "Plan Agent returned no proposal bundle"
             )
-        try:
-            validate_open_query_proposal_lineage(
-                proposal_bundle,
-                user_query=self.user_query,
-                capabilities=trusted_capabilities,
-                evidence_history=history,
-                evaluation_intent=trusted_intent,
-            )
-        except ClaimFirstPlanError as exc:
-            raise ClaimFirstRuntimeError(str(exc)) from exc
         return deepcopy(dict(proposal_bundle))
 
     def propose_and_bind_semantic_step(
@@ -208,10 +175,10 @@ class PlanAgentDecisionMixin:
 
         assessment = observation.get("assessment")
         if not isinstance(assessment, Mapping):
-            raise ClaimFirstRuntimeError("Plan Agent observation has no assessment")
+            raise PlanAgentSessionError("Plan Agent observation has no assessment")
         raw_proposal = proposal_bundle.get("proposal")
         if not isinstance(raw_proposal, Mapping):
-            raise ClaimFirstRuntimeError(
+            raise PlanAgentSessionError(
                 "Plan Agent proposal bundle has no proposal object"
             )
         try:
@@ -219,39 +186,35 @@ class PlanAgentDecisionMixin:
                 raw_proposal,
                 has_evidence=bool(observation.get("records")),
             )
-        except ClaimFirstPlanError as exc:
-            raise ClaimFirstRuntimeError(str(exc)) from exc
+        except PlanAgentError as exc:
+            raise PlanAgentSessionError(str(exc)) from exc
 
         if proposal["action"] == "stop":
-            query_answer = observation.get("query_answer")
-            sufficient_stop = bool(
-                assessment.get("should_stop") is True
-                and assessment.get("evidence_sufficient") is True
-                and assessment.get("stop_reason") == "evidence_sufficient"
-                and isinstance(query_answer, Mapping)
-                and query_answer.get("answered") is True
-            )
-            if sufficient_stop:
-                stop_assessment = deepcopy(dict(assessment))
-                stop_answer = deepcopy(dict(query_answer))
-                resolution = "query_contract_validated_stop"
-                answered_query = True
-            else:
-                try:
-                    stop_assessment = project_agent_inconclusive_stop(
-                        assessment,
-                        rationale=proposal["rationale"],
-                    )
-                except QuerySufficiencyError as exc:
-                    raise ClaimFirstRuntimeError(str(exc)) from exc
-                stop_answer = render_query_answer(
-                    self.user_query,
-                    stop_assessment,
-                    observation.get("records") or [],
-                    baseline_valid=observation.get("control_passed") is not False,
+            try:
+                stop_assessment = validate_agent_stop(
+                    assessment,
+                    rationale=proposal["rationale"],
+                    answer=proposal["answer"],
+                    claim_verdict=proposal["claim_verdict"],
+                    evidence_sufficient=proposal["evidence_sufficient"],
                 )
-                resolution = "plan_agent_inconclusive_stop"
-                answered_query = False
+            except PlanRuntimeError as exc:
+                raise PlanAgentSessionError(str(exc)) from exc
+            stop_answer = render_query_answer(
+                self.user_query,
+                stop_assessment,
+                observation.get("records") or [],
+                baseline_valid=observation.get("control_passed") is not False,
+            )
+            resolution = "plan_agent_stop"
+            answered_query = bool(proposal["evidence_sufficient"])
+            stop_answer["answered"] = answered_query
+            stop_answer["stop_reason"] = "agent_stop"
+            stop_answer["answer"] = (
+                proposal["answer"]
+                if answered_query
+                else proposal["rationale"]
+            )
             return {
                 "schema_version": 2,
                 "semantic_proposal_bundle": deepcopy(dict(proposal_bundle)),
@@ -278,7 +241,7 @@ class PlanAgentDecisionMixin:
                     "retrieval_template_id": None,
                     "retrieval_resolution": None,
                 },
-                "query_contract": deepcopy(self.query_contract),
+                "runtime_limits": deepcopy(self.runtime_limits),
                 "query_assessment": stop_assessment,
                 "query_answer": stop_answer,
                 "plan_step": {
@@ -297,37 +260,17 @@ class PlanAgentDecisionMixin:
                 },
             }
 
-        budget_remaining = assessment.get("budget_remaining")
-        may_continue_after_sufficiency = bool(
-            assessment.get("should_stop") is True
-            and assessment.get("evidence_sufficient") is True
-            and assessment.get("stop_reason") == "evidence_sufficient"
-            and isinstance(budget_remaining, int)
-            and not isinstance(budget_remaining, bool)
-            and budget_remaining > 0
-        )
-        if assessment.get("should_stop") and not may_continue_after_sufficiency:
-            raise ClaimFirstRuntimeError(
-                "cannot bind a semantic step after the query contract stopped"
+        if assessment.get("should_stop"):
+            raise PlanAgentSessionError(
+                "cannot continue after a simulator conflict or external round cap"
             )
         if (
             self.require_control_anchor
             and observation.get("control_passed") is not True
         ):
-            raise ClaimFirstRuntimeError(
+            raise PlanAgentSessionError(
                 "cannot attribute a property before the control passes"
             )
-        retrieval_hint: dict[str, Any] | None = None
-        retrieval_error: str | None = None
-        try:
-            retrieval_hint = resolve_semantic_proposal(
-                proposal,
-                target={"aspects": self.retrieval_aspects},
-                executed_template_ids=executed_template_ids,
-                control_template=self.control_template,
-            )
-        except ClaimFirstRuntimeError as catalog_error:
-            retrieval_error = str(catalog_error)
         candidate = build_dynamic_experiment_candidate(
             user_query=self.user_query,
             task_name=self.task_name,
@@ -339,15 +282,10 @@ class PlanAgentDecisionMixin:
             proposal=proposal,
             candidate=candidate,
             executed_candidate_ids=executed_template_ids,
-            resolution=(
-                "retrieval_hint_then_reuse_or_generate"
-                if retrieval_hint is not None
-                else "proposal_reuse_or_generate"
-            ),
-            catalog_resolution_error=retrieval_error,
-            retrieval_hint=retrieval_hint,
+            resolution="proposal_reuse_or_generate",
+            catalog_resolution_error=None,
+            retrieval_hint=None,
         )
-
 
 
 __all__ = ["PlanAgentDecisionMixin"]

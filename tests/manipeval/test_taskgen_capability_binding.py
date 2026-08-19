@@ -1,4 +1,3 @@
-import hashlib
 import json
 import tempfile
 import unittest
@@ -270,70 +269,6 @@ class TaskGenCapabilityBindingTests(unittest.TestCase):
                 variant_id="object_appearance.color_blue",
             )
 
-    def test_reviewed_reuse_accepts_only_hash_pinned_variant_alias(self):
-        contract = resolve_capability_contract(
-            "beat_block_hammer", "object_scale.bounded_1_2"
-        )
-        proposal = task_proposal_from_contract(
-            contract, intent="evaluate a semantically identical reviewed task"
-        )
-        spec = build_variant_spec(
-            task_name="beat_block_hammer",
-            variant_id="object_scale.legacy_reviewed_alias",
-            capability_id=contract["taskgen"]["capability_id"],
-            intent="legacy reviewed artifact metadata",
-            changes=contract["taskgen"]["changes"],
-            generation_mode="force_codegen",
-        )
-        with tempfile.TemporaryDirectory() as temporary:
-            run_dir = self._run_dir(
-                Path(temporary),
-                spec,
-                {
-                    "task_module": "mea.generated_tasks.run_binding.task",
-                    "generation_kind": "reviewed_generated_task_reuse",
-                    "variant_spec_authority": "reviewed_task_registry",
-                },
-            )
-            variant_path = run_dir / "variant_spec.json"
-            manifest_path = run_dir / "manifest.json"
-            manifest = json.loads(manifest_path.read_text())
-            manifest["reviewed_task_registration"] = {
-                "copied_files": {
-                    "variant_spec.json": hashlib.sha256(
-                        variant_path.read_bytes()
-                    ).hexdigest()
-                }
-            }
-            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
-
-            result = validate_planner_capability_binding(
-                contract,
-                task_name="beat_block_hammer",
-                mode="force_codegen",
-                variant_id=proposal["proposal_id"],
-                run_dir=run_dir,
-                task_proposal=proposal,
-            )
-            self.assertEqual(result["variant_spec_authority"], "reviewed_task_registry")
-            self.assertEqual(
-                result["materialized_task_variant_id"],
-                "object_scale.legacy_reviewed_alias",
-            )
-
-            tampered = json.loads(variant_path.read_text())
-            tampered["variant_id"] = "object_scale.unreviewed_alias"
-            variant_path.write_text(json.dumps(tampered), encoding="utf-8")
-            with self.assertRaisesRegex(RuntimeError, "registry-pinned"):
-                validate_planner_capability_binding(
-                    contract,
-                    task_name="beat_block_hammer",
-                    mode="force_codegen",
-                    variant_id=proposal["proposal_id"],
-                    run_dir=run_dir,
-                    task_proposal=proposal,
-                )
-
     def test_agent_command_sends_contract_and_separates_template_variant(self):
         contract = resolve_capability_contract(
             "beat_block_hammer", "object_position.official_random"
@@ -367,7 +302,6 @@ class TaskGenCapabilityBindingTests(unittest.TestCase):
             base_url=None,
             gpu=0,
             max_reflections=1,
-            reviewed_task_registry=Path("/repo/mea/task_registry/reviewed"),
         )
         self.assertEqual(
             command[command.index("--variant-id") + 1],
@@ -375,10 +309,6 @@ class TaskGenCapabilityBindingTests(unittest.TestCase):
         )
         encoded = command[command.index("--capability-contract-json") + 1]
         self.assertEqual(json.loads(encoded), contract)
-        self.assertEqual(
-            command[command.index("--reviewed-task-registry") + 1],
-            str(Path("/repo/mea/task_registry/reviewed")),
-        )
 
         for field, replacement in (
             ("tool_request", {"metric": "wrong"}),

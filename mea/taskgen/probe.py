@@ -13,12 +13,6 @@ from typing import Any, Mapping
 
 import yaml
 
-from mea.execution_receipt import (
-    load_execution_receipt,
-    validate_execution_invocation,
-    validate_frozen_candidate_source,
-    validate_imported_task_binding,
-)
 from mea.toolkit.schema import actor_access_path, resolve_task_actor
 
 
@@ -425,9 +419,6 @@ def run_probe(arguments: argparse.Namespace) -> dict[str, Any]:
         "expert_requested": arguments.expert,
         "telemetry_requested": arguments.telemetry_dir is not None,
         "eval_mode": bool(getattr(arguments, "eval_mode", False)),
-        "execution_receipt_requested": (
-            getattr(arguments, "execution_receipt", None) is not None
-        ),
     }
     task = None
     recorder = None
@@ -467,8 +458,9 @@ def run_probe(arguments: argparse.Namespace) -> dict[str, Any]:
                 ),
             )
             if (
-                raw_context.get("official_source_sha256")
-                != context.official_source_sha256
+                raw_context.get("task_name") != context.task_name
+                or raw_context.get("official_source")
+                != context.official_source
                 or raw_context.get("task_schema") != context.task_schema
             ):
                 raise ValueError(
@@ -496,45 +488,9 @@ def run_probe(arguments: argparse.Namespace) -> dict[str, Any]:
             overlay_path=arguments.overlay,
             eval_mode=bool(getattr(arguments, "eval_mode", False)),
         )
-        execution_receipt_path = getattr(
-            arguments,
-            "execution_receipt",
-            None,
-        )
-        execution_receipt = (
-            load_execution_receipt(
-                execution_receipt_path,
-                verify_checkpoint_files=True,
-            )
-            if execution_receipt_path is not None
-            else None
-        )
-        if execution_receipt is not None:
-            if arguments.telemetry_dir is None:
-                raise ValueError(
-                    "execution_receipt requires telemetry_dir"
-                )
-            receipt_policy = (
-                "expert" if arguments.expert else "setup_probe"
-            )
-            validate_execution_invocation(
-                execution_receipt,
-                task_name=arguments.task_name,
-                task_module=arguments.task_module,
-                task_config=arguments.task_config,
-                checkpoint_setting=arguments.ckpt_setting,
-                policy_name=receipt_policy,
-                seed=arguments.seed,
-                episode_index=arguments.episode_index,
-                checkpoint_dir=None,
-                verify_checkpoint_files=True,
-            )
-            validate_frozen_candidate_source(execution_receipt)
         module = importlib.import_module(arguments.task_module)
         task_class = getattr(module, arguments.task_name)
         task = task_class()
-        if execution_receipt is not None:
-            validate_imported_task_binding(execution_receipt, task)
         task.setup_demo(now_ep_num=0, seed=arguments.seed, is_test=True, **args)
         if schema is None:
             runtime_probe = build_runtime_task_context_probe(
@@ -695,7 +651,6 @@ def run_probe(arguments: argparse.Namespace) -> dict[str, Any]:
                 visual_capture_profile_id=getattr(
                     arguments, "visual_capture_profile", None
                 ),
-                execution_receipt=execution_receipt,
                 task_schema=schema,
             )
             task._mea_recorder = recorder
@@ -842,7 +797,6 @@ def parse_args() -> argparse.Namespace:
         help="Use the evaluator distribution (including unseen randomization).",
     )
     parser.add_argument("--telemetry-dir", type=Path)
-    parser.add_argument("--execution-receipt", type=Path)
     parser.add_argument(
         "--discover-task-context",
         action="store_true",

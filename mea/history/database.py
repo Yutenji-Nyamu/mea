@@ -60,10 +60,6 @@ def _canonical_json(value: Any, *, pretty: bool = False) -> str:
         ) from exc
 
 
-def _canonical_sha256(value: Any) -> str:
-    return hashlib.sha256(_canonical_json(value).encode("utf-8")).hexdigest()
-
-
 def _read_json(path: Path, label: str) -> dict[str, Any]:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))

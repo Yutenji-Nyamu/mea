@@ -12,7 +12,6 @@ from mea.taskgen.attempts import TERMINAL, task_generation_recovery_action
 from .native_round_contracts import (
     NativeAgentRoundError,
     build_native_run_id as _build_native_run_id,
-    canonical_sha256 as _canonical_sha256,
     is_zero_rollout_count as _is_zero_rollout_count,
     write_json as _write_json,
 )
@@ -176,9 +175,7 @@ def _candidate_unexecutable_round(
         "diagnosis": str(failure.get("diagnosis") or failure.get("message")),
         "policy_rollouts_started": 0,
         "policy_sample_count": 0,
-        "taskgen_attempt_summary": child_manifest.get(
-            "task_generation_attempts"
-        ),
+        "taskgen_result": child_manifest.get("task_generation_result"),
     }
     method_runtime = {
         "schema_version": 1,
@@ -268,70 +265,46 @@ def _taskgen_materialization_failure_round(
         and policy_execution.get("started") is False
         and _is_zero_rollout_count(policy_execution.get("rollouts_started"))
         and _is_zero_rollout_count(policy_execution.get("sample_count"))
-        and isinstance(child_manifest.get("task_generation_attempts"), str)
-        and bool(str(child_manifest["task_generation_attempts"]).strip())
+        and isinstance(child_manifest.get("task_generation_result"), str)
+        and bool(str(child_manifest["task_generation_result"]).strip())
     ):
         raise NativeAgentRoundError(
             "TaskGen failure cannot be projected as pre-policy evidence"
         )
 
-    attempt_summary_path = (
-        child_dir / "validation/task_generation_attempt_summary.json"
-    )
-    attempt_summary: dict[str, Any] | None = None
+    generation_result_path = child_dir / "validation/task_generation_result.json"
+    generation_result: dict[str, Any] | None = None
     try:
-        candidate_summary = json.loads(
-            attempt_summary_path.read_text(encoding="utf-8")
+        candidate_result = json.loads(
+            generation_result_path.read_text(encoding="utf-8")
         )
-        if isinstance(candidate_summary, Mapping):
-            attempt_summary = dict(candidate_summary)
+        if isinstance(candidate_result, Mapping):
+            generation_result = dict(candidate_result)
     except (OSError, json.JSONDecodeError):
         pass
     if (
-        attempt_summary is None
-        or attempt_summary.get("recovery_scope")
-        != "task_generation_before_policy"
-        or attempt_summary.get("status") != "failed"
-        or attempt_summary.get("proposal_identity_sha256")
-        != _canonical_sha256(proposal)
+        generation_result is None
+        or generation_result.get("status") != "failed"
     ):
         raise NativeAgentRoundError(
-            "TaskGen failure lacks a bounded failed attempt summary"
+            "TaskGen failure lacks its generation result"
         )
-    attempts = attempt_summary.get("attempts")
-    if not isinstance(attempts, list) or not attempts:
-        raise NativeAgentRoundError("TaskGen attempt summary has no attempts")
-    for attempt in attempts:
-        attempt_runtime = (
-            attempt.get("runtime") if isinstance(attempt, Mapping) else None
-        )
-        if (
-            not isinstance(attempt, Mapping)
-            or not str(attempt.get("status") or "").startswith("failed_")
-            or not isinstance(attempt_runtime, Mapping)
-            or not _is_zero_rollout_count(
-                attempt_runtime.get("act_rollouts_started")
-            )
-        ):
-            raise NativeAgentRoundError(
-                "TaskGen attempt is not a failed zero-rollout record"
-            )
-    last_attempt = attempts[-1]
-    terminal_failure = (
-        last_attempt.get("failure")
-        if isinstance(last_attempt, Mapping)
-        else None
+    terminal_record = (
+        generation_result.get("repair")
+        or generation_result.get("generation")
+        or {}
     )
-    runtime = attempt_summary.get("runtime")
+    terminal_failure = terminal_record.get("failure")
+    runtime = generation_result.get("runtime")
     if (
         not isinstance(terminal_failure, Mapping)
-        or last_attempt.get("status") != "failed_terminal"
+        or terminal_record.get("status") != "failed"
         or terminal_failure.get("type") != "TaskGenerationStageError"
         or not isinstance(runtime, Mapping)
         or not _is_zero_rollout_count(runtime.get("act_rollouts_started"))
     ):
         raise NativeAgentRoundError(
-            "TaskGen attempt summary is not a typed pre-policy failure"
+            "TaskGen result is not a typed pre-policy failure"
         )
     failure_stage = str(terminal_failure.get("stage") or "")
     failure_kind = str(terminal_failure.get("failure_kind") or "")
@@ -358,15 +331,11 @@ def _taskgen_materialization_failure_round(
         ),
         "policy_rollouts_started": 0,
         "policy_sample_count": 0,
-        "taskgen_attempt_summary": child_manifest.get(
-            "task_generation_attempts"
-        ),
+        "taskgen_result": child_manifest.get("task_generation_result"),
     }
     bounded_repair_evidence: list[dict[str, str]] = []
-    for attempt in attempts[:-1]:
-        attempt_failure = (
-            attempt.get("failure") if isinstance(attempt, Mapping) else None
-        )
+    for attempt in (generation_result.get("generation"),):
+        attempt_failure = attempt.get("failure") if isinstance(attempt, Mapping) else None
         if not isinstance(attempt_failure, Mapping):
             continue
         message = str(attempt_failure.get("message") or "").strip()

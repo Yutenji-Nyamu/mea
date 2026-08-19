@@ -25,7 +25,7 @@ from experiments.paper.live_protocols import (
     materialize_table3_codegen_preregistration,
     validate_proxy_gold_manifest,
 )
-from mea.prospective_error_ledger import (
+from experiments.paper.validation.prospective_error_ledger import (
     ProspectiveLedgerError,
     ProspectiveOperationLedger,
     build_paper_error_study_v2,

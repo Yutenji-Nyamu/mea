@@ -5,7 +5,7 @@ from copy import deepcopy
 from pathlib import Path
 
 from mea.planner import BoundTaskPlanSession, build_act_catalog
-from mea.planner.claim_first import project_open_query_capabilities
+from mea.planner.plan_agent_schema import project_open_query_capabilities
 from mea.planner.context import (
     PlanningContextError,
     build_planning_context,

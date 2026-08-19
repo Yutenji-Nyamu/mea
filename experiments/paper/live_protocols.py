@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from experiments.paper.paper_claim_demo import evaluate_policy_ranking
-from mea.planner.query_contract import (
+from experiments.paper.query_contract_compat import (
     assess_query_sufficiency,
     build_query_sufficiency_contract,
 )

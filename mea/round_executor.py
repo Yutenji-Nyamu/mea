@@ -84,8 +84,6 @@ class RoundExecutionRequest:
     provider: Any
     toolgen_model: str
     telemetry_profile: str = "balanced_v1"
-    reviewed_tool_registry: Path | None = None
-    reviewed_vqa_registry: Path | None = None
     policy_backend: str = "act"
     runtime_target: Mapping[str, Any] | None = None
     policy_server_port: int = 18771
@@ -309,10 +307,6 @@ class RoundExecutor:
                 "provider": request.provider,
                 "model": request.toolgen_model,
             }
-            if request.reviewed_tool_registry is not None:
-                tool_kwargs["reviewed_registry_dir"] = (
-                    request.reviewed_tool_registry
-                )
             if round_plan.get("open_tool_request_deferred") is True:
                 tool_bundle = materialize_open_world_tool_request(
                     request.repo_root,
@@ -321,7 +315,6 @@ class RoundExecutor:
                     child_dir=child_dir,
                     provider=request.provider,
                     toolgen_model=request.toolgen_model,
-                    reviewed_tool_registry=request.reviewed_tool_registry,
                 )
                 if tool_bundle.get("status") == "unsupported":
                     round_plan["open_tool_request_deferred"] = False
@@ -635,7 +628,6 @@ class RoundExecutor:
                 provider=request.provider,
                 model=request.vision_model,
                 round_plan=request.round_plan,
-                reviewed_vqa_registry=request.reviewed_vqa_registry,
             )
         else:
             candidate_rejection = child_manifest.get(

@@ -1,4 +1,4 @@
-"""Evidence projection and answer rendering for the Plan Agent."""
+﻿"""Evidence projection and answer rendering for the Plan Agent."""
 
 from __future__ import annotations
 
@@ -6,15 +6,44 @@ import json
 from copy import deepcopy
 from typing import Any, Mapping, Sequence
 
-from .claim_first import validate_open_query_evidence
+from mea.artifact_retrieval_index import resolve_task_retrieval_index
+
+from .plan_agent_schema import PlanAgentError, validate_open_query_evidence
 from .evidence_policy import build_evidence_packet, validate_evidence_packet
-from .plan_agent_errors import ClaimFirstRuntimeError
-from .query_interpretation import (
-    _failure_seeking_existential,
-    _nonempty_text,
-    _round_candidate_id,
-    _uses_task_control_template,
-)
+from .plan_agent_errors import PlanAgentSessionError
+from .query_interpretation import _nonempty_text
+
+
+def _round_candidate_id(round_plan: Mapping[str, Any]) -> str:
+    """Return the planner-owned candidate identity for one executed round."""
+
+    return _nonempty_text(
+        round_plan.get("candidate_id") or round_plan.get("template_id"),
+        "round_plan.candidate_id",
+    )
+
+
+def _uses_task_control_template(round_plan: Mapping[str, Any]) -> bool:
+    """Recognize the bound task's unchanged official control artifact."""
+
+    task_name = round_plan.get("task_name")
+    template_id = round_plan.get("template_id")
+    if (
+        not isinstance(task_name, str)
+        or not task_name.strip()
+        or not isinstance(template_id, str)
+        or not template_id.strip()
+    ):
+        return False
+    try:
+        retrieval_index = resolve_task_retrieval_index(
+            task_name.strip(),
+            allow_unregistered=True,
+        )
+    except ValueError:
+        return False
+    return template_id.strip() == retrieval_index["control_template_id"]
+
 
 def _round_artifact_refs(
     round_summary: Mapping[str, Any],
@@ -115,7 +144,7 @@ def _compact_planned_tool_evidence(
 
     The typed Tool execution remains authoritative. This projection is only a
     compact prompt-facing observation; it never replaces official success or
-    changes the deterministic QueryContract outcome by itself.
+    changes the deterministic runtime evidence summary by itself.
     """
 
     planned = observations.get("planned_tool")
@@ -184,14 +213,14 @@ def _compact_planned_tool_evidence(
     return compact
 
 
-def build_claim_first_evidence_record(
+def build_plan_agent_evidence_record(
     round_plan: Mapping[str, Any],
     round_summary: Mapping[str, Any],
 ) -> dict[str, Any]:
     """Derive compact semantic/query evidence from one completed runtime round."""
 
     if round_plan.get("round_id") != round_summary.get("round_id"):
-        raise ClaimFirstRuntimeError("round plan and summary ids disagree")
+        raise PlanAgentSessionError("round plan and summary ids disagree")
     candidate_id = _round_candidate_id(round_plan)
     evidence_round = deepcopy(dict(round_plan))
     # EvidencePacket v1 calls this execution identity ``template_id``.  A
@@ -352,7 +381,7 @@ def build_claim_first_evidence_record(
     elif outcome_semantics_status == "conflict":
         limitations.append(
             "Generated and official/core success semantics conflict; this "
-            "round cannot satisfy the Query sufficiency contract."
+                "round cannot support an answered Plan Agent stop."
         )
     planned_tool_evidence = _compact_planned_tool_evidence(observations)
     tool_summary = (
@@ -478,9 +507,6 @@ def render_query_answer(
     """Build a deterministic query answer/limitation projection."""
 
     query = _nonempty_text(user_query, "user_query")
-    contract = assessment.get("contract")
-    contract = contract if isinstance(contract, Mapping) else {}
-    dynamic_domain = contract.get("schema_version") == 2
     if not baseline_valid:
         answered = False
         stop_reason = baseline_stop_reason or "control_baseline_invalid"
@@ -490,9 +516,7 @@ def render_query_answer(
             "because the required unchanged-scene control did not produce "
             "complete successful policy evidence."
         )
-        untested = list(
-            assessment.get("contract", {}).get("candidate_universe", [])
-        )
+        untested = []
         limitations = [
             "No property attribution is allowed without a passing control.",
             "The observed control result may reflect policy, simulator, or pipeline effects.",
@@ -502,20 +526,11 @@ def render_query_answer(
         stop_reason = str(assessment.get("stop_reason") or "continue")
         verdict = str(assessment.get("claim_verdict") or "inconclusive")
         if answered:
-            if dynamic_domain:
-                answer = (
-                    "For the currently discovered candidate domain, the Query "
-                    f"verdict is {verdict}."
-                )
-            else:
-                answer = (
-                    "For the finite registered candidate domain, the Query "
-                    f"verdict is {verdict}."
-                )
+            answer = f"For the completed evidence, the Query verdict is {verdict}."
         else:
             answer = (
-                "The bounded evidence does not yet satisfy the truth conditions "
-                "needed to answer the original Query."
+                "The bounded evidence does not yet support an answer to the "
+                "original Query."
             )
         untested = list(assessment.get("untested_candidate_ids") or [])
         limitations = list(assessment.get("limitations") or [])
@@ -526,7 +541,7 @@ def render_query_answer(
     limitations.extend(
         [
             "This answer is limited to the bound task, checkpoint, variants, and recorded seeds.",
-            "A finite-domain N-small result is not a broad generalization guarantee.",
+            "A bounded N-small result is not a broad generalization guarantee.",
         ]
     )
     refs = [
@@ -585,7 +600,7 @@ def render_query_answer(
         "answer_scope": answer_scope,
         "official_benchmark_answered": bool(answered and not non_official),
         "stop_reason": stop_reason,
-        "claim_type": assessment.get("contract", {}).get("claim_type"),
+        "claim_type": None,
         "claim_verdict": verdict,
         "answer": answer,
         "tested_candidate_ids": list(
@@ -606,23 +621,23 @@ def _current_planning_evidence(
     """Return evidence whose round lineage agrees with runtime records."""
 
     if not isinstance(observation, Mapping):
-        raise ClaimFirstRuntimeError("Plan Agent observation must be an object")
+        raise PlanAgentSessionError("Plan Agent observation must be an object")
     raw_history = observation.get("open_query_evidence_history")
     if not isinstance(raw_history, list):
-        raise ClaimFirstRuntimeError(
+        raise PlanAgentSessionError(
             "Plan Agent observation has no open_query_evidence_history"
         )
     try:
         history = validate_open_query_evidence(raw_history)
-    except ClaimFirstPlanError as exc:
-        raise ClaimFirstRuntimeError(str(exc)) from exc
+    except PlanAgentError as exc:
+        raise PlanAgentSessionError(str(exc)) from exc
     records = observation.get("records")
     if not isinstance(records, list):
-        raise ClaimFirstRuntimeError("Plan Agent observation has no records")
+        raise PlanAgentSessionError("Plan Agent observation has no records")
     record_round_ids: list[str] = []
     for index, record in enumerate(records):
         if not isinstance(record, Mapping):
-            raise ClaimFirstRuntimeError(
+            raise PlanAgentSessionError(
                 f"Plan Agent observation record {index} must be an object"
             )
         record_round_ids.append(
@@ -633,29 +648,11 @@ def _current_planning_evidence(
         )
     evidence_round_ids = [item["round_id"] for item in history]
     if evidence_round_ids != record_round_ids:
-        raise ClaimFirstRuntimeError(
+        raise PlanAgentSessionError(
             "open_query_evidence_history does not align with completed "
             "runtime records"
         )
     return history
 
 
-def _attach_planning_lineage(
-    bound_step: Mapping[str, Any],
-    lineage: Mapping[str, Any],
-) -> dict[str, Any]:
-    """Persist semantic-decision lineage at both bundle and plan-step levels."""
-
-    result = deepcopy(dict(bound_step))
-    trusted_lineage = deepcopy(dict(lineage))
-    result["planning_lineage"] = trusted_lineage
-    plan_step = result.get("plan_step")
-    if not isinstance(plan_step, Mapping):
-        raise ClaimFirstRuntimeError("bound semantic step has no plan_step")
-    result["plan_step"] = {
-        **deepcopy(dict(plan_step)),
-        "planning_lineage": deepcopy(trusted_lineage),
-    }
-    return result
-
-__all__ = ["build_claim_first_evidence_record", "render_query_answer"]
+__all__ = ["build_plan_agent_evidence_record", "render_query_answer"]

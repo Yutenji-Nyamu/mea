@@ -8,11 +8,11 @@
 - **Query interpretation**：在 task inventory 暴露前抽取任务意图、待测 concern 与
   preservation 条件；
 - **Proposal**：Plan Agent 交给 TaskGen/ToolGen 的本轮实验语义及 typed needs；
-- **Plan Agent session**：保存逐轮 evidence、lineage、充分性判断与最终回答状态。
+- **Plan Agent session**：保存逐轮 evidence、Plan 的继续/停止决定与最终回答状态。
 
-代码文件、旧 schema 和不可变历史 artifact 中的 `ClaimFirst`、`FreeConcern` 与
-`ExperimentCandidate` 仅是兼容名称。新公共 API、manifest 字段和文档不得继续产生这些
-旧术语，也不得通过重写历史 artifact 来“修复”它们。
+代码文件、旧 schema 和不可变历史 artifact 中的 `ClaimFirst`、`FreeConcern` 是兼容名称；
+`ExperimentCandidate` 暂时仍是生产内部的 Proposal transport。公开术语统一为 Proposal，
+内部重命名尚未完成；不得通过重写历史 artifact 来“修复”旧术语。
 
 ## 核心约束
 
@@ -28,24 +28,27 @@ Query → Plan → Task/Tool 检索或生成 → 执行 → 证据回流 → 继
 生产 feature flag。不要为 failure exemplar 再建立审批、哈希、晋升或恢复系统。
 
 生产实现只保留三层：论文方法；生成代码可执行、simulator authority、official goal 忠实、
-unknown/abstain 等最小真实性边界；以及默认不加载的冷复现资料。SHA/checksum、receipt、
-多级 reviewed/promotion、flagship acceptance、复杂 resume/attempt ledger、legacy protocol 等概念
-不得继续穿透普通 CLI/Application/RoundExecutor。迁移必须先断 caller、再迁冷、最后删除，不能
-仅凭文件名批量裁剪。
+unknown/abstain 等最小真实性边界；以及默认不加载的冷复现资料。生产不再用 SHA/checksum
+作为 evidence、lineage、审批或执行许可；candidate 命名和 HistoryDB 去重中仍有技术性摘要，
+需另行迁移而不能冒充已全部清零。receipt、多级 reviewed/promotion、flagship acceptance、复杂
+resume/attempt ledger、legacy protocol 等概念不得继续穿透普通 CLI/Application/RoundExecutor。
+迁移必须先断 caller、再迁冷、最后删除，不能仅凭文件名批量裁剪。
 
 - 只扩展
-  `Query interpretation → Query contract → PlanAgentInitialPlanBuilder → Plan Agent session`
-  主链。生产 Plan Agent 不得实例化 `CatalogPlanAgent` 或任务专属 legacy planner；旧 planner
-  只能由 `experiments/paper/legacy_planner_factory.py` 显式、延迟加载。
+  `Query interpretation → runtime limits → PlanAgentInitialPlanBuilder → Plan Agent session`
+  主链。生产 Plan Agent 不得实例化 `CatalogPlanAgent` 或任务专属 legacy planner；
+  `experiments/paper/legacy_planner_factory.py` 当前是 caller-zero 的冷源码，只用于迁移审计。
 - 生产 generated round 使用 Proposal 与
   `GenericRoboTwinTaskAdapter`；后者只包含 official source/class、runtime TaskContext、检索文档/
   资产和 simulator validation hooks，不得枚举 aspect、variant、metric 或 planner route。
-- reviewed TaskSchema 是可复用的语义缓存，不是生产准入表。缺失时 fresh reset probe 只从
+- TaskSchema 是可复用的语义缓存，不是生产准入表。缺失时 fresh reset probe 只从
   official source 声明的 public root 中发现 actor；嵌套访问只允许原生 list/tuple/dict 的
   typed `access_path`，不执行字符串路径，也不猜 target role、contact point 或 success threshold。
-- `mea/artifact_retrieval_index.py` 是生产 reviewed artifact 检索入口；
-  `mea/capability_adapter.py` 暂留为旧模板/消融兼容数据源。两者的成员关系都不得作为
-  open-world round 的执行许可。
+- generic Task、Rule Tool 与 VQA artifact 分别由 `GenericTaskArtifactIndex`、
+  `toolgen.registry` 与 Execution VQA question library 检索。旧
+  `mea/artifact_retrieval_index.py` 仍提供 task/VQA retrieval hint，属于待迁移菜单债务；
+  `mea/capability_adapter.py` 只是旧模板/消融 shim。任何成员关系都不得作为 open-world round
+  的执行许可。
 - catalog 不得在 Query 中预埋 aspect 顺序。catalog 外 concern 保留
   相互独立的 scene/checker/tool typed need，进入 exact reuse 或
   generate→validate；缺少 template id 不能成为终止理由，Tool-only Proposal 不得被
@@ -63,21 +66,23 @@ unknown/abstain 等最小真实性边界；以及默认不加载的冷复现资�
   position、orientation 分量全部验证并合取。
 - generic TaskGen 与 ToolGen 各只有一份共享的局部 repair 预算；TaskGen 遇到 checker
   fixture 失败时可保持已验证 scene、只修 checker；policy failure 不自动重跑。
-- 生产运行只写一份 `manifest.json`；实验 hash 放在 `experiments/paper/`。
+- 每个 evaluation 只写一份顶层 lifecycle `manifest.json`（resolved config、Git revision 与
+  最终 artifact 路径）；子 artifact 可有局部技术 manifest。hash-pinned evidence/command plan
+  只属于 `experiments/paper/`。
 - control-required Query 在 control evidence 完成前不得生成、缓存或冻结下一
   Proposal。后续 Proposal 必须由 Plan Agent session 使用 completed-round evidence 生成；
   直接传递 round id 与相关 evidence，不在生产语义中增加 lineage hash 或 input digest gate。
 - `mea/round_executor.py` 是生产单轮执行边界；RoboTwin policy backend 不得再先运行
   旧 child bundle 后做事后 projection。
-- feedback、retrieval、taskgen、toolgen 的 `README.Agent.md` 是生成上下文；planner
-  的同名文件是设计/消融 reference。它们都不能按普通文档删除；Table 3 当前只消融
-  TaskGen 的一份。
+- planner、feedback、retrieval、taskgen、toolgen 的 `README.Agent.md` 都是各 Agent 的生产
+  prompt 规则 owner，也是消融输入。Python 只组装动态 evidence、任务卡、schema 与输出格式；
+  同一规则不得在两处复写。Table 3 当前只消融 TaskGen 的一份。
 
 ## 增加 RoboTwin task
 
 1. 确认 official source 可在固定 seed reset，并验证所选 policy backend 的 task binding。
-2. 无 reviewed TaskSchema 时由 fresh reset 自动建立 run-local TaskContext；只有需要稳定
-   role、functional/contact point 或更丰富 telemetry 时才增加 reviewed TaskSchema。
+2. 无 TaskSchema 时由 fresh reset 自动建立 run-local TaskContext；只有需要稳定
+   role、functional/contact point 或更丰富 telemetry 时才增加一份可检索 TaskSchema。
 3. 不为生产 Plan Agent/TaskGen 增加任务名条目。`runtime_task_binding.py` 从
    source/TaskContext/policy scope 自动建立执行边界，
    `load_generic_robotwin_task_adapter()` 再从 source/TaskContext 自动发现生成 hooks。
@@ -139,13 +144,13 @@ Hy-VLA 的具体范例见
   `x/y/z/height` need。
 - 新 Tool 必须通过 smooth/positive/negative/missing-data 等最小 oracle。
 - `semantic_key` 相同才 exact reuse；复用时不得再次调用 provider。
-- 同 evaluation 使用 run-local registry；跨 Query/evaluation 只允许显式 approved 的
-  reviewed typed Tool，并在当前 telemetry 上重跑确定性与 oracle 校验。
+- Tool library 使用可读 semantic key 检索；跨 Query/evaluation 复用时仍在当前 telemetry
+  上重跑静态检查、确定性执行与 oracle 校验，不再经过审批/promotion 协议。
 - null 是有效结果，必须带原因并进入 Aggregate，不能用旧缓存数值代替。
 
 ## 扩展 Execution VQA
 
-- dynamic/open-world Query 先按 task retrieval index 选择 task-owned 已审查问题。
+- dynamic/open-world Query 先查 task-scoped retrieval hint 或 semantic-key question artifact。
 - task 没有可用问题时，只能生成受限的
   `run_local.tracked_object_visible_state_change`；不得继承其他任务的 legacy 问题。
 - 无 context 的旧 API 调用才保留 BBH 三问题默认值，生产 dynamic context 不走该 fallback。
@@ -153,10 +158,8 @@ Hy-VLA 的具体范例见
   覆盖数值或 checker predicate 的 authority。
 - `experiments/paper/manipeval_execution_vqa_replay.py` 只用于对已完成 rollout 做
   append-only 方法审计，不是生产路径，也不增加 policy sample。
-- 组合 Tool/VQA replay 必须由
-  `manipeval_replay_completed_tool.py --execution-vqa <manifest>` 显式消费前一步
-  VQA artifact 并冻结 path/hash；不得手工合并两个独立 summary。冲突证据应让 Plan Agent
-  以 `evidence_conflict`/inconclusive 停止，而不是被标成 sufficient。
+- 历史 Tool/Planner repair replay 已从当前项目删除；需要研究旧 artifact 时从 Git 历史或
+  冷 evidence 只读恢复，不把其 hash/append-only 协议接回普通生产。
 
 ## Review 清单
 

@@ -31,6 +31,12 @@ class Provider:
 
 
 def evidence(stop_reason="budget_exhausted"):
+    decisive_agent_stop = stop_reason in {
+        "agent_stop",
+        # Historical fixture spelling retained for the reader-compatibility
+        # test below; current evidence writes ``agent_stop``.
+        "evidence_sufficient",
+    }
     return {
         "total_episodes": 1,
         "rounds": [
@@ -57,17 +63,19 @@ def evidence(stop_reason="budget_exhausted"):
                 ]
             }
         },
-        "query_sufficiency": {
-            "stop_reason": stop_reason,
-            "should_stop": True,
-            "evidence_sufficient": stop_reason == "evidence_sufficient",
-            "claim_verdict": (
-                "inconclusive"
-                if stop_reason != "evidence_sufficient"
-                else "refuted"
-            ),
-            "observed_candidate_ids": ["position.left"],
-            "untested_candidate_ids": ["position.right"],
+        "plan_agent_session": {
+            "assessment": {
+                "stop_reason": stop_reason,
+                "should_stop": True,
+                "evidence_sufficient": decisive_agent_stop,
+                "claim_verdict": (
+                    "inconclusive"
+                    if not decisive_agent_stop
+                    else "refuted"
+                ),
+                "observed_candidate_ids": ["position.left"],
+                "untested_candidate_ids": ["position.right"],
+            }
         },
     }
 
@@ -118,23 +126,29 @@ class AnswerScopeTests(unittest.TestCase):
         for limitation in scope["required_limitations"]:
             self.assertIn(limitation["text"], projected["limitations"])
 
-    def test_evidence_sufficient_and_budget_exhausted_are_distinct(self):
-        sufficient = build_answer_scope(evidence("evidence_sufficient"))
+    def test_agent_stop_and_budget_exhausted_are_distinct(self):
+        sufficient = build_answer_scope(evidence("agent_stop"))
         exhausted = build_answer_scope(evidence("budget_exhausted"))
-        self.assertEqual(sufficient["termination"], "evidence_sufficient")
+        self.assertEqual(sufficient["termination"], "agent_stop")
         self.assertEqual(exhausted["termination"], "budget_exhausted")
         self.assertNotEqual(
             sufficient["required_limitations"][-1]["text"],
             exhausted["required_limitations"][-1]["text"],
         )
         self.assertIn(
-            "not a statistical generalization guarantee",
+            "limited to the recorded task",
             sufficient["required_limitations"][-1]["text"],
         )
         self.assertIn(
-            "before the query-sufficiency contract was satisfied",
+            "round budget was exhausted",
             exhausted["required_limitations"][-1]["text"],
         )
+
+    def test_historical_evidence_sufficient_stop_reads_as_agent_stop(self):
+        scope = build_answer_scope(evidence("evidence_sufficient"))
+
+        self.assertEqual(scope["termination"], "agent_stop")
+        self.assertEqual(scope["claim_verdict"], "refuted")
 
     def test_control_stop_is_inconclusive_but_valid_answer_scope(self):
         scope = build_answer_scope(evidence("control_baseline_policy_failed"))
@@ -145,22 +159,14 @@ class AnswerScopeTests(unittest.TestCase):
             scope["required_limitations"][-1]["text"],
         )
 
-    def test_agent_inconclusive_stop_keeps_open_limits(self):
+    def test_agent_inconclusive_stop_keeps_untested_work_explicit(self):
         value = evidence("agent_inconclusive_stop")
         scope = build_answer_scope(value)
 
         self.assertEqual(scope["termination"], "agent_inconclusive_stop")
         self.assertEqual(scope["claim_verdict"], "inconclusive")
         self.assertEqual(scope["untested_candidate_ids"], ["position.right"])
-        self.assertIn(
-            "candidate universe may remain open",
-            scope["required_limitations"][-1]["text"],
-        )
-
-        legacy = build_answer_scope(evidence("agent_saturation_inconclusive"))
-        self.assertEqual(
-            legacy["termination"], "agent_saturation_inconclusive"
-        )
+        self.assertTrue(scope["required_limitations"][-1]["text"])
 
     def test_plan_agent_session_assessment_reaches_final_scope(self):
         value = {
@@ -185,7 +191,7 @@ class AnswerScopeTests(unittest.TestCase):
             ],
             "plan_agent_session": {
                 "assessment": {
-                    "stop_reason": "evidence_sufficient",
+                    "stop_reason": "agent_stop",
                     "should_stop": True,
                     "evidence_sufficient": True,
                     "claim_verdict": "supported",
@@ -198,22 +204,11 @@ class AnswerScopeTests(unittest.TestCase):
                     "conflict_candidate_ids": [],
                 }
             },
-            "claim_first_runtime": {
-                "assessment": {
-                    "stop_reason": "budget_exhausted",
-                    "should_stop": True,
-                    "evidence_sufficient": False,
-                    "claim_verdict": "inconclusive",
-                    "observed_candidate_ids": [],
-                    "untested_candidate_ids": ["legacy.stale"],
-                    "conflict_candidate_ids": [],
-                }
-            },
         }
 
         scope = build_answer_scope(value)
 
-        self.assertEqual(scope["termination"], "evidence_sufficient")
+        self.assertEqual(scope["termination"], "agent_stop")
         self.assertEqual(scope["claim_verdict"], "supported")
         self.assertEqual(
             scope["tested_candidate_ids"], ["object_instance.base0"]
@@ -225,15 +220,6 @@ class AnswerScopeTests(unittest.TestCase):
                 "object_position.right_fixed",
                 "object_instance.base1",
             ],
-        )
-
-        historical = deepcopy(value)
-        historical["claim_first_runtime"] = historical.pop(
-            "plan_agent_session"
-        )
-        self.assertEqual(
-            build_answer_scope(historical)["claim_verdict"],
-            "supported",
         )
 
     def test_adversarial_omissions_fail_closed(self):
@@ -255,7 +241,7 @@ class AnswerScopeTests(unittest.TestCase):
             validate_answer_scope_projection(missing_code, scope)
 
         altered_scope = deepcopy(projected)
-        altered_scope["answer_scope"]["termination"] = "evidence_sufficient"
+        altered_scope["answer_scope"]["termination"] = "agent_stop"
         with self.assertRaisesRegex(
             AnswerScopeError, "required_limitations|differs from evidence"
         ):
@@ -372,7 +358,7 @@ class AnswerScopeTests(unittest.TestCase):
         self.assertEqual(scope["sample_count"], 1)
 
     def test_pipeline_invalid_precedes_stale_sufficiency_assessment(self):
-        value = evidence("evidence_sufficient")
+        value = evidence("agent_stop")
         value["observations"]["pipeline_passed"] = False
         scope = build_answer_scope(value)
         self.assertEqual(scope["termination"], "pipeline_invalid")
@@ -382,7 +368,7 @@ class AnswerScopeTests(unittest.TestCase):
         value = evidence()
         value["observations"]["execution_vqa_conflict"] = False
         value["rounds"][0]["execution_vqa"]["evidence_conflict"] = False
-        value["query_sufficiency"]["conflict_candidate_ids"] = [
+        value["plan_agent_session"]["assessment"]["conflict_candidate_ids"] = [
             "position.left"
         ]
         scope = build_answer_scope(value)

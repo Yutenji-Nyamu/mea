@@ -1,4 +1,3 @@
-import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -10,7 +9,7 @@ from mea.taskgen.attempts import (
     TERMINAL,
     TaskGenerationRecoveryError,
     TaskGenerationStageError,
-    run_bounded_task_generation,
+    run_task_generation,
     task_generation_recovery_action,
 )
 
@@ -62,24 +61,24 @@ class TaskGenerationAttemptTests(unittest.TestCase):
                 return {"act_rollouts_started": 1, "status": "policy_failure"}
 
             root = Path(temporary) / "taskgen_attempts"
-            summary = run_bounded_task_generation(
+            result = run_task_generation(
                 root,
-                proposal_identity={"proposal_id": "proposal_1", "seed": 100401},
-                execute_attempt=attempt,
+                execute=attempt,
                 execute_after_acceptance=launch,
             )
             self.assertEqual(actions, [None, REPAIR_SCENE])
             self.assertEqual(launched, ["candidate_02"])
-            self.assertEqual(summary["status"], "accepted")
-            self.assertEqual(summary["regenerations_used"], 1)
-            self.assertEqual(summary["runtime"]["act_rollouts_started"], 0)
+            self.assertEqual(result["status"], "accepted")
+            self.assertEqual(result["repair"]["action"], REPAIR_SCENE)
+            self.assertEqual(result["runtime"]["act_rollouts_started"], 0)
             self.assertEqual(
-                summary["post_acceptance_execution"]["act_rollouts_started"], 1
+                result["post_acceptance_execution"]["act_rollouts_started"], 1
             )
-            persisted = json.loads(
-                (root / "task_generation_attempt_summary.json").read_text()
-            )
-            self.assertFalse(persisted["policy_retry_allowed"])
+            self.assertTrue((root / "generation").is_dir())
+            self.assertTrue((root / "repair/repaired.txt").is_file())
+            self.assertTrue((root / "task_generation_result.json").is_file())
+            self.assertFalse((root / "attempt_01").exists())
+            self.assertFalse((root / "attempt_02").exists())
 
     def test_policy_failure_is_terminal_and_never_retried(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -92,18 +91,17 @@ class TaskGenerationAttemptTests(unittest.TestCase):
                 )
 
             with self.assertRaises(TaskGenerationRecoveryError) as raised:
-                run_bounded_task_generation(
+                run_task_generation(
                     Path(temporary) / "taskgen_attempts",
-                    proposal_identity={"proposal_id": "proposal_1"},
-                    execute_attempt=attempt,
+                    execute=attempt,
                 )
             self.assertEqual(calls["count"], 1)
-            self.assertEqual(raised.exception.summary["attempt_count"], 1)
             self.assertEqual(
-                raised.exception.summary["attempts"][0]["recovery_action"], TERMINAL
+                raised.exception.result["generation"]["failure"]["stage"],
+                "policy_execution",
             )
 
-    def test_budget_and_append_only_root_fail_closed(self):
+    def test_one_repair_then_reports_failure(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "taskgen_attempts"
 
@@ -113,20 +111,11 @@ class TaskGenerationAttemptTests(unittest.TestCase):
                 )
 
             with self.assertRaises(TaskGenerationRecoveryError) as raised:
-                run_bounded_task_generation(
+                run_task_generation(
                     root,
-                    proposal_identity={"proposal_id": "proposal_1"},
-                    execute_attempt=attempt,
+                    execute=attempt,
                 )
-            self.assertEqual(raised.exception.summary["attempt_count"], 2)
-            with self.assertRaisesRegex(
-                TaskGenerationRecoveryError, "already exists"
-            ):
-                run_bounded_task_generation(
-                    root,
-                    proposal_identity={"proposal_id": "proposal_1"},
-                    execute_attempt=attempt,
-                )
+            self.assertEqual(raised.exception.result["repair"]["status"], "failed")
 
 
 if __name__ == "__main__":

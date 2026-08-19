@@ -334,14 +334,12 @@ class ToolkitTests(unittest.TestCase):
 
     @staticmethod
     def _write_episode(episode_dir):
-        schema = {
-            "schema_version": 1,
-            "task_name": "beat_block_hammer",
-            "task_module": "mea.generated_tasks.fixture.task",
-            "physics_timestep_seconds": 0.004,
-            "pickup_height_threshold_m": 0.03,
-            "success_contract": {"xy_tolerance_m": [0.02, 0.02]},
-        }
+        schema_path = (
+            Path(__file__).resolve().parents[2]
+            / "mea/toolkit/schemas/beat_block_hammer.json"
+        )
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        schema["task_module"] = "mea.generated_tasks.fixture.task"
         episode = {
             "schema_version": 1,
             "task_name": "beat_block_hammer",
@@ -446,7 +444,6 @@ class ToolkitTests(unittest.TestCase):
         trajectory.outcome_binding = {
             "metric": "generated_check_success",
             "authority": "compiled_success_spec_experimental_bounded",
-            "success_spec_sha256": "b" * 64,
             "task_module": "mea.generated_tasks.fixture.task",
         }
         results = run_trusted_tools(trajectory, list(TOOL_CATALOG))
@@ -479,7 +476,7 @@ class ToolkitTests(unittest.TestCase):
         self.assertAlmostEqual(by_name["time_to_success"]["value"], 0.12)
 
         for result in results:
-            self.assertRegex(result["tool_sha256"], r"^[0-9a-f]{64}$")
+            self.assertNotIn("tool_sha256", result)
             self.assertIn("evidence", result)
         self.assertEqual(
             by_name["hammer_block_contact_ever"]["evidence"][0][
@@ -519,10 +516,7 @@ class ToolkitTests(unittest.TestCase):
         )
         self.assertTrue((self.root / "tool_results.json").is_file())
         self.assertTrue((self.episode_dir / "tool_results.json").is_file())
-        self.assertEqual(
-            set(summary["episodes"][0]["artifact_sha256"]),
-            {"episode.json", "states.csv", "semantic_trace.npz", "events.jsonl"},
-        )
+        self.assertNotIn("artifact_sha256", summary["episodes"][0])
 
     def test_generated_success_has_a_distinct_runtime_label(self):
         episode_path = self.episode_dir / "episode.json"
@@ -549,7 +543,6 @@ class ToolkitTests(unittest.TestCase):
             outcome_binding={
                 "metric": "generated_check_success",
                 "authority": "compiled_success_spec_experimental_bounded",
-                "success_spec_sha256": "b" * 64,
                 "task_module": "mea.generated_tasks.fixture.task",
             },
         )
@@ -562,11 +555,9 @@ class ToolkitTests(unittest.TestCase):
             by_name["generated_check_success"]["details"]["authority"],
             "compiled_success_spec_experimental_bounded",
         )
-        self.assertEqual(
-            by_name["generated_check_success"]["details"][
-                "success_spec_sha256"
-            ],
-            "b" * 64,
+        self.assertNotIn(
+            "success_spec_sha256",
+            by_name["generated_check_success"]["details"],
         )
         self.assertIs(
             by_name["generated_check_success"]["details"]["official_success"],
@@ -601,7 +592,6 @@ class ToolkitTests(unittest.TestCase):
             outcome_binding={
                 "metric": "generated_check_success",
                 "authority": "llm_generated_python_ast_validated",
-                "module_sha256": "c" * 64,
                 "task_module": "mea.generated_tasks.fixture.task",
             },
         )
@@ -614,7 +604,7 @@ class ToolkitTests(unittest.TestCase):
             result["details"]["authority"],
             "llm_generated_python_ast_validated",
         )
-        self.assertEqual(result["details"]["module_sha256"], "c" * 64)
+        self.assertNotIn("module_sha256", result["details"])
         self.assertNotIn("success_spec_sha256", result["details"])
         self.assertTrue(
             result["details"]["generated_checker_success"]

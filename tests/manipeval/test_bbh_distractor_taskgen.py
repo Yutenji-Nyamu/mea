@@ -22,14 +22,8 @@ from mea.taskgen.bbh_distractor import (
 )
 from mea.capability_adapter import resolve_capability_contract
 from mea.proposals import task_proposal_from_contract
-from mea.taskgen.production_acceptance import (
-    record_production_task_acceptance,
-    require_production_task_acceptance,
-    require_task_artifact_act_runtime_eligible,
-)
 from scripts.manipeval_taskgen import (
     create_provider_scene_checker_taskgen_run,
-    evaluate_run_telemetry,
     prepare_planner_capability_binding,
     run_visual_self_reflection,
     validate_planner_capability_binding,
@@ -636,7 +630,7 @@ def check_success(self):
                 manifest["mode"], "provider_scene_checker_codegen"
             )
             self.assertEqual(
-                manifest["provider"]["local_regeneration_count"], 1
+                manifest["provider"]["local_repair_count"], 1
             )
             run_dir = root / "mea/generated_tasks/run_standard_distractor"
             binding = validate_planner_capability_binding(
@@ -668,42 +662,6 @@ def check_success(self):
             self.assertFalse(bundle["success_semantics"]["preserved"])
             self.assertTrue(
                 bundle["success_semantics"]["generated_by_model"]
-            )
-            require_task_artifact_act_runtime_eligible(run_dir, manifest)
-            acceptance = record_production_task_acceptance(
-                run_dir,
-                manifest,
-                scene={
-                    "setup_success": True,
-                    "render_success": True,
-                    "rule_check": {"passed": True},
-                    "expert": {"passed": True},
-                },
-                position_samples={"passed": True},
-                require_expert=True,
-            )
-            self.assertEqual(acceptance["status"], "accepted")
-            require_production_task_acceptance(
-                run_dir,
-                manifest,
-                for_act=True,
-            )
-            _episode(
-                run_dir / "evaluation/telemetry/act",
-                task_module=manifest["task_module"],
-            )
-            checker_execution = evaluate_run_telemetry(
-                root,
-                run_dir,
-                manifest,
-            )
-            self.assertEqual(
-                checker_execution["outcome_metric"],
-                "bbh_target_without_distractor_success",
-            )
-            self.assertEqual(
-                checker_execution["aggregate"]["metrics"][0]["metric"],
-                "bbh_target_without_distractor_success",
             )
 
     def test_standard_taskgen_accepts_fenced_provider_json(self) -> None:
@@ -885,10 +843,7 @@ def check_success(self):
                     run_dir / "generation/task_artifact_bundle.json"
                 ).read_text(encoding="utf-8")
             )
-            self.assertEqual(
-                bundle["scene_method"]["source_sha256"],
-                summary["final_scene_source_sha256"],
-            )
+            self.assertNotIn("source_sha256", bundle["scene_method"])
             self.assertTrue(bundle["scene_method"]["symbol_declared"])
             self.assertTrue(bundle["success_method"]["symbol_declared"])
 

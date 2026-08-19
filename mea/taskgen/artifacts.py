@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import ast
-import hashlib
 import json
 import textwrap
 from pathlib import Path
@@ -33,26 +32,6 @@ SUCCESS_ORIGINS = {
     "provider_generated_python",
     "official_reuse",
 }
-
-
-def _canonical_sha256(value: Any) -> str:
-    return hashlib.sha256(
-        json.dumps(
-            value,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-            allow_nan=False,
-        ).encode("utf-8")
-    ).hexdigest()
-
-
-def _file_sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
 
 
 def _module_source(repo_root: Path, module: str) -> Path:
@@ -85,15 +64,12 @@ def _method_binding(
         "class_name": class_name,
         "source": relative,
         "source_available": source_path.is_file(),
-        "source_sha256": None,
         "symbol_declared": False,
-        "symbol_sha256": None,
         "resolution": "source_unavailable",
     }
     if not source_path.is_file():
         return binding
     source = source_path.read_text(encoding="utf-8")
-    binding["source_sha256"] = _file_sha256(source_path)
     try:
         tree = ast.parse(source, filename=str(source_path))
     except SyntaxError as exc:
@@ -114,11 +90,9 @@ def _method_binding(
         else []
     )
     if len(methods) == 1:
-        symbol = _node_source(source, methods[0])
         binding.update(
             {
                 "symbol_declared": True,
-                "symbol_sha256": hashlib.sha256(symbol.encode("utf-8")).hexdigest(),
                 "resolution": "source_symbol",
             }
         )
@@ -254,7 +228,6 @@ def write_task_artifact_bundle(
         if compiled_success
         else "official_reuse"
     )
-    success_spec_sha256 = None
     success_spec_report: dict[str, Any] | None = None
     if compiled_success:
         try:
@@ -306,7 +279,6 @@ def write_task_artifact_bundle(
             raise TaskArtifactBundleError(
                 f"generated check_success does not match SuccessSpec: {exc}"
             ) from exc
-        success_spec_sha256 = _canonical_sha256(success_spec)
     scene_check = build_scene_check_spec(
         variant_spec,
         task_proposal=task_proposal,
@@ -319,16 +291,12 @@ def write_task_artifact_bundle(
             encoding="utf-8",
         )
     bundle = {
-        "schema_version": 1,
+        "schema_version": 2,
         "task_name": task_name,
         "task_module": task_module,
         "generation_kind": str(
             manifest.get("generation_kind")
             or ("generated_scene_code" if scene_origin == "generated_code" else manifest.get("mode"))
-        ),
-        "variant_spec_sha256": _canonical_sha256(variant_spec),
-        "task_proposal_sha256": (
-            _canonical_sha256(task_proposal) if task_proposal is not None else None
         ),
         "scene_method": _method_binding(
             root,
@@ -366,7 +334,6 @@ def write_task_artifact_bundle(
                 "generated_by_model": False,
                 "generated_from_spec": True,
                 "success_spec": "generation/success_spec.json",
-                "success_spec_sha256": success_spec_sha256,
                 **(
                     {
                         "act_runtime_eligible": True,
@@ -385,7 +352,6 @@ def write_task_artifact_bundle(
         ),
         "scene_check_spec": {
             "artifact": str(scene_check_path.relative_to(run)).replace("\\", "/"),
-            "sha256": _canonical_sha256(scene_check),
             "source": scene_check["source"],
             "repair_mode": scene_check["repair_policy"]["mode"],
         },
@@ -434,8 +400,6 @@ def validate_task_artifact_bundle(value: Mapping[str, Any]) -> dict[str, Any]:
         "task_name",
         "task_module",
         "generation_kind",
-        "variant_spec_sha256",
-        "task_proposal_sha256",
         "scene_method",
         "success_method",
         "success_semantics",
@@ -446,8 +410,8 @@ def validate_task_artifact_bundle(value: Mapping[str, Any]) -> dict[str, Any]:
         raise TaskArtifactBundleError(
             f"TaskArtifactBundle fields must be exactly {sorted(required)}"
         )
-    if value.get("schema_version") != 1:
-        raise TaskArtifactBundleError("TaskArtifactBundle.schema_version must be 1")
+    if value.get("schema_version") != 2:
+        raise TaskArtifactBundleError("TaskArtifactBundle.schema_version must be 2")
     scene = value.get("scene_method")
     success = value.get("success_method")
     if not isinstance(scene, Mapping) or scene.get("origin") not in SCENE_ORIGINS:
@@ -506,7 +470,6 @@ def validate_task_artifact_bundle(value: Mapping[str, Any]) -> dict[str, Any]:
             "generated_by_model",
             "generated_from_spec",
             "success_spec",
-            "success_spec_sha256",
         }
         if compiled_authority == "compiled_success_spec_experimental_bounded":
             expected_semantics_fields.update(
@@ -528,12 +491,6 @@ def validate_task_artifact_bundle(value: Mapping[str, Any]) -> dict[str, Any]:
                     semantics.get("act_runtime_eligible") is not True
                     or semantics.get("outcome_label") != "generated_check_success"
                 )
-            )
-            or not isinstance(semantics.get("success_spec_sha256"), str)
-            or len(semantics["success_spec_sha256"]) != 64
-            or any(
-                character not in "0123456789abcdef"
-                for character in semantics["success_spec_sha256"]
             )
         ):
             raise TaskArtifactBundleError(

@@ -66,7 +66,6 @@ def run_probe(
     telemetry_dir: Path | None = None,
     telemetry_profile: str = "balanced_v1",
     visual_capture_profile_id: str | None = None,
-    execution_receipt: Path | None = None,
     discover_task_context: bool = False,
     task_context: Path | None = None,
     action_dimension: int = 0,
@@ -114,8 +113,6 @@ def run_probe(
         command.extend(["--telemetry-dir", str(telemetry_dir)])
     if visual_capture_profile_id is not None:
         command.extend(["--visual-capture-profile", visual_capture_profile_id])
-    if execution_receipt is not None:
-        command.extend(["--execution-receipt", str(execution_receipt)])
     if discover_task_context:
         command.append("--discover-task-context")
         command.extend(["--action-dimension", str(action_dimension)])

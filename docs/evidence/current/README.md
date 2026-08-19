@@ -73,7 +73,7 @@ Open Query -> Plan Agent -> TaskGen -> render / visual check -> policy rollout
   official benchmark success。
 - 候选空间仍开放；本次没有 VQA 证据，不能从“无冲突”推断 VQA 鲁棒性。
 - [机器可读紧凑摘要](run_summary.json) ·
-  [发布文件清单与 SHA-256](evidence_bundle_manifest.json) ·
+  [紧凑 artifact 索引](artifact_index.json) ·
   [final Aggregate](artifacts/aggregate/final.json) ·
   [final Query answer](artifacts/answer/query_answer.json)
 - 完整 raw source：服务器

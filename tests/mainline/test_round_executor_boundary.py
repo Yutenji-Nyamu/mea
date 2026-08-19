@@ -117,9 +117,9 @@ class RoundExecutorBoundaryTests(unittest.TestCase):
                         "diagnosis": scenario["diagnosis"],
                         "policy_rollouts_started": 0,
                         "policy_sample_count": 0,
-                        "taskgen_attempt_summary": (
+                        "taskgen_result": (
                             f"mea/generated_tasks/run_{status}/validation/"
-                            "task_generation_attempt_summary.json"
+                            "task_generation_result.json"
                         ),
                     }
                     if "failure_stage" in scenario:

@@ -274,25 +274,25 @@ class ClickBellDistractorTaskGenTests(unittest.TestCase):
                 / "mea/generated_tasks/run_click_distractor_fixture"
             )
             attempt_summary = json.loads(
-                (run_dir / "provider_attempts.json").read_text()
+                (run_dir / "provider_attempts/attempts.json").read_text()
             )
             first_attempt = (
                 root
                 / "mea/generated_task_attempts/run_click_distractor_fixture"
-                / "attempt_01"
+                / "generation"
             )
             first_prompt = (
                 first_attempt / "provider_prompt.md"
             ).read_text(encoding="utf-8")
             proposal_saved = (first_attempt / "proposal.json").is_file()
         self.assertEqual(provider.calls, 2)
-        self.assertEqual(attempt_summary["regenerations_used"], 1)
+        self.assertEqual(len(attempt_summary), 2)
         self.assertEqual(manifest["task_name"], "click_bell")
         self.assertEqual(
             manifest["checker_contract"]["fixture_pass_count"], 6
         )
         self.assertEqual(
-            manifest["codegen_provenance"]["local_regeneration_limit"], 1
+            manifest["codegen_provenance"]["local_repair_limit"], 1
         )
         self.assertIn("RETRIEVED OFFICIAL CLICK_BELL METHODS", first_prompt)
         self.assertIn("self.bell = create_actor(", first_prompt)

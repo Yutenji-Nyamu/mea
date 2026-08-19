@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 from pathlib import Path
 from typing import Any, Mapping
@@ -32,7 +31,6 @@ from mea.taskgen.generic_backend import (
 from mea.taskgen.rollout_evidence import (
     evaluate_generic_task_rollout_telemetry,
 )
-from mea.taskgen.semantic_review import checker_review_identity_sha256
 from mea.toolkit import evaluate_telemetry_root
 
 
@@ -353,7 +351,6 @@ def test_schema_less_tool_only_candidate_binds_reset_task_context_before_rollout
             "schema_version": 1,
             "task_name": kwargs["task_name"],
             "official_source": context.official_source,
-            "official_source_sha256": context.official_source_sha256,
             "setup_success": True,
             "official_check_success_callable": True,
             "physics_timestep_seconds": 0.004,
@@ -586,8 +583,6 @@ def test_runtime_rejects_checker_review_not_bound_to_acceptance(
     task_source = "class generated_runtime_task:\n    pass\n"
     task_path = run_dir / "task.py"
     task_path.write_text(task_source, encoding="utf-8")
-    module_sha256 = hashlib.sha256(task_path.read_bytes()).hexdigest()
-    checker_sha256 = "a" * 64
     review = {
         "schema_version": 1,
         "status": "approved",
@@ -599,17 +594,10 @@ def test_runtime_rejects_checker_review_not_bound_to_acceptance(
         },
         "reason": "The checker directly implements the exact relation.",
         "authority": "development_agent_proxy",
-        "proposal_semantics_sha256": (
-            checker_review_identity_sha256(proposal)
-        ),
-        "checker_sha256": checker_sha256,
-        "official_checker_sha256": "b" * 64,
     }
     (run_dir / "candidate_manifest.json").write_text(
         json.dumps(
             {
-                "module_sha256": module_sha256,
-                "success_method_sha256": checker_sha256,
                 "checker_semantic_review": review,
             }
         )
@@ -632,7 +620,7 @@ def test_runtime_rejects_checker_review_not_bound_to_acceptance(
             "visual_self_check_required": True,
             "checker_semantic_review": {
                 **review,
-                "checker_sha256": "c" * 64,
+                "reason": "This deliberately differs from the candidate review.",
             },
         },
         "scene_validation": {
@@ -769,7 +757,6 @@ def test_generic_rollout_bridge_preserves_generated_checker_authority(
         "user_request": "Test the generated success condition.",
         "task_name": "runtime_task",
         "task_module": "mea.generated_tasks.native_generated.task",
-        "candidate_module_sha256": "a" * 64,
         "task_artifact_summary": {
             "success_outcome_label": "generated_check_success",
         },
@@ -808,7 +795,6 @@ def test_generic_rollout_bridge_preserves_generated_checker_authority(
     assert evaluate.call_args.kwargs["outcome_binding"] == {
         "metric": "generated_check_success",
         "authority": "llm_generated_python_ast_validated",
-        "module_sha256": "a" * 64,
         "task_module": "mea.generated_tasks.native_generated.task",
     }
     assert result["tool_retrieval"]["route"] == (
@@ -829,7 +815,6 @@ def test_generic_rollout_bridge_reuses_official_checker_without_hash_binding(
         "user_request": "Test a scene change with official success.",
         "task_name": "runtime_task",
         "task_module": "mea.generated_tasks.native_scene_only.task",
-        "candidate_module_sha256": "b" * 64,
         "task_artifact_summary": {
             "success_outcome_label": "official_check_success",
         },
@@ -905,7 +890,6 @@ def test_toolkit_uses_executed_schema_without_static_task_registration(
         "success_contract": {
             "type": "official_check_success",
             "authority": "official_check_success_runtime_callable",
-            "official_source_sha256": "a" * 64,
             "semantic_telemetry_available": True,
         },
     }

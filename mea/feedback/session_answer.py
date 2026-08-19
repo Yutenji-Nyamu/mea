@@ -31,7 +31,7 @@ def build_scoped_plan_agent_answer(
     verdict = query_answer.get("claim_verdict") or scope.get("claim_verdict")
     findings: list[str] = []
     if verdict:
-        findings.append(f"Query-contract verdict: {verdict}.")
+        findings.append(f"Plan Agent verdict: {verdict}.")
     if tested:
         findings.append("Tested candidates: " + ", ".join(map(str, tested)) + ".")
     outcomes = query_answer.get("evaluation_outcomes")
@@ -69,7 +69,7 @@ def build_scoped_plan_agent_answer(
             "broader generalization claim."
         )
     else:
-        next_step = "Collect the next executable evidence required by QueryContract."
+        next_step = "Collect the next executable evidence chosen by the Plan Agent."
 
     feedback = apply_deterministic_consistency_guard(
         {

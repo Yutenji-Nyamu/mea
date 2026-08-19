@@ -16,7 +16,6 @@ from mea.tool_results import episode_tool_results
 from mea.planner.experiment_candidate import validate_experiment_candidate
 from mea.toolgen import (
     OpenToolRequestAgent,
-    compatible_reviewed_tool_requests,
     compatible_run_local_tool_requests,
 )
 
@@ -164,7 +163,6 @@ def materialize_open_world_tool_request(
     child_dir: Path,
     provider: Any,
     toolgen_model: str,
-    reviewed_tool_registry: Path | None = None,
 ) -> dict[str, Any]:
     """Run ToolGen after TaskGen/policy using the schema actually recorded."""
 
@@ -193,14 +191,6 @@ def materialize_open_world_tool_request(
         episode_dirs=episode_dirs,
         include_derived_observables=True,
     )
-    if reviewed_tool_registry is not None:
-        reusable_tool_requests.extend(
-            compatible_reviewed_tool_requests(
-                reviewed_tool_registry,
-                task_name=str(candidate["base_task"]),
-                episode_dirs=episode_dirs,
-            )
-        )
     child_manifest = json.loads(
         (child_dir / "manifest.json").read_text(encoding="utf-8")
     )
@@ -309,8 +299,6 @@ def reuse_bound_child_checker_tool(
         or binding.get("metric") != metric
         or binding.get("authority") != "llm_generated_python_ast_validated"
         or binding.get("task_module") != child_manifest.get("task_module")
-        or binding.get("module_sha256")
-        != child_manifest.get("candidate_module_sha256")
         or not isinstance(source_artifact, str)
         or not source_artifact.strip()
         or not isinstance(episodes, list)
@@ -341,7 +329,6 @@ def reuse_bound_child_checker_tool(
             or details.get("authority")
             != "llm_generated_python_ast_validated"
             or details.get("task_module") != child_manifest.get("task_module")
-            or details.get("module_sha256") != binding.get("module_sha256")
         ):
             raise RuntimeError(
                 "provider checker ToolResult does not match its "

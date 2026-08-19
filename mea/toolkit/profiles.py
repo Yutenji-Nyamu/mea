@@ -6,8 +6,6 @@ profile id, but it cannot provide arbitrary sampling code or field paths.
 
 from __future__ import annotations
 
-import hashlib
-import json
 from copy import deepcopy
 from typing import Any
 
@@ -93,15 +91,3 @@ def load_telemetry_profile(profile_id: str) -> dict[str, Any]:
             f"unknown telemetry profile {profile_id!r}; "
             f"expected one of {sorted(_PROFILES)}"
         ) from exc
-
-
-def telemetry_profile_sha256(profile: dict[str, Any]) -> str:
-    """Hash the canonical JSON representation stored beside an episode."""
-
-    payload = json.dumps(
-        profile,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()

@@ -20,8 +20,6 @@ from .query import (
     validate_run_local_question_spec,
     vqa_need_semantic_key,
 )
-from .reviewed_generated_questions import find_reviewed_generated_vqa_question
-from .reviewed_registry import ReviewedVQAQuerySpecError
 
 
 class OpenVQAQuestionError(ValueError):
@@ -368,7 +366,6 @@ class OpenVQAQuestionAgent:
         vqa_need: str | Mapping[str, Any] | None = None,
         template_id: str | None = None,
         tool_contract: Mapping[str, Any] | None = None,
-        reviewed_registry_dir: str | Path | None = None,
     ) -> dict[str, Any]:
         context = validate_tool_artifact_context(artifact_context)
         need = _need_description(vqa_need, context=context)
@@ -436,68 +433,12 @@ class OpenVQAQuestionAgent:
                     "last_metadata": {},
                 },
             }
-        reviewed_reuse = None
-        if reviewed_registry_dir is not None:
-            try:
-                reviewed_reuse = find_reviewed_generated_vqa_question(
-                    reviewed_registry_dir,
-                    task_name=context["task_name"],
-                    vqa_need=need,
-                )
-            except ReviewedVQAQuerySpecError as exc:
-                raise OpenVQAQuestionError(
-                    f"invalid reviewed generated VQA registry: {exc}"
-                ) from exc
-        if reviewed_reuse is not None:
-            question_spec = reviewed_reuse["question_spec"]
-            try:
-                query = build_execution_vqa_query(
-                    task_name=context["task_name"],
-                    template_id=template_id,
-                    sub_aspect=proposal.get("semantic_concern"),
-                    tool_contract=tool_contract,
-                    proposed_phenomenon_ids=[question_spec["id"]],
-                    proposed_question_specs=[question_spec],
-                )
-            except ExecutionVQAQueryError as exc:
-                raise OpenVQAQuestionError(str(exc)) from exc
-            return {
-                "schema_version": 1,
-                "status": "reused",
-                "artifact_kind": "vqa_question",
-                "source": "reviewed_persistent_exact_vqa_need_reuse",
-                "semantic_key": semantic_key,
-                "vqa_need": need,
-                "query": query,
-                "question_spec": deepcopy(question_spec),
-                "artifact_context": context,
-                "matched_registration": deepcopy(
-                    reviewed_reuse["registration"]
-                ),
-                "validation": {
-                    "scope": "reviewed_persistent",
-                    "exact_semantic_need_match": True,
-                    "question_spec_sha256": reviewed_reuse[
-                        "question_spec_sha256"
-                    ],
-                    "review_sha256": reviewed_reuse["review_sha256"],
-                    "current_rollout_vqa_execution_required": True,
-                },
-                "provider": {
-                    "model_requested": self.model,
-                    "called": False,
-                    "attempt_count": 0,
-                    "errors": [],
-                    "last_metadata": {},
-                },
-            }
         try:
             retrieved = build_execution_vqa_query(
                 task_name=context["task_name"],
                 template_id=template_id,
                 sub_aspect=proposal.get("semantic_concern"),
                 tool_contract=tool_contract,
-                reviewed_registry_dir=reviewed_registry_dir,
             )
         except ExecutionVQAQueryError as exc:
             raise OpenVQAQuestionError(str(exc)) from exc
@@ -609,7 +550,6 @@ def materialize_open_execution_vqa_query(
     vqa_need: str | Mapping[str, Any] | None = None,
     template_id: str | None = None,
     tool_contract: Mapping[str, Any] | None = None,
-    reviewed_registry_dir: str | Path | None = None,
 ) -> dict[str, Any]:
     """Functional API for the production RoundExecutor."""
 
@@ -618,7 +558,6 @@ def materialize_open_execution_vqa_query(
         vqa_need=vqa_need,
         template_id=template_id,
         tool_contract=tool_contract,
-        reviewed_registry_dir=reviewed_registry_dir,
     )
 
 

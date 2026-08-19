@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import shutil
 from copy import deepcopy
@@ -13,22 +12,13 @@ from typing import Any, Mapping
 from mea.artifact_registry import ArtifactRegistry, ArtifactRegistryError
 from mea.taskgen.semantic_review import (
     CheckerSemanticReviewError,
-    validate_checker_semantic_review_binding,
+    checker_review_identity,
+    validate_checker_semantic_review,
 )
 
 
 class GenericTaskArtifactError(RuntimeError):
     """Raised when an indexed generic Task artifact is stale or inconsistent."""
-
-
-def _canonical_sha256(value: Mapping[str, Any]) -> str:
-    payload = json.dumps(
-        dict(value),
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()
 
 
 def _repo_file(repo_root: Path, value: str, *, label: str) -> Path:
@@ -88,7 +78,6 @@ def _checker_review(
     value: Any,
     *,
     proposal: Mapping[str, Any],
-    checker_sha256: Any,
 ) -> dict[str, Any] | None:
     if proposal.get("checker_need") is None:
         if value is not None:
@@ -97,13 +86,35 @@ def _checker_review(
             )
         return None
     try:
-        return validate_checker_semantic_review_binding(
-            value,
-            candidate=proposal,
-            checker_sha256=str(checker_sha256 or ""),
-        )
+        return validate_checker_semantic_review(value)
     except CheckerSemanticReviewError as exc:
         raise GenericTaskArtifactError(str(exc)) from exc
+
+
+def _proposal_matches_key(
+    proposal: Mapping[str, Any], semantic_key: Mapping[str, Any]
+) -> bool:
+    return all(
+        proposal.get(field) == semantic_key.get(field)
+        for field in (
+            "base_task",
+            "semantic_concern",
+            "scene_need",
+            "checker_need",
+        )
+    ) and checker_review_identity(proposal).get(
+        "evaluation_intent"
+    ) == semantic_key.get("evaluation_intent")
+
+
+def _compile_task_source(path: Path) -> None:
+    try:
+        source = path.read_text(encoding="utf-8")
+        compile(source, str(path), "exec")
+    except (OSError, UnicodeError, SyntaxError) as exc:
+        raise GenericTaskArtifactError(
+            "generic Task module is unavailable or invalid Python"
+        ) from exc
 
 
 class GenericTaskArtifactIndex:
@@ -127,13 +138,10 @@ class GenericTaskArtifactIndex:
         lookup: Mapping[str, Any],
     ) -> dict[str, Any] | None:
         semantic_key = lookup.get("semantic_key")
-        semantic_hash = lookup.get("semantic_key_sha256")
-        if not isinstance(semantic_key, Mapping) or not isinstance(
-            semantic_hash, str
+        if lookup.get("schema_version") not in (None, 2) or not isinstance(
+            semantic_key, Mapping
         ):
             raise GenericTaskArtifactError("generic Task lookup is malformed")
-        if _canonical_sha256(semantic_key) != semantic_hash:
-            raise GenericTaskArtifactError("generic Task semantic hash differs")
         try:
             entry = self.registry.find(
                 kind="task",
@@ -146,7 +154,6 @@ class GenericTaskArtifactIndex:
         validation = entry["validation"]
         if (
             validation.get("status") != "passed"
-            or validation.get("semantic_key_sha256") != semantic_hash
             or validation.get("scene_change_passed") is not True
         ):
             raise GenericTaskArtifactError(
@@ -166,8 +173,6 @@ class GenericTaskArtifactIndex:
         if (
             manifest.get("generation_kind")
             != "generic_provider_scene_checker_codegen"
-            or manifest.get("candidate_module_sha256")
-            != validation.get("module_sha256")
             or manifest.get("task_module") != validation.get("task_module")
         ):
             raise GenericTaskArtifactError(
@@ -176,15 +181,12 @@ class GenericTaskArtifactIndex:
         proposal, _ = _read_generation_proposal(
             manifest_path.parent, manifest
         )
-        task_path = manifest_path.parent / "task.py"
-        if (
-            not task_path.is_file()
-            or hashlib.sha256(task_path.read_bytes()).hexdigest()
-            != validation.get("module_sha256")
-        ):
+        if not _proposal_matches_key(proposal, semantic_key):
             raise GenericTaskArtifactError(
-                "indexed generic Task module differs from its validation"
+                "indexed generic Task Proposal differs from its semantic key"
             )
+        task_path = manifest_path.parent / "task.py"
+        _compile_task_source(task_path)
         candidate_manifest_path = manifest_path.parent / "candidate_manifest.json"
         try:
             candidate_manifest = json.loads(
@@ -194,11 +196,8 @@ class GenericTaskArtifactIndex:
             raise GenericTaskArtifactError(
                 "indexed generic Task candidate manifest is invalid"
             ) from exc
-        if (
-            candidate_manifest.get("module_sha256")
-            != validation.get("module_sha256")
-            or candidate_manifest.get("task_module")
-            != validation.get("task_module")
+        if candidate_manifest.get("task_module") != validation.get(
+            "task_module"
         ):
             raise GenericTaskArtifactError(
                 "indexed generic Task candidate manifest differs"
@@ -206,25 +205,33 @@ class GenericTaskArtifactIndex:
         review = _checker_review(
             candidate_manifest.get("checker_semantic_review"),
             proposal=proposal,
-            checker_sha256=candidate_manifest.get(
-                "success_method_sha256"
-            ),
         )
         acceptance = manifest.get("task_generation_acceptance")
+        acceptance_review = (
+            _checker_review(
+                acceptance.get("checker_semantic_review"),
+                proposal=proposal,
+            )
+            if isinstance(acceptance, Mapping)
+            else None
+        )
+        indexed_review = _checker_review(
+            validation.get("checker_semantic_review"),
+            proposal=proposal,
+        )
         if (
             not isinstance(acceptance, Mapping)
-            or acceptance.get("checker_semantic_review") != review
-            or validation.get("checker_semantic_review") != review
+            or acceptance_review != review
+            or indexed_review != review
         ):
             raise GenericTaskArtifactError(
                 "indexed generic Task semantic review differs from its "
                 "acceptance boundary"
             )
         return {
-            "schema_version": 1,
-            "status": "approved",
+            "schema_version": 2,
+            "status": "validated",
             "semantic_key": deepcopy(dict(semantic_key)),
-            "semantic_key_sha256": semantic_hash,
             "artifact_id": entry["artifact_path"],
             "artifact_manifest": entry["artifact_path"],
             "reuse_count": entry["reuse_count"],
@@ -259,10 +266,7 @@ class GenericTaskArtifactIndex:
                 "only a generated generic Task can be registered"
             )
         semantic_key = resolution.get("semantic_key")
-        semantic_hash = resolution.get("semantic_key_sha256")
-        if not isinstance(semantic_key, Mapping) or not isinstance(
-            semantic_hash, str
-        ):
+        if not isinstance(semantic_key, Mapping):
             raise GenericTaskArtifactError(
                 "generated generic Task lacks a semantic identity"
             )
@@ -285,11 +289,7 @@ class GenericTaskArtifactIndex:
             raise GenericTaskArtifactError(
                 "generic Task candidate manifest is invalid"
             ) from exc
-        actual_module_sha256 = (
-            hashlib.sha256(task_path.read_bytes()).hexdigest()
-            if task_path.is_file()
-            else None
-        )
+        _compile_task_source(task_path)
         preflight = (
             (manifest.get("scene_validation") or {}).get(
                 "generic_preflight"
@@ -299,24 +299,16 @@ class GenericTaskArtifactIndex:
         fixtures = preflight.get("checker_fixtures") or []
         validation = {
             "status": "passed",
-            "semantic_key_sha256": semantic_hash,
-            "module_sha256": manifest.get("candidate_module_sha256"),
             "task_module": manifest.get("task_module"),
             "checker_fixture_count": len(fixtures),
             "scene_change_passed": preflight.get("scene_change_passed"),
             "checker_semantic_review": _checker_review(
                 candidate_manifest.get("checker_semantic_review"),
                 proposal=proposal,
-                checker_sha256=candidate_manifest.get(
-                    "success_method_sha256"
-                ),
             ),
         }
         if (
-            not validation["module_sha256"]
-            or actual_module_sha256 != validation["module_sha256"]
-            or candidate_manifest.get("module_sha256")
-            != validation["module_sha256"]
+            not _proposal_matches_key(proposal, semantic_key)
             or candidate_manifest.get("task_module")
             != validation["task_module"]
             or not validation["task_module"]
@@ -324,8 +316,11 @@ class GenericTaskArtifactIndex:
             or any(item.get("passed") is not True for item in fixtures)
             or validation["scene_change_passed"] is not True
             or (
-                (manifest.get("task_generation_acceptance") or {}).get(
-                    "checker_semantic_review"
+                _checker_review(
+                    (manifest.get("task_generation_acceptance") or {}).get(
+                        "checker_semantic_review"
+                    ),
+                    proposal=proposal,
                 )
                 != validation["checker_semantic_review"]
             )
@@ -404,7 +399,6 @@ def materialize_reused_generic_task(
         "taskgen_ablation_switches",
         "taskgen_prompt_components",
         "checker_contract",
-        "candidate_module_sha256",
         "candidate_manifest",
         "task_artifact_summary",
     )
@@ -440,7 +434,7 @@ def materialize_reused_generic_task(
         "model_requested": None,
         "called": False,
         "provider_call_count": 0,
-        "local_regeneration_count": 0,
+        "local_repair_count": 0,
         "reuse_source_manifest": exact["artifact_manifest"],
     }
     manifest["task_module"] = f"mea.generated_tasks.{run_id}.task"
@@ -449,6 +443,21 @@ def materialize_reused_generic_task(
         candidate_manifest = json.loads(
             candidate_manifest_path.read_text(encoding="utf-8")
         )
+        for field in (
+            "proposal_sha256",
+            "module_sha256",
+            "scene_method_sha256",
+            "success_method_sha256",
+        ):
+            candidate_manifest.pop(field, None)
+        provenance = candidate_manifest.get("codegen_provenance")
+        if isinstance(provenance, dict):
+            provenance.pop("prompt_sha256", None)
+        review = _checker_review(
+            candidate_manifest.get("checker_semantic_review"),
+            proposal=candidate,
+        )
+        candidate_manifest["checker_semantic_review"] = review
         candidate_manifest["run_id"] = run_id
         candidate_manifest["task_module"] = manifest["task_module"]
         candidate_manifest.setdefault("codegen_provenance", {})[

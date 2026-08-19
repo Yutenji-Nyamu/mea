@@ -19,7 +19,7 @@ nvidia-smi
 运行前冻结原始 Query、task/policy binding、checkpoint、seed/N、正整数规划 allowance 与
 evaluation id。`--generated-rounds` / `--max-agent-rounds` 是防止失控的软 allowance，不是
 论文方法的停止判据；只要下一 Proposal 可执行且仍能增加信息，应继续到 Agent 主动
-stop 并经 QueryContract 验证，或遇到 unsupported、信息饱和或有界局部 repair 连续失败。
+stop 并记录其证据理由，或遇到 unsupported、信息饱和或有界局部 repair 连续失败。
 具体环境、checkpoint、policy server 和网络问题分别见
 [RoboTwin / SmolVLA 复现](robotwin_smolvla_reproduction_zh.md)、
 [LIBERO / SmolVLA 复现与 MEA 接入](libero_smolvla_reproduction_zh.md)及各 policy
@@ -32,7 +32,7 @@ stop 并经 QueryContract 验证，或遇到 unsupported、信息饱和或有界
 | RoboTwin SmolVLA | Plan Agent → 通用 TaskGen → `RoundExecutor`；policy server 与 simulator 隔离 | 默认的轻量、多任务方法 smoke |
 | RoboTwin ACT | 同一生产主链；checkpoint 与 official task 强绑定 | checkpoint 特定复核 |
 | RoboTwin DP3 | `experiments/paper/` adapter，不是默认生产 binding | policy 对照实验 |
-| LIBERO SmolVLA | 共享 `MethodRuntime`、`PlanAgentSession`、QueryContract stop 与 AnswerScope；BDDL/env/policy 为 backend hook | 方法语义迁移 smoke；拆分后 live 验收待补 |
+| LIBERO SmolVLA | 共享 `MethodRuntime`、`PlanAgentSession`、最小 stop 记录与 AnswerScope；BDDL/env/policy 为 backend hook | 方法语义迁移 smoke；拆分后 live 验收待补 |
 
 当 policy 比较不是研究问题时，选择已经验证且成本最低的 backend，当前优先
 RoboTwin SmolVLA；只有论文协议或 checkpoint 特定问题才固定 ACT/DP3。backend 就绪不
@@ -56,7 +56,7 @@ RoboTwin SmolVLA；只有论文协议或 checkpoint 特定问题才固定 ACT/DP
   --evaluation-id <unique-plan-id>
 ```
 
-plan-only 只检查 Query interpretation、task/policy binding、Query contract 与首个
+plan-only 只检查 Query interpretation、task/policy binding、runtime limits 与首个
 Proposal，不运行 simulator 或 policy，也不是性能证据。重点核对：
 
 1. Query 没有被 task/aspect/template 菜单改写；
@@ -88,22 +88,22 @@ policy server 前终止。
 
 每轮按以下顺序验收：
 
-1. Query contract 与 Proposal；
+1. runtime limits 与 Proposal；
 2. 若需要，scene/checker retrieve 或 generate；
 3. fixture/state、render/VLM 与 expert gate；
 4. 同一 binding/seed 的 policy rollout、video 与 telemetry；
 5. Rule/VQA 是否消费该 episode，生成 checker 是否与 official success 分开；
 6. Aggregate 是否完整进入下一次 Plan Agent decision；
-7. Agent 提出的 stop 是否由 QueryContract 验证；
+7. Agent 提出的 stop 是否由已完成 evidence 后置验证；
 8. Answer 是否列出 N、未覆盖项、冲突、停止原因和限制。
 
 scene、checker、Rule Tool 与 VQA Tool 是独立 need：Tool-only Query 不启动 TaskGen。
 TaskGen 与 ToolGen 各至多一次局部 repair；语义、simulator 或 materialization 仍失败时终止
-当前 live，不循环消耗 policy sample。若有效 rollout evidence 已冻结后只遇到瞬时 provider
-失败，可对同一 evidence 做一次有界的 `0-rollout` cached decision/finalization retry；保留原失败产物，
-不重跑 simulator 或 policy，重试耗尽后按 system failure 停止。Tool exact reuse 后仍须在当前
-episode 上重跑 telemetry schema、确定性、oracle 与当前数值校验；跨 evaluation 只接受显式
-reviewed registry artifact。
+当前 live，不循环消耗 policy sample。若有效 rollout evidence 冻结后遇到 provider 或进程失败，
+当前 evaluation 如实按 system failure 结束；普通生产不维护跨进程 resume/cached-finalization
+状态机。离线诊断从冷实验入口读取冻结 evidence，且不得改写原运行结论。Tool exact reuse 后仍须在当前
+episode 上重跑 telemetry schema、确定性、oracle 与当前数值校验；跨 evaluation 复用同一
+语义键命中的可执行 artifact，并在新 episode 上重新完成这些校验。
 
 生成 checker 是实验语义。它与 official success 冲突或不可比较时必须并列报告，不能
 把实验通过写成 benchmark 成功。更细的 simulator authority、preservation 与 codegen
@@ -111,8 +111,8 @@ reviewed registry artifact。
 
 ## 4. 查看证据
 
-当前公开入口是
-`docs/evidence/current/evidence_bundle_manifest.json`：
+当前公开入口是 `docs/evidence/current/README.md`；同目录的
+`run_summary.json` 是机器可读摘要，`artifact_index.json` 只指向紧凑 report/summary：
 
 ```text
 query

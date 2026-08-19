@@ -161,7 +161,7 @@ def run_efficiency(root: Path, prereg_path: Path, output_root: Path) -> None:
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
     from experiments.paper.live_protocols import evaluate_click_bell_efficiency
-    from mea.planner.query_contract import assess_query_sufficiency
+    from experiments.paper.query_contract_compat import assess_query_sufficiency
 
     prereg = read_json(prereg_path)
     output_root.mkdir(parents=True, exist_ok=True)

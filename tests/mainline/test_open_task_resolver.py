@@ -4,9 +4,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from mea.planner.query_contract import infer_control_requirement
-
-
 MODULE_PATH = (
     Path(__file__).resolve().parents[2]
     / "mea"
@@ -27,6 +24,20 @@ def concern(task_intent: str) -> dict:
         "hypothesis": "A reflective target causes a pre-contact miss.",
         "task_intent": task_intent,
         "requested_variation": "change only target reflectivity",
+        "preserved_conditions": [
+            {
+                "actor": None,
+                "property": "task_identity",
+                "axis": None,
+                "relation": "preserve",
+            },
+            {
+                "actor": None,
+                "property": "policy_checkpoint",
+                "axis": None,
+                "relation": "preserve",
+            },
+        ],
         "measurement_need": "target contact and pre-contact trajectory",
     }
 
@@ -135,12 +146,8 @@ class QueryInterpretationTests(unittest.TestCase):
         self.assertIn("Put distractors", prompt)
         self.assertIn("jointly realizable", prompt)
         self.assertIn("RGB is only", prompt)
-        self.assertIn('"all other object poses"', prompt)
         self.assertIn("Preservation is an authority claim", compact_prompt)
-        self.assertIn(
-            'use only "task identity" and "policy checkpoint"',
-            compact_prompt,
-        )
+        self.assertIn("task_identity and policy_checkpoint", compact_prompt)
         self.assertIn(
             "observable in policy or simulator metadata is a measurement",
             compact_prompt,
@@ -231,17 +238,21 @@ class QueryInterpretationTests(unittest.TestCase):
         )
         self.assertIn("A Tool-only Query must not invent", provider.prompts[0])
 
-    def test_official_only_query_requests_explicit_official_rule_reuse(self):
+    def test_official_only_query_uses_provider_typed_official_rule_reuse(self):
         value = {
             **concern("click the bell's top center"),
             "source_query": "Can it complete only the official task?",
             "requested_variation": "reuse the unchanged official scene",
             "measurement_need": "use official check_success()",
         }
-        empty_needs = {
+        typed_needs = {
             field: {
-                "required": False,
-                "description": None,
+                "required": field == "rule_tool_need",
+                "description": (
+                    "Reuse the official check_success() boolean result."
+                    if field == "rule_tool_need"
+                    else None
+                ),
                 **(
                     {"reuse_first": True}
                     if field in {"rule_tool_need", "vqa_tool_need"}
@@ -250,7 +261,7 @@ class QueryInterpretationTests(unittest.TestCase):
             }
             for field in resolver._EXPERIMENT_NEED_FIELDS
         }
-        provider = self.Provider([json.dumps({**value, **empty_needs})])
+        provider = self.Provider([json.dumps({**value, **typed_needs})])
 
         result = resolver.PlanAgentQueryInterpreter(
             provider,
@@ -267,42 +278,11 @@ class QueryInterpretationTests(unittest.TestCase):
         )
         self.assertEqual(
             result["concern"]["measurement_need"],
-            "Observe the official check_success() boolean result.",
+            value["measurement_need"],
         )
         self.assertFalse(needs["vqa_tool_need"]["required"])
         self.assertIn("official-task-only Query", provider.prompts[0])
-        self.assertEqual(
-            infer_control_requirement(value["source_query"]),
-            "not_required",
-        )
-        self.assertEqual(
-            infer_control_requirement(
-                "Can this ACT policy complete only the official click_bell task?"
-            ),
-            "not_required",
-        )
-        self.assertFalse(
-            resolver.query_is_official_only(
-                "Define success as the official goal AND one new condition "
-                "that the official task predicate does not cover."
-            )
-        )
-
-    def test_semantic_comparison_overrides_trajectory_control_free_wording(self):
-        query = "Find a generated scene that exposes a trajectory weakness."
-        self.assertEqual(
-            infer_control_requirement(
-                query,
-                semantic_context={
-                    "hypothesis": (
-                        "The challenge produces a longer TCP path than the "
-                        "undisturbed scene."
-                    ),
-                    "measurement_need": "Measure TCP trajectory path length.",
-                },
-            ),
-            "required",
-        )
+        self.assertEqual(result["provider"]["attempt_count"], 1)
 
     def test_non_official_query_cannot_drop_all_evidence_needs(self):
         value = concern("click the bell's top center")
@@ -330,7 +310,7 @@ class QueryInterpretationTests(unittest.TestCase):
                 max_attempts=1,
             ).propose(value["source_query"], policy_card=single_task_policy())
 
-    def test_explicit_success_definition_retries_until_checker_is_requested(self):
+    def test_provider_typed_checker_choice_is_not_overridden_by_query_regex(self):
         query = (
             "是否存在一个成功样本，使 ACT 只抬起目标滚筒且不抬起"
             "非目标滚筒？"
@@ -357,79 +337,24 @@ class QueryInterpretationTests(unittest.TestCase):
                 "reuse_first": True,
             },
         }
-        corrected = {
-            **false_needs,
-            "checker_need": {
-                "required": True,
-                "description": (
-                    "Success iff the target is lifted and the distractor is not."
-                ),
-            },
-        }
-        provider = self.Provider(
-            [json.dumps(false_needs), json.dumps(corrected)]
-        )
+        provider = self.Provider([json.dumps(false_needs)])
 
         result = resolver.PlanAgentQueryInterpreter(
             provider,
             model="fixture",
         ).propose(query, policy_card=single_task_policy("grab_roller"))
 
-        self.assertTrue(
+        self.assertFalse(
             result["experiment_needs"]["checker_need"]["required"]
         )
-        self.assertEqual(result["provider"]["attempt_count"], 2)
+        self.assertEqual(result["provider"]["attempt_count"], 1)
         self.assertIn(
-            '"checker_need": {\n    "required": true',
+            '"checker_need": {\n    "required": false',
             provider.prompts[0],
         )
-        self.assertIn("checker_need.required", provider.prompts[1])
         self.assertIn(
             "keep their roles distinct",
             provider.prompts[0],
-        )
-
-    def _cold_experimental_success_wording_requires_checker(self):
-        query = (
-            "Define experimental success as the official goal AND both "
-            "terminal TCPs being within 0.025 m of their contact points."
-        )
-
-        self.assertTrue(
-            resolver.query_requires_experimental_checker(query)
-        )
-
-    def test_official_check_success_reference_reuses_official_checker(self):
-        query = (
-            "Find one generated scene on which the policy succeeds according "
-            "to official_check_success and report a finite Rule measurement."
-        )
-
-        self.assertFalse(
-            resolver.query_requires_experimental_checker(query)
-        )
-
-    def _cold_generated_checker_requirement_is_not_treated_as_optional(self):
-        query = (
-            "Every generated experimental checker must preserve the official "
-            "success predicate as a required conjunct and add one directly "
-            "observable current-state relation."
-        )
-
-        self.assertTrue(
-            resolver.query_requires_experimental_checker(query)
-        )
-
-    def _cold_imperative_generated_round_checker_is_not_optional(self):
-        query = (
-            "For every generated experimental round, generate an "
-            "experimental checker that preserves the official success "
-            "predicate as a required conjunct and adds one directly "
-            "observable current-state relation."
-        )
-
-        self.assertTrue(
-            resolver.query_requires_experimental_checker(query)
         )
 
     def _cold_agent_can_be_frozen_to_one_attempt(self):
@@ -444,7 +369,7 @@ class QueryInterpretationTests(unittest.TestCase):
             )
         self.assertEqual(len(provider.prompts), 1)
 
-    def test_agent_never_returns_the_last_invalid_attempt(self):
+    def test_query_prose_does_not_reclassify_provider_typed_needs(self):
         query = (
             "Define success as the official goal and one additional "
             "experimental condition."
@@ -470,16 +395,17 @@ class QueryInterpretationTests(unittest.TestCase):
         }
         provider = self.Provider([json.dumps(invalid), json.dumps(invalid)])
 
-        with self.assertRaisesRegex(
-            resolver.OpenTaskResolutionError,
-            "2 FreeConcern attempt",
-        ):
-            resolver.PlanAgentQueryInterpreter(
-                provider,
-                model="fixture",
-            ).propose(query, policy_card=single_task_policy())
+        result = resolver.PlanAgentQueryInterpreter(
+            provider,
+            model="fixture",
+        ).propose(query, policy_card=single_task_policy())
 
-    def test_scalar_observation_cannot_replace_boolean_checker(self):
+        self.assertEqual(result["experiment_needs"], {
+            field: invalid[field] for field in resolver._EXPERIMENT_NEED_FIELDS
+        })
+        self.assertEqual(result["provider"]["attempt_count"], 1)
+
+    def test_typed_checker_is_not_rewritten_by_cross_field_word_matching(self):
         query = (
             "Define success as the official goal plus one new condition and "
             "report one scalar trajectory observation."
@@ -513,27 +439,17 @@ class QueryInterpretationTests(unittest.TestCase):
                 "reuse_first": True,
             },
         }
-        corrected = {
-            **copied,
-            "checker_need": {
-                "required": True,
-                "description": (
-                    "Pass only if the official goal succeeds and the "
-                    "distractor remains uncontacted."
-                ),
-            },
-        }
-        provider = self.Provider([json.dumps(copied), json.dumps(corrected)])
+        provider = self.Provider([json.dumps(copied)])
 
         result = resolver.PlanAgentQueryInterpreter(
             provider,
             model="fixture",
         ).propose(query, policy_card=single_task_policy())
 
-        self.assertEqual(result["provider"]["attempt_count"], 2)
-        self.assertIn(
-            "rather than duplicate or threshold a derived rule_tool_need",
-            provider.prompts[1],
+        self.assertEqual(result["provider"]["attempt_count"], 1)
+        self.assertEqual(
+            result["experiment_needs"]["checker_need"],
+            copied["checker_need"],
         )
 
     def _cold_historical_free_concern_class_name_remains_readable(self):

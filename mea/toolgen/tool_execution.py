@@ -10,7 +10,6 @@ from mea.toolkit.tools import TOOL_CATALOG, TrajectoryView
 
 from .metric_oracle import _metric_semantic_differences
 from .prototype import ToolGenPrototype, execute_generated_tool
-from .registry import telemetry_schema_compatibility
 from .targets import COMPOSITE_TARGETS, evaluate_target_oracle, target_definition
 from .tool_contracts import ToolOrchestrationError, validate_tool_spec
 
@@ -47,8 +46,6 @@ def _result_projection(result: dict[str, Any]) -> dict[str, Any]:
         "evidence_steps": list(result.get("evidence_steps", [])),
         "details": dict(result.get("details", {})),
     }
-    if result.get("tool_sha256"):
-        projected["tool_sha256"] = result["tool_sha256"]
     return projected
 
 
@@ -230,7 +227,6 @@ def execute_tool_spec(
                 "scope": "trusted_catalog",
                 "tool": spec["reference_tool"],
                 "reference_tool": spec["reference_tool"],
-                "tool_sha256": first_result.get("tool_sha256"),
                 "artifact": None,
             },
             "episodes": normalized_episodes,
@@ -319,7 +315,6 @@ def execute_tool_spec(
                 "scope": "run_local_generated",
                 "tool": manifest["registration"]["tool"],
                 "reference_tool": spec["reference_tool"],
-                "tool_sha256": manifest["registration"]["tool_sha256"],
                 "artifact": _relative(generated_dir / "generated_tool.py", repo),
             },
             "episodes": normalized_episodes,
@@ -389,24 +384,10 @@ def _execute_registry_match(
 
     registration = match["registration"]
     source_path = match["source_path"]
-    # Reviewed lookup returns the exact text whose hash was checked.  Run-local
-    # matches retain their legacy path-backed behavior.
+    # The library candidate is revalidated before and during current execution.
     source = match.get("source")
     if not isinstance(source, str):
         source = source_path.read_text(encoding="utf-8")
-    current_schema = telemetry_schema_compatibility(
-        [episode["episode_dir_path"] for episode in episodes],
-        required_signals=spec.get("required_signals", []),
-    )
-    registered_schema_hash = registration.get("telemetry_schema_sha256")
-    if registered_schema_hash is None:
-        registered_schema_hash = registration.get(
-            "telemetry_schema_compatibility", {}
-        ).get("compatibility_sha256")
-    if current_schema["compatibility_sha256"] != registered_schema_hash:
-        raise ToolOrchestrationError(
-            f"{route} Tool current telemetry schema no longer matches"
-        )
     normalized_episodes: list[dict[str, Any]] = []
     validation_rows: list[dict[str, Any]] = []
     for episode in episodes:
@@ -481,7 +462,6 @@ def _execute_registry_match(
             "scope": source_scope,
             "tool": registration["tool_id"],
             "reference_tool": spec["reference_tool"],
-            "tool_sha256": registration["code_sha256"],
             "registration_id": registration["registration_id"],
             "artifact": _relative(source_path, repo_root),
         },
@@ -489,14 +469,8 @@ def _execute_registry_match(
         "validation": {
             "provider_called": False,
             "registry_match": True,
-            "integrity_hashes_matched": True,
             "current_telemetry_revalidated": True,
-            "current_telemetry_schema_sha256": current_schema[
-                "compatibility_sha256"
-            ],
             "current_episode_count": len(validation_rows),
-            "persistent_registry_scope": route
-            == "reviewed_persistent_reuse",
             "all_gates_passed": all(
                 item[gate]
                 for item in validation_rows
@@ -513,18 +487,9 @@ def _execute_registry_match(
             "generated_tool": _relative(source_path, repo_root),
         },
     }
-    if route == "reviewed_persistent_reuse":
-        execution["validation"]["review_manifest_approved"] = (
-            match.get("review_manifest", {}).get("decision") == "approved"
-        )
     execution["artifacts"][registry_artifact_key] = _relative(
         match["registry_dir"] / "index.json", repo_root
     )
-    review_path = match.get("review_manifest_path")
-    if isinstance(review_path, Path):
-        execution["artifacts"]["review_manifest"] = _relative(
-            review_path, repo_root
-        )
     _write_json(destination / "tool_execution.json", execution)
     execution["artifacts"]["tool_execution"] = _relative(
         destination / "tool_execution.json", repo_root
@@ -540,7 +505,7 @@ def _execute_run_local_match(
     match: dict[str, Any],
     episodes: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Preserve the established evaluation-local reuse envelope."""
+    """Execute one semantic-library match on the current episodes."""
 
     return _execute_registry_match(
         repo_root,
@@ -548,30 +513,8 @@ def _execute_run_local_match(
         spec,
         match,
         episodes,
-        route="run_local_reuse",
-        source_scope="run_local_registry",
+        route="semantic_library_reuse",
+        source_scope="generated_tool_library",
         registration_id_field="run_local_registration_id",
         registry_artifact_key="run_local_registry",
-    )
-
-
-def _execute_reviewed_match(
-    repo_root: Path,
-    destination: Path,
-    spec: dict[str, Any],
-    match: dict[str, Any],
-    episodes: list[dict[str, Any]],
-) -> dict[str, Any]:
-    """Reuse explicitly reviewed code while retaining current-data gates."""
-
-    return _execute_registry_match(
-        repo_root,
-        destination,
-        spec,
-        match,
-        episodes,
-        route="reviewed_persistent_reuse",
-        source_scope="reviewed_persistent_registry",
-        registration_id_field="reviewed_registration_id",
-        registry_artifact_key="reviewed_registry",
     )

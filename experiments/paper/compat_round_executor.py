@@ -14,7 +14,6 @@ from typing import Any, Callable, Mapping
 
 from mea.round_executor import (
     RoundExecutionRequest,
-    RoundExecutionResult,
     RoundExecutionServices,
     RoundExecutor,
     _PolicyRoundArtifacts,
@@ -28,6 +27,7 @@ class LegacySubprocessServices:
     build_taskgen_command: Callable[..., tuple[list[str], str]]
     run_logged: Callable[..., int]
     native_policy_rounds: Mapping[str, Callable[..., Mapping[str, Any]]]
+    base_url: str | None = None
 
 
 class LegacySubprocessRoundExecutor(RoundExecutor):
@@ -36,9 +36,6 @@ class LegacySubprocessRoundExecutor(RoundExecutor):
     def __init__(
         self,
         services: LegacySubprocessServices,
-        *,
-        reviewed_task_registry: Path | None = None,
-        registration_identity: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(
             RoundExecutionServices(
@@ -47,8 +44,6 @@ class LegacySubprocessRoundExecutor(RoundExecutor):
             )
         )
         self._legacy_services = services
-        self._reviewed_task_registry = reviewed_task_registry
-        self._registration_identity = registration_identity
 
     def _execute_policy(
         self, request: RoundExecutionRequest
@@ -65,12 +60,10 @@ class LegacySubprocessRoundExecutor(RoundExecutor):
             request.round_plan,
             text_model=request.text_model,
             vision_model=request.vision_model,
-            base_url=request.base_url,
+            base_url=self._legacy_services.base_url,
             gpu=request.gpu,
             max_reflections=request.max_reflections,
             telemetry_profile=request.telemetry_profile,
-            reviewed_task_registry=self._reviewed_task_registry,
-            registration_identity=self._registration_identity,
             run_id_suffix="",
         )
         round_id = request.round_plan["round_id"]
@@ -100,20 +93,6 @@ class LegacySubprocessRoundExecutor(RoundExecutor):
             semantic_ready=True,
             native=None,
         )
-
-    def execute(self, request: RoundExecutionRequest) -> RoundExecutionResult:
-        result = super().execute(request)
-        if (
-            self._registration_identity is not None
-            and result.child_manifest.get("registration_identity")
-            != self._registration_identity
-        ):
-            raise RuntimeError(
-                "child registration identity mismatch: "
-                f"{result.child_manifest.get('run_id')}"
-            )
-        return result
-
 
 __all__ = [
     "LegacySubprocessRoundExecutor",

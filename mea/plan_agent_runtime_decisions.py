@@ -45,10 +45,6 @@ class PlanAgentRuntimeDecisionMixin:
             [item["round_plan"] for item in round_runs],
             [item["round_summary"] for item in round_runs],
         )
-        contract_candidate_ids = {
-            str(item)
-            for item in state["query_contract"].get("candidate_universe", [])
-        }
         records_by_round = {
             str(record["round_id"]): record
             for record in state["records"]
@@ -66,10 +62,9 @@ class PlanAgentRuntimeDecisionMixin:
                     "Plan Agent record is missing for completed round "
                     f"{round_id!r}"
                 )
-            if record["candidate_id"] in contract_candidate_ids:
-                completed_run["round_summary"]["candidate_evidence"] = deepcopy(
-                    record["candidate_evidence"]
-                )
+            completed_run["round_summary"]["candidate_evidence"] = deepcopy(
+                record["candidate_evidence"]
+            )
         _write_json(
             self.evaluation_dir
             / PLAN_AGENT_SESSION
@@ -150,10 +145,7 @@ class PlanAgentRuntimeDecisionMixin:
                 "schema_version": 1,
                 "status": "continue_rejected_by_external_hard_cap",
                 "semantic_proposal_bundle": deepcopy(semantic_bundle),
-                "planning_lineage": deepcopy(
-                    semantic_bundle.get("planning_lineage")
-                ),
-                "query_contract": deepcopy(self.session.query_contract),
+                "runtime_limits": deepcopy(self.session.runtime_limits),
                 "plan_step": {
                     "action": "continue",
                     "sub_aspect": raw_proposal.get("sub_aspect"),
@@ -175,14 +167,6 @@ class PlanAgentRuntimeDecisionMixin:
                     "semantic_sub_aspect": raw_proposal.get("sub_aspect"),
                     "resolved_template_id": None,
                     "resolved_candidate_id": None,
-                    "evidence_conditioned": bool(
-                        semantic_bundle.get("planning_lineage", {}).get(
-                            "evidence_conditioned"
-                        )
-                    ),
-                    "planning_lineage": deepcopy(
-                        semantic_bundle.get("planning_lineage")
-                    ),
                     "artifact_path": artifact_path,
                 },
             )
@@ -275,7 +259,7 @@ class PlanAgentRuntimeDecisionMixin:
                 semantic_bundle.get("source")
                 or "provider_plan_agent_open_query"
             ),
-            query_contract=bound_step.get("query_contract"),
+            runtime_limits=bound_step.get("runtime_limits"),
         )
         decision["semantic_proposal"] = deepcopy(semantic_bundle["proposal"])
         decision["semantic_resolution"] = deepcopy(bound_step["resolution"])
@@ -286,7 +270,7 @@ class PlanAgentRuntimeDecisionMixin:
                 "schema_version": 1,
                 "owner": type(self.session).__name__,
                 "adapter_role": (
-                    "plan_agent_stop_validated_by_query_contract"
+                    "plan_agent_stop_validated_from_completed_evidence"
                     if plan_step["action"] == "stop"
                     else "plan_agent_retrieve_or_generate_and_adjudicate"
                 ),
@@ -311,14 +295,6 @@ class PlanAgentRuntimeDecisionMixin:
                 ),
                 "resolved_template_id": plan_step.get("template_id"),
                 "resolved_candidate_id": plan_step.get("candidate_id"),
-                "evidence_conditioned": bool(
-                    bound_step.get("planning_lineage", {}).get(
-                        "evidence_conditioned"
-                    )
-                ),
-                "planning_lineage": deepcopy(
-                    bound_step.get("planning_lineage")
-                ),
                 "artifact_path": artifact_path,
             },
         )

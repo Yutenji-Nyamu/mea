@@ -12,7 +12,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping
 
-from .profiles import load_telemetry_profile, telemetry_profile_sha256
+from .profiles import load_telemetry_profile
 from .recorder_artifacts import RecorderArtifactMixin
 from .recorder_contracts import (
     RecorderError,
@@ -46,7 +46,6 @@ class EpisodeRecorder(
         checkpoint_setting: str | None = None,
         telemetry_profile_id: str = "balanced_v1",
         visual_capture_profile_id: str | None = None,
-        execution_receipt: Mapping[str, Any] | None = None,
         task_schema: Mapping[str, Any] | None = None,
     ):
         self.repo_root = Path(repo_root).expanduser().resolve()
@@ -67,37 +66,8 @@ class EpisodeRecorder(
         self.task_module = task_module
         self.task_config = task_config
         self.checkpoint_setting = checkpoint_setting
-        if execution_receipt is not None:
-            # Frozen paper protocols may still supply an execution receipt.
-            # Import its heavy hash/checkpoint validator only for that explicit
-            # compatibility path; native production rollouts pass ``None``.
-            from mea.execution_receipt import validate_execution_invocation
-
-            self.execution_receipt = validate_execution_invocation(
-                execution_receipt,
-                task_name=task_name,
-                task_module=task_module,
-                task_config=task_config,
-                checkpoint_setting=checkpoint_setting,
-                policy_name=policy_name,
-                seed=self.seed,
-                episode_index=self.episode_index,
-                checkpoint_dir=(
-                    execution_receipt.get("checkpoint", {}).get("root")
-                    if execution_receipt.get("checkpoint", {}).get("kind")
-                    == "act_checkpoint_bundle"
-                    else None
-                ),
-                verify_checkpoint_files=True,
-            )
-        else:
-            self.execution_receipt = None
-        self.executed_binding: dict[str, Any] | None = None
         self.telemetry_profile = load_telemetry_profile(telemetry_profile_id)
         self.telemetry_profile_id = telemetry_profile_id
-        self.telemetry_profile_hash = telemetry_profile_sha256(
-            self.telemetry_profile
-        )
         if (
             visual_capture_profile_id is not None
             and visual_capture_profile_id not in VISUAL_CAPTURE_PROFILES
@@ -149,17 +119,6 @@ class EpisodeRecorder(
             json.dumps(self.telemetry_profile, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
-        if self.execution_receipt is not None:
-            (self.output_dir / "execution_receipt.json").write_text(
-                json.dumps(
-                    self.execution_receipt,
-                    ensure_ascii=False,
-                    sort_keys=True,
-                    indent=2,
-                )
-                + "\n",
-                encoding="utf-8",
-            )
 
     def start(self, task: Any) -> None:
         self._task = task
@@ -175,13 +134,6 @@ class EpisodeRecorder(
             json.dumps(self.schema, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
-        if self.execution_receipt is not None:
-            from mea.execution_receipt import validate_imported_task_binding
-
-            self.executed_binding = validate_imported_task_binding(
-                self.execution_receipt,
-                task,
-            )
         if self.visual_capture_profile_id is not None:
             # Resting/support contacts exist before expert motion and must not
             # consume the first action-induced contact keyframe.
