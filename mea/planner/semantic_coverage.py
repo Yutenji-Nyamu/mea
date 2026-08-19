@@ -1,4 +1,4 @@
-"""Semantic coverage contracts from an open Query to runtime artifacts.
+"""Semantic coverage contract from an open Query to runtime artifacts.
 
 The planner is allowed to refine an experiment after observing evidence, but
 it must not silently replace the first Query-derived concern with an easier
@@ -6,10 +6,9 @@ nearby diagnostic before that concern is tested. ``EvaluationIntent`` freezes
 that first candidate's semantics before runtime task binding. Query answer
 sufficiency remains owned by the Plan Agent.
 
-The contract is deliberately small.  It does not attempt to prove natural
-language equivalence; it combines explicit planner declarations with
-TaskGen/ToolGen validation facts and fails toward an explicit proxy label when
-the candidate wording does not preserve the requested change and observation.
+The contract is deliberately small.  It freezes Query-derived intent and
+validates preservation as typed facts; runtime authority remains with the
+structured Proposal and TaskGen/ToolGen evidence.
 """
 
 from __future__ import annotations
@@ -24,7 +23,7 @@ from mea.taskgen.preservation_facts import (
 
 
 class SemanticCoverageError(ValueError):
-    """Raised when an intent or alignment is malformed."""
+    """Raised when an EvaluationIntent is malformed."""
 
 
 _INTENT_KEYS = {
@@ -37,45 +36,12 @@ _INTENT_KEYS = {
     "preserved_conditions",
     "required_observation",
 }
-_ALIGNMENT_KEYS = {
-    "schema_version",
-    "relationship",
-    "rationale",
-    "matched_intent_fields",
-    "unmatched_intent_fields",
-}
-_INTENT_REQUIREMENT_FIELDS = (
-    "requested_change",
-    "preserved_conditions",
-    "hypothesis",
-    "required_observation",
-)
-_RELATIONSHIPS = {"direct", "diagnostic_proxy", "unsupported"}
 
 
 def _text(value: Any, field: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise SemanticCoverageError(f"{field} must be a non-empty string")
     return value.strip()
-
-
-def _string_list(
-    value: Any,
-    field: str,
-    *,
-    allow_empty: bool = True,
-) -> list[str]:
-    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
-        raise SemanticCoverageError(f"{field} must be a string list")
-    result = [
-        _text(item, f"{field}[]")
-        for item in value
-    ]
-    if len(result) != len(set(result)):
-        raise SemanticCoverageError(f"{field} must not contain duplicates")
-    if not allow_empty and not result:
-        raise SemanticCoverageError(f"{field} must not be empty")
-    return result
 
 
 def build_evaluation_intent(
@@ -173,144 +139,6 @@ def validate_evaluation_intent(value: Mapping[str, Any]) -> dict[str, Any]:
     return intent
 
 
-def validate_intent_alignment(value: Mapping[str, Any]) -> dict[str, Any]:
-    if not isinstance(value, Mapping) or set(value) != _ALIGNMENT_KEYS:
-        raise SemanticCoverageError(
-            "IntentAlignment fields must be exactly "
-            f"{sorted(_ALIGNMENT_KEYS)}"
-        )
-    alignment = deepcopy(dict(value))
-    if alignment.get("schema_version") != 1:
-        raise SemanticCoverageError("IntentAlignment schema_version must be 1")
-    if alignment.get("relationship") not in _RELATIONSHIPS:
-        raise SemanticCoverageError(
-            f"IntentAlignment.relationship must be one of "
-            f"{sorted(_RELATIONSHIPS)}"
-        )
-    alignment["rationale"] = _text(
-        alignment.get("rationale"), "IntentAlignment.rationale"
-    )
-    for field in ("matched_intent_fields", "unmatched_intent_fields"):
-        alignment[field] = _string_list(
-            alignment.get(field), f"IntentAlignment.{field}"
-        )
-        unknown = set(alignment[field]) - set(_INTENT_REQUIREMENT_FIELDS)
-        if unknown:
-            raise SemanticCoverageError(
-                f"IntentAlignment.{field} contains unknown fields: "
-                f"{sorted(unknown)}"
-            )
-    if set(alignment["matched_intent_fields"]) & set(
-        alignment["unmatched_intent_fields"]
-    ):
-        raise SemanticCoverageError(
-            "IntentAlignment matched/unmatched fields must be disjoint"
-        )
-    if set(alignment["matched_intent_fields"]) | set(
-        alignment["unmatched_intent_fields"]
-    ) != set(_INTENT_REQUIREMENT_FIELDS):
-        raise SemanticCoverageError(
-            "IntentAlignment must classify every candidate-contract field"
-        )
-    if (
-        alignment["relationship"] == "direct"
-        and alignment["unmatched_intent_fields"]
-    ):
-        raise SemanticCoverageError(
-            "direct IntentAlignment cannot leave intent fields unmatched"
-        )
-    return alignment
-
-
-def build_candidate_intent_alignment(
-    intent: Mapping[str, Any],
-    *,
-    semantic_concern: str,
-    scene_need: Mapping[str, Any] | None,
-    checker_need: Mapping[str, Any] | None,
-    rule_tool_need: Mapping[str, Any] | None = None,
-    vqa_tool_need: Mapping[str, Any] | None = None,
-    tool_need: Mapping[str, Any] | None = None,
-    declared_relationship: str | None = None,
-    declared_rationale: str | None = None,
-) -> dict[str, Any]:
-    """Classify a candidate conservatively against its frozen intent."""
-
-    normalized = validate_evaluation_intent(intent)
-    _text(semantic_concern, "semantic_concern")
-    observation_owner_present = any(
-        isinstance(need, Mapping)
-        for need in (
-            scene_need,
-            checker_need,
-            rule_tool_need,
-            vqa_tool_need,
-            tool_need,
-        )
-    )
-    matched = []
-    for field in _INTENT_REQUIREMENT_FIELDS:
-        if field == "requested_change":
-            # Whether a scene artifact is required is a typed Proposal choice.
-            # Do not second-guess it by classifying the Query wording.
-            matched_field = True
-        elif field == "preserved_conditions":
-            conditions = normalized["preserved_conditions"]
-            # Preservation is simulator-authoritative.  Carry explicit
-            # conditions into TaskGen rather than rejecting a Proposal because
-            # its free-form wording has insufficient token overlap.
-            matched_field = (
-                not conditions
-                or scene_need is None
-                or isinstance(scene_need, Mapping)
-            )
-        elif field == "hypothesis":
-            # The hypothesis is carried verbatim in EvaluationIntent.  Code
-            # cannot establish semantic equivalence by token overlap.
-            matched_field = True
-        elif field == "required_observation":
-            matched_field = observation_owner_present
-        else:
-            matched_field = False
-        if matched_field:
-            matched.append(field)
-    unmatched = [
-        field for field in _INTENT_REQUIREMENT_FIELDS if field not in matched
-    ]
-    inferred = "direct" if not unmatched else "diagnostic_proxy"
-    relationship = declared_relationship or inferred
-    if relationship not in _RELATIONSHIPS:
-        raise SemanticCoverageError(
-            f"declared relationship must be one of {sorted(_RELATIONSHIPS)}"
-        )
-    if relationship == "direct" and inferred != "direct":
-        raise SemanticCoverageError(
-            "candidate cannot declare direct coverage while contract "
-            f"fields are unmatched: {unmatched}"
-        )
-    rationale = (
-        _text(declared_rationale, "declared_rationale")
-        if declared_rationale is not None
-        else (
-            "Candidate preserves the requested change, hypothesis, and "
-            "observation semantics."
-            if relationship == "direct"
-            else
-            "Candidate is a nearby diagnostic, not a direct implementation "
-            f"of candidate-contract fields: {unmatched}."
-        )
-    )
-    return validate_intent_alignment(
-        {
-            "schema_version": 1,
-            "relationship": relationship,
-            "rationale": rationale,
-            "matched_intent_fields": matched,
-            "unmatched_intent_fields": unmatched,
-        }
-    )
-
-
 evaluation_intent_from_free_concern = (
     evaluation_intent_from_query_interpretation
 )
@@ -318,10 +146,8 @@ evaluation_intent_from_free_concern = (
 
 __all__ = [
     "SemanticCoverageError",
-    "build_candidate_intent_alignment",
     "build_evaluation_intent",
     "evaluation_intent_from_query_interpretation",
     "evaluation_intent_from_free_concern",
     "validate_evaluation_intent",
-    "validate_intent_alignment",
 ]

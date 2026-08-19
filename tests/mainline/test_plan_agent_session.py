@@ -527,10 +527,7 @@ class PlanAgentRuntimeTests(unittest.TestCase):
                 },
             ],
         )
-        self.assertEqual(
-            candidate["intent_alignment"]["relationship"],
-            "direct",
-        )
+        self.assertNotIn("intent_alignment", candidate)
         self.assertEqual(
             candidate["scene_need"]["controlled_changes"],
             [

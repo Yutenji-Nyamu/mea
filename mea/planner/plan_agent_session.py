@@ -236,8 +236,6 @@ class PlanAgentSession(PlanAgentEvidenceMixin, PlanAgentDecisionMixin):
     def _register_dynamic_candidate(
         self,
         candidate: Mapping[str, Any],
-        *,
-        require_direct: bool,
     ) -> dict[str, Any]:
         trusted = validate_experiment_candidate(candidate)
         expected_task = _nonempty_text(
@@ -247,14 +245,6 @@ class PlanAgentSession(PlanAgentEvidenceMixin, PlanAgentDecisionMixin):
         if trusted["base_task"] != expected_task:
             raise PlanAgentSessionError(
                 "frozen candidate base_task differs from the bound policy task"
-            )
-        if (
-            require_direct
-            and trusted.get("intent_alignment", {}).get("relationship")
-            != "direct"
-        ):
-            raise PlanAgentSessionError(
-                "frozen candidate must directly implement its EvaluationIntent"
             )
         candidate_id = trusted["candidate_id"]
         existing = self.dynamic_candidates.get(candidate_id)
@@ -284,10 +274,7 @@ class PlanAgentSession(PlanAgentEvidenceMixin, PlanAgentDecisionMixin):
                 "evidence"
             )
 
-        return self._register_dynamic_candidate(
-            candidate,
-            require_direct=True,
-        )
+        return self._register_dynamic_candidate(candidate)
 
     def _bind_dynamic_candidate(
         self,
@@ -299,12 +286,8 @@ class PlanAgentSession(PlanAgentEvidenceMixin, PlanAgentDecisionMixin):
         resolution: str,
         catalog_resolution_error: str | None,
         retrieval_hint: Mapping[str, Any] | None = None,
-        require_direct: bool = False,
     ) -> dict[str, Any]:
-        trusted = self._register_dynamic_candidate(
-            candidate,
-            require_direct=require_direct,
-        )
+        trusted = self._register_dynamic_candidate(candidate)
         candidate_id = trusted["candidate_id"]
         if candidate_id in {str(item) for item in executed_candidate_ids}:
             raise PlanAgentSessionError(
@@ -437,7 +420,6 @@ class PlanAgentSession(PlanAgentEvidenceMixin, PlanAgentDecisionMixin):
             executed_candidate_ids=executed_candidate_ids,
             resolution="pre_evidence_query_proposal",
             catalog_resolution_error=None,
-            require_direct=True,
         )
 
 

@@ -14,11 +14,7 @@ from mea.planner.proposal_execution import (
     ProposalExecutionError,
     validate_plan_agent_proposal_execution,
 )
-from mea.planner.semantic_coverage import (
-    SemanticCoverageError,
-    build_candidate_intent_alignment,
-    validate_evaluation_intent,
-)
+from mea.planner.semantic_coverage import validate_evaluation_intent
 from mea.providers.json_response import extract_json_response
 from mea.task_guide import task_guide_from_capabilities
 
@@ -355,63 +351,7 @@ STOP EXAMPLE:
                     )
                 except ProposalExecutionError as exc:
                     raise PlanAgentError(str(exc)) from exc
-                if trusted_intent is not None and proposal["action"] == "continue":
-                    scene_need = proposal["scene_need"]
-                    checker_need = proposal["checker_need"]
-                    rule_tool_need = proposal["rule_tool_need"]
-                    vqa_tool_need = proposal["vqa_tool_need"]
-                    observation_contract = (
-                        trusted_intent["required_observation"]
-                        + "\n"
-                        + trusted_intent["hypothesis"]
-                    )
-                    alignment = build_candidate_intent_alignment(
-                        trusted_intent,
-                        semantic_concern=(
-                            trusted_intent["original_concern"]
-                            + "\n"
-                            + trusted_intent["hypothesis"]
-                        ),
-                        scene_need=(
-                            {
-                                "description": trusted_intent[
-                                    "requested_change"
-                                ]
-                            }
-                            if scene_need["required"]
-                            else None
-                        ),
-                        checker_need=(
-                            {"description": observation_contract}
-                            if checker_need["required"]
-                            else None
-                        ),
-                        rule_tool_need=(
-                            {"description": observation_contract}
-                            if rule_tool_need["required"]
-                            else None
-                        ),
-                        vqa_tool_need=(
-                            {"description": observation_contract}
-                            if vqa_tool_need["required"]
-                            else None
-                        ),
-                    )
-                    if alignment["relationship"] != "direct":
-                        raise PlanAgentError(
-                            "proposal silently pivots to a diagnostic proxy; "
-                            "it must directly implement the frozen "
-                            "EvaluationIntent. Unmatched intent fields: "
-                            + ", ".join(
-                                alignment["unmatched_intent_fields"]
-                            )
-                        )
                 break
-            except SemanticCoverageError as exc:
-                proposal = None
-                self.last_errors.append(
-                    f"{type(exc).__name__}: {exc}"
-                )
             except Exception as exc:
                 proposal = None
                 self.last_errors.append(f"{type(exc).__name__}: {exc}")

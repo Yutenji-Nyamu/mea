@@ -35,12 +35,10 @@ from .experiment_candidate import (
 )
 from .semantic_coverage import (
     SemanticCoverageError,
-    build_candidate_intent_alignment,
     build_evaluation_intent,
     evaluation_intent_from_query_interpretation,
     evaluation_intent_from_free_concern,
     validate_evaluation_intent,
-    validate_intent_alignment,
 )
 from .plan_agent_provider import PlanAgent
 from .plan_agent_schema import (
@@ -235,12 +233,10 @@ __all__ = [
     "build_experiment_candidate",
     "validate_experiment_candidate",
     "SemanticCoverageError",
-    "build_candidate_intent_alignment",
     "build_evaluation_intent",
     "evaluation_intent_from_free_concern",
     "evaluation_intent_from_query_interpretation",
     "validate_evaluation_intent",
-    "validate_intent_alignment",
     "PlanAgent",
     "OpenQueryPlanAgentError",
     "project_open_query_capabilities",

@@ -21,9 +21,7 @@ from typing import Any, Mapping
 
 from .semantic_coverage import (
     SemanticCoverageError,
-    build_candidate_intent_alignment,
     validate_evaluation_intent,
-    validate_intent_alignment,
 )
 
 class ExperimentCandidateError(ValueError):
@@ -49,7 +47,7 @@ _TYPED_CANDIDATE_KEYS = _CANDIDATE_BASE_KEYS | {
     "vqa_tool_need",
 }
 _CANONICAL_CANDIDATE_KEYS = _TYPED_CANDIDATE_KEYS | {"tool_need"}
-_SEMANTIC_CANDIDATE_KEYS = {"evaluation_intent", "intent_alignment"}
+_SEMANTIC_CANDIDATE_KEYS = {"evaluation_intent"}
 _NEED_KEYS = {"kind", "description", "reuse_first"}
 _SCENE_NEED_KEYS = _NEED_KEYS | {"controlled_changes"}
 _SCENE_DELTA_KEYS = {
@@ -354,19 +352,6 @@ def validate_experiment_candidate(value: Mapping[str, Any]) -> dict[str, Any]:
             intent = validate_evaluation_intent(
                 candidate["evaluation_intent"]
             )
-            supplied_alignment = validate_intent_alignment(
-                candidate["intent_alignment"]
-            )
-            alignment = build_candidate_intent_alignment(
-                intent,
-                semantic_concern=candidate["semantic_concern"],
-                scene_need=candidate["scene_need"],
-                checker_need=candidate["checker_need"],
-                rule_tool_need=rule_tool_need,
-                vqa_tool_need=vqa_tool_need,
-                declared_relationship=supplied_alignment["relationship"],
-                declared_rationale=supplied_alignment["rationale"],
-            )
         except SemanticCoverageError as exc:
             raise ExperimentCandidateError(
                 f"invalid semantic coverage contract: {exc}"
@@ -376,7 +361,6 @@ def validate_experiment_candidate(value: Mapping[str, Any]) -> dict[str, Any]:
                 "EvaluationIntent.source_query differs from candidate source_query"
             )
         normalized["evaluation_intent"] = intent
-        normalized["intent_alignment"] = alignment
     return normalized
 
 
@@ -392,8 +376,6 @@ def build_experiment_candidate(
     vqa_tool_need: str | Mapping[str, Any] | None = None,
     candidate_id: str | None = None,
     evaluation_intent: Mapping[str, Any] | None = None,
-    intent_relationship: str | None = None,
-    intent_relationship_rationale: str | None = None,
 ) -> dict[str, Any]:
     """Build one catalog-independent runtime experiment candidate."""
 
@@ -468,31 +450,7 @@ def build_experiment_candidate(
         "vqa_tool_need": vqa_tool,
     }
     if normalized_intent is not None:
-        try:
-            intent = normalized_intent
-            alignment = build_candidate_intent_alignment(
-                intent,
-                semantic_concern=concern,
-                scene_need=scene,
-                checker_need=checker,
-                rule_tool_need=rule_tool,
-                vqa_tool_need=vqa_tool,
-                declared_relationship=intent_relationship,
-                declared_rationale=intent_relationship_rationale,
-            )
-        except SemanticCoverageError as exc:
-            raise ExperimentCandidateError(
-                f"invalid semantic coverage contract: {exc}"
-            ) from exc
-        value["evaluation_intent"] = intent
-        value["intent_alignment"] = alignment
-    elif (
-        intent_relationship is not None
-        or intent_relationship_rationale is not None
-    ):
-        raise ExperimentCandidateError(
-            "intent relationship requires evaluation_intent"
-        )
+        value["evaluation_intent"] = normalized_intent
     return validate_experiment_candidate(value)
 
 
