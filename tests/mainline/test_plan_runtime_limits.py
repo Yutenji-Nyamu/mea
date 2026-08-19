@@ -40,7 +40,7 @@ class PlanAgentRuntimeLimitsTests(unittest.TestCase):
         self.assertEqual(assessment["claim_verdict"], "inconclusive")
         self.assertEqual(assessment["decisive_candidate_ids"], ["candidate.a"])
 
-    def test_external_cap_and_simulator_conflict_are_runtime_stops(self):
+    def test_conflict_can_continue_until_the_external_cap(self):
         limits = build_plan_runtime_limits("Broad Query", round_budget=1)
         capped = summarize_plan_evidence(
             limits,
@@ -51,8 +51,13 @@ class PlanAgentRuntimeLimitsTests(unittest.TestCase):
             [evidence("candidate.a", "conflict")],
         )
 
+        self.assertTrue(capped["should_stop"])
         self.assertEqual(capped["stop_reason"], "budget_exhausted")
-        self.assertEqual(conflicted["stop_reason"], "evidence_conflict")
+        self.assertFalse(conflicted["should_stop"])
+        self.assertEqual(conflicted["stop_reason"], "continue")
+        self.assertEqual(
+            conflicted["conflict_candidate_ids"], ["candidate.a"]
+        )
 
     def test_agent_can_answer_from_decisive_completed_evidence(self):
         assessment = summarize_plan_evidence(

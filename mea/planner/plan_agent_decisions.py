@@ -262,7 +262,7 @@ class PlanAgentDecisionMixin:
 
         if assessment.get("should_stop"):
             raise PlanAgentSessionError(
-                "cannot continue after a simulator conflict or external round cap"
+                "cannot continue after the external round cap"
             )
         if (
             self.require_control_anchor

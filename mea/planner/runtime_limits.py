@@ -143,15 +143,10 @@ def summarize_plan_evidence(
         )
     )
     # The Plan Agent, not this projection, judges semantic sufficiency.  The
-    # external cap and simulator conflicts remain explicit hard runtime facts.
-    stop_reason = (
-        "evidence_conflict"
-        if conflicts
-        else "budget_exhausted"
-        if budget_remaining == 0
-        else "continue"
-    )
-    should_stop = bool(conflicts or budget_remaining == 0)
+    # external cap is the only hard runtime stop; simulator conflicts remain
+    # explicit facts that may motivate a disambiguating experiment.
+    stop_reason = "budget_exhausted" if budget_remaining == 0 else "continue"
+    should_stop = budget_remaining == 0
     return {
         "schema_version": 2,
         "contract": limits,
@@ -178,10 +173,14 @@ def summarize_plan_evidence(
         "untested_candidate_ids": [],
         "recommended_candidate_ids": [],
         "rationale": (
-            "Simulator-authoritative evidence conflicts require an inconclusive stop."
-            if conflicts
-            else "The external round cap was reached."
+            "The external round cap was reached."
             if budget_remaining == 0
+            else (
+                "Simulator-authoritative evidence conflicts remain unresolved; "
+                "the Plan Agent may propose a disambiguating experiment or stop "
+                "inconclusively."
+            )
+            if conflicts
             else "The Plan Agent must judge whether this evidence is sufficient."
         ),
         "statistics": {},

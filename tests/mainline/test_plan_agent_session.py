@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 from mea.planner.experiment_candidate import build_experiment_candidate
 from mea.planner.plan_agent_errors import PlanAgentSessionError
@@ -453,6 +454,55 @@ class PlanAgentRuntimeTests(unittest.TestCase):
                 observation(round_budget=1),
                 executed_template_ids=[],
             )
+
+    def test_conflict_with_budget_allows_a_disambiguating_candidate(self):
+        session = PlanAgentSession(
+            "Where does this policy first expose a weakness?",
+            target(),
+            require_control_anchor=False,
+        )
+        conflict_record = {
+            "round_id": "round_1",
+            "candidate_id": "dynamic.click_bell.left",
+            "candidate_evidence": {
+                "candidate_id": "dynamic.click_bell.left",
+                "outcome": "conflict",
+            },
+            "evidence_packet": {"evidence_strength": "conflicting"},
+            "evaluation_outcome": {"metric": "official_check_success"},
+            "outcome_semantics": {"status": "conflict"},
+            "planning_observation": None,
+            "open_query_evidence": evidence("round_1", "ambiguous"),
+        }
+        with patch(
+            "mea.planner.plan_agent_evidence_session."
+            "build_plan_agent_evidence_record",
+            return_value=conflict_record,
+        ):
+            state = session.observe(
+                [{"round_id": "round_1"}],
+                [{"round_id": "round_1"}],
+            )
+
+        self.assertFalse(state["assessment"]["should_stop"])
+        self.assertEqual(
+            state["assessment"]["conflict_candidate_ids"],
+            ["dynamic.click_bell.left"],
+        )
+
+        bound = session.bind_semantic_step(
+            continue_bundle("object_position.disambiguation"),
+            state,
+            executed_template_ids=[],
+        )
+
+        self.assertEqual(bound["plan_step"]["action"], "propose")
+        self.assertEqual(
+            bound["plan_step"]["proposal"]["evaluation_intent"][
+                "original_concern"
+            ],
+            "object_position.disambiguation",
+        )
 
     def test_plan_preservation_prose_is_rejected(self):
         session = PlanAgentSession(

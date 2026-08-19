@@ -164,68 +164,6 @@ class PlanAgentEvidenceMixin:
             candidate_evidence,
             completed_rounds=len(policy_candidate_records),
         )
-        transport_conflict_ids = [
-            record["candidate_id"]
-            for record in candidate_records
-            if (
-                (
-                    record.get("candidate_evidence", {}).get("outcome")
-                    == "conflict"
-                    or record.get("evidence_packet", {}).get(
-                        "evidence_strength"
-                    )
-                    == "conflicting"
-                )
-            )
-        ]
-        if transport_conflict_ids:
-            assessment = {
-                **assessment,
-                "should_stop": True,
-                "stop_reason": "evidence_conflict",
-                "evidence_sufficient": False,
-                "claim_verdict": "inconclusive",
-                "rationale": (
-                    "Rule, VQA, or execution evidence conflicts for a "
-                    "completed candidate; the Query cannot be answered from "
-                    "this evidence."
-                ),
-                "conflict_candidate_ids": list(
-                    dict.fromkeys(
-                        list(assessment.get("conflict_candidate_ids") or [])
-                        + transport_conflict_ids
-                    )
-                ),
-                "recommended_candidate_ids": [],
-            }
-        semantic_conflict_ids = [
-            record["candidate_id"]
-            for record in candidate_records
-            if (
-                record.get("outcome_semantics", {}).get("status")
-                == "conflict"
-            )
-        ]
-        if semantic_conflict_ids:
-            assessment = {
-                **assessment,
-                "should_stop": True,
-                "stop_reason": "outcome_semantics_conflict",
-                "evidence_sufficient": False,
-                "claim_verdict": "inconclusive",
-                "rationale": (
-                    "Generated and official/core success semantics disagree for "
-                    "a completed candidate; the Query cannot be answered from "
-                    "this evidence."
-                ),
-                "conflict_candidate_ids": list(
-                    dict.fromkeys(
-                        list(assessment.get("conflict_candidate_ids") or [])
-                        + semantic_conflict_ids
-                    )
-                ),
-                "recommended_candidate_ids": [],
-            }
         semantic_non_comparable_ids = [
             record["candidate_id"]
             for record in candidate_records
