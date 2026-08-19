@@ -95,9 +95,11 @@ _COVERAGE_KEYS = {
     "tool_complete",
     "vqa_required",
     "vqa_observed",
+    "complete",
+}
+_LEGACY_COVERAGE_KEYS = _COVERAGE_KEYS | {
     "intent_required",
     "intent_complete",
-    "complete",
 }
 
 
@@ -505,8 +507,12 @@ def validate_evidence_aggregate(value: Mapping[str, Any]) -> dict[str, Any]:
         )
 
     coverage = aggregate.get("coverage")
-    if not isinstance(coverage, Mapping) or set(coverage) != _COVERAGE_KEYS:
+    if not isinstance(coverage, Mapping) or frozenset(coverage) not in {
+        frozenset(_COVERAGE_KEYS),
+        frozenset(_LEGACY_COVERAGE_KEYS),
+    }:
         raise EvidencePacketError("EvidenceAggregate.coverage fields changed")
+    legacy_intent_coverage = set(coverage) == _LEGACY_COVERAGE_KEYS
     for field in ("expected_policy_episodes", "observed_policy_episodes"):
         item = coverage.get(field)
         if isinstance(item, bool) or not isinstance(item, int) or item < 0:
@@ -519,17 +525,20 @@ def validate_evidence_aggregate(value: Mapping[str, Any]) -> dict[str, Any]:
         "tool_complete",
         "vqa_required",
         "vqa_observed",
-        "intent_required",
-        "intent_complete",
         "complete",
     ):
         if not isinstance(coverage.get(field), bool):
             raise EvidencePacketError(
                 f"EvidenceAggregate.coverage.{field} must be boolean"
             )
-    if (
-        not coverage["intent_required"]
-        and coverage["intent_complete"]
+    if legacy_intent_coverage:
+        for field in ("intent_required", "intent_complete"):
+            if not isinstance(coverage.get(field), bool):
+                raise EvidencePacketError(
+                    f"EvidenceAggregate.coverage.{field} must be boolean"
+                )
+    if legacy_intent_coverage and (
+        not coverage["intent_required"] and coverage["intent_complete"]
     ):
         raise EvidencePacketError(
             "EvidenceAggregate intent cannot be complete when it is not required"
@@ -552,21 +561,29 @@ def validate_evidence_aggregate(value: Mapping[str, Any]) -> dict[str, Any]:
         ),
         "vqa_required": vqa["required"],
         "vqa_observed": vqa["status"] == "passed",
-        "intent_required": coverage["intent_required"],
-        "intent_complete": coverage["intent_complete"],
         "complete": execution_complete,
     }
-    legacy_expected_coverage = {
-        **expected_coverage,
-        "complete": bool(
-            execution_complete
-            and (
-                not coverage["intent_required"]
-                or coverage["intent_complete"]
-            )
-        ),
-    }
-    if dict(coverage) not in (expected_coverage, legacy_expected_coverage):
+    accepted_coverage = [expected_coverage]
+    if legacy_intent_coverage:
+        legacy_expected_coverage = {
+            **expected_coverage,
+            "intent_required": coverage["intent_required"],
+            "intent_complete": coverage["intent_complete"],
+        }
+        accepted_coverage = [
+            legacy_expected_coverage,
+            {
+                **legacy_expected_coverage,
+                "complete": bool(
+                    execution_complete
+                    and (
+                        not coverage["intent_required"]
+                        or coverage["intent_complete"]
+                    )
+                ),
+            },
+        ]
+    if dict(coverage) not in accepted_coverage:
         raise EvidencePacketError(
             "EvidenceAggregate.coverage disagrees with Rule/VQA evidence"
         )
@@ -757,12 +774,6 @@ def build_evidence_aggregate(
     if isinstance(failure_stage, str):
         failure_stage = failure_stage.strip() or None
     success_rate = _policy_success_rate(round_summary)
-    implementation_trace = observations.get("implementation_trace")
-    intent_required = isinstance(implementation_trace, Mapping)
-    intent_complete = bool(
-        intent_required
-        and implementation_trace.get("coverage_status") == "complete"
-    )
     coverage = {
         "expected_policy_episodes": quality["expected_policy_episodes"],
         "observed_policy_episodes": quality["observed_policy_episodes"],
@@ -773,8 +784,6 @@ def build_evidence_aggregate(
         ),
         "vqa_required": vqa_required,
         "vqa_observed": vqa_status == "passed",
-        "intent_required": intent_required,
-        "intent_complete": intent_complete,
         "complete": bool(
             quality["complete"]
             and (not tool_requested or tool_view["status"] == "passed")

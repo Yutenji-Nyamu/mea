@@ -27,10 +27,6 @@ from mea.planner.proposal_execution import (
     ProposalExecutionError,
     validate_taskgen_candidate_execution,
 )
-from mea.planner.semantic_coverage import (
-    SemanticCoverageError,
-    build_implementation_trace,
-)
 from mea.robotwin_task_context import (
     RoboTwinTaskContextError,
     resolve_robotwin_task_context,
@@ -442,17 +438,6 @@ def _normalize_validation(
     }
     report["model_written_python"] = True
     report["restricted_success_spec_compiler_used"] = False
-    try:
-        implementation_trace = build_implementation_trace(
-            candidate,
-            taskgen_validation=report,
-        )
-    except SemanticCoverageError as exc:
-        raise GenericTaskGenError(
-            f"invalid semantic implementation trace: {exc}"
-        ) from exc
-    if implementation_trace is not None:
-        report["implementation_trace"] = implementation_trace
     return report
 
 
@@ -534,14 +519,6 @@ class GenericRoboTwinTaskGenBackend:
             else None
         )
         if match is not None:
-            try:
-                implementation_trace = build_implementation_trace(
-                    normalized_candidate
-                )
-            except SemanticCoverageError as exc:
-                raise GenericTaskGenError(
-                    f"invalid semantic implementation trace: {exc}"
-                ) from exc
             return {
                 "schema_version": 1,
                 "status": "reused",
@@ -550,7 +527,6 @@ class GenericRoboTwinTaskGenBackend:
                 "semantic_key": semantic_key,
                 "provider_required": False,
                 "provider_call_count": 0,
-                "implementation_trace": implementation_trace,
                 "exact_match": _validate_exact_match(
                     match,
                     semantic_key=semantic_key,
@@ -773,9 +749,6 @@ class GenericRoboTwinTaskGenBackend:
             "run_dir": str(run_dir),
             "candidate_manifest": manifest,
             "validation": deepcopy(dict(generated["validation"])),
-            "implementation_trace": deepcopy(
-                generated["validation"].get("implementation_trace")
-            ),
         }
         (run_dir / "generic_taskgen_resolution.json").write_text(
             json.dumps(

@@ -135,9 +135,6 @@ def _round(value: Any) -> dict[str, Any] | None:
     seeds = value.get("actual_seeds") or value.get("seeds")
     if not seeds and isinstance(execution, dict):
         seeds = execution.get("seeds")
-    trace = value.get("implementation_trace") or observations.get(
-        "implementation_trace"
-    )
     return {
         **_present(
             value,
@@ -191,19 +188,6 @@ def _round(value: Any) -> dict[str, Any] | None:
                 "policy_rollouts_started",
                 "policy_sample_count",
                 "bounded_repair_evidence",
-            ),
-        ),
-        "implementation_trace": _present(
-            trace,
-            (
-                "candidate_id",
-                "stage",
-                "relationship",
-                "coverage_status",
-                "covered_intent_fields",
-                "uncovered_intent_fields",
-                "pending_intent_fields",
-                "repair_required",
             ),
         ),
         "tool_measurements": _tool_measurements(value),

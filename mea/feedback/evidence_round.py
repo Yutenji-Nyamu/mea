@@ -22,7 +22,6 @@ TASKGEN_ARTIFACTS = (
     "generation/provider_response.txt",
     "validation/static.json",
     "validation/checker_fixtures.json",
-    "validation/implementation_trace.json",
     "validation/setup_preflight.json",
     "validation/expert_preflight.json",
     "validation/vision.json",

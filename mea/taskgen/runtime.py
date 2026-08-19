@@ -20,10 +20,6 @@ from mea.planner.experiment_candidate import (
     ExperimentCandidateError,
     validate_experiment_candidate,
 )
-from mea.planner.semantic_coverage import (
-    SemanticCoverageError,
-    build_implementation_trace,
-)
 from mea.robotwin_task_context import (
     RoboTwinTaskContextError,
     resolve_robotwin_task_context,
@@ -978,25 +974,6 @@ def create_generic_provider_taskgen_run(
             ),
         }
     )
-    try:
-        implementation_trace = build_implementation_trace(
-            candidate,
-            taskgen_validation={
-                "checker_fixtures": run_local_preflight[
-                    "checker_fixtures"
-                ],
-                "preflight": run_local_preflight,
-            },
-        )
-    except SemanticCoverageError as exc:
-        raise GenericTaskGenError(
-            f"invalid semantic implementation trace: {exc}"
-        ) from exc
-    if implementation_trace is not None:
-        write_json(
-            run_dir / "validation/implementation_trace.json",
-            implementation_trace,
-        )
     if reused_manifest is not None:
         reused_candidate_manifest = json.loads(
             (run_dir / "candidate_manifest.json").read_text(
@@ -1043,18 +1020,12 @@ def create_generic_provider_taskgen_run(
             ),
             "checker_semantic_review": checker_semantic_review,
         }
-        reused_manifest["implementation_trace"] = implementation_trace
         reused_manifest["task_context"] = {
             "path": "validation/task_context.json",
             "schema_origin": task_context.schema_origin,
             "taskgen_ready": task_context.taskgen_ready,
             "runtime_probe_executed": task_context_probe_result is not None,
         }
-        reused_manifest["implementation_trace_path"] = (
-            "validation/implementation_trace.json"
-            if implementation_trace is not None
-            else None
-        )
         reused_manifest["vision_validation"] = (
             {
                 **deepcopy(run_local_preflight["vision_validation"]),
@@ -1211,12 +1182,6 @@ def create_generic_provider_taskgen_run(
         ]["prompt_components"],
         "proposal": candidate,
         "proposal_path": "generation/proposal.json",
-        "implementation_trace": implementation_trace,
-        "implementation_trace_path": (
-            "validation/implementation_trace.json"
-            if implementation_trace is not None
-            else None
-        ),
         "checker_contract": candidate_manifest["checker_contract"],
         "candidate_manifest": "candidate_manifest.json",
         "generic_taskgen_resolution": "generic_taskgen_resolution.json",

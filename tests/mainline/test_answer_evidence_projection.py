@@ -37,15 +37,6 @@ def _evidence():
                         "policy_sample_count": 0,
                         "taskgen_result": {"large": "drop"},
                     },
-                    "implementation_trace": {
-                        "candidate_id": "dynamic.alpha",
-                        "stage": "runtime",
-                        "relationship": "direct",
-                        "coverage_status": "complete",
-                        "covered_intent_fields": ["requested_change"],
-                        "pending_intent_fields": [],
-                        "validation_evidence": {"large": "drop"},
-                    },
                 },
                 "tool_evaluation": {
                     "route": "generated",
@@ -127,7 +118,6 @@ def test_answer_projection_keeps_decision_evidence_and_live_values():
     assert round_evidence["planning_observation"]["failure_stage"] == (
         "expert_fixture"
     )
-    assert round_evidence["implementation_trace"]["relationship"] == "direct"
     assert round_evidence["tool_measurements"][0]["metric"] == (
         "terminal_distance"
     )

@@ -127,7 +127,7 @@ class AdaptiveEvidencePolicyTests(unittest.TestCase):
         with self.assertRaisesRegex(EvidencePacketError, "coverage disagrees"):
             validate_evidence_aggregate(tampered)
 
-    def test_original_intent_trace_is_informational(self):
+    def test_legacy_implementation_trace_is_ignored(self):
         planned = round_plan()
         observed = observation(planned)
         observed["observations"]["implementation_trace"] = {
@@ -136,8 +136,8 @@ class AdaptiveEvidencePolicyTests(unittest.TestCase):
 
         unified = build_evidence_aggregate(planned, observed)
 
-        self.assertTrue(unified["coverage"]["intent_required"])
-        self.assertFalse(unified["coverage"]["intent_complete"])
+        self.assertNotIn("intent_required", unified["coverage"])
+        self.assertNotIn("intent_complete", unified["coverage"])
         self.assertTrue(unified["coverage"]["complete"])
         self.assertEqual(unified["evidence_strength"], "sufficient")
         self.assertEqual(unified["reason_codes"], [])

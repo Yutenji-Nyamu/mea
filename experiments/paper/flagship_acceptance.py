@@ -58,7 +58,6 @@ def build_compact_flagship_acceptance(
     semantics_statuses: list[str] = []
     runtime_candidate_ids: list[str] = []
     planning_rejection_candidate_ids: list[str] = []
-    typed_candidate_completion: dict[str, bool] = {}
     same_bundle_bound_checker_reuse = False
     bound_checker_metric: str | None = None
     bound_checker_module_sha256: str | None = None
@@ -84,18 +83,6 @@ def build_compact_flagship_acceptance(
         policy_round_pipeline_passed.append(
             summary.get("pipeline_passed", True) is True
         )
-        implementation_trace = observations.get("implementation_trace")
-        if (
-            isinstance(semantic_execution, Mapping)
-            and isinstance(semantic_execution.get("candidate_id"), str)
-            and isinstance(implementation_trace, Mapping)
-        ):
-            typed_candidate_completion[
-                str(semantic_execution["candidate_id"])
-            ] = bool(
-                implementation_trace.get("relationship") == "direct"
-                and implementation_trace.get("coverage_status") == "complete"
-            )
         actual_seeds = observations.get("actual_seeds")
         if (
             isinstance(actual_seeds, list)
@@ -357,15 +344,15 @@ def build_compact_flagship_acceptance(
         if isinstance(decisive_candidate_ids, list)
         else []
     )
-    typed_execution_complete = bool(
+    decisive_candidates_executed = bool(
         decisive_candidate_ids
         and all(
-            typed_candidate_completion.get(str(candidate_id)) is True
+            str(candidate_id) in runtime_candidate_ids
             for candidate_id in decisive_candidate_ids
         )
     )
     candidate_execution_accepted = bool(
-        same_bundle_bound_checker_reuse or typed_execution_complete
+        same_bundle_bound_checker_reuse or decisive_candidates_executed
     )
     accepted = bool(
         online_query_interpretation

@@ -3,10 +3,8 @@
 The planner is allowed to refine an experiment after observing evidence, but
 it must not silently replace the first Query-derived concern with an easier
 nearby diagnostic before that concern is tested. ``EvaluationIntent`` freezes
-that first candidate's semantics before runtime task binding.
-``ImplementationTrace`` records whether one generated candidate directly
-implements that intent, is only a diagnostic proxy, or is unsupported. Query
-answer sufficiency remains owned by the Plan Agent.
+that first candidate's semantics before runtime task binding. Query answer
+sufficiency remains owned by the Plan Agent.
 
 The contract is deliberately small.  It does not attempt to prove natural
 language equivalence; it combines explicit planner declarations with
@@ -26,7 +24,7 @@ from mea.taskgen.preservation_facts import (
 
 
 class SemanticCoverageError(ValueError):
-    """Raised when an intent, alignment, or implementation trace is malformed."""
+    """Raised when an intent or alignment is malformed."""
 
 
 _INTENT_KEYS = {
@@ -46,20 +44,6 @@ _ALIGNMENT_KEYS = {
     "matched_intent_fields",
     "unmatched_intent_fields",
 }
-_TRACE_KEYS = {
-    "schema_version",
-    "intent_id",
-    "candidate_id",
-    "stage",
-    "relationship",
-    "rationale",
-    "covered_intent_fields",
-    "uncovered_intent_fields",
-    "pending_intent_fields",
-    "coverage_status",
-    "repair_required",
-    "validation_evidence",
-}
 _INTENT_REQUIREMENT_FIELDS = (
     "requested_change",
     "preserved_conditions",
@@ -67,8 +51,8 @@ _INTENT_REQUIREMENT_FIELDS = (
     "required_observation",
 )
 _RELATIONSHIPS = {"direct", "diagnostic_proxy", "unsupported"}
-_STAGES = {"candidate", "taskgen", "execution"}
-_COVERAGE_STATUSES = {"complete", "partial", "not_covered"}
+
+
 def _text(value: Any, field: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise SemanticCoverageError(f"{field} must be a non-empty string")
@@ -327,332 +311,6 @@ def build_candidate_intent_alignment(
     )
 
 
-def _taskgen_facts(
-    validation: Mapping[str, Any] | None,
-) -> dict[str, bool | None]:
-    if validation is None:
-        return {
-            "scene_change_passed": None,
-            "checker_fixtures_passed": None,
-            "visual_diagnosis_passed": None,
-            "preserved_conditions_verified": None,
-        }
-    preflight = validation.get("preflight")
-    if not isinstance(preflight, Mapping):
-        preflight = validation
-    fixtures = (
-        validation.get("checker_fixtures")
-        if isinstance(validation.get("checker_fixtures"), list)
-        else preflight.get("checker_fixtures")
-    )
-    fixture_passed = (
-        bool(fixtures)
-        and all(
-            isinstance(item, Mapping) and item.get("passed") is True
-            for item in fixtures
-        )
-        if isinstance(fixtures, list)
-        else None
-    )
-    visual = preflight.get("vision_validation")
-    return {
-        "scene_change_passed": (
-            preflight.get("scene_change_passed")
-            if isinstance(preflight.get("scene_change_passed"), bool)
-            else None
-        ),
-        "checker_fixtures_passed": fixture_passed,
-        "visual_diagnosis_passed": (
-            visual.get("passed")
-            if isinstance(visual, Mapping)
-            and isinstance(visual.get("passed"), bool)
-            else None
-        ),
-        "preserved_conditions_verified": (
-            preflight.get("preserved_conditions_verified")
-            if isinstance(
-                preflight.get("preserved_conditions_verified"), bool
-            )
-            else None
-        ),
-    }
-
-
-def build_implementation_trace(
-    candidate: Mapping[str, Any],
-    *,
-    taskgen_validation: Mapping[str, Any] | None = None,
-    tool_evaluation: Mapping[str, Any] | None = None,
-) -> dict[str, Any] | None:
-    """Project semantic and runtime coverage for one candidate.
-
-    Candidates predating ``EvaluationIntent`` return ``None`` unchanged.
-    """
-
-    intent_value = candidate.get("evaluation_intent")
-    alignment_value = candidate.get("intent_alignment")
-    if intent_value is None and alignment_value is None:
-        return None
-    intent = validate_evaluation_intent(intent_value)
-    alignment = validate_intent_alignment(alignment_value)
-    candidate_id = _text(candidate.get("candidate_id"), "candidate_id")
-    relationship = alignment["relationship"]
-    facts = _taskgen_facts(taskgen_validation)
-    tool_passed = (
-        tool_evaluation.get("status") == "passed"
-        if isinstance(tool_evaluation, Mapping)
-        else None
-    )
-    stage = (
-        "execution"
-        if tool_evaluation is not None
-        else "taskgen"
-        if taskgen_validation is not None
-        else "candidate"
-    )
-    covered: list[str] = []
-    uncovered = list(alignment["unmatched_intent_fields"])
-    pending: list[str] = []
-    if relationship != "direct":
-        uncovered = list(_INTENT_REQUIREMENT_FIELDS)
-    else:
-        scene_requested = candidate.get("scene_need") is not None
-        checker_requested = candidate.get("checker_need") is not None
-        taskgen_requested = scene_requested or checker_requested
-        observation_requested = any(
-            candidate.get(field) is not None
-            for field in (
-                "scene_need",
-                "checker_need",
-                "rule_tool_need",
-                "vqa_tool_need",
-                "tool_need",
-            )
-        )
-        preserve_required = bool(intent["preserved_conditions"])
-        if not preserve_required or not taskgen_requested:
-            covered.append("preserved_conditions")
-        if taskgen_validation is None:
-            (
-                pending if scene_requested else covered
-            ).append("requested_change")
-            (
-                pending if checker_requested else covered
-            ).append("hypothesis")
-            if (
-                preserve_required
-                and taskgen_requested
-                and "preserved_conditions"
-                in alignment["matched_intent_fields"]
-            ):
-                pending.append("preserved_conditions")
-        else:
-            scene_valid = (
-                not scene_requested
-                or (
-                    facts["scene_change_passed"] is True
-                    and facts["visual_diagnosis_passed"] is not False
-                )
-            )
-            checker_valid = (
-                not checker_requested
-                or facts["checker_fixtures_passed"] is True
-            )
-            (covered if scene_valid else uncovered).append(
-                "requested_change"
-            )
-            if preserve_required and taskgen_requested:
-                preserve_verified = facts["preserved_conditions_verified"]
-                (
-                    covered
-                    if preserve_verified is True
-                    else uncovered
-                    if preserve_verified is False
-                    else pending
-                ).append("preserved_conditions")
-            (covered if checker_valid else uncovered).append("hypothesis")
-        if tool_evaluation is None:
-            (
-                pending if observation_requested else uncovered
-            ).append("required_observation")
-        else:
-            (
-                covered
-                if observation_requested and tool_passed
-                else uncovered
-            ).append("required_observation")
-    covered = list(dict.fromkeys(covered))
-    uncovered = list(dict.fromkeys(uncovered))
-    pending = [
-        field
-        for field in dict.fromkeys(pending)
-        if field not in covered and field not in uncovered
-    ]
-    status = (
-        "complete"
-        if len(covered) == len(_INTENT_REQUIREMENT_FIELDS)
-        and not uncovered
-        and not pending
-        else "partial"
-        if covered
-        else "not_covered"
-    )
-    taskgen_owned_uncovered = set(uncovered) & {
-        "requested_change",
-        "preserved_conditions",
-        "hypothesis",
-    }
-    trace = {
-        "schema_version": 1,
-        "intent_id": intent["intent_id"],
-        "candidate_id": candidate_id,
-        "stage": stage,
-        "relationship": relationship,
-        "rationale": alignment["rationale"],
-        "covered_intent_fields": covered,
-        "uncovered_intent_fields": uncovered,
-        "pending_intent_fields": pending,
-        "coverage_status": status,
-        "repair_required": bool(
-            relationship == "direct"
-            and taskgen_validation is not None
-            and taskgen_owned_uncovered
-        ),
-        "validation_evidence": {
-            **facts,
-            "tool_evaluation_passed": tool_passed,
-        },
-    }
-    return validate_implementation_trace(trace)
-
-
-def validate_implementation_trace(value: Mapping[str, Any]) -> dict[str, Any]:
-    if not isinstance(value, Mapping) or set(value) != _TRACE_KEYS:
-        raise SemanticCoverageError(
-            "ImplementationTrace fields must be exactly "
-            f"{sorted(_TRACE_KEYS)}"
-        )
-    trace = deepcopy(dict(value))
-    if trace.get("schema_version") != 1:
-        raise SemanticCoverageError(
-            "ImplementationTrace schema_version must be 1"
-        )
-    for field in ("intent_id", "candidate_id", "rationale"):
-        trace[field] = _text(
-            trace.get(field), f"ImplementationTrace.{field}"
-        )
-    if trace.get("stage") not in _STAGES:
-        raise SemanticCoverageError(
-            f"ImplementationTrace.stage must be one of {sorted(_STAGES)}"
-        )
-    if trace.get("relationship") not in _RELATIONSHIPS:
-        raise SemanticCoverageError(
-            "ImplementationTrace.relationship is invalid"
-        )
-    classified: set[str] = set()
-    for field in (
-        "covered_intent_fields",
-        "uncovered_intent_fields",
-        "pending_intent_fields",
-    ):
-        trace[field] = _string_list(
-            trace.get(field), f"ImplementationTrace.{field}"
-        )
-        unknown = set(trace[field]) - set(_INTENT_REQUIREMENT_FIELDS)
-        if unknown:
-            raise SemanticCoverageError(
-                f"ImplementationTrace.{field} contains unknown fields: "
-                f"{sorted(unknown)}"
-            )
-        if classified & set(trace[field]):
-            raise SemanticCoverageError(
-                "ImplementationTrace coverage fields must be disjoint"
-            )
-        classified.update(trace[field])
-    if classified != set(_INTENT_REQUIREMENT_FIELDS):
-        raise SemanticCoverageError(
-            "ImplementationTrace must classify every candidate-contract field"
-        )
-    if trace.get("coverage_status") not in _COVERAGE_STATUSES:
-        raise SemanticCoverageError(
-            "ImplementationTrace.coverage_status is invalid"
-        )
-    if not isinstance(trace.get("repair_required"), bool):
-        raise SemanticCoverageError(
-            "ImplementationTrace.repair_required must be bool"
-        )
-    evidence = trace.get("validation_evidence")
-    if not isinstance(evidence, Mapping) or set(evidence) != {
-        "scene_change_passed",
-        "checker_fixtures_passed",
-        "visual_diagnosis_passed",
-        "preserved_conditions_verified",
-        "tool_evaluation_passed",
-    }:
-        raise SemanticCoverageError(
-            "ImplementationTrace.validation_evidence has invalid fields"
-        )
-    if any(
-        item is not None and not isinstance(item, bool)
-        for item in evidence.values()
-    ):
-        raise SemanticCoverageError(
-            "ImplementationTrace validation evidence must be bool or null"
-        )
-    trace["validation_evidence"] = deepcopy(dict(evidence))
-    return trace
-
-
-def advance_implementation_trace_with_tool(
-    trace: Mapping[str, Any],
-    tool_evaluation: Mapping[str, Any] | None,
-    *,
-    rule_required: bool = True,
-    vqa_evaluation: Mapping[str, Any] | None = None,
-    vqa_required: bool = False,
-) -> dict[str, Any]:
-    """Advance a trace using only the independently requested evidence types."""
-
-    advanced = validate_implementation_trace(trace)
-    rule_passed = (
-        isinstance(tool_evaluation, Mapping)
-        and tool_evaluation.get("status") == "passed"
-    )
-    vqa_passed = (
-        isinstance(vqa_evaluation, Mapping)
-        and vqa_evaluation.get("status") == "passed"
-    )
-    passed = bool(
-        (not rule_required or rule_passed)
-        and (not vqa_required or vqa_passed)
-        and (rule_required or vqa_required)
-    )
-    advanced["stage"] = "execution"
-    advanced["validation_evidence"]["tool_evaluation_passed"] = passed
-    field = "required_observation"
-    for key in (
-        "covered_intent_fields",
-        "uncovered_intent_fields",
-        "pending_intent_fields",
-    ):
-        advanced[key] = [
-            item for item in advanced[key] if item != field
-        ]
-    if advanced["relationship"] == "direct" and passed:
-        advanced["covered_intent_fields"].append(field)
-    else:
-        advanced["uncovered_intent_fields"].append(field)
-    advanced["coverage_status"] = (
-        "complete"
-        if len(advanced["covered_intent_fields"])
-        == len(_INTENT_REQUIREMENT_FIELDS)
-        else "partial"
-        if advanced["covered_intent_fields"]
-        else "not_covered"
-    )
-    return validate_implementation_trace(advanced)
-
-
 evaluation_intent_from_free_concern = (
     evaluation_intent_from_query_interpretation
 )
@@ -660,13 +318,10 @@ evaluation_intent_from_free_concern = (
 
 __all__ = [
     "SemanticCoverageError",
-    "advance_implementation_trace_with_tool",
     "build_candidate_intent_alignment",
     "build_evaluation_intent",
-    "build_implementation_trace",
     "evaluation_intent_from_query_interpretation",
     "evaluation_intent_from_free_concern",
     "validate_evaluation_intent",
-    "validate_implementation_trace",
     "validate_intent_alignment",
 ]

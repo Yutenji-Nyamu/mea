@@ -17,9 +17,7 @@ from mea.execution_vqa.runtime import (
     compact_execution_vqa,
 )
 from mea.planner import (
-    advance_implementation_trace_with_tool,
     build_evidence_aggregate,
-    build_implementation_trace,
 )
 from mea.round_contract import validate_round_capability_contract
 from mea.round_evidence import compact_tool_evaluation
@@ -415,62 +413,6 @@ def summarize_round(
         )
     if capability_contract is not None:
         pipeline_passed = bool(pipeline_passed and required_gate_status["passed"])
-    implementation_trace = child_manifest.get("implementation_trace")
-    if (
-        not isinstance(implementation_trace, Mapping)
-        and isinstance(
-            round_plan.get("proposal")
-            or round_plan.get("experiment_candidate"),
-            Mapping,
-        )
-    ):
-        implementation_trace = build_implementation_trace(
-            round_plan.get("proposal")
-            or round_plan["experiment_candidate"]
-        )
-    if isinstance(implementation_trace, Mapping):
-        semantic_needs = round_plan.get("semantic_need_execution")
-        rule_need = (
-            semantic_needs.get("rule_tool")
-            if isinstance(semantic_needs, Mapping)
-            else None
-        )
-        checker_need = (
-            semantic_needs.get("checker")
-            if isinstance(semantic_needs, Mapping)
-            else None
-        )
-        vqa_need = (
-            semantic_needs.get("vqa_tool")
-            if isinstance(semantic_needs, Mapping)
-            else None
-        )
-        rule_requested = bool(
-            isinstance(rule_need, Mapping)
-            and rule_need.get("requested") is True
-        )
-        checker_requested = bool(
-            isinstance(checker_need, Mapping)
-            and checker_need.get("requested") is True
-        )
-        vqa_requested = bool(
-            isinstance(vqa_need, Mapping)
-            and vqa_need.get("requested") is True
-        )
-        implementation_trace = advance_implementation_trace_with_tool(
-            implementation_trace,
-            tool_evaluation,
-            # The default task checker remains the Rule observation for
-            # scene-only rounds.  VQA-only rounds must not depend on it.
-            rule_required=bool(
-                not isinstance(semantic_needs, Mapping)
-                or rule_requested
-                or checker_requested
-                or not vqa_requested
-            ),
-            vqa_evaluation=execution_vqa,
-            vqa_required=vqa_requested,
-        )
     summary = {
         "round_id": round_plan["round_id"],
         "variant_id": (
@@ -539,7 +481,6 @@ def summarize_round(
             "planned_tool": compact_tool_evaluation(tool_evaluation),
             "aggregate": compact_aggregate_result(aggregate_result),
             "execution_vqa": compact_execution_vqa(execution_vqa),
-            "implementation_trace": implementation_trace,
             "required_gate_status": required_gate_status,
         },
         "pipeline_passed": pipeline_passed,

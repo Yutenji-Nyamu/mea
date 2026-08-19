@@ -230,9 +230,6 @@ def _round_evidence(
         if round_execution_backend(round_plan) in {"act", "both"}
         else []
     )
-    implementation_trace = round_summary["observations"].get(
-        "implementation_trace"
-    )
     round_proposal = (
         round_plan.get("proposal")
         or round_plan.get("experiment_candidate")
@@ -246,18 +243,6 @@ def _round_evidence(
         )
         or round_plan.get("template_id")
     )
-    if isinstance(implementation_trace, Mapping):
-        trace_candidate_id = implementation_trace.get("candidate_id")
-        if (
-            round_candidate_id
-            and trace_candidate_id
-            and str(trace_candidate_id) != str(round_candidate_id)
-        ):
-            raise RuntimeError(
-                "implementation trace candidate_id conflicts with the "
-                f"executed round: {trace_candidate_id!r} != "
-                f"{round_candidate_id!r}"
-            )
     return {
         "round_id": round_plan["round_id"],
         "candidate_id": (
@@ -325,7 +310,6 @@ def _round_evidence(
         "tool_evaluation": tool_evaluation,
         "aggregate": round_summary["observations"].get("aggregate"),
         "execution_vqa": round_summary["observations"].get("execution_vqa"),
-        "implementation_trace": implementation_trace,
         "trusted_tool_evaluation": {
             "artifact": trusted_tool_evaluation.get("artifact"),
             "episode_count": trusted_tool_evaluation.get("episode_count"),
