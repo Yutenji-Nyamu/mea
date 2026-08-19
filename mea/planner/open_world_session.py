@@ -549,15 +549,21 @@ class _FrozenExecutionTransport:
             ) from exc
 
     @staticmethod
-    def _candidate_evidence_from_history(
+    def _policy_candidate_evidence_from_history(
         observation_history: Iterable[Mapping[str, Any]],
+        *,
+        control_required: bool,
     ) -> list[dict[str, Any]]:
+        """Return evidence charged to the post-control candidate budget."""
+
         result: list[dict[str, Any]] = []
-        for observation in observation_history:
+        for index, observation in enumerate(observation_history):
             if not isinstance(observation, Mapping):
                 raise OpenWorldSessionError(
                     "observation history items must be objects"
                 )
+            if control_required and index == 0:
+                continue
             observations = observation.get("observations")
             if (
                 isinstance(observations, Mapping)
@@ -628,13 +634,15 @@ class _FrozenExecutionTransport:
         contract = current.get("runtime_limits")
         assessment: dict[str, Any] | None = None
         if isinstance(contract, Mapping):
-            evidence = self._candidate_evidence_from_history(
-                observation_history
+            control_required = self._control_required(contract)
+            evidence = self._policy_candidate_evidence_from_history(
+                observation_history,
+                control_required=control_required,
             )
             completed_candidate_rounds = (
                 self._completed_policy_candidate_rounds(
                     observation_history,
-                    control_required=self._control_required(contract),
+                    control_required=control_required,
                 )
             )
             assessment = self.summarize_evidence(
@@ -781,13 +789,17 @@ class _FrozenExecutionTransport:
             )
         assessment = None
         if isinstance(normalized.get("runtime_limits"), Mapping):
-            candidate_evidence = self._candidate_evidence_from_history(history)
+            control_required = self._control_required(
+                normalized["runtime_limits"]
+            )
+            candidate_evidence = self._policy_candidate_evidence_from_history(
+                history,
+                control_required=control_required,
+            )
             completed_candidate_rounds = (
                 self._completed_policy_candidate_rounds(
                     history,
-                    control_required=self._control_required(
-                        normalized["runtime_limits"]
-                    ),
+                    control_required=control_required,
                 )
             )
             assessment = self.summarize_evidence(

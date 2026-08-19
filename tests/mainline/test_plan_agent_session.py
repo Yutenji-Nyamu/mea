@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import unittest
 
+from mea.planner.experiment_candidate import build_experiment_candidate
 from mea.planner.plan_agent_errors import PlanAgentSessionError
 from mea.planner.plan_agent_session import PlanAgentSession
+from mea.planner.policy_task_binding import build_policy_task_binding
 from mea.planner.semantic_coverage import build_evaluation_intent
 
 
@@ -227,6 +229,78 @@ class CapturingPlanner:
 
 
 class PlanAgentRuntimeTests(unittest.TestCase):
+    def test_apply_plan_step_after_required_control_uses_candidate_budget(self):
+        query = "Where does this policy first expose a weakness?"
+        binding = build_policy_task_binding(
+            task_name="click_bell",
+            task_family="manipulation",
+            policy={"name": "ACT"},
+            checkpoint={
+                "ready": True,
+                "checkpoint_id": "act-click_bell/demo_clean-50",
+            },
+        )
+        frozen_target = {
+            "schema_version": 3,
+            "binding_mode": "single_task_single_checkpoint_open_world",
+            "policy_task_binding": binding,
+            "max_rounds": 3,
+        }
+        control_round = {
+            "round_id": "round_1",
+            "template_id": "task_execution.official_baseline",
+        }
+        session = PlanAgentSession(
+            query,
+            frozen_target,
+            require_control_anchor=True,
+            control_round=control_round,
+        )
+        plan = session.normalize_plan(
+            {
+                "rounds": [control_round],
+                "round_decisions": [],
+            }
+        )
+        candidate = build_experiment_candidate(
+            source_query=query,
+            base_task="click_bell",
+            semantic_concern="object_position.left_fixed",
+            scene_need={
+                "kind": "adapt",
+                "description": "Move only the bell to a safe left position.",
+                "reuse_first": True,
+            },
+            candidate_id="dynamic.click_bell.left",
+        )
+        control_summary = {
+            "candidate_evidence": {
+                "candidate_id": "task_execution.official_baseline",
+                "outcome": "pass",
+            }
+        }
+
+        updated, decision, _ = session.apply_plan_step(
+            plan,
+            [control_summary],
+            {
+                "action": "propose",
+                "proposal": candidate,
+                "rationale": "The control passed; test the first variation.",
+                "answered_query": False,
+            },
+            materialized_round={
+                "round_id": "round_2",
+                "proposal": candidate,
+            },
+        )
+
+        assessment = decision["query_assessment"]
+        self.assertEqual(assessment["completed_rounds"], 0)
+        self.assertEqual(assessment["budget_remaining"], 2)
+        self.assertEqual(assessment["observed_candidate_ids"], [])
+        self.assertEqual(len(updated["rounds"]), 2)
+
     def test_runtime_limits_keep_only_budget_and_control_choice(self):
         session = PlanAgentSession(
             "Where does this policy first expose a weakness?",
