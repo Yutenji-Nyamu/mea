@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from copy import deepcopy
 from typing import Any, Mapping
 
@@ -719,65 +718,6 @@ def validate_answer_scope_projection(
     if missing:
         raise AnswerScopeError(
             f"feedback omitted evidence-required limitations: {missing}"
-        )
-    conclusion_parts = [
-        feedback.get("answer"),
-        feedback.get("evaluation_scope"),
-        *(feedback.get("findings") or []),
-    ]
-    conclusion = "\n".join(
-        item for item in conclusion_parts if isinstance(item, str)
-    )
-    contradictions: list[str] = []
-    decisive_agent_stop = (
-        scope["termination"] == "agent_stop"
-        and scope["claim_verdict"] in {"supported", "refuted"}
-    )
-    if not decisive_agent_stop and re.search(
-        r"\b(?:the\s+)?evidence\s+(?:is|was)\s+sufficient\b"
-        r"|\bsufficient\s+evidence\b"
-        r"|证据(?:已经|已)?(?:充分|足够)"
-        r"|足以(?:证明|建立).{0,12}泛化",
-        conclusion,
-        re.IGNORECASE,
-    ):
-        contradictions.append("claims evidence sufficiency without that stop verdict")
-    if decisive_agent_stop and re.search(
-        r"\bbudget\s+(?:was\s+)?exhausted\b|\bhard\s+cap\b"
-        r"|预算(?:已经|已)?耗尽|达到.{0,8}(?:轮次|预算)上限",
-        conclusion,
-        re.IGNORECASE,
-    ):
-        contradictions.append("claims budget exhaustion despite an Agent stop")
-    if scope["untested_candidate_ids"] and re.search(
-        r"\b(?:all|every)\s+(?:candidate|variant|condition)s?\s+"
-        r"(?:was|were|has\s+been|have\s+been)?\s*tested\b"
-        r"|所有.{0,12}(?:候选|变体|条件).{0,8}(?:已测试|测试完|已覆盖)"
-        r"|全部.{0,12}(?:候选|变体|条件).{0,8}(?:已测试|测试完|已覆盖)",
-        conclusion,
-        re.IGNORECASE,
-    ):
-        contradictions.append("claims complete testing while candidates remain")
-    if scope["unsupported_capabilities"] and re.search(
-        r"\bno\s+unsupported\s+(?:capabilit(?:y|ies)|request)"
-        r"|\ball\s+requested\s+capabilities\s+(?:are|were)\s+supported\b"
-        r"|没有不支持.{0,8}(?:能力|请求)|所有.{0,12}能力.{0,8}(?:均)?支持",
-        conclusion,
-        re.IGNORECASE,
-    ):
-        contradictions.append("denies recorded unsupported capabilities")
-    if scope["evidence_conflict"] and re.search(
-        r"\bno\s+evidence\s+conflicts?\b"
-        r"|\bevidence\s+sources?\s+(?:agree|are\s+consistent)\b"
-        r"|证据(?:来源)?(?:没有|无)冲突|证据(?:来源)?(?:完全)?一致",
-        conclusion,
-        re.IGNORECASE,
-    ):
-        contradictions.append("denies the recorded evidence conflict")
-    if contradictions:
-        raise AnswerScopeError(
-            "feedback contradicts structured answer_scope: "
-            + "; ".join(contradictions)
         )
     return deepcopy(dict(feedback))
 

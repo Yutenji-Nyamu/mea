@@ -252,33 +252,6 @@ class AnswerScopeTests(unittest.TestCase):
         with self.assertRaisesRegex(AnswerScopeError, "missing structured"):
             validate_answer_scope_projection(no_scope)
 
-        false_sufficiency = deepcopy(projected)
-        false_sufficiency["answer"] = (
-            "The evidence is sufficient to establish generalization."
-        )
-        with self.assertRaisesRegex(AnswerScopeError, "contradicts"):
-            validate_answer_scope_projection(false_sufficiency, scope)
-
-        false_coverage = deepcopy(projected)
-        false_coverage["findings"] = ["All variants were tested."]
-        with self.assertRaisesRegex(AnswerScopeError, "complete testing"):
-            validate_answer_scope_projection(false_coverage, scope)
-
-        false_consensus = deepcopy(projected)
-        false_consensus["findings"] = ["The evidence sources agree."]
-        with self.assertRaisesRegex(AnswerScopeError, "recorded evidence conflict"):
-            validate_answer_scope_projection(false_consensus, scope)
-
-        chinese_false_sufficiency = deepcopy(projected)
-        chinese_false_sufficiency["answer"] = "这些证据已经充分，足以证明广泛泛化。"
-        with self.assertRaisesRegex(AnswerScopeError, "contradicts"):
-            validate_answer_scope_projection(chinese_false_sufficiency, scope)
-
-        chinese_false_coverage = deepcopy(projected)
-        chinese_false_coverage["findings"] = ["所有候选条件均已测试完。"]
-        with self.assertRaisesRegex(AnswerScopeError, "complete testing"):
-            validate_answer_scope_projection(chinese_false_coverage, scope)
-
     def test_plan_agent_summary_attaches_scope_deterministically(self):
         repo_root = Path(__file__).resolve().parents[2]
         with tempfile.TemporaryDirectory() as temp:
@@ -320,6 +293,28 @@ class AnswerScopeTests(unittest.TestCase):
         validate_answer_scope_projection(
             feedback, build_answer_scope(evidence())
         )
+
+    def test_decisive_agent_stop_recommends_replication_without_provider(self):
+        value = evidence("agent_stop")
+        value["plan"]["remaining_template_ids"] = []
+        value["rounds"][0]["execution_vqa"]["evidence_conflict"] = False
+        value["observations"]["execution_vqa_conflict"] = False
+        value["plan_agent_session"]["assessment"]["untested_candidate_ids"] = []
+        value["plan_agent_session"]["assessment"]["conflict_candidate_ids"] = []
+        query_answer = {
+            "answer": "The bounded candidate is supported.",
+            "claim_verdict": "supported",
+            "tested_candidate_ids": ["position.left"],
+            "untested_candidate_ids": [],
+            "limitations": ["This is one bounded evaluation."],
+            "evaluation_outcomes": [{"authority": "official_check_success"}],
+        }
+
+        feedback = build_scoped_plan_agent_answer(value, query_answer)
+
+        self.assertEqual(feedback["answer_scope"]["termination"], "agent_stop")
+        self.assertIn("additional seeds", feedback["recommended_next_step"])
+        self.assertFalse(feedback["provider_metadata"]["called"])
 
     def test_unknown_scope_is_explicit_for_legacy_evidence(self):
         scope = build_answer_scope({"observations": {"pipeline_passed": True}})

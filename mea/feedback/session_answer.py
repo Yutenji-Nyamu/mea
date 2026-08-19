@@ -63,7 +63,7 @@ def build_scoped_plan_agent_answer(
         next_step += "."
     elif scope["evidence_conflict"]:
         next_step = "Resolve the recorded evidence conflict before extending the claim."
-    elif scope["termination"] == "evidence_sufficient":
+    elif scope["termination"] == "agent_stop":
         next_step = (
             "Repeat the bounded evaluation on additional seeds before making a "
             "broader generalization claim."
