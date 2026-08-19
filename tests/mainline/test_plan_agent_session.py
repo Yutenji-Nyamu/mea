@@ -323,6 +323,81 @@ class PlanAgentRuntimeTests(unittest.TestCase):
         self.assertEqual(assessment["observed_candidate_ids"], [])
         self.assertEqual(len(updated["rounds"]), 2)
 
+    def test_answered_stop_round_trips_through_execution_transport(self):
+        query = "Where does this policy first expose a weakness?"
+        binding = build_policy_task_binding(
+            task_name="click_bell",
+            task_family="manipulation",
+            policy={"name": "ACT"},
+            checkpoint={
+                "ready": True,
+                "checkpoint_id": "act-click_bell/demo_clean-50",
+            },
+        )
+        session = PlanAgentSession(
+            query,
+            {
+                "schema_version": 3,
+                "binding_mode": "single_task_single_checkpoint_open_world",
+                "policy_task_binding": binding,
+                "max_rounds": 3,
+            },
+            require_control_anchor=False,
+        )
+        candidate = build_experiment_candidate(
+            source_query=query,
+            base_task="click_bell",
+            semantic_concern="object_position.left_fixed",
+            scene_need={
+                "kind": "adapt",
+                "description": "Move only the bell to a safe left position.",
+                "reuse_first": True,
+            },
+            candidate_id="dynamic.click_bell.left",
+        )
+        plan = session.normalize_plan(
+            {
+                "rounds": [
+                    {
+                        "round_id": "round_1",
+                        "proposal": candidate,
+                    }
+                ],
+                "round_decisions": [],
+            }
+        )
+        bound = session.bind_evidence_conditioned_semantic_step(
+            stop_bundle(),
+            observation(round_budget=3),
+            capabilities=capabilities(),
+            executed_candidate_ids=[candidate["candidate_id"]],
+        )
+
+        updated, decision, directive = session.apply_plan_step(
+            plan,
+            [
+                {
+                    "candidate_evidence": {
+                        "candidate_id": candidate["candidate_id"],
+                        "outcome": "fail",
+                    }
+                }
+            ],
+            bound["plan_step"],
+            runtime_limits=bound["runtime_limits"],
+        )
+
+        self.assertEqual(decision["action"], "stop")
+        self.assertTrue(decision["answered_query"])
+        self.assertEqual(
+            decision["query_assessment"]["agent_answer"],
+            "The tested bounded variation exposes a policy failure.",
+        )
+        self.assertEqual(
+            updated["planning_state"], "stopped_after_round_1"
+        )
+        self.assertTrue(directive["query_assessment"]["should_stop"])
+
     def test_runtime_limits_keep_only_budget_and_control_choice(self):
         session = PlanAgentSession(
             "Where does this policy first expose a weakness?",

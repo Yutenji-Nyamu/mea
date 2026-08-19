@@ -254,6 +254,7 @@ class PlanAgentDecisionMixin:
                     "rationale": proposal["rationale"],
                     "hypothesis": proposal["hypothesis"],
                     "answered_query": answered_query,
+                    "answer": stop_assessment.get("agent_answer"),
                     "claim_verdict": stop_assessment.get("claim_verdict"),
                     "stop_reason": stop_assessment.get("stop_reason"),
                     "next_round": None,
