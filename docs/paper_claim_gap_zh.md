@@ -6,7 +6,7 @@
 
 ## 当前方法真值
 
-当前 RoboTwin 旗舰是
+当前证据有两条互补的 RoboTwin 主线。较宽的多轮探索旗舰仍是
 `eval_20260805_batch37_clean_flagship_press_stapler_s1000_v7`：
 
 1. 输入是未指定 aspect、template、对象、轴、阈值、checker 或 metric 的 broad Query；
@@ -27,6 +27,31 @@
 
 这个旗舰关闭了“只能靠 hard cap 停止”和“typed `N=0` 被误算成 policy failure”的方法 gap；
 它没有证明 broad open-world Query 已取得 `evidence_sufficient=true`。
+
+当前精简代码上最贴合论文主循环的单次闭环是 Batch46 v5：它把 broad Query、真实对照、
+evidence-conditioned refinement、后续真实 rollout、充分 Answer 与 Agent 主动停止合在同一运行。
+该运行只有一个 task、一个 seed 和三个 episode；它补齐方法闭环，不替换 Batch37 的较宽探索证据。
+
+## Batch46 当前精简主干的 anchor-free 充分闭环
+
+`eval_20260820_batch46_move_playingcard_anchorfree_adaptive_s1000_v5` 基于
+`e9e3880b3fbf4cecd5877a4732d2aca0701d6295`。Query 没有给 actor、axis、direction、magnitude、
+checker、diagnostic metric、历史候选或停止脚本；任务卡只含 official source facts，history
+retrieval disabled，execution VQA 未请求。
+
+R1 unchanged official control 成功后，Plan 首次提出 `playingcards y +0.05 m`。TaskGen fresh
+生成并精确 materialize 该 same-seed delta，preservation、2/2 fixtures、vision 与 expert 均通过；
+真实 rollout 的 unchanged official checker 失败，live Rule 得到 terminal
+`abs(playingcards.x)=0.062070973217487335 m`。R2 evidence 随后直接改变下一 Proposal：Plan 引用
+该失败与数值，将同一因素减半为 `y +0.025 m`；第二个 fresh Task 再次精确 materialize 并通过
+全部真实边界，真实 rollout 仍 official failure，Rule 值为 `0.05292544141411781 m`。
+
+R3 后 Plan 在五轮上限尚未用尽时原始输出 `stop`、`supported`、
+`evidence_sufficient=true`。最终结构化范围为 `N=3`、seeds `[1000]`、两个已测试 candidate、
+无 evidence conflict、`termination=agent_stop`；Plan query answer、最终 answer 与 manifest 文本一致。
+这关闭的是单 task、单 checkpoint、单 seed 下的 existential 方法正例，不证明跨 seed/任务泛化、
+policy 总体成功率、VQA accuracy 或样本效率。完整记录见
+[`experiments/paper/results/batch46_move_playingcard_anchorfree_adaptive/`](../experiments/paper/results/batch46_move_playingcard_anchorfree_adaptive/README.md)。
 
 ## Batch38 开发回归（未晋升旗舰）
 
@@ -201,13 +226,13 @@ numeric oracle 均通过，得到 `0.17870217561721802 m`。R3 异场景成功 e
 
 | 论文 claim | 当前项目 | 判断 |
 | --- | --- | --- |
-| Fig. 2/5：开放 Query 驱动 Plan Agent 自主提出 sub-aspect | Batch37 broad Query 未给实验菜单；Batch43 在无任务卡第二个 task 上提出未定量 lateral relocation；Batch44 frozen-evidence replay 又让 Plan 依据 `+0.03 m` failure 自主选择 typed `+0.015 m` midpoint | **live 小范围完成，数值 refinement 有 provider-only 正例**；仍是单 seed，执行能力域有限 |
-| evidence 决定下一轮，并在充分时停止 | Batch37 的 evidence 改变下一 Proposal并主动 inconclusive stop；Batch40 live 产出充分 evidence，当前 verdict-hidden prompt 又在冻结 evidence 回放中独立提出 stop；Batch43 在第二个 task 上完成三 episode refinement 并在 allowance 剩余时主动 inconclusive stop | **两种停止语义均有小范围证据**；多步 refinement 与充分正结论尚未在同一 live 运行合一 |
-| Fig. 3：Proposal → retrieve/generate scene + `check_success()` → rollout | 通用 TaskGen 已在 reviewed-schema-free `press_stapler` 中 materialize scene/checker；Batch44 又把 Plan 自主给出的 typed `y +0.015 m` bound scene need 直接交给 TaskGen，simulator observed delta 精确一致且 preservation/checker/vision/expert 全通过 | **Plan→TaskGen 数值 handoff 小范围完成**；该精确 scene 尚无新 policy outcome，量词/关系语义仍是边界 |
+| Fig. 2/5：开放 Query 驱动 Plan Agent 自主提出 sub-aspect | Batch46 的 anchor-free Query 先得到 control evidence，再由 Plan 提出 `y +0.05 m`，并按失败 evidence 自主细化为 `y +0.025 m` | **同一 live 运行小范围完成**；仍是单 task、单 seed，执行能力域有限 |
+| evidence 决定下一轮，并在充分时停止 | Batch46 R2 的 official failure、simulator delta 与 Rule 数值直接进入下一 Plan；R3 完成后 Agent 在 allowance 尚余时主动输出 supported stop | **多步 refinement 与充分正结论已在同一 live 运行小范围合一**；未证明跨 seed 稳定性 |
+| Fig. 3：Proposal → retrieve/generate scene + `check_success()` → rollout | Batch46 两个 typed scene 均由通用 TaskGen fresh 生成，observed delta 精确等于 `0.05/0.025 m`，preservation、fixtures、vision、expert 全过，随后各有一个真实 official outcome | **Plan→TaskGen→policy 数值闭环小范围完成**；量词/关系语义和更宽 task coverage 仍是边界 |
 | 首帧视觉诊断与局部重新生成 | render/VLM 与一次有界局部 repair 已接入；数值 preservation 由 simulator state、AST 与 fixture 审计 | **组件完成**；视觉不能替代数值语义验证 |
 | Fig. 4：ToolGen retrieve/generate/validate/register/reuse | 新 Python Rule Tool 有独立验证、live finite 值与 Planner 消费；Batch42 完成跨 evaluation exact reuse；Batch44 又把 R3 Tool semantic-library 复用到真实 R2 失败 episode 并重过 telemetry/oracle；Batch43 frozen VQA 为 `5×null` | **Rule Tool 小范围闭合、VQA 有稳定弃答正例**；VQA accuracy 与原模型稳定性仍未证明 |
-| rollout → Rule/VQA → Aggregate → Plan Agent → Answer | RoboTwin 的 ACT、SmolVLA、Hy-VLA 已复用共享方法组件；Batch37 完成较宽多轮反馈，Batch43 又完成无任务卡第二任务的三 episode cold feedback 与受限 Answer | **RoboTwin 小范围完成**；LIBERO 仍仅 basic adaptation |
-| 回答原 Query 并约束确定性 | `AnswerScope` 报告 N、seed、候选域、typed `N=0`、冲突、停止原因与语义边界 | **完成度较高**；当前旗舰正确回答为 inconclusive |
+| rollout → Rule/VQA → Aggregate → Plan Agent → Answer | Batch46 在同次生产运行中完成 control、两个 generated rollout、两次 finite Rule、evidence-conditioned Proposal 与 supported Answer；Batch37 保留较宽 inconclusive 探索证据 | **RoboTwin 小范围完成**；LIBERO 仍仅 basic adaptation |
+| 回答原 Query 并约束确定性 | Batch46 原样保留 Plan Answer，并只附加 N、seed、tested candidates、conflict、termination 与 verdict 等结构化范围 | **完成度较高**；当前确定正例仍仅是单 seed existential claim |
 
 ## 实验 claim
 
@@ -223,13 +248,11 @@ numeric oracle 均通过，得到 `0.17870217561721802 m`。R3 异场景成功 e
 
 ## 当前主干 gap
 
-1. **把多步 evidence refinement 与充分 Answer 合在同一 broad Query。** Batch37 和 Batch43
-   已在两个 task 上证明 evidence 改变后续 Proposal并主动返回 inconclusive；Batch40 单独取得
-   有界 existential Query 的 `evidence_sufficient=true` 正例。下一步不是继续增加停止协议，而是
-   让同一次 refinement 的后续可执行 evidence 支持 Agent 的确定 Answer。
-2. **精确 scene 的新 policy outcome。** Batch44 已用 frozen evidence→Plan→TaskGen 0-policy
-   preflight 关闭 typed `y +0.015 m` request 的 simulator 数值 materialization；下一项高信息验证
-   是在该精确 scene 上运行一个新 policy round，再扩第三个无任务卡 task；不增加任务专属方言。
+1. **从单 seed existential 正例走向科学验证。** Batch46 已把多步 refinement、后续真实 rollout、
+   充分 Answer 与主动停止合在同一 broad Query；下一步应先做少量预注册 seed 复验，报告 witness
+   保持率和失败边界，而不是继续增加 Planner 协议或 task-specific 方言。
+2. **第三个无正锚点 task。** 复用当前 Query→Plan→Task/Tool→evidence 主链，选择 official control
+   可用且 source facts 足够的第三个 task；先验证 transfer，再考虑扩大任务数。
 3. **VQA 准确性与同模型稳定性。** current prompt+Sol 对一个冻结模糊输入已得到 `5×null`，但
    没有 independent gold，也不是原 Luna 输出的同模型复现。Aggregate 仍须显式保留跨 evaluation
    的相反观测，不能把 question artifact 复用或稳定弃答等同于 VQA accuracy。

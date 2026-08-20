@@ -105,6 +105,7 @@ evidence-manifest entrypoint 及其 runner shim 已删除；需要审计实现�
 | [`results/batch42_cold_transfer_and_tool_reuse/`](results/batch42_cold_transfer_and_tool_reuse/README.md) | 无任务卡 cold TaskContext preflight、真实冻结 telemetry 的 Rule Tool 跨 evaluation 复用与 VQA 弃答 prompt |
 | [`results/batch43_move_playingcard_cold_mainline/`](results/batch43_move_playingcard_cold_mainline/README.md) | 无任务卡 `move_playingcard_away` 三 episode cold live、scene-fact 回流与冻结 VQA `5×null`；raw R3 非同场景且补丁后尚无新 TaskGen/policy |
 | [`results/batch44_scene_delta_materialization/`](results/batch44_scene_delta_materialization/README.md) | 冻结 R2 evidence 驱动 Plan 自主选择 `y +0.015 m` midpoint 并通过 0-policy TaskGen 数值验收；另含手工 `+0.03 m` 诊断与 R2 frozen Tool reuse |
+| [`results/batch46_move_playingcard_anchorfree_adaptive/`](results/batch46_move_playingcard_anchorfree_adaptive/README.md) | 当前精简主干上的 anchor-free broad Query：control success → `y +0.05 m` failure → evidence-conditioned `y +0.025 m` follow-up failure → supported Answer 与 Agent 主动停止；3 episodes、单 seed |
 
 旧运行的简短结论与边界另见
 [`docs/evidence/history.jsonl`](../../docs/evidence/history.jsonl)。若两处描述冲突，

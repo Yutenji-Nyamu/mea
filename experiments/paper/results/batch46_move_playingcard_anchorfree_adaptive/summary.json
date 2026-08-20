@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "evaluation_id": "eval_20260820_batch46_move_playingcard_anchorfree_adaptive_s1000_v5",
+  "run_revision": "e9e3880b3fbf4cecd5877a4732d2aca0701d6295",
+  "status": "completed",
+  "task": "move_playingcard_away",
+  "policy": "SmolVLA",
+  "checkpoint": "/root/autodl-tmp/checkpoints/robotwin/smolvla_robotwin",
+  "checkpoint_revision": "967623a0f38c7e1236c66b3893c830398d793ff7",
+  "query_kind": "anchor_free_broad_existential_with_required_evidence_conditioned_follow_up",
+  "history": "disabled",
+  "execution_vqa": "not_requested",
+  "round_cap": 5,
+  "episodes_per_round": 1,
+  "completed_policy_episodes": 3,
+  "seeds": [
+    1000
+  ],
+  "rounds": [
+    {
+      "round_id": "round_1",
+      "candidate_id": "task_execution.official_baseline",
+      "scene_delta": null,
+      "official_success": true,
+      "rule_requested": false,
+      "next_action": "continue"
+    },
+    {
+      "round_id": "round_2",
+      "candidate_id": "dynamic.move_playingcard_away.round_2",
+      "scene_delta": {
+        "actor": "playingcards",
+        "property": "position",
+        "axis": "y",
+        "signed_delta_m": 0.05,
+        "reference": "same_seed_official_reset",
+        "observed_signed_delta_m": 0.05
+      },
+      "official_success": false,
+      "rule": {
+        "status": "passed",
+        "metric": "query_terminal_abs_playingcards_position_x",
+        "value": 0.062070973217487335,
+        "unit": "m"
+      },
+      "taskgen": {
+        "route": "generic_provider_scene_checker_codegen",
+        "provider_calls": 1,
+        "repairs": 0,
+        "checker_fixtures": "2/2",
+        "vision_passed": true,
+        "expert_passed": true,
+        "preservation": "verified"
+      },
+      "next_action": "continue_with_delta_halved_to_0.025_m"
+    },
+    {
+      "round_id": "round_3",
+      "candidate_id": "dynamic.move_playingcard_away.round_3",
+      "scene_delta": {
+        "actor": "playingcards",
+        "property": "position",
+        "axis": "y",
+        "signed_delta_m": 0.025,
+        "reference": "same_seed_official_reset",
+        "observed_signed_delta_m": 0.025
+      },
+      "official_success": false,
+      "rule": {
+        "status": "passed",
+        "metric": "terminal_playingcards_absolute_x",
+        "value": 0.05292544141411781,
+        "unit": "m"
+      },
+      "taskgen": {
+        "route": "generic_provider_scene_checker_codegen",
+        "provider_calls": 1,
+        "repairs": 0,
+        "checker_fixtures": "2/2",
+        "vision_passed": true,
+        "expert_passed": true,
+        "preservation": "verified"
+      },
+      "next_action": "stop"
+    }
+  ],
+  "answer_scope": {
+    "sample_count": 3,
+    "seeds": [
+      1000
+    ],
+    "tested_candidate_ids": [
+      "dynamic.move_playingcard_away.round_2",
+      "dynamic.move_playingcard_away.round_3"
+    ],
+    "evidence_conflict": false,
+    "termination": "agent_stop",
+    "claim_verdict": "supported",
+    "evidence_sufficient": true
+  },
+  "claim_boundary": "Existential only for this checkpoint, task, seed, and three completed episodes; no cross-seed, cross-task, VQA, policy-ranking, or statistical generalization claim.",
+  "canonical_evaluation_path": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/evaluation_runs/eval_20260820_batch46_move_playingcard_anchorfree_adaptive_s1000_v5",
+  "canonical_log_path": "/root/autodl-tmp/mea-logs/batch46_move_playingcard_anchorfree_adaptive_s1000_v5"
+}
