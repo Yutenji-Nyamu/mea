@@ -152,3 +152,60 @@ PYTHONPATH=. /root/autodl-tmp/envs/mea-libero/bin/python -m pytest -q tests/main
 
 Results: `1 passed in 0.88s`; then
 `230 passed, 28 subtests passed in 15.01s`. Both ran on AutoDL.
+
+## 2026-08-20 — live attempts v3 and v4
+
+The scientific inputs remained frozen: the same anchor-free Query, checkpoint,
+paired seed group `1000..1004`, `M=5`, and five-round allowance were used. Each
+attempt is retained as an immutable failed artifact rather than resumed across
+a provider failure.
+
+- v3 (`eval_20260820_batch47_move_playingcard_anchorfree_m5_s1000_v3`)
+  completed the official-control aggregate from exactly five policy episodes.
+  Before any round-2 candidate policy episode, TaskGen visual validation
+  received an upstream HTTP 429 response. Result: five failed-attempt policy
+  episodes.
+- v4 (`eval_20260820_batch47_move_playingcard_anchorfree_m5_s1000_v4`)
+  completed three evidence rounds, each over the exact five-seed group:
+  - round 1: official control, `5/5` policy successes;
+  - round 2: Plan proposed an `x +0.01 m` perturbation, which produced `5/5`
+    policy successes plus per-seed Rule evidence;
+  - round 3: Plan proposed an orthogonal `y +0.05 m` perturbation, which
+    produced `4/5` policy successes plus per-seed Rule evidence;
+  - after consuming the round-3 mixed aggregate, Plan proposed a
+    `y +0.025 m` boundary refinement for round 4. The provider returned HTTP
+    429 before TaskGen produced the candidate, so round 4 consumed zero policy
+    episodes.
+
+v4 therefore consumed 15 failed-attempt policy episodes and is not a completed
+scientific evaluation. Across all failed attempts, policy-episode consumption
+is reported separately as `v1=0 + v2=5 + v3=5 + v4=15 = 25`.
+
+## 2026-08-20 — provider retry root repair and AutoDL regression
+
+The 429 failures exposed a production wiring bug rather than a missing retry
+implementation. `OpenAICompatibleProvider` already defaults to
+`max_retries=2` and `retry_delay=1`, giving at most three attempts with bounded
+one- and two-second backoff. Standard `--auto-route` construction in
+`mea/agent_query_routing.py` immediately overwrote the shared provider with
+`max_retries=0`; because Plan, TaskGen, ToolGen, and visual validation reuse
+that provider, the ordinary runtime silently disabled its existing retry
+budget.
+
+The minimal repair deletes only that override and retains the provider's
+existing defaults. No outer evaluation retry, state-resume path, larger retry
+budget, or alternate provider was added. A focused regression makes the first
+two requests return HTTP 429 and verifies that the third succeeds after the
+expected `1.0`- and `2.0`-second backoff calls.
+
+AutoDL commands:
+
+```bash
+PYTHONPATH=. /root/autodl-tmp/envs/mea-libero/bin/python -m pytest -q \
+  tests/mainline/test_openai_compatible_provider.py
+PYTHONPATH=. /root/autodl-tmp/envs/mea-libero/bin/python -m pytest -q tests/mainline
+```
+
+Results: `3 passed`; then `231 passed, 28 subtests passed`. Both commands ran
+on AutoDL. No test, import, compilation, simulator, provider, or policy command
+ran on Windows PC.

@@ -128,7 +128,6 @@ def route_agent_query(context: AgentRunContext) -> dict[str, Any] | None:
         vision_model=context.models["vision"],
         timeout=180.0,
     )
-    provider.max_retries = 0
     initially_bound_task = args.bound_task_name
     if initially_bound_task is not None and initially_bound_task not in ready_tasks:
         raise SystemExit(
