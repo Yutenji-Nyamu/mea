@@ -57,7 +57,9 @@ def _discover_episodes(
 ) -> list[dict[str, Any]]:
     telemetry_root = child_run_dir / "evaluation/telemetry"
     episodes: list[dict[str, Any]] = []
-    for metadata_path in sorted(telemetry_root.glob("*/episode_*/episode.json")):
+    for metadata_path in sorted(
+        telemetry_root.rglob("episode_*/episode.json")
+    ):
         episode_dir = metadata_path.parent
         try:
             trajectory = TrajectoryView(episode_dir)

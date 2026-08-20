@@ -323,6 +323,49 @@ class ToolOrchestrationTests(unittest.TestCase):
         ):
             self.assertTrue((output_dir / name).is_file(), name)
 
+    def test_auto_router_reads_isolated_multi_trial_episode_directories(self):
+        child_run = self.root / "run_multi_trial"
+        first = (
+            child_run
+            / "evaluation/telemetry/rollouts/episode_000_seed_1000"
+            / "telemetry/act/episode_000_seed_1000"
+        )
+        second = (
+            child_run
+            / "evaluation/telemetry/rollouts/episode_001_seed_1001"
+            / "telemetry/act/episode_000_seed_1001"
+        )
+        write_episode(first, policy_name="SmolVLA", physical_contact=False)
+        write_episode(second, policy_name="SmolVLA", physical_contact=True)
+        first_metadata = json.loads(
+            (first / "episode.json").read_text(encoding="utf-8")
+        )
+        first_metadata["seed"] = 1000
+        (first / "episode.json").write_text(
+            json.dumps(first_metadata), encoding="utf-8"
+        )
+        second_metadata = json.loads(
+            (second / "episode.json").read_text(encoding="utf-8")
+        )
+        second_metadata["seed"] = 1001
+        (second / "episode.json").write_text(
+            json.dumps(second_metadata), encoding="utf-8"
+        )
+
+        result = execute_tool_request(
+            self.repo_root,
+            child_run,
+            self.root / "multi_trial_tool",
+            contact_tool_request(),
+            provider=NeverCalledProvider(),
+            model="must-not-be-used",
+        )
+
+        self.assertEqual(
+            [(item["seed"], item["result"]["value"]) for item in result["episodes"]],
+            [(1000, False), (1001, True)],
+        )
+
     def test_auto_router_generates_registered_composite_target(self):
         provider = FakeProvider(
             f"```python\n{generated_pickup_to_contact_source()}```"

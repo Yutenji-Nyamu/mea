@@ -93,7 +93,7 @@ def _execute_typed_metric_request(
     telemetry_root = child_run_dir / "evaluation/telemetry"
     episode_dirs = [
         path.parent
-        for path in sorted(telemetry_root.glob("*/episode_*/episode.json"))
+        for path in sorted(telemetry_root.rglob("episode_*/episode.json"))
     ]
     if not episode_dirs:
         raise ToolOrchestrationError(

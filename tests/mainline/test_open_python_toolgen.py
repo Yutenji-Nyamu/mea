@@ -181,7 +181,8 @@ class OpenPythonToolGenTests(unittest.TestCase):
             child = root / "generated_tasks/round_1"
             episode = (
                 child
-                / "evaluation/telemetry/act/episode_000_seed_100000"
+                / "evaluation/telemetry/rollouts/episode_000_seed_100000"
+                / "telemetry/act/episode_000_seed_100000"
             )
             write_episode(
                 episode,

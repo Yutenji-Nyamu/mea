@@ -101,3 +101,54 @@ Result: `229 passed, 28 subtests passed in 15.07s`.
 
 Both commands ran on AutoDL. No test, import, compilation, simulator, provider,
 or policy command ran on Windows PC.
+
+## 2026-08-20 — first live attempts and observed integration failure
+
+The frozen Query, checkpoint, seeds `1000..1004`, `M=5`, five-round allowance,
+models, and stopping conditions remained unchanged across attempts.
+
+- v1 (`eval_20260820_batch47_move_playingcard_anchorfree_m5_s1000_v1`)
+  failed before any policy episode. The run package had not changed into the
+  repository working directory, so RoboTwin could not resolve the relative
+  `assets/objects/objaverse/list.json` path. Result: zero completed rounds and
+  zero policy episodes. v1 remains an immutable failed artifact.
+- v2 (`eval_20260820_batch47_move_playingcard_anchorfree_m5_s1000_v2`)
+  corrected only the working directory. It executed exactly five official
+  control episodes on seeds `1000..1004`; every raw result reported
+  `official_check_success=true`. The run then failed before round evidence was
+  assembled because Rule Tool discovery still assumed the historical
+  two-level telemetry layout. Result: zero completed rounds and five
+  failed-attempt policy episodes. These episodes are diagnostic artifacts, not
+  part of a final scientific sample.
+
+Root repair:
+
+- `mea/toolgen/tool_execution.py` now discovers episode metadata recursively
+  below the current child run's `evaluation/telemetry` root.
+- `mea/toolgen/tool_routing.py` uses the same bounded recursive discovery for
+  typed MetricSpec execution.
+- The new regression builds two isolated per-trial directories and verifies one
+  Rule request sees both exact seeds and outcomes.
+
+AutoDL regression after the repair:
+
+```bash
+PYTHONPATH=. /root/autodl-tmp/envs/mea-libero/bin/python -m pytest -q \
+  tests/mainline/test_tool_orchestration.py::ToolOrchestrationTests::test_auto_router_reads_isolated_multi_trial_episode_directories
+PYTHONPATH=. /root/autodl-tmp/envs/mea-libero/bin/python -m pytest -q tests/mainline
+```
+
+Results: `1 passed in 0.26s`; then
+`230 passed, 28 subtests passed in 15.00s`.
+
+The independent typed-MetricSpec route was then moved to the same nested
+per-trial fixture and checked directly:
+
+```bash
+PYTHONPATH=. /root/autodl-tmp/envs/mea-libero/bin/python -m pytest -q \
+  tests/mainline/test_open_python_toolgen.py::OpenPythonToolGenTests::test_orchestration_labels_runtime_validation_without_numeric_oracle
+PYTHONPATH=. /root/autodl-tmp/envs/mea-libero/bin/python -m pytest -q tests/mainline
+```
+
+Results: `1 passed in 0.88s`; then
+`230 passed, 28 subtests passed in 15.01s`. Both ran on AutoDL.
